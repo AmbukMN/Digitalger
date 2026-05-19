@@ -1,16 +1,45 @@
+# Stage 1: Install dependencies
+FROM node:22-alpine AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY shared/package.json ./shared/
+COPY admin/package.json ./admin/
+
+# Install workspace dependencies (hoisted to root node_modules)
+RUN npm ci --workspace=shared --workspace=admin --ignore-scripts
+
+# Stage 2: Build
 FROM node:22-alpine AS builder
 WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY shared ./shared
 COPY admin ./admin
-WORKDIR /app/admin
-RUN npm ci && npm run build
 
+ENV NEXT_TELEMETRY_DISABLED=1
+
+WORKDIR /app/admin
+RUN npm run build
+
+# Stage 3: Production runner (non-root)
 FROM node:22-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
-COPY --from=builder /app/admin/.next/standalone ./
-COPY --from=builder /app/admin/.next/static ./.next/static
-COPY --from=builder /app/admin/public ./public
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /app/admin/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/static ./.next/static
+
+USER nextjs
+
 EXPOSE 3001
 ENV PORT=3001
+ENV HOSTNAME=0.0.0.0
+
 CMD ["node", "server.js"]

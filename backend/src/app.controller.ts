@@ -15,7 +15,7 @@ export class AppController {
   }
 
   @Get('health')
-  health() {
+  async health() {
     return this.appService.health();
   }
 

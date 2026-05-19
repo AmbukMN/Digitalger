@@ -1,0 +1,38 @@
+# DigitalGer — LOCAL DEVELOPMENT
+# Usage: docker compose -f docker/docker-compose.dev.yml up -d postgres redis
+# Then run frontend/admin/backend with npm locally for hot reload.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-digitalger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digitalger_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-digitalger}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-digitalger} -d ${POSTGRES_DB:-digitalger}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
