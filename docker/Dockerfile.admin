@@ -1,0 +1,16 @@
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY shared ./shared
+COPY admin ./admin
+WORKDIR /app/admin
+RUN npm ci && npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/admin/.next/standalone ./
+COPY --from=builder /app/admin/.next/static ./.next/static
+COPY --from=builder /app/admin/public ./public
+EXPOSE 3001
+ENV PORT=3001
+CMD ["node", "server.js"]
