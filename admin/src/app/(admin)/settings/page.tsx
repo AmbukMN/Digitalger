@@ -1,0 +1,453 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import Image from 'next/image';
+import { Upload, X, Globe, Mail, Building2, Palette, Check } from 'lucide-react';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  ErrorState,
+  Input,
+  Label,
+  Loading,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@digitalger/shared/ui';
+import { adminApi } from '@/lib/api';
+import type { SiteSettings, ThemeSettings } from '@/types/admin';
+
+// ——— Theme tab ——————————————————————————————————————————————
+const THEME_COLORS = [
+  { key: 'primaryColor', label: 'Primary өнгө', description: 'Товч, link, тэмдэглэл' },
+  { key: 'secondaryColor', label: 'Secondary өнгө', description: 'Дэвсгэр, badge' },
+  { key: 'accentColor', label: 'Accent өнгө', description: 'Онцлох элемент' },
+] as const;
+
+function hexToOklch(hex: string): string {
+  return hex;
+}
+
+function ThemeTab({
+  theme,
+  onSave,
+  isSaving,
+}: {
+  theme: ThemeSettings | null;
+  onSave: (colors: Partial<ThemeSettings>) => void;
+  isSaving: boolean;
+}) {
+  const [colors, setColors] = useState({
+    primaryColor: theme?.primaryColor ?? '#7C3AED',
+    secondaryColor: theme?.secondaryColor ?? '#F5F3FF',
+    accentColor: theme?.accentColor ?? '#8B5CF6',
+  });
+
+  useEffect(() => {
+    if (theme) {
+      setColors({
+        primaryColor: theme.primaryColor ?? '#7C3AED',
+        secondaryColor: theme.secondaryColor ?? '#F5F3FF',
+        accentColor: theme.accentColor ?? '#8B5CF6',
+      });
+    }
+  }, [theme]);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Өнгөний тохиргоо
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Брэндийн өнгийг өөрчлөх. Сайтын дизайн сэдэвт нөлөөлнө.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {THEME_COLORS.map(({ key, label, description }) => (
+            <div key={key} className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">{label}</Label>
+                <p className="text-xs text-muted-foreground">{description}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-8 w-8 rounded-full border border-border shadow-inner"
+                  style={{ background: colors[key] }}
+                />
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={colors[key]}
+                    onChange={(e) =>
+                      setColors((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                    className="h-10 w-24 cursor-pointer rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+                    title={label}
+                  />
+                </div>
+                <span className="font-mono text-xs text-muted-foreground uppercase tracking-wide">
+                  {colors[key]}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          <div className="pt-2 border-t">
+            <h4 className="text-sm font-medium mb-3">Урьдчилан харах</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-md px-4 py-2 text-sm font-medium text-white"
+                style={{ background: colors.primaryColor }}
+              >
+                Primary товч
+              </button>
+              <button
+                className="rounded-md px-4 py-2 text-sm font-medium border"
+                style={{
+                  background: colors.secondaryColor,
+                  color: colors.primaryColor,
+                  borderColor: colors.primaryColor + '40',
+                }}
+              >
+                Secondary товч
+              </button>
+              <span
+                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
+                style={{
+                  background: colors.accentColor + '20',
+                  color: colors.accentColor,
+                }}
+              >
+                Accent badge
+              </span>
+            </div>
+          </div>
+
+          <Button
+            onClick={() => onSave(colors)}
+            disabled={isSaving}
+            className="w-full"
+          >
+            {isSaving ? (
+              'Хадгалж байна...'
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Өнгө хадгалах
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ——— General tab ————————————————————————————————————————————
+function GeneralTab({
+  site,
+  onSave,
+  isSaving,
+}: {
+  site: SiteSettings | null;
+  onSave: (data: Partial<SiteSettings>) => void;
+  isSaving: boolean;
+}) {
+  const [form, setForm] = useState({
+    siteName: site?.siteName ?? '',
+    siteUrl: site?.siteUrl ?? '',
+    supportEmail: site?.supportEmail ?? '',
+    logoUrl: site?.logoUrl ?? '',
+  });
+  const [logoPreview, setLogoPreview] = useState<string | null>(site?.logoUrl ?? null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (site) {
+      setForm({
+        siteName: site.siteName ?? '',
+        siteUrl: site.siteUrl ?? '',
+        supportEmail: site.supportEmail ?? '',
+        logoUrl: site.logoUrl ?? '',
+      });
+      setLogoPreview(site.logoUrl ?? null);
+    }
+  }, [site]);
+
+  const handleLogoUpload = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Зөвхөн зураг оруулна уу');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Зургийн хэмжээ 5MB-аас бага байх ёстой');
+      return;
+    }
+    setUploading(true);
+    try {
+      const result = await adminApi.upload(file);
+      setLogoPreview(result.url);
+      setForm((prev) => ({ ...prev, logoUrl: result.url }));
+      toast.success('Лого амжилттай байршлаа');
+    } catch {
+      toast.error('Лого байршуулахад алдаа гарлаа');
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file) handleLogoUpload(file);
+    },
+    [handleLogoUpload],
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      siteName: form.siteName || undefined,
+      siteUrl: form.siteUrl || undefined,
+      supportEmail: form.supportEmail || undefined,
+      logoUrl: form.logoUrl || undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Logo upload */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Сайтын лого</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Навбар, нэвтрэх хуудас, хөл хэсэгт харагдана.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-6">
+            {/* Preview */}
+            <div className="shrink-0">
+              <div className="relative h-24 w-24 overflow-hidden rounded-xl border-2 border-dashed border-border bg-muted flex items-center justify-center">
+                {logoPreview ? (
+                  <>
+                    <Image
+                      src={logoPreview}
+                      alt="Лого"
+                      fill
+                      className="object-contain p-2"
+                      unoptimized
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogoPreview(null);
+                        setForm((prev) => ({ ...prev, logoUrl: '' }));
+                      }}
+                      className="absolute right-1 top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground hover:opacity-90"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </>
+                ) : (
+                  <Building2 className="h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+
+            {/* Drop zone */}
+            <div
+              className="flex-1 rounded-xl border-2 border-dashed border-border bg-muted/30 p-6 text-center transition-colors hover:border-primary/50 hover:bg-muted/50 cursor-pointer"
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm font-medium">
+                {uploading ? 'Байршуулж байна...' : 'Зураг чирж тавих эсвэл сонгох'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                PNG, SVG, WEBP — дээд тал 5MB
+              </p>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleLogoUpload(file);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Admin + Frontend харах */}
+          {logoPreview && (
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-xs font-medium text-muted-foreground mb-3">Харагдах байдал</p>
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <div className="relative h-8 w-8 overflow-hidden rounded-lg">
+                    <Image src={logoPreview} alt="" fill className="object-contain" unoptimized />
+                  </div>
+                  <span className="text-sm font-semibold">DigitalGer</span>
+                  <span className="text-xs text-muted-foreground">(Навбар)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative h-10 w-10 overflow-hidden rounded-xl">
+                    <Image src={logoPreview} alt="" fill className="object-contain" unoptimized />
+                  </div>
+                  <span className="text-xs text-muted-foreground">(Нэвтрэх хуудас)</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Site info */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Сайтын мэдээлэл</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="siteName">
+                <Building2 className="inline h-3.5 w-3.5 mr-1" />
+                Сайтын нэр
+              </Label>
+              <Input
+                id="siteName"
+                value={form.siteName}
+                onChange={(e) => setForm({ ...form, siteName: e.target.value })}
+                placeholder="DigitalGer"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="siteUrl">
+                <Globe className="inline h-3.5 w-3.5 mr-1" />
+                Сайтын URL
+              </Label>
+              <Input
+                id="siteUrl"
+                value={form.siteUrl}
+                onChange={(e) => setForm({ ...form, siteUrl: e.target.value })}
+                placeholder="https://digitalger.mn"
+                type="url"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">
+                <Mail className="inline h-3.5 w-3.5 mr-1" />
+                Дэмжлэгийн и-мэйл
+              </Label>
+              <Input
+                id="email"
+                value={form.supportEmail}
+                onChange={(e) => setForm({ ...form, supportEmail: e.target.value })}
+                placeholder="support@digitalger.mn"
+                type="email"
+              />
+            </div>
+
+            <Button type="submit" disabled={isSaving || uploading} className="w-full">
+              {isSaving ? (
+                'Хадгалж байна...'
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Мэдээлэл хадгалах
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ——— Main page ———————————————————————————————————————————————
+export default function SettingsPage() {
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin', 'settings'],
+    queryFn: () => adminApi.settings.get(),
+  });
+
+  const themeMutation = useMutation({
+    mutationFn: (body: Partial<ThemeSettings>) => adminApi.settings.updateTheme(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+      toast.success('Өнгөний тохиргоо хадгалагдлаа');
+    },
+    onError: () => toast.error('Хадгалахад алдаа гарлаа'),
+  });
+
+  const siteMutation = useMutation({
+    mutationFn: (body: Partial<SiteSettings>) => adminApi.settings.updateSite(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+      toast.success('Сайтын мэдээлэл хадгалагдлаа');
+    },
+    onError: () => toast.error('Хадгалахад алдаа гарлаа'),
+  });
+
+  if (isLoading) return <Loading label="Тохиргоо ачаалж байна..." />;
+  if (isError)
+    return <ErrorState title="Тохиргоо ачаалахад алдаа гарлаа" onRetry={() => refetch()} />;
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Тохиргоо</h1>
+        <p className="text-muted-foreground">Сайтын ерөнхий болон дизайн тохиргоо</p>
+      </div>
+
+      <Tabs defaultValue="general">
+        <TabsList className="w-full">
+          <TabsTrigger value="general" className="flex-1">
+            <Building2 className="mr-2 h-4 w-4" />
+            Ерөнхий
+          </TabsTrigger>
+          <TabsTrigger value="theme" className="flex-1">
+            <Palette className="mr-2 h-4 w-4" />
+            Дизайн
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="mt-6">
+          <GeneralTab
+            site={data?.site ?? null}
+            onSave={(body) => siteMutation.mutate(body)}
+            isSaving={siteMutation.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value="theme" className="mt-6">
+          <ThemeTab
+            theme={data?.theme ?? null}
+            onSave={(colors) => themeMutation.mutate(colors)}
+            isSaving={themeMutation.isPending}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="40" x2="40" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#011a5e"/>
+      <stop offset="100%" stop-color="#022179"/>
+    </linearGradient>
+  </defs>
+  <!-- Navy background -->
+  <rect width="40" height="40" rx="9" fill="url(#bg)"/>
+  <!-- Ger roof -->
+  <path d="M8 20 L20 10 L32 20" stroke="#ffbe00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Ger body -->
+  <rect x="9" y="20" width="22" height="11" rx="1" fill="white" opacity="0.92"/>
+  <!-- Door -->
+  <rect x="17" y="24" width="6" height="7" rx="0.5" fill="#022179"/>
+  <!-- Door frame accent -->
+  <rect x="16.5" y="23.5" width="7" height="8" rx="0.5" stroke="#ffbe00" stroke-width="0.8" fill="none"/>
+</svg>

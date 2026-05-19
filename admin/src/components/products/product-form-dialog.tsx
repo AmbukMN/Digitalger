@@ -1,0 +1,2181 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { getSession } from 'next-auth/react';
+import { toast } from 'sonner';
+import { BookOpen, CheckCircle2, ChevronDown, ChevronUp, Clock, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Separator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@digitalger/shared/ui';
+import type { ProductType } from '@digitalger/shared';
+import { adminApi } from '@/lib/api';
+import { API_URL } from '@/lib/constants';
+import type { AdminBundle, AdminCourseModule, AdminFaq, AdminLesson, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
+import { RichEditor } from '@/components/ui/rich-editor';
+
+const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
+  { value: 'FILE', label: 'Файл' },
+  { value: 'TEMPLATE', label: 'Загвар' },
+  { value: 'DOCUMENT', label: 'Баримт' },
+  { value: 'VIDEO', label: 'Видео' },
+  { value: 'COURSE', label: 'Курс' },
+  { value: 'HYBRID', label: 'Холимог' },
+];
+
+interface ProductFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  product?: AdminProduct | null;
+}
+
+interface HowToUseStep {
+  title: string;
+  description: string;
+}
+
+const DEFAULT_HOW_TO_USE = '<p>Та дараах алхмуудаар дижитал бүтээгдэхүүнийг авч хэрэглэнэ үү. Асуулт гарвал <strong>info@digitalger.mn</strong> хаягаар холбогдоорой.</p>';
+
+const DEFAULT_HOW_TO_USE_STEPS: HowToUseStep[] = [
+  { title: 'Төлбөрийг хялбар систем', description: 'QPay болон банкны картаар хялбар, аюулгүй төлбөр хийнэ.' },
+  { title: 'Шууд татах линк', description: 'Төлбөр амжилттай болмогц файл татах линк автоматаар ирнэ.' },
+  { title: 'Шууд ашиглахад бэлэн', description: 'Татаж авсан файлаа нээж шууд ашиглана. Тусламж хэрэгтэй бол бидэнтэй холбогдоорой.' },
+];
+
+const DEFAULT_PROOF = {
+  proofImageUrl: '',
+  proofQuote: 'DigitalGer-ийн загварыг ашигласнаар ажлын цагаа хэмнэж, гаргасан материал чинь илүү мэргэжлийн харагдах болно.',
+  proofText: 'Ажлын явцдаа хэдэн арван цаг зарцуулдаг байсан зүйлийг одоо хэдхэн минутын дотор хийж дуусгадаг болсон. Чанартай загвар ашиглах нь зөвхөн цаг биш, итгэлийг ч хэмнэнэ.',
+  proofAuthorName: 'Бат-Эрдэнэ Д.',
+  proofAuthorRole: 'Маркетингийн менежер',
+};
+
+const emptyForm = {
+  title: '',
+  slug: '',
+  description: '',
+  price: '',
+  compareAtPrice: '',
+  type: 'FILE' as ProductType,
+  categoryId: '',
+  published: false,
+  featured: false,
+  seoTitle: '',
+  seoDescription: '',
+  howToUse: DEFAULT_HOW_TO_USE,
+  whatsIncluded: '',
+  discountEndsAt: '',
+  howToUseSteps: DEFAULT_HOW_TO_USE_STEPS,
+  rating: '0',
+  ratingCount: '0',
+  ...DEFAULT_PROOF,
+};
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^\w\-]/g, '')
+    .replace(/--+/g, '-');
+}
+
+interface AssignTabHandle {
+  save: () => Promise<void>;
+}
+
+// FAQ assignment tab
+const FaqAssignTab = forwardRef<AssignTabHandle, { productId?: string }>(
+  function FaqAssignTab({ productId }, ref) {
+    const { data: allFaqs = [], isLoading: loadingAll } = useQuery({
+      queryKey: ['admin', 'faqs'],
+      queryFn: () => adminApi.faqs.list(),
+    });
+    const { data: assignedIds, isLoading: loadingIds } = useQuery({
+      queryKey: ['admin', 'products', productId, 'faq-ids'],
+      queryFn: () => adminApi.products.getFaqIds(productId!),
+      enabled: !!productId,
+    });
+
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+      if (assignedIds !== undefined) {
+        setSelected(new Set(assignedIds));
+      }
+    }, [assignedIds]);
+
+    useImperativeHandle(ref, () => ({
+      save: () => {
+        if (!productId) return Promise.resolve();
+        return adminApi.products.assignFaqs(productId, Array.from(selected));
+      },
+    }), [productId, selected]);
+
+    const toggle = (id: string) => {
+      setSelected((s) => {
+        const next = new Set(s);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+    };
+
+    if (loadingAll || loadingIds) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+    if (!allFaqs.length) return (
+      <div className="py-8 text-center text-sm text-muted-foreground">
+        Глобал FAQ байхгүй байна. Эхлээд <span className="font-medium">FAQ</span> хуудаснаас нэмнэ үү.
+      </div>
+    );
+
+    const byCategory = allFaqs.reduce<Record<string, AdminFaq[]>>((acc, faq) => {
+      const cat = faq.category ?? 'Бусад';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(faq);
+      return acc;
+    }, {});
+
+    return (
+      <div className="space-y-4">
+        {!productId && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">Бүтээгдэхүүн үүсгэсний дараа FAQ-уудын сонголт хадгалагдана.</p>
+        )}
+        <p className="text-xs text-muted-foreground">Энэ бүтээгдэхүүнд харагдуулах FAQ-уудыг сонгоно уу.</p>
+        {Object.entries(byCategory).map(([cat, faqs]) => (
+          <div key={cat}>
+            <p className="text-xs font-semibold text-muted-foreground mb-2">{cat}</p>
+            <div className="space-y-1">
+              {faqs.map((faq) => (
+                <label key={faq.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-primary"
+                    checked={selected.has(faq.id)}
+                    onChange={() => toggle(faq.id)}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-tight">{faq.question}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{faq.answer}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+);
+
+// Testimonial assignment tab
+const TestimonialAssignTab = forwardRef<AssignTabHandle, { productId?: string }>(
+  function TestimonialAssignTab({ productId }, ref) {
+    const { data: allTestimonials = [], isLoading: loadingAll } = useQuery({
+      queryKey: ['admin', 'testimonials'],
+      queryFn: () => adminApi.testimonials.list(),
+    });
+    const { data: assignedIds, isLoading: loadingIds } = useQuery({
+      queryKey: ['admin', 'products', productId, 'testimonial-ids'],
+      queryFn: () => adminApi.products.getTestimonialIds(productId!),
+      enabled: !!productId,
+    });
+
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+      if (assignedIds !== undefined) {
+        setSelected(new Set(assignedIds));
+      }
+    }, [assignedIds]);
+
+    useImperativeHandle(ref, () => ({
+      save: () => {
+        if (!productId) return Promise.resolve();
+        return adminApi.products.assignTestimonials(productId, Array.from(selected));
+      },
+    }), [productId, selected]);
+
+    const toggle = (id: string) => {
+      setSelected((s) => {
+        const next = new Set(s);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+    };
+
+    if (loadingAll || loadingIds) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+    if (!allTestimonials.length) return (
+      <div className="py-8 text-center text-sm text-muted-foreground">
+        Сэтгэгдэл байхгүй байна. Эхлээд <span className="font-medium">Сэтгэгдэл</span> хуудаснаас нэмнэ үү.
+      </div>
+    );
+
+    return (
+      <div className="space-y-3">
+        {!productId && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">Бүтээгдэхүүн үүсгэсний дараа сэтгэгдлийн сонголт хадгалагдана.</p>
+        )}
+        <p className="text-xs text-muted-foreground">Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдуулах сэтгэгдлүүдийг сонгоно уу.</p>
+        {allTestimonials.map((t: AdminTestimonial) => (
+          <label key={t.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-primary"
+              checked={selected.has(t.id)}
+              onChange={() => toggle(t.id)}
+            />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                {t.name.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-tight">{t.name}</p>
+                {t.role && <p className="text-xs text-muted-foreground">{t.role}</p>}
+              </div>
+            </div>
+          </label>
+        ))}
+      </div>
+    );
+  }
+);
+
+// Bundle management tab
+function BundleTab({ productId }: { productId?: string }) {
+  const queryClient = useQueryClient();
+  const [newBundleTitle, setNewBundleTitle] = useState('');
+  const [newItemInputs, setNewItemInputs] = useState<Record<string, string>>({});
+  const [editingBundle, setEditingBundle] = useState<string | null>(null);
+  const [editBundleTitle, setEditBundleTitle] = useState('');
+
+  const { data: bundles = [], isLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'bundles'],
+    queryFn: () => adminApi.bundles.list(productId!),
+    enabled: !!productId,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'bundles'] });
+
+  const createBundleMut = useMutation({
+    mutationFn: () => adminApi.bundles.create(productId!, { title: newBundleTitle, sortOrder: bundles.length }),
+    onSuccess: () => { toast.success('Бүлэг нэмэгдлээ'); setNewBundleTitle(''); invalidate(); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const updateBundleMut = useMutation({
+    mutationFn: (id: string) => adminApi.bundles.update(productId!, id, { title: editBundleTitle }),
+    onSuccess: () => { toast.success('Шинэчлэгдлээ'); setEditingBundle(null); invalidate(); },
+  });
+
+  const removeBundleMut = useMutation({
+    mutationFn: (id: string) => adminApi.bundles.remove(productId!, id),
+    onSuccess: () => { toast.success('Устгагдлаа'); invalidate(); },
+  });
+
+  const addItemMut = useMutation({
+    mutationFn: ({ bundleId, name }: { bundleId: string; name: string }) =>
+      adminApi.bundles.addItem(productId!, bundleId, { name, sortOrder: 0 }),
+    onSuccess: (_data, { bundleId }) => {
+      setNewItemInputs((p) => ({ ...p, [bundleId]: '' }));
+      invalidate();
+    },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const removeItemMut = useMutation({
+    mutationFn: ({ bundleId, itemId }: { bundleId: string; itemId: string }) =>
+      adminApi.bundles.removeItem(productId!, bundleId, itemId),
+    onSuccess: () => invalidate(),
+  });
+
+  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+
+  return (
+    <div className="space-y-4">
+      {bundles.map((bundle: AdminBundle, bi) => (
+        <div key={bundle.id} className="rounded-lg border border-border overflow-hidden">
+          <div className="flex items-center gap-2 bg-muted/40 px-3 py-2">
+            <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+            {editingBundle === bundle.id ? (
+              <>
+                <Input
+                  value={editBundleTitle}
+                  onChange={(e) => setEditBundleTitle(e.target.value)}
+                  className="h-7 text-sm flex-1"
+                  autoFocus
+                />
+                <Button size="sm" className="h-7 text-xs px-2" onClick={() => updateBundleMut.mutate(bundle.id)}>Хадгалах</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingBundle(null)}>Болих</Button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 text-sm font-semibold">{bi + 1}. {bundle.title}</span>
+                <Button size="icon" variant="ghost" className="h-7 w-7"
+                  onClick={() => { setEditingBundle(bundle.id); setEditBundleTitle(bundle.title); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => { if (confirm('Бүлэг устгах уу?')) removeBundleMut.mutate(bundle.id); }}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="divide-y divide-border">
+            {bundle.items.map((item, ii) => (
+              <div key={item.id} className="flex items-center gap-2 px-3 py-2">
+                <span className="text-xs text-muted-foreground w-5 shrink-0">{ii + 1}.</span>
+                <span className="flex-1 text-sm">{item.name}</span>
+                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive"
+                  onClick={() => removeItemMut.mutate({ bundleId: bundle.id, itemId: item.id })}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+
+            <div className="flex gap-2 p-2">
+              <Input
+                value={newItemInputs[bundle.id] ?? ''}
+                onChange={(e) => setNewItemInputs((p) => ({ ...p, [bundle.id]: e.target.value }))}
+                placeholder="Шинэ зүйл нэмэх..."
+                className="h-7 text-xs"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newItemInputs[bundle.id]) {
+                    e.preventDefault();
+                    addItemMut.mutate({ bundleId: bundle.id, name: newItemInputs[bundle.id] });
+                  }
+                }}
+              />
+              <Button size="sm" className="h-7 text-xs px-2 shrink-0"
+                disabled={!newItemInputs[bundle.id] || addItemMut.isPending}
+                onClick={() => addItemMut.mutate({ bundleId: bundle.id, name: newItemInputs[bundle.id] ?? '' })}>
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <Separator />
+      <div className="flex gap-2">
+        <Input
+          value={newBundleTitle}
+          onChange={(e) => setNewBundleTitle(e.target.value)}
+          placeholder={productId ? 'Шинэ бүлгийн нэр (жишээ: Үндсэн файлууд)' : 'Хадгалсны дараа бүлэг нэмнэ үү'}
+          disabled={!productId}
+          onKeyDown={(e) => { if (e.key === 'Enter' && newBundleTitle && productId) createBundleMut.mutate(); }}
+        />
+        <Button
+          onClick={() => {
+            if (!productId) { toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа бүлэг нэмнэ үү'); return; }
+            createBundleMut.mutate();
+          }}
+          disabled={!newBundleTitle || createBundleMut.isPending || !productId}
+          className="shrink-0"
+        >
+          <Plus className="mr-1 h-4 w-4" /> Бүлэг нэмэх
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Files management tab
+function parseDurationToSec(val: string): number | undefined {
+  val = val.trim();
+  if (!val) return undefined;
+  if (val.includes(':')) {
+    const parts = val.split(':').map(Number);
+    if (parts.length === 2) return (parts[0] ?? 0) * 60 + (parts[1] ?? 0);
+    if (parts.length === 3) return (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
+  }
+  const n = Number(val);
+  return isNaN(n) ? undefined : n * 60;
+}
+
+function formatDurationInput(sec: number | null | undefined): string {
+  if (!sec) return '';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? `${m}:${String(s).padStart(2, '0')}` : String(m);
+}
+
+function formatDurationLabel(sec: number | null | undefined): string {
+  if (!sec) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}ц ${m}м`;
+  if (m > 0) return `${m}м${s > 0 ? ` ${s}с` : ''}`;
+  return `${s}с`;
+}
+
+function getVideoEmbedUrl(url: string): string | null {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s?]+)/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?rel=0`;
+  const vimeo = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return null;
+}
+
+async function uploadWithProgress(
+  file: File,
+  token: string,
+  onProgress: (pct: number) => void,
+): Promise<{ key: string; url: string; fileName: string; mimeType: string; size: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append('file', file);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+      else reject(new Error(xhr.responseText || xhr.statusText));
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.open('POST', `${API_URL}/api/uploads`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(form);
+  });
+}
+
+function VideoUploadInput({
+  videoUrl, setVideoUrl,
+  videoKey, setVideoKey,
+  duration, setDuration,
+  onUploadingChange,
+}: {
+  videoUrl: string; setVideoUrl: (v: string) => void;
+  videoKey: string; setVideoKey: (v: string) => void;
+  duration: string; setDuration: (v: string) => void;
+  onUploadingChange?: (uploading: boolean) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedName, setUploadedName] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const isYoutube = videoUrl && (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be'));
+  const isVimeo = videoUrl && videoUrl.includes('vimeo.com');
+  const videoLabel = videoKey ? 'Байршуулсан' : isYoutube ? 'YouTube' : isVimeo ? 'Vimeo' : videoUrl ? 'Видео' : null;
+  const embedUrl = videoUrl ? getVideoEmbedUrl(videoUrl) : null;
+
+  // Auto-detect duration from YouTube / Vimeo URLs
+  useEffect(() => {
+    if (!videoUrl || videoKey) return;
+    if (!isYoutube && !isVimeo) return;
+
+    const controller = new AbortController();
+
+    if (isVimeo) {
+      const match = videoUrl.match(/vimeo\.com\/(\d+)/);
+      if (!match) return;
+      // Use Vimeo oEmbed endpoint — no auth needed, returns duration
+      fetch(`https://vimeo.com/api/v2/video/${match[1]}.json`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((data: any) => {
+          const sec: number = Array.isArray(data) ? data[0]?.duration : data?.duration;
+          if (sec > 0) setDuration(formatDurationInput(sec));
+        })
+        .catch(() => {});
+    }
+
+    if (isYoutube) {
+      const match = videoUrl.match(/(?:v=|youtu\.be\/)([^&\s?]+)/);
+      if (!match) return;
+      // YouTube oEmbed doesn't expose duration — use noembed.com proxy
+      fetch(`https://noembed.com/embed?url=${encodeURIComponent(videoUrl)}`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((data: any) => {
+          // noembed doesn't return duration either; clear so user enters manually
+          void data;
+        })
+        .catch(() => {});
+    }
+
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoUrl]);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Auto-detect duration from local video metadata
+    const objUrl = URL.createObjectURL(file);
+    const vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.src = objUrl;
+    vid.onloadedmetadata = () => {
+      const sec = Math.round(vid.duration);
+      if (sec > 0) setDuration(formatDurationInput(sec));
+      URL.revokeObjectURL(objUrl);
+    };
+
+    setUploading(true);
+    onUploadingChange?.(true);
+    setUploadProgress(0);
+    try {
+      const session = await getSession();
+      const token = (session as any)?.accessToken ?? '';
+      const result = await uploadWithProgress(file, token, setUploadProgress);
+      setVideoKey(result.key);
+      setVideoUrl('');
+      setUploadedName(file.name);
+    } catch {
+      toast.error('Видео байршуулахад алдаа гарлаа');
+    } finally {
+      setUploading(false);
+      onUploadingChange?.(false);
+      e.target.value = '';
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* URL input + File upload button */}
+      <div className="flex gap-1.5">
+        <div className="relative flex-1">
+          <Input
+            value={videoKey ? '' : videoUrl}
+            onChange={(e) => { setVideoUrl(e.target.value); setVideoKey(''); setUploadedName(''); setShowPreview(false); }}
+            placeholder={videoKey ? (uploadedName || 'Файл байршуулагдсан') : 'YouTube / Vimeo URL...'}
+            className="h-7 text-xs pr-20"
+            disabled={!!videoKey || uploading}
+          />
+          {videoLabel && !videoKey && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-primary/70">{videoLabel}</span>
+          )}
+        </div>
+        <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={handleFile} disabled={uploading} />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs px-2 gap-1 shrink-0"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          <Upload className="h-3 w-3" />
+          Файл
+        </Button>
+      </div>
+
+      {/* YouTube: manual duration hint */}
+      {isYoutube && !uploading && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+          <Clock className="h-2.5 w-2.5 shrink-0" />
+          YouTube-ийн хугацааг гараар оруулна уу (мм:сс)
+        </p>
+      )}
+
+      {/* Upload progress bar */}
+      {uploading && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="inline-block h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              Байршуулж байна...
+            </span>
+            <span className="font-semibold text-primary">{uploadProgress}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-150"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Uploaded file success indicator */}
+      {videoKey && !uploading && (
+        <div className="flex items-center gap-1.5 rounded-md bg-green-50 dark:bg-green-900/20 px-2 py-1.5 text-xs text-green-700 dark:text-green-400">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 truncate font-medium">{uploadedName || 'Видео байршуулагдлаа'}</span>
+          <button type="button" onClick={() => { setVideoKey(''); setUploadedName(''); setShowPreview(false); }} className="hover:text-destructive ml-1">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
+      {/* Preview toggle */}
+      {(embedUrl || videoKey) && !uploading && (
+        <button
+          type="button"
+          onClick={() => setShowPreview((p) => !p)}
+          className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          <Play className="h-3 w-3" />
+          {showPreview ? 'Preview хаах' : 'Preview харах'}
+        </button>
+      )}
+
+      {/* Preview iframe / placeholder */}
+      {showPreview && !uploading && (
+        <div className="rounded-lg overflow-hidden bg-black">
+          {embedUrl ? (
+            <div className="relative aspect-video">
+              <iframe
+                src={embedUrl}
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : videoKey ? (
+            <div className="aspect-video flex items-center justify-center text-white/40 text-xs">
+              Хадгалсны дараа preview харах боломжтой
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LessonRow({
+  lesson,
+  index,
+  total,
+  productId,
+  onMoved,
+  onDeleted,
+  onUpdated,
+}: {
+  lesson: AdminLesson;
+  index: number;
+  total: number;
+  productId: string;
+  onMoved: (dir: 'up' | 'down') => void;
+  onDeleted: () => void;
+  onUpdated: (l: AdminLesson) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(lesson.title);
+  const [videoUrl, setVideoUrl] = useState(lesson.videoUrl ?? '');
+  const [videoKey, setVideoKey] = useState(lesson.videoKey ?? '');
+  const [duration, setDuration] = useState(formatDurationInput(lesson.durationSec));
+  const [freePreview, setFreePreview] = useState(lesson.isFreePreview);
+  const [description, setDescription] = useState(lesson.description ?? '');
+  const [saving, setSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Sync state when lesson prop updates (after save + invalidate)
+  useEffect(() => {
+    if (!editing) {
+      setTitle(lesson.title);
+      setVideoUrl(lesson.videoUrl ?? '');
+      setVideoKey(lesson.videoKey ?? '');
+      setDuration(formatDurationInput(lesson.durationSec));
+      setFreePreview(lesson.isFreePreview);
+      setDescription(lesson.description ?? '');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson]);
+
+  async function handleSave() {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      const durationSec = parseDurationToSec(duration);
+      const updated = await adminApi.products.lessons.update(productId, lesson.id, {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        videoUrl: videoKey ? undefined : (videoUrl.trim() || undefined),
+        videoKey: videoKey || undefined,
+        durationSec,
+        isFreePreview: freePreview,
+      });
+      onUpdated(updated);
+      setEditing(false);
+      toast.success('Хичээл шинэчлэгдлээ');
+    } catch {
+      toast.error('Алдаа гарлаа');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCancel() {
+    setTitle(lesson.title);
+    setVideoUrl(lesson.videoUrl ?? '');
+    setVideoKey(lesson.videoKey ?? '');
+    setDuration(formatDurationInput(lesson.durationSec));
+    setFreePreview(lesson.isFreePreview);
+    setDescription(lesson.description ?? '');
+    setEditing(false);
+  }
+
+  const hasVideo = videoKey || videoUrl;
+  const isYoutube = videoUrl && (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be'));
+  const isVimeo = videoUrl && videoUrl.includes('vimeo.com');
+  const videoLabel = videoKey ? 'Байршуулсан' : isYoutube ? 'YouTube' : isVimeo ? 'Vimeo' : videoUrl ? 'Видео' : null;
+
+  return (
+    <div className="rounded-lg border border-border overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/20">
+        <span className="shrink-0 w-6 text-center font-mono text-xs font-bold text-primary/40">{index + 1}</span>
+
+        {editing ? (
+          <div className="flex-1 space-y-2.5">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Хичээлийн гарчиг *"
+              className="h-8 text-sm"
+              autoFocus
+            />
+            <RichEditor
+              value={description}
+              onChange={setDescription}
+              placeholder="Хичээлийн тайлбар — энд хичээлийн агуулгыг товч тайлбарлана уу (заавал биш)"
+              minHeight="80px"
+            />
+            <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+              <VideoUploadInput
+                videoUrl={videoUrl} setVideoUrl={setVideoUrl}
+                videoKey={videoKey} setVideoKey={setVideoKey}
+                duration={duration} setDuration={setDuration}
+                onUploadingChange={setIsUploading}
+              />
+              <Input
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                placeholder="мм:сс"
+                className="h-7 text-xs w-24"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-0.5">
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                <input type="checkbox" className="h-3.5 w-3.5 accent-primary" checked={freePreview} onChange={(e) => setFreePreview(e.target.checked)} />
+                <span>Үнэгүй урьдчилсан харагдах</span>
+              </label>
+              <div className="flex gap-1.5">
+                <Button size="sm" className="h-7 text-xs px-2.5 gap-1" onClick={handleSave} disabled={saving || isUploading || !title.trim()}>
+                  {isUploading ? 'Байршуулж байна...' : saving ? '...' : 'Хадгалах'}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={handleCancel}>Болих</Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium truncate">{lesson.title}</span>
+                {lesson.isFreePreview && (
+                  <span className="shrink-0 rounded-full bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:text-green-400">Preview</span>
+                )}
+              </div>
+              {lesson.description && (
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{stripHtml(lesson.description)}</p>
+              )}
+              <div className="flex items-center gap-2 mt-0.5">
+                {videoLabel && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-primary/70">
+                    <Play className="h-2.5 w-2.5" />{videoLabel}
+                  </span>
+                )}
+                {lesson.durationSec && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                    <Clock className="h-2.5 w-2.5" />{formatDurationLabel(lesson.durationSec)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === 0} onClick={() => onMoved('up')}>
+                <ChevronUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === total - 1} onClick={() => onMoved('down')}>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                onClick={() => { if (confirm('Хичээл устгах уу?')) onDeleted(); }}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Add lesson inline form ────────────────────────────────────────────────────
+function AddLessonForm({
+  productId,
+  moduleId,
+  lessonCount,
+  onAdded,
+  onCancel,
+}: {
+  productId: string;
+  moduleId?: string;
+  lessonCount: number;
+  onAdded: () => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoKey, setVideoKey] = useState('');
+  const [duration, setDuration] = useState('');
+  const [freePreview, setFreePreview] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const addMut = useMutation({
+    mutationFn: () => adminApi.products.lessons.create(productId, {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      videoUrl: videoKey ? undefined : (videoUrl.trim() || undefined),
+      videoKey: videoKey || undefined,
+      durationSec: parseDurationToSec(duration),
+      isFreePreview: freePreview,
+      moduleId: moduleId,
+    }),
+    onSuccess: () => {
+      toast.success('Хичээл нэмэгдлээ');
+      onAdded();
+    },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/10">
+      <p className="text-xs font-semibold text-muted-foreground">{lessonCount + 1}-р хичээл</p>
+      <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Хичээлийн гарчиг *" className="h-8 text-sm" autoFocus />
+      <RichEditor value={description} onChange={setDescription} placeholder="Хичээлийн тайлбар (заавал биш)" minHeight="60px" />
+      <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+        <VideoUploadInput
+          videoUrl={videoUrl} setVideoUrl={setVideoUrl}
+          videoKey={videoKey} setVideoKey={setVideoKey}
+          duration={duration} setDuration={setDuration}
+          onUploadingChange={setUploading}
+        />
+        <Input value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="мм:сс" className="h-7 text-xs w-24" />
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+          <input type="checkbox" className="h-3.5 w-3.5 accent-primary" checked={freePreview} onChange={(e) => setFreePreview(e.target.checked)} />
+          <span>Үнэгүй урьдчилсан харагдах</span>
+        </label>
+        <div className="flex gap-1.5">
+          <Button size="sm" className="h-7 text-xs px-2.5 gap-1" onClick={() => addMut.mutate()} disabled={!title.trim() || addMut.isPending || uploading}>
+            <Plus className="h-3 w-3" />{uploading ? 'Байршуулж байна...' : addMut.isPending ? '...' : 'Нэмэх'}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={onCancel}>Болих</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Module section with its lessons ──────────────────────────────────────────
+function ModuleSection({
+  mod,
+  productId,
+  allLessons,
+  onInvalidate,
+}: {
+  mod: AdminCourseModule;
+  productId: string;
+  allLessons: AdminLesson[];
+  onInvalidate: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(true);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState(mod.title);
+  const [addingLesson, setAddingLesson] = useState(false);
+
+  const lessons = mod.lessons;
+
+  const saveTitleMut = useMutation({
+    mutationFn: () => adminApi.products.modules.update(productId, mod.id, { title: titleValue.trim() }),
+    onSuccess: () => { setEditingTitle(false); onInvalidate(); toast.success('Модуль шинэчлэгдлээ'); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: () => adminApi.products.modules.remove(productId, mod.id),
+    onSuccess: () => { onInvalidate(); toast.success('Модуль устгагдлаа'); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const deleteLessonMut = useMutation({
+    mutationFn: (lessonId: string) => adminApi.products.lessons.remove(productId, lessonId),
+    onSuccess: () => { onInvalidate(); toast.success('Устгагдлаа'); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  function handleMoveLesson(lesson: AdminLesson, dir: 'up' | 'down') {
+    const idx = lessons.findIndex((l) => l.id === lesson.id);
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= lessons.length) return;
+    adminApi.products.lessons.reorder(productId, [
+      { id: lessons[idx]!.id, sortOrder: lessons[swapIdx]!.sortOrder },
+      { id: lessons[swapIdx]!.id, sortOrder: lessons[idx]!.sortOrder },
+    ]).then(onInvalidate);
+  }
+
+  const totalSec = lessons.reduce((s, l) => s + (l.durationSec ?? 0), 0);
+  const totalLabel = totalSec > 0 ? formatDurationLabel(totalSec) : null;
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      {/* Module header */}
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-primary/5 border-b border-border">
+        <button type="button" onClick={() => setOpen((p) => !p)} className="shrink-0">
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
+        </button>
+        <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+
+        {editingTitle ? (
+          <div className="flex flex-1 items-center gap-2">
+            <Input
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              className="h-7 text-sm flex-1"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') saveTitleMut.mutate(); if (e.key === 'Escape') setEditingTitle(false); }}
+            />
+            <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => saveTitleMut.mutate()} disabled={!titleValue.trim() || saveTitleMut.isPending}>
+              {saveTitleMut.isPending ? '...' : 'OK'}
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setTitleValue(mod.title); setEditingTitle(false); }}>X</Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate">{mod.title}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {lessons.length} хичээл{totalLabel ? ` · ${totalLabel}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingTitle(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                onClick={() => { if (confirm(`"${mod.title}" модулийг устгах уу? Хичээлүүд нь модульгүй болно.`)) deleteMut.mutate(); }}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Lesson list */}
+      {open && (
+        <div className="divide-y divide-border/50">
+          {lessons.map((lesson, i) => (
+            <LessonRow
+              key={lesson.id}
+              lesson={lesson}
+              index={i}
+              total={lessons.length}
+              productId={productId}
+              onMoved={(dir) => handleMoveLesson(lesson, dir)}
+              onDeleted={() => deleteLessonMut.mutate(lesson.id)}
+              onUpdated={(updated) => {
+                queryClient.setQueryData<AdminCourseModule[]>(
+                  ['admin', 'products', productId, 'modules'],
+                  (old) => old?.map((m) => m.id === mod.id
+                    ? { ...m, lessons: m.lessons.map((l) => l.id === updated.id ? updated : l) }
+                    : m,
+                  ) ?? old,
+                );
+              }}
+            />
+          ))}
+
+          {/* Add lesson inside module */}
+          <div className="px-3 py-2.5 bg-muted/10">
+            {addingLesson ? (
+              <AddLessonForm
+                productId={productId}
+                moduleId={mod.id}
+                lessonCount={lessons.length}
+                onAdded={() => { setAddingLesson(false); onInvalidate(); }}
+                onCancel={() => setAddingLesson(false)}
+              />
+            ) : (
+              <Button variant="ghost" size="sm" className="w-full h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => setAddingLesson(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Хичээл нэмэх
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CourseTab({ productId }: { productId?: string }) {
+  const queryClient = useQueryClient();
+  const [addingModule, setAddingModule] = useState(false);
+  const [newModuleTitle, setNewModuleTitle] = useState('');
+  const [addingLesson, setAddingLesson] = useState(false);
+
+  const { data: modules = [], isLoading: modulesLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'modules'],
+    queryFn: () => adminApi.products.modules.list(productId!),
+    enabled: !!productId,
+  });
+
+  const { data: allLessons = [], isLoading: lessonsLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'lessons'],
+    queryFn: () => adminApi.products.lessons.list(productId!),
+    enabled: !!productId,
+  });
+
+  const invalidateModules = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'modules'] });
+  const invalidateLessons = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'lessons'] });
+  const invalidateAll = () => { invalidateModules(); invalidateLessons(); };
+
+  // Lessons with no module
+  const ungroupedLessons = allLessons.filter((l) => !l.moduleId);
+
+  const totalLessons = allLessons.length;
+  const totalSec = allLessons.reduce((sum, l) => sum + (l.durationSec ?? 0), 0);
+  const totalLabel = totalSec > 0 ? formatDurationLabel(totalSec) : null;
+
+  const addModuleMut = useMutation({
+    mutationFn: () => adminApi.products.modules.create(productId!, { title: newModuleTitle.trim(), sortOrder: modules.length }),
+    onSuccess: () => { toast.success('Модуль нэмэгдлээ'); setNewModuleTitle(''); setAddingModule(false); invalidateModules(); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const deleteUngroupedMut = useMutation({
+    mutationFn: (lessonId: string) => adminApi.products.lessons.remove(productId!, lessonId),
+    onSuccess: () => { toast.success('Устгагдлаа'); invalidateLessons(); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  function handleMoveUngrouped(lesson: AdminLesson, dir: 'up' | 'down') {
+    const idx = ungroupedLessons.findIndex((l) => l.id === lesson.id);
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= ungroupedLessons.length) return;
+    adminApi.products.lessons.reorder(productId!, [
+      { id: ungroupedLessons[idx]!.id, sortOrder: ungroupedLessons[swapIdx]!.sortOrder },
+      { id: ungroupedLessons[swapIdx]!.id, sortOrder: ungroupedLessons[idx]!.sortOrder },
+    ]).then(invalidateLessons);
+  }
+
+  if (!productId) {
+    return (
+      <div className="py-8 text-center text-sm text-muted-foreground">
+        Бүтээгдэхүүнийг хадгалсны дараа хичээл нэмнэ үү.
+      </div>
+    );
+  }
+
+  if (modulesLoading || lessonsLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      {totalLessons > 0 && (
+        <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-2.5 text-sm">
+          <div className="flex items-center gap-1.5">
+            <BookOpen className="h-4 w-4 text-primary" />
+            <span className="font-semibold">{totalLessons}</span>
+            <span className="text-muted-foreground">хичээл</span>
+          </div>
+          {modules.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <FolderOpen className="h-4 w-4 text-primary" />
+              <span className="font-semibold">{modules.length}</span>
+              <span className="text-muted-foreground">модуль</span>
+            </div>
+          )}
+          {totalLabel && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-primary" />
+              <span className="font-semibold">{totalLabel}</span>
+              <span className="text-muted-foreground">нийт</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Module list */}
+      <div className="space-y-3">
+        {modules.map((mod) => (
+          <ModuleSection
+            key={mod.id}
+            mod={mod}
+            productId={productId}
+            allLessons={allLessons}
+            onInvalidate={invalidateAll}
+          />
+        ))}
+      </div>
+
+      {/* Add module form */}
+      {addingModule ? (
+        <div className="rounded-lg border border-dashed border-primary/40 p-3 space-y-2 bg-primary/5">
+          <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+            <FolderPlus className="h-3.5 w-3.5" /> Шинэ модуль
+          </p>
+          <Input
+            value={newModuleTitle}
+            onChange={(e) => setNewModuleTitle(e.target.value)}
+            placeholder="Модулийн нэр жишээ нь: Эхлэл хичээлүүд"
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter') addModuleMut.mutate(); if (e.key === 'Escape') setAddingModule(false); }}
+          />
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" className="h-7 text-xs px-3" onClick={() => addModuleMut.mutate()} disabled={!newModuleTitle.trim() || addModuleMut.isPending}>
+              {addModuleMut.isPending ? '...' : 'Нэмэх'}
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => { setAddingModule(false); setNewModuleTitle(''); }}>Болих</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Ungrouped lessons section */}
+      {(ungroupedLessons.length > 0 || modules.length === 0) && (
+        <div className="rounded-xl border border-border overflow-hidden">
+          {modules.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
+              <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-xs font-semibold text-muted-foreground">Модульгүй хичээлүүд</p>
+            </div>
+          )}
+          <div className="divide-y divide-border/50">
+            {ungroupedLessons.map((lesson, i) => (
+              <LessonRow
+                key={lesson.id}
+                lesson={lesson}
+                index={i}
+                total={ungroupedLessons.length}
+                productId={productId}
+                onMoved={(dir) => handleMoveUngrouped(lesson, dir)}
+                onDeleted={() => deleteUngroupedMut.mutate(lesson.id)}
+                onUpdated={(updated) => {
+                  queryClient.setQueryData<AdminLesson[]>(
+                    ['admin', 'products', productId, 'lessons'],
+                    (old) => old?.map((l) => l.id === updated.id ? updated : l) ?? old,
+                  );
+                }}
+              />
+            ))}
+            <div className="px-3 py-2.5 bg-muted/10">
+              {addingLesson ? (
+                <AddLessonForm
+                  productId={productId}
+                  lessonCount={ungroupedLessons.length}
+                  onAdded={() => { setAddingLesson(false); invalidateLessons(); }}
+                  onCancel={() => setAddingLesson(false)}
+                />
+              ) : (
+                <Button variant="ghost" size="sm" className="w-full h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => setAddingLesson(true)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Хичээл нэмэх
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <Button variant="outline" className="flex-1 gap-2 text-sm" onClick={() => setAddingModule(true)} disabled={addingModule}>
+          <FolderPlus className="h-4 w-4" />
+          Модуль нэмэх
+        </Button>
+        {modules.length === 0 && !addingLesson && (
+          <Button variant="outline" className="flex-1 gap-2 text-sm" onClick={() => setAddingLesson(true)}>
+            <Plus className="h-4 w-4" />
+            Хичээл нэмэх
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FilesTab({ productId }: { productId?: string }) {
+  const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const { data: files = [], isLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'files'],
+    queryFn: () => adminApi.products.files.list(productId!),
+    enabled: !!productId,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'files'] });
+
+  const removeMut = useMutation({
+    mutationFn: (fileId: string) => adminApi.products.files.remove(productId!, fileId),
+    onSuccess: () => { toast.success('Устгагдлаа'); invalidate(); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!productId) {
+      toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа файл нэмнэ үү');
+      return;
+    }
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
+    setUploading(true);
+    try {
+      await Promise.all(
+        picked.map(async (file) => {
+          const r = await adminApi.upload(file);
+          await adminApi.products.files.add(productId, {
+            fileKey: r.key,
+            fileName: file.name,
+            mimeType: file.type || undefined,
+            sizeBytes: file.size,
+          });
+        }),
+      );
+      toast.success(`${picked.length} файл нэмэгдлээ`);
+      invalidate();
+    } catch {
+      toast.error('Файл ачаалахад алдаа гарлаа');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function formatSize(bytes?: number | null) {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+        Татаж авах файлуудыг энд нэмнэ үү. Хэрэглэгч худалдаж авсны дараа эдгээр файлыг татаж авах боломжтой болно.
+      </div>
+
+      {files.length > 0 && (
+        <div className="space-y-1.5">
+          {files.map((file: AdminProductFile) => (
+            <div key={file.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
+              <FileText className="h-4 w-4 shrink-0 text-primary/60" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{file.fileName}</p>
+                {(file.sizeBytes || file.mimeType) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[file.mimeType, formatSize(file.sizeBytes)].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                onClick={() => { if (confirm('Файл устгах уу?')) removeMut.mutate(file.id); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        className={`flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border bg-muted/30 text-sm text-muted-foreground transition-colors ${productId ? 'cursor-pointer hover:border-primary/40' : 'opacity-50 cursor-not-allowed'}`}
+        onClick={() => productId ? fileRef.current?.click() : toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа файл нэмнэ үү')}
+      >
+        <Upload className="h-5 w-5" />
+        <span>{uploading ? 'Ачаалж байна...' : productId ? 'Файл нэмэх' : 'Хадгалсны дараа нэмнэ үү'}</span>
+      </div>
+      <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFileSelect} disabled={uploading || !productId} />
+    </div>
+  );
+}
+
+type PendingMedia = { file: File; preview: string | null; id: string; type: 'image' | 'video' };
+
+function PendingVideoPreview({ file }: { file: File }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  if (!src) return null;
+  return (
+    <video src={src} className="h-full w-full object-cover" muted playsInline preload="metadata" controls />
+  );
+}
+
+function InlineMediaManager({
+  productId,
+  pendingFiles,
+  onPendingFilesChange,
+}: {
+  productId?: string;
+  pendingFiles: PendingMedia[];
+  onPendingFilesChange: (items: PendingMedia[]) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data: existingImages = [], isLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'images'],
+    queryFn: () => adminApi.products.images.list(productId!),
+    enabled: !!productId,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'images'] });
+
+  const removeMut = useMutation({
+    mutationFn: (imageId: string) => adminApi.products.images.remove(productId!, imageId),
+    onSuccess: () => invalidate(),
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const setPrimaryMut = useMutation({
+    mutationFn: (imageId: string) => adminApi.products.images.update(productId!, imageId, { isPrimary: true }),
+    onSuccess: () => invalidate(),
+  });
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    if (productId) {
+      setUploading(true);
+      try {
+        // R2-д зэрэгцүүлэн upload хийж, файлын анхны дарааллыг хадгална
+        const uploaded = await Promise.all(
+          files.map(async (file) => {
+            const r = await adminApi.upload(file);
+            return { file, r };
+          }),
+        );
+        // DB-д дарааллаар insert хийж sortOrder race-г арилгана
+        for (let i = 0; i < uploaded.length; i++) {
+          const { file, r } = uploaded[i];
+          if (file.type.startsWith('video/')) {
+            await adminApi.products.images.addVideo(productId, r.url);
+          } else {
+            const isFirst = existingImages.length === 0 && i === 0;
+            await adminApi.products.images.addImage(productId, r.key, file.name, isFirst);
+          }
+        }
+        toast.success(`${files.length} файл нэмэгдлээ`);
+        invalidate();
+      } catch {
+        toast.error('Файл ачаалахад алдаа гарлаа');
+      } finally {
+        setUploading(false);
+        if (fileRef.current) fileRef.current.value = '';
+      }
+    } else {
+      const newItems = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<PendingMedia>((resolve) => {
+              const type: 'image' | 'video' = file.type.startsWith('video/') ? 'video' : 'image';
+              if (type === 'image') {
+                const reader = new FileReader();
+                reader.onload = (ev) =>
+                  resolve({ file, preview: ev.target?.result as string, id: Math.random().toString(36).slice(2), type });
+                reader.readAsDataURL(file);
+              } else {
+                resolve({ file, preview: null, id: Math.random().toString(36).slice(2), type });
+              }
+            }),
+        ),
+      );
+      onPendingFilesChange([...pendingFiles, ...newItems]);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  if (productId && isLoading) return <div className="h-20 flex items-center justify-center text-sm text-muted-foreground">Ачаалж байна...</div>;
+
+  const hasItems = existingImages.length > 0 || pendingFiles.length > 0;
+
+  return (
+    <div className="space-y-3">
+      {hasItems ? (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {existingImages.map((img: AdminProductImage) => (
+            <div key={img.id} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
+              {img.videoUrl ? (
+                <div className="relative h-full w-full bg-black">
+                  <video
+                    src={img.videoUrl}
+                    className="h-full w-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
+                    controls
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeMut.mutate(img.id)}
+                    className="absolute right-1 top-1 z-10 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-600/80"
+                    title="Устгах"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : img.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={img.url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <Package className="h-5 w-5 text-muted-foreground/40" />
+                </div>
+              )}
+              {img.isPrimary && (
+                <div className="absolute left-1 top-1">
+                  <span className="flex items-center gap-0.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                    <Star className="h-2.5 w-2.5 fill-current" /> Үндсэн
+                  </span>
+                </div>
+              )}
+              {!img.videoUrl && (
+                <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                  {!img.isPrimary && (
+                    <button type="button" onClick={() => setPrimaryMut.mutate(img.id)}
+                      className="rounded-full bg-white/20 p-1.5 hover:bg-white/40 transition-colors" title="Үндсэн болгох">
+                      <Star className="h-3.5 w-3.5 text-white" />
+                    </button>
+                  )}
+                  <button type="button" onClick={() => removeMut.mutate(img.id)}
+                    className="rounded-full bg-white/20 p-1.5 hover:bg-red-500/80 transition-colors" title="Устгах">
+                    <X className="h-3.5 w-3.5 text-white" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {pendingFiles.map((item, i) => (
+            <div key={item.id} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
+              {item.type === 'video' ? (
+                <div className="relative h-full w-full bg-black">
+                  <PendingVideoPreview file={item.file} />
+                </div>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.preview!} alt="" className="h-full w-full object-cover" />
+              )}
+              {i === 0 && existingImages.length === 0 && item.type === 'image' && (
+                <div className="absolute left-1 top-1">
+                  <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">Үндсэн</span>
+                </div>
+              )}
+              <button type="button"
+                onClick={() => onPendingFilesChange(pendingFiles.filter((f) => f.id !== item.id))}
+                className="absolute right-1 top-1 rounded-full bg-black/50 p-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <X className="h-3 w-3 text-white" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border bg-muted/30 text-xs text-muted-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            <Upload className="h-5 w-5" />
+            {uploading ? 'Ачаалж...' : 'Нэмэх'}
+          </button>
+        </div>
+      ) : (
+        <div
+          className="flex h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 text-sm text-muted-foreground hover:border-primary/40 transition-colors"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Upload className="h-6 w-6" />
+          <span>{uploading ? 'Ачаалж байна...' : 'Зураг / Видео оруулах'}</span>
+          <span className="text-xs opacity-60">image/*, video/*</span>
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileSelect} disabled={uploading} />
+    </div>
+  );
+}
+
+export function ProductFormDialog({
+  open,
+  onOpenChange,
+  product,
+}: ProductFormDialogProps) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState(emptyForm);
+  const [generating, setGenerating] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<PendingMedia[]>([]);
+  // Stays in edit mode after first-time create
+  const [createdProduct, setCreatedProduct] = useState<AdminProduct | null>(null);
+  const effectiveProduct = product ?? createdProduct;
+  // Incrementing this key forces all RichEditors to remount with fresh content
+  const [editorResetToken, setEditorResetToken] = useState(0);
+
+  const faqTabRef = useRef<AssignTabHandle>(null);
+  const testimonialTabRef = useRef<AssignTabHandle>(null);
+  const proofImgRef = useRef<HTMLInputElement>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['admin', 'categories'],
+    queryFn: () => adminApi.categories.list(),
+  });
+
+  // Holds the data returned from the last successful save — avoids stale list data on re-open
+  const justSavedRef = useRef<AdminProduct | null>(null);
+  // Tracks which product.id was used to initialize the form (prevents double-init)
+  const initializedForRef = useRef<string | null>(null);
+
+  function buildFormFromProduct(p: AdminProduct) {
+    return {
+      title: p.title,
+      slug: p.slug,
+      description: p.description,
+      price: String(p.price),
+      compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
+      type: p.type,
+      categoryId: p.categoryId ?? '',
+      published: p.published,
+      featured: p.featured,
+      seoTitle: p.seoTitle ?? '',
+      seoDescription: p.seoDescription ?? '',
+      howToUse: p.howToUse ?? DEFAULT_HOW_TO_USE,
+      whatsIncluded: p.whatsIncluded ?? '',
+      discountEndsAt: p.discountEndsAt ? p.discountEndsAt.slice(0, 16) : '',
+      howToUseSteps: Array.isArray(p.howToUseSteps) && (p.howToUseSteps as any[]).length > 0
+        ? (p.howToUseSteps as any[]).map((s: any) => ({
+            title: String(s?.title ?? ''),
+            description: String(s?.description ?? ''),
+          }))
+        : [...DEFAULT_HOW_TO_USE_STEPS],
+      rating: String(p.rating ?? 0),
+      ratingCount: String(p.ratingCount ?? 0),
+      proofImageUrl: p.proofImageUrl ?? '',
+      proofQuote: p.proofQuote ?? DEFAULT_PROOF.proofQuote,
+      proofText: p.proofText ?? DEFAULT_PROOF.proofText,
+      proofAuthorName: p.proofAuthorName ?? DEFAULT_PROOF.proofAuthorName,
+      proofAuthorRole: p.proofAuthorRole ?? DEFAULT_PROOF.proofAuthorRole,
+    };
+  }
+
+  // Initialize form when dialog opens
+  useEffect(() => {
+    if (!open) {
+      setCreatedProduct(null);
+      initializedForRef.current = null;
+      return;
+    }
+    if (createdProduct) return;
+
+    if (product) {
+      // If we just saved this product, use the saved data (fresh from server response)
+      // This prevents stale list data overriding what was just saved
+      const hasSaved = justSavedRef.current?.id === product.id;
+      const source = hasSaved ? justSavedRef.current! : product;
+      if (hasSaved) justSavedRef.current = null; // clear after using once
+
+      if (initializedForRef.current === product.id) return; // already initialized
+      initializedForRef.current = product.id;
+      setEditorResetToken((t) => t + 1);
+      setForm(buildFormFromProduct(source));
+    } else {
+      if (initializedForRef.current === 'new') return;
+      initializedForRef.current = 'new';
+      setEditorResetToken((t) => t + 1);
+      setForm(emptyForm);
+      setPendingFiles([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, open, createdProduct]);
+
+  const set = (key: keyof typeof form, value: string | boolean) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  const handleTitleChange = (title: string) => {
+    setForm((f) => ({
+      ...f,
+      title,
+      slug: effectiveProduct ? f.slug : slugify(title),
+    }));
+  };
+
+  const handleGenerate = async () => {
+    const selectedCategory = categories.find((c) => c.id === form.categoryId);
+    setGenerating(true);
+    try {
+      const result = await adminApi.products.generate({
+        fileNames: form.title ? [form.title] : ['product'],
+        fileTypes: [form.type],
+        productType: form.type,
+        categoryName: selectedCategory?.name,
+      });
+      setEditorResetToken((t) => t + 1);
+      setForm((f) => ({
+        ...f,
+        title: result.title || f.title,
+        description: result.description || f.description,
+        howToUse: result.howToUse || f.howToUse,
+        whatsIncluded: result.whatsIncluded || f.whatsIncluded,
+      }));
+      toast.success('AI агуулга үүсгэгдлээ');
+    } catch {
+      toast.error('AI үүсгэхэд алдаа гарлаа');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  function validate(): boolean {
+    if (!form.title.trim()) {
+      toast.error('Гарчиг заавал бөглөнө үү');
+      return false;
+    }
+    if (!form.slug.trim()) {
+      toast.error('URL slug заавал бөглөнө үү');
+      return false;
+    }
+    const p = parseFloat(form.price);
+    if (isNaN(p) || p < 0) {
+      toast.error('Үнийн мэдээллийг зөв оруулна уу');
+      return false;
+    }
+    return true;
+  }
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const cap = parseFloat(form.compareAtPrice);
+      const body: Record<string, unknown> = {
+        title: form.title,
+        description: form.description,
+        price: parseFloat(form.price) || 0,
+        compareAtPrice: !isNaN(cap) && cap > 0 ? cap : null,
+        type: form.type,
+        categoryId: form.categoryId || undefined,
+        published: form.published,
+        featured: form.featured,
+        seoTitle: form.seoTitle || undefined,
+        seoDescription: form.seoDescription || undefined,
+        howToUse: form.howToUse || undefined,
+        whatsIncluded: form.whatsIncluded || undefined,
+        discountEndsAt: form.discountEndsAt || undefined,
+        howToUseSteps: form.howToUseSteps,
+        rating: parseFloat(form.rating) || 0,
+        ratingCount: parseInt(form.ratingCount) || 0,
+        proofImageUrl: form.proofImageUrl || undefined,
+        proofQuote: form.proofQuote || undefined,
+        proofText: form.proofText || undefined,
+        proofAuthorName: form.proofAuthorName || undefined,
+        proofAuthorRole: form.proofAuthorRole || undefined,
+      };
+
+      if (effectiveProduct) {
+        if (form.slug !== effectiveProduct.slug) body.slug = form.slug;
+        const updated = await adminApi.products.update(effectiveProduct.id, body);
+        await Promise.allSettled([
+          faqTabRef.current?.save(),
+          testimonialTabRef.current?.save(),
+        ]);
+        queryClient.invalidateQueries({ queryKey: ['admin', 'products', effectiveProduct.id, 'faq-ids'] });
+        queryClient.invalidateQueries({ queryKey: ['admin', 'products', effectiveProduct.id, 'testimonial-ids'] });
+        return updated;
+      }
+
+      body.slug = form.slug;
+      const created = await adminApi.products.create(body);
+      if (pendingFiles.length > 0) {
+        let imageIdx = 0;
+        await Promise.all(
+          pendingFiles.map(async (item) => {
+            const r = await adminApi.upload(item.file);
+            if (item.type === 'video') {
+              return adminApi.products.images.addVideo(created.id, r.url);
+            } else {
+              return adminApi.products.images.addImage(created.id, r.key, item.file.name, imageIdx++ === 0);
+            }
+          }),
+        );
+      }
+      return created;
+    },
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      if (effectiveProduct) {
+        // Store saved data so re-opening the dialog immediately shows correct values
+        justSavedRef.current = saved as AdminProduct;
+        toast.success('Бүтээгдэхүүн шинэчлэгдлээ');
+        onOpenChange(false);
+      } else {
+        toast.success('Бүтээгдэхүүн нэмэгдлээ! Файлууд, Багц болон бусад мэдээллийг нэмж болно.');
+        setCreatedProduct(saved as AdminProduct);
+        setPendingFiles([]);
+      }
+    },
+    onError: (err: Error) => {
+      const raw = err.message ?? '';
+      if (raw.includes('slug')) {
+        toast.error('Энэ URL slug аль хэдийн ашиглагдаж байна. Өөр slug оруулна уу.');
+      } else {
+        toast.error('Хадгалахад алдаа гарлаа');
+      }
+    },
+  });
+
+  async function handleProofImgUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingProof(true);
+    try {
+      const result = await adminApi.upload(file);
+      set('proofImageUrl', result.url);
+      toast.success('Зураг ачаалагдлаа');
+    } catch {
+      toast.error('Зураг ачаалахад алдаа гарлаа');
+    } finally {
+      setUploadingProof(false);
+      if (proofImgRef.current) proofImgRef.current.value = '';
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            {effectiveProduct ? 'Бүтээгдэхүүн засах' : 'Шинэ бүтээгдэхүүн'}
+          </DialogTitle>
+          <DialogPrimitive.Description className="sr-only">
+            {effectiveProduct ? `${effectiveProduct.title} бүтээгдэхүүний мэдээллийг засах` : 'Шинэ бүтээгдэхүүн үүсгэх'}
+          </DialogPrimitive.Description>
+        </DialogHeader>
+
+        <Tabs defaultValue="basic">
+          <TabsList className="w-full flex-wrap h-auto gap-0.5">
+            <TabsTrigger value="basic" className="flex-1 text-xs">Үндсэн</TabsTrigger>
+            <TabsTrigger value="content" className="flex-1 text-xs">Агуулга</TabsTrigger>
+            <TabsTrigger value="proof" className="flex-1 text-xs">Proof</TabsTrigger>
+            <TabsTrigger value="seo" className="flex-1 text-xs">SEO</TabsTrigger>
+            <TabsTrigger value="files" className="flex-1 text-xs">Файлууд</TabsTrigger>
+            <TabsTrigger value="course" className="flex-1 text-xs">Хичээл</TabsTrigger>
+            <TabsTrigger value="bundles" className="flex-1 text-xs">Багц</TabsTrigger>
+            <TabsTrigger value="faqs" className="flex-1 text-xs">FAQ</TabsTrigger>
+            <TabsTrigger value="testimonials" className="flex-1 text-xs">Сэтгэгдэл</TabsTrigger>
+          </TabsList>
+
+          {/* Basic Tab */}
+          <TabsContent value="basic" className="space-y-5 pt-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Зураг / Видео медиа</Label>
+              <p className="text-xs text-muted-foreground -mt-1">Олон зураг болон видео холилдуулан нэмнэ үү. Эхний зурагт бүтээгдэхүүний thumbnail байна.</p>
+              <InlineMediaManager
+                productId={effectiveProduct?.id}
+                pendingFiles={pendingFiles}
+                onPendingFilesChange={setPendingFiles}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="title">Гарчиг *</Label>
+                <Input id="title" value={form.title} onChange={(e) => handleTitleChange(e.target.value)} required placeholder="Бүтээгдэхүүний нэр" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slug">URL slug *</Label>
+                <Input id="slug" value={form.slug} onChange={(e) => set('slug', slugify(e.target.value))} required placeholder="url-slug" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Тайлбар *</Label>
+              <RichEditor
+                key={`description-${editorResetToken}`}
+                value={form.description}
+                onChange={(v) => set('description', v)}
+                placeholder="Бүтээгдэхүүний дэлгэрэнгүй тайлбар"
+                minHeight="120px"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="price">Үнэ (₮) *</Label>
+                <Input id="price" type="number" min={0} step={100} value={form.price} onChange={(e) => set('price', e.target.value)} required placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="compareAtPrice">Жагсаалтын үнэ</Label>
+                <Input id="compareAtPrice" type="number" min={0} step={100} value={form.compareAtPrice} onChange={(e) => set('compareAtPrice', e.target.value)} placeholder="Хэвийн үнэ" />
+              </div>
+              <div className="space-y-2">
+                <Label>Төрөл *</Label>
+                <Select value={form.type} onValueChange={(v) => set('type', v as ProductType)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PRODUCT_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ангилал</Label>
+                <Select value={form.categoryId || 'none'} onValueChange={(v) => set('categoryId', v === 'none' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="Сонгох" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Ангилалгүй —</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Хямдрал дуусах огноо</Label>
+              <Input type="datetime-local" value={form.discountEndsAt} onChange={(e) => set('discountEndsAt', e.target.value)} className="max-w-xs" />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex gap-6 items-end pb-1 sm:col-span-1">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={form.published} onChange={(e) => set('published', e.target.checked)} />
+                  <span>Нийтэлсэн</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={form.featured} onChange={(e) => set('featured', e.target.checked)} />
+                  <span>Онцлох</span>
+                </label>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rating">Үнэлгээ (0–5)</Label>
+                <Input id="rating" type="number" min={0} max={5} step={0.1} value={form.rating} onChange={(e) => set('rating', e.target.value)} placeholder="4.8" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ratingCount">Үнэлгээний тоо</Label>
+                <Input id="ratingCount" type="number" min={0} step={1} value={form.ratingCount} onChange={(e) => set('ratingCount', e.target.value)} placeholder="124" />
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Content Tab */}
+          <TabsContent value="content" className="space-y-5 pt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">AI ашиглан агуулга автоматаар үүсгэх</p>
+              <Button type="button" variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                {generating ? 'Үүсгэж байна...' : 'AI Generate'}
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Багцад юу багтсан вэ?</Label>
+              <RichEditor
+                key={`whatsIncluded-${editorResetToken}`}
+                value={form.whatsIncluded}
+                onChange={(v) => set('whatsIncluded', v)}
+                placeholder="Файлуудын жагсаалт, агуулга..."
+                minHeight="100px"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Хэрхэн ашиглах вэ? (текст/HTML)</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground gap-1"
+                  onClick={() => {
+                    setEditorResetToken((t) => t + 1);
+                    set('howToUse', DEFAULT_HOW_TO_USE);
+                  }}
+                >
+                  Дефолт болгох
+                </Button>
+              </div>
+              <RichEditor
+                key={`howToUse-${editorResetToken}`}
+                value={form.howToUse}
+                onChange={(v) => set('howToUse', v)}
+                placeholder="Ашиглах заавар, дээд хэсэг..."
+                minHeight="100px"
+              />
+            </div>
+
+            {/* howToUseSteps */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Алхамууд (Хэрхэн ашиглах вэ?)</Label>
+                <div className="flex gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1 h-7 text-xs text-muted-foreground"
+                    onClick={() => setForm((f) => ({ ...f, howToUseSteps: DEFAULT_HOW_TO_USE_STEPS }))}
+                  >
+                    Дефолт
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 h-7 text-xs"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        howToUseSteps: [...f.howToUseSteps, { title: '', description: '' }],
+                      }))
+                    }
+                  >
+                    <Plus className="h-3 w-3" /> Алхам нэмэх
+                  </Button>
+                </div>
+              </div>
+              {form.howToUseSteps.length === 0 && (
+                <p className="text-xs text-muted-foreground">Алхам нэмэгдээгүй байна. Дугаарлагдсан картаар харуулна.</p>
+              )}
+              <div className="space-y-2">
+                {form.howToUseSteps.map((step, i) => (
+                  <div key={i} className="rounded-lg border border-border p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-xs font-mono font-bold text-primary/50 w-6 shrink-0">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <Input
+                        value={step.title ?? ''}
+                        onChange={(e) => {
+                          const steps = [...form.howToUseSteps];
+                          steps[i] = { ...steps[i], title: e.target.value };
+                          setForm((f) => ({ ...f, howToUseSteps: steps }));
+                        }}
+                        placeholder="Алхмын гарчиг"
+                        className="h-7 text-sm flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            howToUseSteps: f.howToUseSteps.filter((_, idx) => idx !== i),
+                          }))
+                        }
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="ml-10">
+                      <Input
+                        value={step.description ?? ''}
+                        onChange={(e) => {
+                          const steps = [...form.howToUseSteps];
+                          steps[i] = { ...steps[i], description: e.target.value };
+                          setForm((f) => ({ ...f, howToUseSteps: steps }));
+                        }}
+                        placeholder="Алхмын тайлбар"
+                        className="h-7 text-xs w-full"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* SEO Tab */}
+          <TabsContent value="seo" className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="seoTitle">SEO гарчиг</Label>
+              <Input id="seoTitle" value={form.seoTitle} onChange={(e) => set('seoTitle', e.target.value)} placeholder={form.title || 'SEO гарчиг'} maxLength={70} />
+              <p className="text-right text-xs text-muted-foreground">{form.seoTitle.length}/70</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="seoDesc">SEO тайлбар</Label>
+              <textarea
+                id="seoDesc"
+                className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={form.seoDescription}
+                onChange={(e) => set('seoDescription', e.target.value)}
+                placeholder="Хайлтын үр дүнд харагдах тайлбар"
+                maxLength={160}
+              />
+              <p className="text-right text-xs text-muted-foreground">{form.seoDescription.length}/160</p>
+            </div>
+          </TabsContent>
+
+          {/* Social Proof Tab */}
+          <TabsContent value="proof" className="space-y-4 pt-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+              Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдах "нийгмийн нотолгоо" блок: зүүн талд хүний зураг, баруун талд иш үг. Иш үг заавал байх ёстой. Хүний зураг заавал биш.
+            </div>
+            <div className="space-y-2">
+              <Label>Хүний зураг</Label>
+              <div className="flex gap-3 items-start">
+                {form.proofImageUrl && (
+                  <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={form.proofImageUrl} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5"
+                      onClick={() => set('proofImageUrl', '')}
+                    >
+                      <X className="h-3 w-3 text-destructive" />
+                    </button>
+                  </div>
+                )}
+                <div className="flex-1 space-y-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => proofImgRef.current?.click()}
+                    disabled={uploadingProof}
+                    className="gap-1.5"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploadingProof ? 'Ачаалж...' : 'Зураг оруулах (R2)'}
+                  </Button>
+                  <input ref={proofImgRef} type="file" accept="image/*" className="hidden" onChange={handleProofImgUpload} />
+                  <Input
+                    value={form.proofImageUrl}
+                    onChange={(e) => set('proofImageUrl', e.target.value)}
+                    placeholder="Эсвэл URL шууд оруулах"
+                    className="h-7 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Үндсэн иш үг *</Label>
+              <textarea
+                className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={form.proofQuote}
+                onChange={(e) => set('proofQuote', e.target.value)}
+                placeholder="Томоор харагдах гол мессеж..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Дэлгэрэнгүй текст (заавал биш)</Label>
+              <textarea
+                className="min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={form.proofText}
+                onChange={(e) => set('proofText', e.target.value)}
+                placeholder="Нэмэлт тайлбар текст..."
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Нэр</Label>
+                <Input
+                  value={form.proofAuthorName}
+                  onChange={(e) => set('proofAuthorName', e.target.value)}
+                  placeholder="Бат-Эрдэнэ Д."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Албан тушаал / Үүрэг</Label>
+                <Input
+                  value={form.proofAuthorRole}
+                  onChange={(e) => set('proofAuthorRole', e.target.value)}
+                  placeholder="Маркетингийн менежер"
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Files Tab */}
+          <TabsContent value="files" className="pt-4">
+            <FilesTab productId={effectiveProduct?.id} />
+          </TabsContent>
+
+          {/* Course Tab */}
+          <TabsContent value="course" className="pt-4">
+            <CourseTab productId={effectiveProduct?.id} />
+          </TabsContent>
+
+          {/* Bundle Tab */}
+          <TabsContent value="bundles" className="pt-4">
+            <BundleTab productId={effectiveProduct?.id} />
+          </TabsContent>
+
+          {/* FAQ Assignment Tab */}
+          <TabsContent value="faqs" className="pt-4">
+            <FaqAssignTab ref={faqTabRef} productId={effectiveProduct?.id} />
+          </TabsContent>
+
+          {/* Testimonial Assignment Tab */}
+          <TabsContent value="testimonials" className="pt-4">
+            <TestimonialAssignTab ref={testimonialTabRef} productId={effectiveProduct?.id} />
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter className="gap-2 pt-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Цуцлах
+          </Button>
+          <Button
+            onClick={() => {
+              if (!validate()) return;
+              mutation.mutate();
+            }}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? 'Хадгалж байна...' : effectiveProduct ? 'Хадгалах' : 'Үүсгэх'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

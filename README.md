@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DigitalGer
 
 **Домэйн:** [digitalger.mn](https://digitalger.mn)  
@@ -45,3 +46,7 @@ npm run dev -- -p 3001
 ## Tech stack
 
 Next.js · NestJS · Prisma · PostgreSQL · Redis · Cloudflare R2 · QPay · Resend
+=======
+# Digitalger
+Digitalger.mn online digital, course marketplace webapp
+>>>>>>> ead7ae3df60c89f87103f549082fdd914b720f97

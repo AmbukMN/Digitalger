@@ -1,0 +1,431 @@
+import type { Metadata } from 'next';
+import Image from 'next/image';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { Badge } from '@digitalger/shared/ui';
+import { productsApi } from '@/lib/api';
+import { PRODUCT_TYPE_LABELS } from '@/lib/constants';
+import { PurchaseCard, MobileBuyBar } from '@/components/products/purchase-card';
+import { ProductTitleActions } from '@/components/products/product-title-actions';
+import { FaqAccordion } from '@/components/products/faq-accordion';
+import { ReviewsSection } from '@/components/products/reviews-section';
+import { ProductTestimonialsSection } from '@/components/products/testimonials-section';
+import { MediaGallery } from '@/components/products/media-gallery';
+import { CourseCurriculum } from '@/components/products/course-curriculum';
+import {
+  Star,
+  Download,
+  FileText,
+  Package,
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  Quote,
+} from 'lucide-react';
+import { formatPrice } from '@digitalger/shared';
+
+type Props = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  try {
+    const product = await productsApi.bySlug(slug);
+    const seo = product as { seoTitle?: string; seoDescription?: string };
+    return {
+      title: seo.seoTitle ?? product.title,
+      description: seo.seoDescription ?? product.description.slice(0, 160),
+    };
+  } catch {
+    return { title: 'Бүтээгдэхүүн' };
+  }
+}
+
+function formatBytes(bytes: number | null | undefined) {
+  if (!bytes) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function hasRealContent(html: string | null | undefined): boolean {
+  if (!html) return false;
+  return html.replace(/<[^>]*>/g, '').trim().length > 0;
+}
+
+
+export default async function ProductDetailPage({ params }: Props) {
+  const { slug } = await params;
+  let product: Awaited<ReturnType<typeof productsApi.bySlug>>;
+  try {
+    product = await productsApi.bySlug(slug);
+  } catch {
+    notFound();
+  }
+
+  const [suggestedProducts] = await Promise.all([
+    productsApi.suggested(slug, 4).catch(() => []),
+  ]);
+
+  const hasFiles = product.files && product.files.length > 0;
+  const allLessons = [
+    ...(product.course?.lessons ?? []),
+    ...(product.course?.modules?.flatMap((m) => m.lessons) ?? []),
+  ];
+  const hasLessons = allLessons.length > 0;
+  const hasFaqs = product.faqs && product.faqs.length > 0;
+  const hasReviews = product.reviews && product.reviews.length > 0;
+  const hasTestimonials = product.testimonials && product.testimonials.length > 0;
+  const hasProof = Boolean(product.proofQuote || product.proofImageUrl);
+  const galleryItems = (product.images ?? []).map((img) => ({
+    id: img.id,
+    url: img.url,
+    alt: img.alt,
+    videoUrl: img.videoUrl ?? null,
+    isPrimary: img.isPrimary,
+  }));
+
+  return (
+    <>
+      {/* Breadcrumb */}
+      <div className="border-b border-border bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2.5">
+          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Link href="/" className="hover:text-foreground transition-colors">Нүүр</Link>
+            <ChevronRight className="h-3 w-3" />
+            <Link href="/products" className="hover:text-foreground transition-colors">Бүтээгдэхүүн</Link>
+            {product.category && (
+              <>
+                <ChevronRight className="h-3 w-3" />
+                <Link href={`/categories/${product.category.slug}`} className="hover:text-foreground transition-colors">
+                  {product.category.name}
+                </Link>
+              </>
+            )}
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-foreground font-medium truncate max-w-48">{product.title}</span>
+          </nav>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 pb-24 md:pb-10">
+        <div className="grid gap-8 md:grid-cols-[1fr_300px] lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_400px]">
+          {/* Left column */}
+          <div className="space-y-8 min-w-0">
+            {/* Media gallery */}
+            <MediaGallery
+              items={galleryItems}
+              title={product.title}
+              thumbnailUrl={product.thumbnailUrl}
+              mainVideoUrl={product.videoUrl ?? null}
+            />
+
+            {/* Title + meta */}
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="text-2xl font-bold leading-snug sm:text-3xl flex-1">{product.title}</h1>
+                <ProductTitleActions product={product} />
+              </div>
+
+              {/* Rating row */}
+              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-4 w-4 ${
+                        star <= Math.round(product.rating)
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'text-muted-foreground/30'
+                      }`}
+                    />
+                  ))}
+                  <span className="font-semibold">{product.rating.toFixed(1)}</span>
+                  <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
+                </div>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Download className="h-3.5 w-3.5" />
+                  {product.downloadCount} таталт
+                </div>
+                <div className="flex items-baseline gap-2 lg:hidden">
+                  <p className="text-lg font-bold text-primary">{formatPrice(Number(product.price))}</p>
+                  {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
+                    <p className="text-sm text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <section>
+              <h2 className="text-lg font-bold mb-3">Тайлбар</h2>
+              {product.description.startsWith('<') ? (
+                <div
+                  className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: product.description }}
+                />
+              ) : (
+                <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground text-sm sm:text-base">
+                  {product.description}
+                </p>
+              )}
+            </section>
+
+            {/* What's included */}
+            {(hasRealContent(product.whatsIncluded) || hasFiles) && (
+              <section className="rounded-2xl border border-border bg-muted/30 p-5 sm:p-6">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  Багцад юу багтсан вэ?
+                </h2>
+                {hasRealContent(product.whatsIncluded) && product.whatsIncluded && (
+                  product.whatsIncluded.startsWith('<') ? (
+                    <div
+                      className="prose prose-sm max-w-none text-muted-foreground leading-relaxed mb-4"
+                      dangerouslySetInnerHTML={{ __html: product.whatsIncluded }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-4 whitespace-pre-wrap">
+                      {product.whatsIncluded}
+                    </p>
+                  )
+                )}
+                {hasFiles && (
+                  <ul className="space-y-2">
+                    {product.files!.map((file) => {
+                      const size = formatBytes(file.sizeBytes);
+                      return (
+                        <li key={file.id} className="flex items-center gap-3 text-sm">
+                          <FileText className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="flex-1 font-medium">{file.fileName}</span>
+                          {size && (
+                            <span className="text-xs text-muted-foreground">{size}</span>
+                          )}
+                          {file.mimeType && (
+                            <Badge variant="secondary" className="text-xs uppercase">
+                              {file.mimeType.split('/').pop()?.split('.').pop() ?? file.mimeType}
+                            </Badge>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {/* Course curriculum */}
+            {hasLessons && (
+              <section>
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  Хичээлийн хөтөлбөр
+                </h2>
+                <CourseCurriculum
+                  modules={product.course!.modules ?? []}
+                  lessons={product.course!.lessons ?? []}
+                  productId={product.id}
+                  productSlug={product.slug}
+                />
+              </section>
+            )}
+
+            {/* How to use — only show if product has its own content */}
+            {(product.howToUse || (product.howToUseSteps && product.howToUseSteps.length > 0)) && (
+              <section>
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                  Хэрхэн ашиглах вэ?
+                </h2>
+                {product.howToUse && (
+                  product.howToUse.startsWith('<') ? (
+                    <div
+                      className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: product.howToUse }}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground text-sm">{product.howToUse}</p>
+                  )
+                )}
+                {product.howToUseSteps && product.howToUseSteps.length > 0 && (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
+                    {product.howToUseSteps.map((step, i) => (
+                      <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                        <div className="mb-3 text-3xl font-black text-primary/20 leading-none">
+                          {String(i + 1).padStart(2, '0')}
+                        </div>
+                        <h4 className="font-semibold text-sm mb-1">{step.title}</h4>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{step.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Bundles */}
+            {product.bundles && product.bundles.length > 0 && (
+              <section>
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  Багцын агуулга
+                </h2>
+                <div className="space-y-3">
+                  {product.bundles.map((bundle, bi) => (
+                    <div key={bundle.id} className="rounded-xl border border-border overflow-hidden">
+                      <div className="flex items-center gap-3 bg-primary/5 px-4 py-3 border-b border-border">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                          {bi + 1}
+                        </span>
+                        <span className="font-semibold text-sm">{bundle.title}</span>
+                        {bundle.description && (
+                          <span className="text-xs text-muted-foreground ml-auto">{bundle.description}</span>
+                        )}
+                      </div>
+                      <ul className="divide-y divide-border">
+                        {bundle.items.map((item, ii) => (
+                          <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                            <span className="text-xs text-muted-foreground w-5 shrink-0 text-right">{ii + 1}.</span>
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                            <span className="flex-1">{item.name}</span>
+                            {item.description && (
+                              <span className="text-xs text-muted-foreground">{item.description}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Testimonials */}
+            {hasTestimonials && (
+              <section>
+                <div className="mb-4">
+                  <h2 className="text-lg font-bold">Худалдан авагчид юу гэж хэлэв?</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Мянга мянган хэрэглэгчид DigitalGer-ээр дамжуулан хэрэгтэй файл, сургалт, бэлэн шийдлүүдээ олж, цаг хугацаа болон зардлаа хэмнэж байна. Бодит хэрэглэгчдийн туршлага танд зөв сонголт хийхэд тусална.</p>
+                </div>
+                <ProductTestimonialsSection testimonials={product.testimonials!} />
+              </section>
+            )}
+
+            {/* FAQ */}
+            {hasFaqs && (
+              <section>
+                <div className="mb-4">
+                  <h2 className="text-lg font-bold">Түгээмэл асуулт</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Таны дотоод эргэлзээг тайлж, бүх асуултад тодорхой хариулт өгье. Хэрвээ танд энд багтаагүй өөр нэмэлт асуулт гарвал <a href="mailto:info@digitalger.mn" className="text-primary hover:underline">info@digitalger.mn</a> хаягаар шууд бичээрэй, бид танд цаг алдалгүй маш хурдан хариулах болно.</p>
+                </div>
+                <FaqAccordion faqs={product.faqs!} />
+              </section>
+            )}
+
+            {/* Social proof — at the very bottom, below FAQ */}
+            {hasProof && (
+              <section className="rounded-2xl overflow-hidden border border-border bg-linear-to-br from-primary/5 via-card to-primary/3 shadow-sm">
+                <div className="flex flex-row gap-0">
+                  {product.proofImageUrl && (
+                    <div className="w-36 sm:w-44 shrink-0">
+                      <div className="relative h-full min-h-40 sm:min-h-48 overflow-hidden bg-muted">
+                        <Image
+                          src={product.proofImageUrl}
+                          alt={product.proofAuthorName ?? 'Social proof'}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex-1 px-4 py-5 sm:px-6 sm:py-7 flex flex-col justify-center gap-3">
+                    <Quote className="h-7 w-7 text-primary/30 shrink-0" />
+                    {product.proofQuote && (
+                      <p className="text-base sm:text-lg font-semibold leading-snug text-foreground">
+                        {product.proofQuote}
+                      </p>
+                    )}
+                    {product.proofText && (
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {product.proofText}
+                      </p>
+                    )}
+                    {(product.proofAuthorName || product.proofAuthorRole) && (
+                      <div className="flex items-center gap-2 mt-1">
+                        {!product.proofImageUrl && (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                            {product.proofAuthorName?.charAt(0) ?? '?'}
+                          </div>
+                        )}
+                        <div>
+                          {product.proofAuthorName && (
+                            <p className="text-sm font-semibold">{product.proofAuthorName}</p>
+                          )}
+                          {product.proofAuthorRole && (
+                            <p className="text-xs text-muted-foreground">{product.proofAuthorRole}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Reviews */}
+            {hasReviews && (
+              <ReviewsSection reviews={product.reviews!} rating={product.rating} ratingCount={product.ratingCount} />
+            )}
+          </div>
+
+          {/* Right sidebar — md+ */}
+          <div className="hidden md:block">
+            <PurchaseCard product={product} />
+          </div>
+        </div>
+
+        {/* Suggested products */}
+        {suggestedProducts.length > 0 && (
+          <div className="mt-12">
+            <div className="h-px bg-border mb-8" />
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Санал болгох бүтээгдэхүүн</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Таньд тохирох бусад бүтээгдэхүүнүүд</p>
+              </div>
+              {product.category && (
+                <Link href={`/categories/${product.category.slug}`} className="text-sm text-primary hover:underline">
+                  Бүгдийг харах
+                </Link>
+              )}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {suggestedProducts.map((p) => (
+                <Link key={p.id} href={`/products/${p.slug}`} className="group block">
+                  <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                    <div className="relative aspect-4/3 bg-muted overflow-hidden">
+                      {p.thumbnailUrl ? (
+                        <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover transition-transform duration-300 group-hover:scale-105" unoptimized />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Package className="h-8 w-8 text-muted-foreground/30" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xs font-semibold line-clamp-2 leading-snug group-hover:text-primary transition-colors">{p.title}</p>
+                      <p className="mt-1.5 text-sm font-bold text-primary">{formatPrice(Number(p.price))}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile sticky bottom bar */}
+      <MobileBuyBar product={product} />
+    </>
+  );
+}

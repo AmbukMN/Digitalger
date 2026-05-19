@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+@import '../../../shared/src/styles/globals.css';
+@source '../../../shared/src/**/*.{ts,tsx}';
+@source '../**/*.{ts,tsx}';
