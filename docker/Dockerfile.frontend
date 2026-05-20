@@ -21,6 +21,13 @@ COPY frontend ./frontend
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# NEXT_PUBLIC_* vars are baked into the JS bundle at build time by webpack.
+# They MUST be passed as build args — runtime env vars arrive too late.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+
 WORKDIR /app/frontend
 RUN node /app/node_modules/.bin/next build
 

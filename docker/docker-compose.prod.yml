@@ -58,6 +58,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://api.digitalger.mn
+        NEXT_PUBLIC_SITE_URL: https://digitalger.mn
     restart: unless-stopped
     env_file:
       - /opt/DigitalGer/.env.production
@@ -75,6 +78,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.admin
+      args:
+        NEXT_PUBLIC_API_URL: https://api.digitalger.mn
     restart: unless-stopped
     env_file:
       - /opt/DigitalGer/.env.production
