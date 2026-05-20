@@ -8,8 +8,14 @@ import type { OrderStatus } from '@digitalger/shared';
 import {
   Button,
   DataTable,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   ErrorState,
   Input,
+  Label,
   Loading,
   Select,
   SelectContent,
@@ -17,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@digitalger/shared/ui';
-import { Search, Tag } from 'lucide-react';
+import { Pencil, Search, Tag, Trash2 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminOrder } from '@/types/admin';
@@ -33,82 +39,219 @@ const STATUSES: { value: OrderStatus | 'ALL'; label: string }[] = [
   { value: 'CANCELLED', label: 'Цуцалсан' },
 ];
 
-const STATUS_VARIANTS: Record<OrderStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  PAID: 'default',
-  PENDING: 'outline',
-  FAILED: 'destructive',
-  REFUNDED: 'secondary',
-  CANCELLED: 'secondary',
-};
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PAID: 'Төлсөн',
-  PENDING: 'Хүлээгдэж байна',
-  FAILED: 'Амжилтгүй',
-  REFUNDED: 'Буцаасан',
-  CANCELLED: 'Цуцалсан',
-};
-
 function formatMoney(value: number | string) {
   const n = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('mn-MN').format(n) + ' ₮';
 }
 
 function OrderNumber({ id }: { id: string }) {
-  const short = `#${id.slice(-8).toUpperCase()}`;
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-foreground">
-        {short}
-      </span>
-    </div>
+    <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-foreground">
+      #{id.slice(-8).toUpperCase()}
+    </span>
   );
 }
 
-function OrderStatusSelect({ order }: { order: AdminOrder }) {
+// ── Edit Dialog ──────────────────────────────────────────────────────────────
+function EditOrderDialog({
+  order,
+  open,
+  onClose,
+}: {
+  order: AdminOrder;
+  open: boolean;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
+  const [status, setStatus] = useState<OrderStatus>(order.status);
+  const [coupon, setCoupon] = useState(order.couponCode ?? '');
+
   const mutation = useMutation({
-    mutationFn: (status: string) => adminApi.orders.updateStatus(order.id, status),
+    mutationFn: () =>
+      adminApi.orders.update(order.id, {
+        status,
+        couponCode: coupon.trim() || null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
-      toast.success('Төлөв шинэчлэгдлээ');
+      toast.success('Захиалга шинэчлэгдлээ');
+      onClose();
     },
-    onError: () => toast.error('Шинэчлэхэд алдаа'),
+    onError: () => toast.error('Шинэчлэхэд алдаа гарлаа'),
   });
 
   return (
-    <Select
-      value={order.status}
-      onValueChange={(v) => mutation.mutate(v)}
-      disabled={mutation.isPending}
-    >
-      <SelectTrigger className="h-8 w-44 text-xs">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {STATUSES.filter((s) => s.value !== 'ALL').map((s) => (
-          <SelectItem key={s.value} value={s.value}>
-            {s.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Захиалга засах — #{order.id.slice(-8).toUpperCase()}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Хэрэглэгч</Label>
+            <p className="text-sm text-muted-foreground">
+              {order.user.name ?? '—'} · {order.user.email}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Бүтээгдэхүүн</Label>
+            <ul className="text-sm text-muted-foreground space-y-0.5">
+              {order.items.map((item) => (
+                <li key={item.id} className="truncate">• {item.product.title}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-status">Төлөв</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as OrderStatus)}>
+              <SelectTrigger id="edit-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUSES.filter((s) => s.value !== 'ALL').map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-coupon">Купон код (хоосон = устгах)</Label>
+            <Input
+              id="edit-coupon"
+              value={coupon}
+              onChange={(e) => setCoupon(e.target.value)}
+              placeholder="SUMMER20, ..."
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Болих
+          </Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
+// ── Delete Confirm Dialog ─────────────────────────────────────────────────────
+function DeleteOrderDialog({
+  order,
+  open,
+  onClose,
+}: {
+  order: AdminOrder;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => adminApi.orders.remove(order.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
+      toast.success('Захиалга устгагдлаа');
+      onClose();
+    },
+    onError: () => toast.error('Устгахад алдаа гарлаа'),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Захиалга устгах</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-2 space-y-2">
+          <p className="text-sm">
+            <span className="font-mono font-semibold">
+              #{order.id.slice(-8).toUpperCase()}
+            </span>{' '}
+            захиалгыг <span className="text-destructive font-semibold">бүрмөсөн устгах</span> уу?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Захиалгын бүх мэдээлэл, төлбөрийн бүртгэл устах бөгөөд буцаах боломжгүй.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Болих
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? 'Устгаж байна...' : 'Тийм, устга'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Actions Cell ──────────────────────────────────────────────────────────────
+function OrderActions({ order }: { order: AdminOrder }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  return (
+    <>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setEditOpen(true)}
+          title="Засах"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => setDeleteOpen(true)}
+          title="Устгах"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {editOpen && (
+        <EditOrderDialog order={order} open={editOpen} onClose={() => setEditOpen(false)} />
+      )}
+      {deleteOpen && (
+        <DeleteOrderDialog order={order} open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      )}
+    </>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  // Debounce search input
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 400);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Reset page when filter or search changes
   useEffect(() => { setPage(1); }, [statusFilter, search]);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -164,21 +307,46 @@ export default function OrdersPage() {
           <span className="font-semibold tabular-nums">{formatMoney(row.original.total)}</span>
           {row.original.couponCode && (
             <div className="flex flex-wrap items-center gap-1 mt-0.5">
-              {row.original.couponCode.split(',').map((code: string) => code.trim()).filter(Boolean).map((code: string) => (
-                <span key={code} className="inline-flex items-center gap-0.5 rounded bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-green-700 dark:text-green-400">
-                  <Tag className="h-2.5 w-2.5" />
-                  {code}
-                </span>
-              ))}
+              {row.original.couponCode
+                .split(',')
+                .map((c: string) => c.trim())
+                .filter(Boolean)
+                .map((c: string) => (
+                  <span
+                    key={c}
+                    className="inline-flex items-center gap-0.5 rounded bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-green-700 dark:text-green-400"
+                  >
+                    <Tag className="h-2.5 w-2.5" />
+                    {c}
+                  </span>
+                ))}
             </div>
           )}
         </div>
       ),
     },
     {
-      id: 'changeStatus',
+      id: 'status',
       header: 'Төлөв',
-      cell: ({ row }) => <OrderStatusSelect order={row.original} />,
+      cell: ({ row }) => {
+        const s = row.original.status;
+        const label =
+          s === 'PAID' ? 'Төлсөн' :
+          s === 'PENDING' ? 'Хүлээгдэж байна' :
+          s === 'FAILED' ? 'Амжилтгүй' :
+          s === 'REFUNDED' ? 'Буцаасан' :
+          'Цуцалсан';
+        const cls =
+          s === 'PAID' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+          s === 'PENDING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+          s === 'FAILED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+          'bg-muted text-muted-foreground';
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {label}
+          </span>
+        );
+      },
     },
     {
       accessorKey: 'createdAt',
@@ -189,6 +357,11 @@ export default function OrdersPage() {
           month: 'short',
           day: 'numeric',
         }),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => <OrderActions order={row.original} />,
     },
   ];
 
@@ -204,9 +377,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Search */}
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -217,7 +388,6 @@ export default function OrdersPage() {
           />
         </div>
 
-        {/* Status filter */}
         <Select
           value={statusFilter}
           onValueChange={(v) => setStatusFilter(v as OrderStatus | 'ALL')}
@@ -250,7 +420,6 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* Status quick-filter pills */}
       <div className="flex flex-wrap gap-2">
         {STATUSES.map((s) => {
           const count =

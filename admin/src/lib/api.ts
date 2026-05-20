@@ -223,6 +223,20 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       }),
+    update: (id: string, body: { status?: string; couponCode?: string | null }) =>
+      adminFetch<AdminOrder>(`/admin/orders/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      adminFetch<{ success: boolean }>(`/admin/orders/${id}`, { method: 'DELETE' }),
+    updatePayment: (id: string, status: string) =>
+      adminFetch<{ id: string; status: string }>(`/admin/payments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    removePayment: (id: string) =>
+      adminFetch<{ success: boolean }>(`/admin/payments/${id}`, { method: 'DELETE' }),
   },
 
   users: {

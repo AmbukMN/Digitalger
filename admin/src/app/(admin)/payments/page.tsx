@@ -1,9 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Badge, DataTable, ErrorState, Loading } from '@digitalger/shared/ui';
+import { toast } from 'sonner';
+import {
+  Badge,
+  Button,
+  DataTable,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  ErrorState,
+  Label,
+  Loading,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@digitalger/shared/ui';
+import { Pencil, Trash2 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminOrder } from '@/types/admin';
@@ -11,7 +30,7 @@ import type { AdminOrder } from '@/types/admin';
 const PAGE_SIZE = 20;
 
 type PaymentRow = {
-  qpayId: string;
+  id: string;
   orderId: string;
   amount: number | string;
   status: string;
@@ -29,11 +48,186 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'FAILED', label: 'Амжилтгүй' },
 ];
 
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  SUCCESS: 'Амжилттай',
+  PENDING: 'Хүлээгдэж байна',
+  FAILED: 'Амжилтгүй',
+};
+
+// ── Edit Payment Dialog ───────────────────────────────────────────────────────
+function EditPaymentDialog({
+  payment,
+  open,
+  onClose,
+}: {
+  payment: PaymentRow;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState(payment.status);
+
+  const mutation = useMutation({
+    mutationFn: () => adminApi.orders.updatePayment(payment.id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders', 'payments'] });
+      toast.success('Төлбөрийн төлөв шинэчлэгдлээ');
+      onClose();
+    },
+    onError: () => toast.error('Шинэчлэхэд алдаа гарлаа'),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Төлбөр засах</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Захиалга</p>
+            <p className="font-mono text-sm font-semibold">
+              #{payment.orderId.slice(-8).toUpperCase()}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Хэрэглэгч</p>
+            <p className="text-sm">{payment.userName ?? '—'} · {payment.userEmail}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-status">Төлбөрийн төлөв</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger id="pay-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTERS.filter((f) => f.value !== 'ALL').map((f) => (
+                  <SelectItem key={f.value} value={f.value}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Болих
+          </Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Delete Payment Dialog ─────────────────────────────────────────────────────
+function DeletePaymentDialog({
+  payment,
+  open,
+  onClose,
+}: {
+  payment: PaymentRow;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => adminApi.orders.removePayment(payment.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders', 'payments'] });
+      toast.success('Төлбөрийн бүртгэл устгагдлаа');
+      onClose();
+    },
+    onError: () => toast.error('Устгахад алдаа гарлаа'),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Төлбөр устгах</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-2 space-y-2">
+          <p className="text-sm">
+            Захиалга{' '}
+            <span className="font-mono font-semibold">
+              #{payment.orderId.slice(-8).toUpperCase()}
+            </span>
+            -ийн төлбөрийн бүртгэлийг{' '}
+            <span className="text-destructive font-semibold">бүрмөсөн устгах</span> уу?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Зөвхөн QPay-ийн бүртгэл устах бөгөөд захиалга хэвээр үлдэнэ.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Болих
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? 'Устгаж байна...' : 'Тийм, устга'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Payment Actions ───────────────────────────────────────────────────────────
+function PaymentActions({ payment }: { payment: PaymentRow }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  return (
+    <>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setEditOpen(true)}
+          title="Засах"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => setDeleteOpen(true)}
+          title="Устгах"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {editOpen && (
+        <EditPaymentDialog payment={payment} open={editOpen} onClose={() => setEditOpen(false)} />
+      )}
+      {deleteOpen && (
+        <DeletePaymentDialog payment={payment} open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      )}
+    </>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [page, setPage] = useState(1);
 
-  // Reset page when status filter changes
   const handleStatusFilter = (v: StatusFilter) => { setStatusFilter(v); setPage(1); };
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -44,7 +238,7 @@ export default function PaymentsPage() {
   const allRows: PaymentRow[] =
     data?.items.flatMap((order: AdminOrder) =>
       (order.payments ?? []).map((p) => ({
-        qpayId: p.id,
+        id: p.id,
         orderId: order.id,
         amount: p.amount,
         status: p.status,
@@ -55,14 +249,10 @@ export default function PaymentsPage() {
     ) ?? [];
 
   const rows =
-    statusFilter === 'ALL'
-      ? allRows
-      : allRows.filter((r) => r.status === statusFilter);
+    statusFilter === 'ALL' ? allRows : allRows.filter((r) => r.status === statusFilter);
 
   const counts: Record<string, number> = {};
-  allRows.forEach((r) => {
-    counts[r.status] = (counts[r.status] ?? 0) + 1;
-  });
+  allRows.forEach((r) => { counts[r.status] = (counts[r.status] ?? 0) + 1; });
 
   const columns: ColumnDef<PaymentRow>[] = [
     {
@@ -74,7 +264,7 @@ export default function PaymentsPage() {
             #{row.original.orderId.slice(-8).toUpperCase()}
           </span>
           <p className="text-[10px] text-muted-foreground font-mono">
-            QPay: {row.original.qpayId.slice(-10).toUpperCase()}
+            ID: {row.original.id.slice(-10).toUpperCase()}
           </p>
         </div>
       ),
@@ -111,13 +301,7 @@ export default function PaymentsPage() {
                 : 'outline'
           }
         >
-          {row.original.status === 'SUCCESS'
-            ? 'Амжилттай'
-            : row.original.status === 'PENDING'
-              ? 'Хүлээгдэж байна'
-              : row.original.status === 'FAILED'
-                ? 'Амжилтгүй'
-                : row.original.status}
+          {PAYMENT_STATUS_LABELS[row.original.status] ?? row.original.status}
         </Badge>
       ),
     },
@@ -131,6 +315,11 @@ export default function PaymentsPage() {
           day: 'numeric',
         }),
     },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => <PaymentActions payment={row.original} />,
+    },
   ];
 
   if (isLoading) return <Loading label="Төлбөрүүд..." />;
@@ -140,12 +329,9 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Төлбөр</h1>
-        <p className="text-sm text-muted-foreground">
-          QPay гүйлгээний бүртгэл
-        </p>
+        <p className="text-sm text-muted-foreground">QPay гүйлгээний бүртгэл</p>
       </div>
 
-      {/* Status filter pills */}
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => {
           const count = f.value === 'ALL' ? allRows.length : (counts[f.value] ?? 0);
@@ -176,7 +362,6 @@ export default function PaymentsPage() {
       </div>
 
       <DataTable columns={columns} data={rows} />
-      {/* Paginate by orders (each page has PAGE_SIZE orders → derive payments from them) */}
       <Pagination
         page={page}
         total={data?.total ?? 0}
@@ -184,10 +369,9 @@ export default function PaymentsPage() {
         onPage={setPage}
       />
 
-      {/* Legend */}
       <p className="text-xs text-muted-foreground">
-        <span className="font-medium">Захиалгын дугаар</span> — манай системийн дугаар.{' '}
-        <span className="font-medium">QPay Ref</span> — QPay-ийн гүйлгээний дугаар (буцаалт болон тооцоо нягтлахад хэрэглэнэ).
+        <span className="font-medium">ID</span> — төлбөрийн дотоод дугаар.{' '}
+        Захиалгыг устгахгүйгээр зөвхөн QPay бүртгэлийг устгах боломжтой.
       </p>
     </div>
   );

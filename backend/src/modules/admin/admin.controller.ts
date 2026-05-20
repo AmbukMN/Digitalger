@@ -353,6 +353,52 @@ export class AdminController {
     });
   }
 
+  @Patch('orders/:id')
+  updateOrder(
+    @Param('id') id: string,
+    @Body() body: { status?: OrderStatus; couponCode?: string | null },
+  ) {
+    const data: Record<string, unknown> = {};
+    if (body.status !== undefined) data.status = body.status;
+    if (body.couponCode !== undefined) data.couponCode = body.couponCode ?? null;
+    return this.prisma.order.update({
+      where: { id },
+      data,
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+        items: { include: { product: { select: { title: true, slug: true } } } },
+        payments: true,
+      },
+    });
+  }
+
+  @Delete('orders/:id')
+  async deleteOrder(@Param('id') id: string) {
+    await this.prisma.$transaction([
+      this.prisma.payment.deleteMany({ where: { orderId: id } }),
+      this.prisma.orderItem.deleteMany({ where: { orderId: id } }),
+      this.prisma.order.delete({ where: { id } }),
+    ]);
+    return { success: true };
+  }
+
+  @Patch('payments/:id')
+  updatePayment(
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ) {
+    return this.prisma.payment.update({
+      where: { id },
+      data: { status: status as 'PENDING' | 'SUCCESS' | 'FAILED' },
+    });
+  }
+
+  @Delete('payments/:id')
+  async deletePayment(@Param('id') id: string) {
+    await this.prisma.payment.delete({ where: { id } });
+    return { success: true };
+  }
+
   // Users
   @Get('users')
   listUsers(
