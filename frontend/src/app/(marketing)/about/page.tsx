@@ -25,13 +25,15 @@ const DEFAULT_CONTENT = `
 
 async function getAboutPage() {
   try {
-    const apiUrl = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+    const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const res = await fetch(`${apiUrl}/api/pages/about`, {
       next: { revalidate: 300 },
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
-    return res.json() as Promise<{ title: string; content: string } | null>;
+    const text = await res.text();
+    if (!text) return null;
+    return JSON.parse(text) as { title: string; content: string } | null;
   } catch {
     return null;
   }
