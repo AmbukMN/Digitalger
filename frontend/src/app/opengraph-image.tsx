@@ -58,6 +58,8 @@ export default async function Image() {
           <img
             src={banner!.imageUrl}
             alt=""
+            width={1200}
+            height={630}
             style={{
               position: 'absolute',
               inset: 0,

@@ -318,6 +318,8 @@ export default async function Image({ params }: Props) {
             <img
               src={thumbnail}
               alt={title}
+              width={600}
+              height={630}
               style={{
                 width: '100%',
                 height: '100%',
