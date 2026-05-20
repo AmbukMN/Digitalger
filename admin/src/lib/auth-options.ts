@@ -2,6 +2,11 @@ import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { API_URL } from './constants';
 
+// Server-side only: INTERNAL_API_URL is not NEXT_PUBLIC_ so it's never baked in.
+// In Docker this points to the internal backend container (http://backend:4000).
+// Falls back to API_URL (localhost) for local non-Docker dev.
+const BACKEND_URL = process.env.INTERNAL_API_URL ?? API_URL;
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
@@ -31,7 +36,7 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const res = await fetch(`${API_URL}/api/auth/login`, {
+        const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

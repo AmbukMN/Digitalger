@@ -5,6 +5,8 @@ import FacebookProvider from 'next-auth/providers/facebook';
 import { authApi } from './api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+// Not NEXT_PUBLIC_ → not baked at build time, reads runtime env in Docker
+const BACKEND_URL = process.env.INTERNAL_API_URL ?? API_URL;
 
 const providers: NextAuthOptions['providers'] = [];
 
@@ -77,7 +79,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google' || account?.provider === 'facebook') {
         try {
-          const res = await fetch(`${API_URL}/api/auth/oauth`, {
+          const res = await fetch(`${BACKEND_URL}/api/auth/oauth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

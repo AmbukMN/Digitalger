@@ -1,13 +1,15 @@
 # Stage 1: Install dependencies
+# Fresh install (no lockfile) so Alpine gets correct platform binaries
+# (lightningcss-linux-x64-musl, @tailwindcss/oxide-linux-x64-musl, etc.)
 FROM node:22-alpine AS deps
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json ./
 COPY shared/package.json ./shared/
 COPY frontend/package.json ./frontend/
+RUN mkdir -p admin backend
 
-# Install workspace dependencies (hoisted to root node_modules)
-RUN npm ci --workspace=shared --workspace=frontend --ignore-scripts
+RUN npm install --workspace=shared --workspace=frontend
 
 # Stage 2: Build
 FROM node:22-alpine AS builder
@@ -20,7 +22,11 @@ COPY frontend ./frontend
 ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app/frontend
-RUN npm run build
+RUN node /app/node_modules/.bin/next build
+
+# Resolve all symlinks in standalone output → actual files
+# (workspace-hoisted node_modules creates symlinks that break in the runner)
+RUN cp -rL /app/frontend/.next/standalone /tmp/standalone-frontend
 
 # Stage 3: Production runner (non-root)
 FROM node:22-alpine AS runner
@@ -32,9 +38,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /tmp/standalone-frontend ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./frontend/public
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./frontend/.next/static
 
 USER nextjs
 
@@ -42,4 +48,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-CMD ["node", "server.js"]
+CMD ["node", "frontend/server.js"]

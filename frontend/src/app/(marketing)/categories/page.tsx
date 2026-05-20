@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import type { Metadata } from 'next';
 import { Card, CardContent } from '@digitalger/shared/ui';
 import Link from 'next/link';

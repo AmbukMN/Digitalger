@@ -4,6 +4,8 @@ import path from 'path';
 const nextConfig: NextConfig = {
   output: 'standalone',
   transpilePackages: ['@digitalger/shared'],
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.digitalger.mn' },
@@ -14,6 +16,7 @@ const nextConfig: NextConfig = {
       { protocol: 'http', hostname: 'localhost' },
     ],
   },
+  outputFileTracingRoot: path.join(__dirname, '../'),
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },

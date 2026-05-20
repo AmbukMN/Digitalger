@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import type { Metadata } from 'next';
 import { ProductGrid } from '@/components/products/product-grid';
 import { productsApi } from '@/lib/api';

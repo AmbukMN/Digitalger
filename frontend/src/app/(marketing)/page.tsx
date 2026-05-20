@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Button } from '@digitalger/shared/ui';
 import Link from 'next/link';
 import { ProductSection } from '@/components/home/product-section';
