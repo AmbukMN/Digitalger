@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateThemeDto {
   @IsOptional()
@@ -16,6 +16,10 @@ export class UpdateThemeDto {
   @IsOptional()
   @IsString()
   layoutMode?: string;
+
+  @IsOptional()
+  @IsIn(['system', 'light', 'dark'])
+  defaultTheme?: string;
 }
 
 export class UpdateSiteDto {

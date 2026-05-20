@@ -12,13 +12,19 @@ export class ProductsController {
     @Query('category') categorySlug?: string,
     @Query('featured') featured?: string,
     @Query('type') type?: string,
+    @Query('types') types?: string,
   ) {
+    const typeFilter = types
+      ? types.split(',').map((t) => t.trim()).filter(Boolean)
+      : type
+      ? [type]
+      : undefined;
     return this.productsService.findPublished({
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
       categorySlug,
       featured: featured === 'true' ? true : featured === 'false' ? false : undefined,
-      type,
+      types: typeFilter,
     });
   }
 

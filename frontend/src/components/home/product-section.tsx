@@ -27,7 +27,7 @@ export async function ProductSection({
   if (!items.length) return null;
 
   return (
-    <section className="py-12">
+    <section className="py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold tracking-tight">{title}</h2>

@@ -31,7 +31,7 @@ function BlogResultCard({ post }: { post: BlogPost }) {
             alt={post.title}
             fill
             className="object-cover"
-            unoptimized
+            sizes="(max-width: 640px) 96px, 128px"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

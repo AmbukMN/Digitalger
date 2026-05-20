@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { BookOpen, CheckCircle2, ChevronDown, ChevronUp, Clock, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
@@ -37,7 +37,8 @@ const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
   { value: 'TEMPLATE', label: 'Загвар' },
   { value: 'DOCUMENT', label: 'Баримт' },
   { value: 'VIDEO', label: 'Видео' },
-  { value: 'COURSE', label: 'Курс' },
+  { value: 'LESSON', label: 'Хичээл' },
+  { value: 'BUNDLE', label: 'Багц хичээл' },
   { value: 'HYBRID', label: 'Холимог' },
 ];
 
@@ -76,6 +77,7 @@ const emptyForm = {
   compareAtPrice: '',
   type: 'FILE' as ProductType,
   categoryId: '',
+  categoryIds: [] as string[],
   published: false,
   featured: false,
   seoTitle: '',
@@ -102,164 +104,106 @@ function slugify(text: string) {
     .replace(/--+/g, '-');
 }
 
-interface AssignTabHandle {
-  save: () => Promise<void>;
+// FAQ assignment tab — state lives in parent to survive tab switches
+function FaqAssignTab({
+  selectedIds,
+  onToggle,
+}: {
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const { data: allFaqs = [], isLoading } = useQuery({
+    queryKey: ['admin', 'faqs'],
+    queryFn: () => adminApi.faqs.list(),
+  });
+
+  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+  if (!allFaqs.length) return (
+    <div className="py-8 text-center text-sm text-muted-foreground">
+      Глобал FAQ байхгүй байна. Эхлээд <span className="font-medium">FAQ</span> хуудаснаас нэмнэ үү.
+    </div>
+  );
+
+  const byCategory = allFaqs.reduce<Record<string, AdminFaq[]>>((acc, faq) => {
+    const cat = faq.category ?? 'Бусад';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(faq);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">Энэ бүтээгдэхүүнд харагдуулах FAQ-уудыг сонгоно уу.</p>
+      {Object.entries(byCategory).map(([cat, faqs]) => (
+        <div key={cat}>
+          <p className="text-xs font-semibold text-muted-foreground mb-2">{cat}</p>
+          <div className="space-y-1">
+            {faqs.map((faq) => (
+              <label key={faq.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                  checked={selectedIds.has(faq.id)}
+                  onChange={() => onToggle(faq.id)}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium leading-tight">{faq.question}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{faq.answer}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-// FAQ assignment tab
-const FaqAssignTab = forwardRef<AssignTabHandle, { productId?: string }>(
-  function FaqAssignTab({ productId }, ref) {
-    const { data: allFaqs = [], isLoading: loadingAll } = useQuery({
-      queryKey: ['admin', 'faqs'],
-      queryFn: () => adminApi.faqs.list(),
-    });
-    const { data: assignedIds, isLoading: loadingIds } = useQuery({
-      queryKey: ['admin', 'products', productId, 'faq-ids'],
-      queryFn: () => adminApi.products.getFaqIds(productId!),
-      enabled: !!productId,
-    });
+// Testimonial assignment tab — state lives in parent to survive tab switches
+function TestimonialAssignTab({
+  selectedIds,
+  onToggle,
+}: {
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const { data: allTestimonials = [], isLoading } = useQuery({
+    queryKey: ['admin', 'testimonials'],
+    queryFn: () => adminApi.testimonials.list(),
+  });
 
-    const [selected, setSelected] = useState<Set<string>>(new Set());
+  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+  if (!allTestimonials.length) return (
+    <div className="py-8 text-center text-sm text-muted-foreground">
+      Сэтгэгдэл байхгүй байна. Эхлээд <span className="font-medium">Сэтгэгдэл</span> хуудаснаас нэмнэ үү.
+    </div>
+  );
 
-    useEffect(() => {
-      if (assignedIds !== undefined) {
-        setSelected(new Set(assignedIds));
-      }
-    }, [assignedIds]);
-
-    useImperativeHandle(ref, () => ({
-      save: () => {
-        if (!productId) return Promise.resolve();
-        return adminApi.products.assignFaqs(productId, Array.from(selected));
-      },
-    }), [productId, selected]);
-
-    const toggle = (id: string) => {
-      setSelected((s) => {
-        const next = new Set(s);
-        next.has(id) ? next.delete(id) : next.add(id);
-        return next;
-      });
-    };
-
-    if (loadingAll || loadingIds) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
-    if (!allFaqs.length) return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        Глобал FAQ байхгүй байна. Эхлээд <span className="font-medium">FAQ</span> хуудаснаас нэмнэ үү.
-      </div>
-    );
-
-    const byCategory = allFaqs.reduce<Record<string, AdminFaq[]>>((acc, faq) => {
-      const cat = faq.category ?? 'Бусад';
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(faq);
-      return acc;
-    }, {});
-
-    return (
-      <div className="space-y-4">
-        {!productId && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">Бүтээгдэхүүн үүсгэсний дараа FAQ-уудын сонголт хадгалагдана.</p>
-        )}
-        <p className="text-xs text-muted-foreground">Энэ бүтээгдэхүүнд харагдуулах FAQ-уудыг сонгоно уу.</p>
-        {Object.entries(byCategory).map(([cat, faqs]) => (
-          <div key={cat}>
-            <p className="text-xs font-semibold text-muted-foreground mb-2">{cat}</p>
-            <div className="space-y-1">
-              {faqs.map((faq) => (
-                <label key={faq.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 accent-primary"
-                    checked={selected.has(faq.id)}
-                    onChange={() => toggle(faq.id)}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium leading-tight">{faq.question}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{faq.answer}</p>
-                  </div>
-                </label>
-              ))}
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдуулах сэтгэгдлүүдийг сонгоно уу.</p>
+      {allTestimonials.map((t: AdminTestimonial) => (
+        <label key={t.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-primary"
+            checked={selectedIds.has(t.id)}
+            onChange={() => onToggle(t.id)}
+          />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+              {t.name.charAt(0)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium leading-tight">{t.name}</p>
+              {t.role && <p className="text-xs text-muted-foreground">{t.role}</p>}
             </div>
           </div>
-        ))}
-      </div>
-    );
-  }
-);
-
-// Testimonial assignment tab
-const TestimonialAssignTab = forwardRef<AssignTabHandle, { productId?: string }>(
-  function TestimonialAssignTab({ productId }, ref) {
-    const { data: allTestimonials = [], isLoading: loadingAll } = useQuery({
-      queryKey: ['admin', 'testimonials'],
-      queryFn: () => adminApi.testimonials.list(),
-    });
-    const { data: assignedIds, isLoading: loadingIds } = useQuery({
-      queryKey: ['admin', 'products', productId, 'testimonial-ids'],
-      queryFn: () => adminApi.products.getTestimonialIds(productId!),
-      enabled: !!productId,
-    });
-
-    const [selected, setSelected] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-      if (assignedIds !== undefined) {
-        setSelected(new Set(assignedIds));
-      }
-    }, [assignedIds]);
-
-    useImperativeHandle(ref, () => ({
-      save: () => {
-        if (!productId) return Promise.resolve();
-        return adminApi.products.assignTestimonials(productId, Array.from(selected));
-      },
-    }), [productId, selected]);
-
-    const toggle = (id: string) => {
-      setSelected((s) => {
-        const next = new Set(s);
-        next.has(id) ? next.delete(id) : next.add(id);
-        return next;
-      });
-    };
-
-    if (loadingAll || loadingIds) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
-    if (!allTestimonials.length) return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        Сэтгэгдэл байхгүй байна. Эхлээд <span className="font-medium">Сэтгэгдэл</span> хуудаснаас нэмнэ үү.
-      </div>
-    );
-
-    return (
-      <div className="space-y-3">
-        {!productId && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">Бүтээгдэхүүн үүсгэсний дараа сэтгэгдлийн сонголт хадгалагдана.</p>
-        )}
-        <p className="text-xs text-muted-foreground">Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдуулах сэтгэгдлүүдийг сонгоно уу.</p>
-        {allTestimonials.map((t: AdminTestimonial) => (
-          <label key={t.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-primary"
-              checked={selected.has(t.id)}
-              onChange={() => toggle(t.id)}
-            />
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-                {t.name.charAt(0)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium leading-tight">{t.name}</p>
-                {t.role && <p className="text-xs text-muted-foreground">{t.role}</p>}
-              </div>
-            </div>
-          </label>
-        ))}
-      </div>
-    );
-  }
-);
+        </label>
+      ))}
+    </div>
+  );
+}
 
 // Bundle management tab
 function BundleTab({ productId }: { productId?: string }) {
@@ -1549,14 +1493,16 @@ export function ProductFormDialog({
   const [form, setForm] = useState(emptyForm);
   const [generating, setGenerating] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingMedia[]>([]);
-  // Stays in edit mode after first-time create
-  const [createdProduct, setCreatedProduct] = useState<AdminProduct | null>(null);
-  const effectiveProduct = product ?? createdProduct;
+  const effectiveProduct = product;
   // Incrementing this key forces all RichEditors to remount with fresh content
   const [editorResetToken, setEditorResetToken] = useState(0);
 
-  const faqTabRef = useRef<AssignTabHandle>(null);
-  const testimonialTabRef = useRef<AssignTabHandle>(null);
+  // FAQ / Testimonial selections — state in parent so tab switches don't lose them
+  const [selectedFaqIds, setSelectedFaqIds] = useState<Set<string>>(new Set());
+  const [selectedTestimonialIds, setSelectedTestimonialIds] = useState<Set<string>>(new Set());
+  const faqIdsInitializedFor = useRef<string | null>(null);
+  const testimonialIdsInitializedFor = useRef<string | null>(null);
+
   const proofImgRef = useRef<HTMLInputElement>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
 
@@ -1565,12 +1511,28 @@ export function ProductFormDialog({
     queryFn: () => adminApi.categories.list(),
   });
 
+  const { data: assignedFaqIds } = useQuery({
+    queryKey: ['admin', 'products', product?.id, 'faq-ids'],
+    queryFn: () => adminApi.products.getFaqIds(product!.id),
+    enabled: !!product?.id,
+  });
+
+  const { data: assignedTestimonialIds } = useQuery({
+    queryKey: ['admin', 'products', product?.id, 'testimonial-ids'],
+    queryFn: () => adminApi.products.getTestimonialIds(product!.id),
+    enabled: !!product?.id,
+  });
+
   // Holds the data returned from the last successful save — avoids stale list data on re-open
   const justSavedRef = useRef<AdminProduct | null>(null);
   // Tracks which product.id was used to initialize the form (prevents double-init)
   const initializedForRef = useRef<string | null>(null);
 
   function buildFormFromProduct(p: AdminProduct) {
+    const catIds = (p as any).categoryIds as string[] | undefined;
+    const effectiveCategoryIds = catIds && catIds.length > 0
+      ? catIds
+      : p.categoryId ? [p.categoryId] : [];
     return {
       title: p.title,
       slug: p.slug,
@@ -1579,6 +1541,7 @@ export function ProductFormDialog({
       compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
       type: p.type,
       categoryId: p.categoryId ?? '',
+      categoryIds: effectiveCategoryIds,
       published: p.published,
       featured: p.featured,
       seoTitle: p.seoTitle ?? '',
@@ -1605,20 +1568,20 @@ export function ProductFormDialog({
   // Initialize form when dialog opens
   useEffect(() => {
     if (!open) {
-      setCreatedProduct(null);
       initializedForRef.current = null;
+      faqIdsInitializedFor.current = null;
+      testimonialIdsInitializedFor.current = null;
+      setSelectedFaqIds(new Set());
+      setSelectedTestimonialIds(new Set());
       return;
     }
-    if (createdProduct) return;
 
     if (product) {
-      // If we just saved this product, use the saved data (fresh from server response)
-      // This prevents stale list data overriding what was just saved
       const hasSaved = justSavedRef.current?.id === product.id;
       const source = hasSaved ? justSavedRef.current! : product;
-      if (hasSaved) justSavedRef.current = null; // clear after using once
+      if (hasSaved) justSavedRef.current = null;
 
-      if (initializedForRef.current === product.id) return; // already initialized
+      if (initializedForRef.current === product.id) return;
       initializedForRef.current = product.id;
       setEditorResetToken((t) => t + 1);
       setForm(buildFormFromProduct(source));
@@ -1630,7 +1593,25 @@ export function ProductFormDialog({
       setPendingFiles([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product, open, createdProduct]);
+  }, [product, open]);
+
+  // Initialize FAQ selections from server data
+  useEffect(() => {
+    if (!product?.id) return;
+    if (faqIdsInitializedFor.current === product.id) return;
+    if (assignedFaqIds === undefined) return;
+    faqIdsInitializedFor.current = product.id;
+    setSelectedFaqIds(new Set(assignedFaqIds));
+  }, [assignedFaqIds, product?.id]);
+
+  // Initialize testimonial selections from server data
+  useEffect(() => {
+    if (!product?.id) return;
+    if (testimonialIdsInitializedFor.current === product.id) return;
+    if (assignedTestimonialIds === undefined) return;
+    testimonialIdsInitializedFor.current = product.id;
+    setSelectedTestimonialIds(new Set(assignedTestimonialIds));
+  }, [assignedTestimonialIds, product?.id]);
 
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -1695,7 +1676,8 @@ export function ProductFormDialog({
         price: parseFloat(form.price) || 0,
         compareAtPrice: !isNaN(cap) && cap > 0 ? cap : null,
         type: form.type,
-        categoryId: form.categoryId || undefined,
+        categoryId: form.categoryIds.length > 0 ? form.categoryIds[0] : (form.categoryId || undefined),
+        categoryIds: form.categoryIds.length > 0 ? form.categoryIds : (form.categoryId ? [form.categoryId] : []),
         published: form.published,
         featured: form.featured,
         seoTitle: form.seoTitle || undefined,
@@ -1717,8 +1699,8 @@ export function ProductFormDialog({
         if (form.slug !== effectiveProduct.slug) body.slug = form.slug;
         const updated = await adminApi.products.update(effectiveProduct.id, body);
         await Promise.allSettled([
-          faqTabRef.current?.save(),
-          testimonialTabRef.current?.save(),
+          adminApi.products.assignFaqs(effectiveProduct.id, Array.from(selectedFaqIds)),
+          adminApi.products.assignTestimonials(effectiveProduct.id, Array.from(selectedTestimonialIds)),
         ]);
         queryClient.invalidateQueries({ queryKey: ['admin', 'products', effectiveProduct.id, 'faq-ids'] });
         queryClient.invalidateQueries({ queryKey: ['admin', 'products', effectiveProduct.id, 'testimonial-ids'] });
@@ -1727,10 +1709,11 @@ export function ProductFormDialog({
 
       body.slug = form.slug;
       const created = await adminApi.products.create(body);
+      const tasks: Promise<unknown>[] = [];
       if (pendingFiles.length > 0) {
         let imageIdx = 0;
-        await Promise.all(
-          pendingFiles.map(async (item) => {
+        tasks.push(
+          ...pendingFiles.map(async (item) => {
             const r = await adminApi.upload(item.file);
             if (item.type === 'video') {
               return adminApi.products.images.addVideo(created.id, r.url);
@@ -1740,20 +1723,20 @@ export function ProductFormDialog({
           }),
         );
       }
+      if (selectedFaqIds.size > 0) {
+        tasks.push(adminApi.products.assignFaqs(created.id, Array.from(selectedFaqIds)));
+      }
+      if (selectedTestimonialIds.size > 0) {
+        tasks.push(adminApi.products.assignTestimonials(created.id, Array.from(selectedTestimonialIds)));
+      }
+      if (tasks.length > 0) await Promise.allSettled(tasks);
       return created;
     },
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
-      if (effectiveProduct) {
-        // Store saved data so re-opening the dialog immediately shows correct values
-        justSavedRef.current = saved as AdminProduct;
-        toast.success('Бүтээгдэхүүн шинэчлэгдлээ');
-        onOpenChange(false);
-      } else {
-        toast.success('Бүтээгдэхүүн нэмэгдлээ! Файлууд, Багц болон бусад мэдээллийг нэмж болно.');
-        setCreatedProduct(saved as AdminProduct);
-        setPendingFiles([]);
-      }
+      justSavedRef.current = saved as AdminProduct;
+      toast.success(effectiveProduct ? 'Бүтээгдэхүүн шинэчлэгдлээ' : 'Бүтээгдэхүүн нэмэгдлээ');
+      onOpenChange(false);
     },
     onError: (err: Error) => {
       const raw = err.message ?? '';
@@ -1863,16 +1846,34 @@ export function ProductFormDialog({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Ангилал</Label>
-                <Select value={form.categoryId || 'none'} onValueChange={(v) => set('categoryId', v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Сонгох" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Ангилалгүй —</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Ангилал (олон сонгох боломжтой)</Label>
+                <div className="rounded-lg border border-border bg-background max-h-40 overflow-y-auto p-2 space-y-1">
+                  {categories.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-1 py-1">Ангилал байхгүй</p>
+                  )}
+                  {categories.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/50 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary shrink-0"
+                        checked={form.categoryIds.includes(c.id)}
+                        onChange={(e) => {
+                          setForm((f) => ({
+                            ...f,
+                            categoryIds: e.target.checked
+                              ? [...f.categoryIds, c.id]
+                              : f.categoryIds.filter((id) => id !== c.id),
+                            categoryId: e.target.checked && f.categoryIds.length === 0 ? c.id : f.categoryId,
+                          }));
+                        }}
+                      />
+                      <span className="truncate">{c.name}</span>
+                    </label>
+                  ))}
+                </div>
+                {form.categoryIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{form.categoryIds.length} ангилал сонгогдсон</p>
+                )}
               </div>
             </div>
 
@@ -2152,12 +2153,26 @@ export function ProductFormDialog({
 
           {/* FAQ Assignment Tab */}
           <TabsContent value="faqs" className="pt-4">
-            <FaqAssignTab ref={faqTabRef} productId={effectiveProduct?.id} />
+            <FaqAssignTab
+              selectedIds={selectedFaqIds}
+              onToggle={(id) => setSelectedFaqIds((s) => {
+                const next = new Set(s);
+                next.has(id) ? next.delete(id) : next.add(id);
+                return next;
+              })}
+            />
           </TabsContent>
 
           {/* Testimonial Assignment Tab */}
           <TabsContent value="testimonials" className="pt-4">
-            <TestimonialAssignTab ref={testimonialTabRef} productId={effectiveProduct?.id} />
+            <TestimonialAssignTab
+              selectedIds={selectedTestimonialIds}
+              onToggle={(id) => setSelectedTestimonialIds((s) => {
+                const next = new Set(s);
+                next.has(id) ? next.delete(id) : next.add(id);
+                return next;
+              })}
+            />
           </TabsContent>
         </Tabs>
 

@@ -91,7 +91,7 @@ async function main() {
       description:
         'Дижитал маркетингийн үндэс — 12 хичээл, практик даалгавартай видео курс.',
       price: 89000,
-      type: ProductType.COURSE,
+      type: ProductType.LESSON,
       categoryId: categories[2].id,
       published: true,
       featured: true,
@@ -120,7 +120,7 @@ async function main() {
       },
     });
 
-    if (p.type === ProductType.COURSE) {
+    if (p.type === ProductType.LESSON) {
       const course = await prisma.course.upsert({
         where: { productId: product.id },
         update: {},

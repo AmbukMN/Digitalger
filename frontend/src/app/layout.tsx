@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 import { SITE_NAME, SITE_URL } from '@/lib/constants';
+import type { Theme } from '@digitalger/shared/ui';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -14,34 +15,121 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#022179' },
+    { media: '(prefers-color-scheme: dark)', color: '#0d1b3e' },
+  ],
+};
+
+const DEFAULT_TITLE = `${SITE_NAME} — Дижитал бүтээгдэхүүний marketplace`;
+const DEFAULT_DESC =
+  'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — Дижитал бүтээгдэхүүний marketplace`,
+    default: DEFAULT_TITLE,
     template: `%s | ${SITE_NAME}`,
   },
-  description:
-    'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.',
+  description: DEFAULT_DESC,
+  keywords: [
+    'дижитал бүтээгдэхүүн', 'файл татах', 'загвар', 'курс', 'монгол marketplace',
+    'digital product', 'template', 'online course', 'Mongolia',
+  ],
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
   openGraph: {
     type: 'website',
     locale: 'mn_MN',
     siteName: SITE_NAME,
     url: SITE_URL,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESC,
   },
-  robots: { index: true, follow: true },
+  twitter: {
+    card: 'summary_large_image',
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESC,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+  },
+  alternates: { canonical: SITE_URL },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: SITE_NAME,
+  },
 };
 
-export default function RootLayout({
+const orgJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: `${SITE_URL}/brand/logo.svg`,
+  sameAs: [],
+};
+
+async function getDefaultTheme(): Promise<Theme> {
+  try {
+    const apiUrl =
+      process.env.INTERNAL_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:4000';
+    const res = await fetch(`${apiUrl}/api/settings/public`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return 'system';
+    const data = await res.json();
+    const t = data?.defaultTheme;
+    if (t === 'light' || t === 'dark' || t === 'system') return t;
+    return 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+/**
+ * Blocking inline script: localStorage хадгалагдсан preference, эсвэл
+ * server default, эсвэл system preference-ийг ашиглан <html>-д class тавина.
+ * Энэ нь React hydration-аас өмнө ажиллаж flash (FOUC) зайлуулна.
+ */
+function buildThemeScript(serverDefault: Theme): string {
+  return `(function(){try{var s=localStorage.getItem('digitalger-theme');var d='${serverDefault}';var t=s||d||'system';var r=t==='system'?(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):t;document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(r);}catch(e){}})();`;
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const defaultTheme = await getDefaultTheme();
+
   return (
     <html lang="mn" suppressHydrationWarning>
+      <head>
+        {/* Flash prevention — synchronous, runs before any paint */}
+        <script dangerouslySetInnerHTML={{ __html: buildThemeScript(defaultTheme) }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers defaultTheme={defaultTheme}>{children}</Providers>
       </body>
     </html>
   );

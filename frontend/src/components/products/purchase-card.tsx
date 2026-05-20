@@ -401,7 +401,7 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
       {/* CTA button */}
       <Button className="w-full font-bold" size="lg" onClick={handleBuy}>
         <ShoppingCart className="mr-2 h-4 w-4" />
-        Худалдан авах
+        Шууд худалдаж авах
       </Button>
 
       {/* Quick details */}
@@ -547,7 +547,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
     const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
 
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {/* Individual files (expandable) */}
         {filesOpen && hasFiles && (
           <div className="border-b border-border/40 px-4 py-3 bg-muted/20 space-y-2">
@@ -632,7 +632,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const canAddMore = coupons.length < MAX_COUPONS_PER_PRODUCT;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm md:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {product.discountEndsAt && (
         <div className="border-b border-border/40 px-4 py-2">
           <DiscountTimer
@@ -649,7 +649,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
 
       {/* Mobile coupon section (expandable) */}
       {couponOpen && (
-        <div className="border-b border-border/40 px-4 py-3 bg-muted/20 space-y-2">
+        <div className="border-b border-border/40 px-4 py-3 bg-muted/20 space-y-2 w-full overflow-hidden">
           {/* Applied coupons */}
           {coupons.length > 0 && (
             <div className="space-y-1.5">
@@ -680,17 +680,17 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
           {/* Input */}
           {canAddMore ? (
             <div className="space-y-1.5">
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full min-w-0">
                 <Input
                   value={code}
                   onChange={(e) => { setCode(e.target.value.toUpperCase()); setError(''); }}
-                  placeholder={coupons.length === 0 ? 'Купон кодоо оруулна уу' : 'Дараагийн купон...'}
-                  className="h-9 text-sm font-mono uppercase tracking-wider flex-1"
+                  placeholder="Купон код"
+                  className="h-9 text-sm font-mono uppercase tracking-wider min-w-0 flex-1"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
                   disabled={loading}
                   autoFocus
                 />
-                <Button size="sm" className="h-9 px-3 shrink-0" onClick={handleApply} disabled={loading || !code.trim()}>
+                <Button size="sm" className="h-9 px-3 shrink-0 whitespace-nowrap" onClick={handleApply} disabled={loading || !code.trim()}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Хэрэглэх'}
                 </Button>
               </div>
@@ -732,9 +732,9 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
               <ChevronDown className={`h-3 w-3 transition-transform ${couponOpen ? 'rotate-180' : ''}`} />
             </button>
           </div>
-          <Button className="font-bold px-6 shrink-0" size="lg" onClick={handleBuy}>
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            Авах
+          <Button className="font-bold px-4 shrink-0 text-sm" size="lg" onClick={handleBuy}>
+            <ShoppingCart className="mr-1.5 h-4 w-4" />
+            Шууд худалдаж авах
           </Button>
         </div>
       </div>

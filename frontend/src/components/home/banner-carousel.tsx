@@ -76,7 +76,7 @@ export function BannerCarousel({ banners }: Props) {
                 fill
                 className="object-cover"
                 priority
-                unoptimized
+                sizes="100vw"
               />
             )}
             <div

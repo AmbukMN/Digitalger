@@ -30,6 +30,7 @@ export class AppController {
       logoUrl: site?.logoUrl ?? null,
       primaryColor: theme?.primaryColor ?? null,
       accentColor: theme?.accentColor ?? null,
+      defaultTheme: theme?.defaultTheme ?? 'system',
     };
   }
 }

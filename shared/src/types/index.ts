@@ -5,7 +5,8 @@ export type ProductType =
   | 'TEMPLATE'
   | 'DOCUMENT'
   | 'VIDEO'
-  | 'COURSE'
+  | 'LESSON'
+  | 'BUNDLE'
   | 'HYBRID';
 
 export type OrderStatus =

@@ -22,7 +22,7 @@ function TestimonialCard({ t }: { t: Testimonial }) {
       <p className="flex-1 text-sm leading-relaxed text-foreground sm:text-base">&ldquo;{t.content}&rdquo;</p>
       <div className="flex items-center gap-3 pt-3 border-t border-border">
         {t.avatar ? (
-          <Image src={t.avatar} alt={t.name} width={40} height={40} className="h-10 w-10 rounded-full object-cover shrink-0" unoptimized />
+          <Image src={t.avatar} alt={t.name} width={40} height={40} className="h-10 w-10 rounded-full object-cover shrink-0" />
         ) : (
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
             {t.name.charAt(0)}

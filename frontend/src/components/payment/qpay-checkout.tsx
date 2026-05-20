@@ -16,20 +16,113 @@ interface QPayCheckoutProps {
 
 const POLL_INTERVAL = 5000;
 
-function BankAppButton({ name, link, logo }: { name: string; link: string; logo: string }) {
+// Bank deeplink schemes from QPay V2 API docs
+const BANK_DEEPLINKS: Record<string, string> = {
+  'Khan Bank': 'khanbank://q?qPay_QRcode=',
+  'Golomt Bank': 'golomtbank://q?qPay_QRcode=',
+  'TDB': 'tdbbank://q?qPay_QRcode=',
+  'Trade and Development Bank': 'tdbbank://q?qPay_QRcode=',
+  'Xac Bank': 'xacbank://q?qPay_QRcode=',
+  'XacBank': 'xacbank://q?qPay_QRcode=',
+  'State Bank': 'statebank://q?qPay_QRcode=',
+  'Capitron Bank': 'capitronbank://q?qPay_QRcode=',
+  'M Bank': 'mbank://q?qPay_QRcode=',
+  'Most Money': 'mostmoney://q?qPay_QRcode=',
+  'Ard App': 'ardapp://q?qPay_QRcode=',
+  'Ard': 'ardapp://q?qPay_QRcode=',
+  'Bogd Bank': 'bogdbank://q?qPay_QRcode=',
+  'NIBank': 'nibank://q?qPay_QRcode=',
+  'National Investment Bank': 'nibank://q?qPay_QRcode=',
+  'Chinggis Khaan Bank': 'ckbank://q?qPay_QRcode=',
+  'CK Bank': 'ckbank://q?qPay_QRcode=',
+};
+
+function getBankLink(name: string, link: string, qrText?: string): string {
+  if (!qrText) return link;
+  const scheme = BANK_DEEPLINKS[name];
+  if (scheme) return `${scheme}${encodeURIComponent(qrText)}`;
+  // Fallback: try to find partial match
+  const nameUpper = name.toUpperCase();
+  for (const [key, val] of Object.entries(BANK_DEEPLINKS)) {
+    if (nameUpper.includes(key.toUpperCase()) || key.toUpperCase().includes(nameUpper)) {
+      return `${val}${encodeURIComponent(qrText)}`;
+    }
+  }
+  return link;
+}
+
+function BankAppButton({
+  name,
+  link,
+  logo,
+  qrText,
+}: {
+  name: string;
+  link: string;
+  logo: string;
+  qrText?: string;
+}) {
+  const deeplink = getBankLink(name, link, qrText);
   return (
     <a
-      href={link}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-background p-3 hover:bg-muted transition-colors active:scale-95"
+      href={deeplink}
+      className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 p-2.5 hover:bg-muted transition-all active:scale-95 cursor-pointer"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logo} alt={name} className="h-10 w-10 rounded-lg object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-      <span className="text-[10px] font-medium text-center leading-tight text-muted-foreground line-clamp-2 w-full">
+      <img
+        src={logo}
+        alt={name}
+        className="h-10 w-10 rounded-lg object-contain"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+      <span className="text-[9px] font-medium text-center leading-tight text-muted-foreground line-clamp-2 w-full">
         {name}
       </span>
     </a>
+  );
+}
+
+function PaymentStepsDesktop() {
+  const steps = [
+    'Банкны аппаа нээх',
+    'QR код скан хийх эсвэл банкаа сонгох',
+    'Дүнг шалгаад төлбөр хийх',
+  ];
+  return (
+    <div className="hidden sm:block rounded-xl border border-border/60 bg-muted/30 px-4 py-3 space-y-2">
+      <p className="text-xs font-semibold text-foreground mb-1">Хэрхэн төлөх вэ?</p>
+      {steps.map((step, i) => (
+        <div key={i} className="flex items-start gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground mt-0.5">
+            {i + 1}
+          </span>
+          <span className="text-xs text-foreground leading-relaxed">{step}</span>
+        </div>
+      ))}
+      <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed border-t border-border/40 mt-1">
+        Төлбөр баталгаажсаны дараа файл татах, сургалт үзэх боломжтой болно.
+      </p>
+    </div>
+  );
+}
+
+function PaymentStepsMobile() {
+  return (
+    <div className="sm:hidden rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+      <div className="flex items-start gap-2.5">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground mt-0.5">!</span>
+        <div>
+          <p className="text-sm font-semibold text-foreground leading-snug">
+            Дээрх банкны товч дээр дараад төлбөрөө хийгээрэй.
+          </p>
+          <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed">
+            Төлбөр баталгаажсаны дараа файл татах, сургалт үзэх боломжтой болно.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -56,7 +149,6 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
     }
   };
 
-  // Auto-poll every 5 seconds
   useEffect(() => {
     pollRef.current = setInterval(() => checkPayment(true), POLL_INTERVAL);
     return () => {
@@ -72,6 +164,7 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
     : null;
 
   const bankUrls = payment.urls ?? [];
+  const qrText = payment.qrText;
 
   return (
     <AnimatePresence>
@@ -92,15 +185,17 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-background shadow-2xl max-h-[90dvh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5 shrink-0">
           <div className="flex items-center gap-2">
-            {/* QPay logo-style text */}
-            <span className="font-bold text-lg text-primary">Q</span>
-            <span className="font-bold text-lg">Pay</span>
-            <span className="ml-1 text-sm text-muted-foreground">төлбөр</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-sm">Q</div>
+            <div>
+              <p className="font-bold text-sm leading-tight">QPay төлбөр</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">Аюулгүй, хурдан төлбөр</p>
+            </div>
           </div>
           {!paid && (
             <button
@@ -114,10 +209,10 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
           )}
         </div>
 
-        <div className="p-5">
+        <div className="overflow-y-auto flex-1">
           {paid ? (
             /* Success state */
-            <div className="flex flex-col items-center gap-3 py-4">
+            <div className="flex flex-col items-center gap-3 py-10 px-5">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -131,74 +226,82 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
               </p>
             </div>
           ) : (
-            <>
-              {/* Desktop: QR code */}
+            <div className="p-5 space-y-4">
+              {/* QR code — desktop + mobile */}
               {qrImageSrc && (
-                <div className="hidden sm:flex flex-col items-center gap-3">
-                  <p className="text-sm text-muted-foreground text-center">
-                    QPay апп эсвэл банкны апп-аар QR кодыг уншуулна уу
-                  </p>
-                  <div className="rounded-xl border-2 border-primary/20 p-2 bg-white">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="rounded-xl border-2 border-primary/20 p-2 bg-white shadow-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={qrImageSrc}
                       alt="QPay QR код"
-                      className="h-52 w-52 object-contain"
+                      className="h-48 w-48 object-contain"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Хугацаа: 15 минут</p>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    Хугацаа: 15 минут
+                  </p>
                 </div>
               )}
 
-              {/* Mobile: Bank apps */}
+              {/* Mobile: bank apps */}
               {bankUrls.length > 0 && (
-                <div className={qrImageSrc ? 'sm:hidden' : ''}>
-                  <p className="text-sm text-muted-foreground text-center mb-3">
-                    Банкны апп-аа сонгоно уу
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {bankUrls.slice(0, 9).map((url) => (
-                      <BankAppButton key={url.name} name={url.name} link={url.link} logo={url.logo} />
+                <div className="sm:hidden">
+                  <p className="text-xs font-semibold text-foreground mb-2">Банкны аппаа сонгоно уу</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {bankUrls.map((url) => (
+                      <BankAppButton
+                        key={url.name}
+                        name={url.name}
+                        link={url.link}
+                        logo={url.logo}
+                        qrText={qrText}
+                      />
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* No QR and no bank urls: wait message */}
+              {/* No data */}
               {!qrImageSrc && bankUrls.length === 0 && (
-                <div className="flex flex-col items-center gap-2 py-4 text-center">
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Төлбөр хүлээж байна...</p>
+                  <p className="text-sm text-muted-foreground">Төлбөрийн мэдээлэл ачаалж байна...</p>
                 </div>
               )}
 
               {/* Error */}
               {error && (
-                <p className="mt-3 text-center text-xs text-destructive">{error}</p>
+                <p className="text-center text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>
               )}
-
-              {/* Check button */}
-              <div className="mt-4 space-y-2">
-                <Button
-                  className="w-full gap-2"
-                  variant="outline"
-                  onClick={() => checkPayment(false)}
-                  disabled={checking}
-                >
-                  {checking ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {checking ? 'Шалгаж байна...' : 'Төлбөр шалгах'}
-                </Button>
-                <p className="text-center text-[10px] text-muted-foreground">
-                  Төлбөр хийсний дараа автоматаар шалгана
-                </p>
-              </div>
-            </>
+            </div>
           )}
         </div>
+
+        {/* Footer: steps + check button — always visible */}
+        {!paid && (
+          <div className="shrink-0 border-t border-border px-5 py-4 space-y-3 bg-background">
+            <PaymentStepsDesktop />
+            <PaymentStepsMobile />
+
+            <Button
+              className="w-full gap-2 h-11 text-sm font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
+              onClick={() => checkPayment(false)}
+              disabled={checking}
+            >
+              {checking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {checking ? 'Шалгаж байна...' : 'Төлбөр шалгах'}
+            </Button>
+            <p className="text-center text-[10px] text-muted-foreground">
+              Төлбөр хийсний дараа автоматаар баталгаажна
+            </p>
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );

@@ -104,6 +104,7 @@ export interface ThemeSettings {
   secondaryColor: string;
   accentColor: string;
   layoutMode: string;
+  defaultTheme: 'system' | 'light' | 'dark';
 }
 
 export interface SiteSettings {

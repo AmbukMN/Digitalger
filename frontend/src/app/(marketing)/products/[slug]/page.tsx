@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge } from '@digitalger/shared/ui';
 import { productsApi } from '@/lib/api';
-import { PRODUCT_TYPE_LABELS } from '@/lib/constants';
+import { PRODUCT_TYPE_LABELS, SITE_URL } from '@/lib/constants';
 import { PurchaseCard, MobileBuyBar } from '@/components/products/purchase-card';
 import { ProductTitleActions } from '@/components/products/product-title-actions';
 import { FaqAccordion } from '@/components/products/faq-accordion';
@@ -26,14 +26,36 @@ import { formatPrice } from '@digitalger/shared';
 
 type Props = { params: Promise<{ slug: string }> };
 
+function stripHtmlForMeta(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {
     const product = await productsApi.bySlug(slug);
     const seo = product as { seoTitle?: string; seoDescription?: string };
+    const title = seo.seoTitle ?? product.title;
+    const rawDesc = seo.seoDescription ?? product.description;
+    const description = stripHtmlForMeta(rawDesc).slice(0, 160);
+    const canonicalUrl = `${SITE_URL}/products/${product.slug}`;
+
     return {
-      title: seo.seoTitle ?? product.title,
-      description: seo.seoDescription ?? product.description.slice(0, 160),
+      title,
+      description,
+      alternates: { canonical: canonicalUrl },
+      openGraph: {
+        type: 'website',
+        title,
+        description,
+        url: canonicalUrl,
+        // opengraph-image.tsx in this segment auto-generates the og:image
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+      },
     };
   } catch {
     return { title: 'Бүтээгдэхүүн' };
@@ -84,8 +106,57 @@ export default async function ProductDetailPage({ params }: Props) {
     isPrimary: img.isPrimary,
   }));
 
+  const canonicalUrl = `${SITE_URL}/products/${product.slug}`;
+  const plainDesc = stripHtmlForMeta(product.description);
+
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.title,
+    description: plainDesc.slice(0, 500),
+    image: product.thumbnailUrl ?? undefined,
+    url: canonicalUrl,
+    sku: product.id,
+    brand: { '@type': 'Organization', name: 'DigitalGer', url: SITE_URL },
+    offers: {
+      '@type': 'Offer',
+      price: Number(product.price),
+      priceCurrency: 'MNT',
+      availability: 'https://schema.org/InStock',
+      url: canonicalUrl,
+      seller: { '@type': 'Organization', name: 'DigitalGer' },
+    },
+    ...(product.ratingCount > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: product.rating.toFixed(1),
+        reviewCount: product.ratingCount,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
+  };
+
+  const breadcrumbItems = [
+    { '@type': 'ListItem', position: 1, name: 'Нүүр', item: SITE_URL },
+    { '@type': 'ListItem', position: 2, name: 'Бүтээгдэхүүн', item: `${SITE_URL}/products` },
+    ...(product.category
+      ? [{ '@type': 'ListItem', position: 3, name: product.category.name, item: `${SITE_URL}/categories/${product.category.slug}` }]
+      : []),
+    { '@type': 'ListItem', position: product.category ? 4 : 3, name: product.title, item: canonicalUrl },
+  ];
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: breadcrumbItems,
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+
       {/* Breadcrumb */}
       <div className="border-b border-border bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2.5">
@@ -107,7 +178,7 @@ export default async function ProductDetailPage({ params }: Props) {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 pb-24 md:pb-10">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 pb-[calc(6rem+env(safe-area-inset-bottom,0))] md:pb-10">
         <div className="grid gap-8 md:grid-cols-[1fr_300px] lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_400px]">
           {/* Left column */}
           <div className="space-y-8 min-w-0">
@@ -333,7 +404,7 @@ export default async function ProductDetailPage({ params }: Props) {
                           alt={product.proofAuthorName ?? 'Social proof'}
                           fill
                           className="object-cover"
-                          unoptimized
+                          sizes="(max-width: 640px) 144px, 176px"
                         />
                       </div>
                     </div>
@@ -405,7 +476,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
                     <div className="relative aspect-4/3 bg-muted overflow-hidden">
                       {p.thumbnailUrl ? (
-                        <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover transition-transform duration-300 group-hover:scale-105" unoptimized />
+                        <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover transition-transform duration-300 group-hover:scale-105" sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px" />
                       ) : (
                         <div className="flex h-full items-center justify-center">
                           <Package className="h-8 w-8 text-muted-foreground/30" />

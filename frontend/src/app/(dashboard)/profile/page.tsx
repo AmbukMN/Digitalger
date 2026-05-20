@@ -132,7 +132,6 @@ function UserAvatar({
       width={size === 'lg' ? 96 : 64}
       height={size === 'lg' ? 96 : 64}
       className={`${dim} rounded-full object-cover ring-4 ring-background`}
-      unoptimized
     />
   ) : (
     <div

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ProductGrid } from '@/components/products/product-grid';
 import { categoriesApi, productsApi } from '@/lib/api';
+import { SITE_URL } from '@/lib/constants';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -9,7 +10,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {
     const cat = await categoriesApi.bySlug(slug);
-    return { title: cat.name, description: cat.description ?? undefined };
+    const title = cat.name;
+    const description = cat.description ?? `${cat.name} ангиллын дижитал бүтээгдэхүүнүүд.`;
+    const canonicalUrl = `${SITE_URL}/categories/${slug}`;
+    return {
+      title,
+      description,
+      alternates: { canonical: canonicalUrl },
+      openGraph: {
+        type: 'website',
+        title,
+        description,
+        url: canonicalUrl,
+        // opengraph-image.tsx in this segment auto-generates the og:image
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+      },
+    };
   } catch {
     return { title: 'Ангилал' };
   }

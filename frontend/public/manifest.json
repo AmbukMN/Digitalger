@@ -1,0 +1,55 @@
+{
+  "name": "DigitalGer — Дижитал Marketplace",
+  "short_name": "DigitalGer",
+  "description": "Файл, загвар, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#022179",
+  "orientation": "portrait-primary",
+  "lang": "mn",
+  "categories": ["shopping", "productivity"],
+  "icons": [
+    {
+      "src": "/brand/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/brand/og-default.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "DigitalGer Marketplace"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Бүтээгдэхүүн",
+      "short_name": "Catalog",
+      "url": "/products",
+      "icons": [{ "src": "/brand/logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Миний номын сан",
+      "short_name": "Library",
+      "url": "/library",
+      "icons": [{ "src": "/brand/logo.svg", "sizes": "any" }]
+    }
+  ]
+}

@@ -84,7 +84,6 @@ export function ReviewsSection({
                     width={36}
                     height={36}
                     className="h-9 w-9 rounded-full object-cover"
-                    unoptimized
                   />
                 ) : (
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">

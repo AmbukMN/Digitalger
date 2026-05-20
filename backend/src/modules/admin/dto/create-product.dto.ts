@@ -42,6 +42,11 @@ export class CreateProductDto {
   categoryId?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categoryIds?: string[];
+
+  @IsOptional()
   @IsBoolean()
   published?: boolean;
 

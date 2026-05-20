@@ -65,13 +65,14 @@ export const productsApi = {
     category?: string;
     featured?: boolean;
     type?: string;
+    types?: string;
   }) => {
     const query = qs({
       page: params?.page,
       pageSize: params?.pageSize,
       category: params?.category,
       featured: params?.featured,
-      type: params?.type,
+      ...(params?.types ? { types: params.types } : { type: params?.type }),
     });
     return request<PaginatedProducts>(`/products${query}`);
   },

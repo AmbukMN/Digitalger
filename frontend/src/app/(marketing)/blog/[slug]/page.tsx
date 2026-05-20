@@ -6,6 +6,7 @@ import { CalendarDays, ChevronRight, Tag, User } from 'lucide-react';
 import { Badge } from '@digitalger/shared/ui';
 import { blogApi, productsApi } from '@/lib/api';
 import { formatPrice } from '@digitalger/shared';
+import { SITE_URL } from '@/lib/constants';
 import type { BlogPost, ProductSummary } from '@/types/api';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -14,12 +15,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {
     const post = await blogApi.bySlug(slug);
+    const title = post.title;
+    const description = post.excerpt ?? post.title;
+    const canonicalUrl = `${SITE_URL}/blog/${slug}`;
     return {
-      title: `${post.title} | DigitalGer`,
-      description: post.excerpt ?? post.title,
-      openGraph: post.coverImageUrl
-        ? { images: [{ url: post.coverImageUrl }] }
-        : undefined,
+      title,
+      description,
+      alternates: { canonical: canonicalUrl },
+      openGraph: {
+        type: 'article',
+        title,
+        description,
+        url: canonicalUrl,
+        // opengraph-image.tsx in this segment auto-generates the og:image
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+      },
     };
   } catch {
     return { title: 'Нийтлэл' };
@@ -37,7 +51,7 @@ function SmallPostCard({ post }: { post: BlogPost }) {
     <Link href={`/blog/${post.slug}`} className="group flex gap-3 items-start">
       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
         {post.coverImageUrl ? (
-          <Image src={post.coverImageUrl} alt={post.title} fill className="object-cover" unoptimized />
+          <Image src={post.coverImageUrl} alt={post.title} fill className="object-cover" sizes="56px" />
         ) : (
           <div className="flex h-full items-center justify-center bg-muted">
             <Tag className="h-4 w-4 text-muted-foreground/40" />
@@ -60,7 +74,7 @@ function FeaturedProductCard({ product }: { product: ProductSummary }) {
     <Link href={`/products/${product.slug}`} className="group flex gap-3 items-start">
       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
         {product.thumbnailUrl ? (
-          <Image src={product.thumbnailUrl} alt={product.title} fill className="object-cover" unoptimized />
+          <Image src={product.thumbnailUrl} alt={product.title} fill className="object-cover" sizes="56px" />
         ) : (
           <div className="flex h-full items-center justify-center bg-primary/10">
             <Tag className="h-4 w-4 text-primary/40" />
@@ -132,7 +146,7 @@ export default async function BlogDetailPage({ params }: Props) {
                   fill
                   className="object-cover"
                   priority
-                  unoptimized
+                  sizes="(max-width: 1024px) 100vw, 65vw"
                 />
               </div>
             )}

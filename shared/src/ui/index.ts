@@ -14,3 +14,4 @@ export * from './error-state';
 export * from './loading';
 export * from './theme-provider';
 export * from './tabs';
+export * from './theme-toggle';

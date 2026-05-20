@@ -129,7 +129,6 @@ function ThumbnailItem({
           fill
           className="object-cover"
           sizes="80px"
-          unoptimized
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-muted">
@@ -273,7 +272,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
     if (thumbnailUrl) {
       return (
         <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted">
-          <Image src={thumbnailUrl} alt={title} fill className="object-cover" unoptimized />
+          <Image src={thumbnailUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 60vw" />
         </div>
       );
     }
@@ -297,7 +296,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
               fill
               className="object-cover cursor-zoom-in"
               priority
-              unoptimized
+              sizes="(max-width: 768px) 100vw, 60vw"
               onClick={() => openLightbox(activeIndex)}
             />
           ) : (

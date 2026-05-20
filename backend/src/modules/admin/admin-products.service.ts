@@ -85,10 +85,13 @@ export class AdminProductsService {
       throw new ConflictException('Product slug already exists');
     }
 
-    const { compareAtPrice, discountEndsAt, howToUseSteps, ...rest } = dto;
+    const { compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, ...rest } = dto;
+    const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dto.categoryId;
     return this.prisma.product.create({
       data: {
         ...rest,
+        categoryId: primaryCategoryId ?? rest.categoryId,
+        categoryIds: categoryIds ?? (dto.categoryId ? [dto.categoryId] : []),
         price: new Prisma.Decimal(dto.price),
         ...(compareAtPrice !== undefined && {
           compareAtPrice: new Prisma.Decimal(compareAtPrice),
@@ -116,12 +119,15 @@ export class AdminProductsService {
       }
     }
 
-    const { price, compareAtPrice, discountEndsAt, howToUseSteps, ...rest } = dto;
+    const { price, compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, ...rest } = dto;
+    const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dto.categoryId;
 
     return this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
+        ...(primaryCategoryId !== undefined && { categoryId: primaryCategoryId }),
+        ...(categoryIds !== undefined && { categoryIds }),
         ...(price !== undefined && { price: new Prisma.Decimal(price) }),
         ...(compareAtPrice !== undefined && {
           compareAtPrice: compareAtPrice === null ? null : new Prisma.Decimal(compareAtPrice),

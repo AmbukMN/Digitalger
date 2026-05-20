@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { Upload, X, Globe, Mail, Building2, Palette, Check } from 'lucide-react';
+import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon } from 'lucide-react';
 import {
   Button,
   Card,
@@ -23,16 +23,34 @@ import {
 import { adminApi } from '@/lib/api';
 import type { SiteSettings, ThemeSettings } from '@/types/admin';
 
+// ——— Default theme options ——————————————————————————————————
+const DEFAULT_THEME_OPTIONS = [
+  {
+    value: 'system' as const,
+    label: 'Системийн тохиргоо',
+    desc: 'Хэрэглэгчийн OS-ийн Light/Dark сонголтыг дагана',
+    icon: Monitor,
+  },
+  {
+    value: 'light' as const,
+    label: 'Цайвар (Light)',
+    desc: 'Бүх хэрэглэгчид цайвар горимоор харна',
+    icon: Sun,
+  },
+  {
+    value: 'dark' as const,
+    label: 'Харанхуй (Dark)',
+    desc: 'Бүх хэрэглэгчид харанхуй горимоор харна',
+    icon: Moon,
+  },
+] as const;
+
 // ——— Theme tab ——————————————————————————————————————————————
 const THEME_COLORS = [
   { key: 'primaryColor', label: 'Primary өнгө', description: 'Товч, link, тэмдэглэл' },
   { key: 'secondaryColor', label: 'Secondary өнгө', description: 'Дэвсгэр, badge' },
   { key: 'accentColor', label: 'Accent өнгө', description: 'Онцлох элемент' },
 ] as const;
-
-function hexToOklch(hex: string): string {
-  return hex;
-}
 
 function ThemeTab({
   theme,
@@ -44,23 +62,91 @@ function ThemeTab({
   isSaving: boolean;
 }) {
   const [colors, setColors] = useState({
-    primaryColor: theme?.primaryColor ?? '#7C3AED',
-    secondaryColor: theme?.secondaryColor ?? '#F5F3FF',
-    accentColor: theme?.accentColor ?? '#8B5CF6',
+    primaryColor: theme?.primaryColor ?? '#022179',
+    secondaryColor: theme?.secondaryColor ?? '#ffbe00',
+    accentColor: theme?.accentColor ?? '#1a5cc8',
   });
+  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(
+    theme?.defaultTheme ?? 'system',
+  );
 
   useEffect(() => {
     if (theme) {
       setColors({
-        primaryColor: theme.primaryColor ?? '#7C3AED',
-        secondaryColor: theme.secondaryColor ?? '#F5F3FF',
-        accentColor: theme.accentColor ?? '#8B5CF6',
+        primaryColor: theme.primaryColor ?? '#022179',
+        secondaryColor: theme.secondaryColor ?? '#ffbe00',
+        accentColor: theme.accentColor ?? '#1a5cc8',
       });
+      setDefaultTheme(theme.defaultTheme ?? 'system');
     }
   }, [theme]);
 
   return (
     <div className="space-y-6">
+      {/* Default theme selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Monitor className="h-5 w-5" />
+            Анхдагч горим
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Хэрэглэгч тохиргоогоо өөрчлөөгүй үед хэрэглэгдэх default горим.
+            Хэрэглэгч өөрийн сонголтыг хадгалсан бол энэ тохиргоо тэдгээрт нөлөөлөхгүй.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {DEFAULT_THEME_OPTIONS.map(({ value, label, desc, icon: Icon }) => {
+              const selected = defaultTheme === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDefaultTheme(value)}
+                  className={`relative flex flex-col gap-2 rounded-xl border-2 p-4 text-left transition-all ${
+                    selected
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/40 hover:bg-muted/40'
+                  }`}
+                >
+                  {selected && (
+                    <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                      <Check className="h-3 w-3 text-primary-foreground" />
+                    </span>
+                  )}
+                  <Icon
+                    className={`h-6 w-6 ${selected ? 'text-primary' : 'text-muted-foreground'}`}
+                  />
+                  <div>
+                    <p className={`text-sm font-semibold ${selected ? 'text-primary' : ''}`}>
+                      {label}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <Button
+            onClick={() => onSave({ defaultTheme })}
+            disabled={isSaving}
+            className="mt-4 w-full"
+          >
+            {isSaving ? (
+              'Хадгалж байна...'
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Горим хадгалах
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Color pickers */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -83,17 +169,15 @@ function ThemeTab({
                   className="h-8 w-8 rounded-full border border-border shadow-inner"
                   style={{ background: colors[key] }}
                 />
-                <div className="relative">
-                  <input
-                    type="color"
-                    value={colors[key]}
-                    onChange={(e) =>
-                      setColors((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
-                    className="h-10 w-24 cursor-pointer rounded-md border border-input bg-transparent px-2 py-1 text-sm"
-                    title={label}
-                  />
-                </div>
+                <input
+                  type="color"
+                  value={colors[key]}
+                  onChange={(e) =>
+                    setColors((prev) => ({ ...prev, [key]: e.target.value }))
+                  }
+                  className="h-10 w-24 cursor-pointer rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+                  title={label}
+                />
                 <span className="font-mono text-xs text-muted-foreground uppercase tracking-wide">
                   {colors[key]}
                 </span>

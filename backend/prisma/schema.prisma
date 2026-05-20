@@ -17,7 +17,8 @@ enum ProductType {
   TEMPLATE
   DOCUMENT
   VIDEO
-  COURSE
+  LESSON
+  BUNDLE
   HYBRID
 }
 
@@ -113,6 +114,7 @@ model Product {
   compareAtPrice Decimal?             @db.Decimal(12, 2)
   type           ProductType
   categoryId     String?
+  categoryIds    String[]             @default([])
   category       Category?            @relation(fields: [categoryId], references: [id])
   published      Boolean              @default(false)
   featured       Boolean              @default(false)
@@ -283,6 +285,7 @@ model ThemeSetting {
   secondaryColor String   @default("210 40% 96%")
   accentColor    String   @default("262 83% 58%")
   layoutMode     String   @default("light")
+  defaultTheme   String   @default("system")
   updatedAt      DateTime @updatedAt
 }
 

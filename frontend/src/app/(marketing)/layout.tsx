@@ -9,7 +9,7 @@ export default function MarketingLayout({
   return (
   <>
       <SiteNavbar />
-      <main className="min-h-[calc(100vh-8rem)]">{children}</main>
+      <main className="min-h-[calc(100dvh-8rem)] pt-16">{children}</main>
       <SiteFooter />
     </>
   );

@@ -43,6 +43,7 @@ export class ProductsService {
     categorySlug?: string;
     featured?: boolean;
     type?: string;
+    types?: string[];
   }) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(48, Math.max(1, query.pageSize ?? 12));
@@ -54,7 +55,7 @@ export class ProductsService {
       ...(query.categorySlug && {
         category: { slug: query.categorySlug },
       }),
-      ...(query.type && { type: query.type as any }),
+      ...(query.types && query.types.length > 0 && { type: { in: query.types as any[] } }),
     };
 
     const [items, total] = await Promise.all([

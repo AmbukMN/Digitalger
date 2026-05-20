@@ -66,7 +66,7 @@ export default async function HomePage() {
       <ProductSection title="Дижитал бүтээгдэхүүн" href="/products" />
 
       {/* CTA */}
-      <section className="py-10 sm:py-12 bg-muted/30">
+      <section className="py-8 sm:py-10 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl bg-linear-to-r from-primary to-accent p-6 sm:p-8 md:p-12 text-primary-foreground flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
             <div>
@@ -77,7 +77,7 @@ export default async function HomePage() {
               <Button asChild variant="secondary" size="lg" className="font-bold">
                 <Link href="/signup">Үнэгүй бүртгүүлэх</Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="border-white/30 text-white hover:bg-white/10">
+              <Button asChild size="lg" className="bg-white/15 border border-white/40 text-white hover:bg-white/25 font-semibold">
                 <Link href="/products">Бүтээгдэхүүн үзэх</Link>
               </Button>
             </div>

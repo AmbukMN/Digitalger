@@ -7,6 +7,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  ThemeToggle,
 } from '@digitalger/shared/ui';
 import { cn, formatPrice } from '@digitalger/shared';
 import { useQuery } from '@tanstack/react-query';
@@ -40,11 +41,10 @@ import type { MenuItem } from '@/types/api';
 
 const FALLBACK_NAV: MenuItem[] = [
   { id: '1', label: 'Нүүр', url: '/', pageSlug: null, target: '_self', openInNew: false },
-  { id: '2', label: 'Файлууд', url: '/products?type=FILE', pageSlug: null, target: '_self', openInNew: false },
-  { id: '3', label: 'Загварууд', url: '/products?type=TEMPLATE', pageSlug: null, target: '_self', openInNew: false },
-  { id: '4', label: 'Курсууд', url: '/products?type=COURSE', pageSlug: null, target: '_self', openInNew: false },
-  { id: '5', label: 'Ангилал', url: '/categories', pageSlug: null, target: '_self', openInNew: false },
-  { id: '6', label: 'Нийтлэл', url: '/blog', pageSlug: null, target: '_self', openInNew: false },
+  { id: '2', label: 'Файл Загварууд', url: '/products?types=FILE,TEMPLATE', pageSlug: null, target: '_self', openInNew: false },
+  { id: '3', label: 'Хичээлүүд', url: '/products?types=LESSON,BUNDLE', pageSlug: null, target: '_self', openInNew: false },
+  { id: '4', label: 'Нийтлэл', url: '/blog', pageSlug: null, target: '_self', openInNew: false },
+  { id: '5', label: 'Бидний тухай', url: '/about', pageSlug: null, target: '_self', openInNew: false },
 ];
 
 function menuHref(item: MenuItem): string {
@@ -121,7 +121,6 @@ function UserAvatar({
         width={32}
         height={32}
         className={`${s} rounded-full object-cover`}
-        unoptimized
       />
     );
   }
@@ -310,7 +309,7 @@ export function SiteNavbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
+      <header className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
 
           {/* Mobile search overlay */}
@@ -361,7 +360,6 @@ export function SiteNavbar() {
                   height={36}
                   className="h-9 w-9"
                   priority
-                  unoptimized
                 />
                 <span className="font-bold text-primary">{siteName}</span>
               </>
@@ -414,6 +412,9 @@ export function SiteNavbar() {
             >
               <Search className="h-5 w-5" />
             </Button>
+
+            {/* Theme toggle */}
+            <ThemeToggle />
 
             <Button variant="ghost" size="icon" asChild>
               <Link href="/wishlist" className="relative">
@@ -511,7 +512,7 @@ export function SiteNavbar() {
                 </>
               ) : (
                 <>
-                  <Image src={logoSrc} alt={siteName} width={32} height={32} className="h-8 w-8" unoptimized />
+                  <Image src={logoSrc} alt={siteName} width={32} height={32} className="h-8 w-8" />
                   <SheetTitle className="text-base font-bold text-primary">{siteName}</SheetTitle>
                 </>
               )}
@@ -551,6 +552,11 @@ export function SiteNavbar() {
                 })}
               </div>
             </nav>
+
+            {/* Theme toggle */}
+            <div className="px-3 py-1 border-t border-border mt-1">
+              <ThemeToggle iconOnly={false} />
+            </div>
 
             {/* Featured products */}
             <div className="px-3">

@@ -19,18 +19,16 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquare,
-  Moon,
   Navigation,
   Package,
   Settings,
   ShoppingCart,
-  Sun,
   Tag,
   User,
   Users,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Button, Separator, useTheme } from '@digitalger/shared/ui';
+import { useState } from 'react';
+import { Button, Separator, ThemeToggle } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import { API_URL } from '@/lib/constants';
 
@@ -100,20 +98,10 @@ function SiteLogo({ logoUrl, siteName, collapsed }: { logoUrl: string | null; si
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
 
   const { data: publicSettings } = usePublicSettings();
-
-  useEffect(() => {
-    const dark =
-      theme === 'dark' ||
-      (theme === 'system' &&
-        window.matchMedia('(prefers-color-scheme: dark)').matches);
-    setIsDark(dark);
-  }, [theme]);
 
   const siteName = publicSettings?.siteName ?? 'DigitalGer';
   const logoUrl = publicSettings?.logoUrl ?? null;
@@ -227,18 +215,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Bell className="h-4 w-4" />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Загвар солих"
-            onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          >
-            {isDark ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
+          <ThemeToggle />
 
           <Separator orientation="vertical" className="h-6" />
 

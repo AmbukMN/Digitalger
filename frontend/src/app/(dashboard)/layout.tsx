@@ -34,7 +34,7 @@ export default function DashboardLayout({
   return (
     <>
       <SiteNavbar />
-      <div className="mx-auto flex max-w-7xl gap-8 px-4 pb-24 pt-8 sm:px-6 md:pb-8 lg:px-8">
+      <div className="mx-auto flex max-w-7xl gap-8 px-4 pt-8 sm:px-6 lg:px-8 pb-[calc(6rem+env(safe-area-inset-bottom,0))] md:pb-8">
         {/* Desktop sidebar */}
         <aside className="hidden w-48 shrink-0 md:block">
           <nav className="sticky top-24 space-y-1">
@@ -62,8 +62,11 @@ export default function DashboardLayout({
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      {/* Mobile bottom tab bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80 md:hidden">
+      {/* Mobile bottom tab bar — pb accounts for iPhone home indicator */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80 md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         <div className="mx-auto flex max-w-lg">
           {DASH_LINKS.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
