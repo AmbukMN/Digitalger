@@ -40,21 +40,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ),
   ]);
 
-  const productRoutes: MetadataRoute.Sitemap = productData.items.map((p) => ({
+  const productRoutes: MetadataRoute.Sitemap = (productData?.items ?? []).map((p) => ({
     url: `${SITE_URL}/products/${p.slug}`,
     lastModified: p.updatedAt ? new Date(p.updatedAt) : new Date(),
     changeFrequency: 'weekly',
     priority: 0.7,
   }));
 
-  const categoryRoutes: MetadataRoute.Sitemap = categories.map((c) => ({
+  const categoryRoutes: MetadataRoute.Sitemap = (categories ?? []).map((c) => ({
     url: `${SITE_URL}/categories/${c.slug}`,
     lastModified: new Date(),
     changeFrequency: 'weekly',
     priority: 0.6,
   }));
 
-  const blogRoutes: MetadataRoute.Sitemap = blogData.items.map((b) => ({
+  const blogRoutes: MetadataRoute.Sitemap = (blogData?.items ?? []).map((b) => ({
     url: `${SITE_URL}/blog/${b.slug}`,
     lastModified: b.updatedAt ? new Date(b.updatedAt) : new Date(),
     changeFrequency: 'monthly',
