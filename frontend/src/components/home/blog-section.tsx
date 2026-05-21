@@ -136,8 +136,8 @@ export function BlogSection({ posts }: { posts: BlogPost[] }) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold sm:text-2xl">Нийтлэл</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Мэргэжлийн зөвлөгөө, дижитал бизнесийн мэдэгдэл</p>
+            <h2 className="text-xl font-bold sm:text-2xl">Мэргэжилтний Зөвлөгөө, нийтлэл</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Дижитал бизнесийг ахиулах практик зөвлөмж, гарын авлага, нийтлэл</p>
           </div>
           <Link
             href="/blog"

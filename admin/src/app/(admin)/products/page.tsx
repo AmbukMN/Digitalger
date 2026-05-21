@@ -17,6 +17,7 @@ import {
   Input,
   Loading,
 } from '@digitalger/shared/ui';
+import { Copy } from 'lucide-react';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
 import { adminApi } from '@/lib/api';
 import type { AdminProduct } from '@/types/admin';
@@ -90,6 +91,15 @@ export default function ProductsPage() {
     onError: () => toast.error('Устгахад алдаа'),
   });
 
+  const cloneMutation = useMutation({
+    mutationFn: (id: string) => adminApi.products.clone(id),
+    onSuccess: (cloned) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      toast.success(`"${cloned.title}" клонлогдлоо`);
+    },
+    onError: () => toast.error('Клонлоход алдаа гарлаа'),
+  });
+
   const columns: ColumnDef<AdminProduct>[] = [
     { accessorKey: 'title', header: 'Гарчиг' },
     { accessorKey: 'slug', header: 'Slug' },
@@ -128,6 +138,15 @@ export default function ProductsPage() {
             }}
           >
             Засах
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            title="Клонлох"
+            disabled={cloneMutation.isPending}
+            onClick={() => cloneMutation.mutate(row.original.id)}
+          >
+            <Copy className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="destructive"

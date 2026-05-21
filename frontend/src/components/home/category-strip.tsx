@@ -29,11 +29,11 @@ export async function CategoryStrip() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Ангиллаар хайх</h2>
-            <p className="text-sm text-muted-foreground mt-1">Таны дуртай ангиллаас бүтээгдэхүүн олох</p>
+            <h2 className="text-2xl font-bold">Ангиллаар хайх</h2>
+            <p className="text-sm text-muted-foreground mt-1">Хэрэгтэй ангиллаасаа хайгаад шийдлээ нэн даруй татаж ав</p>
           </div>
           <Link href="/categories" className="text-sm font-medium text-primary hover:underline">
-            Бүгдийг харах →
+            Бүх ангилал →
           </Link>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">

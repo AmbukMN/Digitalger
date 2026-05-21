@@ -32,10 +32,15 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ iconOnly = true, className = '' }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
-  const Icon = THEME_ICON[theme];
-  const label = THEME_LABEL[theme];
+  const [mounted, setMounted] = React.useState(false);
 
-  const handleClick = () => setTheme(NEXT_THEME[theme]);
+  React.useEffect(() => { setMounted(true); }, []);
+
+  const currentTheme: Theme = mounted ? theme : 'system';
+  const Icon = THEME_ICON[currentTheme];
+  const label = THEME_LABEL[currentTheme];
+
+  const handleClick = () => setTheme(NEXT_THEME[currentTheme]);
 
   if (iconOnly) {
     return (

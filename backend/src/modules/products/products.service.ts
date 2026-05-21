@@ -114,7 +114,12 @@ export class ProductsService {
         },
         bundles: {
           orderBy: { sortOrder: 'asc' },
-          include: { items: { orderBy: { sortOrder: 'asc' } } },
+          include: {
+            items: {
+              orderBy: { sortOrder: 'asc' },
+              select: { id: true, name: true, description: true, label: true, fileId: true, fileIds: true, sortOrder: true, bundleId: true },
+            },
+          },
         },
       },
     });

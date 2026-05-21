@@ -1,7 +1,6 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SessionProvider } from 'next-auth/react';
 import { useState } from 'react';
 import { ThemeProvider } from '@digitalger/shared/ui';
 import type { Theme } from '@digitalger/shared/ui';
@@ -23,13 +22,11 @@ export function Providers({ children, defaultTheme = 'system' }: ProvidersProps)
   );
 
   return (
-    <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme={defaultTheme} storageKey="digitalger-admin-theme">
-          {children}
-          <Toaster richColors position="top-right" />
-        </ThemeProvider>
-      </QueryClientProvider>
-    </SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme={defaultTheme} storageKey="digitalger-admin-theme">
+        {children}
+        <Toaster richColors position="top-right" />
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

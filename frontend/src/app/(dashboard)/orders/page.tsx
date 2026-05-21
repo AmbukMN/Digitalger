@@ -242,8 +242,8 @@ export default function OrdersPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Захиалга</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Захиалгын түүх ба төлбөр</p>
+        <h1 className="text-2xl font-bold">Захиалгын Түүх</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Таны бүх захиалга, төлбөрийн мэдээлэл нэг дороос</p>
       </div>
 
       {isLoading && <Loading className="mt-8" />}
@@ -286,14 +286,14 @@ export default function OrdersPage() {
             <EmptyState
               title={
                 filter === 'ALL'
-                  ? 'Захиалга байхгүй'
+                  ? 'Одоогоор захиалга байхгүй байна'
                   : `${STATUS_LABELS[filter]} захиалга байхгүй`
               }
               className="mt-4"
               action={
                 filter === 'ALL' ? (
                   <Button asChild>
-                    <Link href="/products">Дэлгүүр рүү</Link>
+                    <Link href="/products">Бүтээгдэхүүн сонгох</Link>
                   </Button>
                 ) : (
                   <Button variant="outline" onClick={() => handleFilter('ALL')}>

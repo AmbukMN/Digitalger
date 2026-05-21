@@ -85,8 +85,8 @@ export function TestimonialsSection({ testimonials }: Props) {
     <section className="py-16 bg-muted/30">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
-          <h2 className="text-2xl font-bold sm:text-3xl">Хэрэглэгчдийн сэтгэгдэл</h2>
-          <p className="mt-2 text-sm text-muted-foreground">DigitalGer-ийн бүтээгдэхүүн ашигласан хэрэглэгчид</p>
+          <h2 className="text-2xl font-bold sm:text-3xl">Худалдан авагчид юу гэж хэлэв?</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Мянга мянган хэрэглэгчид DigitalGer-ээр дамжуулан цаг хугацаа болон зардлаа хэмнэж байна. Бодит туршлага, бодит үр дүн.</p>
         </div>
 
         {/* Mobile: 1 карт нэг удаа */}

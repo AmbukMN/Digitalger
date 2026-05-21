@@ -19,8 +19,8 @@ export default function WishlistPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Хадгалсан</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Дараа нь худалдан авах бүтээгдэхүүн</p>
+          <h1 className="text-2xl font-bold">Хадгалсан Бүтээгдэхүүнүүд</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Нэмж тэмдэглэсэн бүтээгдэхүүнүүд — хямдрал гарахад алдаагүй авна</p>
         </div>
         {products.length > 0 && (
           <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -31,12 +31,12 @@ export default function WishlistPage() {
 
       {products.length === 0 ? (
         <EmptyState
-          title="Хоосон"
-          description="Таалагдсан бүтээгдэхүүнээ энд хадгална"
+          title="Хадгалсан зүйл байхгүй"
+          description="Дараа авч болох бүтээгдэхүүнийг хадгалаарай"
           className="mt-8"
           action={
             <Button asChild>
-              <Link href="/products">Дэлгүүр рүү</Link>
+              <Link href="/products">Бүтээгдэхүүн харах</Link>
             </Button>
           }
         />

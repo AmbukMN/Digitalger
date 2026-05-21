@@ -92,6 +92,20 @@ export const categoriesApi = {
   bySlug: (slug: string) => request<Category & { products?: PaginatedProducts['items'] }>(`/categories/${slug}`),
 };
 
+// —— Product Types ——
+export interface ProductTypeConfig {
+  id: string;
+  value: string;
+  label: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+}
+
+export const productTypesApi = {
+  list: () => request<ProductTypeConfig[]>('/product-types'),
+};
+
 // —— Auth ——
 export const authApi = {
   register: (body: { email: string; password: string; name?: string; phone?: string }) =>
@@ -145,10 +159,12 @@ export const downloadsApi = {
   history: (token: string) => request<PurchasedProduct[]>('/downloads', { token }),
 
   signedUrl: (token: string, fileId: string) =>
-    request<{ url: string; expiresIn: number }>(`/downloads/${fileId}`, {
+    request<{ url: string; expiresIn: number; generatedAt: number }>(`/downloads/${fileId}`, {
       method: 'POST',
       token,
     }),
+
+  zipUrl: (productId: string) => `/downloads/zip/${productId}`,
 };
 
 // —— Payments ——

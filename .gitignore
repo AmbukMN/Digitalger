@@ -70,3 +70,6 @@ docs/*.xls
 *.pid
 *.seed
 *.pid.lock
+
+# ── Local product materials ──────────────────────────────────────────────────────
+/products/

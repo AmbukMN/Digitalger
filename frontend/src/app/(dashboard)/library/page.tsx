@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { downloadsApi } from '@/lib/api';
 import { PRODUCT_TYPE_LABELS } from '@/lib/constants';
+import { useProductTypes } from '@/hooks/use-product-types';
 import { Pagination } from '@/components/ui/pagination';
 import { ProductRowItem } from '@/components/ui/product-row-item';
 
@@ -59,6 +60,15 @@ export default function LibraryPage() {
   const [page, setPage] = useState(1);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadingAll, setDownloadingAll] = useState<string | null>(null);
+  const { data: productTypeConfigs } = useProductTypes();
+
+  const getTypeLabel = (type: string) => {
+    if (productTypeConfigs) {
+      const found = productTypeConfigs.find((t) => t.value === type);
+      if (found) return found.label;
+    }
+    return PRODUCT_TYPE_LABELS[type] ?? type;
+  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['library', token],
@@ -116,7 +126,7 @@ export default function LibraryPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">Миний сан</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Худалдан авсан бүтээгдэхүүнүүд</p>
+          <p className="mt-1 text-sm text-muted-foreground">Таны бүх худалдан авалт — нэн даруй татах боломжтой</p>
         </div>
         {data && data.length > 0 && (
           <span className="mt-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -132,12 +142,12 @@ export default function LibraryPage() {
 
       {data && data.length === 0 && (
         <EmptyState
-          title="Сан хоосон байна"
-          description="Худалдан авсан бүтээгдэхүүн энд харагдана"
+          title="Таны сан хоосон байна"
+          description="Худалдан авсан бүтээгдэхүүнүүд энд хадгалагдана. Одоо эхлэхэд хэзээнээс ч хожуу биш."
           className="mt-8"
           action={
             <Button asChild>
-              <Link href="/products">Бүтээгдэхүүн үзэх</Link>
+              <Link href="/products">Бүтээгдэхүүн сонгох</Link>
             </Button>
           }
         />
@@ -165,7 +175,7 @@ export default function LibraryPage() {
                       titleHref={`/products/${entry.product.slug}`}
                       badge={
                         <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          {PRODUCT_TYPE_LABELS[entry.product.type] ?? entry.product.type}
+                          {getTypeLabel(entry.product.type)}
                         </span>
                       }
                       meta={
@@ -246,7 +256,7 @@ export default function LibraryPage() {
                     })}
                   </ul>
                 ) : (
-                  <p className="px-4 py-3 text-sm text-muted-foreground">Татах файл байхгүй</p>
+                  <p className="px-4 py-3 text-sm text-muted-foreground">Энэ бүтээгдэхүүнд татах файл байхгүй байна</p>
                 )}
 
                 {/* Mobile: all download button */}

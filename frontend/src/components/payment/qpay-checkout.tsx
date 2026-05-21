@@ -86,13 +86,13 @@ function BankAppButton({
 
 function PaymentStepsDesktop() {
   const steps = [
-    'Банкны аппаа нээх',
-    'QR код скан хийх эсвэл банкаа сонгох',
-    'Дүнг шалгаад төлбөр хийх',
+    'Банкны аппликейшнаа нээнэ',
+    'QR код скан хийх',
+    'Дүнг баталгаажуулаад, нэг товшилтоор төлнө',
   ];
   return (
     <div className="hidden sm:block rounded-xl border border-border/60 bg-muted/30 px-4 py-3 space-y-2">
-      <p className="text-xs font-semibold text-foreground mb-1">Хэрхэн төлөх вэ?</p>
+      <p className="text-xs font-semibold text-foreground mb-1">3 алхамаар амархан төлнө</p>
       {steps.map((step, i) => (
         <div key={i} className="flex items-start gap-2.5">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground mt-0.5">
@@ -102,7 +102,7 @@ function PaymentStepsDesktop() {
         </div>
       ))}
       <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed border-t border-border/40 mt-1">
-        Төлбөр баталгаажсаны дараа файл татах, сургалт үзэх боломжтой болно.
+        Төлбөр баталгаажмагц нэн даруй файл татах, сургалт үзэх эрх нээгдэнэ.
       </p>
     </div>
   );
@@ -118,7 +118,7 @@ function PaymentStepsMobile() {
             Дээрх банкны товч дээр дараад төлбөрөө хийгээрэй.
           </p>
           <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed">
-            Төлбөр баталгаажсаны дараа файл татах, сургалт үзэх боломжтой болно.
+            Төлбөр баталгаажмагц нэн даруй файл татах, сургалт үзэх эрх нээгдэнэ.
           </p>
         </div>
       </div>
@@ -193,8 +193,8 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-sm">Q</div>
             <div>
-              <p className="font-bold text-sm leading-tight">QPay төлбөр</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Аюулгүй, хурдан төлбөр</p>
+              <p className="font-bold text-sm leading-tight">QPay-ээр Төлбөр Хийх</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">Монголын бүх банкны аппаар нэн даруй төлнө</p>
             </div>
           </div>
           {!paid && (
@@ -220,9 +220,9 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
               >
                 <CheckCircle2 className="h-16 w-16 text-green-500" />
               </motion.div>
-              <p className="text-lg font-bold">Төлбөр амжилттай!</p>
+              <p className="text-lg font-bold">Амжилттай! Захиалга баталгаажлаа</p>
               <p className="text-sm text-muted-foreground text-center">
-                Захиалга баталгаажлаа. Миний сан руу чиглэж байна...
+                Захиалга баталгаажлаа. Миний сан руу шилжиж байна...
               </p>
             </div>
           ) : (
@@ -240,7 +240,7 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
                   </div>
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-                    Хугацаа: 15 минут
+                    QR хүчинтэй хугацаа: 15 минут
                   </p>
                 </div>
               )}

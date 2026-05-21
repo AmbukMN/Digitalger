@@ -387,10 +387,27 @@ model BundleItem {
   bundle      ProductBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
   name        String
   description String?
+  label       String?
   fileId      String?
+  fileIds     String[]      @default([])
   sortOrder   Int           @default(0)
 
   @@index([bundleId, sortOrder])
+}
+
+// ── Product Type Configuration ──
+model ProductTypeConfig {
+  id          String   @id @default(cuid())
+  value       String   @unique
+  label       String
+  description String?
+  icon        String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, sortOrder])
 }
 
 model MenuItem {

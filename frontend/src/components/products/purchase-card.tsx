@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Input } from '@digitalger/shared/ui';
@@ -27,6 +27,7 @@ import { useCouponStore, MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import type { AppliedCoupon } from '@/store/coupon';
 import { couponsApi, downloadsApi } from '@/lib/api';
 import type { ProductDetail, PurchasedProduct } from '@/types/api';
+import { useFileDownload } from '@/hooks/use-file-download';
 import { DiscountTimer } from './discount-timer';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
@@ -67,6 +68,7 @@ function PurchasedCard({
   product: ProductDetail;
 }) {
   const { data: session } = useSession();
+  const { download } = useFileDownload();
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
 
@@ -80,19 +82,9 @@ function PurchasedCard({
   });
 
   async function handleDownloadOne(fileId: string, fileName: string) {
-    if (!session?.accessToken) return;
     setDownloading(fileId);
     try {
-      const result = await downloadsApi.signedUrl(session.accessToken, fileId);
-      const a = document.createElement('a');
-      a.href = result.url;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {
-      toast.error('Татахад алдаа гарлаа');
+      await download(fileId, fileName);
     } finally {
       setDownloading(null);
     }
@@ -235,10 +227,10 @@ function MultiCouponSection({
   }
 
   return (
-    <div className="border-t border-border pt-4 space-y-2.5">
+    <div className="mt-1 rounded-xl border border-amber-200/70 dark:border-primary/20 bg-amber-50/80 dark:bg-primary/[0.07] p-4 space-y-2.5">
       <div className="flex items-center gap-2">
-        <Gift className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">Купон хэрэглэх</span>
+        <Gift className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+        <span className="text-sm font-semibold text-amber-900 dark:text-amber-200">Купон хэрэглэх</span>
         {coupons.length > 0 && (
           <span className="ml-auto text-xs text-muted-foreground">
             {coupons.length}/{MAX_COUPONS_PER_PRODUCT}
@@ -361,28 +353,37 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
   }
 
   return (
-    <div className="sticky top-24 rounded-2xl border border-border bg-card shadow-sm p-6 space-y-5">
-      {/* Price */}
+    <div className="sticky top-24 rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/[0.06] to-card shadow-md ring-1 ring-primary/10 p-6 space-y-5">
+      {/* Price — foreground (white/dark), CTA-д л алт өнгө үлдэнэ */}
       <div>
         <div className="flex items-baseline gap-3 flex-wrap">
-          <p className="text-3xl font-extrabold text-primary">
+          <p className="text-3xl font-black tabular-nums tracking-tight text-foreground">
             {formatPrice(finalPrice)}
           </p>
           {comparePrice && comparePrice > finalPrice && (
-            <p className="text-lg text-muted-foreground line-through">
-              {formatPrice(comparePrice)}
-            </p>
+            <>
+              <p className="text-base tabular-nums text-muted-foreground line-through">
+                {formatPrice(comparePrice)}
+              </p>
+              <span className="rounded-md bg-red-500/10 border border-red-500/20 px-2 py-0.5 text-xs font-bold text-red-600 dark:text-red-400">
+                -{Math.round((1 - finalPrice / comparePrice) * 100)}%
+              </span>
+            </>
           )}
           {totalDiscount > 0 && (
-            <span className="rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-bold text-green-700 dark:text-green-400">
-              -{formatPrice(totalDiscount)}
+            <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              -{formatPrice(totalDiscount)} хэмнэлт
             </span>
           )}
         </div>
-        <div className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
-          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-          <span className="font-medium text-foreground">{product.rating.toFixed(1)}</span>
-          <span>({product.ratingCount} үнэлгээ)</span>
+        <div className="mt-2 flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-0.5">
+            {[1,2,3,4,5].map((s) => (
+              <Star key={s} className={`h-3.5 w-3.5 ${s <= Math.round(product.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`} />
+            ))}
+          </div>
+          <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+          <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
         </div>
       </div>
 
@@ -398,9 +399,9 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
         />
       )}
 
-      {/* CTA button */}
-      <Button className="w-full font-bold" size="lg" onClick={handleBuy}>
-        <ShoppingCart className="mr-2 h-4 w-4" />
+      {/* CTA — gold primary button, price-аас тодорхой ялгарна */}
+      <Button className="w-full font-bold text-base h-12" size="lg" onClick={handleBuy}>
+        <ShoppingCart className="mr-2 h-5 w-5" />
         Шууд худалдаж авах
       </Button>
 
@@ -428,7 +429,7 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
         </div>
       </div>
 
-      {/* Multi-coupon section */}
+      {/* Coupon section — visually distinct from sidebar bg */}
       <MultiCouponSection
         basePrice={basePrice}
         productId={product.id}
@@ -444,6 +445,7 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
 export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { download } = useFileDownload();
   const addToCart = useCartStore((s) => s.add);
   const coupons = useCouponStore((s) => s.coupons[product.id] ?? EMPTY_COUPONS);
   const addCoupon = useCouponStore((s) => s.add);
@@ -455,6 +457,22 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const [error, setError] = useState('');
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const couponRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!couponOpen) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (couponRef.current && !couponRef.current.contains(e.target as Node)) {
+        setCouponOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [couponOpen]);
 
   const { data: library = [], isLoading: libraryLoading } = useQuery({
     queryKey: ['downloads', 'history'],
@@ -510,19 +528,9 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   };
 
   async function handleDownloadOne(fileId: string, fileName: string) {
-    if (!session?.accessToken) return;
     setDownloading(fileId);
     try {
-      const result = await downloadsApi.signedUrl(session.accessToken, fileId);
-      const a = document.createElement('a');
-      a.href = result.url;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {
-      toast.error('Татахад алдаа гарлаа');
+      await download(fileId, fileName);
     } finally {
       setDownloading(null);
     }
@@ -632,7 +640,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const canAddMore = coupons.length < MAX_COUPONS_PER_PRODUCT;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur-sm md:hidden" style={{ borderTop: '2px solid oklch(0.847 0.178 85.87)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {product.discountEndsAt && (
         <div className="border-b border-border/40 px-4 py-2">
           <DiscountTimer
@@ -649,7 +657,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
 
       {/* Mobile coupon section (expandable) */}
       {couponOpen && (
-        <div className="border-b border-border/40 px-4 py-3 bg-muted/20 space-y-2 w-full overflow-hidden">
+        <div ref={couponRef} className="border-b border-amber-200/70 dark:border-primary/20 px-4 py-3 bg-amber-50/80 dark:bg-primary/[0.08] space-y-2 w-full overflow-hidden animate-coupon-slide-up">
           {/* Applied coupons */}
           {coupons.length > 0 && (
             <div className="space-y-1.5">
@@ -708,12 +716,12 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2">
-              <p className="text-xl font-extrabold text-primary">{formatPrice(finalPrice)}</p>
+              <p className="text-xl font-black tabular-nums tracking-tight text-primary">{formatPrice(finalPrice)}</p>
               {totalDiscount > 0 && (
-                <p className="text-sm text-muted-foreground line-through">{formatPrice(basePrice)}</p>
+                <p className="text-sm tabular-nums text-muted-foreground line-through">{formatPrice(basePrice)}</p>
               )}
               {totalDiscount === 0 && product.compareAtPrice && Number(product.compareAtPrice) > basePrice && (
-                <p className="text-sm text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
+                <p className="text-sm tabular-nums text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
               )}
             </div>
             <button
@@ -732,7 +740,12 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
               <ChevronDown className={`h-3 w-3 transition-transform ${couponOpen ? 'rotate-180' : ''}`} />
             </button>
           </div>
-          <Button className="font-bold px-4 shrink-0 text-sm" size="lg" onClick={handleBuy}>
+          <Button
+            className="font-bold px-4 shrink-0 text-sm"
+            style={{ background: 'oklch(0.847 0.178 85.87)', color: 'oklch(0.1 0.04 264)' }}
+            size="lg"
+            onClick={handleBuy}
+          >
             <ShoppingCart className="mr-1.5 h-4 w-4" />
             Шууд худалдаж авах
           </Button>

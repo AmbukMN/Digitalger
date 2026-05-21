@@ -34,7 +34,7 @@ export default async function BlogPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-10 text-center">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Нийтлэл</h1>
+        <h1 className="text-3xl font-bold sm:text-4xl">Нийтлэл</h1>
         <p className="mt-3 text-muted-foreground text-base sm:text-lg max-w-xl mx-auto">
           Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө
         </p>

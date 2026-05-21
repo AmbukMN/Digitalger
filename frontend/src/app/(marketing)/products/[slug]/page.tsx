@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge } from '@digitalger/shared/ui';
 import { productsApi } from '@/lib/api';
-import { PRODUCT_TYPE_LABELS, SITE_URL } from '@/lib/constants';
+import { SITE_URL } from '@/lib/constants';
 import { PurchaseCard, MobileBuyBar } from '@/components/products/purchase-card';
 import { ProductTitleActions } from '@/components/products/product-title-actions';
 import { FaqAccordion } from '@/components/products/faq-accordion';
@@ -12,6 +12,8 @@ import { ReviewsSection } from '@/components/products/reviews-section';
 import { ProductTestimonialsSection } from '@/components/products/testimonials-section';
 import { MediaGallery } from '@/components/products/media-gallery';
 import { CourseCurriculum } from '@/components/products/course-curriculum';
+import { BundleList } from '@/components/products/bundle-list';
+import { DownloadAllButton } from '@/components/products/download-all-button';
 import {
   Star,
   Download,
@@ -215,7 +217,7 @@ export default async function ProductDetailPage({ params }: Props) {
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Download className="h-3.5 w-3.5" />
-                  {product.downloadCount} таталт
+                  {product.downloadCount} удаа татсан
                 </div>
                 <div className="flex items-baseline gap-2 lg:hidden">
                   <p className="text-lg font-bold text-primary">{formatPrice(Number(product.price))}</p>
@@ -228,7 +230,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
             {/* Description */}
             <section>
-              <h2 className="text-lg font-bold mb-3">Тайлбар</h2>
+              <h2 className="text-lg font-bold mb-3">Бүтээгдэхүүний тухай</h2>
               {product.description.startsWith('<') ? (
                 <div
                   className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
@@ -244,10 +246,13 @@ export default async function ProductDetailPage({ params }: Props) {
             {/* What's included */}
             {(hasRealContent(product.whatsIncluded) || hasFiles) && (
               <section className="rounded-2xl border border-border bg-muted/30 p-5 sm:p-6">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Package className="h-5 w-5 text-primary" />
-                  Багцад юу багтсан вэ?
-                </h2>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <Package className="h-5 w-5 text-primary" />
+                    Багцад юу багтсан вэ?
+                  </h2>
+                  {hasFiles && <DownloadAllButton productId={product.id} />}
+                </div>
                 {hasRealContent(product.whatsIncluded) && product.whatsIncluded && (
                   product.whatsIncluded.startsWith('<') ? (
                     <div
@@ -261,18 +266,18 @@ export default async function ProductDetailPage({ params }: Props) {
                   )
                 )}
                 {hasFiles && (
-                  <ul className="space-y-2">
+                  <ul className={`space-y-2 ${product.files!.length > 6 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
                     {product.files!.map((file) => {
                       const size = formatBytes(file.sizeBytes);
                       return (
-                        <li key={file.id} className="flex items-center gap-3 text-sm">
+                        <li key={file.id} className="flex items-center gap-3 text-sm min-w-0">
                           <FileText className="h-4 w-4 shrink-0 text-primary" />
-                          <span className="flex-1 font-medium">{file.fileName}</span>
+                          <span className="flex-1 font-medium truncate min-w-0">{file.fileName}</span>
                           {size && (
-                            <span className="text-xs text-muted-foreground">{size}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">{size}</span>
                           )}
                           {file.mimeType && (
-                            <Badge variant="secondary" className="text-xs uppercase">
+                            <Badge variant="secondary" className="text-xs uppercase shrink-0 hidden sm:inline-flex">
                               {file.mimeType.split('/').pop()?.split('.').pop() ?? file.mimeType}
                             </Badge>
                           )}
@@ -300,7 +305,16 @@ export default async function ProductDetailPage({ params }: Props) {
               </section>
             )}
 
-            {/* How to use — only show if product has its own content */}
+            {/* Bundles — before how-to-use */}
+            {product.bundles && product.bundles.length > 0 && (
+              <BundleList
+                bundles={product.bundles}
+                productId={product.id}
+                productFiles={product.files ?? []}
+              />
+            )}
+
+            {/* How to use */}
             {(product.howToUse || (product.howToUseSteps && product.howToUseSteps.length > 0)) && (
               <section>
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
@@ -320,8 +334,8 @@ export default async function ProductDetailPage({ params }: Props) {
                 {product.howToUseSteps && product.howToUseSteps.length > 0 && (
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
                     {product.howToUseSteps.map((step, i) => (
-                      <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                        <div className="mb-3 text-3xl font-black text-primary/20 leading-none">
+                      <div key={i} className="rounded-xl border border-primary/15 bg-card p-5 shadow-sm">
+                        <div className="mb-3 text-3xl font-black text-primary/50 leading-none tabular-nums">
                           {String(i + 1).padStart(2, '0')}
                         </div>
                         <h4 className="font-semibold text-sm mb-1">{step.title}</h4>
@@ -330,43 +344,6 @@ export default async function ProductDetailPage({ params }: Props) {
                     ))}
                   </div>
                 )}
-              </section>
-            )}
-
-            {/* Bundles */}
-            {product.bundles && product.bundles.length > 0 && (
-              <section>
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Package className="h-5 w-5 text-primary" />
-                  Багцын агуулга
-                </h2>
-                <div className="space-y-3">
-                  {product.bundles.map((bundle, bi) => (
-                    <div key={bundle.id} className="rounded-xl border border-border overflow-hidden">
-                      <div className="flex items-center gap-3 bg-primary/5 px-4 py-3 border-b border-border">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                          {bi + 1}
-                        </span>
-                        <span className="font-semibold text-sm">{bundle.title}</span>
-                        {bundle.description && (
-                          <span className="text-xs text-muted-foreground ml-auto">{bundle.description}</span>
-                        )}
-                      </div>
-                      <ul className="divide-y divide-border">
-                        {bundle.items.map((item, ii) => (
-                          <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                            <span className="text-xs text-muted-foreground w-5 shrink-0 text-right">{ii + 1}.</span>
-                            <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                            <span className="flex-1">{item.name}</span>
-                            {item.description && (
-                              <span className="text-xs text-muted-foreground">{item.description}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
               </section>
             )}
 

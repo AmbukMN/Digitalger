@@ -267,6 +267,78 @@ export class AdminProductsService {
     return { success: true };
   }
 
+  async clone(id: string) {
+    const source = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        images: { orderBy: { sortOrder: 'asc' } },
+        files: { orderBy: { sortOrder: 'asc' } },
+        bundles: {
+          orderBy: { sortOrder: 'asc' },
+          include: { items: { orderBy: { sortOrder: 'asc' } } },
+        },
+        faqs: { select: { faqId: true } },
+        testimonials: { select: { testimonialId: true } },
+      },
+    });
+
+    if (!source) throw new NotFoundException('Product not found');
+
+    const baseSlug = `${source.slug}-copy`;
+    let slug = baseSlug;
+    let attempt = 0;
+    while (await this.prisma.product.findUnique({ where: { slug } })) {
+      attempt++;
+      slug = `${baseSlug}-${attempt}`;
+    }
+
+    const { id: _id, slug: _slug, createdAt: _ca, updatedAt: _ua, images, files, bundles, faqs, testimonials, howToUseSteps, ...rest } = source;
+
+    const cloned = await this.prisma.product.create({
+      data: {
+        ...rest,
+        howToUseSteps: howToUseSteps ?? undefined,
+        slug,
+        published: false,
+        title: `${source.title} (копи)`,
+        images: {
+          create: images.map(({ fileKey, videoUrl, alt, isPrimary, sortOrder }) => ({ fileKey, videoUrl, alt, isPrimary, sortOrder })),
+        },
+        files: {
+          create: files.map(({ fileKey, fileName, mimeType, sizeBytes, sortOrder }) => ({ fileKey, fileName, mimeType, sizeBytes, sortOrder })),
+        },
+        bundles: {
+          create: bundles.map((b) => ({
+            title: b.title,
+            description: b.description,
+            sortOrder: b.sortOrder,
+            items: {
+              create: b.items.map(({ name, description, label, fileId, fileIds, sortOrder: so }) => ({
+                name, description, label, fileId, fileIds, sortOrder: so,
+              })),
+            },
+          })),
+        },
+      },
+      include: { category: true, images: true },
+    });
+
+    if (faqs.length > 0) {
+      await this.prisma.productFAQ.createMany({
+        data: faqs.map(({ faqId }) => ({ productId: cloned.id, faqId })),
+        skipDuplicates: true,
+      });
+    }
+    if (testimonials.length > 0) {
+      await this.prisma.productTestimonial.createMany({
+        data: testimonials.map(({ testimonialId }) => ({ productId: cloned.id, testimonialId })),
+        skipDuplicates: true,
+      });
+    }
+
+    return cloned;
+  }
+
   private async ensureProductExists(id: string) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');

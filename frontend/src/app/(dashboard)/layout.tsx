@@ -64,8 +64,13 @@ export default function DashboardLayout({
 
       {/* Mobile bottom tab bar — pb accounts for iPhone home indicator */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80 md:hidden"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        className="fixed inset-x-0 bottom-0 z-40 md:hidden"
+        style={{
+          background: 'color-mix(in oklch, var(--primary) 6%, var(--background))',
+          borderTop: '1.5px solid color-mix(in oklch, var(--primary) 28%, transparent)',
+          boxShadow: '0 -4px 24px color-mix(in oklch, var(--primary) 12%, transparent)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
       >
         <div className="mx-auto flex max-w-lg">
           {DASH_LINKS.map(({ href, label, icon: Icon }) => {
@@ -75,11 +80,16 @@ export default function DashboardLayout({
                 key={href}
                 href={href}
                 className={cn(
-                  'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors',
-                  active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                  'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors',
+                  active ? 'text-primary' : 'text-foreground/50 hover:text-foreground/80',
                 )}
               >
-                <Icon className={cn('h-5 w-5', active && 'text-primary')} />
+                <div className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+                  active && 'bg-primary/15',
+                )}>
+                  <Icon className={cn('h-5 w-5', active ? 'text-primary' : 'text-foreground/50')} />
+                </div>
                 {label}
               </Link>
             );

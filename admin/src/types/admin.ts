@@ -115,6 +115,18 @@ export interface SiteSettings {
   logoUrl: string | null;
 }
 
+export interface AdminProductTypeConfig {
+  id: string;
+  value: string;
+  label: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdminBanner {
   id: string;
   title: string;
@@ -174,7 +186,9 @@ export interface AdminBundleItem {
   bundleId: string;
   name: string;
   description?: string | null;
+  label?: string | null;
   fileId?: string | null;
+  fileIds?: string[];
   sortOrder: number;
 }
 

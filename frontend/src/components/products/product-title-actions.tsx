@@ -71,7 +71,7 @@ export function ProductTitleActions({ product }: ProductTitleActionsProps) {
         onClick={handleWishlist}
         className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
           inWishlist
-            ? 'bg-red-50 text-red-500 hover:bg-red-100'
+            ? 'bg-primary/10 text-primary hover:bg-primary/20 dark:bg-primary/15'
             : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
         }`}
         aria-label={inWishlist ? 'Хадгалсанаас хасах' : 'Хадгалах'}

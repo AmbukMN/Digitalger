@@ -2,9 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { getSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { BookOpen, CheckCircle2, ChevronDown, ChevronUp, Clock, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Button,
@@ -29,10 +28,10 @@ import {
 import type { ProductType } from '@digitalger/shared';
 import { adminApi } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
-import type { AdminBundle, AdminCourseModule, AdminFaq, AdminLesson, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
+import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
 import { RichEditor } from '@/components/ui/rich-editor';
 
-const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
+const FALLBACK_PRODUCT_TYPES: { value: ProductType; label: string }[] = [
   { value: 'FILE', label: 'Файл' },
   { value: 'TEMPLATE', label: 'Загвар' },
   { value: 'DOCUMENT', label: 'Баримт' },
@@ -76,6 +75,7 @@ const emptyForm = {
   price: '',
   compareAtPrice: '',
   type: 'FILE' as ProductType,
+  types: ['FILE'] as ProductType[],
   categoryId: '',
   categoryIds: [] as string[],
   published: false,
@@ -90,6 +90,72 @@ const emptyForm = {
   ratingCount: '0',
   ...DEFAULT_PROOF,
 };
+
+function PopoverMultiSelect<T extends string>({
+  options,
+  selected,
+  onChange,
+  placeholder,
+}: {
+  options: { value: T; label: string }[];
+  selected: T[];
+  onChange: (next: T[]) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const labels = selected.map((v) => options.find((o) => o.value === v)?.label ?? v);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <span className="truncate text-left">
+          {labels.length > 0 ? labels.join(', ') : <span className="text-muted-foreground">{placeholder}</span>}
+        </span>
+        <ChevronDown className={`ml-2 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md">
+          <div className="max-h-52 overflow-y-auto p-1">
+            {options.map((opt) => {
+              const checked = selected.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => {
+                    const next = checked ? selected.filter((v) => v !== opt.value) : [...selected, opt.value];
+                    onChange(next.length > 0 ? next : selected);
+                  }}
+                >
+                  <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${checked ? 'bg-primary border-primary text-primary-foreground' : 'border-input'}`}>
+                    {checked && <Check className="h-3 w-3" />}
+                  </div>
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -212,6 +278,12 @@ function BundleTab({ productId }: { productId?: string }) {
   const [newItemInputs, setNewItemInputs] = useState<Record<string, string>>({});
   const [editingBundle, setEditingBundle] = useState<string | null>(null);
   const [editBundleTitle, setEditBundleTitle] = useState('');
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editItemName, setEditItemName] = useState('');
+  const [editItemLabel, setEditItemLabel] = useState('');
+  const [openBundles, setOpenBundles] = useState<Record<string, boolean>>({});
+  const toggleBundle = (id: string) => setOpenBundles((p) => ({ ...p, [id]: p[id] !== false ? false : true }));
+  const isBundleOpen = (id: string) => openBundles[id] === true;
 
   const { data: bundles = [], isLoading } = useQuery({
     queryKey: ['admin', 'products', productId, 'bundles'],
@@ -247,10 +319,17 @@ function BundleTab({ productId }: { productId?: string }) {
     onError: () => toast.error('Алдаа гарлаа'),
   });
 
+  const updateItemMut = useMutation({
+    mutationFn: ({ bundleId, itemId, name, label }: { bundleId: string; itemId: string; name: string; label?: string }) =>
+      adminApi.bundles.updateItem(productId!, bundleId, itemId, { name, label: label || undefined }),
+    onSuccess: () => { toast.success('Засагдлаа'); setEditingItem(null); invalidate(); },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
   const removeItemMut = useMutation({
     mutationFn: ({ bundleId, itemId }: { bundleId: string; itemId: string }) =>
       adminApi.bundles.removeItem(productId!, bundleId, itemId),
-    onSuccess: () => invalidate(),
+    onSuccess: () => { toast.success('Устгагдлаа'); invalidate(); },
   });
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
@@ -259,7 +338,15 @@ function BundleTab({ productId }: { productId?: string }) {
     <div className="space-y-4">
       {bundles.map((bundle: AdminBundle, bi) => (
         <div key={bundle.id} className="rounded-lg border border-border overflow-hidden">
-          <div className="flex items-center gap-2 bg-muted/40 px-3 py-2">
+          {/* Bundle header */}
+          <div className="flex items-center gap-2 bg-muted/40 px-3 py-2 hover:bg-muted/60 transition-colors">
+            <button
+              type="button"
+              onClick={() => toggleBundle(bundle.id)}
+              className="shrink-0 flex items-center"
+            >
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isBundleOpen(bundle.id) ? '' : '-rotate-90'}`} />
+            </button>
             <Package className="h-4 w-4 text-muted-foreground shrink-0" />
             {editingBundle === bundle.id ? (
               <>
@@ -268,37 +355,89 @@ function BundleTab({ productId }: { productId?: string }) {
                   onChange={(e) => setEditBundleTitle(e.target.value)}
                   className="h-7 text-sm flex-1"
                   autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') updateBundleMut.mutate(bundle.id); if (e.key === 'Escape') setEditingBundle(null); }}
                 />
                 <Button size="sm" className="h-7 text-xs px-2" onClick={() => updateBundleMut.mutate(bundle.id)}>Хадгалах</Button>
                 <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingBundle(null)}>Болих</Button>
               </>
             ) : (
               <>
-                <span className="flex-1 text-sm font-semibold">{bi + 1}. {bundle.title}</span>
+                <span
+                  className="flex-1 text-sm font-semibold cursor-pointer"
+                  onClick={() => toggleBundle(bundle.id)}
+                >
+                  {bi + 1}. {bundle.title}
+                </span>
+                <span className="text-xs text-muted-foreground mr-1">{bundle.items.length} зүйл</span>
                 <Button size="icon" variant="ghost" className="h-7 w-7"
                   onClick={() => { setEditingBundle(bundle.id); setEditBundleTitle(bundle.title); }}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
-                  onClick={() => { if (confirm('Бүлэг устгах уу?')) removeBundleMut.mutate(bundle.id); }}>
+                  onClick={() => { if (confirm('Бүлэг болон түүний бүх зүйлийг устгах уу?')) removeBundleMut.mutate(bundle.id); }}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </>
             )}
           </div>
 
-          <div className="divide-y divide-border">
-            {bundle.items.map((item, ii) => (
-              <div key={item.id} className="flex items-center gap-2 px-3 py-2">
-                <span className="text-xs text-muted-foreground w-5 shrink-0">{ii + 1}.</span>
-                <span className="flex-1 text-sm">{item.name}</span>
-                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive"
-                  onClick={() => removeItemMut.mutate({ bundleId: bundle.id, itemId: item.id })}>
-                  <X className="h-3 w-3" />
-                </Button>
+          {/* Bundle items */}
+          {isBundleOpen(bundle.id) && <div className="divide-y divide-border">
+            {bundle.items.map((item: AdminBundleItem, ii) => (
+              <div key={item.id} className="px-3 py-2">
+                {editingItem === item.id ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-5 shrink-0">{ii + 1}.</span>
+                      <Input
+                        value={editItemName}
+                        onChange={(e) => setEditItemName(e.target.value)}
+                        className="h-7 text-xs flex-1"
+                        autoFocus
+                        placeholder="Зүйлийн нэр"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && editItemName.trim()) updateItemMut.mutate({ bundleId: bundle.id, itemId: item.id, name: editItemName.trim(), label: editItemLabel });
+                          if (e.key === 'Escape') setEditingItem(null);
+                        }}
+                      />
+                      <Input
+                        value={editItemLabel}
+                        onChange={(e) => setEditItemLabel(e.target.value)}
+                        className="h-7 text-xs w-28 shrink-0"
+                        placeholder="PDF + DOCX"
+                      />
+                      <Button size="sm" className="h-7 text-xs px-2 shrink-0"
+                        disabled={!editItemName.trim() || updateItemMut.isPending}
+                        onClick={() => updateItemMut.mutate({ bundleId: bundle.id, itemId: item.id, name: editItemName.trim(), label: editItemLabel })}>
+                        Хадгалах
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2 shrink-0" onClick={() => setEditingItem(null)}>Болих</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-5 shrink-0">{ii + 1}.</span>
+                    <span className="flex-1 text-sm">{item.name}</span>
+                    {item.label && (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
+                    )}
+                    {item.description && (
+                      <span className="text-xs text-muted-foreground truncate max-w-24 hidden sm:block">{item.description}</span>
+                    )}
+                    <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0"
+                      onClick={() => { setEditingItem(item.id); setEditItemName(item.name); setEditItemLabel(item.label ?? ''); }}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive shrink-0"
+                      onClick={() => { if (confirm('Зүйл устгах уу?')) removeItemMut.mutate({ bundleId: bundle.id, itemId: item.id }); }}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
 
+            {/* Add item row */}
             <div className="flex gap-2 p-2">
               <Input
                 value={newItemInputs[bundle.id] ?? ''}
@@ -318,7 +457,7 @@ function BundleTab({ productId }: { productId?: string }) {
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
-          </div>
+          </div>}
         </div>
       ))}
 
@@ -485,8 +624,9 @@ function VideoUploadInput({
     onUploadingChange?.(true);
     setUploadProgress(0);
     try {
-      const session = await getSession();
-      const token = (session as any)?.accessToken ?? '';
+      const meRes = await fetch('/api/me');
+      const meData = meRes.ok ? await meRes.json() : {};
+      const token = meData.accessToken ?? '';
       const result = await uploadWithProgress(file, token, setUploadProgress);
       setVideoKey(result.key);
       setVideoUrl('');
@@ -857,7 +997,7 @@ function ModuleSection({
   onInvalidate: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(mod.title);
   const [addingLesson, setAddingLesson] = useState(false);
@@ -1176,51 +1316,46 @@ function CourseTab({ productId }: { productId?: string }) {
 function FilesTab({ productId }: { productId?: string }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const bundleFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploading, setUploading] = useState(false);
+  const [bundleUploading, setBundleUploading] = useState<Record<string, boolean>>({});
+  const [openFileBundles, setOpenFileBundles] = useState<Record<string, boolean>>({});
+  const toggleFileBundle = (id: string) => setOpenFileBundles((p) => ({ ...p, [id]: p[id] !== true }));
+  const isFileBundleOpen = (id: string) => openFileBundles[id] === true;
 
-  const { data: files = [], isLoading } = useQuery({
+  const { data: files = [], isLoading: filesLoading } = useQuery({
     queryKey: ['admin', 'products', productId, 'files'],
     queryFn: () => adminApi.products.files.list(productId!),
     enabled: !!productId,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'files'] });
+  const { data: bundles = [], isLoading: bundlesLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'bundles'],
+    queryFn: () => adminApi.bundles.list(productId!),
+    enabled: !!productId,
+  });
+
+  const invalidateFiles = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'files'] });
+  const invalidateBundles = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'bundles'] });
+  const invalidateAll = () => { invalidateFiles(); invalidateBundles(); };
 
   const removeMut = useMutation({
     mutationFn: (fileId: string) => adminApi.products.files.remove(productId!, fileId),
-    onSuccess: () => { toast.success('Устгагдлаа'); invalidate(); },
+    onSuccess: () => { toast.success('Устгагдлаа'); invalidateFiles(); },
     onError: () => toast.error('Алдаа гарлаа'),
   });
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!productId) {
-      toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа файл нэмнэ үү');
-      return;
-    }
-    const picked = Array.from(e.target.files ?? []);
-    if (!picked.length) return;
-    setUploading(true);
-    try {
-      await Promise.all(
-        picked.map(async (file) => {
-          const r = await adminApi.upload(file);
-          await adminApi.products.files.add(productId, {
-            fileKey: r.key,
-            fileName: file.name,
-            mimeType: file.type || undefined,
-            sizeBytes: file.size,
-          });
-        }),
-      );
-      toast.success(`${picked.length} файл нэмэгдлээ`);
-      invalidate();
-    } catch {
-      toast.error('Файл ачаалахад алдаа гарлаа');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  }
+  const removeItemFileMut = useMutation({
+    mutationFn: ({ bundleId, itemId, newFileIds }: { bundleId: string; itemId: string; newFileIds: string[] }) =>
+      adminApi.bundles.updateItem(productId!, bundleId, itemId, { fileIds: newFileIds }),
+    onSuccess: () => invalidateAll(),
+  });
+
+  const linkExistingFileMut = useMutation({
+    mutationFn: ({ bundleId, itemId, fileId, currentIds }: { bundleId: string; itemId: string; fileId: string; currentIds: string[] }) =>
+      adminApi.bundles.updateItem(productId!, bundleId, itemId, { fileIds: [...currentIds, fileId] }),
+    onSuccess: () => invalidateAll(),
+  });
 
   function formatSize(bytes?: number | null) {
     if (!bytes) return '';
@@ -1229,49 +1364,196 @@ function FilesTab({ productId }: { productId?: string }) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+  async function handleGlobalFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!productId) { toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа файл нэмнэ үү'); return; }
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
+    setUploading(true);
+    try {
+      await Promise.all(picked.map(async (file) => {
+        const r = await adminApi.upload(file);
+        await adminApi.products.files.add(productId, { fileKey: r.key, fileName: file.name, mimeType: file.type || undefined, sizeBytes: file.size });
+      }));
+      toast.success(`${picked.length} файл нэмэгдлээ`);
+      invalidateFiles();
+    } catch { toast.error('Файл ачаалахад алдаа гарлаа'); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
+  }
+
+  async function handleBundleFileSelect(e: React.ChangeEvent<HTMLInputElement>, bundleId: string, item: AdminBundleItem) {
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length || !productId) return;
+    setBundleUploading((p) => ({ ...p, [item.id]: true }));
+    try {
+      const newIds: string[] = [];
+      for (const file of picked) {
+        const r = await adminApi.upload(file);
+        const added = await adminApi.products.files.add(productId, { fileKey: r.key, fileName: file.name, mimeType: file.type || undefined, sizeBytes: file.size });
+        newIds.push(added.id);
+      }
+      const currentIds = item.fileIds ?? [];
+      await adminApi.bundles.updateItem(productId, bundleId, item.id, { fileIds: [...currentIds, ...newIds] });
+      toast.success(`${picked.length} файл холбогдлоо`);
+      invalidateAll();
+    } catch { toast.error('Алдаа гарлаа'); }
+    finally {
+      setBundleUploading((p) => ({ ...p, [item.id]: false }));
+      const ref = bundleFileRefs.current[item.id];
+      if (ref) ref.value = '';
+    }
+  }
+
+  if (filesLoading || bundlesLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
+
+  const allLinkedFileIds = new Set(
+    bundles.flatMap((b: AdminBundle) => b.items.flatMap((i: AdminBundleItem) => i.fileIds ?? [])),
+  );
+  const unlinkedFiles = (files as AdminProductFile[]).filter((f) => !allLinkedFileIds.has(f.id));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-        Татаж авах файлуудыг энд нэмнэ үү. Хэрэглэгч худалдаж авсны дараа эдгээр файлыг татаж авах боломжтой болно.
+        Бүлэг бүрийн зүйл бүрд нэг буюу хэд хэдэн файл холбоно. Бүлэгт хамааргүй ерөнхий файлуудыг доорх хэсэгт нэмнэ үү.
       </div>
 
-      {files.length > 0 && (
-        <div className="space-y-1.5">
-          {files.map((file: AdminProductFile) => (
-            <div key={file.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
-              <FileText className="h-4 w-4 shrink-0 text-primary/60" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{file.fileName}</p>
-                {(file.sizeBytes || file.mimeType) && (
-                  <p className="text-xs text-muted-foreground">
-                    {[file.mimeType, formatSize(file.sizeBytes)].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-              </div>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
-                onClick={() => { if (confirm('Файл устгах уу?')) removeMut.mutate(file.id); }}
+      {/* Bundle-linked files */}
+      {bundles.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Бүлгийн файлууд</p>
+          {(bundles as AdminBundle[]).map((bundle, bi) => (
+            <div key={bundle.id} className="rounded-lg border border-border overflow-hidden">
+              <div
+                className="flex items-center gap-2 bg-muted/40 px-3 py-2 hover:bg-muted/60 transition-colors cursor-pointer"
+                onClick={() => toggleFileBundle(bundle.id)}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isFileBundleOpen(bundle.id) ? '' : '-rotate-90'}`} />
+                <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-semibold flex-1">{bi + 1}. {bundle.title}</span>
+                <span className="text-xs text-muted-foreground">{bundle.items.length} зүйл</span>
+              </div>
+              {isFileBundleOpen(bundle.id) && <div className="divide-y divide-border">
+                {bundle.items.map((item: AdminBundleItem) => {
+                  const itemFileIds = item.fileIds ?? [];
+                  const linkedFiles = itemFileIds
+                    .map((fid) => (files as AdminProductFile[]).find((f) => f.id === fid))
+                    .filter(Boolean) as AdminProductFile[];
+
+                  return (
+                    <div key={item.id} className="px-3 py-2.5 space-y-2">
+                      {/* Item header */}
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium flex-1">{item.name}</span>
+                        {bundleUploading[item.id] && (
+                          <span className="text-xs text-muted-foreground animate-pulse">Ачаалж байна...</span>
+                        )}
+                        {/* Upload more files */}
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors shrink-0"
+                          onClick={() => bundleFileRefs.current[item.id]?.click()}
+                          disabled={bundleUploading[item.id]}
+                        >
+                          <Upload className="h-3 w-3" />
+                          Файл нэмэх
+                        </button>
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          ref={(el) => { bundleFileRefs.current[item.id] = el; }}
+                          onChange={(e) => handleBundleFileSelect(e, bundle.id, item)}
+                        />
+                      </div>
+
+                      {/* Linked files list */}
+                      {linkedFiles.length > 0 && (
+                        <div className="ml-5 space-y-1">
+                          {linkedFiles.map((lf) => (
+                            <div key={lf.id} className="flex items-center gap-2 rounded-md bg-primary/5 border border-primary/15 px-2 py-1.5">
+                              <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
+                              <span className="text-xs flex-1 truncate font-medium">{lf.fileName}</span>
+                              <span className="text-xs text-muted-foreground shrink-0">{formatSize(lf.sizeBytes)}</span>
+                              <Button
+                                type="button" size="icon" variant="ghost"
+                                className="h-5 w-5 text-destructive hover:text-destructive shrink-0"
+                                onClick={() => removeItemFileMut.mutate({
+                                  bundleId: bundle.id,
+                                  itemId: item.id,
+                                  newFileIds: itemFileIds.filter((id) => id !== lf.id),
+                                })}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Link existing file — show all files not already in this item */}
+                      {(() => {
+                        const availableForItem = (files as AdminProductFile[]).filter((f) => !itemFileIds.includes(f.id));
+                        if (!availableForItem.length) return null;
+                        return (
+                          <div className="ml-5">
+                            <select
+                              className="h-7 w-full rounded-md border border-border bg-background text-xs px-2 text-muted-foreground"
+                              value=""
+                              onChange={(e) => {
+                                if (e.target.value) linkExistingFileMut.mutate({ bundleId: bundle.id, itemId: item.id, fileId: e.target.value, currentIds: itemFileIds });
+                              }}
+                            >
+                              <option value="">— байгаа файлаас сонгох —</option>
+                              {availableForItem.map((f) => (
+                                <option key={f.id} value={f.id}>{f.fileName}</option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>}
             </div>
           ))}
         </div>
       )}
 
-      <div
-        className={`flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border bg-muted/30 text-sm text-muted-foreground transition-colors ${productId ? 'cursor-pointer hover:border-primary/40' : 'opacity-50 cursor-not-allowed'}`}
-        onClick={() => productId ? fileRef.current?.click() : toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа файл нэмнэ үү')}
-      >
-        <Upload className="h-5 w-5" />
-        <span>{uploading ? 'Ачаалж байна...' : productId ? 'Файл нэмэх' : 'Хадгалсны дараа нэмнэ үү'}</span>
+      {/* Unlinked / general files */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ерөнхий файлууд</p>
+        {unlinkedFiles.length > 0 && (
+          <div className="space-y-1.5">
+            {unlinkedFiles.map((file) => (
+              <div key={file.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
+                <FileText className="h-4 w-4 shrink-0 text-primary/60" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.fileName}</p>
+                  {(file.sizeBytes || file.mimeType) && (
+                    <p className="text-xs text-muted-foreground">{[file.mimeType, formatSize(file.sizeBytes)].filter(Boolean).join(' · ')}</p>
+                  )}
+                </div>
+                <Button
+                  type="button" size="icon" variant="ghost"
+                  className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                  onClick={() => { if (confirm('Файл устгах уу?')) removeMut.mutate(file.id); }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div
+          className={`flex h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border bg-muted/30 text-sm text-muted-foreground transition-colors ${productId ? 'cursor-pointer hover:border-primary/40' : 'opacity-50 cursor-not-allowed'}`}
+          onClick={() => productId ? fileRef.current?.click() : toast.info('Эхлээд бүтээгдэхүүнийг хадгалж, дараа файл нэмнэ үү')}
+        >
+          <Upload className="h-4 w-4" />
+          <span className="text-xs">{uploading ? 'Ачаалж байна...' : productId ? 'Файл нэмэх' : 'Хадгалсны дараа нэмнэ үү'}</span>
+        </div>
+        <input ref={fileRef} type="file" multiple className="hidden" onChange={handleGlobalFileSelect} disabled={uploading || !productId} />
       </div>
-      <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFileSelect} disabled={uploading || !productId} />
     </div>
   );
 }
@@ -1493,7 +1775,8 @@ export function ProductFormDialog({
   const [form, setForm] = useState(emptyForm);
   const [generating, setGenerating] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingMedia[]>([]);
-  const effectiveProduct = product;
+  const [savedProduct, setSavedProduct] = useState<AdminProduct | null>(null);
+  const effectiveProduct = product ?? savedProduct;
   // Incrementing this key forces all RichEditors to remount with fresh content
   const [editorResetToken, setEditorResetToken] = useState(0);
 
@@ -1510,6 +1793,16 @@ export function ProductFormDialog({
     queryKey: ['admin', 'categories'],
     queryFn: () => adminApi.categories.list(),
   });
+
+  const { data: productTypeConfigs = [] } = useQuery({
+    queryKey: ['admin', 'product-types'],
+    queryFn: () => adminApi.productTypes.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const productTypes: { value: ProductType; label: string }[] =
+    productTypeConfigs.length > 0
+      ? productTypeConfigs.filter((t) => t.active).map((t) => ({ value: t.value as ProductType, label: t.label }))
+      : FALLBACK_PRODUCT_TYPES;
 
   const { data: assignedFaqIds } = useQuery({
     queryKey: ['admin', 'products', product?.id, 'faq-ids'],
@@ -1540,6 +1833,7 @@ export function ProductFormDialog({
       price: String(p.price),
       compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
       type: p.type,
+      types: p.type ? [p.type] : ['FILE' as ProductType],
       categoryId: p.categoryId ?? '',
       categoryIds: effectiveCategoryIds,
       published: p.published,
@@ -1573,6 +1867,7 @@ export function ProductFormDialog({
       testimonialIdsInitializedFor.current = null;
       setSelectedFaqIds(new Set());
       setSelectedTestimonialIds(new Set());
+      setSavedProduct(null);
       return;
     }
 
@@ -1630,8 +1925,8 @@ export function ProductFormDialog({
     try {
       const result = await adminApi.products.generate({
         fileNames: form.title ? [form.title] : ['product'],
-        fileTypes: [form.type],
-        productType: form.type,
+        fileTypes: form.types.length > 0 ? form.types : [form.type],
+        productType: form.types[0] ?? form.type,
         categoryName: selectedCategory?.name,
       });
       setEditorResetToken((t) => t + 1);
@@ -1675,7 +1970,7 @@ export function ProductFormDialog({
         description: form.description,
         price: parseFloat(form.price) || 0,
         compareAtPrice: !isNaN(cap) && cap > 0 ? cap : null,
-        type: form.type,
+        type: form.types[0] ?? form.type,
         categoryId: form.categoryIds.length > 0 ? form.categoryIds[0] : (form.categoryId || undefined),
         categoryIds: form.categoryIds.length > 0 ? form.categoryIds : (form.categoryId ? [form.categoryId] : []),
         published: form.published,
@@ -1734,9 +2029,16 @@ export function ProductFormDialog({
     },
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      const wasNew = !product;
       justSavedRef.current = saved as AdminProduct;
-      toast.success(effectiveProduct ? 'Бүтээгдэхүүн шинэчлэгдлээ' : 'Бүтээгдэхүүн нэмэгдлээ');
-      onOpenChange(false);
+      if (wasNew) {
+        setSavedProduct(saved as AdminProduct);
+        initializedForRef.current = (saved as AdminProduct).id;
+        toast.success('Бүтээгдэхүүн нэмэгдлээ — таб ашиглан файл, багц нэмнэ үү');
+      } else {
+        toast.success('Бүтээгдэхүүн шинэчлэгдлээ');
+        onOpenChange(false);
+      }
     },
     onError: (err: Error) => {
       const raw = err.message ?? '';
@@ -1769,7 +2071,7 @@ export function ProductFormDialog({
       <DialogContent className="max-h-[92vh] overflow-y-auto max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            {effectiveProduct ? 'Бүтээгдэхүүн засах' : 'Шинэ бүтээгдэхүүн'}
+            {savedProduct ? `✓ Үүслээ — нэмэлт мэдээлэл оруулах` : effectiveProduct ? 'Бүтээгдэхүүн засах' : 'Шинэ бүтээгдэхүүн'}
           </DialogTitle>
           <DialogPrimitive.Description className="sr-only">
             {effectiveProduct ? `${effectiveProduct.title} бүтээгдэхүүний мэдээллийг засах` : 'Шинэ бүтээгдэхүүн үүсгэх'}
@@ -1836,44 +2138,25 @@ export function ProductFormDialog({
               </div>
               <div className="space-y-2">
                 <Label>Төрөл *</Label>
-                <Select value={form.type} onValueChange={(v) => set('type', v as ProductType)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PRODUCT_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <PopoverMultiSelect
+                  options={productTypes}
+                  selected={form.types}
+                  placeholder="Төрөл сонгох..."
+                  onChange={(next) => setForm((f) => ({ ...f, types: next, type: next[0] ?? f.type }))}
+                />
               </div>
               <div className="space-y-2">
-                <Label>Ангилал (олон сонгох боломжтой)</Label>
-                <div className="rounded-lg border border-border bg-background max-h-40 overflow-y-auto p-2 space-y-1">
-                  {categories.length === 0 && (
-                    <p className="text-xs text-muted-foreground px-1 py-1">Ангилал байхгүй</p>
-                  )}
-                  {categories.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/50 text-sm">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-primary shrink-0"
-                        checked={form.categoryIds.includes(c.id)}
-                        onChange={(e) => {
-                          setForm((f) => ({
-                            ...f,
-                            categoryIds: e.target.checked
-                              ? [...f.categoryIds, c.id]
-                              : f.categoryIds.filter((id) => id !== c.id),
-                            categoryId: e.target.checked && f.categoryIds.length === 0 ? c.id : f.categoryId,
-                          }));
-                        }}
-                      />
-                      <span className="truncate">{c.name}</span>
-                    </label>
-                  ))}
-                </div>
-                {form.categoryIds.length > 0 && (
-                  <p className="text-xs text-muted-foreground">{form.categoryIds.length} ангилал сонгогдсон</p>
-                )}
+                <Label>Ангилал</Label>
+                <PopoverMultiSelect
+                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  selected={form.categoryIds}
+                  placeholder={categories.length === 0 ? 'Ангилал байхгүй' : 'Ангилал сонгох...'}
+                  onChange={(next) => setForm((f) => ({
+                    ...f,
+                    categoryIds: next,
+                    categoryId: next[0] ?? f.categoryId,
+                  }))}
+                />
               </div>
             </div>
 
@@ -2178,17 +2461,31 @@ export function ProductFormDialog({
 
         <DialogFooter className="gap-2 pt-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Цуцлах
+            {savedProduct ? 'Хаах' : 'Цуцлах'}
           </Button>
-          <Button
-            onClick={() => {
-              if (!validate()) return;
-              mutation.mutate();
-            }}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? 'Хадгалж байна...' : effectiveProduct ? 'Хадгалах' : 'Үүсгэх'}
-          </Button>
+          {!savedProduct && (
+            <Button
+              onClick={() => {
+                if (!validate()) return;
+                mutation.mutate();
+              }}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? 'Хадгалж байна...' : effectiveProduct ? 'Хадгалах' : 'Үүсгэх'}
+            </Button>
+          )}
+          {savedProduct && (
+            <Button
+              onClick={() => {
+                if (!validate()) return;
+                mutation.mutate();
+              }}
+              disabled={mutation.isPending}
+              variant="outline"
+            >
+              {mutation.isPending ? 'Хадгалж байна...' : 'Дахин хадгалах'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

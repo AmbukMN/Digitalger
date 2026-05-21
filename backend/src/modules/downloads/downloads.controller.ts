@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DownloadsService } from './downloads.service';
@@ -11,6 +12,15 @@ export class DownloadsController {
   @Get()
   history(@CurrentUser('sub') userId: string) {
     return this.downloadsService.listUserDownloads(userId);
+  }
+
+  @Post('zip/:productId')
+  downloadZip(
+    @CurrentUser('sub') userId: string,
+    @Param('productId') productId: string,
+    @Res() res: Response,
+  ) {
+    return this.downloadsService.streamZipDownload(userId, productId, res);
   }
 
   @Post(':fileId')

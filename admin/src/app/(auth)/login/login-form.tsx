@@ -1,7 +1,6 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   Button,
@@ -15,8 +14,6 @@ import { SITE_NAME } from '@/lib/constants';
 
 export function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const error = searchParams.get('error');
   const [email, setEmail] = useState('admin@digitalger.mn');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,15 +24,15 @@ export function LoginForm() {
     setLoading(true);
     setFormError(null);
 
-    const res = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
 
     setLoading(false);
 
-    if (res?.error) {
+    if (!res.ok) {
       setFormError('И-мэйл эсвэл нууц үг буруу байна');
       return;
     }
@@ -55,9 +52,9 @@ export function LoginForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
-            {(error === 'unauthorized' || formError) && (
+            {formError && (
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {formError ?? 'Эрх хүрэлцэхгүй'}
+                {formError}
               </p>
             )}
             <div className="space-y-2">

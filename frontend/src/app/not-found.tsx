@@ -5,11 +5,11 @@ export default function NotFound() {
   return (
     <main className="flex min-h-screen items-center justify-center p-8">
       <EmptyState
-        title="404 — Олдсонгүй"
-        description="Хүссэн хуудас байхгүй эсвил устгагдсан байж болно."
+        title="Хуудас олдсонгүй"
+        description="Уучлаарай, энэ хуудас байхгүй эсвэл устгагдсан байж болно. Нүүр хуудас руу буцаад эргэн хайна уу."
         action={
           <Button asChild>
-            <Link href="/">Нүүр рүү буцах</Link>
+            <Link href="/">Нүүр хуудас руу буцах</Link>
           </Button>
         }
       />

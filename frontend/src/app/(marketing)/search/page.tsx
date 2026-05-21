@@ -82,20 +82,20 @@ export default async function SearchPage({
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold sm:text-3xl">Хайлт</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Хайлтын Үр Дүн</h1>
         <p className="mt-1.5 text-muted-foreground">
           {q
             ? total > 0
               ? `«${q}» — ${total} үр дүн олдлоо`
               : `«${q}» — үр дүн олдсонгүй`
-            : 'Хайх түлхүүр үгээ оруулна уу'}
+            : 'Хайх үгээ дээрх хайлтын талбарт оруулна уу'}
         </p>
       </div>
 
       {q.trim() && total === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Search className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-muted-foreground">Илэрц олдсонгүй. Өөр үгээр хайж үзнэ үү.</p>
+          <p className="text-muted-foreground">Илэрц олдсонгүй — өгүүлбэрийн оронд товч үг хэрэглэж үзнэ үү.</p>
         </div>
       )}
 

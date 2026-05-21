@@ -47,7 +47,7 @@ export default async function AboutPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+        <h1 className="text-3xl font-bold">{title}</h1>
         <div className="mt-2 h-1 w-16 rounded-full bg-primary" />
       </div>
       <div

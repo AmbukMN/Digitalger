@@ -162,17 +162,17 @@ export default function CheckoutPage() {
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <div className="flex items-center gap-3 mb-6">
           <ShoppingCart className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Төлбөр төлөх</h1>
+          <h1 className="text-2xl font-bold">Захиалга баталгаажуулах</h1>
         </div>
 
         {items.length === 0 ? (
           <EmptyState
-            title="Сагс хоосон"
-            description="Бүтээгдэхүүн сонгоод сагсанд нэмнэ үү"
+            title="Таны сагс хоосон байна"
+            description="Бүтээгдэхүүн сонгоод сагсанд нэмснийхээ дараа энд харагдана"
             className="mt-8"
             action={
               <Button asChild>
-                <Link href="/products">Дэлгүүр рүү</Link>
+                <Link href="/products">Бүтээгдэхүүн үзэх</Link>
               </Button>
             }
           />
@@ -225,11 +225,11 @@ export default function CheckoutPage() {
               {cartSavings > 0 && (
                 <>
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Жагсаалтын үнэ ({items.length} бүтээгдэхүүн)</span>
+                    <span>Нийт жагсаалтын үнэ ({items.length} бүтээгдэхүүн)</span>
                     <span className="line-through">{formatPrice(originalSubtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-green-600 dark:text-green-400">Хөнгөлөлт</span>
+                    <span className="text-green-600 dark:text-green-400">Таны хэмнэлт</span>
                     <span className="font-medium text-green-600 dark:text-green-400">-{formatPrice(cartSavings)}</span>
                   </div>
                 </>
@@ -262,8 +262,8 @@ export default function CheckoutPage() {
 
               {/* Total */}
               <div className="flex justify-between text-lg font-bold">
-                <span>Төлөх дүн</span>
-                <span className={isFree ? 'text-green-600 dark:text-green-400' : 'text-primary'}>
+                <span>Нийт төлөх дүн</span>
+                <span className={isFree ? 'text-green-600 dark:text-green-400' : 'text-foreground'}>
                   {isFree ? 'Үнэгүй' : formatPrice(total)}
                 </span>
               </div>
@@ -273,7 +273,7 @@ export default function CheckoutPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Gift className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-semibold">Купон хэрэглэх</span>
+                    <span className="text-sm font-semibold">Купон код байна уу?</span>
                   </div>
                   {totalCouponCount > 0 && (
                     <span className="text-xs text-muted-foreground">{totalCouponCount}/{MAX_COUPONS_PER_PRODUCT}</span>
@@ -332,7 +332,7 @@ export default function CheckoutPage() {
 
               {!session && (
                 <p className="text-xs text-muted-foreground text-center">
-                  Төлбөр төлөхийн тулд нэвтрэх шаардлагатай
+                  Захиалга баталгаажуулахын тулд нэвтрэх шаардлагатай
                 </p>
               )}
 
@@ -345,7 +345,7 @@ export default function CheckoutPage() {
                 {paying ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Боловсруулж байна...</>
                 ) : !session ? (
-                  'Нэвтрэх & Төлбөр төлөх'
+                  'Нэвтэрч, Захиалгаа баталгаажуулах'
                 ) : isFree ? (
                   <><CheckCircle2 className="mr-2 h-4 w-4" />Үнэгүй авах</>
                 ) : (

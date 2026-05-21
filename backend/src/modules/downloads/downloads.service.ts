@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import * as archiver from 'archiver';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
@@ -46,8 +48,50 @@ export class DownloadsService {
       fileId: file.id,
       fileName: file.fileName,
       url,
-      expiresIn: 3600,
+      expiresIn: 300,
+      generatedAt: Date.now(),
     };
+  }
+
+  async streamZipDownload(userId: string, productId: string, res: Response) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { files: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+
+    const owned = await this.prisma.order.findFirst({
+      where: {
+        userId,
+        status: OrderStatus.PAID,
+        items: { some: { productId } },
+      },
+    });
+
+    if (!owned) throw new ForbiddenException('You do not own this product');
+
+    if (!product.files.length) throw new NotFoundException('No files to download');
+
+    const zipName = `${product.slug ?? productId}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+
+    const zip = archiver.default('zip', { zlib: { level: 6 } });
+    zip.pipe(res);
+
+    await Promise.all(
+      product.files.map(async (file) => {
+        const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
+        const response = await fetch(url);
+        if (!response.ok || !response.body) return;
+        const { Readable } = await import('stream');
+        const nodeStream = Readable.fromWeb(response.body as any);
+        zip.append(nodeStream, { name: file.fileName });
+      }),
+    );
+
+    await zip.finalize();
   }
 
   async listUserDownloads(userId: string) {

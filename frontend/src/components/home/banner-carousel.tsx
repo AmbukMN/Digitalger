@@ -94,7 +94,7 @@ export function BannerCarousel({ banners }: Props) {
                 transition={{ delay: 0.15, duration: 0.4 }}
                 className="max-w-xl"
               >
-                <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl drop-shadow">
+                <h1 className="text-3xl font-extrabold leading-tight text-white sm:text-4xl lg:text-5xl drop-shadow">
                   {banner.title}
                 </h1>
                 {banner.subtitle && (

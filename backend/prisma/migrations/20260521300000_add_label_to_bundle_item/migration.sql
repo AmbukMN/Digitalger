@@ -1,0 +1,1 @@
+ALTER TABLE "BundleItem" ADD COLUMN IF NOT EXISTS "label" TEXT;

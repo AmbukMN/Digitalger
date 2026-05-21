@@ -33,4 +33,13 @@ export class AppController {
       defaultTheme: theme?.defaultTheme ?? 'system',
     };
   }
+
+  @Get('product-types')
+  async productTypes() {
+    return this.prisma.productTypeConfig.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true, value: true, label: true, description: true, icon: true, sortOrder: true },
+    });
+  }
 }

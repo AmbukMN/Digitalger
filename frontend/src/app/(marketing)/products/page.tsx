@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
 import { ProductGrid } from '@/components/products/product-grid';
-import { productsApi } from '@/lib/api';
+import { productsApi, productTypesApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
+import type { ProductSummary } from '@/types/api';
 
 export const metadata: Metadata = {
   title: 'Бүтээгдэхүүн',
@@ -16,13 +17,10 @@ export const metadata: Metadata = {
   },
 };
 
-const TYPE_HEADINGS: Record<string, { title: string; desc: string }> = {
+const COMPOUND_HEADINGS: Record<string, { title: string; desc: string }> = {
   'FILE,TEMPLATE': { title: 'Файл & Загварууд', desc: 'Бэлэн файл, загвар болон бусад татаж авах дижитал контент' },
+  'FILE,TEMPLATE,DOCUMENT,BUNDLE': { title: 'Дижитал бүтээгдэхүүн', desc: 'Файл, загвар, баримт болон багц — татаж авах дижитал контент' },
   'LESSON,BUNDLE': { title: 'Хичээлүүд', desc: 'Видео хичээл болон багц хичээлүүд' },
-  FILE: { title: 'Файлууд', desc: 'Татаж авах дижитал файлууд' },
-  TEMPLATE: { title: 'Загварууд', desc: 'Бэлэн загвар болон шаблонууд' },
-  LESSON: { title: 'Хичээлүүд', desc: 'Видео болон дижитал хичээлүүд' },
-  BUNDLE: { title: 'Багц хичээлүүд', desc: 'Хичээлийн цуглуулга болон багцууд' },
 };
 
 export default async function ProductsPage({
@@ -33,24 +31,31 @@ export default async function ProductsPage({
   const params = await searchParams;
   const page = Number(params.page) || 1;
   const typesKey = params.types ?? params.type ?? '';
-  const heading = TYPE_HEADINGS[typesKey] ?? {
-    title: 'Бүтээгдэхүүн',
-    desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн',
-  };
 
-  let products: Awaited<ReturnType<typeof productsApi.list>>['items'] = [];
-  try {
-    const data = await productsApi.list({
+  const [productsData, productTypeConfigs] = await Promise.all([
+    productsApi.list({
       page,
       pageSize: 24,
       category: params.category,
       featured: params.featured === 'true' ? true : undefined,
       types: params.types,
       type: params.type,
-    });
-    products = data.items;
-  } catch {
-    products = [];
+    }).catch(() => ({ items: [] as ProductSummary[], total: 0, page: 1, pageSize: 24 })),
+    productTypesApi.list().catch(() => []),
+  ]);
+
+  const products = productsData.items;
+
+  let heading: { title: string; desc: string };
+  if (COMPOUND_HEADINGS[typesKey]) {
+    heading = COMPOUND_HEADINGS[typesKey];
+  } else if (typesKey) {
+    const found = productTypeConfigs.find((t) => t.value === typesKey);
+    heading = found
+      ? { title: `${found.label}үүд`, desc: found.description ?? `${found.label} бүтээгдэхүүнүүд` }
+      : { title: 'Бүтээгдэхүүн', desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн' };
+  } else {
+    heading = { title: 'Бүтээгдэхүүн', desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн' };
   }
 
   return (

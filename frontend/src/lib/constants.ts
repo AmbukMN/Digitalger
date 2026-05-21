@@ -8,13 +8,6 @@ export const API_URL =
     ? process.env.INTERNAL_API_URL
     : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 
-export const NAV_LINKS = [
-  { href: '/', label: 'Нүүр' },
-  { href: '/products?types=FILE,TEMPLATE', label: 'Файл Загварууд' },
-  { href: '/products?types=LESSON,BUNDLE', label: 'Хичээлүүд' },
-  { href: '/blog', label: 'Нийтлэл' },
-  { href: '/about', label: 'Бидний тухай' },
-] as const;
 
 export const PRODUCT_TYPE_LABELS: Record<string, string> = {
   FILE: 'Файл',
@@ -22,6 +15,8 @@ export const PRODUCT_TYPE_LABELS: Record<string, string> = {
   DOCUMENT: 'Баримт',
   VIDEO: 'Видео',
   LESSON: 'Хичээл',
-  BUNDLE: 'Багц хичээл',
+  BUNDLE: 'Багц',
+  COURSE: 'Курс',
   HYBRID: 'Хосолсон',
+  OTHER: 'Бусад',
 };

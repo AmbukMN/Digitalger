@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
@@ -17,6 +17,7 @@ import {
   HelpCircle,
   Images,
   LayoutDashboard,
+  Layers,
   LogOut,
   MessageSquare,
   Navigation,
@@ -35,6 +36,7 @@ import { API_URL } from '@/lib/constants';
 const navItems = [
   { href: '/', label: 'Хяналтын самбар', icon: LayoutDashboard },
   { href: '/products', label: 'Бүтээгдэхүүн', icon: Package },
+  { href: '/product-types', label: 'Бүтээгдэхүүний төрөл', icon: Layers },
   { href: '/categories', label: 'Ангилал', icon: FolderTree },
   { href: '/orders', label: 'Захиалга', icon: ShoppingCart },
   { href: '/users', label: 'Хэрэглэгч', icon: Users },
@@ -97,17 +99,22 @@ function SiteLogo({ logoUrl, siteName, collapsed }: { logoUrl: string | null; si
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  async function handleSignOut() {
+    await fetch('/api/logout', { method: 'POST' });
+    router.push('/login');
+  }
 
   const { data: publicSettings } = usePublicSettings();
 
   const siteName = publicSettings?.siteName ?? 'DigitalGer';
   const logoUrl = publicSettings?.logoUrl ?? null;
-  const userName = session?.user?.name ?? session?.user?.email ?? 'Admin';
-  const userInitial = userName.charAt(0).toUpperCase();
-  const userImage = (session?.user as any)?.image ?? null;
+  const userName = 'Admin';
+  const userInitial = 'A';
+  const userImage = null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -160,12 +167,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 href={href}
                 title={collapsed ? label : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  collapsed && 'justify-center px-2',
+                    ? 'bg-primary/10 text-primary rounded-l-none'
+                    : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
+                  collapsed ? 'justify-center px-2' : 'px-3',
                 )}
+                style={active ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>{label}</span>}
@@ -179,12 +187,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             href="/account"
             title={collapsed ? 'Профайл' : undefined}
             className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
               pathname === '/account'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              collapsed && 'justify-center px-2',
+                ? 'bg-primary/10 text-primary rounded-l-none'
+                : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
+              collapsed ? 'justify-center px-2' : 'px-3',
             )}
+            style={pathname === '/account' ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
           >
             {userImage ? (
               <Image
@@ -229,9 +238,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
                 {userInitial}
               </div>
-              <span className="hidden max-w-30 truncate sm:inline text-sm">
-                {session?.user?.name ?? session?.user?.email ?? 'Admin'}
-              </span>
+              <span className="hidden max-w-30 truncate sm:inline text-sm">Admin</span>
             </Button>
             {menuOpen && (
               <>
@@ -242,12 +249,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 />
                 <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-border bg-popover p-1 shadow-lg">
                   <div className="px-3 py-2">
-                    <p className="text-xs font-medium text-foreground truncate">
-                      {session?.user?.name ?? 'Admin'}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {session?.user?.email}
-                    </p>
+                    <p className="text-xs font-medium text-foreground truncate">Admin</p>
+                    <p className="text-xs text-muted-foreground truncate">admin@digitalger.mn</p>
                   </div>
                   <Separator className="my-1" />
                   <Link
@@ -261,7 +264,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
-                    onClick={() => { setMenuOpen(false); void signOut({ callbackUrl: '/login', redirect: true }); }}
+                    onClick={() => { setMenuOpen(false); void handleSignOut(); }}
                   >
                     <LogOut className="h-4 w-4" />
                     Гарах

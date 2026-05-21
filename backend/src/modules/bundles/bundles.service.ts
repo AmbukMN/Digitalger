@@ -32,7 +32,13 @@ export class CreateBundleItemDto {
   description?: string;
 
   @IsOptional() @IsString()
+  label?: string;
+
+  @IsOptional() @IsString()
   fileId?: string;
+
+  @IsOptional()
+  fileIds?: string[];
 
   @IsOptional() @IsNumber() @Min(0)
   sortOrder?: number;
@@ -46,7 +52,13 @@ export class UpdateBundleItemDto {
   description?: string;
 
   @IsOptional() @IsString()
+  label?: string;
+
+  @IsOptional() @IsString()
   fileId?: string;
+
+  @IsOptional()
+  fileIds?: string[];
 
   @IsOptional() @IsNumber() @Min(0)
   sortOrder?: number;

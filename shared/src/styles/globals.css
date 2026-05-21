@@ -34,45 +34,51 @@
     --ring: oklch(0.46 0.19 264.052);
     --warning: oklch(0.828 0.189 84.429);
     --warning-foreground: oklch(0.2 0.05 84.429);
+    /* Emerald success */
+    --success: oklch(0.527 0.154 150.069);
+    --success-foreground: oklch(1 0 0);
     --radius: 0.625rem;
   }
 
   .dark {
-    /* ── Backgrounds: гүн харанхуй navy-black ── */
-    --background: oklch(0.088 0.018 264.052);
+    /* ── Backgrounds: Deep blue — тодорхой elevation шатлал ──
+       Surface hierarchy:  bg(L11.5) → card(L16.5) → popover(L21.5) → secondary(L24.5)
+       Hue 240 (truer blue) + higher chroma → deep-blue premium feel.      ── */
+    --background: oklch(0.115 0.028 240);
     --foreground: oklch(0.955 0.005 247.839);
 
-    /* Card: арай илүү тод dark navy */
-    --card: oklch(0.13 0.024 264.052);
+    /* Card: background-аас +5% L */
+    --card: oklch(0.165 0.035 240);
     --card-foreground: oklch(0.955 0.005 247.839);
 
-    /* Popover: card-аас арай тод */
-    --popover: oklch(0.155 0.027 264.052);
+    /* Popover / modal: card-аас +5% L */
+    --popover: oklch(0.215 0.040 240);
     --popover-foreground: oklch(0.955 0.005 247.839);
 
     /* ── Primary: GOLD — харанхуйд логоны алтан өнгө ── */
     --primary: oklch(0.847 0.178 85.87);
     --primary-foreground: oklch(0.1 0.04 264.052);
 
-    /* ── Secondary: dark navy surface variant ── */
-    --secondary: oklch(0.195 0.038 264.052);
-    --secondary-foreground: oklch(0.88 0.01 264);
+    /* ── Secondary: hover / pressed surface — popover-оос +3% L ── */
+    --secondary: oklch(0.245 0.042 240);
+    --secondary-foreground: oklch(0.88 0.01 240);
 
-    /* ── Muted ── */
-    --muted: oklch(0.175 0.028 264.052);
-    --muted-foreground: oklch(0.60 0.018 264.052);
+    /* ── Muted: subtle background (chip, tag, skeleton) ── */
+    --muted: oklch(0.185 0.032 240);
+    --muted-foreground: oklch(0.675 0.015 240);
 
     /* ── Accent: medium-bright blue ── */
-    --accent: oklch(0.52 0.185 264.052);
+    --accent: oklch(0.52 0.185 240);
     --accent-foreground: oklch(1 0 0);
 
     /* ── Destructive ── */
     --destructive: oklch(0.65 0.22 22.216);
     --destructive-foreground: oklch(1 0 0);
 
-    /* ── Borders & inputs ── */
-    --border: oklch(1 0 0 / 9%);
-    --input: oklch(1 0 0 / 13%);
+    /* ── Borders & inputs: харагдахуйц, хэт тод биш ──
+       border 13% → харагдана   input 17% → focus ring тодорхой  ── */
+    --border: oklch(1 0 0 / 13%);
+    --input: oklch(1 0 0 / 17%);
 
     /* ── Ring: gold focus ring ── */
     --ring: oklch(0.847 0.178 85.87);
@@ -80,6 +86,9 @@
     /* ── Warning ── */
     --warning: oklch(0.854 0.178 84.429);
     --warning-foreground: oklch(0.15 0.05 84.429);
+    /* ── Success ── */
+    --success: oklch(0.65 0.15 150);
+    --success-foreground: oklch(0.08 0.03 150);
   }
 
   * {
@@ -102,12 +111,33 @@
     color: var(--foreground);
     /* Prevent horizontal overflow bleed */
     overflow-x: hidden;
+    /* Premium font rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01", "rlig" 1, "calt" 1;
+  }
+
+  /* Heading-уудад tight tracking — editorial premium feel */
+  h1, h2, h3 {
+    letter-spacing: -0.03em;
+  }
+  h4, h5, h6 {
+    letter-spacing: -0.02em;
+  }
+
+  /* Тоон утгуудад tabular nums — үнэ, тоо жигд зэрэгцэнэ */
+  .font-mono,
+  [class*="price"],
+  [class*="amount"],
+  [class*="count"] {
+    font-variant-numeric: tabular-nums;
   }
 
   /* ── iOS search input zoom prevention ────────────────────────────────────
      iOS Safari zooms any input with font-size < 16px. Force 16px minimum
      on mobile while preserving larger sizes on desktop via max().          */
   @media (max-width: 768px) {
+    input,
     input[type="text"],
     input[type="email"],
     input[type="password"],
@@ -119,7 +149,7 @@
     input[type="datetime-local"],
     select,
     textarea {
-      font-size: max(16px, 1em);
+      font-size: max(16px, 1em) !important;
     }
   }
 }
@@ -146,6 +176,8 @@
   --color-ring: var(--ring);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --radius: var(--radius);
 }
 
@@ -185,18 +217,18 @@
 
 /* ─── Sheet right slide ───────────────────────────────────── */
 .sheet-right[data-state="open"] {
-  animation: slide-in-right 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .sheet-right[data-state="closed"] {
-  animation: slide-out-right 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: slide-out-right 0.38s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 /* ─── Sheet left slide ────────────────────────────────────── */
 .sheet-left[data-state="open"] {
-  animation: slide-in-left 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-in-left 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .sheet-left[data-state="closed"] {
-  animation: slide-out-left 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: slide-out-left 0.38s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 /* ─── Overlay fade ────────────────────────────────────────── */
@@ -213,4 +245,22 @@
 }
 .dialog-content[data-state="closed"] {
   animation: dialog-out 0.18s ease both;
+}
+
+/* ─── Mobile coupon slide-up ──────────────────────────────── */
+@keyframes coupon-slide-up {
+  from { opacity: 0; transform: translateY(12px); max-height: 0; }
+  to   { opacity: 1; transform: translateY(0);    max-height: 300px; }
+}
+.animate-coupon-slide-up {
+  animation: coupon-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Mobile search overlay slide-down ───────────────────── */
+@keyframes search-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-search-slide-down {
+  animation: search-slide-down 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

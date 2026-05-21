@@ -1,4 +1,3 @@
-import { getSession } from 'next-auth/react';
 import type { Paginated } from '@digitalger/shared';
 import { API_URL } from './constants';
 import type {
@@ -15,6 +14,7 @@ import type {
   AdminProduct,
   AdminProductFile,
   AdminProductImage,
+  AdminProductTypeConfig,
   AdminProfile,
   AdminTestimonial,
   AdminUser,
@@ -37,12 +37,21 @@ export class ApiError extends Error {
 
 async function getAccessToken(): Promise<string | undefined> {
   if (typeof window === 'undefined') {
-    const { getSession: getServer } = await import('./auth');
-    const session = await getServer();
-    return session?.accessToken;
+    const { cookies } = await import('next/headers');
+    const { jwtVerify } = await import('jose');
+    const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? 'digitalger-nextauth-secret-dev-2024');
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin-session')?.value;
+    if (!token) return undefined;
+    try {
+      const { payload } = await jwtVerify(token, SECRET);
+      return payload.accessToken as string;
+    } catch { return undefined; }
   }
-  const session = await getSession();
-  return session?.accessToken;
+  const res = await fetch('/api/me');
+  if (!res.ok) return undefined;
+  const data = await res.json();
+  return data.accessToken;
 }
 
 export async function adminFetch<T>(
@@ -120,6 +129,8 @@ export const adminApi = {
       }),
     remove: (id: string) =>
       adminFetch<void>(`/admin/products/${id}`, { method: 'DELETE' }),
+    clone: (id: string) =>
+      adminFetch<AdminProduct>(`/admin/products/${id}/clone`, { method: 'POST' }),
     generate: (body: { fileNames: string[]; fileTypes: string[]; productType: string; categoryName?: string }) =>
       adminFetch<{ title: string; description: string; howToUse: string; whatsIncluded: string }>(
         '/admin/products/generate',
@@ -365,6 +376,15 @@ export const adminApi = {
       expiresAt: string | null;
     }>) => adminFetch<AdminCoupon>(`/admin/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) => adminFetch<void>(`/admin/coupons/${id}`, { method: 'DELETE' }),
+  },
+
+  productTypes: {
+    list: () => adminFetch<AdminProductTypeConfig[]>('/admin/product-types'),
+    create: (body: { value: string; label: string; description?: string; icon?: string; sortOrder?: number; active?: boolean }) =>
+      adminFetch<AdminProductTypeConfig>('/admin/product-types', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<Omit<AdminProductTypeConfig, 'id' | 'createdAt' | 'updatedAt'>>) =>
+      adminFetch<AdminProductTypeConfig>(`/admin/product-types/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => adminFetch<void>(`/admin/product-types/${id}`, { method: 'DELETE' }),
   },
 
   upload: (file: File) => {

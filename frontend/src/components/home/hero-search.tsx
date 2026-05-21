@@ -21,7 +21,7 @@ export function HeroSearch() {
         <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           className="h-12 pl-10 text-base"
-          placeholder="Файл, загвар, курс хайх..."
+          placeholder="Хэрэгтэй файл, загвар, хичээлээ хайх..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />

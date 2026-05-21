@@ -23,7 +23,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const logoSrc = settings?.logoUrl ?? '/brand/logo.svg';
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Link href="/" className="mb-8 flex items-center gap-2">
         <Image src={logoSrc} alt={siteName} width={40} height={40} unoptimized />
         <span className="text-xl font-bold text-primary">{siteName}</span>

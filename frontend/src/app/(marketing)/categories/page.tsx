@@ -17,7 +17,7 @@ export default async function CategoriesPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold">Ангилал</h1>
+      <h1 className="text-3xl font-bold">Бүх Ангилал</h1>
       <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {categories.map((cat) => (
           <Link key={cat.id} href={`/categories/${cat.slug}`}>

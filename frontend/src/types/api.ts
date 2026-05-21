@@ -16,6 +16,7 @@ export interface Category {
   name: string;
   slug: string;
   description?: string | null;
+  imageUrl?: string | null;
   sortOrder?: number;
   _count?: { products: number };
 }
@@ -33,7 +34,10 @@ export interface BundleItem {
   id: string;
   name: string;
   description?: string | null;
+  label?: string | null;
   sortOrder: number;
+  fileId?: string | null;
+  fileIds?: string[];
 }
 
 export interface Bundle {

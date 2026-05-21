@@ -449,7 +449,7 @@ export default function ProfilePage() {
 
           {isGuest && (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              Зочин бүртгэл — и-мэйлээ оруулж бүрэн бүртгэл болгоно уу
+              Та зочноор нэвтэрсэн байна. И-мэйл болон нууц үг тохируулж бүтэн бүртгэл болгосноор худалдан авалтын түүх, давуу эрхтэй болно.
             </div>
           )}
         </div>
@@ -458,7 +458,7 @@ export default function ProfilePage() {
       {/* Edit info card */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="font-semibold">Хувийн мэдээлэл</h3>
+          <h3 className="font-semibold">Хувийн Мэдээлэл</h3>
           {!editMode && (
             <Button
               variant="ghost"
@@ -556,7 +556,7 @@ export default function ProfilePage() {
       {/* Account card */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
-          <h3 className="font-semibold">Бүртгэл</h3>
+          <h3 className="font-semibold">Бүртгэлийн Мэдээлэл</h3>
         </div>
         <div className="px-5 divide-y divide-border/60">
           <InfoRow

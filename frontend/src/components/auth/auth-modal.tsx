@@ -142,7 +142,7 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
         disabled={loading}
       >
         <Ghost className="h-4 w-4 shrink-0" />
-        {loading ? 'Нэвтэрч байна...' : 'Зочноор шууд нэвтрэх'}
+        {loading ? 'Нэвтэрч байна...' : 'Бүртгэлгүйгээр шууд нэвтрэх'}
       </Button>
     </motion.div>
   );
@@ -240,7 +240,7 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
         router.push('/login');
         return;
       }
-      toast.success('Тавтай морил!');
+      toast.success('Тавтай морил! DigitalGer-д бүртгүүлсэнд баярлалаа 🎉');
       onClose();
       router.push(callbackUrl ?? '/');
       router.refresh();
@@ -337,7 +337,7 @@ function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string })
         <button
           type="button"
           onClick={() => signIn('google', { callbackUrl: cb })}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
         >
           <GoogleIcon />
           Google
@@ -345,7 +345,7 @@ function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string })
         <button
           type="button"
           onClick={() => signIn('facebook', { callbackUrl: cb })}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
         >
           <FacebookIcon />
           Facebook
@@ -392,7 +392,7 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-background p-6 shadow-2xl"
+            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl"
             role="dialog"
             aria-modal
           >
@@ -412,7 +412,7 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
                   type="button"
                   className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
                     tab === t
-                      ? 'bg-background text-foreground shadow-sm'
+                      ? 'bg-popover text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setTab(t)}

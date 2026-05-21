@@ -8,22 +8,40 @@ import { API_URL } from './constants';
 const BACKEND_URL = process.env.INTERNAL_API_URL ?? API_URL;
 
 export const authOptions: NextAuthOptions = {
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 хоног — admin гарахгүй
-    updateAge: 24 * 60 * 60,   // 24 цаг тутамд token шинэчлэх
-  },
+  trustHost: true,
+  useSecureCookies: false,
   cookies: {
     sessionToken: {
-      name: `admin.next-auth.session-token`,
+      name: 'admin.next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
         secure: false,
-        maxAge: 30 * 24 * 60 * 60,
       },
     },
+    csrfToken: {
+      name: 'admin.next-auth.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+    callbackUrl: {
+      name: 'admin.next-auth.callback-url',
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+  },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   pages: { signIn: '/login' },
   providers: [
@@ -36,6 +54,9 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
+        console.log('[auth] BACKEND_URL:', BACKEND_URL);
+        console.log('[auth] email:', credentials.email);
+
         const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -45,7 +66,12 @@ export const authOptions: NextAuthOptions = {
           }),
         });
 
-        if (!res.ok) return null;
+        console.log('[auth] status:', res.status);
+        if (!res.ok) {
+          const txt = await res.text();
+          console.log('[auth] error:', txt);
+          return null;
+        }
 
         const data = (await res.json()) as {
           user: {

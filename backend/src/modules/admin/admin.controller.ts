@@ -124,6 +124,11 @@ export class AdminController {
     return this.adminProducts.remove(id);
   }
 
+  @Post('products/:id/clone')
+  cloneProduct(@Param('id') id: string) {
+    return this.adminProducts.clone(id);
+  }
+
   // Product Gallery (images + video entries)
   @Get('products/:id/images')
   listProductImages(@Param('id') id: string) {
@@ -453,5 +458,33 @@ export class AdminController {
       create: { id: 'default', ...dto },
       update: dto,
     });
+  }
+
+  // Product Type Config
+  @Get('product-types')
+  listProductTypes() {
+    return this.prisma.productTypeConfig.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  @Post('product-types')
+  createProductType(
+    @Body() dto: { value: string; label: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
+  ) {
+    return this.prisma.productTypeConfig.create({ data: dto });
+  }
+
+  @Patch('product-types/:id')
+  updateProductType(
+    @Param('id') id: string,
+    @Body() dto: { label?: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
+  ) {
+    return this.prisma.productTypeConfig.update({ where: { id }, data: dto });
+  }
+
+  @Delete('product-types/:id')
+  deleteProductType(@Param('id') id: string) {
+    return this.prisma.productTypeConfig.delete({ where: { id } });
   }
 }
