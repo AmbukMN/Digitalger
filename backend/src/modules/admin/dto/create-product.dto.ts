@@ -1,14 +1,12 @@
 import {
   IsArray,
   IsBoolean,
-  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   Min,
   MinLength,
 } from 'class-validator';
-import { ProductType } from '@prisma/client';
 import { Type } from 'class-transformer';
 
 export class CreateProductDto {
@@ -34,8 +32,9 @@ export class CreateProductDto {
   @Min(0)
   compareAtPrice?: number;
 
-  @IsEnum(ProductType)
-  type!: ProductType;
+  @IsString()
+  @MinLength(1)
+  type!: string;
 
   @IsOptional()
   @IsString()

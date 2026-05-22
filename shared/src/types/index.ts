@@ -1,13 +1,6 @@
 export type UserRole = 'ADMIN' | 'USER';
 
-export type ProductType =
-  | 'FILE'
-  | 'TEMPLATE'
-  | 'DOCUMENT'
-  | 'VIDEO'
-  | 'LESSON'
-  | 'BUNDLE'
-  | 'HYBRID';
+export type ProductType = string;
 
 export type OrderStatus =
   | 'PENDING'
