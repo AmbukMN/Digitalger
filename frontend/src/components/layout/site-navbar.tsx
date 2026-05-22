@@ -395,7 +395,7 @@ export function SiteNavbar() {
             {settingsLoading ? (
               <div className="h-4 w-24 rounded bg-muted animate-pulse" />
             ) : (
-              <span className="font-bold text-primary">{siteName || 'DigitalGer'}</span>
+              <span className="font-bold text-primary dark:text-white">{siteName || 'DigitalGer'}</span>
             )}
           </Link>
 
@@ -554,7 +554,7 @@ export function SiteNavbar() {
               {settingsLoading ? (
                 <div className="h-4 w-20 rounded bg-muted animate-pulse" />
               ) : (
-                <SheetTitle className="text-base font-bold text-primary">{siteName || 'DigitalGer'}</SheetTitle>
+                <SheetTitle className="text-base font-bold text-primary dark:text-white">{siteName || 'DigitalGer'}</SheetTitle>
               )}
             </Link>
             <button
