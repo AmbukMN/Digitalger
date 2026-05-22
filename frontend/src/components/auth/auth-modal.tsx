@@ -137,7 +137,7 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
       <Button
         type="button"
         variant="secondary"
-        className="w-full gap-2"
+        className="w-full gap-2 dark:bg-popover dark:text-foreground dark:hover:bg-muted"
         onClick={onClick}
         disabled={loading}
       >
@@ -412,8 +412,8 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
                   type="button"
                   className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
                     tab === t
-                      ? 'bg-popover text-foreground shadow-sm dark:bg-amber-400 dark:text-amber-950'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-popover text-foreground shadow-sm dark:bg-amber-400 dark:text-amber-950 dark:shadow-none'
+                      : 'text-muted-foreground hover:text-foreground dark:hover:text-foreground'
                   }`}
                   onClick={() => setTab(t)}
                 >
