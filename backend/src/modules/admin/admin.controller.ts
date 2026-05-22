@@ -10,6 +10,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import { OrderStatus, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -25,6 +27,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
 import { UpdateCategoryDto } from '../categories/dto/update-category.dto';
 import { UpdateSiteDto, UpdateThemeDto } from './dto/update-settings.dto';
+import { ZIP_QUEUE } from '../downloads/zip.processor';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,6 +40,7 @@ export class AdminController {
     private readonly orders: OrdersService,
     private readonly users: UsersService,
     private readonly prisma: PrismaService,
+    @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue,
   ) {}
 
   @Get('dashboard')
@@ -275,6 +279,18 @@ export class AdminController {
     return this.prisma.productFile.delete({ where: { id: fileId } });
   }
 
+  @Patch('products/:id/download-file')
+  async setProductDownloadFile(
+    @Param('id') id: string,
+    @Body('downloadFileKey') downloadFileKey: string | null,
+  ) {
+    return this.prisma.product.update({
+      where: { id },
+      data: { downloadFileKey: downloadFileKey ?? null },
+      select: { id: true, downloadFileKey: true },
+    });
+  }
+
   // Categories
   @Get('categories')
   listCategories() {
@@ -486,5 +502,84 @@ export class AdminController {
   @Delete('product-types/:id')
   deleteProductType(@Param('id') id: string) {
     return this.prisma.productTypeConfig.delete({ where: { id } });
+  }
+
+  // ── Queue Monitoring ─────────────────────────────────────────────────────
+
+  @Get('queue/status')
+  async getQueueStatus() {
+    const [waiting, active, completed, failed, delayed, paused] = await Promise.all([
+      this.zipQueue.getWaitingCount(),
+      this.zipQueue.getActiveCount(),
+      this.zipQueue.getCompletedCount(),
+      this.zipQueue.getFailedCount(),
+      this.zipQueue.getDelayedCount(),
+      this.zipQueue.getPausedCount(),
+    ]);
+
+    const isPaused = await this.zipQueue.isPaused();
+
+    const [recentFailed, recentCompleted] = await Promise.all([
+      this.zipQueue.getFailed(0, 9),
+      this.zipQueue.getCompleted(0, 9),
+    ]);
+
+    const [dbPending, dbProcessing, dbDone, dbFailed] = await Promise.all([
+      this.prisma.zipJob.count({ where: { status: 'PENDING' } }),
+      this.prisma.zipJob.count({ where: { status: 'PROCESSING' } }),
+      this.prisma.zipJob.count({ where: { status: 'DONE' } }),
+      this.prisma.zipJob.count({ where: { status: 'FAILED' } }),
+    ]);
+
+    return {
+      queue: {
+        name: ZIP_QUEUE,
+        isPaused,
+        waiting,
+        active,
+        completed,
+        failed,
+        delayed,
+        paused,
+      },
+      db: {
+        pending: dbPending,
+        processing: dbProcessing,
+        done: dbDone,
+        failed: dbFailed,
+      },
+      recentFailed: recentFailed.map((j) => ({
+        id: j.id,
+        data: j.data,
+        failedReason: j.failedReason,
+        timestamp: j.timestamp,
+        processedOn: j.processedOn,
+        finishedOn: j.finishedOn,
+      })),
+      recentCompleted: recentCompleted.map((j) => ({
+        id: j.id,
+        data: j.data,
+        returnvalue: j.returnvalue,
+        timestamp: j.timestamp,
+        processedOn: j.processedOn,
+        finishedOn: j.finishedOn,
+      })),
+    };
+  }
+
+  @Post('queue/retry-failed')
+  async retryFailedJobs() {
+    const failed = await this.zipQueue.getFailed(0, 99);
+    await Promise.all(failed.map((job) => job.retry()));
+    return { retried: failed.length };
+  }
+
+  @Delete('queue/clean')
+  async cleanQueue() {
+    await Promise.all([
+      this.zipQueue.clean(0, 'completed'),
+      this.zipQueue.clean(0, 'failed'),
+    ]);
+    return { success: true };
   }
 }

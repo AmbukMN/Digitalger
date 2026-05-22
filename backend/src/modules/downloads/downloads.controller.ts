@@ -1,5 +1,4 @@
-import { Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Get, GoneException, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DownloadsService } from './downloads.service';
@@ -14,7 +13,7 @@ export class DownloadsController {
     return this.downloadsService.listUserDownloads(userId);
   }
 
-  // ── Async queue-based zip (production) ──────────────────────────────────
+  // ── Async queue-based zip ────────────────────────────────────────────────
 
   @Post('async-zip/:productId')
   enqueueProductZip(
@@ -41,26 +40,38 @@ export class DownloadsController {
     return this.downloadsService.getZipJobStatus(userId, jobId);
   }
 
-  // ── Legacy streaming (fallback жижиг файлд) ─────────────────────────────
+  // ── Deprecated sync streaming — 410 Gone буцаана ────────────────────────
+  // Том файлд сервер унадаг байсан тул async-zip ашиглана
 
   @Post('zip/:productId')
-  downloadZip(
-    @CurrentUser('sub') userId: string,
-    @Param('productId') productId: string,
-    @Res() res: Response,
-  ) {
-    return this.downloadsService.streamZipDownload(userId, productId, res);
+  deprecatedZip() {
+    throw new GoneException('Use POST /downloads/async-zip/:productId instead');
   }
 
   @Post('zip/:productId/bundle/:bundleId')
-  downloadBundleZip(
+  deprecatedBundleZip() {
+    throw new GoneException('Use POST /downloads/async-zip/:productId/bundle/:bundleId instead');
+  }
+
+  // ── Product/bundle download file (admin-uploaded, direct presign) ────────
+
+  @Post('product/:productId/download-file')
+  getProductDownloadFile(
     @CurrentUser('sub') userId: string,
     @Param('productId') productId: string,
-    @Param('bundleId') bundleId: string,
-    @Res() res: Response,
   ) {
-    return this.downloadsService.streamBundleZip(userId, productId, bundleId, res);
+    return this.downloadsService.getProductDownloadFileUrl(userId, productId);
   }
+
+  @Post('bundle/:bundleId/download-file')
+  getBundleDownloadFile(
+    @CurrentUser('sub') userId: string,
+    @Param('bundleId') bundleId: string,
+  ) {
+    return this.downloadsService.getBundleDownloadFileUrl(userId, bundleId);
+  }
+
+  // ── Single file signed URL ───────────────────────────────────────────────
 
   @Post(':fileId')
   getSignedUrl(

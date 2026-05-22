@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, Download, FileText, Lock, Loader2, Package } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Download, FileText, Lock, Loader2, Package, CheckCircle2, XCircle } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@digitalger/shared/ui';
 import { useFileDownload } from '@/hooks/use-file-download';
 import { downloadsApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface BundleItem {
   id: string;
@@ -28,6 +29,7 @@ interface Bundle {
   id: string;
   title: string;
   description?: string | null;
+  downloadFileKey?: string | null;
   items: BundleItem[];
 }
 
@@ -74,110 +76,110 @@ function BundleFileRow({
   );
 }
 
-type ZipState = 'idle' | 'pending' | 'processing' | 'downloading' | 'done' | 'failed';
+type DlState = 'idle' | 'loading' | 'queued' | 'done' | 'failed';
 
-// Presigned URL-аас chunk-аар татаж, progress харуулна
-async function chunkedDownload(
-  url: string,
-  fileName: string,
-  onProgress: (pct: number) => void,
-) {
-  const res = await fetch(url);
-  if (!res.ok || !res.body) throw new Error('fetch failed');
+const POLL_INTERVAL = 3000;
+const POLL_TIMEOUT = 120_000;
 
-  const total = parseInt(res.headers.get('content-length') ?? '0', 10);
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (total > 0) onProgress(Math.round((received / total) * 100));
-  }
-
-  const blob = new Blob(chunks, { type: 'application/zip' });
-  const blobUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = blobUrl;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(blobUrl);
-}
-
-function BundleZipButton({
-  productId,
+function BundleDownloadButton({
   bundleId,
+  productId,
   bundleTitle,
+  downloadFileKey,
   token,
 }: {
-  productId: string;
   bundleId: string;
+  productId: string;
   bundleTitle: string;
+  downloadFileKey?: string | null;
   token: string;
 }) {
-  const [state, setState] = useState<ZipState>('idle');
-  const [progress, setProgress] = useState(0);
+  const [state, setState] = useState<DlState>('idle');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAt = useRef(0);
 
-  async function handleZip() {
-    if (state !== 'idle') return;
-    setState('pending');
-    setProgress(0);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const triggerDownload = (url: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  async function handleClick() {
+    if (state === 'loading' || state === 'queued') return;
+    setState('loading');
+
+    // Admin uploaded file — шууд presign
+    if (downloadFileKey) {
+      try {
+        const { url, fileName } = await downloadsApi.bundleDownloadFile(token, bundleId);
+        triggerDownload(url, fileName || `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+        setState('done');
+        setTimeout(() => setState('idle'), 2500);
+      } catch {
+        setState('failed');
+        toast.error('Татахад алдаа гарлаа');
+        setTimeout(() => setState('idle'), 2500);
+      }
+      return;
+    }
+
+    // Admin file байхгүй — async ZIP queue
     try {
       const { jobId } = await downloadsApi.enqueueBundleZip(token, productId, bundleId);
+      setState('queued');
+      startedAt.current = Date.now();
 
-      // Poll — 2 секунд тутамд
-      setState('processing');
-      let attempts = 0;
-      while (attempts < 150) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const result = await downloadsApi.pollZipJob(token, jobId);
-        if (result.status === 'DONE' && result.url) {
-          setState('downloading');
-          const zipName = `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_') || 'bundle'}.zip`;
-          await chunkedDownload(result.url, zipName, setProgress);
-          setState('done');
-          setTimeout(() => { setState('idle'); setProgress(0); }, 2500);
-          return;
-        }
-        if (result.status === 'FAILED') {
+      pollRef.current = setInterval(async () => {
+        if (Date.now() - startedAt.current > POLL_TIMEOUT) {
+          clearInterval(pollRef.current!); pollRef.current = null;
           setState('failed');
-          setTimeout(() => { setState('idle'); setProgress(0); }, 3000);
+          toast.error('Хугацаа дууслаа');
+          setTimeout(() => setState('idle'), 3000);
           return;
         }
-        attempts++;
-      }
-      setState('failed');
-      setTimeout(() => { setState('idle'); setProgress(0); }, 3000);
+        try {
+          const res = await downloadsApi.pollZipJob(token, jobId);
+          if (res.status === 'DONE' && res.url) {
+            clearInterval(pollRef.current!); pollRef.current = null;
+            triggerDownload(res.url, `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+            setState('done');
+            setTimeout(() => setState('idle'), 2500);
+          } else if (res.status === 'FAILED') {
+            clearInterval(pollRef.current!); pollRef.current = null;
+            setState('failed');
+            toast.error('ZIP үүсгэхэд алдаа гарлаа');
+            setTimeout(() => setState('idle'), 3000);
+          }
+        } catch { /* poll retry */ }
+      }, POLL_INTERVAL);
     } catch {
       setState('failed');
-      setTimeout(() => { setState('idle'); setProgress(0); }, 3000);
+      toast.error('Татахад алдаа гарлаа');
+      setTimeout(() => setState('idle'), 2500);
     }
   }
 
-  const busy = state === 'pending' || state === 'processing' || state === 'downloading';
-  const label =
-    state === 'pending'     ? 'Дараалалд...' :
-    state === 'processing'  ? 'ZIP хийж байна...' :
-    state === 'downloading' ? `Татаж байна ${progress}%` :
-    state === 'done'        ? 'Татагдлаа!' :
-    state === 'failed'      ? 'Алдаа' :
-    'ZIP татах';
+  const busy = state === 'loading' || state === 'queued';
+  const btnLabel = state === 'loading' ? 'Бэлдэж байна...' : state === 'queued' ? 'ZIP үүсгэж байна...' : state === 'done' ? 'Татагдлаа' : state === 'failed' ? 'Алдаа' : 'Татах';
 
   return (
     <Button
       size="sm"
       variant="outline"
       className="h-7 px-2.5 text-xs gap-1 shrink-0"
-      onClick={handleZip}
+      onClick={handleClick}
       disabled={busy}
     >
-      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-      {label}
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> :
+       state === 'done' ? <CheckCircle2 className="h-3 w-3" /> :
+       state === 'failed' ? <XCircle className="h-3 w-3" /> :
+       <Download className="h-3 w-3" />}
+      {btnLabel}
     </Button>
   );
 }
@@ -218,10 +220,10 @@ export function BundleList({
       </h2>
       <div className="space-y-3">
         {bundles.map((bundle, bi) => {
-          const bundleFileIds = bundle.items.flatMap((item) =>
-            item.fileIds && item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+          const hasBundleFiles = bundle.items.some((item) =>
+            (item.fileIds && item.fileIds.length > 0) || item.fileId,
           );
-          const hasBundleFiles = bundleFileIds.length > 0;
+          const hasDownloadFile = !!bundle.downloadFileKey;
 
           return (
             <div key={bundle.id} className="rounded-xl border border-border overflow-hidden">
@@ -240,24 +242,28 @@ export function BundleList({
                 <span className="text-xs text-muted-foreground shrink-0 ml-1">
                   {bundle.items.length} зүйл
                 </span>
-                {/* Bundle zip download button */}
-                {hasBundleFiles && purchased && session?.accessToken && (
+
+                {/* Bundle download button */}
+                {purchased && session?.accessToken && (hasBundleFiles || hasDownloadFile) && (
                   <span onClick={(e) => e.stopPropagation()}>
-                    <BundleZipButton
-                      productId={productId}
+                    <BundleDownloadButton
                       bundleId={bundle.id}
+                      productId={productId}
                       bundleTitle={bundle.title}
+                      downloadFileKey={bundle.downloadFileKey}
                       token={session.accessToken}
                     />
                   </span>
                 )}
-                {hasBundleFiles && !purchased && (
+                {!purchased && (hasBundleFiles || hasDownloadFile) && (
                   <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
+
                 <ChevronDown
                   className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${open[bundle.id] ? 'rotate-180' : ''}`}
                 />
               </button>
+
               {open[bundle.id] && (
                 <ul className="divide-y divide-border">
                   {bundle.items.map((item, ii) => {
@@ -287,7 +293,7 @@ export function BundleList({
                             </span>
                           )}
                         </div>
-                        {/* Download links — only for purchasers */}
+                        {/* Individual file download — purchased users only */}
                         {hasFiles && purchased && (
                           <div className="ml-8 space-y-1 mt-1">
                             {itemFileIds.map((fid) => {

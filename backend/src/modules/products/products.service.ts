@@ -45,6 +45,8 @@ export class ProductsService {
     featured?: boolean;
     type?: string;
     types?: string[];
+    sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
+    onSale?: boolean;
   }) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(48, Math.max(1, query.pageSize ?? 12));
@@ -53,18 +55,23 @@ export class ProductsService {
     const where: Prisma.ProductWhereInput = {
       published: true,
       ...(query.featured !== undefined && { featured: query.featured }),
-      ...(query.categorySlug && {
-        category: { slug: query.categorySlug },
-      }),
+      ...(query.categorySlug && { category: { slug: query.categorySlug } }),
       ...(query.types && query.types.length > 0 && { type: { in: query.types as any[] } }),
+      ...(query.onSale && { compareAtPrice: { not: null } }),
     };
+
+    const orderBy: Prisma.ProductOrderByWithRelationInput =
+      query.sortBy === 'rating'    ? { rating: 'desc' } :
+      query.sortBy === 'downloads' ? { downloadCount: 'desc' } :
+      query.sortBy === 'discount'  ? { compareAtPrice: 'desc' } :
+      { createdAt: 'desc' };
 
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           category: { select: { id: true, name: true, slug: true } },
           images: { orderBy: { sortOrder: 'asc' } },
@@ -231,29 +238,59 @@ export class ProductsService {
     };
   }
 
-  async findSuggested(slug: string, count = 4) {
-    const product = await this.prisma.product.findFirst({ where: { slug, published: true }, select: { id: true, categoryId: true } });
+  async findSuggested(slug: string, count = 8) {
+    const product = await this.prisma.product.findFirst({
+      where: { slug, published: true },
+      select: { id: true, categoryId: true, type: true },
+    });
     if (!product) return [];
 
-    const where: Prisma.ProductWhereInput = {
-      published: true,
-      id: { not: product.id },
-      ...(product.categoryId ? { categoryId: product.categoryId } : {}),
+    const include = {
+      category: { select: { id: true, name: true, slug: true } },
+      images: { orderBy: { sortOrder: 'asc' as const }, take: 1 },
+      course: { select: { _count: { select: { lessons: true } } } },
     };
 
+    // 1st priority: same category + same type
     let items = await this.prisma.product.findMany({
-      where,
+      where: { published: true, id: { not: product.id }, categoryId: product.categoryId ?? undefined, type: product.type },
       take: count,
       orderBy: { rating: 'desc' },
-      include: { category: { select: { id: true, name: true, slug: true } }, images: { orderBy: { sortOrder: 'asc' }, take: 1 }, course: { select: { _count: { select: { lessons: true } } } } },
+      include,
     });
 
+    // 2nd priority: same category, any type
     if (items.length < count && product.categoryId) {
+      const existingIds = new Set([product.id, ...items.map((i) => i.id)]);
       const extra = await this.prisma.product.findMany({
-        where: { published: true, id: { not: product.id }, categoryId: null },
+        where: { published: true, id: { notIn: [...existingIds] }, categoryId: product.categoryId },
         take: count - items.length,
         orderBy: { rating: 'desc' },
-        include: { category: { select: { id: true, name: true, slug: true } }, images: { orderBy: { sortOrder: 'asc' }, take: 1 }, course: { select: { _count: { select: { lessons: true } } } } },
+        include,
+      });
+      items = [...items, ...extra];
+    }
+
+    // 3rd priority: same type, any category
+    if (items.length < count) {
+      const existingIds = new Set([product.id, ...items.map((i) => i.id)]);
+      const extra = await this.prisma.product.findMany({
+        where: { published: true, id: { notIn: [...existingIds] }, type: product.type },
+        take: count - items.length,
+        orderBy: { rating: 'desc' },
+        include,
+      });
+      items = [...items, ...extra];
+    }
+
+    // 4th priority: any product
+    if (items.length < count) {
+      const existingIds = new Set([product.id, ...items.map((i) => i.id)]);
+      const extra = await this.prisma.product.findMany({
+        where: { published: true, id: { notIn: [...existingIds] } },
+        take: count - items.length,
+        orderBy: { rating: 'desc' },
+        include,
       });
       items = [...items, ...extra];
     }

@@ -22,6 +22,9 @@ export class UpdateBundleDto {
 
   @IsOptional() @IsNumber() @Min(0)
   sortOrder?: number;
+
+  @IsOptional() @IsString()
+  downloadFileKey?: string | null;
 }
 
 export class CreateBundleItemDto {

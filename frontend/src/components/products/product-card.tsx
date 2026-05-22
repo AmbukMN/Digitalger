@@ -38,7 +38,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   };
 
   return (
-    <Card className="group flex flex-col overflow-hidden hover:-translate-y-0.5 hover:shadow-xl hover:border-primary/30">
+    <Card className="group flex h-full flex-col overflow-hidden hover:-translate-y-0.5 hover:shadow-xl hover:border-primary/30">
       <Link href={`/products/${product.slug}`} className="block">
         <div className="relative aspect-4/3 overflow-hidden bg-muted">
           {product.mainVideoUrl ? (

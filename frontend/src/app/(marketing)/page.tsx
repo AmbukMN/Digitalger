@@ -7,8 +7,7 @@ import { ProductSection } from '@/components/home/product-section';
 import { BannerCarousel } from '@/components/home/banner-carousel';
 import { TestimonialsSection } from '@/components/home/testimonials-section';
 import { BlogSection } from '@/components/home/blog-section';
-import { bannersApi, blogApi, productTypesApi, testimonialsApi } from '@/lib/api';
-import type { ProductTypeConfig } from '@/lib/api';
+import { bannersApi, blogApi, testimonialsApi } from '@/lib/api';
 import type { Banner, BlogPost, Testimonial } from '@/types/api';
 import { Shield, Zap, Download, Star } from 'lucide-react';
 import { CategoryStrip } from '@/components/home/category-strip';
@@ -22,9 +21,6 @@ async function getTestimonials(): Promise<Testimonial[]> {
 async function getBlogPosts(): Promise<BlogPost[]> {
   try { return await blogApi.latest(6); } catch { return []; }
 }
-async function getProductTypes(): Promise<ProductTypeConfig[]> {
-  try { return await productTypesApi.list(); } catch { return []; }
-}
 const TRUST_ITEMS = [
   { icon: Shield,   label: '100% Аюулгүй төлбөр',       desc: 'QPay болон картаар баталгаатай, шифрлэгдсэн төлбөр хийгддэг', iconCls: 'text-blue-500   bg-blue-500/10'   },
   { icon: Zap,      label: 'Шууд татаж авах',             desc: 'Төлбөр төлөгдсөн даруй секундын дотор татаж авна',            iconCls: 'text-violet-500 bg-violet-500/10' },
@@ -35,11 +31,10 @@ const TRUST_ITEMS = [
 
 
 export default async function HomePage() {
-  const [banners, testimonials, blogPosts, productTypes] = await Promise.all([
+  const [banners, testimonials, blogPosts] = await Promise.all([
     getBanners(),
     getTestimonials(),
     getBlogPosts(),
-    getProductTypes(),
   ]);
 
   return (
@@ -70,24 +65,18 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Онцлох бүтээгдэхүүн */}
+      {/* Хамгийн их эрэлттэй */}
       <Suspense fallback={null}>
-        <ProductSection title="Хамгийн Их Эрэлттэй" href="/products?featured=true" featured />
+        <ProductSection title="Хамгийн Их Эрэлттэй" href="/products?featured=true" featured swiper swiperMobileRows={2} />
       </Suspense>
-
-      {/* Бүтээгдэхүүний төрлүүдийн section — admin-аас dynamic */}
-      {productTypes.filter((t) => t.active).sort((a, b) => a.sortOrder - b.sortOrder).map((t) => (
-        <Suspense key={t.value} fallback={null}>
-          <ProductSection
-            title={`${t.label}үүд`}
-            href={`/products?type=${t.value}`}
-            type={t.value}
-          />
-        </Suspense>
-      ))}
 
       {/* Ангилал */}
       <CategoryStrip />
+
+      {/* Шинэ бүтээгдэхүүн */}
+      <Suspense fallback={null}>
+        <ProductSection title="Шинэ Бүтээгдэхүүн" href="/products?sortBy=newest" sortBy="newest" swiper pageSize={16} swiperMobileRows={2} />
+      </Suspense>
 
       {/* CTA */}
       <section className="py-8 sm:py-10 bg-muted/30">
@@ -108,6 +97,11 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Хамгийн их хямдарсан — CTA дараа */}
+      <Suspense fallback={null}>
+        <ProductSection title="Хамгийн Их Хямдарсан" href="/products?onSale=true&sortBy=discount" onSale sortBy="discount" swiper pageSize={4} swiperMobileRows={2} />
+      </Suspense>
 
       {/* Testimonials */}
       {testimonials.length > 0 && <TestimonialsSection testimonials={testimonials} />}

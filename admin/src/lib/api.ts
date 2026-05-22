@@ -20,6 +20,7 @@ import type {
   AdminUser,
   AdminUserDetail,
   DashboardStats,
+  QueueStatus,
   SiteSettings,
   ThemeSettings,
   UploadResult,
@@ -167,6 +168,11 @@ export const adminApi = {
         adminFetch<AdminProductFile>(`/admin/products/${productId}/files`, { method: 'POST', body: JSON.stringify(body) }),
       remove: (productId: string, fileId: string) =>
         adminFetch<void>(`/admin/products/${productId}/files/${fileId}`, { method: 'DELETE' }),
+      setDownloadFile: (productId: string, downloadFileKey: string | null) =>
+        adminFetch<{ id: string; downloadFileKey: string | null }>(`/admin/products/${productId}/download-file`, {
+          method: 'PATCH',
+          body: JSON.stringify({ downloadFileKey }),
+        }),
     },
     modules: {
       list: (productId: string) => adminFetch<AdminCourseModule[]>(`/admin/products/${productId}/modules`),
@@ -320,6 +326,11 @@ export const adminApi = {
       adminFetch<AdminBundle>(`/admin/products/${productId}/bundles`, { method: 'POST', body: JSON.stringify(body) }),
     update: (productId: string, bundleId: string, body: Partial<AdminBundle>) =>
       adminFetch<AdminBundle>(`/admin/products/${productId}/bundles/${bundleId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    setDownloadFile: (productId: string, bundleId: string, downloadFileKey: string | null) =>
+      adminFetch<AdminBundle>(`/admin/products/${productId}/bundles/${bundleId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ downloadFileKey }),
+      }),
     remove: (productId: string, bundleId: string) =>
       adminFetch<void>(`/admin/products/${productId}/bundles/${bundleId}`, { method: 'DELETE' }),
     addItem: (productId: string, bundleId: string, body: { name: string; description?: string; sortOrder?: number }) =>
@@ -385,6 +396,12 @@ export const adminApi = {
     update: (id: string, body: Partial<Omit<AdminProductTypeConfig, 'id' | 'createdAt' | 'updatedAt'>>) =>
       adminFetch<AdminProductTypeConfig>(`/admin/product-types/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) => adminFetch<void>(`/admin/product-types/${id}`, { method: 'DELETE' }),
+  },
+
+  queue: {
+    status: () => adminFetch<QueueStatus>('/admin/queue/status'),
+    retryFailed: () => adminFetch<{ retried: number }>('/admin/queue/retry-failed', { method: 'POST' }),
+    clean: () => adminFetch<{ success: boolean }>('/admin/queue/clean', { method: 'DELETE' }),
   },
 
   upload: (file: File) => {

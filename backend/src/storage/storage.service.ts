@@ -9,6 +9,26 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
+// In-memory LRU cache — Redis-д хандахгүйгээр хурдан авна
+// TTL: presign expiresIn-с 60 секунд хасна (expire болохоос өмнө шинэчлэнэ)
+const presignCache = new Map<string, { url: string; expiresAt: number }>();
+const PRESIGN_CACHE_MAX = 5000;
+
+function getCachedPresign(key: string, expiresIn: number): string | null {
+  const entry = presignCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { presignCache.delete(key); return null; }
+  return entry.url;
+}
+
+function setCachedPresign(key: string, url: string, expiresIn: number) {
+  if (presignCache.size >= PRESIGN_CACHE_MAX) {
+    // Хамгийн хуучин entry-г устгана
+    presignCache.delete(presignCache.keys().next().value!);
+  }
+  presignCache.set(key, { url, expiresAt: Date.now() + (expiresIn - 60) * 1000 });
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -92,12 +112,26 @@ export class StorageService {
       return this.getAssetUrl(key);
     }
 
-    const command =
-      operation === 'put'
-        ? new PutObjectCommand({ Bucket: this.bucket, Key: key })
-        : new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    // PUT presign кэшлэхгүй — нэг удаа хэрэглэнэ
+    if (operation === 'get') {
+      const cacheKey = `${key}:${expiresIn}`;
+      const cached = getCachedPresign(cacheKey, expiresIn);
+      if (cached) return cached;
 
-    return getSignedUrl(this.client, command, { expiresIn });
+      const url = await getSignedUrl(
+        this.client,
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+        { expiresIn },
+      );
+      setCachedPresign(cacheKey, url, expiresIn);
+      return url;
+    }
+
+    return getSignedUrl(
+      this.client,
+      new PutObjectCommand({ Bucket: this.bucket, Key: key }),
+      { expiresIn },
+    );
   }
 
   async delete(key: string): Promise<void> {

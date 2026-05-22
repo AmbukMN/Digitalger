@@ -6,8 +6,38 @@ import * as archiver from 'archiver';
 import { Upload } from '@aws-sdk/lib-storage';
 import { S3Client } from '@aws-sdk/client-s3';
 import { PassThrough, Readable } from 'stream';
+import { Agent as HttpAgent } from 'http';
+import { Agent as HttpsAgent } from 'https';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+
+// Connection pool — нэг Worker-т олон file зэрэг татахад socket дахин ашиглана
+const httpAgent = new HttpAgent({ maxSockets: 100, keepAlive: true });
+const httpsAgent = new HttpsAgent({ maxSockets: 100, keepAlive: true });
+
+async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
+  const isHttps = url.startsWith('https');
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000); // 30s timeout
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'Accept-Encoding': 'identity' },
+        // @ts-ignore — Node 18+ fetch supports agent via undici dispatcher
+        dispatcher: undefined,
+      });
+      clearTimeout(timer);
+      if (res.ok) return res;
+      if (attempt === retries) return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (attempt === retries) throw err;
+      await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+    }
+  }
+  throw new Error('fetchWithRetry exhausted');
+}
 
 export const ZIP_QUEUE = 'zip';
 
@@ -122,9 +152,7 @@ export class ZipProcessor {
         let done = 0;
         for (const file of files) {
           const url = urlMap.get(file.id)!;
-          const res = await fetch(url, {
-            headers: { 'Accept-Encoding': 'identity' }, // decompression алдахгүй
-          });
+          const res = await fetchWithRetry(url);
           if (!res.ok || !res.body) {
             this.logger.warn(`Skip ${file.fileName}: HTTP ${res.status}`);
             done++;

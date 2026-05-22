@@ -46,6 +46,7 @@ export interface Bundle {
   title: string;
   description?: string | null;
   sortOrder: number;
+  downloadFileKey?: string | null;
   items: BundleItem[];
 }
 
@@ -143,6 +144,7 @@ export interface ProductDetail extends ProductSummary {
   proofText?: string | null;
   proofAuthorName?: string | null;
   proofAuthorRole?: string | null;
+  downloadFileKey?: string | null;
 }
 
 export interface PaginatedProducts {
@@ -198,6 +200,7 @@ export interface PurchasedProduct {
     slug: string;
     type: string;
     thumbnailUrl?: string | null;
+    downloadFileKey?: string | null;
     files: { id: string; fileName: string; sortOrder: number }[];
   };
 }

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Button,
@@ -1303,12 +1303,16 @@ function CourseTab({ productId }: { productId?: string }) {
   );
 }
 
-function FilesTab({ productId }: { productId?: string }) {
+function FilesTab({ productId, product }: { productId?: string; product?: AdminProduct | null }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const downloadFileRef = useRef<HTMLInputElement>(null);
   const bundleFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const bundleDownloadFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploading, setUploading] = useState(false);
+  const [uploadingDownloadFile, setUploadingDownloadFile] = useState(false);
   const [bundleUploading, setBundleUploading] = useState<Record<string, boolean>>({});
+  const [bundleDownloadUploading, setBundleDownloadUploading] = useState<Record<string, boolean>>({});
   const [openFileBundles, setOpenFileBundles] = useState<Record<string, boolean>>({});
   const toggleFileBundle = (id: string) => setOpenFileBundles((p) => ({ ...p, [id]: p[id] !== true }));
   const isFileBundleOpen = (id: string) => openFileBundles[id] === true;
@@ -1327,7 +1331,40 @@ function FilesTab({ productId }: { productId?: string }) {
 
   const invalidateFiles = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'files'] });
   const invalidateBundles = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'bundles'] });
+  const invalidateProduct = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId] });
   const invalidateAll = () => { invalidateFiles(); invalidateBundles(); };
+
+  async function handleDownloadFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!productId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingDownloadFile(true);
+    try {
+      const r = await adminApi.upload(file);
+      await adminApi.products.files.setDownloadFile(productId, r.key);
+      toast.success('Татах файл тохируулагдлаа');
+      invalidateProduct();
+    } catch { toast.error('Алдаа гарлаа'); }
+    finally { setUploadingDownloadFile(false); if (downloadFileRef.current) downloadFileRef.current.value = ''; }
+  }
+
+  async function handleBundleDownloadFileSelect(e: React.ChangeEvent<HTMLInputElement>, bundleId: string) {
+    if (!productId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBundleDownloadUploading((p) => ({ ...p, [bundleId]: true }));
+    try {
+      const r = await adminApi.upload(file);
+      await adminApi.bundles.setDownloadFile(productId, bundleId, r.key);
+      toast.success('Бүлгийн татах файл тохируулагдлаа');
+      invalidateBundles();
+    } catch { toast.error('Алдаа гарлаа'); }
+    finally {
+      setBundleDownloadUploading((p) => ({ ...p, [bundleId]: false }));
+      const ref = bundleDownloadFileRefs.current[bundleId];
+      if (ref) ref.value = '';
+    }
+  }
 
   const removeMut = useMutation({
     mutationFn: (fileId: string) => adminApi.products.files.remove(productId!, fileId),
@@ -1402,6 +1439,50 @@ function FilesTab({ productId }: { productId?: string }) {
 
   return (
     <div className="space-y-5">
+      {/* ── Product "Бүгдийг татах" файл ── */}
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center gap-2 bg-muted/40 px-3 py-2 border-b border-border">
+          <Download className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold flex-1">Бүгдийг татах файл</span>
+          <span className="text-xs text-muted-foreground">Хэрэглэгч "Бүгдийг татах" дарахад энэ файл татагдана</span>
+        </div>
+        <div className="p-3 space-y-2">
+          {product?.downloadFileKey ? (
+            <div className="flex items-center gap-2 rounded-md bg-primary/5 border border-primary/15 px-3 py-2">
+              <FileText className="h-4 w-4 shrink-0 text-primary" />
+              <span className="text-xs flex-1 truncate font-medium text-muted-foreground">{product.downloadFileKey.split('/').pop()}</span>
+              <Button
+                type="button" size="sm" variant="outline" className="h-6 text-xs px-2 shrink-0"
+                onClick={() => downloadFileRef.current?.click()}
+                disabled={uploadingDownloadFile}
+              >
+                {uploadingDownloadFile ? 'Ачаалж байна...' : 'Солих'}
+              </Button>
+              <Button
+                type="button" size="icon" variant="ghost"
+                className="h-6 w-6 text-destructive hover:text-destructive shrink-0"
+                onClick={async () => {
+                  await adminApi.products.files.setDownloadFile(productId!, null);
+                  invalidateProduct();
+                  toast.success('Устгагдлаа');
+                }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <div
+              className={`flex h-14 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border bg-muted/30 text-sm text-muted-foreground transition-colors ${productId ? 'cursor-pointer hover:border-primary/40' : 'opacity-50 cursor-not-allowed'}`}
+              onClick={() => productId ? downloadFileRef.current?.click() : toast.info('Эхлээд хадгалж, дараа файл нэмнэ үү')}
+            >
+              <Upload className="h-4 w-4" />
+              <span className="text-xs">{uploadingDownloadFile ? 'Ачаалж байна...' : 'ZIP эсвэл дурын файл upload хийх'}</span>
+            </div>
+          )}
+          <input ref={downloadFileRef} type="file" className="hidden" onChange={handleDownloadFileSelect} disabled={uploadingDownloadFile || !productId} />
+        </div>
+      </div>
+
       <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
         Бүлэг бүрийн зүйл бүрд нэг буюу хэд хэдэн файл холбоно. Бүлэгт хамааргүй ерөнхий файлуудыг доорх хэсэгт нэмнэ үү.
       </div>
@@ -1420,6 +1501,51 @@ function FilesTab({ productId }: { productId?: string }) {
                 <Package className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-sm font-semibold flex-1">{bi + 1}. {bundle.title}</span>
                 <span className="text-xs text-muted-foreground">{bundle.items.length} зүйл</span>
+                {/* Bundle download file upload */}
+                <span onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+                  {bundle.downloadFileKey ? (
+                    <>
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Татах файл
+                      </span>
+                      <Button
+                        type="button" size="sm" variant="ghost"
+                        className="h-6 text-xs px-1.5 text-muted-foreground hover:text-primary"
+                        onClick={() => bundleDownloadFileRefs.current[bundle.id]?.click()}
+                        disabled={bundleDownloadUploading[bundle.id]}
+                      >
+                        <Upload className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button" size="icon" variant="ghost"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        onClick={async () => {
+                          await adminApi.bundles.setDownloadFile(productId!, bundle.id, null);
+                          invalidateBundles();
+                          toast.success('Устгагдлаа');
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button" size="sm" variant="outline"
+                      className="h-6 text-xs px-2 gap-1"
+                      onClick={() => bundleDownloadFileRefs.current[bundle.id]?.click()}
+                      disabled={bundleDownloadUploading[bundle.id]}
+                    >
+                      <Upload className="h-3 w-3" />
+                      {bundleDownloadUploading[bundle.id] ? 'Ачаалж байна...' : 'Татах файл'}
+                    </Button>
+                  )}
+                  <input
+                    type="file"
+                    className="hidden"
+                    ref={(el) => { bundleDownloadFileRefs.current[bundle.id] = el; }}
+                    onChange={(e) => handleBundleDownloadFileSelect(e, bundle.id)}
+                  />
+                </span>
               </div>
               {isFileBundleOpen(bundle.id) && <div className="divide-y divide-border">
                 {bundle.items.map((item: AdminBundleItem) => {
@@ -2057,7 +2183,7 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto max-w-3xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto max-w-6xl">
         <DialogHeader>
           <DialogTitle>
             {savedProduct ? `✓ Үүслээ — нэмэлт мэдээлэл оруулах` : effectiveProduct ? 'Бүтээгдэхүүн засах' : 'Шинэ бүтээгдэхүүн'}
@@ -2410,7 +2536,7 @@ export function ProductFormDialog({
 
           {/* Files Tab */}
           <TabsContent value="files" className="pt-4">
-            <FilesTab productId={effectiveProduct?.id} />
+            <FilesTab productId={effectiveProduct?.id} product={effectiveProduct} />
           </TabsContent>
 
           {/* Course Tab */}

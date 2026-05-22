@@ -129,8 +129,9 @@ model Product {
   howToUseSteps  Json                 @default("[]")
   whatsIncluded  String?              @db.Text
   discountEndsAt DateTime?
-  videoUrl       String?
-  proofImageUrl  String?
+  videoUrl         String?
+  downloadFileKey  String?
+  proofImageUrl    String?
   proofQuote     String?              @db.Text
   proofText      String?              @db.Text
   proofAuthorName String?
@@ -216,6 +217,9 @@ model Order {
   updatedAt      DateTime    @updatedAt
   items          OrderItem[]
   payments       Payment[]
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model OrderItem {
@@ -225,6 +229,8 @@ model OrderItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
   price     Decimal @db.Decimal(12, 2)
+
+  @@index([productId])
 }
 
 model Payment {
@@ -257,6 +263,9 @@ model Download {
   user      User     @relation(fields: [userId], references: [id])
   fileId    String
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([fileId])
 }
 
 model Wishlist {
@@ -374,13 +383,14 @@ model ProductTestimonial {
 
 // ── Product Bundles / Content Groups ──
 model ProductBundle {
-  id          String       @id @default(cuid())
-  productId   String
-  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  sortOrder   Int          @default(0)
-  items       BundleItem[]
+  id              String       @id @default(cuid())
+  productId       String
+  product         Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  sortOrder       Int          @default(0)
+  downloadFileKey String?
+  items           BundleItem[]
 
   @@index([productId, sortOrder])
 }
@@ -472,6 +482,7 @@ model ZipJob {
   updatedAt DateTime     @updatedAt
 
   @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 enum CouponType {

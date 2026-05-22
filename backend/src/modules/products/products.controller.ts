@@ -13,6 +13,8 @@ export class ProductsController {
     @Query('featured') featured?: string,
     @Query('type') type?: string,
     @Query('types') types?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('onSale') onSale?: string,
   ) {
     const typeFilter = types
       ? types.split(',').map((t) => t.trim()).filter(Boolean)
@@ -25,6 +27,8 @@ export class ProductsController {
       categorySlug,
       featured: featured === 'true' ? true : featured === 'false' ? false : undefined,
       types: typeFilter,
+      sortBy: (sortBy as any) ?? undefined,
+      onSale: onSale === 'true' ? true : undefined,
     });
   }
 
@@ -43,7 +47,7 @@ export class ProductsController {
 
   @Get(':slug/suggested')
   suggested(@Param('slug') slug: string, @Query('count') count?: string) {
-    return this.productsService.findSuggested(slug, count ? parseInt(count, 10) : 4);
+    return this.productsService.findSuggested(slug, count ? parseInt(count, 10) : 8);
   }
 
   @Get(':slug')

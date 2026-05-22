@@ -209,6 +209,37 @@ export class DownloadsService {
     return { status: job.status, error: job.error ?? undefined };
   }
 
+  async getProductDownloadFileUrl(userId: string, productId: string) {
+    await this.assertOwned(userId, productId);
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, slug: true, downloadFileKey: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (!product.downloadFileKey) throw new NotFoundException('No download file configured');
+
+    const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
+    const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
+    return { url, fileName };
+  }
+
+  async getBundleDownloadFileUrl(userId: string, bundleId: string) {
+    const bundle = await this.prisma.productBundle.findUnique({
+      where: { id: bundleId },
+      select: { id: true, title: true, productId: true, downloadFileKey: true },
+    });
+    if (!bundle) throw new NotFoundException('Bundle not found');
+
+    await this.assertOwned(userId, bundle.productId);
+
+    if (!bundle.downloadFileKey) throw new NotFoundException('No download file configured');
+
+    const url = await this.storage.getPresignedUrl(bundle.downloadFileKey, 900, 'get');
+    const fileName = bundle.downloadFileKey.split('/').pop() ?? `${bundle.title.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
+    return { url, fileName };
+  }
+
   async listUserDownloads(userId: string) {
     const orders = await this.prisma.order.findMany({
       where: { userId, status: OrderStatus.PAID },
@@ -222,6 +253,7 @@ export class DownloadsService {
                 title: true,
                 slug: true,
                 type: true,
+                downloadFileKey: true,
                 files: {
                   select: { id: true, fileName: true, sortOrder: true },
                   orderBy: { sortOrder: 'asc' },

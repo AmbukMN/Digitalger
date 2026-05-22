@@ -27,6 +27,7 @@ import {
   Tag,
   User,
   Users,
+  Activity,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button, Separator, ThemeToggle } from '@digitalger/shared/ui';
@@ -50,6 +51,7 @@ const navItems = [
   { href: '/pages', label: 'Хуудас', icon: FileEdit },
   { href: '/settings', label: 'Тохиргоо', icon: Settings },
   { href: '/seo', label: 'SEO', icon: Globe },
+  { href: '/queue', label: 'Дараалал', icon: Activity },
 ] as const;
 
 interface PublicSettings {

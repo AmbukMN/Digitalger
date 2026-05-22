@@ -1,6 +1,7 @@
 import { Button } from '@digitalger/shared/ui';
 import Link from 'next/link';
 import { ProductGrid } from '@/components/products/product-grid';
+import { ProductSwiper } from '@/components/products/product-swiper';
 import { productsApi } from '@/lib/api';
 import { ArrowRight } from 'lucide-react';
 import type { ProductSummary } from '@/types/api';
@@ -11,16 +12,27 @@ export async function ProductSection({
   featured,
   type,
   types,
+  swiper,
+  swiperMobileRows,
+  sortBy,
+  onSale,
+  pageSize: pageSizeProp,
 }: {
   title: string;
   href: string;
   featured?: boolean;
   type?: string;
   types?: string;
+  swiper?: boolean;
+  swiperMobileRows?: 1 | 2;
+  sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
+  onSale?: boolean;
+  pageSize?: number;
 }) {
   let items: ProductSummary[] = [];
   try {
-    const data = await productsApi.list({ pageSize: 8, featured, type, types });
+    const pageSize = pageSizeProp ?? (swiper ? 48 : 8);
+    const data = await productsApi.list({ pageSize, featured, type, types, sortBy, onSale });
     items = data.items;
   } catch {
     items = [];
@@ -43,7 +55,9 @@ export async function ProductSection({
             </Link>
           </Button>
         </div>
-        <ProductGrid products={items} />
+        {swiper
+          ? <ProductSwiper products={items} mobileRows={swiperMobileRows ?? 1} />
+          : <ProductGrid products={items} />}
       </div>
     </section>
   );

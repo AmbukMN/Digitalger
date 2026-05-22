@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, EmptyState, Loading } from '@digitalger/shared/ui';
 import {
   Archive,
+  CheckCircle2,
   Code,
   Download,
   DownloadCloud,
@@ -12,9 +13,11 @@ import {
   FileText,
   Image as ImageIcon,
   Layers,
+  Loader2,
   Music,
   Type,
   Video,
+  XCircle,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -25,6 +28,12 @@ import { Pagination } from '@/components/ui/pagination';
 import { ProductRowItem } from '@/components/ui/product-row-item';
 
 const PAGE_SIZE = 6;
+
+type ZipState = 'idle' | 'pending' | 'queued' | 'done' | 'failed';
+
+const POLL_INTERVAL = 3000;
+const POLL_TIMEOUT = 120_000;
+
 
 function getFileIconMeta(fileName: string) {
   const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
@@ -58,7 +67,7 @@ export default function LibraryPage() {
   const token = session?.accessToken;
   const [page, setPage] = useState(1);
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [downloadingAll, setDownloadingAll] = useState<string | null>(null);
+  const [zipStates, setZipStates] = useState<Record<string, ZipState>>({});
   const { data: productTypeConfigs } = useProductTypes();
 
   const getTypeLabel = (type: string) => {
@@ -90,30 +99,88 @@ export default function LibraryPage() {
     }
   };
 
-  const handleDownloadAll = async (
-    entryKey: string,
-    files: { id: string; fileName: string }[],
-  ) => {
-    if (!token || !files.length) return;
-    setDownloadingAll(entryKey);
-    try {
-      for (const file of files) {
-        const result = await downloadsApi.signedUrl(token, file.id);
-        const a = document.createElement('a');
-        a.href = result.url;
-        a.download = file.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        if (files.length > 1) await new Promise((r) => setTimeout(r, 400));
-      }
-      toast.success('Бүх файл татагдаж байна...');
-    } catch {
-      toast.error('Татахад алдаа гарлаа');
-    } finally {
-      setDownloadingAll(null);
-    }
+  const pollRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const pollStarted = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    const refs = pollRefs.current;
+    return () => { Object.values(refs).forEach(clearInterval); };
+  }, []);
+
+  const setZipState = (key: string, s: ZipState) =>
+    setZipStates((prev) => ({ ...prev, [key]: s }));
+
+  const triggerDownload = (url: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
+
+  const handleDownloadAll = useCallback(async (
+    entryKey: string,
+    productId: string,
+    zipName: string,
+    downloadFileKey?: string | null,
+  ) => {
+    if (!token) return;
+    const cur = zipStates[entryKey];
+    if (cur && cur !== 'idle' && cur !== 'done' && cur !== 'failed') return;
+
+    setZipState(entryKey, 'pending');
+
+    // Admin uploaded file — шууд presign
+    if (downloadFileKey) {
+      try {
+        const { url, fileName } = await downloadsApi.productDownloadFile(token, productId);
+        triggerDownload(url, fileName || zipName);
+        setZipState(entryKey, 'done');
+        setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+      } catch {
+        setZipState(entryKey, 'failed');
+        toast.error('Татахад алдаа гарлаа');
+        setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+      }
+      return;
+    }
+
+    // Admin file байхгүй — async ZIP queue
+    try {
+      const { jobId } = await downloadsApi.enqueueProductZip(token, productId);
+      setZipState(entryKey, 'queued');
+      pollStarted.current[entryKey] = Date.now();
+
+      pollRefs.current[entryKey] = setInterval(async () => {
+        if (Date.now() - pollStarted.current[entryKey] > POLL_TIMEOUT) {
+          clearInterval(pollRefs.current[entryKey]);
+          setZipState(entryKey, 'failed');
+          toast.error('Хугацаа дууслаа, дахин оролдоно уу');
+          setTimeout(() => setZipState(entryKey, 'idle'), 3000);
+          return;
+        }
+        try {
+          const res = await downloadsApi.pollZipJob(token, jobId);
+          if (res.status === 'DONE' && res.url) {
+            clearInterval(pollRefs.current[entryKey]);
+            triggerDownload(res.url, zipName);
+            setZipState(entryKey, 'done');
+            setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+          } else if (res.status === 'FAILED') {
+            clearInterval(pollRefs.current[entryKey]);
+            setZipState(entryKey, 'failed');
+            toast.error('ZIP үүсгэхэд алдаа гарлаа');
+            setTimeout(() => setZipState(entryKey, 'idle'), 3000);
+          }
+        } catch { /* poll retry */ }
+      }, POLL_INTERVAL);
+    } catch {
+      setZipState(entryKey, 'failed');
+      toast.error('Татахад алдаа гарлаа');
+      setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+    }
+  }, [token, zipStates]);
 
   if (!session) return null;
 
@@ -153,9 +220,25 @@ export default function LibraryPage() {
         <div className="space-y-4">
           {data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((entry) => {
             const entryKey = `${entry.orderId}-${entry.product.id}`;
-            const isDlAll = downloadingAll === entryKey;
+            const zipState = zipStates[entryKey] ?? 'idle';
+            const zipBusy = zipState === 'pending' || zipState === 'queued';
             const hasFiles = entry.product.files.length > 0;
-            const multiFile = entry.product.files.length > 1;
+            const zipName = `${entry.product.slug ?? entry.product.id}.zip`;
+
+            const zipLabel = () => {
+              if (zipState === 'pending') return 'Бэлдэж байна...';
+              if (zipState === 'queued') return 'ZIP үүсгэж байна...';
+              if (zipState === 'done') return 'Татагдлаа';
+              if (zipState === 'failed') return 'Алдаа гарлаа';
+              return 'Бүгдийг татах';
+            };
+
+            const zipIcon = () => {
+              if (zipState === 'done') return <CheckCircle2 className="h-3.5 w-3.5" />;
+              if (zipState === 'failed') return <XCircle className="h-3.5 w-3.5" />;
+              if (zipBusy) return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+              return <DownloadCloud className="h-3.5 w-3.5" />;
+            };
 
             return (
               <div
@@ -196,11 +279,11 @@ export default function LibraryPage() {
                       size="sm"
                       variant="outline"
                       className="shrink-0 gap-1.5 hidden sm:flex"
-                      disabled={isDlAll}
-                      onClick={() => handleDownloadAll(entryKey, entry.product.files)}
+                      disabled={zipBusy}
+                      onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey)}
                     >
-                      <DownloadCloud className="h-3.5 w-3.5" />
-                      {isDlAll ? 'Татаж байна...' : multiFile ? 'Бүгдийг татах' : 'Татах'}
+                      {zipIcon()}
+                      {zipLabel()}
                     </Button>
                   )}
                 </div>
@@ -262,11 +345,11 @@ export default function LibraryPage() {
                       size="sm"
                       variant="outline"
                       className="w-full gap-1.5"
-                      disabled={isDlAll}
-                      onClick={() => handleDownloadAll(entryKey, entry.product.files)}
+                      disabled={zipBusy}
+                      onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey)}
                     >
-                      <DownloadCloud className="h-3.5 w-3.5" />
-                      {isDlAll ? 'Татаж байна...' : multiFile ? 'Бүгдийг татах' : 'Татах'}
+                      {zipIcon()}
+                      {zipLabel()}
                     </Button>
                   </div>
                 )}

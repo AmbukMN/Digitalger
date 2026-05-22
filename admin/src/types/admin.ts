@@ -76,6 +76,7 @@ export interface AdminProduct {
   proofText?: string | null;
   proofAuthorName?: string | null;
   proofAuthorRole?: string | null;
+  downloadFileKey?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -202,6 +203,7 @@ export interface AdminBundle {
   title: string;
   description?: string | null;
   sortOrder: number;
+  downloadFileKey?: string | null;
   items: AdminBundleItem[];
 }
 
@@ -268,4 +270,35 @@ export interface AdminProfile {
   emailVerified: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface QueueJobSummary {
+  id: string | number;
+  data: Record<string, unknown>;
+  failedReason?: string;
+  returnvalue?: unknown;
+  timestamp: number;
+  processedOn?: number;
+  finishedOn?: number;
+}
+
+export interface QueueStatus {
+  queue: {
+    name: string;
+    isPaused: boolean;
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    delayed: number;
+    paused: number;
+  };
+  db: {
+    pending: number;
+    processing: number;
+    done: number;
+    failed: number;
+  };
+  recentFailed: QueueJobSummary[];
+  recentCompleted: QueueJobSummary[];
 }

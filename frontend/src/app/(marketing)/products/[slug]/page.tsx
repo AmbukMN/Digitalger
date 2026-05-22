@@ -14,6 +14,7 @@ import { MediaGallery } from '@/components/products/media-gallery';
 import { CourseCurriculum } from '@/components/products/course-curriculum';
 import { BundleList } from '@/components/products/bundle-list';
 import { DownloadAllButton } from '@/components/products/download-all-button';
+import { ProductSwiper } from '@/components/products/product-swiper';
 import {
   Star,
   Download,
@@ -87,7 +88,7 @@ export default async function ProductDetailPage({ params }: Props) {
   }
 
   const [suggestedProducts] = await Promise.all([
-    productsApi.suggested(slug, 4).catch(() => []),
+    productsApi.suggested(slug, 8).catch(() => []),
   ]);
 
   const hasFiles = product.files && product.files.length > 0;
@@ -251,7 +252,13 @@ export default async function ProductDetailPage({ params }: Props) {
                     <Package className="h-5 w-5 text-primary" />
                     Багцад юу багтсан вэ?
                   </h2>
-                  {hasFiles && (!product.bundles || product.bundles.length === 0) && <DownloadAllButton productId={product.id} />}
+                  {hasFiles && (!product.bundles || product.bundles.length === 0) && (
+                    <DownloadAllButton
+                      productId={product.id}
+                      downloadFileKey={product.downloadFileKey}
+                      zipName={`${product.slug}.zip`}
+                    />
+                  )}
                 </div>
                 {product.whatsIncluded && (
                   product.whatsIncluded.startsWith('<') ? (
@@ -418,35 +425,20 @@ export default async function ProductDetailPage({ params }: Props) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-xl font-bold">Санал болгох бүтээгдэхүүн</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Таньд тохирох бусад бүтээгдэхүүнүүд</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Ижил төрөл, ангиллын бүтээгдэхүүнүүд</p>
               </div>
-              {product.category && (
-                <Link href={`/categories/${product.category.slug}`} className="text-sm text-primary hover:underline">
-                  Бүгдийг харах
+              <div className="flex items-center gap-3">
+                {product.category && (
+                  <Link href={`/categories/${product.category.slug}`} className="text-sm text-primary hover:underline hidden sm:block">
+                    {product.category.name} →
+                  </Link>
+                )}
+                <Link href={`/products?type=${product.type}`} className="text-sm text-muted-foreground hover:text-primary hover:underline hidden sm:block">
+                  Ижил төрлүүд →
                 </Link>
-              )}
+              </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {suggestedProducts.map((p) => (
-                <Link key={p.id} href={`/products/${p.slug}`} className="group block">
-                  <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                    <div className="relative aspect-4/3 bg-muted overflow-hidden">
-                      {p.thumbnailUrl ? (
-                        <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover transition-transform duration-300 group-hover:scale-105" sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
-                          <Package className="h-8 w-8 text-muted-foreground/30" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <p className="text-xs font-semibold line-clamp-2 leading-snug group-hover:text-primary transition-colors">{p.title}</p>
-                      <p className="mt-1.5 text-sm font-bold text-primary">{formatPrice(Number(p.price))}</p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <ProductSwiper products={suggestedProducts} />
           </div>
         )}
       </div>

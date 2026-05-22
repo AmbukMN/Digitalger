@@ -66,12 +66,16 @@ export const productsApi = {
     featured?: boolean;
     type?: string;
     types?: string;
+    sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
+    onSale?: boolean;
   }) => {
     const query = qs({
       page: params?.page,
       pageSize: params?.pageSize,
       category: params?.category,
       featured: params?.featured,
+      sortBy: params?.sortBy,
+      onSale: params?.onSale,
       ...(params?.types ? { types: params.types } : { type: params?.type }),
     });
     return request<PaginatedProducts>(`/products${query}`);
@@ -173,6 +177,12 @@ export const downloadsApi = {
     request<{ jobId: string }>(`/downloads/async-zip/${productId}/bundle/${bundleId}`, { method: 'POST', token }),
   pollZipJob: (token: string, jobId: string) =>
     request<{ status: string; url?: string; error?: string }>(`/downloads/async-zip/status/${jobId}`, { token }),
+
+  productDownloadFile: (token: string, productId: string) =>
+    request<{ url: string; fileName: string }>(`/downloads/product/${productId}/download-file`, { method: 'POST', token }),
+
+  bundleDownloadFile: (token: string, bundleId: string) =>
+    request<{ url: string; fileName: string }>(`/downloads/bundle/${bundleId}/download-file`, { method: 'POST', token }),
 };
 
 // —— Payments ——
