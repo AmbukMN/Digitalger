@@ -14,6 +14,35 @@ export class DownloadsController {
     return this.downloadsService.listUserDownloads(userId);
   }
 
+  // ── Async queue-based zip (production) ──────────────────────────────────
+
+  @Post('async-zip/:productId')
+  enqueueProductZip(
+    @CurrentUser('sub') userId: string,
+    @Param('productId') productId: string,
+  ) {
+    return this.downloadsService.enqueueProductZip(userId, productId);
+  }
+
+  @Post('async-zip/:productId/bundle/:bundleId')
+  enqueueBundleZip(
+    @CurrentUser('sub') userId: string,
+    @Param('productId') productId: string,
+    @Param('bundleId') bundleId: string,
+  ) {
+    return this.downloadsService.enqueueBundleZip(userId, productId, bundleId);
+  }
+
+  @Get('async-zip/status/:jobId')
+  getZipStatus(
+    @CurrentUser('sub') userId: string,
+    @Param('jobId') jobId: string,
+  ) {
+    return this.downloadsService.getZipJobStatus(userId, jobId);
+  }
+
+  // ── Legacy streaming (fallback жижиг файлд) ─────────────────────────────
+
   @Post('zip/:productId')
   downloadZip(
     @CurrentUser('sub') userId: string,

@@ -7,7 +7,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@digitalger/shared/ui';
 import { useFileDownload } from '@/hooks/use-file-download';
 import { downloadsApi } from '@/lib/api';
-import { API_URL } from '@/lib/constants';
 
 interface BundleItem {
   id: string;
@@ -75,6 +74,8 @@ function BundleFileRow({
   );
 }
 
+type ZipState = 'idle' | 'pending' | 'processing' | 'done' | 'failed';
+
 function BundleZipButton({
   productId,
   bundleId,
@@ -84,31 +85,52 @@ function BundleZipButton({
   bundleId: string;
   token: string;
 }) {
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState<ZipState>('idle');
 
   async function handleZip() {
-    setLoading(true);
+    if (state === 'pending' || state === 'processing') return;
+    setState('pending');
     try {
-      const res = await fetch(`${API_URL}/api${downloadsApi.bundleZipUrl(productId, bundleId)}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('zip failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bundle.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const { jobId } = await downloadsApi.enqueueBundleZip(token, productId, bundleId);
+      // Poll хүртэл done болох
+      let attempts = 0;
+      while (attempts < 120) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const result = await downloadsApi.pollZipJob(token, jobId);
+        if (result.status === 'DONE' && result.url) {
+          setState('done');
+          // Шууд татуулна
+          const a = document.createElement('a');
+          a.href = result.url;
+          a.download = 'bundle.zip';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => setState('idle'), 3000);
+          return;
+        }
+        if (result.status === 'FAILED') {
+          setState('failed');
+          setTimeout(() => setState('idle'), 3000);
+          return;
+        }
+        if (result.status === 'PROCESSING') setState('processing');
+        attempts++;
+      }
+      setState('failed');
+      setTimeout(() => setState('idle'), 3000);
     } catch {
-      // silent
-    } finally {
-      setLoading(false);
+      setState('failed');
+      setTimeout(() => setState('idle'), 3000);
     }
   }
+
+  const label =
+    state === 'pending' ? 'Бэлдэж байна...' :
+    state === 'processing' ? 'ZIP хийж байна...' :
+    state === 'done' ? 'Татагдлаа!' :
+    state === 'failed' ? 'Алдаа' :
+    'ZIP татах';
 
   return (
     <Button
@@ -116,10 +138,12 @@ function BundleZipButton({
       variant="outline"
       className="h-7 px-2.5 text-xs gap-1 shrink-0"
       onClick={handleZip}
-      disabled={loading}
+      disabled={state === 'pending' || state === 'processing'}
     >
-      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-      ZIP татах
+      {(state === 'pending' || state === 'processing')
+        ? <Loader2 className="h-3 w-3 animate-spin" />
+        : <Download className="h-3 w-3" />}
+      {label}
     </Button>
   );
 }

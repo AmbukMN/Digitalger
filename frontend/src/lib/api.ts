@@ -167,6 +167,12 @@ export const downloadsApi = {
 
   zipUrl: (productId: string) => `/downloads/zip/${productId}`,
   bundleZipUrl: (productId: string, bundleId: string) => `/downloads/zip/${productId}/bundle/${bundleId}`,
+  enqueueProductZip: (token: string, productId: string) =>
+    request<{ jobId: string }>(`/downloads/async-zip/${productId}`, { method: 'POST', token }),
+  enqueueBundleZip: (token: string, productId: string, bundleId: string) =>
+    request<{ jobId: string }>(`/downloads/async-zip/${productId}/bundle/${bundleId}`, { method: 'POST', token }),
+  pollZipJob: (token: string, jobId: string) =>
+    request<{ status: string; url?: string; error?: string }>(`/downloads/async-zip/status/${jobId}`, { token }),
 };
 
 // —— Payments ——

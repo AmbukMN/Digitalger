@@ -455,6 +455,25 @@ model Page {
   updatedAt DateTime @updatedAt @default(now())
 }
 
+enum ZipJobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model ZipJob {
+  id        String       @id @default(cuid())
+  userId    String
+  status    ZipJobStatus @default(PENDING)
+  zipKey    String?
+  error     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([userId, createdAt])
+}
+
 enum CouponType {
   PERCENT
   FIXED
