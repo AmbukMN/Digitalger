@@ -203,7 +203,7 @@ function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?
         <FieldError message={form.formState.errors.password?.message} />
       </div>
 
-      <Button type="submit" variant="secondary" className="w-full dark:bg-muted dark:text-foreground dark:hover:bg-muted/80" disabled={form.formState.isSubmitting}>
+      <Button type="submit" className="w-full dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/80" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
       </Button>
 
@@ -293,7 +293,7 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
         <FieldError message={form.formState.errors.confirmPassword?.message} />
       </div>
 
-      <Button type="submit" variant="secondary" className="w-full mt-1 dark:bg-muted dark:text-foreground dark:hover:bg-muted/80" disabled={form.formState.isSubmitting}>
+      <Button type="submit" className="w-full mt-1 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/80" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
       </Button>
 
