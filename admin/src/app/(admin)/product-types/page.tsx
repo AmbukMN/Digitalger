@@ -16,6 +16,7 @@ import {
   Label,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { IconPicker, IconBadge } from '@/components/ui/icon-picker';
 import type { AdminProductTypeConfig } from '@/types/admin';
 
 function TypeFormDialog({
@@ -63,9 +64,12 @@ function TypeFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Төрөл засах' : 'Шинэ төрөл нэмэх'}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <IconBadge name={icon || null} size="md" />
+            {isEdit ? 'Төрөл засах' : 'Шинэ төрөл нэмэх'}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           {!isEdit && (
@@ -88,8 +92,8 @@ function TypeFormDialog({
             <Input placeholder="Богино тайлбар..." value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label>Дүрс (icon name)</Label>
-            <Input placeholder="package, file-text..." value={icon} onChange={(e) => setIcon(e.target.value)} />
+            <Label>Дүрс (Icon)</Label>
+            <IconPicker value={icon} onChange={setIcon} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -177,6 +181,7 @@ export default function ProductTypesPage() {
             {types.map((t) => (
               <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
                 <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                <IconBadge name={t.icon || null} size="sm" />
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground shrink-0">
                   {t.value}
                 </code>

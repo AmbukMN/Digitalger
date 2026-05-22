@@ -7,7 +7,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { useProductTypeLabel } from '@/hooks/use-product-types';
+import { useProductTypeIcon, useProductTypeLabel } from '@/hooks/use-product-types';
+import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import type { ProductSummary } from '@/types/api';
@@ -19,6 +20,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const inWishlistRaw = useWishlistStore((s) => s.has(product.id));
   const [mounted, setMounted] = useState(false);
   const typeLabel = useProductTypeLabel(product.type);
+  const typeIcon = useProductTypeIcon(product.type);
   useEffect(() => setMounted(true), []);
   const inWishlist = mounted && inWishlistRaw;
   const inCart = mounted && has(product.id);
@@ -80,7 +82,8 @@ export function ProductCard({ product }: { product: ProductSummary }) {
 
       <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
         <div className="mb-1.5 flex items-center gap-1.5 flex-wrap">
-          <Badge variant={productTypeBadgeVariant(product.type)} className="text-[10px] sm:text-xs px-1.5 py-0">
+          <Badge variant={productTypeBadgeVariant(product.type)} className="text-[10px] sm:text-xs px-1.5 py-0 gap-1">
+            {mounted && <DynamicLucideIcon name={typeIcon} className="h-2.5 w-2.5" />}
             {typeLabel}
           </Badge>
           {product.category && (

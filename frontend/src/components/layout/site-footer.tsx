@@ -3,7 +3,7 @@ import { SITE_NAME } from '@/lib/constants';
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-muted/30">
+    <footer className="bg-muted/30" style={{ borderTop: '2px solid oklch(0.847 0.178 85.87)' }}>
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
           <p className="text-xs text-muted-foreground">

@@ -16,6 +16,7 @@ import {
   Loading,
 } from '@digitalger/shared/ui';
 import { CategorySheet } from '@/components/categories/category-sheet';
+import { IconBadge } from '@/components/ui/icon-picker';
 import { adminApi } from '@/lib/api';
 import type { AdminCategory } from '@/types/admin';
 
@@ -41,7 +42,16 @@ export default function CategoriesPage() {
   });
 
   const columns: ColumnDef<AdminCategory>[] = [
-    { accessorKey: 'name', header: 'Нэр' },
+    {
+      accessorKey: 'name',
+      header: 'Нэр',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <IconBadge name={row.original.icon} size="sm" />
+          <span className="font-medium">{row.original.name}</span>
+        </div>
+      ),
+    },
     { accessorKey: 'slug', header: 'Slug' },
     { accessorKey: 'sortOrder', header: 'Эрэмбэ' },
     {

@@ -20,3 +20,12 @@ export function useProductTypeLabel(type: string): string {
   }
   return PRODUCT_TYPE_LABELS[type] ?? type;
 }
+
+export function useProductTypeIcon(type: string): string | null {
+  const { data } = useProductTypes();
+  if (data) {
+    const found = data.find((t) => t.value === type);
+    if (found) return found.icon ?? null;
+  }
+  return null;
+}

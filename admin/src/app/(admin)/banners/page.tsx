@@ -71,13 +71,17 @@ export default function BannersPage() {
               <CardContent className="p-4">
                 <div className="flex items-center gap-4">
                   <div className="relative h-20 w-36 shrink-0 overflow-hidden rounded-lg border bg-muted">
-                    <Image
-                      src={banner.imageUrl}
-                      alt={banner.title}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
+                    {banner.imageUrl ? (
+                      <Image
+                        src={banner.imageUrl}
+                        alt={banner.title}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Зураггүй</div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

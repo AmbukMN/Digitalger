@@ -16,6 +16,10 @@ export class UpdateCategoryDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  icon?: string;
+
+  @IsOptional()
   @IsInt()
   sortOrder?: number;
 }

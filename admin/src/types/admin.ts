@@ -31,6 +31,7 @@ export interface AdminCategory {
   name: string;
   slug: string;
   description: string | null;
+  icon: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;

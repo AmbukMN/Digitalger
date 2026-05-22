@@ -14,6 +14,10 @@ export class CreateCategoryDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  icon?: string;
+
+  @IsOptional()
   @IsInt()
   sortOrder?: number;
 }

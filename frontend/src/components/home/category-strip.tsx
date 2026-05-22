@@ -1,18 +1,8 @@
 import Link from 'next/link';
 import { categoriesApi } from '@/lib/api';
-
-const CATEGORY_ICONS: Record<string, string> = {
-  templates: '🎨',
-  documents: '📄',
-  courses: '🎓',
-  files: '📁',
-  videos: '🎬',
-  designs: '✏️',
-  music: '🎵',
-  software: '💻',
-  photos: '📷',
-  fonts: '🔤',
-};
+import { CategorySwiper } from './category-swiper';
+import { ArrowRight } from 'lucide-react';
+import { Button } from '@digitalger/shared/ui';
 
 export async function CategoryStrip() {
   let categories: Awaited<ReturnType<typeof categoriesApi.list>> = [];
@@ -25,36 +15,25 @@ export async function CategoryStrip() {
   if (!categories.length) return null;
 
   return (
-    <section className="py-10 bg-muted/30">
+    <section className="py-8 bg-muted/20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Ангиллаар хайх</h2>
-            <p className="text-sm text-muted-foreground mt-1">Хэрэгтэй ангиллаасаа хайгаад шийдлээ нэн даруй татаж ав</p>
+        {/* Header — same style as ProductSection */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-1 rounded-full bg-primary shrink-0" aria-hidden="true" />
+            <h2 className="text-2xl font-bold">Ангиллаар үзэх</h2>
           </div>
-          <Link href="/categories" className="text-sm font-medium text-primary hover:underline">
-            Бүх ангилал →
-          </Link>
+          <Button variant="ghost" size="sm" asChild className="gap-1 text-muted-foreground hover:text-foreground">
+            <Link href="/categories">
+              Бүгдийг харах
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {categories.slice(0, 12).map((cat) => {
-            const icon = CATEGORY_ICONS[cat.slug] ?? '📦';
-            return (
-              <Link
-                key={cat.id}
-                href={`/categories/${cat.slug}`}
-                className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-background p-4 text-center transition-all hover:border-primary/40 hover:shadow-md hover:-translate-y-0.5"
-              >
-                <span className="text-3xl transition-transform group-hover:scale-110">{icon}</span>
-                <div>
-                  <p className="text-sm font-semibold group-hover:text-primary transition-colors">{cat.name}</p>
-                  {cat._count?.products !== undefined && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{cat._count.products} бүтээгдэхүүн</p>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+
+        {/* px-6 gives room for -left-5/-right-5 nav buttons; overflow-visible lets hover shadow show */}
+        <div className="px-6 overflow-visible">
+          <CategorySwiper categories={categories} />
         </div>
       </div>
     </section>

@@ -7,10 +7,10 @@ import { ProductSection } from '@/components/home/product-section';
 import { BannerCarousel } from '@/components/home/banner-carousel';
 import { TestimonialsSection } from '@/components/home/testimonials-section';
 import { BlogSection } from '@/components/home/blog-section';
-import { bannersApi, blogApi, categoriesApi, testimonialsApi } from '@/lib/api';
-import type { Banner, BlogPost, Category, Testimonial } from '@/types/api';
-import { Shield, Zap, Download, Star, ArrowRight } from 'lucide-react';
-import Image from 'next/image';
+import { bannersApi, blogApi, testimonialsApi } from '@/lib/api';
+import type { Banner, BlogPost, Testimonial } from '@/types/api';
+import { Shield, Zap, Download, Star } from 'lucide-react';
+import { CategoryStrip } from '@/components/home/category-strip';
 
 async function getBanners(): Promise<Banner[]> {
   try { return await bannersApi.list(); } catch { return []; }
@@ -21,10 +21,6 @@ async function getTestimonials(): Promise<Testimonial[]> {
 async function getBlogPosts(): Promise<BlogPost[]> {
   try { return await blogApi.latest(6); } catch { return []; }
 }
-async function getCategories(): Promise<Category[]> {
-  try { return await categoriesApi.list(); } catch { return []; }
-}
-
 const TRUST_ITEMS = [
   { icon: Shield,   label: '100% Аюулгүй төлбөр',       desc: 'QPay болон картаар баталгаатай, шифрлэгдсэн төлбөр хийгддэг', iconCls: 'text-blue-500   bg-blue-500/10'   },
   { icon: Zap,      label: 'Шууд татаж авах',             desc: 'Төлбөр төлөгдсөн даруй секундын дотор татаж авна',            iconCls: 'text-violet-500 bg-violet-500/10' },
@@ -32,56 +28,13 @@ const TRUST_ITEMS = [
   { icon: Star,     label: '4.8★ Дундаж Үнэлгээ',        desc: '1000+ хэрэглэгч итгэж, дахин дахин худалдаж авдаг',          iconCls: 'text-amber-500  bg-amber-500/10'  },
 ];
 
-function CategoryGrid({ categories }: { categories: Category[] }) {
-  if (!categories.length) return null;
-  return (
-    <section className="py-8 bg-muted/20">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-6 w-1 rounded-full bg-primary shrink-0" aria-hidden="true" />
-            <h2 className="text-2xl font-bold">Ангиллаар Үзэх</h2>
-          </div>
-          <Button variant="ghost" size="sm" asChild className="gap-1 text-muted-foreground hover:text-foreground">
-            <Link href="/categories">
-              Бүгдийг харах
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {categories.map((cat) => (
-            <Link
-              key={cat.id}
-              href={`/categories/${cat.slug}`}
-              className="group flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-3 text-center hover:border-primary/50 hover:bg-primary/8 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
-            >
-              {cat.imageUrl ? (
-                <div className="relative h-12 w-12 overflow-hidden rounded-lg">
-                  <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover" sizes="48px" />
-                </div>
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-2xl">
-                  {cat.name.charAt(0)}
-                </div>
-              )}
-              <span className="text-xs font-medium leading-tight group-hover:text-primary line-clamp-2">
-                {cat.name}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+
 
 export default async function HomePage() {
-  const [banners, testimonials, blogPosts, categories] = await Promise.all([
+  const [banners, testimonials, blogPosts] = await Promise.all([
     getBanners(),
     getTestimonials(),
     getBlogPosts(),
-    getCategories(),
   ]);
 
   return (
@@ -122,7 +75,7 @@ export default async function HomePage() {
       </Suspense>
 
       {/* Ангилал */}
-      <CategoryGrid categories={categories} />
+      <CategoryStrip />
 
       {/* Хичээлүүд — LESSON, BUNDLE */}
       <Suspense fallback={null}>

@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { IconPicker, IconBadge } from '@/components/ui/icon-picker';
 import type { AdminCategory } from '@/types/admin';
 
 interface CategorySheetProps {
@@ -21,7 +22,7 @@ interface CategorySheetProps {
   category?: AdminCategory | null;
 }
 
-const empty = { name: '', slug: '', description: '', sortOrder: '0' };
+const empty = { name: '', slug: '', description: '', icon: '', sortOrder: '0' };
 
 export function CategorySheet({
   open,
@@ -37,6 +38,7 @@ export function CategorySheet({
         name: category.name,
         slug: category.slug,
         description: category.description ?? '',
+        icon: category.icon ?? '',
         sortOrder: String(category.sortOrder),
       });
     } else {
@@ -50,6 +52,7 @@ export function CategorySheet({
         name: form.name,
         slug: form.slug,
         description: form.description || undefined,
+        icon: form.icon || undefined,
         sortOrder: parseInt(form.sortOrder, 10) || 0,
       };
       if (category) return adminApi.categories.update(category.id, body);
@@ -65,9 +68,10 @@ export function CategorySheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right">
+      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            <IconBadge name={form.icon || null} size="md" />
             {category ? 'Ангилал засах' : 'Шинэ ангилал'}
           </SheetTitle>
         </SheetHeader>
@@ -101,9 +105,14 @@ export function CategorySheet({
             <Input
               id="cat-desc"
               value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Дүрс (Icon)</Label>
+            <IconPicker
+              value={form.icon}
+              onChange={(name) => setForm({ ...form, icon: name })}
             />
           </div>
           <div className="grid gap-2">
@@ -112,9 +121,7 @@ export function CategorySheet({
               id="cat-sort"
               type="number"
               value={form.sortOrder}
-              onChange={(e) =>
-                setForm({ ...form, sortOrder: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, sortOrder: e.target.value })}
             />
           </div>
           <Button type="submit" disabled={mutation.isPending}>

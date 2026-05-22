@@ -264,3 +264,49 @@
 .animate-search-slide-down {
   animation: search-slide-down 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* ─── Hide scrollbar utility ──────────────────────────────── */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* prevent any framework from collapsing the flex track into a grid */
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Auth modal buttons ───────────────────────────────────── */
+/* Submit: light=navy(primary), dark=gray(secondary) */
+.auth-submit-btn {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.auth-submit-btn:hover {
+  background-color: oklch(0.19 0.13 264.052);
+}
+.dark .auth-submit-btn {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.dark .auth-submit-btn:hover {
+  background-color: oklch(0.28 0.048 240);
+}
+
+/* Guest: light=gold(secondary), dark=gold(primary) */
+.auth-guest-btn {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.auth-guest-btn:hover {
+  background-color: oklch(0.82 0.165 85.87);
+}
+.dark .auth-guest-btn {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.dark .auth-guest-btn:hover {
+  background-color: oklch(0.81 0.168 85.87);
+}

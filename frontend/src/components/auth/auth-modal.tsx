@@ -134,16 +134,15 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
       animate={{ x: [0, -3, 3, -3, 3, -1.5, 1.5, 0] }}
       transition={{ duration: 0.3, delay: 2, repeat: Infinity, repeatDelay: 5 }}
     >
-      <Button
+      <button
         type="button"
-        variant="secondary"
-        className="w-full gap-2 dark:bg-amber-400! dark:text-amber-950! dark:hover:bg-amber-300!"
+        className="auth-guest-btn inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50"
         onClick={onClick}
         disabled={loading}
       >
         <Ghost className="h-4 w-4 shrink-0" />
         {loading ? 'Нэвтэрч байна...' : 'Бүртгэлгүйгээр шууд нэвтрэх'}
-      </Button>
+      </button>
     </motion.div>
   );
 }
@@ -204,9 +203,13 @@ function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?
         <FieldError message={form.formState.errors.password?.message} />
       </div>
 
-      <Button type="submit" variant="secondary" className="w-full" disabled={form.formState.isSubmitting}>
+      <button
+        type="submit"
+        className="auth-submit-btn inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50"
+        disabled={form.formState.isSubmitting}
+      >
         {form.formState.isSubmitting ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
-      </Button>
+      </button>
 
       <GuestButton onClick={handleGuest} loading={guestLoading} />
     </form>
@@ -294,9 +297,13 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
         <FieldError message={form.formState.errors.confirmPassword?.message} />
       </div>
 
-      <Button type="submit" variant="secondary" className="w-full mt-1" disabled={form.formState.isSubmitting}>
+      <button
+        type="submit"
+        className="auth-submit-btn inline-flex w-full items-center justify-center rounded-lg px-4 py-2 mt-1 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50"
+        disabled={form.formState.isSubmitting}
+      >
         {form.formState.isSubmitting ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
-      </Button>
+      </button>
 
       <GuestButton onClick={handleGuest} loading={guestLoading} />
     </form>
