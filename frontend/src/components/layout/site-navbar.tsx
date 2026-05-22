@@ -243,6 +243,18 @@ export function SiteNavbar() {
   const mobileSearchFormRef = useRef<HTMLFormElement>(null);
   const cartCount = useCartStore((s) => s.items.length);
   const wishCount = useWishlistStore((s) => s.items.length);
+  const [cartShake, setCartShake] = useState(false);
+  const prevCartCount = useRef(cartCount);
+
+  useEffect(() => {
+    if (cartCount > prevCartCount.current) {
+      setCartShake(true);
+      const t = setTimeout(() => setCartShake(false), 600);
+      prevCartCount.current = cartCount;
+      return () => clearTimeout(t);
+    }
+    prevCartCount.current = cartCount;
+  }, [cartCount]);
   const { data: publicSettings, isLoading: settingsLoading } = usePublicSettings();
   const { data: menuItems, isLoading: menuLoading } = useMenuItems();
 
@@ -469,7 +481,7 @@ export function SiteNavbar() {
             </Button>
             <Button variant="ghost" size="icon" asChild>
               <Link href="/checkout" className="relative">
-                <ShoppingCart className="h-5 w-5" />
+                <ShoppingCart className={cn('h-5 w-5 transition-transform', cartShake && 'cart-shake')} />
                 {cartCount > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: 'oklch(0.847 0.178 85.87)', color: 'oklch(0.1 0.04 264)' }}>
                     {cartCount}
