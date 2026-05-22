@@ -137,7 +137,7 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
       <Button
         type="button"
         variant="secondary"
-        className="w-full gap-2 dark:bg-popover dark:text-foreground dark:hover:bg-muted"
+        className="w-full gap-2 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300"
         onClick={onClick}
         disabled={loading}
       >
@@ -204,7 +204,7 @@ function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?
         <FieldError message={form.formState.errors.password?.message} />
       </div>
 
-      <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+      <Button type="submit" className="w-full dark:bg-popover dark:text-foreground dark:hover:bg-muted" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
       </Button>
 
@@ -294,7 +294,7 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
         <FieldError message={form.formState.errors.confirmPassword?.message} />
       </div>
 
-      <Button type="submit" className="w-full mt-1" disabled={form.formState.isSubmitting}>
+      <Button type="submit" className="w-full mt-1 dark:bg-popover dark:text-foreground dark:hover:bg-muted" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
       </Button>
 
@@ -412,8 +412,8 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
                   type="button"
                   className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
                     tab === t
-                      ? 'bg-popover text-foreground shadow-sm dark:bg-amber-400 dark:text-amber-950 dark:shadow-none'
-                      : 'text-muted-foreground hover:text-foreground dark:hover:text-foreground'
+                      ? 'bg-popover text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setTab(t)}
                 >
