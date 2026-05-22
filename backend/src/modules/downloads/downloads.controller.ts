@@ -23,6 +23,16 @@ export class DownloadsController {
     return this.downloadsService.streamZipDownload(userId, productId, res);
   }
 
+  @Post('zip/:productId/bundle/:bundleId')
+  downloadBundleZip(
+    @CurrentUser('sub') userId: string,
+    @Param('productId') productId: string,
+    @Param('bundleId') bundleId: string,
+    @Res() res: Response,
+  ) {
+    return this.downloadsService.streamBundleZip(userId, productId, bundleId, res);
+  }
+
   @Post(':fileId')
   getSignedUrl(
     @CurrentUser('sub') userId: string,

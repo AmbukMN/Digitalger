@@ -166,6 +166,7 @@ export const downloadsApi = {
     }),
 
   zipUrl: (productId: string) => `/downloads/zip/${productId}`,
+  bundleZipUrl: (productId: string, bundleId: string) => `/downloads/zip/${productId}/bundle/${bundleId}`,
 };
 
 // —— Payments ——

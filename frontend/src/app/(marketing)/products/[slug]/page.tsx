@@ -243,48 +243,27 @@ export default async function ProductDetailPage({ params }: Props) {
               )}
             </section>
 
-            {/* What's included */}
-            {(hasRealContent(product.whatsIncluded) || hasFiles) && (
+            {/* What's included — зөвхөн whatsIncluded text байвал харуулна, bundle байвал file list давхарлахгүй */}
+            {hasRealContent(product.whatsIncluded) && (
               <section className="rounded-2xl border border-border bg-muted/30 p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <h2 className="text-lg font-bold flex items-center gap-2">
                     <Package className="h-5 w-5 text-primary" />
                     Багцад юу багтсан вэ?
                   </h2>
-                  {hasFiles && <DownloadAllButton productId={product.id} />}
+                  {hasFiles && (!product.bundles || product.bundles.length === 0) && <DownloadAllButton productId={product.id} />}
                 </div>
-                {hasRealContent(product.whatsIncluded) && product.whatsIncluded && (
+                {product.whatsIncluded && (
                   product.whatsIncluded.startsWith('<') ? (
                     <div
-                      className="prose prose-sm max-w-none text-muted-foreground leading-relaxed mb-4"
+                      className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
                       dangerouslySetInnerHTML={{ __html: product.whatsIncluded }}
                     />
                   ) : (
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-4 whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                       {product.whatsIncluded}
                     </p>
                   )
-                )}
-                {hasFiles && (
-                  <ul className={`space-y-2 ${product.files!.length > 6 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
-                    {product.files!.map((file) => {
-                      const size = formatBytes(file.sizeBytes);
-                      return (
-                        <li key={file.id} className="flex items-center gap-3 text-sm min-w-0">
-                          <FileText className="h-4 w-4 shrink-0 text-primary" />
-                          <span className="flex-1 font-medium truncate min-w-0">{file.fileName}</span>
-                          {size && (
-                            <span className="text-xs text-muted-foreground shrink-0">{size}</span>
-                          )}
-                          {file.mimeType && (
-                            <Badge variant="secondary" className="text-xs uppercase shrink-0 hidden sm:inline-flex">
-                              {file.mimeType.split('/').pop()?.split('.').pop() ?? file.mimeType}
-                            </Badge>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
                 )}
               </section>
             )}

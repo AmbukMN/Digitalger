@@ -94,6 +94,48 @@ export class DownloadsService {
     await zip.finalize();
   }
 
+  async streamBundleZip(userId: string, productId: string, bundleId: string, res: Response) {
+    const owned = await this.prisma.order.findFirst({
+      where: { userId, status: OrderStatus.PAID, items: { some: { productId } } },
+    });
+    if (!owned) throw new ForbiddenException('You do not own this product');
+
+    const bundle = await this.prisma.productBundle.findUnique({
+      where: { id: bundleId },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!bundle || bundle.productId !== productId) throw new NotFoundException('Bundle not found');
+
+    const allFileIds = bundle.items.flatMap((item) =>
+      item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+    );
+    if (!allFileIds.length) throw new NotFoundException('No files in bundle');
+
+    const files = await this.prisma.productFile.findMany({
+      where: { id: { in: allFileIds } },
+    });
+
+    const zipName = `${bundle.title.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+
+    const zip = archiver.default('zip', { zlib: { level: 6 } });
+    zip.pipe(res);
+
+    await Promise.all(
+      files.map(async (file) => {
+        const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
+        const response = await fetch(url);
+        if (!response.ok || !response.body) return;
+        const { Readable } = await import('stream');
+        const nodeStream = Readable.fromWeb(response.body as any);
+        zip.append(nodeStream, { name: file.fileName });
+      }),
+    );
+
+    await zip.finalize();
+  }
+
   async listUserDownloads(userId: string) {
     const orders = await this.prisma.order.findMany({
       where: { userId, status: OrderStatus.PAID },
