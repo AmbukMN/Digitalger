@@ -137,7 +137,7 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
       <Button
         type="button"
         variant="secondary"
-        className="w-full gap-2"
+        className="w-full gap-2 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300"
         onClick={onClick}
         disabled={loading}
       >
@@ -204,7 +204,7 @@ function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?
         <FieldError message={form.formState.errors.password?.message} />
       </div>
 
-      <Button type="submit" className="w-full dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300" disabled={form.formState.isSubmitting}>
+      <Button type="submit" className="w-full dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/80" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
       </Button>
 
@@ -294,7 +294,7 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
         <FieldError message={form.formState.errors.confirmPassword?.message} />
       </div>
 
-      <Button type="submit" className="w-full mt-1 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300" disabled={form.formState.isSubmitting}>
+      <Button type="submit" className="w-full mt-1 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/80" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
       </Button>
 
