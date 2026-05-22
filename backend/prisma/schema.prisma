@@ -300,19 +300,22 @@ model SiteSetting {
 }
 
 model Banner {
-  id        String    @id @default(cuid())
-  title     String
-  subtitle  String?
-  imageUrl  String
-  linkUrl   String?
-  linkLabel String?
-  sortOrder Int       @default(0)
-  active    Boolean   @default(true)
-  bgColor   String?
-  startsAt  DateTime?
-  endsAt    DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  title           String
+  subtitle        String?
+  imageUrl        String
+  mobileImageUrl  String?
+  desktopImageUrl String?
+  videoUrl        String?
+  linkUrl         String?
+  linkLabel       String?
+  sortOrder       Int       @default(0)
+  active          Boolean   @default(true)
+  bgColor         String?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([active, sortOrder])
 }

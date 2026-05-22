@@ -14,6 +14,49 @@ interface Props {
   banners: Banner[];
 }
 
+function BannerMedia({ banner }: { banner: Banner }) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  if (banner.videoUrl) {
+    return (
+      <video
+        key={banner.videoUrl}
+        src={banner.videoUrl}
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+      />
+    );
+  }
+
+  const imgSrc = isMobile
+    ? (banner.mobileImageUrl || banner.imageUrl)
+    : (banner.desktopImageUrl || banner.imageUrl);
+
+  if (!imgSrc) return null;
+
+  return (
+    <Image
+      src={imgSrc}
+      alt={banner.title}
+      fill
+      className="object-cover"
+      priority
+      sizes="100vw"
+    />
+  );
+}
+
 export function BannerCarousel({ banners }: Props) {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -49,8 +92,7 @@ export function BannerCarousel({ banners }: Props) {
 
   return (
     <section
-      className="relative overflow-hidden"
-      style={{ minHeight: 400 }}
+      className="relative overflow-hidden min-h-100"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -66,27 +108,20 @@ export function BannerCarousel({ banners }: Props) {
           className="absolute inset-0"
         >
           <div
-            className="relative flex h-full min-h-[400px] w-full items-center"
+            className="relative flex h-full min-h-100 w-full items-center"
             style={{ background: banner.bgColor ?? '#022179' }}
           >
-            {banner.imageUrl && (
-              <Image
-                src={banner.imageUrl}
-                alt={banner.title}
-                fill
-                className="object-cover"
-                priority
-                sizes="100vw"
-              />
-            )}
+            <BannerMedia banner={banner} />
+
             <div
               className="absolute inset-0"
               style={{
-                background: banner.imageUrl
+                background: (banner.videoUrl || banner.desktopImageUrl || banner.mobileImageUrl || banner.imageUrl)
                   ? `linear-gradient(90deg, ${banner.bgColor ?? '#022179'}e6 0%, ${banner.bgColor ?? '#022179'}80 50%, transparent 100%)`
                   : undefined,
               }}
             />
+
             <div className="relative z-10 mx-auto max-w-7xl w-full px-8 sm:px-12 lg:px-16 py-16 lg:py-24">
               <motion.div
                 initial={{ opacity: 0, y: 24 }}

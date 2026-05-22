@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Monitor, Smartphone, Video } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -28,6 +28,9 @@ const empty = {
   title: '',
   subtitle: '',
   imageUrl: '',
+  mobileImageUrl: '',
+  desktopImageUrl: '',
+  videoUrl: '',
   linkUrl: '',
   linkLabel: 'Дэлгэрэнгүй',
   sortOrder: 0,
@@ -37,10 +40,15 @@ const empty = {
   active: true,
 };
 
+type UploadField = 'imageUrl' | 'mobileImageUrl' | 'desktopImageUrl' | 'videoUrl';
+
 export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
   const [form, setForm] = useState(empty);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<UploadField | null>(null);
+
+  const desktopRef = useRef<HTMLInputElement>(null);
+  const mobileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (banner) {
@@ -48,6 +56,9 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
         title: banner.title,
         subtitle: banner.subtitle ?? '',
         imageUrl: banner.imageUrl,
+        mobileImageUrl: banner.mobileImageUrl ?? '',
+        desktopImageUrl: banner.desktopImageUrl ?? '',
+        videoUrl: banner.videoUrl ?? '',
         linkUrl: banner.linkUrl ?? '',
         linkLabel: banner.linkLabel ?? 'Дэлгэрэнгүй',
         sortOrder: banner.sortOrder,
@@ -66,7 +77,10 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
       const payload = {
         title: form.title,
         subtitle: form.subtitle || undefined,
-        imageUrl: form.imageUrl,
+        imageUrl: form.imageUrl || form.desktopImageUrl || form.mobileImageUrl || '',
+        mobileImageUrl: form.mobileImageUrl || undefined,
+        desktopImageUrl: form.desktopImageUrl || undefined,
+        videoUrl: form.videoUrl || undefined,
         linkUrl: form.linkUrl || undefined,
         linkLabel: form.linkLabel || undefined,
         sortOrder: form.sortOrder,
@@ -86,71 +100,215 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
     onError: () => toast.error('Хадгалахад алдаа гарлаа'),
   });
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
+  const handleUpload = async (file: File, field: UploadField) => {
+    setUploading(field);
     try {
       const result = await adminApi.upload(file);
-      setForm((f) => ({ ...f, imageUrl: result.url }));
+      setForm((f) => ({ ...f, [field]: result.url }));
     } catch {
-      toast.error('Зураг байршуулахад алдаа');
+      toast.error('Файл байршуулахад алдаа');
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   };
 
+  const hasAnyMedia = form.imageUrl || form.mobileImageUrl || form.desktopImageUrl || form.videoUrl;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{banner ? 'Баннер засах' : 'Баннер нэмэх'}</DialogTitle>
         </DialogHeader>
 
         <form
-          className="space-y-4"
+          className="space-y-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!form.title || !form.imageUrl) {
-              toast.error('Гарчиг болон зураг заавал шаардлагатай');
+            if (!form.title) {
+              toast.error('Гарчиг заавал шаардлагатай');
+              return;
+            }
+            if (!hasAnyMedia) {
+              toast.error('Дор хаяж нэг медиа файл байршуулна уу');
               return;
             }
             mutation.mutate();
           }}
         >
-          {/* Image */}
-          <div className="space-y-2">
-            <Label>Баннерийн зураг *</Label>
-            {form.imageUrl ? (
-              <div className="relative h-36 w-full overflow-hidden rounded-lg border bg-muted">
-                <Image src={form.imageUrl} alt="banner" fill className="object-cover" unoptimized />
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
-                  className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground"
+          {/* Media uploads — 3 zones */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Медиа файлууд</Label>
+
+            {/* Desktop image */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Monitor className="h-3.5 w-3.5" />
+                <span>Десктоп зураг (16:9 өргөн, 1920×1080+)</span>
+              </div>
+              {form.desktopImageUrl ? (
+                <div className="relative h-32 w-full overflow-hidden rounded-lg border bg-muted">
+                  <Image src={form.desktopImageUrl} alt="desktop" fill className="object-cover" unoptimized />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, desktopImageUrl: '' }))}
+                    className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  onClick={() => desktopRef.current?.click()}
                 >
-                  <X className="h-3 w-3" />
-                </button>
+                  <Monitor className="h-7 w-7 text-muted-foreground mb-1.5" />
+                  <p className="text-xs text-muted-foreground">
+                    {uploading === 'desktopImageUrl' ? 'Байршуулж байна...' : 'Десктоп зураг сонгох'}
+                  </p>
+                  <input
+                    ref={desktopRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUpload(f, 'desktopImageUrl');
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Mobile image */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Smartphone className="h-3.5 w-3.5" />
+                <span>Мобайл зураг (9:16 босоо, 1080×1920)</span>
               </div>
-            ) : (
-              <div
-                className="flex h-36 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {uploading ? 'Байршуулж байна...' : 'Зураг сонгох'}
-                </p>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleUpload(f);
+              {form.mobileImageUrl ? (
+                <div className="relative mx-auto h-48 w-28 overflow-hidden rounded-lg border bg-muted">
+                  <Image src={form.mobileImageUrl} alt="mobile" fill className="object-cover" unoptimized />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, mobileImageUrl: '' }))}
+                    className="absolute right-1 top-1 rounded-full bg-destructive p-1 text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  onClick={() => mobileRef.current?.click()}
+                >
+                  <Smartphone className="h-7 w-7 text-muted-foreground mb-1.5" />
+                  <p className="text-xs text-muted-foreground">
+                    {uploading === 'mobileImageUrl' ? 'Байршуулж байна...' : 'Мобайл зураг сонгох (9:16)'}
+                  </p>
+                  <input
+                    ref={mobileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUpload(f, 'mobileImageUrl');
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Video */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Video className="h-3.5 w-3.5" />
+                <span>Видео (MP4, WebM — autoplay, loop)</span>
+              </div>
+              {form.videoUrl ? (
+                <div className="relative overflow-hidden rounded-lg border bg-muted">
+                  <video
+                    src={form.videoUrl}
+                    className="h-32 w-full object-cover"
+                    muted
+                    playsInline
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, videoUrl: '' }))}
+                    className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                    Видео
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  onClick={() => videoRef.current?.click()}
+                >
+                  <Video className="h-7 w-7 text-muted-foreground mb-1.5" />
+                  <p className="text-xs text-muted-foreground">
+                    {uploading === 'videoUrl' ? 'Байршуулж байна...' : 'Видео сонгох (MP4, WebM)'}
+                  </p>
+                  <input
+                    ref={videoRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUpload(f, 'videoUrl');
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Legacy imageUrl fallback */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                <span>Нөөц зураг (хуучин / fallback)</span>
+              </div>
+              {form.imageUrl ? (
+                <div className="relative h-24 w-full overflow-hidden rounded-lg border bg-muted">
+                  <Image src={form.imageUrl} alt="fallback" fill className="object-cover" unoptimized />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
+                    className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="flex h-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  onClick={() => {
+                    const inp = document.createElement('input');
+                    inp.type = 'file';
+                    inp.accept = 'image/*';
+                    inp.onchange = (e) => {
+                      const f = (e.target as HTMLInputElement).files?.[0];
+                      if (f) handleUpload(f, 'imageUrl');
+                    };
+                    inp.click();
                   }}
-                />
-              </div>
-            )}
+                >
+                  <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                  <p className="text-xs text-muted-foreground">
+                    {uploading === 'imageUrl' ? 'Байршуулж байна...' : 'Fallback зураг сонгох'}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -252,7 +410,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
             <Button type="button" variant="outline" onClick={onClose}>
               Болих
             </Button>
-            <Button type="submit" disabled={mutation.isPending || uploading}>
+            <Button type="submit" disabled={mutation.isPending || uploading !== null}>
               {mutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
             </Button>
           </div>

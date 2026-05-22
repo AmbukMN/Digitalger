@@ -11,6 +11,15 @@ export class CreateBannerDto {
   imageUrl!: string;
 
   @IsOptional() @IsString()
+  mobileImageUrl?: string;
+
+  @IsOptional() @IsString()
+  desktopImageUrl?: string;
+
+  @IsOptional() @IsString()
+  videoUrl?: string;
+
+  @IsOptional() @IsString()
   linkUrl?: string;
 
   @IsOptional() @IsString()
@@ -41,6 +50,15 @@ export class UpdateBannerDto {
 
   @IsOptional() @IsString()
   imageUrl?: string;
+
+  @IsOptional() @IsString()
+  mobileImageUrl?: string;
+
+  @IsOptional() @IsString()
+  desktopImageUrl?: string;
+
+  @IsOptional() @IsString()
+  videoUrl?: string;
 
   @IsOptional() @IsString()
   linkUrl?: string;

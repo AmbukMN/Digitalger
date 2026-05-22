@@ -133,6 +133,9 @@ export interface AdminBanner {
   title: string;
   subtitle: string | null;
   imageUrl: string;
+  mobileImageUrl: string | null;
+  desktopImageUrl: string | null;
+  videoUrl: string | null;
   linkUrl: string | null;
   linkLabel: string | null;
   sortOrder: number;
