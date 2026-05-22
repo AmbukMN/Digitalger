@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { expandQuery } from '../../common/transliterate';
 
 @Injectable()
 export class ProductsService {
@@ -165,13 +166,46 @@ export class ProductsService {
   async search(q: string, page = 1, pageSize = 12) {
     const skip = (Math.max(1, page) - 1) * Math.min(48, pageSize);
 
+    // Build expanded terms: original + cross-script transliteration
+    const terms = expandQuery(q);
+    if (!terms.length) return { items: [], total: 0, page, pageSize };
+
+    // Build OR clauses for every term across all searchable fields
+    const termClauses = (term: string): Prisma.ProductWhereInput[] => [
+      { title:         { contains: term, mode: 'insensitive' } },
+      { description:   { contains: term, mode: 'insensitive' } },
+      { whatsIncluded: { contains: term, mode: 'insensitive' } },
+      { howToUse:      { contains: term, mode: 'insensitive' } },
+      { seoTitle:      { contains: term, mode: 'insensitive' } },
+      { category: { name: { contains: term, mode: 'insensitive' } } },
+      // Bundle sections (group titles + descriptions)
+      {
+        bundles: {
+          some: {
+            OR: [
+              { title:       { contains: term, mode: 'insensitive' } },
+              { description: { contains: term, mode: 'insensitive' } },
+              // Bundle items (individual file names)
+              {
+                items: {
+                  some: {
+                    OR: [
+                      { name:        { contains: term, mode: 'insensitive' } },
+                      { description: { contains: term, mode: 'insensitive' } },
+                      { label:       { contains: term, mode: 'insensitive' } },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+
     const where: Prisma.ProductWhereInput = {
       published: true,
-      OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } },
-        { category: { name: { contains: q, mode: 'insensitive' } } },
-      ],
+      OR: terms.flatMap(termClauses),
     };
 
     const [items, total] = await Promise.all([

@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { expandQuery } from '../../common/transliterate';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -21,12 +22,37 @@ export class AdminProductsService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
-    const where: Prisma.ProductWhereInput = query.search
+    const terms = query.search ? expandQuery(query.search) : [];
+    const where: Prisma.ProductWhereInput = terms.length
       ? {
-          OR: [
-            { title: { contains: query.search, mode: 'insensitive' } },
-            { slug: { contains: query.search, mode: 'insensitive' } },
-          ],
+          OR: terms.flatMap((term) => [
+            { title:         { contains: term, mode: 'insensitive' } },
+            { slug:          { contains: term, mode: 'insensitive' } },
+            { description:   { contains: term, mode: 'insensitive' } },
+            { whatsIncluded: { contains: term, mode: 'insensitive' } },
+            { category: { name: { contains: term, mode: 'insensitive' } } },
+            {
+              bundles: {
+                some: {
+                  OR: [
+                    { title:       { contains: term, mode: 'insensitive' } },
+                    { description: { contains: term, mode: 'insensitive' } },
+                    {
+                      items: {
+                        some: {
+                          OR: [
+                            { name:        { contains: term, mode: 'insensitive' } },
+                            { description: { contains: term, mode: 'insensitive' } },
+                            { label:       { contains: term, mode: 'insensitive' } },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ]),
         }
       : {};
 
