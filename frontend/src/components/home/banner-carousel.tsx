@@ -141,7 +141,7 @@ export function BannerCarousel({ banners }: Props) {
                   <Button
                     asChild
                     size="lg"
-                    className="mt-6 bg-secondary text-secondary-foreground hover:bg-secondary/90 font-bold shadow-lg"
+                    className="mt-6 font-bold shadow-lg bg-[#ffbe00] text-[#022179] hover:bg-[#ffd84d] dark:bg-[#ffbe00] dark:text-[#022179] dark:hover:bg-[#ffd84d]"
                   >
                     <Link href={banner.linkUrl}>
                       {banner.linkLabel ?? 'Дэлгэрэнгүй'}
