@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Input, Separator } from '@digitalger/shared/ui';
@@ -24,7 +24,7 @@ interface AppliedCoupon {
   discount: number;
 }
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -395,5 +395,13 @@ export default function CheckoutPage() {
         />
       )}
     </>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense>
+      <CheckoutContent />
+    </Suspense>
   );
 }
