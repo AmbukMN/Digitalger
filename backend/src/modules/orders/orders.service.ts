@@ -68,15 +68,44 @@ export class OrdersService {
   }
 
   async createPending(userId: string, dto: CreateOrderDto) {
+    const productIds = [...new Set(dto.productIds)]; // deduplicate input
+
     const products = await this.prisma.product.findMany({
       where: {
-        id: { in: dto.productIds },
+        id: { in: productIds },
         published: true,
       },
     });
 
-    if (products.length !== dto.productIds.length) {
+    if (products.length !== productIds.length) {
       throw new BadRequestException('One or more products are unavailable');
+    }
+
+    // ── Duplicate guard ────────────────────────────────────────────────────────
+    // If this user already has a PENDING order that contains exactly these
+    // products (no more, no less), return that order instead of creating a new one.
+    const existingPending = await this.prisma.order.findFirst({
+      where: {
+        userId,
+        status: OrderStatus.PENDING,
+        items: {
+          every: { productId: { in: productIds } },
+        },
+      },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, title: true, slug: true } },
+          },
+        },
+      },
+    });
+
+    if (existingPending) {
+      // Verify exact match (same count of items)
+      if (existingPending.items.length === productIds.length) {
+        return { ...existingPending, _reused: true };
+      }
     }
 
     const subtotal = products.reduce(
@@ -111,7 +140,7 @@ export class OrdersService {
         where: {
           userId,
           status: { in: [OrderStatus.PAID, OrderStatus.PENDING] },
-          items: { some: { productId: { in: dto.productIds } } },
+          items: { some: { productId: { in: productIds } } },
           OR: [
             { couponCode: { equals: code } },
             { couponCode: { startsWith: `${code},` } },

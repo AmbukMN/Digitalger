@@ -269,10 +269,13 @@ export default function CheckoutPage() {
               </div>
 
               {/* Coupon input section */}
-              <div className="pt-1 border-t border-border space-y-2.5">
+              <div
+                className="rounded-xl border border-primary/20 p-3 space-y-2.5"
+                style={{ background: 'color-mix(in oklch, var(--primary) 5%, var(--card))' }}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Gift className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Gift className="h-4 w-4 text-primary/70 shrink-0" />
                     <span className="text-sm font-semibold">Купон код байна уу?</span>
                   </div>
                   {totalCouponCount > 0 && (
@@ -312,7 +315,7 @@ export default function CheckoutPage() {
                       value={couponInput}
                       onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
                       placeholder="Купон кодоо оруулна уу"
-                      className="h-9 text-sm font-mono uppercase tracking-wider flex-1"
+                      className="h-9 text-sm font-mono uppercase tracking-wider flex-1 bg-background/80"
                       onKeyDown={(e) => { if (e.key === 'Enter') handleAddCoupon(); }}
                       disabled={couponLoading}
                     />

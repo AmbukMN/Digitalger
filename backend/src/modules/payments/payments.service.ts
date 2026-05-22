@@ -40,7 +40,14 @@ export class PaymentsService {
   async initiate(orderId: string, userId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: true },
+      include: {
+        items: true,
+        payments: {
+          where: { status: PaymentStatus.PENDING },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
     });
 
     if (!order) {
@@ -49,6 +56,23 @@ export class PaymentsService {
 
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException('Order is not pending payment');
+    }
+
+    // ── Idempotent QPay: reuse existing PENDING payment if QPay invoice exists ─
+    const existingPayment = order.payments[0];
+    if (existingPayment?.qpayPaymentId && existingPayment.rawPayload) {
+      const invoice = existingPayment.rawPayload as any;
+      this.logger.log(`Reusing existing QPay invoice for order ${orderId}`);
+      return {
+        devMode: false,
+        orderId: order.id,
+        paymentId: existingPayment.id,
+        identifier: order.qpayIdentifier ?? `DG-${order.id}`,
+        invoiceId: existingPayment.qpayPaymentId,
+        qrText: invoice.qr_text ?? '',
+        qrImage: invoice.qr_image ?? '',
+        urls: invoice.urls ?? [],
+      };
     }
 
     const payment = await this.prisma.payment.create({
