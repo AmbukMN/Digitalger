@@ -55,6 +55,29 @@ services:
       redis:
         condition: service_healthy
 
+  zip-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env
+    environment:
+      DATABASE_URL: postgresql://digitalger:digitalger_secret@postgres:5432/digitalger?schema=public
+      REDIS_URL: redis://redis:6379
+      ZIP_WORKER_CONCURRENCY: 5
+    command: ["node", "dist/src/worker.js"]
+    deploy:
+      replicas: 2          # docker compose up --scale zip-worker=N гэж өөрчлөх боломжтой
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   frontend:
     build:
       context: ..
