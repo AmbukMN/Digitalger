@@ -222,6 +222,11 @@ export function BundleList({
                           {item.description && (
                             <span className="text-xs text-muted-foreground hidden sm:block">{item.description}</span>
                           )}
+                          {hasFiles && !purchased && (
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {itemFileIds.length} файл
+                            </span>
+                          )}
                         </div>
                         {/* Download links — only for purchasers */}
                         {hasFiles && purchased && (
