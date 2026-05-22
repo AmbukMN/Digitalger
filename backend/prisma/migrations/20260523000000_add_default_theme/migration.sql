@@ -1,2 +1,29 @@
--- AlterTable
+-- AlterTable: ThemeSetting
 ALTER TABLE "ThemeSetting" ADD COLUMN IF NOT EXISTS "defaultTheme" TEXT NOT NULL DEFAULT 'system';
+
+-- AlterTable: Banner
+ALTER TABLE "Banner" ADD COLUMN IF NOT EXISTS "mobileImageUrl" TEXT;
+ALTER TABLE "Banner" ADD COLUMN IF NOT EXISTS "desktopImageUrl" TEXT;
+ALTER TABLE "Banner" ADD COLUMN IF NOT EXISTS "videoUrl" TEXT;
+
+-- AlterTable: Category
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "icon" TEXT;
+
+-- AlterTable: Product
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "compareAtPrice" DECIMAL(12,2);
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "howToUse" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "howToUseSteps" JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "whatsIncluded" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "discountEndsAt" TIMESTAMP(3);
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "videoUrl" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "downloadFileKey" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "proofImageUrl" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "proofQuote" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "proofText" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "proofAuthorName" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "proofAuthorRole" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "categoryIds" TEXT[] DEFAULT ARRAY[]::TEXT[];
+
+-- AlterTable: Product type column (was enum, now TEXT)
+ALTER TABLE "Product" ALTER COLUMN "type" TYPE TEXT;
+ALTER TABLE "Product" ALTER COLUMN "categoryId" DROP NOT NULL;
