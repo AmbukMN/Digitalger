@@ -278,6 +278,14 @@
   display: none;
 }
 
+/* ─── Navbar logo text ─────────────────────────────────────── */
+.navbar-logo-text {
+  color: var(--primary);
+}
+.dark .navbar-logo-text {
+  color: #ffffff;
+}
+
 /* ─── Auth modal buttons ───────────────────────────────────── */
 /* Submit: light=navy(primary), dark=gray(secondary) */
 .auth-submit-btn {
