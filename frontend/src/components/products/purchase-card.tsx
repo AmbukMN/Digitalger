@@ -305,6 +305,15 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
   const router = useRouter();
   const addToCart = useCartStore((s) => s.add);
   const coupons = useCouponStore((s) => s.coupons[product.id] ?? EMPTY_COUPONS);
+  const [btnShake, setBtnShake] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBtnShake(true);
+      setTimeout(() => setBtnShake(false), 600);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
   const addCoupon = useCouponStore((s) => s.add);
   const removeCoupon = useCouponStore((s) => s.remove);
 
@@ -400,7 +409,7 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
       )}
 
       {/* CTA — gold primary button, price-аас тодорхой ялгарна */}
-      <Button className="w-full font-bold text-base h-12" size="lg" onClick={handleBuy}>
+      <Button className={`w-full font-bold text-base h-12 transition-transform ${btnShake ? 'cart-shake' : ''}`} size="lg" onClick={handleBuy}>
         <ShoppingCart className="mr-2 h-5 w-5" />
         Шууд худалдаж авах
       </Button>
@@ -457,7 +466,16 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const [error, setError] = useState('');
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [btnShake, setBtnShake] = useState(false);
   const couponRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBtnShake(true);
+      setTimeout(() => setBtnShake(false), 600);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!couponOpen) return;
@@ -741,7 +759,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
             </button>
           </div>
           <Button
-            className="font-bold px-4 shrink-0 text-sm"
+            className={`font-bold px-4 shrink-0 text-sm transition-transform ${btnShake ? 'cart-shake' : ''}`}
             style={{ background: 'oklch(0.847 0.178 85.87)', color: 'oklch(0.1 0.04 264)' }}
             size="lg"
             onClick={handleBuy}
