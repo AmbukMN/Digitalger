@@ -245,15 +245,25 @@ export function SiteNavbar() {
   const wishCount = useWishlistStore((s) => s.items.length);
   const [cartShake, setCartShake] = useState(false);
   const prevCartCount = useRef(cartCount);
+  const shakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (cartCount > prevCartCount.current) {
       setCartShake(true);
-      const t = setTimeout(() => setCartShake(false), 600);
-      prevCartCount.current = cartCount;
-      return () => clearTimeout(t);
+      setTimeout(() => setCartShake(false), 600);
     }
     prevCartCount.current = cartCount;
+  }, [cartCount]);
+
+  useEffect(() => {
+    if (shakeIntervalRef.current) clearInterval(shakeIntervalRef.current);
+    if (cartCount > 0) {
+      shakeIntervalRef.current = setInterval(() => {
+        setCartShake(true);
+        setTimeout(() => setCartShake(false), 600);
+      }, 4000);
+    }
+    return () => { if (shakeIntervalRef.current) clearInterval(shakeIntervalRef.current); };
   }, [cartCount]);
   const { data: publicSettings, isLoading: settingsLoading } = usePublicSettings();
   const { data: menuItems, isLoading: menuLoading } = useMenuItems();
