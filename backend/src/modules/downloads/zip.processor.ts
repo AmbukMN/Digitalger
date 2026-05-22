@@ -5,7 +5,7 @@ import { Job } from 'bull';
 import * as archiver from 'archiver';
 import { Upload } from '@aws-sdk/lib-storage';
 import { S3Client } from '@aws-sdk/client-s3';
-import { PassThrough } from 'stream';
+import { PassThrough, Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 
@@ -19,6 +19,11 @@ export interface ZipJobPayload {
   fileIds: string[];
   zipName: string;
 }
+
+// Нэгэн зэрэг хэдэн worker ажиллахыг env-ээс тохируулж болно
+const WORKER_CONCURRENCY = parseInt(process.env.ZIP_WORKER_CONCURRENCY ?? '5', 10);
+// R2-с файл татахад зэрэг хэдэн presign хийх
+const PRESIGN_BATCH = 20;
 
 @Processor(ZIP_QUEUE)
 export class ZipProcessor {
@@ -41,15 +46,18 @@ export class ZipProcessor {
           accessKeyId: r2.accessKeyId,
           secretAccessKey: r2.secretAccessKey,
         },
+        // Connection pool — олон file зэрэг татахад
+        maxAttempts: 3,
       });
     } else {
       this.s3 = null;
     }
   }
 
-  @Process({ concurrency: 3 })
+  @Process({ concurrency: WORKER_CONCURRENCY })
   async handleZip(job: Job<ZipJobPayload>) {
     const { jobId, fileIds, zipName } = job.data;
+    const startedAt = Date.now();
 
     await this.prisma.zipJob.update({
       where: { id: jobId },
@@ -59,6 +67,7 @@ export class ZipProcessor {
     try {
       const files = await this.prisma.productFile.findMany({
         where: { id: { in: fileIds } },
+        select: { id: true, fileKey: true, fileName: true },
       });
 
       if (!files.length) throw new Error('No files found');
@@ -66,7 +75,6 @@ export class ZipProcessor {
       const zipKey = `zips/${jobId}/${zipName}`;
 
       if (!this.s3) {
-        // Dev fallback — just mark done
         await this.prisma.zipJob.update({
           where: { id: jobId },
           data: { status: 'DONE', zipKey },
@@ -74,9 +82,23 @@ export class ZipProcessor {
         return { zipKey };
       }
 
-      // Stream: archiver → PassThrough → R2 multipart upload
-      const pass = new PassThrough();
-      const zip = archiver.default('zip', { zlib: { level: 1 } });
+      // ── Presign URLs batch-аар (PRESIGN_BATCH зэрэг) ────────────────────
+      const urlMap = new Map<string, string>();
+      for (let i = 0; i < files.length; i += PRESIGN_BATCH) {
+        const batch = files.slice(i, i + PRESIGN_BATCH);
+        const urls = await Promise.all(
+          batch.map((f) => this.storage.getPresignedUrl(f.fileKey, 900, 'get')),
+        );
+        batch.forEach((f, j) => urlMap.set(f.id, urls[j]));
+        await job.progress(Math.round(((i + batch.length) / files.length) * 10));
+      }
+
+      // ── Stream pipeline: archiver → PassThrough → R2 multipart ──────────
+      const pass = new PassThrough({ highWaterMark: 16 * 1024 * 1024 }); // 16MB buffer
+      const zip = archiver.default('zip', {
+        zlib: { level: 1 },   // level 1 = хамгийн хурдан, file-ууд ихэвчлэн аль хэдийн compressed
+        statConcurrency: 4,
+      });
       zip.pipe(pass);
 
       const upload = new Upload({
@@ -86,40 +108,53 @@ export class ZipProcessor {
           Key: zipKey,
           Body: pass,
           ContentType: 'application/zip',
+          ContentDisposition: `attachment; filename="${zipName}"`,
         },
-        queueSize: 4,       // 4 паралл хэсэг
-        partSize: 10 * 1024 * 1024, // 10MB хэсэг
+        queueSize: 6,                    // 6 зэрэг chunk upload
+        partSize: 16 * 1024 * 1024,      // 16MB chunk — R2 min 5MB, max 5GB
+        leavePartsOnError: false,
       });
 
-      // Файлуудыг дарааллаар нэмнэ — archiver stream найдвартай байна
-      const appendFiles = async () => {
+      // ── Файл бүрийг дарааллаар zip-д нэмнэ ─────────────────────────────
+      // archiver нь append хийсний дараа stream-г удирдаж backpressure хянадаг
+      const appendAll = async () => {
+        let done = 0;
         for (const file of files) {
-          const url = await this.storage.getPresignedUrl(file.fileKey, 600, 'get');
-          const res = await fetch(url);
+          const url = urlMap.get(file.id)!;
+          const res = await fetch(url, {
+            headers: { 'Accept-Encoding': 'identity' }, // decompression алдахгүй
+          });
           if (!res.ok || !res.body) {
-            this.logger.warn(`Skip file ${file.id}: fetch failed`);
+            this.logger.warn(`Skip ${file.fileName}: HTTP ${res.status}`);
+            done++;
             continue;
           }
-          const { Readable } = await import('stream');
-          const stream = Readable.fromWeb(res.body as any);
-          zip.append(stream, { name: file.fileName });
-          await job.progress(Math.round((files.indexOf(file) + 1) / files.length * 90));
+          const nodeStream = Readable.fromWeb(res.body as any);
+          zip.append(nodeStream, { name: file.fileName });
+          done++;
+          // 10%→90% нь файл нэмэх үе
+          await job.progress(10 + Math.round((done / files.length) * 80));
         }
         await zip.finalize();
+        await job.progress(95);
       };
 
-      await Promise.all([upload.done(), appendFiles()]);
+      // Upload болон append зэрэг ажиллана — upload PassThrough-ийн өгөгдлийг хүлээнэ
+      await Promise.all([upload.done(), appendAll()]);
+
+      await job.progress(100);
+      const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+      this.logger.log(`ZIP done: ${zipKey} | ${files.length} files | ${elapsed}s`);
 
       await this.prisma.zipJob.update({
         where: { id: jobId },
         data: { status: 'DONE', zipKey },
       });
 
-      this.logger.log(`ZIP done: ${zipKey} (${files.length} files)`);
       return { zipKey };
 
     } catch (err: any) {
-      this.logger.error(`ZIP failed: ${err.message}`);
+      this.logger.error(`ZIP failed [${jobId}]: ${err.message}`);
       await this.prisma.zipJob.update({
         where: { id: jobId },
         data: { status: 'FAILED', error: err.message },

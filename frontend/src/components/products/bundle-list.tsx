@@ -74,62 +74,98 @@ function BundleFileRow({
   );
 }
 
-type ZipState = 'idle' | 'pending' | 'processing' | 'done' | 'failed';
+type ZipState = 'idle' | 'pending' | 'processing' | 'downloading' | 'done' | 'failed';
+
+// Presigned URL-аас chunk-аар татаж, progress харуулна
+async function chunkedDownload(
+  url: string,
+  fileName: string,
+  onProgress: (pct: number) => void,
+) {
+  const res = await fetch(url);
+  if (!res.ok || !res.body) throw new Error('fetch failed');
+
+  const total = parseInt(res.headers.get('content-length') ?? '0', 10);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total > 0) onProgress(Math.round((received / total) * 100));
+  }
+
+  const blob = new Blob(chunks, { type: 'application/zip' });
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
+}
 
 function BundleZipButton({
   productId,
   bundleId,
+  bundleTitle,
   token,
 }: {
   productId: string;
   bundleId: string;
+  bundleTitle: string;
   token: string;
 }) {
   const [state, setState] = useState<ZipState>('idle');
+  const [progress, setProgress] = useState(0);
 
   async function handleZip() {
-    if (state === 'pending' || state === 'processing') return;
+    if (state !== 'idle') return;
     setState('pending');
+    setProgress(0);
     try {
       const { jobId } = await downloadsApi.enqueueBundleZip(token, productId, bundleId);
-      // Poll хүртэл done болох
+
+      // Poll — 2 секунд тутамд
+      setState('processing');
       let attempts = 0;
-      while (attempts < 120) {
+      while (attempts < 150) {
         await new Promise((r) => setTimeout(r, 2000));
         const result = await downloadsApi.pollZipJob(token, jobId);
         if (result.status === 'DONE' && result.url) {
+          setState('downloading');
+          const zipName = `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_') || 'bundle'}.zip`;
+          await chunkedDownload(result.url, zipName, setProgress);
           setState('done');
-          // Шууд татуулна
-          const a = document.createElement('a');
-          a.href = result.url;
-          a.download = 'bundle.zip';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => setState('idle'), 3000);
+          setTimeout(() => { setState('idle'); setProgress(0); }, 2500);
           return;
         }
         if (result.status === 'FAILED') {
           setState('failed');
-          setTimeout(() => setState('idle'), 3000);
+          setTimeout(() => { setState('idle'); setProgress(0); }, 3000);
           return;
         }
-        if (result.status === 'PROCESSING') setState('processing');
         attempts++;
       }
       setState('failed');
-      setTimeout(() => setState('idle'), 3000);
+      setTimeout(() => { setState('idle'); setProgress(0); }, 3000);
     } catch {
       setState('failed');
-      setTimeout(() => setState('idle'), 3000);
+      setTimeout(() => { setState('idle'); setProgress(0); }, 3000);
     }
   }
 
+  const busy = state === 'pending' || state === 'processing' || state === 'downloading';
   const label =
-    state === 'pending' ? 'Бэлдэж байна...' :
-    state === 'processing' ? 'ZIP хийж байна...' :
-    state === 'done' ? 'Татагдлаа!' :
-    state === 'failed' ? 'Алдаа' :
+    state === 'pending'     ? 'Дараалалд...' :
+    state === 'processing'  ? 'ZIP хийж байна...' :
+    state === 'downloading' ? `Татаж байна ${progress}%` :
+    state === 'done'        ? 'Татагдлаа!' :
+    state === 'failed'      ? 'Алдаа' :
     'ZIP татах';
 
   return (
@@ -138,11 +174,9 @@ function BundleZipButton({
       variant="outline"
       className="h-7 px-2.5 text-xs gap-1 shrink-0"
       onClick={handleZip}
-      disabled={state === 'pending' || state === 'processing'}
+      disabled={busy}
     >
-      {(state === 'pending' || state === 'processing')
-        ? <Loader2 className="h-3 w-3 animate-spin" />
-        : <Download className="h-3 w-3" />}
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
       {label}
     </Button>
   );
@@ -212,6 +246,7 @@ export function BundleList({
                     <BundleZipButton
                       productId={productId}
                       bundleId={bundle.id}
+                      bundleTitle={bundle.title}
                       token={session.accessToken}
                     />
                   </span>
