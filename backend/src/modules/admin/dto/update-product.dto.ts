@@ -7,6 +7,7 @@ import {
   IsString,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { ProductType } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -111,22 +112,27 @@ export class UpdateProductDto {
   downloadCount?: number;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  proofImageUrl?: string;
+  proofImageUrl?: string | null;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  proofQuote?: string;
+  proofQuote?: string | null;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  proofText?: string;
+  proofText?: string | null;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  proofAuthorName?: string;
+  proofAuthorName?: string | null;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  proofAuthorRole?: string;
+  proofAuthorRole?: string | null;
 }

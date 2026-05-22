@@ -143,7 +143,7 @@ export default async function HomePage() {
             </div>
             <div className="flex gap-3 shrink-0 flex-wrap">
               <Button asChild variant="secondary" size="lg" className="font-bold">
-                <Link href="/signup">Одоо бүртгүүлж, хөнгөлөлт авах</Link>
+                <Link href="/signup">Бүртгүүлэх</Link>
               </Button>
               <Button asChild size="lg" className="bg-white/15 border border-white/40 text-white hover:bg-white/25 font-semibold">
                 <Link href="/products">Бүтээгдэхүүн үзэх</Link>

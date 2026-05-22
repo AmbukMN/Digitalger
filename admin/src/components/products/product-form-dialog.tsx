@@ -62,10 +62,10 @@ const DEFAULT_HOW_TO_USE_STEPS: HowToUseStep[] = [
 
 const DEFAULT_PROOF = {
   proofImageUrl: '',
-  proofQuote: 'DigitalGer-ийн загварыг ашигласнаар ажлын цагаа хэмнэж, гаргасан материал чинь илүү мэргэжлийн харагдах болно.',
-  proofText: 'Ажлын явцдаа хэдэн арван цаг зарцуулдаг байсан зүйлийг одоо хэдхэн минутын дотор хийж дуусгадаг болсон. Чанартай загвар ашиглах нь зөвхөн цаг биш, итгэлийг ч хэмнэнэ.',
-  proofAuthorName: 'Бат-Эрдэнэ Д.',
-  proofAuthorRole: 'Маркетингийн менежер',
+  proofQuote: '',
+  proofText: '',
+  proofAuthorName: '',
+  proofAuthorRole: '',
 };
 
 const emptyForm = {
@@ -1852,10 +1852,10 @@ export function ProductFormDialog({
       rating: String(p.rating ?? 0),
       ratingCount: String(p.ratingCount ?? 0),
       proofImageUrl: p.proofImageUrl ?? '',
-      proofQuote: p.proofQuote ?? DEFAULT_PROOF.proofQuote,
-      proofText: p.proofText ?? DEFAULT_PROOF.proofText,
-      proofAuthorName: p.proofAuthorName ?? DEFAULT_PROOF.proofAuthorName,
-      proofAuthorRole: p.proofAuthorRole ?? DEFAULT_PROOF.proofAuthorRole,
+      proofQuote: p.proofQuote ?? '',
+      proofText: p.proofText ?? '',
+      proofAuthorName: p.proofAuthorName ?? '',
+      proofAuthorRole: p.proofAuthorRole ?? '',
     };
   }
 
@@ -1983,11 +1983,11 @@ export function ProductFormDialog({
         howToUseSteps: form.howToUseSteps,
         rating: parseFloat(form.rating) || 0,
         ratingCount: parseInt(form.ratingCount) || 0,
-        proofImageUrl: form.proofImageUrl || undefined,
-        proofQuote: form.proofQuote || undefined,
-        proofText: form.proofText || undefined,
-        proofAuthorName: form.proofAuthorName || undefined,
-        proofAuthorRole: form.proofAuthorRole || undefined,
+        proofImageUrl: form.proofImageUrl || null,
+        proofQuote: form.proofQuote || null,
+        proofText: form.proofText || null,
+        proofAuthorName: form.proofAuthorName || null,
+        proofAuthorRole: form.proofAuthorRole || null,
       };
 
       if (effectiveProduct) {

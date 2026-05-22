@@ -46,8 +46,6 @@ function menuHref(item: MenuItem): string {
   return '/';
 }
 
-const DEFAULT_SETTINGS = { siteName: 'DigitalGer', logoUrl: null as string | null };
-
 function usePublicSettings() {
   return useQuery({
     queryKey: ['public', 'settings'],
@@ -57,7 +55,6 @@ function usePublicSettings() {
       return res.json() as Promise<{ siteName: string; logoUrl: string | null }>;
     },
     staleTime: 5 * 60 * 1000,
-    placeholderData: DEFAULT_SETTINGS,
   });
 }
 
@@ -249,7 +246,7 @@ export function SiteNavbar() {
   const { data: publicSettings, isLoading: settingsLoading } = usePublicSettings();
   const { data: menuItems, isLoading: menuLoading } = useMenuItems();
 
-  const siteName = publicSettings?.siteName || '';
+  const siteName = publicSettings?.siteName || 'DigitalGer';
   const logoSrc = publicSettings?.logoUrl || '/brand/logo.svg';
   const activeMenu = menuItems ?? [];
 
