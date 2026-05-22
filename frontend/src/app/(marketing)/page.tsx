@@ -49,9 +49,14 @@ export default async function HomePage() {
       {/* Trust badges */}
       <section className="border-b border-border bg-background">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 divide-y divide-border lg:grid-cols-4 lg:divide-y-0">
+          <div className="grid grid-cols-2 lg:grid-cols-4">
             {TRUST_ITEMS.map(({ icon: Icon, label, desc, iconCls }, i) => (
-              <div key={label} className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-4 sm:py-5 ${i % 2 === 0 ? 'border-r border-border' : ''} lg:border-r lg:last:border-r-0`}>
+              <div key={label} className={[
+                'flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-4 sm:py-5',
+                i % 2 === 0 ? 'border-r border-border' : '',
+                i >= 2 ? 'border-t border-border' : '',
+                'lg:border-t-0 lg:border-r lg:last:border-r-0',
+              ].join(' ')}>
                 <div className={`shrink-0 rounded-lg p-2 sm:p-2.5 ${iconCls}`}>
                   <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
