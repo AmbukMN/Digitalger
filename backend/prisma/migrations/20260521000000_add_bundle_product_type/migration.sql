@@ -1,2 +1,2 @@
 -- AlterEnum
-ALTER TYPE "ProductType" ADD VALUE 'BUNDLE';
+ALTER TYPE "ProductType" ADD VALUE IF NOT EXISTS 'BUNDLE';
