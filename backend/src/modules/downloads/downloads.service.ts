@@ -122,16 +122,14 @@ export class DownloadsService {
     const zip = archiver.default('zip', { zlib: { level: 6 } });
     zip.pipe(res);
 
-    await Promise.all(
-      files.map(async (file) => {
-        const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
-        const response = await fetch(url);
-        if (!response.ok || !response.body) return;
-        const { Readable } = await import('stream');
-        const nodeStream = Readable.fromWeb(response.body as any);
-        zip.append(nodeStream, { name: file.fileName });
-      }),
-    );
+    for (const file of files) {
+      const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
+      const response = await fetch(url);
+      if (!response.ok || !response.body) continue;
+      const { Readable } = await import('stream');
+      const nodeStream = Readable.fromWeb(response.body as any);
+      zip.append(nodeStream, { name: file.fileName });
+    }
 
     await zip.finalize();
   }
