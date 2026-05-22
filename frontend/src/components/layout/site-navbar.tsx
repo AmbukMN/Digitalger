@@ -348,7 +348,7 @@ export function SiteNavbar() {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-0 z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80 transition-[border-color,box-shadow] duration-200 ${
+        className={`fixed inset-x-0 top-0 z-40 border-b bg-background/98 transition-[border-color,box-shadow] duration-200 ${
           scrolled
             ? 'border-border/60 shadow-[0_1px_12px_rgba(0,0,0,0.15)]'
             : 'border-border/30 shadow-none'
