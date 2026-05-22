@@ -1,4 +1,4 @@
-import type { OrderStatus, ProductType, UserRole } from '@digitalger/shared';
+import type { OrderStatus, UserRole } from '@digitalger/shared';
 
 export interface DashboardStats {
   stats: {
@@ -55,7 +55,7 @@ export interface AdminProduct {
   description: string;
   price: number | string;
   compareAtPrice?: number | string | null;
-  type: ProductType;
+  type: string;
   categoryId: string;
   category?: AdminCategory;
   published: boolean;

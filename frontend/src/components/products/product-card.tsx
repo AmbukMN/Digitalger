@@ -94,7 +94,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
               {product.category.name}
             </Link>
           )}
-          {(product.type === 'LESSON' || product.type === 'BUNDLE') && product.lessonCount != null && product.lessonCount > 0 && (
+          {product.lessonCount != null && product.lessonCount > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-primary font-medium">
               <BookOpen className="h-3 w-3" />
               {product.lessonCount} хичээл

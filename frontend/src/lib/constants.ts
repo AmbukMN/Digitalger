@@ -9,14 +9,3 @@ export const API_URL =
     : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 
 
-export const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  FILE: 'Файл',
-  TEMPLATE: 'Загвар',
-  DOCUMENT: 'Баримт',
-  VIDEO: 'Видео',
-  LESSON: 'Хичээл',
-  BUNDLE: 'Багц',
-  COURSE: 'Курс',
-  HYBRID: 'Хосолсон',
-  OTHER: 'Бусад',
-};

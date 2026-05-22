@@ -16,15 +16,6 @@ const NAVY_DARK = '#011660';
 const GOLD = '#ffbe00';
 const GOLD_LIGHT = '#ffd84d';
 
-const TYPE_LABELS: Record<string, string> = {
-  FILE: 'Файл',
-  TEMPLATE: 'Загвар',
-  DOCUMENT: 'Баримт',
-  VIDEO: 'Видео',
-  COURSE: 'Курс',
-  HYBRID: 'Хосолсон',
-};
-
 interface Product {
   title: string;
   description: string;
@@ -36,6 +27,20 @@ interface Product {
   thumbnailUrl: string | null;
   type: string;
   category?: { name: string } | null;
+}
+
+async function getProductTypeLabel(type: string): Promise<string> {
+  try {
+    const res = await fetch(`${API_BASE}/api/product-types`, {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return type;
+    const list: { value: string; label: string }[] = await res.json();
+    return list.find((t) => t.value === type)?.label ?? type;
+  } catch {
+    return type;
+  }
 }
 
 async function getProduct(slug: string): Promise<Product | null> {
@@ -79,7 +84,7 @@ export default async function Image({ params }: Props) {
   const rating = product?.rating ?? 0;
   const ratingCount = product?.ratingCount ?? 0;
   const downloads = product?.downloadCount ?? 0;
-  const typeLabel = product ? (TYPE_LABELS[product.type] ?? product.type) : '';
+  const typeLabel = product ? await getProductTypeLabel(product.type) : '';
   const thumbnail = product?.thumbnailUrl ?? null;
   const categoryName = product?.category?.name ?? null;
 

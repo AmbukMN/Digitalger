@@ -100,6 +100,7 @@ export interface ProductTypeConfig {
   description: string | null;
   icon: string | null;
   sortOrder: number;
+  active: boolean;
 }
 
 export const productTypesApi = {

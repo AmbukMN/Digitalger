@@ -20,7 +20,6 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { downloadsApi } from '@/lib/api';
-import { PRODUCT_TYPE_LABELS } from '@/lib/constants';
 import { useProductTypes } from '@/hooks/use-product-types';
 import { Pagination } from '@/components/ui/pagination';
 import { ProductRowItem } from '@/components/ui/product-row-item';
@@ -63,11 +62,8 @@ export default function LibraryPage() {
   const { data: productTypeConfigs } = useProductTypes();
 
   const getTypeLabel = (type: string) => {
-    if (productTypeConfigs) {
-      const found = productTypeConfigs.find((t) => t.value === type);
-      if (found) return found.label;
-    }
-    return PRODUCT_TYPE_LABELS[type] ?? type;
+    const found = productTypeConfigs?.find((t) => t.value === type);
+    return found?.label ?? type;
   };
 
   const { data, isLoading, error } = useQuery({

@@ -17,12 +17,6 @@ export const metadata: Metadata = {
   },
 };
 
-const COMPOUND_HEADINGS: Record<string, { title: string; desc: string }> = {
-  'FILE,TEMPLATE': { title: 'Файл & Загварууд', desc: 'Бэлэн файл, загвар болон бусад татаж авах дижитал контент' },
-  'FILE,TEMPLATE,DOCUMENT,BUNDLE': { title: 'Дижитал бүтээгдэхүүн', desc: 'Файл, загвар, баримт болон багц — татаж авах дижитал контент' },
-  'LESSON,BUNDLE': { title: 'Хичээлүүд', desc: 'Видео хичээл болон багц хичээлүүд' },
-};
-
 export default async function ProductsPage({
   searchParams,
 }: {
@@ -47,13 +41,17 @@ export default async function ProductsPage({
   const products = productsData.items;
 
   let heading: { title: string; desc: string };
-  if (COMPOUND_HEADINGS[typesKey]) {
-    heading = COMPOUND_HEADINGS[typesKey];
-  } else if (typesKey) {
-    const found = productTypeConfigs.find((t) => t.value === typesKey);
-    heading = found
-      ? { title: `${found.label}үүд`, desc: found.description ?? `${found.label} бүтээгдэхүүнүүд` }
-      : { title: 'Бүтээгдэхүүн', desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн' };
+  if (typesKey) {
+    const typeValues = typesKey.split(',');
+    if (typeValues.length === 1) {
+      const found = productTypeConfigs.find((t) => t.value === typeValues[0]);
+      heading = found
+        ? { title: `${found.label}үүд`, desc: found.description ?? `${found.label} бүтээгдэхүүнүүд` }
+        : { title: typeValues[0], desc: 'Дижитал бүтээгдэхүүн' };
+    } else {
+      const labels = typeValues.map((v) => productTypeConfigs.find((t) => t.value === v)?.label ?? v);
+      heading = { title: labels.join(' & '), desc: 'Дижитал бүтээгдэхүүн' };
+    }
   } else {
     heading = { title: 'Бүтээгдэхүүн', desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн' };
   }

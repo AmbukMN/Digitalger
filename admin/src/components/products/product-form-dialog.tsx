@@ -25,21 +25,11 @@ import {
   TabsList,
   TabsTrigger,
 } from '@digitalger/shared/ui';
-import type { ProductType } from '@digitalger/shared';
 import { adminApi } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
 import { RichEditor } from '@/components/ui/rich-editor';
 
-const FALLBACK_PRODUCT_TYPES: { value: ProductType; label: string }[] = [
-  { value: 'FILE', label: 'Файл' },
-  { value: 'TEMPLATE', label: 'Загвар' },
-  { value: 'DOCUMENT', label: 'Баримт' },
-  { value: 'VIDEO', label: 'Видео' },
-  { value: 'LESSON', label: 'Хичээл' },
-  { value: 'BUNDLE', label: 'Багц хичээл' },
-  { value: 'HYBRID', label: 'Холимог' },
-];
 
 interface ProductFormDialogProps {
   open: boolean;
@@ -74,8 +64,8 @@ const emptyForm = {
   description: '',
   price: '',
   compareAtPrice: '',
-  type: 'FILE' as ProductType,
-  types: ['FILE'] as ProductType[],
+  type: '' as string,
+  types: [] as string[],
   categoryId: '',
   categoryIds: [] as string[],
   published: false,
@@ -1799,10 +1789,8 @@ export function ProductFormDialog({
     queryFn: () => adminApi.productTypes.list(),
     staleTime: 5 * 60 * 1000,
   });
-  const productTypes: { value: ProductType; label: string }[] =
-    productTypeConfigs.length > 0
-      ? productTypeConfigs.filter((t) => t.active).map((t) => ({ value: t.value as ProductType, label: t.label }))
-      : FALLBACK_PRODUCT_TYPES;
+  const productTypes: { value: string; label: string }[] =
+    productTypeConfigs.filter((t) => t.active).map((t) => ({ value: t.value, label: t.label }));
 
   const { data: assignedFaqIds } = useQuery({
     queryKey: ['admin', 'products', product?.id, 'faq-ids'],
@@ -1833,7 +1821,7 @@ export function ProductFormDialog({
       price: String(p.price),
       compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
       type: p.type,
-      types: p.type ? [p.type] : ['FILE' as ProductType],
+      types: p.type ? [p.type] : [],
       categoryId: p.categoryId ?? '',
       categoryIds: effectiveCategoryIds,
       published: p.published,
@@ -1884,7 +1872,8 @@ export function ProductFormDialog({
       if (initializedForRef.current === 'new') return;
       initializedForRef.current = 'new';
       setEditorResetToken((t) => t + 1);
-      setForm(emptyForm);
+      const firstType = productTypes[0]?.value ?? '';
+      setForm({ ...emptyForm, type: firstType, types: firstType ? [firstType] : [] });
       setPendingFiles([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

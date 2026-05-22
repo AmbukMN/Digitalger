@@ -1,4 +1,4 @@
-import type { OrderStatus, ProductType, UserRole } from '@digitalger/shared';
+import type { OrderStatus, UserRole } from '@digitalger/shared';
 
 export interface CourseLesson {
   id: string;
@@ -56,7 +56,7 @@ export interface ProductSummary {
   description: string;
   price: string | number;
   compareAtPrice?: string | number | null;
-  type: ProductType;
+  type: string;
   featured: boolean;
   rating: number;
   ratingCount: number;

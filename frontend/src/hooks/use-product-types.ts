@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { productTypesApi } from '@/lib/api';
-import { PRODUCT_TYPE_LABELS } from '@/lib/constants';
 
 export function useProductTypes() {
   return useQuery({
@@ -14,18 +13,12 @@ export function useProductTypes() {
 
 export function useProductTypeLabel(type: string): string {
   const { data } = useProductTypes();
-  if (data) {
-    const found = data.find((t) => t.value === type);
-    if (found) return found.label;
-  }
-  return PRODUCT_TYPE_LABELS[type] ?? type;
+  const found = data?.find((t) => t.value === type);
+  return found?.label ?? type;
 }
 
 export function useProductTypeIcon(type: string): string | null {
   const { data } = useProductTypes();
-  if (data) {
-    const found = data.find((t) => t.value === type);
-    if (found) return found.icon ?? null;
-  }
-  return null;
+  const found = data?.find((t) => t.value === type);
+  return found?.icon ?? null;
 }
