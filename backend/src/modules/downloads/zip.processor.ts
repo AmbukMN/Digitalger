@@ -109,6 +109,7 @@ export class ZipProcessor {
           Body: pass,
           ContentType: 'application/zip',
           ContentDisposition: `attachment; filename="${zipName}"`,
+          CacheControl: 'public,max-age=31536000,immutable',
         },
         queueSize: 6,                    // 6 зэрэг chunk upload
         partSize: 16 * 1024 * 1024,      // 16MB chunk — R2 min 5MB, max 5GB
