@@ -96,8 +96,6 @@
   }
 
   html {
-    /* Prevent horizontal scroll caused by overflow */
-    overflow-x: hidden;
     /* Smooth anchor scrolling with room for sticky navbar */
     scroll-behavior: smooth;
     scroll-padding-top: 5rem;
