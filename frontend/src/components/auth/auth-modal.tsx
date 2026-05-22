@@ -136,13 +136,13 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
     >
       <Button
         type="button"
-        variant="outline"
-        className="w-full gap-2 border-amber-400/60 text-amber-600 hover:bg-amber-50 hover:border-amber-500 hover:text-amber-700 dark:border-amber-400/50 dark:text-amber-400 dark:hover:bg-amber-400/10 dark:hover:border-amber-400 dark:hover:text-amber-300"
+        variant="secondary"
+        className="w-full gap-2 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300"
         onClick={onClick}
         disabled={loading}
       >
         <Ghost className="h-4 w-4 shrink-0" />
-        {loading ? 'Нэвтэрч байна...' : 'Зочноор нэвтрэх'}
+        {loading ? 'Нэвтэрч байна...' : 'Бүртгэлгүйгээр шууд нэвтрэх'}
       </Button>
     </motion.div>
   );
@@ -410,9 +410,9 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
                 <button
                   key={t}
                   type="button"
-                  className={`flex-1 rounded-md py-2 text-sm font-semibold transition-all ${
+                  className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
                     tab === t
-                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      ? 'bg-popover text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setTab(t)}
