@@ -92,7 +92,7 @@ export function BannerCarousel({ banners }: Props) {
 
   return (
     <section
-      className="relative overflow-hidden min-h-100"
+      className="relative overflow-hidden min-h-70 sm:min-h-100"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -108,7 +108,7 @@ export function BannerCarousel({ banners }: Props) {
           className="absolute inset-0"
         >
           <div
-            className="relative flex h-full min-h-100 w-full items-center"
+            className="relative flex h-full min-h-70 sm:min-h-100 w-full items-center"
             style={{ background: banner.bgColor ?? '#022179' }}
           >
             <BannerMedia banner={banner} />
@@ -122,18 +122,18 @@ export function BannerCarousel({ banners }: Props) {
               }}
             />
 
-            <div className="relative z-10 mx-auto max-w-7xl w-full px-8 sm:px-12 lg:px-16 py-16 lg:py-24">
+            <div className="relative z-10 mx-auto max-w-7xl w-full px-4 sm:px-12 lg:px-16 py-8 sm:py-16 lg:py-24 flex items-center min-h-70 sm:min-h-100">
               <motion.div
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15, duration: 0.4 }}
                 className="max-w-xl"
               >
-                <h1 className="text-3xl font-extrabold leading-tight text-white sm:text-4xl lg:text-5xl drop-shadow">
+                <h1 className="text-xl font-extrabold leading-tight text-white sm:text-4xl lg:text-5xl drop-shadow">
                   {banner.title}
                 </h1>
                 {banner.subtitle && (
-                  <p className="mt-3 text-base sm:text-lg text-white/80 drop-shadow">
+                  <p className="mt-3 text-sm md:text-base lg:text-lg text-white/80 drop-shadow">
                     {banner.subtitle}
                   </p>
                 )}

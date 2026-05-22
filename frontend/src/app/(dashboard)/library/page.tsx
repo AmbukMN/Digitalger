@@ -6,6 +6,7 @@ import { Button, EmptyState, Loading } from '@digitalger/shared/ui';
 import {
   Archive,
   CheckCircle2,
+  ChevronDown,
   Code,
   Download,
   DownloadCloud,
@@ -15,6 +16,7 @@ import {
   Layers,
   Loader2,
   Music,
+  Package,
   Type,
   Video,
   XCircle,
@@ -60,6 +62,152 @@ function getFileIconMeta(fileName: string) {
   if (['js', 'ts', 'jsx', 'tsx', 'html', 'css', 'py', 'php', 'json'].includes(ext))
     return { Icon: Code, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-950/40' };
   return { Icon: File, color: 'text-muted-foreground', bg: 'bg-muted' };
+}
+
+interface LibBundle {
+  id: string;
+  title: string;
+  description?: string | null;
+  downloadFileKey?: string | null;
+  items: {
+    id: string;
+    name: string;
+    description?: string | null;
+    label?: string | null;
+    fileId?: string | null;
+    fileIds: string[];
+  }[];
+}
+
+function BundleSection({
+  bundles,
+  productId,
+  token,
+  zipStates,
+  downloading,
+  onBundleZip,
+  onFileDownload,
+  zipLabel,
+  zipIcon,
+}: {
+  bundles: LibBundle[];
+  productId: string;
+  token: string;
+  zipStates: Record<string, ZipState>;
+  downloading: string | null;
+  onBundleZip: (key: string, productId: string, bundleId: string, title: string, dlKey?: string | null) => void;
+  onFileDownload: (fileId: string, fileName: string) => void;
+  zipLabel: (s: ZipState) => string;
+  zipIcon: (s: ZipState) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(bundles.map((b) => [b.id, false])),
+  );
+
+  return (
+    <div className="divide-y divide-border">
+      {bundles.map((bundle, bi) => {
+        const bundleKey = `bundle-${bundle.id}`;
+        const bState = zipStates[bundleKey] ?? 'idle';
+        const bBusy = bState === 'pending' || bState === 'queued';
+        const allFileIds = bundle.items.flatMap((item) =>
+          item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+        );
+        const hasBundleFiles = allFileIds.length > 0 || !!bundle.downloadFileKey;
+
+        return (
+          <div key={bundle.id}>
+            {/* Bundle header */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setOpen((p) => ({ ...p, [bundle.id]: !p[bundle.id] }))}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((p) => ({ ...p, [bundle.id]: !p[bundle.id] })); } }}
+              className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer select-none"
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                {bi + 1}
+              </span>
+              <Package className="h-4 w-4 shrink-0 text-primary" />
+              <span className="font-semibold text-sm flex-1 truncate">{bundle.title}</span>
+              <span className="text-xs text-muted-foreground shrink-0">{bundle.items.length} зүйл</span>
+              {hasBundleFiles && (
+                <Button
+                  size="sm"
+                  className="h-6 px-2 text-xs gap-1 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+                  disabled={bBusy}
+                  onClick={(e) => { e.stopPropagation(); onBundleZip(bundleKey, productId, bundle.id, bundle.title, bundle.downloadFileKey); }}
+                >
+                  {zipIcon(bState)}
+                  {zipLabel(bState) === 'Бүгдийг татах' ? 'Бүлгээр татах' : zipLabel(bState)}
+                </Button>
+              )}
+              <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${open[bundle.id] ? 'rotate-180' : ''}`} />
+            </div>
+
+            {/* Bundle items */}
+            {open[bundle.id] && (
+              <ul className="bg-muted/10 dark:bg-muted/5">
+                {bundle.items.map((item, ii) => {
+                  const itemFileIds = item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [];
+                  return (
+                    <li key={item.id} className="border-t border-border/40 px-4 py-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-6 shrink-0 text-right">{ii + 1}.</span>
+                        <span className="flex-1 truncate font-medium">{item.name}</span>
+                        {item.label && (
+                          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
+                        )}
+                        {itemFileIds.length === 1 && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0 text-primary hover:text-primary hover:bg-primary/10"
+                            disabled={downloading === itemFileIds[0]}
+                            onClick={() => onFileDownload(itemFileIds[0], item.name)}
+                            aria-label="Татах"
+                          >
+                            {downloading === itemFileIds[0] ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {itemFileIds.length > 1 && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {itemFileIds.map((fid, fi) => (
+                            <div key={fid} className="flex items-center gap-2 rounded bg-muted/40 px-2 py-1">
+                              <span className="flex-1 text-xs text-muted-foreground truncate">{item.name} {fi + 1}</span>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 shrink-0 text-primary hover:text-primary hover:bg-primary/10"
+                                disabled={downloading === fid}
+                                onClick={() => onFileDownload(fid, `${item.name}_${fi + 1}`)}
+                                aria-label="Татах"
+                              >
+                                {downloading === fid ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Download className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function LibraryPage() {
@@ -131,7 +279,6 @@ export default function LibraryPage() {
 
     setZipState(entryKey, 'pending');
 
-    // Admin uploaded file — шууд presign
     if (downloadFileKey) {
       try {
         const { url, fileName } = await downloadsApi.productDownloadFile(token, productId);
@@ -146,7 +293,6 @@ export default function LibraryPage() {
       return;
     }
 
-    // Admin file байхгүй — async ZIP queue
     try {
       const { jobId } = await downloadsApi.enqueueProductZip(token, productId);
       setZipState(entryKey, 'queued');
@@ -179,6 +325,69 @@ export default function LibraryPage() {
       setZipState(entryKey, 'failed');
       toast.error('Татахад алдаа гарлаа');
       setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+    }
+  }, [token, zipStates]);
+
+  const handleBundleDownloadAll = useCallback(async (
+    bundleKey: string,
+    productId: string,
+    bundleId: string,
+    bundleTitle: string,
+    downloadFileKey?: string | null,
+  ) => {
+    if (!token) return;
+    const cur = zipStates[bundleKey];
+    if (cur && cur !== 'idle' && cur !== 'done' && cur !== 'failed') return;
+
+    setZipState(bundleKey, 'pending');
+    const zipName = `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
+
+    if (downloadFileKey) {
+      try {
+        const { url, fileName } = await downloadsApi.bundleDownloadFile(token, bundleId);
+        triggerDownload(url, fileName || zipName);
+        setZipState(bundleKey, 'done');
+        setTimeout(() => setZipState(bundleKey, 'idle'), 2500);
+      } catch {
+        setZipState(bundleKey, 'failed');
+        toast.error('Татахад алдаа гарлаа');
+        setTimeout(() => setZipState(bundleKey, 'idle'), 2500);
+      }
+      return;
+    }
+
+    try {
+      const { jobId } = await downloadsApi.enqueueBundleZip(token, productId, bundleId);
+      setZipState(bundleKey, 'queued');
+      pollStarted.current[bundleKey] = Date.now();
+
+      pollRefs.current[bundleKey] = setInterval(async () => {
+        if (Date.now() - pollStarted.current[bundleKey] > POLL_TIMEOUT) {
+          clearInterval(pollRefs.current[bundleKey]);
+          setZipState(bundleKey, 'failed');
+          toast.error('Хугацаа дууслаа, дахин оролдоно уу');
+          setTimeout(() => setZipState(bundleKey, 'idle'), 3000);
+          return;
+        }
+        try {
+          const res = await downloadsApi.pollZipJob(token, jobId);
+          if (res.status === 'DONE' && res.url) {
+            clearInterval(pollRefs.current[bundleKey]);
+            triggerDownload(res.url, zipName);
+            setZipState(bundleKey, 'done');
+            setTimeout(() => setZipState(bundleKey, 'idle'), 2500);
+          } else if (res.status === 'FAILED') {
+            clearInterval(pollRefs.current[bundleKey]);
+            setZipState(bundleKey, 'failed');
+            toast.error('ZIP үүсгэхэд алдаа гарлаа');
+            setTimeout(() => setZipState(bundleKey, 'idle'), 3000);
+          }
+        } catch { /* poll retry */ }
+      }, POLL_INTERVAL);
+    } catch {
+      setZipState(bundleKey, 'failed');
+      toast.error('Татахад алдаа гарлаа');
+      setTimeout(() => setZipState(bundleKey, 'idle'), 2500);
     }
   }, [token, zipStates]);
 
@@ -223,20 +432,22 @@ export default function LibraryPage() {
             const zipState = zipStates[entryKey] ?? 'idle';
             const zipBusy = zipState === 'pending' || zipState === 'queued';
             const hasFiles = entry.product.files.length > 0;
+            const hasBundles = (entry.product.bundles?.length ?? 0) > 0;
+            const showFlatFiles = hasFiles; // flat files үргэлж харуулна, bundle байсан ч
             const zipName = `${entry.product.slug ?? entry.product.id}.zip`;
 
-            const zipLabel = () => {
-              if (zipState === 'pending') return 'Бэлдэж байна...';
-              if (zipState === 'queued') return 'ZIP үүсгэж байна...';
-              if (zipState === 'done') return 'Татагдлаа';
-              if (zipState === 'failed') return 'Алдаа гарлаа';
+            const zipLabel = (st: ZipState) => {
+              if (st === 'pending') return 'Бэлдэж байна...';
+              if (st === 'queued') return 'ZIP үүсгэж байна...';
+              if (st === 'done') return 'Татагдлаа';
+              if (st === 'failed') return 'Алдаа гарлаа';
               return 'Бүгдийг татах';
             };
 
-            const zipIcon = () => {
-              if (zipState === 'done') return <CheckCircle2 className="h-3.5 w-3.5" />;
-              if (zipState === 'failed') return <XCircle className="h-3.5 w-3.5" />;
-              if (zipBusy) return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+            const zipIcon = (st: ZipState) => {
+              if (st === 'done') return <CheckCircle2 className="h-3.5 w-3.5" />;
+              if (st === 'failed') return <XCircle className="h-3.5 w-3.5" />;
+              if (st === 'pending' || st === 'queued') return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
               return <DownloadCloud className="h-3.5 w-3.5" />;
             };
 
@@ -277,79 +488,93 @@ export default function LibraryPage() {
                   {hasFiles && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="shrink-0 gap-1.5 hidden sm:flex"
+                      className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
                       disabled={zipBusy}
                       onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey)}
                     >
-                      {zipIcon()}
-                      {zipLabel()}
+                      {zipIcon(zipState)}
+                      {zipLabel(zipState)}
                     </Button>
                   )}
                 </div>
 
-                {/* Files list */}
-                {hasFiles ? (
-                  <ul>
-                    {entry.product.files.map((file, idx) => {
-                      const { Icon, color, bg } = getFileIconMeta(file.fileName);
-                      return (
-                        <li
-                          key={file.id}
-                          className={`flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors ${
-                            idx < entry.product.files.length - 1
-                              ? 'border-b border-border/50'
-                              : ''
-                          }`}
-                        >
-                          {/* Indent indicator */}
-                          <div className="ml-2 flex items-center gap-0.5 shrink-0 text-border">
-                            <div className="w-px h-4 bg-current" />
-                            <div className="w-2 h-px bg-current" />
-                          </div>
-                          {/* File type icon */}
-                          <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${bg}`}
+                {/* Bundles accordion */}
+                {hasBundles && (
+                  <BundleSection
+                    bundles={entry.product.bundles!}
+                    productId={entry.product.id}
+                    token={token!}
+                    zipStates={zipStates}
+                    downloading={downloading}
+                    onBundleZip={handleBundleDownloadAll}
+                    onFileDownload={handleDownload}
+                    zipLabel={zipLabel}
+                    zipIcon={zipIcon}
+                  />
+                )}
+
+                {/* Flat files — bundle байсан ч үргэлж харуулна */}
+                {showFlatFiles && (
+                  <>
+                    {hasBundles && (
+                      <div className="px-4 pt-3 pb-1 border-t border-border/50">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Файлууд</p>
+                      </div>
+                    )}
+                    <ul className={entry.product.files.length > 5 ? 'max-h-64 overflow-y-auto' : ''}>
+                      {entry.product.files.map((file, idx) => {
+                        const { Icon, color, bg } = getFileIconMeta(file.fileName);
+                        return (
+                          <li
+                            key={file.id}
+                            className={`flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors ${
+                              idx < entry.product.files.length - 1 ? 'border-b border-border/50' : ''
+                            }`}
                           >
-                            <Icon className={`h-4 w-4 ${color}`} />
-                          </div>
-                          {/* File name */}
-                          <span className="flex-1 truncate text-sm">{file.fileName}</span>
-                          {/* Download button */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="shrink-0 h-8 w-8 text-muted-foreground hover:text-primary"
-                            disabled={downloading === file.id}
-                            onClick={() => handleDownload(file.id, file.fileName)}
-                            aria-label="Татах"
-                          >
-                            {downloading === file.id ? (
-                              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent inline-block" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
+                            <div className="ml-2 flex items-center gap-0.5 shrink-0 text-border">
+                              <div className="w-px h-4 bg-current" />
+                              <div className="w-2 h-px bg-current" />
+                            </div>
+                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${bg}`}>
+                              <Icon className={`h-4 w-4 ${color}`} />
+                            </div>
+                            <span className="flex-1 truncate text-sm">{file.fileName}</span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="shrink-0 h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                              disabled={downloading === file.id}
+                              onClick={() => handleDownload(file.id, file.fileName)}
+                              aria-label="Татах"
+                            >
+                              {downloading === file.id ? (
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent inline-block" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+
+                {!showFlatFiles && !hasBundles && (
                   <p className="px-4 py-3 text-sm text-muted-foreground">Энэ бүтээгдэхүүнд татах файл байхгүй байна</p>
                 )}
 
                 {/* Mobile: all download button */}
-                {hasFiles && (
+                {showFlatFiles && (
                   <div className="px-4 py-2.5 border-t border-border/50 sm:hidden">
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="w-full gap-1.5"
+                      className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
                       disabled={zipBusy}
                       onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey)}
                     >
-                      {zipIcon()}
-                      {zipLabel()}
+                      {zipIcon(zipState)}
+                      {zipLabel(zipState)}
                     </Button>
                   </div>
                 )}

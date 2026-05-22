@@ -263,6 +263,30 @@
   animation: search-slide-down 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ─── Themed scrollbar — dark mode дотор харанхуй scrollbar ─ */
+.overflow-y-auto,
+[class*="overflow-y-auto"] {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.4 0 0 / 0.3) transparent;
+}
+.overflow-y-auto::-webkit-scrollbar,
+[class*="overflow-y-auto"]::-webkit-scrollbar {
+  width: 5px;
+}
+.overflow-y-auto::-webkit-scrollbar-track,
+[class*="overflow-y-auto"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb,
+[class*="overflow-y-auto"]::-webkit-scrollbar-thumb {
+  background: oklch(0.5 0 0 / 0.25);
+  border-radius: 99px;
+}
+.dark .overflow-y-auto::-webkit-scrollbar-thumb,
+.dark [class*="overflow-y-auto"]::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0 0 / 0.25);
+}
+
 /* ─── Hide scrollbar utility ──────────────────────────────── */
 .hide-scrollbar {
   scrollbar-width: none;

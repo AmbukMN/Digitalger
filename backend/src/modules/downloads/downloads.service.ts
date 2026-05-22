@@ -258,6 +258,26 @@ export class DownloadsService {
                   select: { id: true, fileName: true, sortOrder: true },
                   orderBy: { sortOrder: 'asc' },
                 },
+                bundles: {
+                  orderBy: { sortOrder: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    downloadFileKey: true,
+                    items: {
+                      orderBy: { sortOrder: 'asc' },
+                      select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        label: true,
+                        fileId: true,
+                        fileIds: true,
+                      },
+                    },
+                  },
+                },
                 images: {
                   where: { videoUrl: null },
                   orderBy: { sortOrder: 'asc' },
@@ -273,12 +293,28 @@ export class DownloadsService {
 
     return orders.flatMap((order) =>
       order.items.map((item) => {
-        const { images, ...productRest } = item.product as any;
+        const { images, bundles, files, ...productRest } = item.product as any;
+
+        // bundle items-д хамаарах fileIds цуглуул — эрэнхий файл жагсаалтаас хас
+        const bundleFileIdSet = new Set<string>();
+        for (const bundle of (bundles ?? [])) {
+          for (const bi of (bundle.items ?? [])) {
+            if (bi.fileId) bundleFileIdSet.add(bi.fileId);
+            for (const fid of (bi.fileIds ?? [])) bundleFileIdSet.add(fid);
+          }
+        }
+
+        const standaloneFiles = (files ?? []).filter(
+          (f: { id: string }) => !bundleFileIdSet.has(f.id),
+        );
+
         return {
           orderId: order.id,
           purchasedAt: order.createdAt,
           product: {
             ...productRest,
+            files: standaloneFiles,
+            bundles: bundles ?? [],
             thumbnailUrl: images?.[0]?.fileKey ? this.storage.getAssetUrl(images[0].fileKey) : null,
           },
         };

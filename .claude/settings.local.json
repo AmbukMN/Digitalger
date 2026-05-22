@@ -14,7 +14,10 @@
       "PowerShell(Get-Process | Select-Object Name | Sort-Object Name -Unique | Where-Object { $_.Name -match \"node|npm|next|pw\" })",
       "PowerShell($f = \"C:\\\\Users\\\\ALIENW~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ALIENWARE-Desktop-DigitalGer\\\\b8aa2783-2475-40db-8280-b8de4865162f\\\\tasks\\\\b0jox0zer.output\"; $end = \\(Get-Date\\).AddSeconds\\(40\\); do { Start-Sleep -Seconds 3; $lines = Get-Content $f -ErrorAction SilentlyContinue; if \\($lines -match \"Running on port|Application is running|listening|ERROR|error\"\\) { $lines | Select-Object -Last 20; break } } while \\(\\(Get-Date\\) -lt $end\\); Write-Host \"Done waiting\")",
       "PowerShell($f = \"C:\\\\Users\\\\ALIENW~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ALIENWARE-Desktop-DigitalGer\\\\b8aa2783-2475-40db-8280-b8de4865162f\\\\tasks\\\\b54863voy.output\"; $end = \\(Get-Date\\).AddSeconds\\(45\\); do { Start-Sleep -Seconds 4; $lines = Get-Content $f -ErrorAction SilentlyContinue; if \\($lines -match \"Running on port|Application is running|listening on|ERROR\"\\) { $lines | Select-Object -Last 10; break } } while \\(\\(Get-Date\\) -lt $end\\); Write-Host \"Check complete\")",
-      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:4000/api\" -TimeoutSec 5 -ErrorAction Stop; \"Backend OK: $\\($r.StatusCode\\)\" } catch { try { $r2 = Invoke-WebRequest -Uri \"http://localhost:4000\" -TimeoutSec 5 -ErrorAction Stop; \"Backend OK: $\\($r2.StatusCode\\)\" } catch { \"Backend: $\\($_.Exception.Message\\)\" } })"
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:4000/api\" -TimeoutSec 5 -ErrorAction Stop; \"Backend OK: $\\($r.StatusCode\\)\" } catch { try { $r2 = Invoke-WebRequest -Uri \"http://localhost:4000\" -TimeoutSec 5 -ErrorAction Stop; \"Backend OK: $\\($r2.StatusCode\\)\" } catch { \"Backend: $\\($_.Exception.Message\\)\" } })",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ALIENWARE\\\\Desktop\\\\DigitalGer\" -Depth 1)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)"
     ]
   }
 }

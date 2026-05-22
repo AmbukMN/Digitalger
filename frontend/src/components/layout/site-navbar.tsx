@@ -9,6 +9,7 @@ import {
   SheetTitle,
   ThemeToggle,
 } from '@digitalger/shared/ui';
+import { SearchAutocomplete } from '@/components/layout/search-autocomplete';
 import { cn, formatPrice } from '@digitalger/shared';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -233,14 +234,10 @@ export function SiteNavbar() {
   const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileSearchQ, setMobileSearchQ] = useState('');
-  const [searchQ, setSearchQ] = useState('');
   const [authOpen, setAuthOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const mobileSearchRef = useRef<HTMLInputElement>(null);
-  const mobileSearchFormRef = useRef<HTMLFormElement>(null);
   const cartCount = useCartStore((s) => s.items.length);
   const wishCount = useWishlistStore((s) => s.items.length);
   const [cartShake, setCartShake] = useState(false);
@@ -295,47 +292,8 @@ export function SiteNavbar() {
   }, [userMenuOpen]);
 
   useEffect(() => {
-    if (mobileSearchOpen && mobileSearchRef.current) {
-      mobileSearchRef.current.focus();
-    }
-  }, [mobileSearchOpen]);
-
-  useEffect(() => {
-    if (!mobileSearchOpen) return;
-    const handler = (e: MouseEvent | TouchEvent) => {
-      if (mobileSearchFormRef.current && !mobileSearchFormRef.current.contains(e.target as Node)) {
-        setMobileSearchOpen(false);
-        setMobileSearchQ('');
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
-    };
-  }, [mobileSearchOpen]);
-
-  useEffect(() => {
     setMobileSearchOpen(false);
-    setMobileSearchQ('');
   }, [pathname]);
-
-  const onSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQ.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQ.trim())}`);
-    }
-  };
-
-  const onMobileSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (mobileSearchQ.trim()) {
-      router.push(`/search?q=${encodeURIComponent(mobileSearchQ.trim())}`);
-      setMobileSearchOpen(false);
-      setMobileSearchQ('');
-    }
-  };
 
   const handleAccountClick = () => {
     if (session) {
@@ -348,6 +306,7 @@ export function SiteNavbar() {
   return (
     <>
       <header
+        data-nextjs-scroll-focus-boundary
         className={`fixed inset-x-0 top-0 z-40 border-b bg-background/98 transition-[border-color,box-shadow] duration-200 ${
           scrolled
             ? 'border-border/60 shadow-[0_1px_12px_rgba(0,0,0,0.15)]'
@@ -359,9 +318,7 @@ export function SiteNavbar() {
 
           {/* Mobile search overlay */}
           {mobileSearchOpen && (
-            <form
-              ref={mobileSearchFormRef}
-              onSubmit={onMobileSearch}
+            <div
               className="absolute inset-x-0 top-0 z-50 flex items-center gap-2 px-4 lg:hidden animate-search-slide-down"
               style={{
                 height: '64px',
@@ -373,32 +330,19 @@ export function SiteNavbar() {
             >
               <button
                 type="button"
-                onClick={() => { setMobileSearchOpen(false); setMobileSearchQ(''); }}
+                onClick={() => setMobileSearchOpen(false)}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10 transition-colors"
                 aria-label="Хаах"
               >
                 <X className="h-5 w-5" />
               </button>
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70" />
-                <Input
-                  ref={mobileSearchRef}
-                  placeholder="Бүтээгдэхүүн, нийтлэл хайх..."
-                  value={mobileSearchQ}
-                  onChange={(e) => setMobileSearchQ(e.target.value)}
-                  className="pl-9 pr-4 border-primary/30 focus-visible:ring-primary/40 bg-background/80"
-                  style={{ fontSize: '16px' }}
-                />
-              </div>
-              <Button
-                type="submit"
-                size="sm"
-                className="shrink-0 h-9 px-3"
-                disabled={!mobileSearchQ.trim()}
-              >
-                Хайх
-              </Button>
-            </form>
+              <SearchAutocomplete
+                placeholder="Бүтээгдэхүүн, нийтлэл хайх..."
+                className="flex-1"
+                inputClassName="border-primary/30 focus-visible:ring-primary/40 bg-background/80"
+                onNavigate={() => setMobileSearchOpen(false)}
+              />
+            </div>
           )}
 
           <Link href="/" className="flex shrink-0 items-center gap-2">
@@ -452,17 +396,10 @@ export function SiteNavbar() {
             )}
           </nav>
 
-          <form onSubmit={onSearch} className="hidden max-w-xs flex-1 lg:flex">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Хайх..."
-                className="pl-9"
-                value={searchQ}
-                onChange={(e) => setSearchQ(e.target.value)}
-              />
-            </div>
-          </form>
+          <SearchAutocomplete
+            placeholder="Хайх..."
+            className="hidden max-w-xs flex-1 lg:block"
+          />
 
           <div className="ml-auto flex items-center gap-1">
             {/* Mobile search toggle */}
@@ -541,7 +478,7 @@ export function SiteNavbar() {
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
-                    onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/' }); }}
+                    onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: pathname }); }}
                   >
                     <LogOut className="h-4 w-4" />
                     Гарах

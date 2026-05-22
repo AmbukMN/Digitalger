@@ -8,6 +8,7 @@ import { blogApi, productsApi } from '@/lib/api';
 import { formatPrice } from '@digitalger/shared';
 import { SITE_URL } from '@/lib/constants';
 import type { BlogPost, ProductSummary } from '@/types/api';
+import { BlogShareButton } from '@/components/blog/blog-share-button';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -182,24 +183,30 @@ export default async function BlogDetailPage({ params }: Props) {
             )}
 
             {/* Meta + Tags — after content */}
-            <div className="mt-8 pt-6 border-t border-border flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <User className="h-4 w-4" />
-                {post.authorName}
-              </span>
-              {date && (
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays className="h-4 w-4" />
-                  {date}
-                </span>
-              )}
+            <div className="mt-8 pt-6 border-t border-border space-y-3">
+              {/* Author row + share */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <User className="h-4 w-4 shrink-0" />
+                    <span>{post.authorName}</span>
+                  </span>
+                  {date && (
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="h-4 w-4 shrink-0" />
+                      <span>{date}</span>
+                    </span>
+                  )}
+                </div>
+                <BlogShareButton slug={post.slug} title={post.title} />
+              </div>
+              {/* Tags */}
               {post.tags && post.tags.length > 0 && (
-                <>
-                  <span className="text-border">·</span>
+                <div className="flex flex-wrap gap-1.5">
                   {post.tags.map((tag) => (
                     <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                   ))}
-                </>
+                </div>
               )}
             </div>
           </article>

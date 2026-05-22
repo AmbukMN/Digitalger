@@ -13,9 +13,11 @@ export function SheetContent({
   side = 'right',
   className,
   children,
+  title,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   side?: 'right' | 'left';
+  title?: string;
 }) {
   const sideClass = side === 'right'
     ? 'inset-y-0 right-0 border-l sheet-right'
@@ -32,8 +34,12 @@ export function SheetContent({
           sideClass,
           className,
         )}
+        aria-describedby={undefined}
         {...props}
       >
+        {title !== undefined && (
+          <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
+        )}
         {children}
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring">
           <X className="h-4 w-4" />

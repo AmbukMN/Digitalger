@@ -17,7 +17,7 @@ import {
   Input,
   Loading,
 } from '@digitalger/shared/ui';
-import { Copy } from 'lucide-react';
+import { Copy, Upload, CheckCircle2, XCircle } from 'lucide-react';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
 import { adminApi } from '@/lib/api';
 import type { AdminProduct } from '@/types/admin';
@@ -69,12 +69,26 @@ function DownloadCountCell({ product }: { product: AdminProduct }) {
   );
 }
 
+type ImportResult = { total: number; created: number; failed: number; results: { row: number; status: string; title?: string; error?: string }[] };
+
 export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importMutation = useMutation({
+    mutationFn: (file: File) => adminApi.products.bulkImport(file),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      setImportResult(res);
+      toast.success(`${res.created} бүтээгдэхүүн импортлогдлоо${res.failed > 0 ? `, ${res.failed} алдаатай` : ''}`);
+    },
+    onError: () => toast.error('Импортлоход алдаа гарлаа'),
+  });
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'products', search],
@@ -173,14 +187,34 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold">Бүтээгдэхүүн</h1>
           <p className="text-muted-foreground">Нийт {data?.total ?? 0}</p>
         </div>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        >
-          + Нэмэх
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) { importMutation.mutate(file); e.target.value = ''; }
+            }}
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importMutation.isPending}
+          >
+            <Upload className="mr-1.5 h-4 w-4" />
+            {importMutation.isPending ? 'Импортлож байна...' : 'CSV/Excel импорт'}
+          </Button>
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          >
+            + Нэмэх
+          </Button>
+        </div>
       </div>
 
       <Input
@@ -197,6 +231,39 @@ export default function ProductsPage() {
         onOpenChange={setDialogOpen}
         product={editing}
       />
+
+      {/* Import result dialog */}
+      <Dialog open={!!importResult} onOpenChange={() => setImportResult(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Импортын үр дүн</DialogTitle>
+          </DialogHeader>
+          {importResult && (
+            <div className="space-y-3">
+              <div className="flex gap-4 text-sm">
+                <span>Нийт: <strong>{importResult.total}</strong></span>
+                <span className="text-green-600">Амжилттай: <strong>{importResult.created}</strong></span>
+                {importResult.failed > 0 && <span className="text-destructive">Алдаатай: <strong>{importResult.failed}</strong></span>}
+              </div>
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {importResult.results.map((r) => (
+                  <div key={r.row} className="flex items-start gap-2 text-xs py-1 border-b border-border last:border-0">
+                    {r.status === 'created'
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+                      : <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />}
+                    <span className="text-muted-foreground">Мөр {r.row}:</span>
+                    <span className="flex-1">{r.title ?? '—'}</span>
+                    {r.error && <span className="text-destructive">{r.error}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setImportResult(null)}>Хаах</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent>

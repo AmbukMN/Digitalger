@@ -29,6 +29,7 @@ import { BundlesModule } from './modules/bundles/bundles.module';
 import { BlogModule } from './modules/blog/blog.module';
 import { PagesModule } from './modules/pages/pages.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     BlogModule,
     PagesModule,
     CouponsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

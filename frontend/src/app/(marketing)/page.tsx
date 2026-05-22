@@ -47,7 +47,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 lg:grid-cols-4">
             {TRUST_ITEMS.map(({ icon: Icon, label, desc, iconCls }, i) => (
               <div key={label} className={[
-                'flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-4 sm:py-5',
+                'flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-5',
                 i % 2 === 0 ? 'border-r border-border' : '',
                 i >= 2 ? 'border-t border-border' : '',
                 'lg:border-t-0 lg:border-r lg:last:border-r-0',
@@ -57,7 +57,7 @@ export default async function HomePage() {
                 </div>
                 <div>
                   <p className="text-xs sm:text-sm font-semibold">{label}</p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">{desc}</p>
+                  <p className="hidden sm:block text-[10px] sm:text-xs text-muted-foreground">{desc}</p>
                 </div>
               </div>
             ))}

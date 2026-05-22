@@ -72,7 +72,27 @@ function PurchasedCard({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
 
-  const files = purchase.product.files;
+  const hasBundles = (purchase.product.bundles?.length ?? 0) > 0;
+
+  // sidebar/mobile-д bundle + standalone файлуудыг нэгтгэж харуулна
+  // product.files нь ProductDetail-аас ирсэн бүх файл (bundle-ийнх ч орно)
+  const allProductFiles = product.files ?? [];
+  const standaloneFiles = purchase.product.files; // backend-с шүүсэн standalone
+
+  // bundle items-ийн fileId-уудыг цуглуулна
+  const bundleFileIds = new Set(
+    (purchase.product.bundles ?? []).flatMap((b) =>
+      b.items.flatMap((item) =>
+        item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+      ),
+    ),
+  );
+
+  // sidebar: standalone + bundle-ийн файлуудыг нэрийн мэдээллийн хамт нэгтгэнэ
+  const bundleFiles = allProductFiles.filter(
+    (f) => bundleFileIds.has(f.id) && !standaloneFiles.some((sf) => sf.id === f.id),
+  );
+  const files = [...standaloneFiles, ...bundleFiles];
   const hasFiles = files.length > 0;
   const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
   const purchaseDate = new Date(purchase.purchasedAt).toLocaleDateString('mn-MN', {
@@ -122,41 +142,28 @@ function PurchasedCard({
       {/* Download files */}
       {hasFiles && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold flex items-center gap-2">
-              <Download className="h-4 w-4 text-primary" />
-              Татах файлууд ({files.length})
-            </p>
-            {files.length > 1 && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2.5 text-xs gap-1"
-                onClick={handleDownloadAll}
-                disabled={downloadingAll}
-              >
-                {downloadingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                Бүгдийг татах
-              </Button>
-            )}
-          </div>
-          <ul className="space-y-1.5">
+          <Button
+            className="w-full font-semibold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+            size="sm"
+            onClick={handleDownloadAll}
+            disabled={downloadingAll}
+          >
+            {downloadingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Бүх файлыг татах ({files.length})
+          </Button>
+          <ul className={`space-y-1 ${files.length > 5 ? 'max-h-56 overflow-y-auto pr-1' : ''}`}>
             {files.map((file) => (
-              <li key={file.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
-                <FileText className="h-4 w-4 shrink-0 text-primary" />
-                <span className="flex-1 text-sm truncate font-medium">{file.fileName}</span>
+              <li key={file.id} className="flex items-center gap-2 rounded-lg bg-muted/30 dark:bg-muted/20 border border-border/50 px-3 py-1.5">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 px-2.5 text-xs gap-1 shrink-0"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                   onClick={() => handleDownloadOne(file.id, file.fileName)}
                   disabled={downloading === file.id || downloadingAll}
                 >
-                  {downloading === file.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Download className="h-3 w-3" />
-                  )}
+                  {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                   Татах
                 </Button>
               </li>
@@ -166,12 +173,14 @@ function PurchasedCard({
       )}
 
       {/* Link to orders */}
-      <Button asChild className="w-full" size="sm" variant="outline">
-        <Link href="/orders">
-          Захиалгыг харах
-          <ChevronRight className="ml-1.5 h-4 w-4" />
-        </Link>
-      </Button>
+      <div className="flex justify-end">
+        <Button asChild variant="outline" className="text-xs h-8 text-primary border-primary/30 hover:bg-transparent hover:text-primary hover:border-primary/60 dark:text-secondary dark:border-secondary/40 dark:hover:bg-transparent dark:hover:text-secondary dark:hover:border-secondary/70" size="sm">
+          <Link href="/orders">
+            Захиалгыг харах
+            <ChevronRight className="ml-1 h-3.5 w-3.5" />
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -468,6 +477,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [btnShake, setBtnShake] = useState(false);
   const couponRef = useRef<HTMLDivElement>(null);
+  const filesBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -491,6 +501,21 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
       document.removeEventListener('touchstart', handler);
     };
   }, [couponOpen]);
+
+  useEffect(() => {
+    if (!filesOpen) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (filesBarRef.current && !filesBarRef.current.contains(e.target as Node)) {
+        setFilesOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [filesOpen]);
 
   const { data: library = [], isLoading: libraryLoading } = useQuery({
     queryKey: ['downloads', 'history'],
@@ -556,9 +581,23 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
 
   async function handleDownloadAll() {
     if (!session?.accessToken || !purchase) return;
+    // bundle + standalone нэгтгэнэ
+    const allProductFiles = product.files ?? [];
+    const standaloneMobile = purchase.product.files;
+    const bundleFileIdsMobile = new Set(
+      (purchase.product.bundles ?? []).flatMap((b) =>
+        b.items.flatMap((item) =>
+          item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+        ),
+      ),
+    );
+    const bundleFilesMobile = allProductFiles.filter(
+      (f) => bundleFileIdsMobile.has(f.id) && !standaloneMobile.some((sf) => sf.id === f.id),
+    );
+    const allFiles = [...standaloneMobile, ...bundleFilesMobile];
     await downloadAll(
       session.accessToken,
-      purchase.product.files,
+      allFiles,
       () => setDownloadingAll(true),
       () => setDownloadingAll(false),
     );
@@ -568,35 +607,49 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
 
   // ── Purchased state ──────────────────────────────────────────────────────
   if (purchase) {
-    const files = purchase.product.files;
+    const allProdFiles = product.files ?? [];
+    const standaloneM = purchase.product.files;
+    const bundleIdsM = new Set(
+      (purchase.product.bundles ?? []).flatMap((b) =>
+        b.items.flatMap((item) =>
+          item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+        ),
+      ),
+    );
+    const bundleFilesM = allProdFiles.filter(
+      (f) => bundleIdsM.has(f.id) && !standaloneM.some((sf) => sf.id === f.id),
+    );
+    const files = [...standaloneM, ...bundleFilesM];
     const hasFiles = files.length > 0;
     const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
 
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div
+        ref={filesBarRef}
+        className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         {/* Individual files (expandable) */}
         {filesOpen && hasFiles && (
-          <div className="border-b border-border/40 px-4 py-3 bg-muted/20 space-y-2">
-            {files.map((file) => (
-              <div key={file.id} className="flex items-center gap-2">
-                <FileText className="h-4 w-4 shrink-0 text-primary" />
-                <span className="flex-1 text-sm truncate">{file.fileName}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2.5 text-xs gap-1 shrink-0"
-                  onClick={() => handleDownloadOne(file.id, file.fileName)}
-                  disabled={downloading === file.id || downloadingAll}
-                >
-                  {downloading === file.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Download className="h-3 w-3" />
-                  )}
-                  Татах
-                </Button>
-              </div>
-            ))}
+          <div className="border-b border-border/40 px-4 py-3 bg-muted/30 dark:bg-muted/10">
+            <div className={files.length > 5 ? 'max-h-52 overflow-y-auto space-y-1 pr-1' : 'space-y-1'}>
+              {files.map((file) => (
+                <div key={file.id} className="flex items-center gap-2 rounded-lg bg-card dark:bg-card border border-border/50 px-3 py-1.5">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                    onClick={() => handleDownloadOne(file.id, file.fileName)}
+                    disabled={downloading === file.id || downloadingAll}
+                  >
+                    {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    Татах
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -619,7 +672,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                   <button
                     type="button"
                     onClick={() => setFilesOpen((p) => !p)}
-                    className="flex items-center gap-1 text-xs text-primary hover:underline mt-0.5"
+                    className="flex items-center gap-1 text-xs text-primary dark:text-secondary hover:underline mt-0.5"
                   >
                     <Download className="h-3 w-3" />
                     {files.length} файл татах боломжтой
@@ -631,20 +684,16 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
 
             {hasFiles ? (
               <Button
-                className="font-bold px-4 shrink-0"
+                className="font-semibold px-3 shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
                 size="sm"
                 onClick={handleDownloadAll}
                 disabled={downloadingAll}
               >
-                {downloadingAll ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-1.5 h-4 w-4" />
-                )}
-                Татах
+                {downloadingAll ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                Бүх файлыг татах
               </Button>
             ) : (
-              <Button asChild variant="outline" className="shrink-0" size="sm">
+              <Button asChild variant="outline" size="sm" className="shrink-0 text-xs h-8 text-muted-foreground hover:text-foreground">
                 <Link href="/orders">Захиалга</Link>
               </Button>
             )}

@@ -6,6 +6,7 @@ import {
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { EmailService } from '../notifications/email.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly email: EmailService,
   ) {}
 
   async findUserOrders(userId: string, page = 1, pageSize = 20) {
@@ -201,6 +203,21 @@ export class OrdersService {
       );
     }
 
+    // Free order → send confirmation immediately
+    if (isFree) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+      if (user?.email) {
+        this.email.sendOrderConfirmation({
+          to: user.email,
+          name: user.name,
+          orderId: order.id,
+          items: order.items.map((i) => ({ title: i.product.title, price: Number(i.price) })),
+          total: Number(order.total),
+          couponCode: order.couponCode,
+        }).catch(() => null);
+      }
+    }
+
     return order;
   }
 
@@ -234,12 +251,26 @@ export class OrdersService {
   }
 
   async markPaid(orderId: string, qpayIdentifier?: string) {
-    return this.prisma.order.update({
+    const order = await this.prisma.order.update({
       where: { id: orderId },
       data: {
         status: OrderStatus.PAID,
         ...(qpayIdentifier && { qpayIdentifier }),
       },
+      include: {
+        user: { select: { email: true, name: true } },
+      },
     });
+
+    if (order.user?.email) {
+      this.email.sendPaymentConfirmation({
+        to: order.user.email,
+        name: order.user.name,
+        orderId: order.id,
+        total: Number(order.total),
+      }).catch(() => null);
+    }
+
+    return order;
   }
 }

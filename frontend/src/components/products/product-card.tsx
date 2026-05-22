@@ -2,30 +2,46 @@
 
 import { Badge, Button, Card, CardContent, CardFooter, productTypeBadgeVariant } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
-import { BookOpen, Heart, ShoppingCart, Star } from 'lucide-react';
+import { BookOpen, CheckCircle, Heart, ShoppingCart, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { useProductTypeIcon, useProductTypeLabel } from '@/hooks/use-product-types';
 import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
+import { downloadsApi, wishlistApi } from '@/lib/api';
 import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
+  const { data: session } = useSession();
+  const token = session?.accessToken;
+
   const add = useCartStore((s) => s.add);
   const has = useCartStore((s) => s.has);
-  const toggleWishlist = useWishlistStore((s) => s.toggle);
+  const toggleWishlistLocal = useWishlistStore((s) => s.toggle);
   const inWishlistRaw = useWishlistStore((s) => s.has(product.id));
   const [mounted, setMounted] = useState(false);
   const typeLabel = useProductTypeLabel(product.type);
   const typeIcon = useProductTypeIcon(product.type);
   useEffect(() => setMounted(true), []);
+
+  const { data: purchased } = useQuery({
+    queryKey: ['downloads', 'history'],
+    queryFn: () => downloadsApi.history(token!),
+    enabled: !!token,
+    staleTime: 5 * 60_000,
+  });
+
+  const isPurchased = mounted && !!purchased?.some((p) => p.product.id === product.id);
   const inWishlist = mounted && inWishlistRaw;
   const inCart = mounted && has(product.id);
 
   const handleAddToCart = () => {
+    if (isPurchased) return;
     if (inCart) {
       toast.info('Энэ бүтээгдэхүүн сагсанд байна', {
         description: product.title,
@@ -35,6 +51,19 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     }
     add(product);
     toast.success('Сагсанд нэмэгдлээ', { description: product.title });
+  };
+
+  const handleWishlist = async () => {
+    toggleWishlistLocal(product);
+    if (token) {
+      try {
+        await wishlistApi.toggle(token, product.id);
+      } catch {
+        toggleWishlistLocal(product);
+      }
+    }
+    if (!inWishlist) toast.success('Хадгалсанд нэмэгдлээ', { description: product.title });
+    else toast.info('Хадгалсанаас хасагдлаа', { description: product.title });
   };
 
   return (
@@ -121,20 +150,32 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       </CardContent>
 
       <CardFooter className="flex gap-1.5 p-3 sm:p-4 pt-0">
-        <Button
-          size="sm"
-          className="flex-1 h-8 text-xs sm:text-sm"
-          variant={inCart ? 'secondary' : 'default'}
-          onClick={handleAddToCart}
-        >
-          <ShoppingCart className="mr-1 h-3.5 w-3.5" />
-          {inCart ? 'Сагсанд байна' : 'Сагсанд'}
-        </Button>
+        {isPurchased ? (
+          <Button
+            size="sm"
+            className="flex-1 h-8 text-xs sm:text-sm"
+            variant="secondary"
+            disabled
+          >
+            <CheckCircle className="mr-1 h-3.5 w-3.5" />
+            Худалдаж авсан
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="flex-1 h-8 text-xs sm:text-sm"
+            variant={inCart ? 'secondary' : 'default'}
+            onClick={handleAddToCart}
+          >
+            <ShoppingCart className="mr-1 h-3.5 w-3.5" />
+            {inCart ? 'Сагсанд байна' : 'Сагсанд'}
+          </Button>
+        )}
         <Button
           size="icon"
           variant={inWishlist ? 'default' : 'outline'}
           className="h-8 w-8 shrink-0"
-          onClick={() => toggleWishlist(product)}
+          onClick={handleWishlist}
           aria-label="Хадгалах"
         >
           <Heart className={`h-3.5 w-3.5 transition-transform ${inWishlist ? 'fill-current scale-110' : ''}`} />

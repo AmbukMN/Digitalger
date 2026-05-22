@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Heart, Share2, Link as LinkIcon, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSession } from 'next-auth/react';
 import { useWishlistStore } from '@/store/wishlist';
+import { wishlistApi } from '@/lib/api';
 import type { ProductSummary } from '@/types/api';
 
 interface ProductTitleActionsProps {
@@ -18,7 +20,9 @@ interface ProductTitleActionsProps {
 }
 
 export function ProductTitleActions({ product }: ProductTitleActionsProps) {
-  const toggleWishlist = useWishlistStore((s) => s.toggle);
+  const { data: session } = useSession();
+  const token = session?.accessToken;
+  const toggleWishlistLocal = useWishlistStore((s) => s.toggle);
   const inWishlistRaw = useWishlistStore((s) => s.has(product.id));
   const [mounted, setMounted] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -41,8 +45,15 @@ export function ProductTitleActions({ product }: ProductTitleActionsProps) {
   const inWishlist = mounted && inWishlistRaw;
   const pageUrl = typeof window !== 'undefined' ? window.location.href : `https://digitalger.mn/products/${product.slug}`;
 
-  const handleWishlist = () => {
-    toggleWishlist(product as any);
+  const handleWishlist = async () => {
+    toggleWishlistLocal(product as any);
+    if (token) {
+      try {
+        await wishlistApi.toggle(token, product.id);
+      } catch {
+        toggleWishlistLocal(product as any);
+      }
+    }
     toast.success(inWishlist ? 'Хадгалсанаас хасагдлаа' : 'Хадгалсанд нэмэгдлээ');
   };
 

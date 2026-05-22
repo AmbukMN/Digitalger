@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,8 +9,13 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import * as XLSX from 'xlsx';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { OrderStatus, Role } from '@prisma/client';
@@ -22,6 +28,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { OrdersService } from '../orders/orders.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
@@ -41,16 +48,25 @@ export class AdminController {
     private readonly users: UsersService,
     private readonly prisma: PrismaService,
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue,
+    private readonly emailService: EmailService,
   ) {}
 
   @Get('dashboard')
   async dashboard() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOf3MonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+
     const [
       usersCount,
       productsCount,
       ordersCount,
       revenueAgg,
       recentOrders,
+      ordersThisMonth,
+      newUsersThisMonth,
+      monthlyRevenue,
+      emailStats,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.product.count(),
@@ -67,7 +83,33 @@ export class AdminController {
           items: { include: { product: { select: { title: true } } } },
         },
       }),
+      this.prisma.order.count({
+        where: { createdAt: { gte: startOfMonth }, status: 'PAID' },
+      }),
+      this.prisma.user.count({
+        where: { createdAt: { gte: startOfMonth } },
+      }),
+      this.prisma.order.groupBy({
+        by: ['createdAt'],
+        where: {
+          status: 'PAID',
+          createdAt: { gte: startOf3MonthsAgo },
+        },
+        _sum: { total: true },
+      }),
+      this.emailService.getStats(),
     ]);
+
+    // Сар бүрийн орлогыг тооцоолно
+    const monthlyRevenueMap: Record<string, number> = {};
+    for (const row of monthlyRevenue) {
+      const d = new Date(row.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyRevenueMap[key] = (monthlyRevenueMap[key] ?? 0) + Number(row._sum.total ?? 0);
+    }
+    const monthlyRevenueSummary = Object.entries(monthlyRevenueMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, revenue]) => ({ month, revenue }));
 
     return {
       stats: {
@@ -75,8 +117,12 @@ export class AdminController {
         products: productsCount,
         orders: ordersCount,
         revenue: revenueAgg._sum.total ?? 0,
+        ordersThisMonth,
+        newUsersThisMonth,
       },
       recentOrders,
+      monthlyRevenue: monthlyRevenueSummary,
+      emailStats,
     };
   }
 
@@ -116,6 +162,56 @@ export class AdminController {
   @Post('products')
   createProduct(@Body() dto: CreateProductDto) {
     return this.adminProducts.create(dto);
+  }
+
+  @Post('products/bulk-import')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
+  async bulkImportProducts(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Файл сонгоогүй байна');
+    const ext = file.originalname.toLowerCase();
+    if (!ext.endsWith('.xlsx') && !ext.endsWith('.xls') && !ext.endsWith('.csv')) {
+      throw new BadRequestException('Зөвхөн .xlsx, .xls, .csv файл зөвшөөрнө');
+    }
+    const wb = XLSX.read(file.buffer, { type: 'buffer' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!rows.length) throw new BadRequestException('Файл хоосон байна');
+
+    const results: { row: number; status: 'created' | 'error'; title?: string; error?: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const title = String(r['title'] ?? r['нэр'] ?? r['Title'] ?? '').trim();
+      const price = parseFloat(String(r['price'] ?? r['үнэ'] ?? r['Price'] ?? '0'));
+      const type = String(r['type'] ?? r['төрөл'] ?? r['Type'] ?? 'file').trim() || 'file';
+      if (!title) { results.push({ row: i + 2, status: 'error', error: 'title хоосон' }); continue; }
+      if (isNaN(price)) { results.push({ row: i + 2, status: 'error', error: 'price буруу' }); continue; }
+      try {
+        const slug = title
+          .toLowerCase()
+          .replace(/[^a-z0-9а-яөүё\s-]/gi, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .slice(0, 80) + '-' + Date.now() + '-' + i;
+        await this.adminProducts.create({
+          title,
+          slug,
+          description: String(r['description'] ?? r['тайлбар'] ?? r['Description'] ?? ''),
+          price,
+          compareAtPrice: parseFloat(String(r['compareAtPrice'] ?? r['comparePrice'] ?? '')) || undefined,
+          type,
+          published: String(r['published'] ?? r['Published'] ?? 'false').toLowerCase() === 'true',
+          featured: String(r['featured'] ?? r['Featured'] ?? 'false').toLowerCase() === 'true',
+        } as any);
+        results.push({ row: i + 2, status: 'created', title });
+      } catch (err: any) {
+        results.push({ row: i + 2, status: 'error', title, error: err?.message ?? 'Алдаа' });
+      }
+    }
+
+    const created = results.filter((r) => r.status === 'created').length;
+    const failed = results.filter((r) => r.status === 'error').length;
+    return { total: rows.length, created, failed, results };
   }
 
   @Patch('products/:id')

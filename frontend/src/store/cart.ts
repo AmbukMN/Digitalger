@@ -22,6 +22,8 @@ interface CartState {
   clear: () => void;
   has: (productId: string) => boolean;
   total: () => number;
+  // нэвтрэхэд худалдаж авсан бүтээгдэхүүнүүдийг сагснаас хас
+  removePurchased: (purchasedIds: string[]) => void;
 }
 
 export const useCartStore = create<CartState>()(
@@ -56,6 +58,10 @@ export const useCartStore = create<CartState>()(
       clear: () => set({ items: [] }),
       has: (productId) => get().items.some((i) => i.productId === productId),
       total: () => get().items.reduce((sum, i) => sum + i.price, 0),
+      removePurchased: (purchasedIds) =>
+        set((s) => ({
+          items: s.items.filter((i) => !purchasedIds.includes(i.productId)),
+        })),
     }),
     { name: 'digitalger-cart' },
   ),

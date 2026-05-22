@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Input, Separator } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
 import { CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
@@ -27,6 +27,7 @@ interface AppliedCoupon {
 export default function CheckoutPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const items = useCartStore((s) => s.items);
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
@@ -34,6 +35,7 @@ export default function CheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [qpayResult, setQpayResult] = useState<PaymentInitiateResult | null>(null);
+  const autoPayTriggered = useRef(false);
 
   // Checkout-level coupons (addable on this page)
   const [checkoutCoupons, setCheckoutCoupons] = useState<AppliedCoupon[]>(() => {
@@ -103,6 +105,23 @@ export default function CheckoutPage() {
   function removeCoupon(code: string) {
     setCheckoutCoupons((prev) => prev.filter((c) => c.code !== code));
   }
+
+  // ?autopay=1 param байвал нэвтэрсний дараа шууд QPay эхлүүлнэ
+  useEffect(() => {
+    if (
+      searchParams.get('autopay') === '1' &&
+      session?.accessToken &&
+      !autoPayTriggered.current &&
+      !paying &&
+      !qpayResult &&
+      items.length > 0
+    ) {
+      autoPayTriggered.current = true;
+      router.replace('/checkout');
+      handlePay();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.accessToken, searchParams]);
 
   const handlePay = async () => {
     if (!session?.accessToken) {
@@ -364,7 +383,7 @@ export default function CheckoutPage() {
         open={authOpen}
         onClose={() => setAuthOpen(false)}
         defaultTab="login"
-        callbackUrl="/checkout"
+        callbackUrl="/checkout?autopay=1"
       />
 
       {qpayResult && session?.accessToken && (

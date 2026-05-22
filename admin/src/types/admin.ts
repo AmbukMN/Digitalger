@@ -1,13 +1,26 @@
 import type { OrderStatus, UserRole } from '@digitalger/shared';
 
+export interface EmailStats {
+  configured: boolean;
+  sentThisMonth: number;
+  sentLastMonth: number;
+  sentTwoMonthsAgo: number;
+  monthlyLimit: number;
+  queueLength: number;
+}
+
 export interface DashboardStats {
   stats: {
     users: number;
     products: number;
     orders: number;
     revenue: number;
+    ordersThisMonth: number;
+    newUsersThisMonth: number;
   };
   recentOrders: AdminOrder[];
+  monthlyRevenue: { month: string; revenue: number }[];
+  emailStats: EmailStats;
 }
 
 export interface AdminUser {

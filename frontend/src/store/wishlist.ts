@@ -8,6 +8,10 @@ interface WishlistState {
   items: ProductSummary[];
   toggle: (product: ProductSummary) => void;
   has: (productId: string) => boolean;
+  // нэвтрэхэд backend-тэй sync хийхэд ашиглана
+  mergeFromBackend: (backendItems: ProductSummary[]) => void;
+  // нэвтрэхэд localStorage-аас backend руу sync хийх үед pending items буцаана
+  getPendingIds: () => string[];
 }
 
 export const useWishlistStore = create<WishlistState>()(
@@ -21,6 +25,14 @@ export const useWishlistStore = create<WishlistState>()(
           return { items: [...s.items, product] };
         }),
       has: (productId) => get().items.some((i) => i.id === productId),
+      mergeFromBackend: (backendItems) =>
+        set((s) => {
+          // backend items + local items-ийн union (давхардлыг id-р хасна)
+          const backendIds = new Set(backendItems.map((i) => i.id));
+          const localOnly = s.items.filter((i) => !backendIds.has(i.id));
+          return { items: [...backendItems, ...localOnly] };
+        }),
+      getPendingIds: () => get().items.map((i) => i.id),
     }),
     { name: 'digitalger-wishlist' },
   ),

@@ -2,10 +2,15 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, ArrowRight, Tag } from 'lucide-react';
+import { ArrowRight, Tag } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@digitalger/shared/ui';
-import { useEffect, useRef, useState } from 'react';
+import { cn } from '@digitalger/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BlogPost } from '@/types/api';
+
+const GAP = 16;
+const AUTO_INTERVAL = 4000;
 
 function formatDate(dateStr: string | null | undefined) {
   if (!dateStr) return null;
@@ -58,72 +63,124 @@ function BlogCard({ post }: { post: BlogPost }) {
   );
 }
 
-function BlogCarousel({ posts }: { posts: BlogPost[] }) {
+function BlogSwiper({ posts }: { posts: BlogPost[] }) {
+  const wrapRef  = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const [canPrev, setCanPrev] = useState(false);
-  const [canNext, setCanNext] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pausedRef = useRef(false);
 
-  function checkScroll() {
+  const [canL, setCanL] = useState(false);
+  const [canR, setCanR] = useState(false);
+  const [cardW, setCardW] = useState(0);
+
+  const calcLayout = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    const cols = w >= 1024 ? 3 : 1;
+    setCardW(Math.floor((w - GAP * (cols - 1)) / cols));
+  }, []);
+
+  const sync = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
-    setCanPrev(el.scrollLeft > 4);
-    setCanNext(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
-  }
+    setCanL(el.scrollLeft > 4);
+    setCanR(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, []);
+
+  const pan = useCallback((dir: -1 | 1) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (dir === 1 && el.scrollLeft >= maxScroll - 4) {
+      el.scrollTo({ left: 0, behavior: 'smooth' });
+    } else if (dir === -1 && el.scrollLeft <= 4) {
+      el.scrollTo({ left: maxScroll, behavior: 'smooth' });
+    } else {
+      el.scrollBy({ left: dir * (el.clientWidth + GAP), behavior: 'smooth' });
+    }
+  }, []);
+
+  const startAuto = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      if (!pausedRef.current) pan(1);
+    }, AUTO_INTERVAL);
+  }, [pan]);
+
+  const pauseAuto  = () => { pausedRef.current = true; };
+  const resumeAuto = () => { pausedRef.current = false; };
+
+  useEffect(() => {
+    calcLayout();
+    const ro = new ResizeObserver(() => { calcLayout(); sync(); });
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [calcLayout, sync]);
 
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
-    checkScroll();
-    el.addEventListener('scroll', checkScroll, { passive: true });
-    return () => el.removeEventListener('scroll', checkScroll);
-  }, [posts]);
+    const t = setTimeout(sync, 100);
+    el.addEventListener('scroll', sync, { passive: true });
+    return () => { clearTimeout(t); el.removeEventListener('scroll', sync); };
+  }, [sync, posts, cardW]);
 
-  function scroll(dir: 'prev' | 'next') {
-    const el = trackRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir === 'next' ? el.clientWidth : -el.clientWidth, behavior: 'smooth' });
-  }
+  useEffect(() => {
+    if (cardW === 0) return;
+    startAuto();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [cardW, startAuto]);
 
   return (
-    <div className="relative">
-      {/* Prev button */}
+    <div
+      ref={wrapRef}
+      className="relative"
+      onMouseEnter={pauseAuto}
+      onMouseLeave={resumeAuto}
+      onTouchStart={pauseAuto}
+      onTouchEnd={resumeAuto}
+    >
       <button
-        type="button"
-        onClick={() => scroll('prev')}
-        disabled={!canPrev}
-        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 -translate-x-1 sm:-translate-x-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        aria-label="Өмнөх"
-      >
-        <ArrowLeft className="h-4 w-4" />
-      </button>
+        type="button" aria-label="Өмнөх"
+        onClick={() => { pauseAuto(); pan(-1); setTimeout(resumeAuto, 3000); }}
+        className={cn(
+          'absolute -left-5 top-1/2 z-10 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card shadow-md transition-all duration-200 hover:bg-primary hover:text-primary-foreground',
+          canL ? 'opacity-100 scale-100' : 'opacity-0 scale-75 pointer-events-none',
+        )}
+      ><ChevronLeft className="h-4 w-4" /></button>
 
-      {/* Scroll track */}
       <div
         ref={trackRef}
-        className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-3 px-8 sm:px-2 scrollbar-none"
-        style={{ scrollbarWidth: 'none' }}
+        className="hide-scrollbar"
+        style={{
+          display: 'grid',
+          gridAutoFlow: 'column',
+          gridTemplateRows: '1fr',
+          gridAutoColumns: cardW > 0 ? cardW : undefined,
+          gap: GAP,
+          overflowX: 'auto',
+          paddingTop: 8,
+          paddingBottom: 10,
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
-        {posts.map((post) => (
-          <div
-            key={post.id}
-            data-card
-            className="snap-start shrink-0 w-[calc(100vw-5rem)] sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]"
-          >
+        {cardW > 0 && posts.map((post) => (
+          <div key={post.id} style={{ scrollSnapAlign: 'start', minWidth: 0 }}>
             <BlogCard post={post} />
           </div>
         ))}
       </div>
 
-      {/* Next button */}
       <button
-        type="button"
-        onClick={() => scroll('next')}
-        disabled={!canNext}
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-1 sm:translate-x-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        aria-label="Дараах"
-      >
-        <ArrowRight className="h-4 w-4" />
-      </button>
+        type="button" aria-label="Дараах"
+        onClick={() => { pauseAuto(); pan(1); setTimeout(resumeAuto, 3000); }}
+        className={cn(
+          'absolute -right-5 top-1/2 z-10 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card shadow-md transition-all duration-200 hover:bg-primary hover:text-primary-foreground',
+          canR ? 'opacity-100 scale-100' : 'opacity-0 scale-75 pointer-events-none',
+        )}
+      ><ChevronRight className="h-4 w-4" /></button>
     </div>
   );
 }
@@ -134,21 +191,24 @@ export function BlogSection({ posts }: { posts: BlogPost[] }) {
   return (
     <section className="py-10 sm:py-12">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold sm:text-2xl">Мэргэжилтний Зөвлөгөө, нийтлэл</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Дижитал бизнесийг ахиулах практик зөвлөмж, гарын авлага, нийтлэл</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-1 rounded-full bg-primary shrink-0" aria-hidden="true" />
+            <div>
+              <h2 className="text-xl font-bold sm:text-2xl">Мэргэжилтний Зөвлөгөө, нийтлэл</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Дижитал бизнесийг ахиулах практик зөвлөмж, гарын авлага, нийтлэл</p>
+            </div>
           </div>
           <Link
             href="/blog"
-            className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium shrink-0"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground font-medium shrink-0 transition-colors"
           >
             Бүгдийг харах
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        <BlogCarousel posts={posts} />
+        <BlogSwiper posts={posts} />
       </div>
     </section>
   );

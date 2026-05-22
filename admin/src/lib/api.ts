@@ -137,6 +137,14 @@ export const adminApi = {
         '/admin/products/generate',
         { method: 'POST', body: JSON.stringify(body) },
       ),
+    bulkImport: (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      return adminFetch<{ total: number; created: number; failed: number; results: { row: number; status: string; title?: string; error?: string }[] }>(
+        '/admin/products/bulk-import',
+        { method: 'POST', body: fd },
+      );
+    },
     images: {
       list: (productId: string) => adminFetch<AdminProductImage[]>(`/admin/products/${productId}/images`),
       addVideo: (productId: string, videoUrl: string, alt?: string) =>

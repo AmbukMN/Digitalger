@@ -202,6 +202,20 @@ export interface PurchasedProduct {
     thumbnailUrl?: string | null;
     downloadFileKey?: string | null;
     files: { id: string; fileName: string; sortOrder: number }[];
+    bundles?: {
+      id: string;
+      title: string;
+      description?: string | null;
+      downloadFileKey?: string | null;
+      items: {
+        id: string;
+        name: string;
+        description?: string | null;
+        label?: string | null;
+        fileId?: string | null;
+        fileIds: string[];
+      }[];
+    }[];
   };
 }
 
