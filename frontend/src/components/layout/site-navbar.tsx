@@ -72,10 +72,7 @@ function useFeaturedProducts() {
     queryKey: ['public', 'featured-menu'],
     queryFn: () => productsApi.list({ featured: true, pageSize: 6 }).then((r) => r.items),
     staleTime: 5 * 60 * 1000,
-    select: (items) => {
-      const shuffled = [...items].sort(() => Math.random() - 0.5);
-      return shuffled.slice(0, 3);
-    },
+    select: (items) => items.slice(0, 3),
   });
 }
 

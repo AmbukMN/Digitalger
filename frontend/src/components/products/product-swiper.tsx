@@ -83,6 +83,8 @@ export function ProductSwiper({
 
   useEffect(() => {
     if (cardW === 0) return;
+    const isMobile = window.innerWidth < 1024;
+    if (isMobile) return;
     startAuto();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [cardW, startAuto]);

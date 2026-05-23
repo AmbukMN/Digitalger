@@ -420,7 +420,8 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
       {/* CTA — gold primary button, price-аас тодорхой ялгарна */}
       <Button className={`w-full font-bold text-base h-12 transition-transform ${btnShake ? 'cart-shake' : ''}`} size="lg" onClick={handleBuy}>
         <ShoppingCart className="mr-2 h-5 w-5" />
-        Шууд худалдаж авах
+        <span className="sm:hidden">Худалдаж авах</span>
+        <span className="hidden sm:inline">Шууд худалдаж авах</span>
       </Button>
 
       {/* Quick details */}
@@ -814,7 +815,8 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
             onClick={handleBuy}
           >
             <ShoppingCart className="mr-1.5 h-4 w-4" />
-            Шууд худалдаж авах
+            <span className="sm:hidden">Худалдаж авах</span>
+            <span className="hidden sm:inline">Шууд худалдаж авах</span>
           </Button>
         </div>
       </div>
