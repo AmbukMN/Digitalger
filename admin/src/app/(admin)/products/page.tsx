@@ -5,7 +5,6 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Badge,
   Button,
   DataTable,
   Dialog,
@@ -17,12 +16,13 @@ import {
   Input,
   Loading,
 } from '@digitalger/shared/ui';
-import { Copy, Upload, CheckCircle2, XCircle, ImageOff, Tag, Clock, Download } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, Download, ImageOff, Search, Star, Upload, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
 import { adminApi } from '@/lib/api';
 import type { AdminProduct } from '@/types/admin';
 
+// ── Inline download count editor ───────────────────────────────────────────────
 function DownloadCountCell({ product }: { product: AdminProduct }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -30,8 +30,7 @@ function DownloadCountCell({ product }: { product: AdminProduct }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const saveMut = useMutation({
-    mutationFn: (count: number) =>
-      adminApi.products.update(product.id, { downloadCount: count }),
+    mutationFn: (count: number) => adminApi.products.update(product.id, { downloadCount: count }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
       setEditing(false);
@@ -61,16 +60,21 @@ function DownloadCountCell({ product }: { product: AdminProduct }) {
   return (
     <button
       type="button"
-      className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+      className="tabular-nums text-sm text-muted-foreground hover:text-foreground transition-colors"
       title="Дарж засах"
       onClick={() => { setValue(String(product.downloadCount ?? 0)); setEditing(true); }}
     >
-      {(product.downloadCount ?? 0).toLocaleString()} таталт
+      {(product.downloadCount ?? 0).toLocaleString()}
     </button>
   );
 }
 
-type ImportResult = { total: number; created: number; failed: number; results: { row: number; status: string; title?: string; error?: string }[] };
+type ImportResult = {
+  total: number;
+  created: number;
+  failed: number;
+  results: { row: number; status: string; title?: string; error?: string }[];
+};
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -119,26 +123,28 @@ export default function ProductsPage() {
     {
       id: 'thumbnail',
       header: '',
-      size: 80,
+      size: 72,
       cell: ({ row }) => {
         const url = row.original.thumbnailUrl || row.original.previewUrl;
         return (
-          <div className="relative w-16 h-12 rounded-lg overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
+          <div className="relative w-14 h-10 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
             {url ? (
               <Image
                 src={url}
                 alt={row.original.title}
                 fill
                 className="object-cover"
-                sizes="64px"
+                sizes="56px"
                 unoptimized={url.split('?')[0].toLowerCase().endsWith('.svg')}
               />
             ) : (
-              <ImageOff className="h-4 w-4 text-muted-foreground" />
+              <div className="flex h-full w-full items-center justify-center">
+                <ImageOff className="h-4 w-4 text-muted-foreground/50" />
+              </div>
             )}
             {row.original.featured && (
-              <div className="absolute top-0.5 right-0.5">
-                <Tag className="h-3 w-3 text-secondary drop-shadow" />
+              <div className="absolute top-0.5 right-0.5 rounded-full bg-secondary/90 p-0.5 shadow-sm">
+                <Star className="h-2.5 w-2.5 text-secondary-foreground fill-current" />
               </div>
             )}
           </div>
@@ -148,12 +154,18 @@ export default function ProductsPage() {
     {
       accessorKey: 'title',
       header: 'Бүтээгдэхүүн',
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="font-medium text-sm leading-tight line-clamp-2">{row.original.title}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{row.original.type} · {row.original.slug}</p>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <div className="min-w-0 max-w-64">
+            <p className="font-semibold text-sm leading-snug line-clamp-2">{p.title}</p>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">{p.type}</span>
+              <span className="text-[10px] text-muted-foreground truncate max-w-32">{p.slug}</span>
+            </div>
+          </div>
+        );
+      },
     },
     {
       id: 'price',
@@ -161,15 +173,15 @@ export default function ProductsPage() {
       cell: ({ row }) => {
         const price = Number(row.original.price);
         const compare = Number(row.original.compareAtPrice);
-        const hasDiscount = compare > price;
+        const hasDiscount = compare > price && compare > 0;
         const pct = hasDiscount ? Math.round((1 - price / compare) * 100) : 0;
         return (
-          <div className="space-y-0.5">
-            <p className="font-semibold text-sm">{price.toLocaleString('mn-MN')}₮</p>
+          <div className="whitespace-nowrap">
+            <p className="font-bold text-sm tabular-nums">{price.toLocaleString('mn-MN')}₮</p>
             {hasDiscount && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground line-through">{compare.toLocaleString('mn-MN')}₮</span>
-                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">-{pct}%</Badge>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[10px] text-muted-foreground line-through tabular-nums">{compare.toLocaleString('mn-MN')}₮</span>
+                <span className="text-[10px] font-bold rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5">-{pct}%</span>
               </div>
             )}
           </div>
@@ -178,20 +190,22 @@ export default function ProductsPage() {
     },
     {
       id: 'discount',
-      header: 'Хямдрал дуусах',
+      header: 'Хямдрал',
       cell: ({ row }) => {
         const endsAt = row.original.discountEndsAt;
-        if (!endsAt) return <span className="text-xs text-muted-foreground">—</span>;
+        if (!endsAt) return <span className="text-xs text-muted-foreground/50">—</span>;
         const d = new Date(endsAt);
         const now = new Date();
         const expired = d < now;
         const daysLeft = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         return (
-          <div className="flex items-center gap-1">
-            <Clock className={`h-3.5 w-3.5 shrink-0 ${expired ? 'text-destructive' : daysLeft <= 7 ? 'text-orange-500' : 'text-muted-foreground'}`} />
-            <span className={`text-xs ${expired ? 'text-destructive' : daysLeft <= 7 ? 'text-orange-500 font-medium' : 'text-muted-foreground'}`}>
-              {expired ? 'Дууссан' : `${daysLeft} өдөр`}
-            </span>
+          <div className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            expired ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+            daysLeft <= 7 ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+            'bg-muted text-muted-foreground'
+          }`}>
+            <Clock className="h-2.5 w-2.5 shrink-0" />
+            {expired ? 'Дууссан' : `${daysLeft}өд`}
           </div>
         );
       },
@@ -200,8 +214,8 @@ export default function ProductsPage() {
       id: 'downloadCount',
       header: 'Таталт',
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
-          <Download className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className="flex items-center gap-1" title="Дарж тоог засах">
+          <Download className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
           <DownloadCountCell product={row.original} />
         </div>
       ),
@@ -209,41 +223,38 @@ export default function ProductsPage() {
     {
       id: 'status',
       header: 'Төлөв',
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1.5">
-          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${
-            row.original.published
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-muted text-muted-foreground'
-          }`}>
-            {row.original.published ? 'Нийтэлсэн' : 'Ноорог'}
-          </span>
-          {row.original.featured && (
-            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold w-fit bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              <Tag className="h-2.5 w-2.5" />Онцлох
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <div className="flex flex-col gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold w-fit ${
+              p.published
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-muted text-muted-foreground'
+            }`}>
+              {p.published ? <><CheckCircle2 className="h-3 w-3" />Нийтэлсэн</> : 'Ноорог'}
             </span>
-          )}
-        </div>
-      ),
+          </div>
+        );
+      },
     },
     {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-1">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={() => {
-              setEditing(row.original);
-              setDialogOpen(true);
-            }}
+            className="h-7 text-xs px-2.5"
+            onClick={() => { setEditing(row.original); setDialogOpen(true); }}
           >
             Засах
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             title="Клонлох"
             disabled={cloneMutation.isPending}
             onClick={() => cloneMutation.mutate(row.original.id)}
@@ -251,11 +262,12 @@ export default function ProductsPage() {
             <Copy className="h-3.5 w-3.5" />
           </Button>
           <Button
-            variant="destructive"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
             onClick={() => setDeleteTarget(row.original)}
           >
-            Устгах
+            <XCircle className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),
@@ -263,17 +275,14 @@ export default function ProductsPage() {
   ];
 
   if (isLoading) return <Loading label="Бүтээгдэхүүнүүд..." />;
-  if (isError)
-    return (
-      <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />
-    );
+  if (isError) return <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Бүтээгдэхүүн</h1>
-          <p className="text-muted-foreground">Нийт {data?.total ?? 0}</p>
+          <h1 className="text-2xl font-bold tracking-tight">Бүтээгдэхүүн</h1>
+          <p className="text-sm text-muted-foreground">Нийт {data?.total ?? 0} бүтээгдэхүүн</p>
         </div>
         <div className="flex gap-2">
           <input
@@ -286,62 +295,50 @@ export default function ProductsPage() {
               if (file) { importMutation.mutate(file); e.target.value = ''; }
             }}
           />
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importMutation.isPending}
-          >
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importMutation.isPending}>
             <Upload className="mr-1.5 h-4 w-4" />
-            {importMutation.isPending ? 'Импортлож байна...' : 'CSV/Excel импорт'}
+            {importMutation.isPending ? 'Импортлож байна...' : 'Импорт'}
           </Button>
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
+          <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
             + Нэмэх
           </Button>
         </div>
       </div>
 
-      <Input
-        placeholder="Хайх..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Бүтээгдэхүүн хайх..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
 
       <DataTable columns={columns} data={data?.items ?? []} />
 
-      <ProductFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        product={editing}
-      />
+      <ProductFormDialog open={dialogOpen} onOpenChange={setDialogOpen} product={editing} />
 
-      {/* Import result dialog */}
+      {/* Import result */}
       <Dialog open={!!importResult} onOpenChange={() => setImportResult(null)}>
         <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Импортын үр дүн</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Импортын үр дүн</DialogTitle></DialogHeader>
           {importResult && (
             <div className="space-y-3">
-              <div className="flex gap-4 text-sm">
+              <div className="flex gap-4 text-sm rounded-lg bg-muted/50 p-3">
                 <span>Нийт: <strong>{importResult.total}</strong></span>
                 <span className="text-green-600">Амжилттай: <strong>{importResult.created}</strong></span>
                 {importResult.failed > 0 && <span className="text-destructive">Алдаатай: <strong>{importResult.failed}</strong></span>}
               </div>
-              <div className="max-h-64 overflow-y-auto space-y-1">
+              <div className="max-h-60 overflow-y-auto space-y-1 rounded-lg border border-border p-2">
                 {importResult.results.map((r) => (
-                  <div key={r.row} className="flex items-start gap-2 text-xs py-1 border-b border-border last:border-0">
+                  <div key={r.row} className="flex items-start gap-2 text-xs py-1 border-b border-border/50 last:border-0">
                     {r.status === 'created'
                       ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
                       : <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />}
-                    <span className="text-muted-foreground">Мөр {r.row}:</span>
-                    <span className="flex-1">{r.title ?? '—'}</span>
-                    {r.error && <span className="text-destructive">{r.error}</span>}
+                    <span className="text-muted-foreground shrink-0">Мөр {r.row}:</span>
+                    <span className="flex-1 truncate">{r.title ?? '—'}</span>
+                    {r.error && <span className="text-destructive shrink-0">{r.error}</span>}
                   </div>
                 ))}
               </div>
@@ -353,26 +350,25 @@ export default function ProductsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirm */}
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Устгах уу?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            &quot;{deleteTarget?.title}&quot; бүтээгдэхүүнийг бүрмөсөн устгана.
-          </p>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+              {(deleteTarget.thumbnailUrl || deleteTarget.previewUrl) && (
+                <div className="relative h-12 w-16 shrink-0 rounded-md overflow-hidden border border-border">
+                  <Image src={deleteTarget.thumbnailUrl || deleteTarget.previewUrl!} alt={deleteTarget.title} fill className="object-cover" sizes="64px" unoptimized />
+                </div>
+              )}
+              <p className="text-sm font-medium line-clamp-2">{deleteTarget.title}</p>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">Бүтээгдэхүүнийг бүрмөсөн устгана. Буцаах боломжгүй.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Цуцлах
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteMutation.isPending}
-              onClick={() =>
-                deleteTarget && deleteMutation.mutate(deleteTarget.id)
-              }
-            >
-              Устгах
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
+              {deleteMutation.isPending ? 'Устгаж байна...' : 'Устгах'}
             </Button>
           </DialogFooter>
         </DialogContent>
