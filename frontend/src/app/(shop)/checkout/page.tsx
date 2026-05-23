@@ -8,7 +8,7 @@ import { formatPrice } from '@digitalger/shared';
 import { CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { couponsApi, ordersApi, paymentsApi } from '@/lib/api';
+import { couponsApi, ordersApi, paymentsApi, productsApi } from '@/lib/api';
 import { useCartStore } from '@/store/cart';
 import { MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import { SiteNavbar } from '@/components/layout/site-navbar';
@@ -31,6 +31,7 @@ function CheckoutContent() {
   const items = useCartStore((s) => s.items);
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
+  const updateThumbnail = useCartStore((s) => s.updateThumbnail);
 
   const [paying, setPaying] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -105,6 +106,21 @@ function CheckoutContent() {
   function removeCoupon(code: string) {
     setCheckoutCoupons((prev) => prev.filter((c) => c.code !== code));
   }
+
+  // thumbnailUrl null байгаа cart item-г API-аас шинэчлэх
+  useEffect(() => {
+    const missingThumbs = items.filter((i) => !i.thumbnailUrl);
+    if (!missingThumbs.length) return;
+    missingThumbs.forEach(async (item) => {
+      try {
+        const product = await productsApi.bySlug(item.slug);
+        if (product.thumbnailUrl) updateThumbnail(item.productId, product.thumbnailUrl);
+      } catch {
+        // ignore
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ?autopay=1 param байвал нэвтэрсний дараа шууд QPay эхлүүлнэ
   useEffect(() => {

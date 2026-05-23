@@ -22,7 +22,7 @@ interface CartState {
   clear: () => void;
   has: (productId: string) => boolean;
   total: () => number;
-  // нэвтрэхэд худалдаж авсан бүтээгдэхүүнүүдийг сагснаас хас
+  updateThumbnail: (productId: string, thumbnailUrl: string) => void;
   removePurchased: (purchasedIds: string[]) => void;
 }
 
@@ -45,7 +45,7 @@ export const useCartStore = create<CartState>()(
                 title: product.title,
                 price: Math.max(0, price - discount),
                 compareAtPrice: compareAtPrice ?? price,
-                thumbnailUrl: product.thumbnailUrl ?? null,
+                thumbnailUrl: product.thumbnailUrl ?? product.previewUrl ?? null,
                 ...(options?.couponCodes?.length ? { couponCodes: options.couponCodes } : {}),
                 ...(discount > 0 ? { couponDiscount: discount } : {}),
               },
@@ -55,6 +55,12 @@ export const useCartStore = create<CartState>()(
       },
       remove: (productId) =>
         set((s) => ({ items: s.items.filter((i) => i.productId !== productId) })),
+      updateThumbnail: (productId, thumbnailUrl) =>
+        set((s) => ({
+          items: s.items.map((i) =>
+            i.productId === productId ? { ...i, thumbnailUrl } : i,
+          ),
+        })),
       clear: () => set({ items: [] }),
       has: (productId) => get().items.some((i) => i.productId === productId),
       total: () => get().items.reduce((sum, i) => sum + i.price, 0),

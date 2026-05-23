@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { formatPrice } from '@digitalger/shared';
 import { cn } from '@digitalger/shared';
+import { useState } from 'react';
 
 interface ProductRowItemProps {
   thumbnail?: string | null;
@@ -27,14 +28,21 @@ export function ProductRowItem({
   className,
 }: ProductRowItemProps) {
   const hasDiscount = compareAtPrice && price != null && compareAtPrice > price;
+  const [imgError, setImgError] = useState(false);
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
       {/* Thumbnail */}
       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
-        {thumbnail ? (
+        {thumbnail && !imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumbnail} alt={title} className="h-full w-full object-cover" />
+          <img
+            src={thumbnail}
+            alt={title}
+            className="h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
             <Package className="h-5 w-5" />
