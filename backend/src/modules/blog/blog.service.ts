@@ -30,19 +30,18 @@ export class UpdateBlogPostDto {
 export class BlogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAllPublished(params?: { page?: number; pageSize?: number; tag?: string }) {
+  async findAllPublished(params?: { page?: number; pageSize?: number; tag?: string }) {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 12;
     const skip = (page - 1) * pageSize;
     const where: any = { published: true };
     if (params?.tag) where.tags = { has: params.tag };
-    return this.prisma.blogPost.findMany({
-      where,
-      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
-      take: pageSize,
-      skip,
-      select: { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, tags: true, authorName: true, createdAt: true },
-    });
+    const select = { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, tags: true, authorName: true, createdAt: true };
+    const [items, total] = await Promise.all([
+      this.prisma.blogPost.findMany({ where, orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }], take: pageSize, skip, select }),
+      this.prisma.blogPost.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   search(q: string) {

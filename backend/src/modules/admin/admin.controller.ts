@@ -28,6 +28,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { OrdersService } from '../orders/orders.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -47,6 +48,7 @@ export class AdminController {
     private readonly orders: OrdersService,
     private readonly users: UsersService,
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue,
     private readonly emailService: EmailService,
   ) {}
@@ -80,7 +82,19 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, email: true, name: true, image: true } },
-          items: { include: { product: { select: { title: true, slug: true, previewUrl: true, price: true } } } },
+          items: {
+            include: {
+              product: {
+                select: {
+                  title: true,
+                  slug: true,
+                  previewUrl: true,
+                  price: true,
+                  images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.order.count({
@@ -111,6 +125,22 @@ export class AdminController {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue }));
 
+    const mapOrderImages = (orders: typeof recentOrders) =>
+      orders.map((o) => ({
+        ...o,
+        items: o.items.map((item) => ({
+          ...item,
+          product: {
+            ...item.product,
+            previewUrl:
+              item.product.images?.[0]?.fileKey
+                ? this.storage.getAssetUrl(item.product.images[0].fileKey)
+                : item.product.previewUrl,
+            images: undefined,
+          },
+        })),
+      }));
+
     return {
       stats: {
         users: usersCount,
@@ -120,7 +150,7 @@ export class AdminController {
         ordersThisMonth,
         newUsersThisMonth,
       },
-      recentOrders,
+      recentOrders: mapOrderImages(recentOrders),
       monthlyRevenue: monthlyRevenueSummary,
       emailStats,
     };
@@ -444,14 +474,41 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, email: true, name: true, image: true } },
-          items: { include: { product: { select: { title: true, slug: true, previewUrl: true, price: true } } } },
+          items: {
+            include: {
+              product: {
+                select: {
+                  title: true,
+                  slug: true,
+                  previewUrl: true,
+                  price: true,
+                  images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
+                },
+              },
+            },
+          },
           payments: true,
         },
       }),
       this.prisma.order.count({ where }),
     ]);
 
-    return { items, total, page: p, pageSize: ps };
+    const mappedItems = items.map((o) => ({
+      ...o,
+      items: o.items.map((item) => ({
+        ...item,
+        product: {
+          ...item.product,
+          previewUrl:
+            item.product.images?.[0]?.fileKey
+              ? this.storage.getAssetUrl(item.product.images[0].fileKey)
+              : item.product.previewUrl,
+          images: undefined,
+        },
+      })),
+    }));
+
+    return { items: mappedItems, total, page: p, pageSize: ps };
   }
 
   @Get('orders/:id')

@@ -60,6 +60,7 @@ export function DataTable<TData, TValue>({
                   <th
                     key={h.id}
                     className="h-11 px-4 text-left font-medium text-muted-foreground"
+                    style={h.column.columnDef.size ? { width: h.column.columnDef.size, minWidth: h.column.columnDef.minSize, maxWidth: h.column.columnDef.maxSize } : undefined}
                   >
                     {h.isPlaceholder
                       ? null
@@ -77,7 +78,11 @@ export function DataTable<TData, TValue>({
                   className="border-t border-border transition-colors hover:bg-muted/30"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-middle">
+                    <td
+                      key={cell.id}
+                      className="px-4 py-3 align-middle"
+                      style={cell.column.columnDef.size ? { width: cell.column.columnDef.size, minWidth: cell.column.columnDef.minSize, maxWidth: cell.column.columnDef.maxSize } : undefined}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}

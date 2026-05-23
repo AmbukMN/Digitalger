@@ -260,7 +260,7 @@ export const blogApi = {
     if (params?.pageSize) q.set('pageSize', String(params.pageSize));
     if (params?.tag) q.set('tag', params.tag);
     const queryStr = q.toString();
-    return request<BlogPost[]>(`/blog${queryStr ? `?${queryStr}` : ''}`);
+    return request<{ items: BlogPost[]; total: number; page: number; pageSize: number }>(`/blog${queryStr ? `?${queryStr}` : ''}`);
   },
   latest: (count = 3) => request<BlogPost[]>(`/blog/latest?count=${count}`),
   search: (q: string) => request<BlogPost[]>(`/blog/search?q=${encodeURIComponent(q)}`),

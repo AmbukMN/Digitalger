@@ -300,12 +300,37 @@ model ThemeSetting {
 }
 
 model SiteSetting {
-  id           String   @id @default("default")
-  siteName     String   @default("DigitalGer")
-  siteUrl      String   @default("https://digitalger.mn")
-  supportEmail String?
-  logoUrl      String?
-  updatedAt    DateTime @updatedAt
+  id                    String   @id @default("default")
+  siteName              String   @default("DigitalGer")
+  siteUrl               String   @default("https://digitalger.mn")
+  supportEmail          String?
+  logoUrl               String?
+
+  // SEO
+  metaTitle             String?
+  metaDescription       String?
+  metaKeywords          String?
+  ogTitle               String?
+  ogDescription         String?
+  ogImageUrl            String?
+  twitterCardType       String?  @default("summary_large_image")
+  robotsNoIndex         Boolean  @default(false)
+  robotsNoFollow        Boolean  @default(false)
+  canonicalUrl          String?
+
+  // Analytics & Verification
+  googleAnalyticsId     String?
+  googleTagManagerId    String?
+  fbPixelId             String?
+  googleSiteVerification String?
+  naverSiteVerification String?
+
+  // Sitemap
+  sitemapEnabled        Boolean  @default(true)
+  sitemapChangeFreq     String?  @default("weekly")
+  sitemapPriority       String?  @default("0.8")
+
+  updatedAt             DateTime @updatedAt
 }
 
 model Banner {

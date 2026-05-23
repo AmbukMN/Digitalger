@@ -9,6 +9,7 @@ import { ProductCard } from '@/components/products/product-card';
 import { formatPrice } from '@digitalger/shared';
 import { Badge } from '@digitalger/shared/ui';
 import type { BlogPost, ProductSummary } from '@/types/api';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Хайлт',
@@ -81,16 +82,16 @@ export default async function SearchPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold sm:text-3xl">Хайлтын Үр Дүн</h1>
-        <p className="mt-1.5 text-muted-foreground">
-          {q
+      <PageHeader
+        title="Хайлтын үр дүн"
+        description={
+          q
             ? total > 0
               ? `«${q}» — ${total} үр дүн олдлоо`
               : `«${q}» — үр дүн олдсонгүй`
-            : 'Хайх үгээ дээрх хайлтын талбарт оруулна уу'}
-        </p>
-      </div>
+            : 'Хайх үгээ дээрх хайлтын талбарт оруулна уу'
+        }
+      />
 
       {q.trim() && total === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">

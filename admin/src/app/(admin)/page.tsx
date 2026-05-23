@@ -5,36 +5,32 @@ import {
   AlertCircle,
   ArrowRight,
   ArrowUpRight,
+  Ban,
   CheckCircle2,
+  Clock,
   DollarSign,
   Mail,
   Package,
+  RotateCcw,
   ShoppingCart,
   TrendingUp,
   Users,
   UserPlus,
+  XCircle,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
 
-const STATUS_LABELS: Record<string, string> = {
-  PAID: 'Төлсөн',
-  PENDING: 'Хүлээгдэж байна',
-  FAILED: 'Амжилтгүй',
-  REFUNDED: 'Буцаасан',
-  CANCELLED: 'Цуцалсан',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  PAID: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  FAILED: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  REFUNDED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  CANCELLED: 'bg-muted text-muted-foreground',
+type StatusInfo = { label: string; cls: string; icon: React.ReactNode };
+const STATUS_MAP: Record<string, StatusInfo> = {
+  PAID:      { label: 'Төлсөн',           cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   icon: <CheckCircle2 className="h-3 w-3" /> },
+  PENDING:   { label: 'Хүлээгдэж байна',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',   icon: <Clock className="h-3 w-3" /> },
+  FAILED:    { label: 'Амжилтгүй',        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',           icon: <XCircle className="h-3 w-3" /> },
+  REFUNDED:  { label: 'Буцаасан',         cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',       icon: <RotateCcw className="h-3 w-3" /> },
+  CANCELLED: { label: 'Цуцалсан',         cls: 'bg-muted text-muted-foreground',                                          icon: <Ban className="h-3 w-3" /> },
 };
 
 function formatMoney(value: number | string) {
@@ -105,55 +101,59 @@ function UserAvatar({ user }: { user: AdminOrder['user'] }) {
 
 function OrderRow({ order }: { order: AdminOrder }) {
   const d = new Date(order.createdAt);
-  const dateStr = d.toLocaleDateString('mn-MN', { month: '2-digit', day: '2-digit' });
+  const dateStr = d.toLocaleDateString('mn-MN', { year: '2-digit', month: '2-digit', day: '2-digit' });
   const timeStr = d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
+  const statusInfo = STATUS_MAP[order.status] ?? STATUS_MAP.CANCELLED;
 
   return (
-    <Link href="/orders" className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-0 group">
+    <Link href="/orders" className="grid grid-cols-[auto_1fr_auto_auto_auto] lg:grid-cols-[auto_minmax(140px,180px)_1fr_auto_auto_auto] items-center gap-x-3 px-4 py-2.5 hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0 group min-w-0">
       {/* Order ID */}
-      <span className="shrink-0 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs font-bold tracking-wide text-foreground">
+      <span className="shrink-0 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-[11px] font-bold tracking-wide text-foreground">
         #{order.id.slice(-8).toUpperCase()}
       </span>
 
       {/* User */}
-      <div className="hidden sm:flex items-center gap-2 w-44 shrink-0 min-w-0">
+      <div className="hidden lg:flex items-center gap-2 min-w-0">
         <UserAvatar user={order.user} />
         <div className="min-w-0">
-          <p className="text-xs font-medium truncate leading-tight">{order.user.name ?? '—'}</p>
+          <p className="text-xs font-semibold truncate leading-tight">{order.user.name ?? '—'}</p>
           <p className="text-[10px] text-muted-foreground truncate">{order.user.email}</p>
         </div>
       </div>
 
       {/* Product */}
-      <div className="flex-1 min-w-0 hidden md:flex items-center gap-2">
+      <div className="flex-1 min-w-0 flex items-center gap-2">
         {firstItem?.product.previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={firstItem.product.previewUrl} alt={firstItem.product.title} className="h-7 w-7 shrink-0 rounded-md object-cover border border-border bg-muted" referrerPolicy="no-referrer" />
+          <img src={firstItem.product.previewUrl} alt={firstItem.product.title}
+            className="h-8 w-12 shrink-0 rounded object-cover border border-border bg-muted" referrerPolicy="no-referrer" />
         ) : (
-          <div className="h-7 w-7 shrink-0 rounded-md bg-muted border border-border flex items-center justify-center">
-            <Package className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <div className="h-8 w-12 shrink-0 rounded bg-muted border border-border flex items-center justify-center">
+            <Package className="h-3.5 w-3.5 text-muted-foreground/40" />
           </div>
         )}
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{firstItem?.product.title ?? '—'}</p>
+          <p className="truncate text-xs font-medium leading-tight">{firstItem?.product.title ?? '—'}</p>
           {extraCount > 0 && <p className="text-[10px] text-muted-foreground">+{extraCount} бүтээгдэхүүн</p>}
         </div>
       </div>
 
       {/* Amount */}
-      <span className="shrink-0 text-sm font-bold tabular-nums">{formatMoney(order.total)}</span>
+      <div className="shrink-0 text-right">
+        <p className="text-sm font-bold tabular-nums">{formatMoney(order.total)}</p>
+      </div>
 
       {/* Status */}
-      <span className={`shrink-0 hidden sm:inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[order.status] ?? STATUS_COLORS.CANCELLED}`}>
-        {STATUS_LABELS[order.status] ?? order.status}
+      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${statusInfo.cls}`}>
+        {statusInfo.icon}{statusInfo.label}
       </span>
 
       {/* Date */}
-      <div className="shrink-0 text-right hidden lg:block">
-        <p className="text-[10px] font-medium text-foreground">{dateStr}</p>
-        <p className="text-[10px] text-muted-foreground">{timeStr}</p>
+      <div className="shrink-0 text-right hidden sm:block min-w-13">
+        <p className="text-[10px] font-medium text-foreground tabular-nums">{dateStr}</p>
+        <p className="text-[10px] text-muted-foreground tabular-nums">{timeStr}</p>
       </div>
     </Link>
   );
@@ -183,7 +183,7 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
 
       <div className="p-4 space-y-4">
         {!stats.configured && (
-          <p className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
+          <p className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
             RESEND_API_KEY тохируулаагүй байна. Имэйл явуулж чадахгүй.
           </p>
         )}
@@ -376,13 +376,13 @@ export default function DashboardPage() {
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-        <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Дугаар</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-44 shrink-0 hidden sm:block">Хэрэглэгч</span>
-          <span className="flex-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden md:block">Бүтээгдэхүүн</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Дүн</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 hidden sm:block">Төлөв</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 hidden lg:block text-right">Огноо</span>
+        <div className="grid grid-cols-[auto_1fr_auto_auto_auto] lg:grid-cols-[auto_minmax(140px,180px)_1fr_auto_auto_auto] items-center gap-x-3 px-4 py-2 bg-muted/30 border-b border-border">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Дугаар</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:block">Хэрэглэгч</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Бүтээгдэхүүн</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Дүн</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Төлөв</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden sm:block text-right">Огноо</span>
         </div>
         {recentOrders.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">Захиалга байхгүй байна</p>

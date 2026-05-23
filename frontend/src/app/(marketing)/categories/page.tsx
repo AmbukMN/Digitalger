@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { categoriesApi } from '@/lib/api';
 import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const metadata: Metadata = { title: 'Ангилал' };
 
@@ -28,8 +29,8 @@ export default async function CategoriesPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold">Бүх Ангилал</h1>
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <PageHeader title="Бүх Ангилал" description="Өөрт тохирох ангиллаас бүтээгдэхүүн хайж олоорой" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {categories.map((cat, i) => {
           const colorCls = COLORS[i % COLORS.length];
           return (

@@ -7,6 +7,7 @@ import { ProductsFilter } from '@/components/products/products-filter';
 import { productsApi, productTypesApi, categoriesApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
 import type { ProductSummary } from '@/types/api';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Бүтээгдэхүүн',
@@ -61,7 +62,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     if (typeValues.length === 1) {
       const found = productTypeConfigs.find((t) => t.value === typeValues[0]);
       heading = found
-        ? { title: `${found.label}үүд`, desc: found.description ?? `${found.label} бүтээгдэхүүнүүд` }
+        ? { title: found.label, desc: found.description ?? `${found.label} бүтээгдэхүүн` }
         : { title: typeValues[0], desc: 'Дижитал бүтээгдэхүүн' };
     } else {
       const labels = typeValues.map((v) => productTypeConfigs.find((t) => t.value === v)?.label ?? v);
@@ -80,10 +81,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold sm:text-3xl">{heading.title}</h1>
-        <p className="mt-1 text-muted-foreground text-sm">{heading.desc}</p>
-      </div>
+      <PageHeader title={heading.title} description={heading.desc} className="mb-6" />
 
       <div className="flex gap-8">
         {/* Desktop sidebar */}

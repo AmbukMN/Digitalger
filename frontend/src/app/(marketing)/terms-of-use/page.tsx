@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { pagesApi } from '@/lib/api';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Үйлчилгээний нөхцөл | DigitalGer',
@@ -48,8 +49,9 @@ export default async function TermsOfUsePage() {
         <span className="text-foreground font-medium">{title}</span>
       </nav>
 
+      <PageHeader title={title} />
+
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
-        <h1 className="text-2xl font-bold sm:text-3xl mb-6">{title}</h1>
         <div
           className="prose prose-sm sm:prose max-w-none text-muted-foreground
             prose-headings:text-foreground prose-headings:font-semibold

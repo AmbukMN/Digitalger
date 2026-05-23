@@ -1,17 +1,16 @@
-export const dynamic = 'force-dynamic';
+'use client';
 
-import type { Metadata } from 'next';
+import { useEffect, useRef, useCallback } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CalendarDays, User, Tag, ArrowRight } from 'lucide-react';
-import { Badge } from '@digitalger/shared/ui';
+import { CalendarDays, User, Tag, ArrowRight, Loader2 } from 'lucide-react';
+import { Badge, Skeleton } from '@digitalger/shared/ui';
 import { blogApi } from '@/lib/api';
 import type { BlogPost } from '@/types/api';
+import { PageHeader } from '@/components/ui/page-header';
 
-export const metadata: Metadata = {
-  title: 'Нийтлэл | DigitalGer',
-  description: 'Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө',
-};
+const PAGE_SIZE = 9;
 
 function formatDate(dateStr: string | null | undefined) {
   if (!dateStr) return null;
@@ -19,42 +18,19 @@ function formatDate(dateStr: string | null | undefined) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
-async function getPosts(): Promise<BlogPost[]> {
-  try {
-    return await blogApi.list({ pageSize: 24 });
-  } catch {
-    return [];
-  }
-}
-
-export default async function BlogPage() {
-  const posts = await getPosts();
-
+function BlogCardSkeleton() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-10 text-center">
-        <h1 className="text-3xl font-bold sm:text-4xl">Нийтлэл</h1>
-        <p className="mt-3 text-muted-foreground text-base sm:text-lg max-w-xl mx-auto">
-          Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө
-        </p>
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <Skeleton className="aspect-video w-full" />
+      <div className="p-5 space-y-3">
+        <div className="flex gap-1.5">
+          <Skeleton className="h-5 w-16 rounded-full" />
+          <Skeleton className="h-5 w-12 rounded-full" />
+        </div>
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="h-3.5 w-2/3 mt-2" />
       </div>
-
-      {posts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="rounded-full bg-muted p-6 mb-4">
-            <Tag className="h-10 w-10 text-muted-foreground" />
-          </div>
-          <p className="text-muted-foreground text-lg">Нийтлэл байхгүй байна</p>
-          <p className="text-sm text-muted-foreground mt-1">Удахгүй шинэ нийтлэлүүд нэмэгдэнэ</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {posts.map((post) => (
-            <BlogCard key={post.id} post={post} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -65,7 +41,6 @@ function BlogCard({ post }: { post: BlogPost }) {
   return (
     <Link href={`/blog/${post.slug}`} className="group block">
       <article className="h-full rounded-2xl border border-border bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-        {/* Cover image */}
         <div className="relative aspect-video bg-muted overflow-hidden">
           {post.coverImageUrl ? (
             <Image
@@ -83,7 +58,6 @@ function BlogCard({ post }: { post: BlogPost }) {
         </div>
 
         <div className="p-5">
-          {/* Tags */}
           {post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {post.tags.slice(0, 3).map((tag) => (
@@ -94,19 +68,16 @@ function BlogCard({ post }: { post: BlogPost }) {
             </div>
           )}
 
-          {/* Title */}
           <h2 className="font-bold text-base leading-snug line-clamp-2 group-hover:text-primary transition-colors">
             {post.title}
           </h2>
 
-          {/* Excerpt */}
           {post.excerpt && (
             <p className="mt-2 text-sm text-muted-foreground line-clamp-3 leading-relaxed">
               {post.excerpt}
             </p>
           )}
 
-          {/* Meta */}
           <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
@@ -125,5 +96,97 @@ function BlogCard({ post }: { post: BlogPost }) {
         </div>
       </article>
     </Link>
+  );
+}
+
+export default function BlogPage() {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useInfiniteQuery({
+      queryKey: ['blog', 'list'],
+      queryFn: ({ pageParam = 1 }) =>
+        blogApi.list({ page: pageParam as number, pageSize: PAGE_SIZE }),
+      getNextPageParam: (last) => {
+        const loaded = (last.page - 1) * last.pageSize + last.items.length;
+        return loaded < last.total ? last.page + 1 : undefined;
+      },
+      initialPageParam: 1,
+      staleTime: 60_000,
+    });
+
+  const allPosts = data?.pages.flatMap((p) => p.items) ?? [];
+  const total = data?.pages[0]?.total ?? 0;
+
+  const onIntersect = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage],
+  );
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(onIntersect, { rootMargin: '300px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onIntersect]);
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <PageHeader
+        title="Нийтлэл"
+        description="Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө"
+      />
+
+      {/* Initial skeleton */}
+      {isLoading ? (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+            <BlogCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : allPosts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="rounded-full bg-muted p-6 mb-4">
+            <Tag className="h-10 w-10 text-muted-foreground" />
+          </div>
+          <p className="text-muted-foreground text-lg">Нийтлэл байхгүй байна</p>
+          <p className="text-sm text-muted-foreground mt-1">Удахгүй шинэ нийтлэлүүд нэмэгдэнэ</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {allPosts.map((post) => (
+              <BlogCard key={post.id} post={post} />
+            ))}
+
+            {/* Inline skeletons while fetching next page */}
+            {isFetchingNextPage &&
+              Array.from({ length: 3 }).map((_, i) => <BlogCardSkeleton key={`sk-${i}`} />)}
+          </div>
+
+          {/* Sentinel — intersection observer target */}
+          <div ref={sentinelRef} className="h-1" />
+
+          {/* Bottom spinner */}
+          {isFetchingNextPage && (
+            <div className="flex justify-center pt-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {!hasNextPage && allPosts.length > 0 && (
+            <div className="flex items-center justify-between pt-10 border-t border-border mt-4">
+              <span className="text-sm text-muted-foreground">Бүх нийтлэл харагдаж байна</span>
+              <span className="text-sm font-medium text-foreground">Нийт {total} нийтлэл</span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

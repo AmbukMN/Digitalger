@@ -2,6 +2,7 @@ export const revalidate = 300;
 
 import type { Metadata } from 'next';
 import { API_URL, SITE_URL } from '@/lib/constants';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Бидний тухай',
@@ -46,10 +47,7 @@ export default async function AboutPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">{title}</h1>
-        <div className="mt-2 h-1 w-16 rounded-full bg-primary" />
-      </div>
+      <PageHeader title={title} />
       <div
         className="prose prose-lg max-w-none dark:prose-invert prose-headings:font-bold prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
         dangerouslySetInnerHTML={{ __html: content }}

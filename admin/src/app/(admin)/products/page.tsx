@@ -17,7 +17,6 @@ import {
   Loading,
 } from '@digitalger/shared/ui';
 import { CheckCircle2, Clock, Copy, Download, ImageOff, Search, Star, Upload, XCircle } from 'lucide-react';
-import Image from 'next/image';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
 import { adminApi } from '@/lib/api';
 import type { AdminProduct } from '@/types/admin';
@@ -129,13 +128,12 @@ export default function ProductsPage() {
         return (
           <div className="relative w-14 h-10 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
             {url ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={url}
                 alt={row.original.title}
-                fill
-                className="object-cover"
-                sizes="56px"
-                unoptimized={url.split('?')[0].toLowerCase().endsWith('.svg')}
+                className="h-full w-full object-cover"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center">
@@ -357,8 +355,9 @@ export default function ProductsPage() {
           {deleteTarget && (
             <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
               {(deleteTarget.thumbnailUrl || deleteTarget.previewUrl) && (
-                <div className="relative h-12 w-16 shrink-0 rounded-md overflow-hidden border border-border">
-                  <Image src={deleteTarget.thumbnailUrl || deleteTarget.previewUrl!} alt={deleteTarget.title} fill className="object-cover" sizes="64px" unoptimized />
+                <div className="h-12 w-16 shrink-0 rounded-md overflow-hidden border border-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={deleteTarget.thumbnailUrl || deleteTarget.previewUrl!} alt={deleteTarget.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                 </div>
               )}
               <p className="text-sm font-medium line-clamp-2">{deleteTarget.title}</p>

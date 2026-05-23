@@ -131,6 +131,30 @@ export interface SiteSettings {
   siteUrl: string;
   supportEmail: string | null;
   logoUrl: string | null;
+
+  // SEO
+  metaTitle: string | null;
+  metaDescription: string | null;
+  metaKeywords: string | null;
+  ogTitle: string | null;
+  ogDescription: string | null;
+  ogImageUrl: string | null;
+  twitterCardType: string | null;
+  robotsNoIndex: boolean;
+  robotsNoFollow: boolean;
+  canonicalUrl: string | null;
+
+  // Analytics
+  googleAnalyticsId: string | null;
+  googleTagManagerId: string | null;
+  fbPixelId: string | null;
+  googleSiteVerification: string | null;
+  naverSiteVerification: string | null;
+
+  // Sitemap
+  sitemapEnabled: boolean;
+  sitemapChangeFreq: string | null;
+  sitemapPriority: string | null;
 }
 
 export interface AdminProductTypeConfig {

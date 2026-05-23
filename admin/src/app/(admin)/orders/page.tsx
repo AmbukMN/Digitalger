@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from '@digitalger/shared/ui';
 import { CheckCircle2, Package, Pencil, Search, Tag, Trash2, XCircle, Clock, RotateCcw, Ban } from 'lucide-react';
-import Image from 'next/image';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminOrder } from '@/types/admin';
@@ -229,6 +228,7 @@ export default function OrdersPage() {
     {
       accessorKey: 'id',
       header: 'Дугаар',
+      size: 130,
       cell: ({ row }) => (
         <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 font-mono text-xs font-bold tracking-wide">
           #{row.original.id.slice(-8).toUpperCase()}
@@ -238,11 +238,13 @@ export default function OrdersPage() {
     {
       id: 'user',
       header: 'Хэрэглэгч',
+      size: 200,
       cell: ({ row }) => <UserCell name={row.original.user.name} email={row.original.user.email} image={row.original.user.image} />,
     },
     {
       id: 'items',
       header: 'Бүтээгдэхүүн',
+      size: 260,
       cell: ({ row }) => {
         const items = row.original.items;
         const first3 = items.slice(0, 3);
@@ -256,8 +258,8 @@ export default function OrdersPage() {
                   style={{ zIndex: first3.length - idx }}
                 >
                   {item.product.previewUrl ? (
-                    <Image src={item.product.previewUrl} alt={item.product.title} fill className="object-cover" sizes="32px"
-                      unoptimized={item.product.previewUrl.split('?')[0].toLowerCase().endsWith('.svg')} />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.product.previewUrl} alt={item.product.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-muted">
                       <Package className="h-3 w-3 text-muted-foreground" />
@@ -279,6 +281,7 @@ export default function OrdersPage() {
     {
       accessorKey: 'total',
       header: 'Дүн',
+      size: 130,
       cell: ({ row }) => (
         <div>
           <p className="font-bold tabular-nums text-sm">{formatMoney(row.original.total)}</p>
@@ -297,11 +300,13 @@ export default function OrdersPage() {
     {
       id: 'status',
       header: 'Төлөв',
+      size: 150,
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
       accessorKey: 'createdAt',
       header: 'Огноо',
+      size: 120,
       cell: ({ row }) => {
         const d = new Date(row.original.createdAt);
         return (
@@ -315,6 +320,7 @@ export default function OrdersPage() {
     {
       id: 'actions',
       header: '',
+      size: 80,
       cell: ({ row }) => <OrderActions order={row.original} />,
     },
   ];
