@@ -80,7 +80,7 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, email: true, name: true } },
-          items: { include: { product: { select: { title: true } } } },
+          items: { include: { product: { select: { title: true, slug: true, thumbnailUrl: true, price: true } } } },
         },
       }),
       this.prisma.order.count({
@@ -444,7 +444,7 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, email: true, name: true } },
-          items: { include: { product: { select: { title: true, slug: true } } } },
+          items: { include: { product: { select: { title: true, slug: true, thumbnailUrl: true, price: true } } } },
           payments: true,
         },
       }),

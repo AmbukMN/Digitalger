@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@digitalger/shared/ui';
-import { Pencil, Search, Tag, Trash2 } from 'lucide-react';
+import { Pencil, Search, Tag, Trash2, Package } from 'lucide-react';
+import Image from 'next/image';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminOrder } from '@/types/admin';
@@ -274,30 +275,71 @@ export default function OrdersPage() {
     {
       id: 'user',
       header: 'Хэрэглэгч',
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{row.original.user.name ?? '—'}</p>
-          <p className="text-xs text-muted-foreground truncate">{row.original.user.email}</p>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const u = row.original.user;
+        const initials = (u.name ?? u.email).charAt(0).toUpperCase();
+        return (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{u.name ?? '—'}</p>
+              <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+            </div>
+          </div>
+        );
+      },
     },
     {
       id: 'items',
       header: 'Бүтээгдэхүүн',
-      cell: ({ row }) => (
-        <div className="max-w-52">
-          {row.original.items.slice(0, 2).map((item) => (
-            <p key={item.id} className="truncate text-xs text-muted-foreground">
-              {item.product.title}
-            </p>
-          ))}
-          {row.original.items.length > 2 && (
-            <p className="text-xs text-muted-foreground">
-              +{row.original.items.length - 2} дахин
-            </p>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const items = row.original.items;
+        const first3 = items.slice(0, 3);
+        return (
+          <div className="flex items-center gap-2">
+            {/* Thumbnail stack */}
+            <div className="flex -space-x-2 shrink-0">
+              {first3.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className="relative h-8 w-8 rounded-md border-2 border-background bg-muted overflow-hidden shrink-0"
+                  style={{ zIndex: first3.length - idx }}
+                >
+                  {item.product.thumbnailUrl ? (
+                    <Image
+                      src={item.product.thumbnailUrl}
+                      alt={item.product.title}
+                      fill
+                      className="object-cover"
+                      sizes="32px"
+                      unoptimized={item.product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Titles */}
+            <div className="min-w-0 max-w-44">
+              {first3.slice(0, 2).map((item) => (
+                <p key={item.id} className="truncate text-xs text-muted-foreground leading-tight">
+                  {item.product.title}
+                </p>
+              ))}
+              {items.length > 2 && (
+                <p className="text-xs text-muted-foreground font-medium">
+                  +{items.length - 2} дахин
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'total',
@@ -351,12 +393,19 @@ export default function OrdersPage() {
     {
       accessorKey: 'createdAt',
       header: 'Огноо',
-      cell: ({ row }) =>
-        new Date(row.original.createdAt).toLocaleDateString('mn-MN', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        }),
+      cell: ({ row }) => {
+        const d = new Date(row.original.createdAt);
+        return (
+          <div>
+            <p className="text-sm">
+              {d.toLocaleDateString('mn-MN', { year: 'numeric', month: 'short', day: 'numeric' })}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        );
+      },
     },
     {
       id: 'actions',

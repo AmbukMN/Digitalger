@@ -29,8 +29,11 @@ export interface AdminUser {
   name: string | null;
   role: UserRole;
   image: string | null;
+  phone?: string | null;
+  isGuest?: boolean;
+  oauthProvider?: string | null;
   createdAt: string;
-  _count?: { orders: number };
+  _count?: { orders: number; downloads?: number };
 }
 
 export interface AdminUserDetail extends AdminUser {
@@ -104,7 +107,7 @@ export interface AdminOrder {
   user: { id: string; email: string; name: string | null };
   items: Array<{
     id: string;
-    product: { title: string; slug: string };
+    product: { title: string; slug: string; thumbnailUrl?: string | null; price?: number | string };
   }>;
   payments?: Array<{
     id: string;

@@ -276,7 +276,7 @@ export const adminApi = {
       );
     },
     get: (id: string) => adminFetch<AdminUserDetail>(`/admin/users/${id}`),
-    update: (id: string, body: { name?: string; role?: string }) =>
+    update: (id: string, body: { name?: string; role?: string; phone?: string }) =>
       adminFetch<AdminUser>(`/admin/users/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),

@@ -25,6 +25,7 @@ import {
   SelectValue,
   Separator,
 } from '@digitalger/shared/ui';
+import { Download, ShoppingCart } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import type { AdminUser } from '@/types/admin';
 
@@ -33,6 +34,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('USER');
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -42,7 +44,7 @@ export default function UsersPage() {
 
   const updateMutation = useMutation({
     mutationFn: () =>
-      adminApi.users.update(editing!.id, { name: editName, role: editRole }),
+      adminApi.users.update(editing!.id, { name: editName, role: editRole, phone: editPhone || undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       toast.success('Хэрэглэгч шинэчлэгдлээ');
@@ -54,6 +56,7 @@ export default function UsersPage() {
   function openEdit(user: AdminUser) {
     setEditing(user);
     setEditName(user.name ?? '');
+    setEditPhone(user.phone ?? '');
     setEditRole(user.role);
   }
 
@@ -76,26 +79,62 @@ export default function UsersPage() {
     {
       accessorKey: 'role',
       header: 'Эрх',
-      cell: ({ row }) => (
-        <Badge variant={row.original.role === 'ADMIN' ? 'default' : 'secondary'}>
-          {row.original.role === 'ADMIN' ? 'Админ' : 'Хэрэглэгч'}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge variant={u.role === 'ADMIN' ? 'default' : 'secondary'} className="w-fit">
+              {u.role === 'ADMIN' ? 'Админ' : 'Хэрэглэгч'}
+            </Badge>
+            {u.isGuest && (
+              <Badge variant="outline" className="text-[10px] w-fit px-1.5 py-0 text-muted-foreground">
+                Зочин
+              </Badge>
+            )}
+            {u.oauthProvider && (
+              <Badge variant="outline" className="text-[10px] w-fit px-1.5 py-0 capitalize text-muted-foreground">
+                {u.oauthProvider}
+              </Badge>
+            )}
+          </div>
+        );
+      },
     },
     {
-      id: 'orders',
-      header: 'Захиалга',
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {row.original._count?.orders ?? 0}
-        </span>
-      ),
+      id: 'activity',
+      header: 'Үйл ажиллагаа',
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground" title="Захиалга">
+              <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
+              <span>{u._count?.orders ?? 0}</span>
+            </div>
+            {(u._count?.downloads != null) && (
+              <div className="flex items-center gap-1 text-sm text-muted-foreground" title="Татаалт">
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                <span>{u._count.downloads}</span>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'createdAt',
       header: 'Бүртгүүлсэн',
-      cell: ({ row }) =>
-        new Date(row.original.createdAt).toLocaleDateString('mn-MN'),
+      cell: ({ row }) => {
+        const d = new Date(row.original.createdAt);
+        return (
+          <div>
+            <p className="text-sm">{d.toLocaleDateString('mn-MN')}</p>
+            <p className="text-xs text-muted-foreground">
+              {d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        );
+      },
     },
     {
       id: 'actions',
@@ -153,6 +192,15 @@ export default function UsersPage() {
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Нэр"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editPhone">Утасны дугаар</Label>
+              <Input
+                id="editPhone"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="+976..."
               />
             </div>
             <div className="space-y-2">

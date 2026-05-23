@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
@@ -92,24 +93,46 @@ function OrderRow({ order }: { order: AdminOrder }) {
     month: 'short',
     day: 'numeric',
   });
-  const products = order.items.map((i) => i.product.title).join(', ');
+  const time = new Date(order.createdAt).toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
+  const firstItem = order.items[0];
+  const extraCount = order.items.length - 1;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-0">
+    <Link href="/orders" className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-0">
       <span className="shrink-0 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-foreground min-w-22">
         #{order.id.slice(-8).toUpperCase()}
       </span>
-      <div className="min-w-0 w-44 shrink-0 hidden sm:block">
+      <div className="min-w-0 w-40 shrink-0 hidden sm:block">
         <p className="text-xs font-medium truncate">{order.user.name ?? '—'}</p>
         <p className="text-[10px] text-muted-foreground truncate">{order.user.email}</p>
       </div>
-      <p className="flex-1 truncate text-xs text-muted-foreground hidden md:block">{products}</p>
+      <div className="flex-1 min-w-0 hidden md:flex items-center gap-2">
+        {firstItem?.product.thumbnailUrl ? (
+          <div className="relative h-7 w-7 rounded shrink-0 overflow-hidden bg-muted border border-border">
+            <Image
+              src={firstItem.product.thumbnailUrl}
+              alt={firstItem.product.title}
+              fill
+              className="object-cover"
+              sizes="28px"
+              unoptimized={firstItem.product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
+            />
+          </div>
+        ) : null}
+        <div className="min-w-0">
+          <p className="truncate text-xs text-muted-foreground">{firstItem?.product.title ?? '—'}</p>
+          {extraCount > 0 && <p className="text-[10px] text-muted-foreground">+{extraCount} дахин</p>}
+        </div>
+      </div>
       <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(order.total)}</span>
       <span className={`shrink-0 hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[order.status] ?? STATUS_COLORS.CANCELLED}`}>
         {STATUS_LABELS[order.status] ?? order.status}
       </span>
-      <span className="shrink-0 text-[10px] text-muted-foreground hidden lg:block w-14 text-right">{date}</span>
-    </div>
+      <div className="shrink-0 text-right hidden lg:block w-14">
+        <p className="text-[10px] text-muted-foreground">{date}</p>
+        <p className="text-[10px] text-muted-foreground">{time}</p>
+      </div>
+    </Link>
   );
 }
 
