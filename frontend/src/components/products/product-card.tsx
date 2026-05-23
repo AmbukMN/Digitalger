@@ -102,7 +102,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           )}
 
           {product.featured && (
-            <div className="absolute -left-6 top-4 w-28 rotate-[-45deg] bg-secondary py-0.5 text-center text-[10px] font-bold text-secondary-foreground shadow-sm">
+            <div className="absolute -left-7 top-5 w-32 rotate-[-45deg] bg-secondary py-1.5 text-center text-xs font-bold text-secondary-foreground shadow-md">
               ★ Онцлох
             </div>
           )}
