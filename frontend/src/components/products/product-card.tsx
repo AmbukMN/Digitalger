@@ -86,6 +86,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              unoptimized={product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground text-xs">

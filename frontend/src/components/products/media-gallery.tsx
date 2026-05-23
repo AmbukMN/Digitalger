@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Play, ImageIcon, X, Maximize2 } from 'lucide-react';
 
+const isSvg = (url?: string | null) => url?.split('?')[0].toLowerCase().endsWith('.svg') ?? false;
+
 interface MediaItem {
   id: string;
   url: string;
@@ -129,6 +131,7 @@ function ThumbnailItem({
           fill
           className="object-cover"
           sizes="80px"
+          unoptimized={isSvg(item.url)}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-muted">
@@ -272,7 +275,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
     if (thumbnailUrl) {
       return (
         <div className="relative w-full overflow-hidden rounded-2xl bg-muted" style={{ aspectRatio: '4/3' }}>
-          <Image src={thumbnailUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 60vw" />
+          <Image src={thumbnailUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 60vw" unoptimized={isSvg(thumbnailUrl)} />
         </div>
       );
     }
@@ -298,6 +301,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
               priority
               sizes="(max-width: 768px) 100vw, 60vw"
               onClick={() => openLightbox(activeIndex)}
+              unoptimized={isSvg(active.url)}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground">
