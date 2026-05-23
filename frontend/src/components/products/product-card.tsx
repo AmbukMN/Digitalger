@@ -102,8 +102,9 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           )}
 
           {product.featured && (
-            <div className="absolute -left-10 top-6 w-40 -rotate-45 bg-secondary py-2 text-center text-xs font-bold text-secondary-foreground shadow-md">
-              ★ Онцлох
+            <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground shadow-sm">
+              <Star className="h-3 w-3 fill-current" />
+              Онцлох
             </div>
           )}
         </div>
