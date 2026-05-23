@@ -119,15 +119,27 @@ export default function ProductsPage() {
     {
       id: 'thumbnail',
       header: '',
-      size: 60,
+      size: 80,
       cell: ({ row }) => {
         const url = row.original.thumbnailUrl || row.original.previewUrl;
         return (
-          <div className="w-12 h-9 rounded overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
+          <div className="relative w-16 h-12 rounded-lg overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
             {url ? (
-              <Image src={url} alt={row.original.title} width={48} height={36} className="object-cover w-full h-full" />
+              <Image
+                src={url}
+                alt={row.original.title}
+                fill
+                className="object-cover"
+                sizes="64px"
+                unoptimized={url.split('?')[0].toLowerCase().endsWith('.svg')}
+              />
             ) : (
               <ImageOff className="h-4 w-4 text-muted-foreground" />
+            )}
+            {row.original.featured && (
+              <div className="absolute top-0.5 right-0.5">
+                <Tag className="h-3 w-3 text-secondary drop-shadow" />
+              </div>
             )}
           </div>
         );
@@ -198,14 +210,18 @@ export default function ProductsPage() {
       id: 'status',
       header: 'Төлөв',
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          <Badge variant={row.original.published ? 'default' : 'secondary'} className="text-xs w-fit">
+        <div className="flex flex-col gap-1.5">
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${
+            row.original.published
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-muted text-muted-foreground'
+          }`}>
             {row.original.published ? 'Нийтэлсэн' : 'Ноорог'}
-          </Badge>
+          </span>
           {row.original.featured && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 w-fit text-amber-600 border-amber-400">
-              <Tag className="h-2.5 w-2.5 mr-0.5" />Онцлох
-            </Badge>
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold w-fit bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              <Tag className="h-2.5 w-2.5" />Онцлох
+            </span>
           )}
         </div>
       ),

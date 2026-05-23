@@ -33,6 +33,7 @@ import { useState } from 'react';
 import { Button, Separator, ThemeToggle } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import { API_URL } from '@/lib/constants';
+import { adminApi } from '@/lib/api';
 
 const navItems = [
   { href: '/', label: 'Хяналтын самбар', icon: LayoutDashboard },
@@ -69,6 +70,16 @@ function usePublicSettings() {
       if (!res.ok) throw new Error('settings fetch failed');
       return res.json();
     },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+interface ProfileData { name: string | null; email: string; image: string | null; role: string }
+
+function useAdminProfile() {
+  return useQuery<ProfileData>({
+    queryKey: ['admin', 'profile'],
+    queryFn: () => adminApi.profile.get().catch(() => ({ name: null, email: 'admin@digitalger.mn', image: null, role: 'ADMIN', id: '', emailVerified: null, createdAt: '', updatedAt: '' })),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -111,12 +122,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const { data: publicSettings } = usePublicSettings();
+  const { data: profile } = useAdminProfile();
 
   const siteName = publicSettings?.siteName ?? 'DigitalGer';
   const logoUrl = publicSettings?.logoUrl ?? null;
-  const userName = 'Admin';
-  const userInitial = 'A';
-  const userImage = null;
+  const userName = profile?.name ?? 'Admin';
+  const userInitial = (profile?.name ?? profile?.email ?? 'A').charAt(0).toUpperCase();
+  const userImage = profile?.image ?? null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -203,7 +215,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 alt={userName}
                 width={24}
                 height={24}
-                className="h-6 w-6 shrink-0 rounded-full object-cover"
+                className="h-6 w-6 shrink-0 rounded-full object-cover ring-2 ring-primary/20"
                 unoptimized
               />
             ) : (
@@ -237,10 +249,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               onClick={() => setMenuOpen((o) => !o)}
               className="gap-2"
             >
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                {userInitial}
-              </div>
-              <span className="hidden max-w-30 truncate sm:inline text-sm">Admin</span>
+              {userImage ? (
+                <Image src={userImage} alt={userName} width={20} height={20} className="h-5 w-5 rounded-full object-cover shrink-0" unoptimized />
+              ) : (
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary shrink-0">
+                  {userInitial}
+                </div>
+              )}
+              <span className="hidden max-w-30 truncate sm:inline text-sm">{userName}</span>
             </Button>
             {menuOpen && (
               <>
@@ -250,9 +266,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   aria-hidden
                 />
                 <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-border bg-popover p-1 shadow-lg">
-                  <div className="px-3 py-2">
-                    <p className="text-xs font-medium text-foreground truncate">Admin</p>
-                    <p className="text-xs text-muted-foreground truncate">admin@digitalger.mn</p>
+                  <div className="flex items-center gap-2.5 px-3 py-2">
+                    {userImage ? (
+                      <Image src={userImage} alt={userName} width={32} height={32} className="h-8 w-8 rounded-full object-cover shrink-0" unoptimized />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
+                        {userInitial}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{userName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{profile?.email ?? 'admin@digitalger.mn'}</p>
+                    </div>
                   </div>
                   <Separator className="my-1" />
                   <Link

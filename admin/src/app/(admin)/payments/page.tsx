@@ -272,12 +272,20 @@ export default function PaymentsPage() {
     {
       id: 'user',
       header: 'Хэрэглэгч',
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{row.original.userName ?? '—'}</p>
-          <p className="text-xs text-muted-foreground truncate">{row.original.userEmail}</p>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const initials = (row.original.userName ?? row.original.userEmail).charAt(0).toUpperCase();
+        return (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{row.original.userName ?? '—'}</p>
+              <p className="text-xs text-muted-foreground truncate">{row.original.userEmail}</p>
+            </div>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'amount',
@@ -291,29 +299,33 @@ export default function PaymentsPage() {
     {
       accessorKey: 'status',
       header: 'Төлбөрийн төлөв',
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            row.original.status === 'SUCCESS'
-              ? 'default'
-              : row.original.status === 'FAILED'
-                ? 'destructive'
-                : 'outline'
-          }
-        >
-          {PAYMENT_STATUS_LABELS[row.original.status] ?? row.original.status}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const s = row.original.status;
+        const cls =
+          s === 'SUCCESS'
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+            : s === 'FAILED'
+              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+        return (
+          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`}>
+            {PAYMENT_STATUS_LABELS[s] ?? s}
+          </span>
+        );
+      },
     },
     {
       accessorKey: 'orderDate',
       header: 'Огноо',
-      cell: ({ row }) =>
-        new Date(row.original.orderDate).toLocaleDateString('mn-MN', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        }),
+      cell: ({ row }) => {
+        const d = new Date(row.original.orderDate);
+        return (
+          <div>
+            <p className="text-sm">{d.toLocaleDateString('mn-MN', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+            <p className="text-xs text-muted-foreground">{d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
+        );
+      },
     },
     {
       id: 'actions',
