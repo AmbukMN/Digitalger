@@ -94,19 +94,20 @@ export function ProductCard({ product }: { product: ProductSummary }) {
             </div>
           )}
 
-          {/* Discount badge */}
-          {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
-            <div className="absolute right-2 top-2 rounded-md bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground shadow-sm">
-              -{Math.round((1 - Number(product.price) / Number(product.compareAtPrice)) * 100)}%
-            </div>
-          )}
-
-          {product.featured && (
-            <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-secondary-foreground shadow-sm">
-              <Star className="h-2.5 w-2.5 fill-current" />
-              Онцлох
-            </div>
-          )}
+          {/* Top-right badges */}
+          <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
+            {product.featured && (
+              <div className="flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-secondary-foreground shadow-sm">
+                <Star className="h-2.5 w-2.5 fill-current" />
+                Онцлох
+              </div>
+            )}
+            {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
+              <div className="rounded-md bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground shadow-sm">
+                -{Math.round((1 - Number(product.price) / Number(product.compareAtPrice)) * 100)}%
+              </div>
+            )}
+          </div>
         </div>
       </Link>
 
