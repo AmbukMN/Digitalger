@@ -307,14 +307,14 @@ export default function OrdersPage() {
                   className="relative h-8 w-8 rounded-md border-2 border-background bg-muted overflow-hidden shrink-0"
                   style={{ zIndex: first3.length - idx }}
                 >
-                  {item.product.thumbnailUrl ? (
+                  {item.product.previewUrl ? (
                     <Image
-                      src={item.product.thumbnailUrl}
+                      src={item.product.previewUrl}
                       alt={item.product.title}
                       fill
                       className="object-cover"
                       sizes="32px"
-                      unoptimized={item.product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
+                      unoptimized={item.product.previewUrl.split('?')[0].toLowerCase().endsWith('.svg')}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">

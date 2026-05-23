@@ -107,15 +107,15 @@ function OrderRow({ order }: { order: AdminOrder }) {
         <p className="text-[10px] text-muted-foreground truncate">{order.user.email}</p>
       </div>
       <div className="flex-1 min-w-0 hidden md:flex items-center gap-2">
-        {firstItem?.product.thumbnailUrl ? (
+        {firstItem?.product.previewUrl ? (
           <div className="relative h-7 w-7 rounded shrink-0 overflow-hidden bg-muted border border-border">
             <Image
-              src={firstItem.product.thumbnailUrl}
+              src={firstItem.product.previewUrl}
               alt={firstItem.product.title}
               fill
               className="object-cover"
               sizes="28px"
-              unoptimized={firstItem.product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
+              unoptimized={firstItem.product.previewUrl.split('?')[0].toLowerCase().endsWith('.svg')}
             />
           </div>
         ) : null}

@@ -107,7 +107,7 @@ export interface AdminOrder {
   user: { id: string; email: string; name: string | null };
   items: Array<{
     id: string;
-    product: { title: string; slug: string; thumbnailUrl?: string | null; price?: number | string };
+    product: { title: string; slug: string; previewUrl?: string | null; price?: number | string };
   }>;
   payments?: Array<{
     id: string;
