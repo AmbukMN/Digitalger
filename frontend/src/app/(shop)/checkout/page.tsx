@@ -191,7 +191,7 @@ function CheckoutContent() {
             className="mt-8"
             action={
               <Button asChild>
-                <Link href="/products">Бүтээгдэхүүн үзэх</Link>
+                <Link href="/products">Бүтээгдэхүүн</Link>
               </Button>
             }
           />

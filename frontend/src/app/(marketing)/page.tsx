@@ -91,7 +91,7 @@ export default async function HomePage() {
                 <Link href="/signup">Бүртгүүлэх</Link>
               </Button>
               <Button asChild size="lg" className="bg-white/15 border border-white/40 text-white hover:bg-white/25 font-semibold">
-                <Link href="/products">Бүтээгдэхүүн үзэх</Link>
+                <Link href="/products">Бүтээгдэхүүн</Link>
               </Button>
             </div>
           </div>
