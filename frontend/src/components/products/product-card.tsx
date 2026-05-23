@@ -158,7 +158,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
             disabled
           >
             <CheckCircle className="mr-1 h-3.5 w-3.5" />
-            Худалдаж авсан
+            Авсан
           </Button>
         ) : (
           <Button
