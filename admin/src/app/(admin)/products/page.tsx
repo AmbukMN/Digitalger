@@ -17,7 +17,8 @@ import {
   Input,
   Loading,
 } from '@digitalger/shared/ui';
-import { Copy, Upload, CheckCircle2, XCircle } from 'lucide-react';
+import { Copy, Upload, CheckCircle2, XCircle, ImageOff, Tag, Clock, Download } from 'lucide-react';
+import Image from 'next/image';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
 import { adminApi } from '@/lib/api';
 import type { AdminProduct } from '@/types/admin';
@@ -115,27 +116,98 @@ export default function ProductsPage() {
   });
 
   const columns: ColumnDef<AdminProduct>[] = [
-    { accessorKey: 'title', header: 'Гарчиг' },
-    { accessorKey: 'slug', header: 'Slug' },
     {
-      accessorKey: 'price',
-      header: 'Үнэ',
-      cell: ({ row }) =>
-        Number(row.original.price).toLocaleString('mn-MN') + ' ₮',
+      id: 'thumbnail',
+      header: '',
+      size: 60,
+      cell: ({ row }) => {
+        const url = row.original.thumbnailUrl || row.original.previewUrl;
+        return (
+          <div className="w-12 h-9 rounded overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
+            {url ? (
+              <Image src={url} alt={row.original.title} width={48} height={36} className="object-cover w-full h-full" />
+            ) : (
+              <ImageOff className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        );
+      },
     },
-    { accessorKey: 'type', header: 'Төрөл' },
+    {
+      accessorKey: 'title',
+      header: 'Бүтээгдэхүүн',
+      cell: ({ row }) => (
+        <div className="min-w-0">
+          <p className="font-medium text-sm leading-tight line-clamp-2">{row.original.title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{row.original.type} · {row.original.slug}</p>
+        </div>
+      ),
+    },
+    {
+      id: 'price',
+      header: 'Үнэ',
+      cell: ({ row }) => {
+        const price = Number(row.original.price);
+        const compare = Number(row.original.compareAtPrice);
+        const hasDiscount = compare > price;
+        const pct = hasDiscount ? Math.round((1 - price / compare) * 100) : 0;
+        return (
+          <div className="space-y-0.5">
+            <p className="font-semibold text-sm">{price.toLocaleString('mn-MN')}₮</p>
+            {hasDiscount && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground line-through">{compare.toLocaleString('mn-MN')}₮</span>
+                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">-{pct}%</Badge>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'discount',
+      header: 'Хямдрал дуусах',
+      cell: ({ row }) => {
+        const endsAt = row.original.discountEndsAt;
+        if (!endsAt) return <span className="text-xs text-muted-foreground">—</span>;
+        const d = new Date(endsAt);
+        const now = new Date();
+        const expired = d < now;
+        const daysLeft = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        return (
+          <div className="flex items-center gap-1">
+            <Clock className={`h-3.5 w-3.5 shrink-0 ${expired ? 'text-destructive' : daysLeft <= 7 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+            <span className={`text-xs ${expired ? 'text-destructive' : daysLeft <= 7 ? 'text-orange-500 font-medium' : 'text-muted-foreground'}`}>
+              {expired ? 'Дууссан' : `${daysLeft} өдөр`}
+            </span>
+          </div>
+        );
+      },
+    },
     {
       id: 'downloadCount',
       header: 'Таталт',
-      cell: ({ row }) => <DownloadCountCell product={row.original} />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1">
+          <Download className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <DownloadCountCell product={row.original} />
+        </div>
+      ),
     },
     {
       id: 'status',
       header: 'Төлөв',
       cell: ({ row }) => (
-        <Badge variant={row.original.published ? 'default' : 'secondary'}>
-          {row.original.published ? 'Нийтэлсэн' : 'Ноорог'}
-        </Badge>
+        <div className="flex flex-col gap-1">
+          <Badge variant={row.original.published ? 'default' : 'secondary'} className="text-xs w-fit">
+            {row.original.published ? 'Нийтэлсэн' : 'Ноорог'}
+          </Badge>
+          {row.original.featured && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 w-fit text-amber-600 border-amber-400">
+              <Tag className="h-2.5 w-2.5 mr-0.5" />Онцлох
+            </Badge>
+          )}
+        </div>
       ),
     },
     {
