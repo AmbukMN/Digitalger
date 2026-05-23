@@ -11,6 +11,7 @@ import {
   CardContent,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   ErrorState,
@@ -116,6 +117,7 @@ export default function FaqsPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FAQ | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FAQ | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'faqs'],
@@ -124,7 +126,7 @@ export default function FaqsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => adminApi.faqs.remove(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'faqs'] }); toast.success('Устгагдлаа'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'faqs'] }); toast.success('Устгагдлаа'); setDeleteTarget(null); },
   });
 
   if (isLoading) return <Loading label="FAQ ачаалж байна..." />;
@@ -184,14 +186,14 @@ export default function FaqsPage() {
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{faq.answer}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" onClick={() => { setEditing(faq); setDialogOpen(true); }}>
-                          <Pencil className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => { setEditing(faq); setDialogOpen(true); }}>
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
-                          variant="ghost" size="icon" className="text-destructive hover:text-destructive"
-                          onClick={() => { if (confirm('Устгах уу?')) deleteMut.mutate(faq.id); }}
+                          variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteTarget(faq)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -202,6 +204,24 @@ export default function FaqsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>FAQ устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-sm font-medium line-clamp-2">{deleteTarget.question}</p>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">FAQ-г бүрмөсөн устгана. Буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}>
+              {deleteMut.isPending ? 'Устгаж байна...' : 'Устгах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <FaqDialog
         open={dialogOpen}

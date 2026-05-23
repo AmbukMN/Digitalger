@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Navigation } from 'lucide-react';
 import {
-  Button, Badge, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle,
+  Button, Badge, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
   ErrorState, Input, Label, Loading,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
@@ -115,6 +115,7 @@ export default function MenuPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminMenuItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminMenuItem | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'menu'],
@@ -123,7 +124,7 @@ export default function MenuPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.menu.remove(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'menu'] }); toast.success('Устгагдлаа'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'menu'] }); toast.success('Устгагдлаа'); setDeleteTarget(null); },
   });
 
   const reorderMutation = useMutation({
@@ -193,16 +194,16 @@ export default function MenuPage() {
                     </p>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditing(item); setDialogOpen(true); }}>
-                      <Pencil className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => { setEditing(item); setDialogOpen(true); }}>
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => { if (confirm('Устгах уу?')) deleteMutation.mutate(item.id); }}
+                      className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(item)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -211,6 +212,25 @@ export default function MenuPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Цэс устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-sm font-medium">{deleteTarget.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{deleteTarget.pageSlug ? `/${deleteTarget.pageSlug}` : (deleteTarget.url ?? '—')}</p>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">Цэсийг бүрмөсөн устгана. Буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
+              {deleteMutation.isPending ? 'Устгаж байна...' : 'Устгах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <MenuItemDialog
         open={dialogOpen}

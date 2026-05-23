@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarDays, FileText, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -283,6 +282,7 @@ export default function BlogPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<BlogPost | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<BlogPost | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'blog'],
@@ -294,6 +294,7 @@ export default function BlogPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] });
       toast.success('Нийтлэл устгагдлаа');
+      setDeleteTarget(null);
     },
     onError: () => toast.error('Алдаа гарлаа'),
   });
@@ -346,9 +347,13 @@ export default function BlogPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-sm">{post.title}</p>
-                      <Badge variant={post.published ? 'default' : 'secondary'} className="text-xs">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        post.published
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
                         {post.published ? 'Нийтлэгдсэн' : 'Ноорог'}
-                      </Badge>
+                      </span>
                     </div>
                     {post.excerpt && (
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{post.excerpt}</p>
@@ -368,17 +373,18 @@ export default function BlogPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       onClick={() => { setEditing(post); setDialogOpen(true); }}
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => { if (confirm('Нийтлэл устгах уу?')) deleteMut.mutate(post.id); }}
+                      className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(post)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -387,6 +393,24 @@ export default function BlogPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Нийтлэл устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-sm font-medium line-clamp-2">{deleteTarget.title}</p>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">Нийтлэлийг бүрмөсөн устгана. Буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}>
+              {deleteMut.isPending ? 'Устгаж байна...' : 'Устгах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BlogDialog
         open={dialogOpen}

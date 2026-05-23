@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Eye, EyeOff, Images } from 'lucide-react';
-import { Button, Badge, Card, CardContent, CardHeader, CardTitle, ErrorState, Loading } from '@digitalger/shared/ui';
+import { Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminBanner } from '@/types/admin';
 import { BannerFormDialog } from '@/components/banners/banner-form-dialog';
@@ -14,6 +14,7 @@ export default function BannersPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminBanner | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminBanner | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'banners'],
@@ -25,6 +26,7 @@ export default function BannersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'banners'] });
       toast.success('Баннер устгагдлаа');
+      setDeleteTarget(null);
     },
     onError: () => toast.error('Устгахад алдаа'),
   });
@@ -86,9 +88,13 @@ export default function BannersPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold truncate">{banner.title}</span>
-                      <Badge variant={banner.active ? 'default' : 'secondary'}>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        banner.active
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
                         {banner.active ? 'Идэвхтэй' : 'Идэвхгүй'}
-                      </Badge>
+                      </span>
                     </div>
                     {banner.subtitle && (
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">{banner.subtitle}</p>
@@ -115,10 +121,8 @@ export default function BannersPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => {
-                        if (confirm('Баннер устгах уу?')) deleteMutation.mutate(banner.id);
-                      }}
+                      className="h-8 w-8 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(banner)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -129,6 +133,24 @@ export default function BannersPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Баннер устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-sm font-medium">{deleteTarget.title}</p>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">Баннерийг бүрмөсөн устгана. Буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
+              {deleteMutation.isPending ? 'Устгаж байна...' : 'Устгах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BannerFormDialog
         open={dialogOpen}

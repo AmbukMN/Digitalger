@@ -11,6 +11,7 @@ import {
   CardContent,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   Input,
@@ -227,6 +228,7 @@ export default function CouponsPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCoupon, setEditCoupon] = useState<AdminCoupon | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminCoupon | null>(null);
 
   const { data: coupons = [], isLoading } = useQuery({
     queryKey: ['admin', 'coupons'],
@@ -238,6 +240,7 @@ export default function CouponsPage() {
     onSuccess: () => {
       toast.success('Устгагдлаа');
       queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] });
+      setDeleteTarget(null);
     },
     onError: () => toast.error('Алдаа гарлаа'),
   });
@@ -359,12 +362,8 @@ export default function CouponsPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => {
-                                if (confirm(`"${coupon.code}" купоныг устгах уу?`)) {
-                                  deleteMut.mutate(coupon.id);
-                                }
-                              }}
+                              className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeleteTarget(coupon)}
                               disabled={deleteMut.isPending}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -380,6 +379,24 @@ export default function CouponsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Купон устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="font-mono font-bold text-sm text-primary">{deleteTarget.code}</p>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">Купоныг бүрмөсөн устгана. Буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}>
+              {deleteMut.isPending ? 'Устгаж байна...' : 'Устгах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CouponDialog
         open={dialogOpen}

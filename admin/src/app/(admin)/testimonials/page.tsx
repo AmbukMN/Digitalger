@@ -12,6 +12,7 @@ import {
   CardContent,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   ErrorState,
@@ -157,6 +158,7 @@ export default function TestimonialsPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Testimonial | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Testimonial | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'testimonials'],
@@ -165,7 +167,8 @@ export default function TestimonialsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => adminApi.testimonials.remove(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'testimonials'] }); toast.success('Устгагдлаа'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'testimonials'] }); toast.success('Устгагдлаа'); setDeleteTarget(null); },
+    onError: () => toast.error('Устгахад алдаа'),
   });
 
   if (isLoading) return <Loading label="Сэтгэгдэл ачаалж байна..." />;
@@ -231,8 +234,8 @@ export default function TestimonialsPage() {
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditing(t); setDialogOpen(true); }}>
                     <Pencil className="mr-1 h-3.5 w-3.5" /> Засах
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
-                    onClick={() => { if (confirm('Устгах уу?')) deleteMut.mutate(t.id); }}>
+                  <Button variant="ghost" size="sm" className="text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setDeleteTarget(t)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -241,6 +244,34 @@ export default function TestimonialsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Сэтгэгдэл устгах уу?</DialogTitle></DialogHeader>
+          {deleteTarget && (
+            <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+              {deleteTarget.avatar ? (
+                <Image src={deleteTarget.avatar} alt={deleteTarget.name} width={36} height={36} className="h-9 w-9 rounded-full object-cover shrink-0" unoptimized />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                  {deleteTarget.name.charAt(0)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{deleteTarget.name}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1">{deleteTarget.content}</p>
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">Сэтгэгдлийг бүрмөсөн устгана. Буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}>
+              {deleteMut.isPending ? 'Устгаж байна...' : 'Устгах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <TestimonialDialog
         open={dialogOpen}
