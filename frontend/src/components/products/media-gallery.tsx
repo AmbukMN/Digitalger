@@ -271,7 +271,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
   if (count === 0) {
     if (thumbnailUrl) {
       return (
-        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted">
+        <div className="relative aspect-4/3 w-full overflow-hidden rounded-2xl bg-muted">
           <Image src={thumbnailUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 60vw" />
         </div>
       );
