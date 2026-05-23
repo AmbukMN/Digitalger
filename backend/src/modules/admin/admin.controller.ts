@@ -79,7 +79,7 @@ export class AdminController {
         take: 10,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { id: true, email: true, name: true } },
+          user: { select: { id: true, email: true, name: true, image: true } },
           items: { include: { product: { select: { title: true, slug: true, previewUrl: true, price: true } } } },
         },
       }),
@@ -443,7 +443,7 @@ export class AdminController {
         take: ps,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { id: true, email: true, name: true } },
+          user: { select: { id: true, email: true, name: true, image: true } },
           items: { include: { product: { select: { title: true, slug: true, previewUrl: true, price: true } } } },
           payments: true,
         },

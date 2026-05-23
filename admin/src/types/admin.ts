@@ -104,7 +104,7 @@ export interface AdminOrder {
   status: OrderStatus;
   couponCode?: string | null;
   createdAt: string;
-  user: { id: string; email: string; name: string | null };
+  user: { id: string; email: string; name: string | null; image?: string | null };
   items: Array<{
     id: string;
     product: { title: string; slug: string; previewUrl?: string | null; price?: number | string };

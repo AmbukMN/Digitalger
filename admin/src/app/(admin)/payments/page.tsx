@@ -35,6 +35,7 @@ type PaymentRow = {
   status: string;
   userEmail: string;
   userName: string | null;
+  userImage: string | null;
   orderDate: string;
 };
 
@@ -62,13 +63,18 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function UserCell({ name, email }: { name: string | null; email: string }) {
+function UserCell({ name, email, image }: { name: string | null; email: string; image?: string | null }) {
   const initials = (name ?? email).charAt(0).toUpperCase();
   return (
     <div className="flex items-center gap-2.5 min-w-0">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
-        {initials}
-      </div>
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt={name ?? email} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
+          {initials}
+        </div>
+      )}
       <div className="min-w-0">
         <p className="text-sm font-medium truncate leading-tight">{name ?? '—'}</p>
         <p className="text-xs text-muted-foreground truncate">{email}</p>
@@ -202,6 +208,7 @@ export default function PaymentsPage() {
         status: p.status,
         userEmail: order.user.email,
         userName: order.user.name,
+        userImage: order.user.image ?? null,
         orderDate: order.createdAt,
       })),
     ) ?? [];
@@ -229,7 +236,7 @@ export default function PaymentsPage() {
     {
       id: 'user',
       header: 'Хэрэглэгч',
-      cell: ({ row }) => <UserCell name={row.original.userName} email={row.original.userEmail} />,
+      cell: ({ row }) => <UserCell name={row.original.userName} email={row.original.userEmail} image={row.original.userImage} />,
     },
     {
       accessorKey: 'amount',

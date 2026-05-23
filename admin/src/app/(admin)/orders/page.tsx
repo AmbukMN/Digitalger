@@ -61,13 +61,18 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
-function UserCell({ name, email }: { name: string | null; email: string }) {
+function UserCell({ name, email, image }: { name: string | null; email: string; image?: string | null }) {
   const initials = (name ?? email).charAt(0).toUpperCase();
   return (
     <div className="flex items-center gap-2.5 min-w-0">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
-        {initials}
-      </div>
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt={name ?? email} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
+          {initials}
+        </div>
+      )}
       <div className="min-w-0">
         <p className="text-sm font-medium truncate leading-tight">{name ?? '—'}</p>
         <p className="text-xs text-muted-foreground truncate">{email}</p>
@@ -233,7 +238,7 @@ export default function OrdersPage() {
     {
       id: 'user',
       header: 'Хэрэглэгч',
-      cell: ({ row }) => <UserCell name={row.original.user.name} email={row.original.user.email} />,
+      cell: ({ row }) => <UserCell name={row.original.user.name} email={row.original.user.email} image={row.original.user.image} />,
     },
     {
       id: 'items',

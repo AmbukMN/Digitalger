@@ -34,13 +34,12 @@ function UserAvatar({ user, size = 8 }: { user: AdminUser; size?: number }) {
   const sz = `h-${size} w-${size}`;
   if (user.image) {
     return (
-      <Image
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
         src={user.image}
         alt={user.name ?? user.email}
-        width={size * 4}
-        height={size * 4}
         className={`${sz} rounded-full object-cover ring-2 ring-border shrink-0`}
-        unoptimized
+        referrerPolicy="no-referrer"
       />
     );
   }

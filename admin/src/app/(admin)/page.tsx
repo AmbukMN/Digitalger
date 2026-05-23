@@ -88,49 +88,72 @@ const STAT_CARDS = [
   },
 ];
 
+function UserAvatar({ user }: { user: AdminOrder['user'] }) {
+  const initials = (user.name ?? user.email).charAt(0).toUpperCase();
+  if (user.image) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={user.image} alt={user.name ?? user.email} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+    );
+  }
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
+      {initials}
+    </div>
+  );
+}
+
 function OrderRow({ order }: { order: AdminOrder }) {
-  const date = new Date(order.createdAt).toLocaleDateString('mn-MN', {
-    month: 'short',
-    day: 'numeric',
-  });
-  const time = new Date(order.createdAt).toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
+  const d = new Date(order.createdAt);
+  const dateStr = d.toLocaleDateString('mn-MN', { month: '2-digit', day: '2-digit' });
+  const timeStr = d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
 
   return (
-    <Link href="/orders" className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-0">
-      <span className="shrink-0 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-foreground min-w-22">
+    <Link href="/orders" className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-0 group">
+      {/* Order ID */}
+      <span className="shrink-0 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs font-bold tracking-wide text-foreground">
         #{order.id.slice(-8).toUpperCase()}
       </span>
-      <div className="min-w-0 w-40 shrink-0 hidden sm:block">
-        <p className="text-xs font-medium truncate">{order.user.name ?? '—'}</p>
-        <p className="text-[10px] text-muted-foreground truncate">{order.user.email}</p>
-      </div>
-      <div className="flex-1 min-w-0 hidden md:flex items-center gap-2">
-        {firstItem?.product.previewUrl ? (
-          <div className="relative h-7 w-7 rounded shrink-0 overflow-hidden bg-muted border border-border">
-            <Image
-              src={firstItem.product.previewUrl}
-              alt={firstItem.product.title}
-              fill
-              className="object-cover"
-              sizes="28px"
-              unoptimized={firstItem.product.previewUrl.split('?')[0].toLowerCase().endsWith('.svg')}
-            />
-          </div>
-        ) : null}
+
+      {/* User */}
+      <div className="hidden sm:flex items-center gap-2 w-44 shrink-0 min-w-0">
+        <UserAvatar user={order.user} />
         <div className="min-w-0">
-          <p className="truncate text-xs text-muted-foreground">{firstItem?.product.title ?? '—'}</p>
-          {extraCount > 0 && <p className="text-[10px] text-muted-foreground">+{extraCount} дахин</p>}
+          <p className="text-xs font-medium truncate leading-tight">{order.user.name ?? '—'}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{order.user.email}</p>
         </div>
       </div>
-      <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(order.total)}</span>
-      <span className={`shrink-0 hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[order.status] ?? STATUS_COLORS.CANCELLED}`}>
+
+      {/* Product */}
+      <div className="flex-1 min-w-0 hidden md:flex items-center gap-2">
+        {firstItem?.product.previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={firstItem.product.previewUrl} alt={firstItem.product.title} className="h-7 w-7 shrink-0 rounded-md object-cover border border-border bg-muted" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="h-7 w-7 shrink-0 rounded-md bg-muted border border-border flex items-center justify-center">
+            <Package className="h-3.5 w-3.5 text-muted-foreground/50" />
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium">{firstItem?.product.title ?? '—'}</p>
+          {extraCount > 0 && <p className="text-[10px] text-muted-foreground">+{extraCount} бүтээгдэхүүн</p>}
+        </div>
+      </div>
+
+      {/* Amount */}
+      <span className="shrink-0 text-sm font-bold tabular-nums">{formatMoney(order.total)}</span>
+
+      {/* Status */}
+      <span className={`shrink-0 hidden sm:inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[order.status] ?? STATUS_COLORS.CANCELLED}`}>
         {STATUS_LABELS[order.status] ?? order.status}
       </span>
-      <div className="shrink-0 text-right hidden lg:block w-14">
-        <p className="text-[10px] text-muted-foreground">{date}</p>
-        <p className="text-[10px] text-muted-foreground">{time}</p>
+
+      {/* Date */}
+      <div className="shrink-0 text-right hidden lg:block">
+        <p className="text-[10px] font-medium text-foreground">{dateStr}</p>
+        <p className="text-[10px] text-muted-foreground">{timeStr}</p>
       </div>
     </Link>
   );
@@ -354,12 +377,12 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground min-w-22">Дугаар</span>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground w-44 hidden sm:block">Хэрэглэгч</span>
-          <span className="flex-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground hidden md:block">Бүтээгдэхүүн</span>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">Дүн</span>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0 hidden sm:block">Төлөв</span>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0 hidden lg:block w-14 text-right">Огноо</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Дугаар</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-44 shrink-0 hidden sm:block">Хэрэглэгч</span>
+          <span className="flex-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden md:block">Бүтээгдэхүүн</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Дүн</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 hidden sm:block">Төлөв</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 hidden lg:block text-right">Огноо</span>
         </div>
         {recentOrders.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">Захиалга байхгүй байна</p>
