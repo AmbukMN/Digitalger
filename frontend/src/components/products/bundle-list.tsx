@@ -238,9 +238,9 @@ export function BundleList({
                   {bi + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <span className="font-semibold text-sm block truncate">{bundle.title}</span>
+                  <span className="font-semibold text-sm block break-words">{bundle.title}</span>
                   {bundle.description && (
-                    <span className="text-[11px] text-muted-foreground block truncate leading-tight">{bundle.description}</span>
+                    <span className="text-[11px] text-muted-foreground block break-words leading-tight">{bundle.description}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground shrink-0">

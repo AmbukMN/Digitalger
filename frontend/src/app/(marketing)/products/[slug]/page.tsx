@@ -213,8 +213,8 @@ export default async function ProductDetailPage({ params }: Props) {
               </div>
 
               {/* Rating row */}
-              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-                <a href="#reviews" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                <a href="#reviews" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity shrink-0">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
@@ -228,7 +228,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   <span className="font-semibold">{product.rating.toFixed(1)}</span>
                   <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
                 </a>
-                <div className="flex items-center gap-1 text-muted-foreground">
+                <div className="flex items-center gap-1 text-muted-foreground shrink-0">
                   <Download className="h-3.5 w-3.5" />
                   {product.downloadCount} удаа татсан
                 </div>
@@ -387,7 +387,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   <div className="flex-1 px-4 py-5 sm:px-6 sm:py-7 flex flex-col justify-center gap-3">
                     <Quote className="h-7 w-7 text-primary/30 shrink-0" />
                     {product.proofQuote && (
-                      <p className="text-base sm:text-lg font-semibold leading-snug text-foreground">
+                      <p className="text-sm sm:text-base lg:text-lg font-semibold leading-snug text-foreground">
                         {product.proofQuote}
                       </p>
                     )}
