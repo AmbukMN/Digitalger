@@ -213,12 +213,12 @@ export default async function ProductDetailPage({ params }: Props) {
               </div>
 
               {/* Rating + download row */}
-              <div className="mt-3 flex items-center gap-4 text-sm flex-wrap">
-                <a href="#reviews" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity shrink-0">
+              <div className="mt-2 sm:mt-3 flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-nowrap overflow-hidden">
+                <a href="#reviews" className="flex items-center gap-1 sm:gap-1.5 hover:opacity-80 transition-opacity shrink-0">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
-                      className={`h-4 w-4 ${
+                      className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
                         star <= Math.round(product.rating)
                           ? 'fill-yellow-400 text-yellow-400'
                           : 'text-muted-foreground/30'
@@ -228,8 +228,9 @@ export default async function ProductDetailPage({ params }: Props) {
                   <span className="font-semibold">{product.rating.toFixed(1)}</span>
                   <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
                 </a>
+                <span className="text-muted-foreground/40 shrink-0">·</span>
                 <div className="flex items-center gap-1 text-muted-foreground shrink-0">
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   {product.downloadCount} удаа татсан
                 </div>
               </div>
