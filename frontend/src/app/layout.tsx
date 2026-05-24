@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 import { SITE_NAME, SITE_URL } from '@/lib/constants';
+import { siteSettingsApi } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
 
@@ -31,46 +32,62 @@ const DEFAULT_TITLE = `${SITE_NAME} — Дижитал бүтээгдэхүүн�
 const DEFAULT_DESC =
   'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: {
-    default: DEFAULT_TITLE,
-    template: `%s | ${SITE_NAME}`,
-  },
-  description: DEFAULT_DESC,
-  keywords: [
-    'дижитал бүтээгдэхүүн', 'файл татах', 'загвар', 'курс', 'монгол marketplace',
-    'digital product', 'template', 'online course', 'Mongolia',
-  ],
-  authors: [{ name: SITE_NAME, url: SITE_URL }],
-  creator: SITE_NAME,
-  publisher: SITE_NAME,
-  openGraph: {
-    type: 'website',
-    locale: 'mn_MN',
-    siteName: SITE_NAME,
-    url: SITE_URL,
-    title: DEFAULT_TITLE,
+export async function generateMetadata(): Promise<Metadata> {
+  let ogImageUrl: string | null = null;
+  try {
+    const s = await siteSettingsApi.getPublic();
+    ogImageUrl = s.ogImageUrl ?? null;
+  } catch {
+    // fallback to no image — acceptable
+  }
+
+  const ogImages = ogImageUrl
+    ? [{ url: ogImageUrl, width: 1200, height: 630, alt: DEFAULT_TITLE }]
+    : [];
+
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: {
+      default: DEFAULT_TITLE,
+      template: `%s | ${SITE_NAME}`,
+    },
     description: DEFAULT_DESC,
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: DEFAULT_TITLE,
-    description: DEFAULT_DESC,
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
-  },
-  alternates: { canonical: SITE_URL },
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: SITE_NAME,
-  },
-};
+    keywords: [
+      'дижитал бүтээгдэхүүн', 'файл татах', 'загвар', 'курс', 'монгол marketplace',
+      'digital product', 'template', 'online course', 'Mongolia',
+    ],
+    authors: [{ name: SITE_NAME, url: SITE_URL }],
+    creator: SITE_NAME,
+    publisher: SITE_NAME,
+    openGraph: {
+      type: 'website',
+      locale: 'mn_MN',
+      siteName: SITE_NAME,
+      url: SITE_URL,
+      title: DEFAULT_TITLE,
+      description: DEFAULT_DESC,
+      ...(ogImages.length ? { images: ogImages } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: DEFAULT_TITLE,
+      description: DEFAULT_DESC,
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+    },
+    alternates: { canonical: SITE_URL },
+    manifest: '/manifest.json',
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: SITE_NAME,
+    },
+  };
+}
 
 const orgJsonLd = {
   '@context': 'https://schema.org',

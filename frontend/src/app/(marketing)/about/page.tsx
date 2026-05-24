@@ -1,21 +1,36 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { SITE_URL } from '@/lib/constants';
+import { siteSettingsApi } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
 
 export const revalidate = 60;
 
-export const metadata: Metadata = {
-  title: 'Бидний тухай | DigitalGer',
-  description: 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.',
-  alternates: { canonical: `${SITE_URL}/about` },
-  openGraph: {
-    title: 'Бидний тухай | DigitalGer',
-    description: 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.',
-    url: `${SITE_URL}/about`,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let ogImageUrl: string | null = null;
+  try {
+    const s = await siteSettingsApi.getPublic();
+    ogImageUrl = s.ogImageUrl ?? null;
+  } catch { /* fallback */ }
+  const title = 'Бидний тухай | DigitalGer';
+  const description = 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.';
+  return {
+    title,
+    description,
+    alternates: { canonical: `${SITE_URL}/about` },
+    openGraph: {
+      title,
+      description,
+      url: `${SITE_URL}/about`,
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 async function getAboutPage() {
   try {

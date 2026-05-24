@@ -85,6 +85,13 @@ function EditOrderDialog({ order, open, onClose }: { order: AdminOrder; open: bo
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [coupon, setCoupon] = useState(order.couponCode ?? '');
 
+  useEffect(() => {
+    if (open) {
+      setStatus(order.status);
+      setCoupon(order.couponCode ?? '');
+    }
+  }, [open, order.status, order.couponCode]);
+
   const mutation = useMutation({
     mutationFn: () => adminApi.orders.update(order.id, { status, couponCode: coupon.trim() || null }),
     onSuccess: () => {

@@ -2,7 +2,7 @@ export const revalidate = 300;
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { categoriesApi } from '@/lib/api';
+import { categoriesApi, siteSettingsApi } from '@/lib/api';
 import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { PageHeader } from '@/components/ui/page-header';
 import { SITE_URL } from '@/lib/constants';
@@ -10,22 +10,31 @@ import { SITE_URL } from '@/lib/constants';
 const META_TITLE = 'Бүх Ангилал — DigitalGer';
 const META_DESC = 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.';
 
-export const metadata: Metadata = {
-  title: 'Бүх Ангилал',
-  description: META_DESC,
-  alternates: { canonical: `${SITE_URL}/categories` },
-  openGraph: {
-    type: 'website',
-    title: META_TITLE,
+export async function generateMetadata(): Promise<Metadata> {
+  let ogImageUrl: string | null = null;
+  try {
+    const s = await siteSettingsApi.getPublic();
+    ogImageUrl = s.ogImageUrl ?? null;
+  } catch { /* fallback */ }
+  return {
+    title: 'Бүх Ангилал',
     description: META_DESC,
-    url: `${SITE_URL}/categories`,
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: META_TITLE,
-    description: META_DESC,
-  },
-};
+    alternates: { canonical: `${SITE_URL}/categories` },
+    openGraph: {
+      type: 'website',
+      title: META_TITLE,
+      description: META_DESC,
+      url: `${SITE_URL}/categories`,
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: META_TITLE }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: META_TITLE,
+      description: META_DESC,
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 const COLORS = [
   'from-blue-500/20 to-blue-600/10 text-blue-600 dark:text-blue-400',

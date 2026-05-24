@@ -47,9 +47,9 @@ function DownloadCountCell({ product }: { product: AdminProduct }) {
         value={value}
         autoFocus
         onChange={(e) => setValue(e.target.value)}
-        onBlur={() => saveMut.mutate(parseInt(value) || 0)}
+        onBlur={() => { if (!saveMut.isPending) saveMut.mutate(parseInt(value) || 0); }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') saveMut.mutate(parseInt(value) || 0);
+          if (e.key === 'Enter') { e.preventDefault(); saveMut.mutate(parseInt(value) || 0); }
           if (e.key === 'Escape') setEditing(false);
         }}
       />

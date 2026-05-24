@@ -4,21 +4,33 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { ProductGrid } from '@/components/products/product-grid';
 import { ProductsFilter } from '@/components/products/products-filter';
-import { productsApi, productTypesApi, categoriesApi } from '@/lib/api';
+import { productsApi, productTypesApi, categoriesApi, siteSettingsApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
 import type { ProductSummary } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
 
-export const metadata: Metadata = {
-  title: 'Бүтээгдэхүүн',
-  description: 'Бүх дижитал бүтээгдэхүүн — файл, загвар, хичээл.',
-  alternates: { canonical: `${SITE_URL}/products` },
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  let ogImageUrl: string | null = null;
+  try {
+    const s = await siteSettingsApi.getPublic();
+    ogImageUrl = s.ogImageUrl ?? null;
+  } catch { /* fallback */ }
+  return {
     title: 'Бүтээгдэхүүн',
     description: 'Бүх дижитал бүтээгдэхүүн — файл, загвар, хичээл.',
-    url: `${SITE_URL}/products`,
-  },
-};
+    alternates: { canonical: `${SITE_URL}/products` },
+    openGraph: {
+      title: 'Бүтээгдэхүүн',
+      description: 'Бүх дижитал бүтээгдэхүүн — файл, загвар, хичээл.',
+      url: `${SITE_URL}/products`,
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: 'DigitalGer Бүтээгдэхүүн' }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 type SearchParams = {
   page?: string;
