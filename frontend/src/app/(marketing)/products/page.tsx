@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic'; // search params дээр тулгуурладаг тул dynamic үлдэх ёстой
 
 import type { Metadata } from 'next';
 import { Suspense } from 'react';

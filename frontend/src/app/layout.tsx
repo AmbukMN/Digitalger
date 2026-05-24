@@ -4,6 +4,7 @@ import { Providers } from './providers';
 import './globals.css';
 import { SITE_NAME, SITE_URL } from '@/lib/constants';
 import type { Theme } from '@digitalger/shared/ui';
+import { WebVitalsReporter } from '@/lib/web-vitals';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -130,6 +131,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
         <Providers defaultTheme={defaultTheme}>{children}</Providers>
+        <WebVitalsReporter />
       </body>
     </html>
   );

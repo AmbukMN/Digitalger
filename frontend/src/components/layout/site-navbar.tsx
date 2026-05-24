@@ -156,8 +156,7 @@ function MobileFeaturedProducts({ onClose }: { onClose: () => void }) {
             >
               <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
                 {p.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.thumbnailUrl} alt={p.title} className="h-full w-full object-cover" />
+                  <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover" sizes="40px" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <Star className="h-4 w-4 text-muted-foreground/40" />
@@ -209,8 +208,7 @@ function MobileLatestPosts({ onClose }: { onClose: () => void }) {
           >
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
               {(post as any).coverImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={(post as any).coverImageUrl} alt={post.title} className="h-full w-full object-cover" />
+                <Image src={(post as any).coverImageUrl} alt={post.title} fill className="object-cover" sizes="40px" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <BookOpen className="h-4 w-4 text-muted-foreground/40" />

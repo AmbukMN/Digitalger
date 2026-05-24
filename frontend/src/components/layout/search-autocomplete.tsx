@@ -87,12 +87,17 @@ export function SearchAutocomplete({ placeholder = 'Хайх...', className, inp
             onFocus={() => setOpen(true)}
             className={cn('pl-9 pr-8', inputClassName)}
             autoComplete="off"
+            aria-label="Бүтээгдэхүүн, нийтлэл хайх"
+            aria-autocomplete="list"
+            aria-expanded={showDropdown}
+            role="combobox"
           />
           {query && (
             <button
               type="button"
               onClick={() => { setQuery(''); inputRef.current?.focus(); }}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Хайлтыг цэвэрлэх"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -101,7 +106,11 @@ export function SearchAutocomplete({ placeholder = 'Хайх...', className, inp
       </form>
 
       {showDropdown && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
+        <div
+          role="listbox"
+          aria-label="Хайлтын үр дүн"
+          className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+        >
           {!hasResults ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               Илэрц олдсонгүй

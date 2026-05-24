@@ -9,14 +9,9 @@ import { Badge, Skeleton } from '@digitalger/shared/ui';
 import { blogApi } from '@/lib/api';
 import type { BlogPost } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
+import { formatDate } from '@/lib/format';
 
 const PAGE_SIZE = 9;
-
-function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function BlogCardSkeleton() {
   return (
@@ -137,10 +132,21 @@ export default function BlogPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <PageHeader
-        title="Нийтлэл"
-        description="Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө"
-      />
+      <div className="flex items-end justify-between gap-4 mb-8">
+        <PageHeader
+          title="Нийтлэл"
+          description="Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө"
+          className="mb-0"
+        />
+        {!isLoading && total > 0 && (
+          <span className="shrink-0 text-sm text-muted-foreground">Нийт {total} нийтлэл</span>
+        )}
+      </div>
+
+      {/* Screen reader live region for loading state */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {isFetchingNextPage ? 'Нийтлэл ачаалж байна...' : ''}
+      </div>
 
       {/* Initial skeleton */}
       {isLoading ? (

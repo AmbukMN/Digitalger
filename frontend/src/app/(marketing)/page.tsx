@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 import type { Metadata } from 'next';
 import { Button } from '@digitalger/shared/ui';
@@ -13,6 +13,31 @@ import type { Banner, BlogPost, Testimonial } from '@/types/api';
 import { Shield, Zap, Download, Star } from 'lucide-react';
 import { CategoryStrip } from '@/components/home/category-strip';
 import { SITE_NAME, SITE_URL } from '@/lib/constants';
+
+function ProductSectionSkeleton() {
+  return (
+    <section className="py-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="h-7 w-48 rounded-lg bg-muted animate-pulse" />
+          <div className="h-8 w-20 rounded-lg bg-muted animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border overflow-hidden animate-pulse">
+              <div className="aspect-4/3 bg-muted" />
+              <div className="p-3 space-y-2">
+                <div className="h-4 bg-muted rounded w-4/5" />
+                <div className="h-4 bg-muted rounded w-2/3" />
+                <div className="h-5 bg-muted rounded w-1/3 mt-1" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -69,6 +94,7 @@ const TRUST_ITEMS = [
 const websiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
+  inLanguage: 'mn',
   name: SITE_NAME,
   url: SITE_URL,
   potentialAction: {
@@ -115,7 +141,7 @@ export default async function HomePage() {
       </section>
 
       {/* Хамгийн их эрэлттэй */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<ProductSectionSkeleton />}>
         <ProductSection title="Хамгийн Их Эрэлттэй" href="/products?featured=true" featured swiper swiperMobileRows={2} />
       </Suspense>
 
@@ -123,7 +149,7 @@ export default async function HomePage() {
       <CategoryStrip />
 
       {/* Шинэ бүтээгдэхүүн */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<ProductSectionSkeleton />}>
         <ProductSection title="Шинэ Бүтээгдэхүүн" href="/products?sortBy=newest" sortBy="newest" swiper pageSize={16} swiperMobileRows={2} />
       </Suspense>
 
@@ -148,7 +174,7 @@ export default async function HomePage() {
       </section>
 
       {/* Хамгийн их хямдарсан — CTA дараа */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<ProductSectionSkeleton />}>
         <ProductSection title="Хамгийн Их Хямдарсан" href="/products?onSale=true&sortBy=discount" onSale sortBy="discount" swiper pageSize={4} swiperMobileRows={2} />
       </Suspense>
 

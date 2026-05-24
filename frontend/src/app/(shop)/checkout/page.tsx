@@ -353,6 +353,9 @@ function CheckoutContent() {
                       className="h-9 text-sm font-mono uppercase tracking-wider flex-1 bg-background/80"
                       onKeyDown={(e) => { if (e.key === 'Enter') handleAddCoupon(); }}
                       disabled={couponLoading}
+                      aria-label="Купон код"
+                      aria-describedby={couponError ? 'coupon-error' : undefined}
+                      aria-invalid={!!couponError}
                     />
                     <Button
                       size="sm"
@@ -365,7 +368,11 @@ function CheckoutContent() {
                     </Button>
                   </div>
                 )}
-                {couponError && <p className="text-xs text-destructive">{couponError}</p>}
+                {couponError && (
+                  <p id="coupon-error" role="alert" className="text-xs text-destructive">
+                    {couponError}
+                  </p>
+                )}
               </div>
 
               {!session && (

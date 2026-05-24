@@ -26,6 +26,7 @@ import {
   Quote,
 } from 'lucide-react';
 import { formatPrice } from '@digitalger/shared';
+import { sanitizeHtml } from '@/lib/safe-html';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -213,7 +214,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
               {/* Rating row */}
               <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
+                <a href="#reviews" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
@@ -226,7 +227,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   ))}
                   <span className="font-semibold">{product.rating.toFixed(1)}</span>
                   <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
-                </div>
+                </a>
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Download className="h-3.5 w-3.5" />
                   {product.downloadCount} удаа татсан
@@ -246,7 +247,7 @@ export default async function ProductDetailPage({ params }: Props) {
               {product.description.startsWith('<') ? (
                 <div
                   className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: product.description }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
                 />
               ) : (
                 <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground text-sm sm:text-base">
@@ -275,7 +276,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   product.whatsIncluded.startsWith('<') ? (
                     <div
                       className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: product.whatsIncluded }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.whatsIncluded) }}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
@@ -322,7 +323,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   product.howToUse.startsWith('<') ? (
                     <div
                       className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: product.howToUse }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.howToUse) }}
                     />
                   ) : (
                     <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground text-sm">{product.howToUse}</p>
@@ -419,7 +420,9 @@ export default async function ProductDetailPage({ params }: Props) {
 
             {/* Reviews */}
             {hasReviews && (
-              <ReviewsSection reviews={product.reviews!} rating={product.rating} ratingCount={product.ratingCount} />
+              <div id="reviews">
+                <ReviewsSection reviews={product.reviews!} rating={product.rating} ratingCount={product.ratingCount} />
+              </div>
             )}
           </div>
 

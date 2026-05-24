@@ -5,10 +5,12 @@ import { notFound } from 'next/navigation';
 import { CalendarDays, ChevronRight, Tag, User } from 'lucide-react';
 import { Badge } from '@digitalger/shared/ui';
 import { blogApi, productsApi } from '@/lib/api';
+import { sanitizeHtml } from '@/lib/safe-html';
 import { formatPrice } from '@digitalger/shared';
 import { SITE_URL } from '@/lib/constants';
 import type { BlogPost, ProductSummary } from '@/types/api';
 import { BlogShareButton } from '@/components/blog/blog-share-button';
+import { formatDate } from '@/lib/format';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -44,12 +46,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   } catch {
     return { title: 'Нийтлэл' };
   }
-}
-
-function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function SmallPostCard({ post }: { post: BlogPost }) {
@@ -127,11 +123,12 @@ export default async function BlogDetailPage({ params }: Props) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
+    inLanguage: 'mn',
     headline: post.title,
     description: post.excerpt ?? undefined,
     image: post.coverImageUrl ?? undefined,
     datePublished: post.publishedAt ?? post.createdAt,
-    dateModified: post.publishedAt ?? post.createdAt,
+    dateModified: post.createdAt,
     author: { '@type': 'Person', name: post.authorName },
     publisher: { '@type': 'Organization', name: 'DigitalGer', url: SITE_URL },
     url: `${SITE_URL}/blog/${post.slug}`,
@@ -204,7 +201,7 @@ export default async function BlogDetailPage({ params }: Props) {
                       prose-a:text-primary prose-a:no-underline hover:prose-a:underline
                       prose-img:rounded-xl prose-img:shadow-sm
                       prose-blockquote:border-primary prose-blockquote:text-muted-foreground"
-                    dangerouslySetInnerHTML={{ __html: post.content }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content) }}
                   />
                 ) : (
                   <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground">

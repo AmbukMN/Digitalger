@@ -22,7 +22,10 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "seed:blog": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-blog.ts",
+    "seed:blog2": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-blog-batch2.ts",
+    "seed:alban": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-alban-barimtuud.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts && ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-products.ts && ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-blog.ts"
