@@ -23,7 +23,7 @@ COPY package*.json ./
 
 # Copy node_modules from builder and prune devDependencies
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --prefer-offline
 
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
