@@ -17,6 +17,7 @@ export interface DashboardStats {
     revenue: number;
     ordersThisMonth: number;
     newUsersThisMonth: number;
+    pendingExpiredCount: number;
   };
   recentOrders: AdminOrder[];
   monthlyRevenue: { month: string; revenue: number }[];
@@ -31,6 +32,7 @@ export interface AdminUser {
   image: string | null;
   phone?: string | null;
   isGuest?: boolean;
+  blocked?: boolean;
   oauthProvider?: string | null;
   createdAt: string;
   _count?: { orders: number; downloads?: number };
@@ -107,7 +109,7 @@ export interface AdminOrder {
   user: { id: string; email: string; name: string | null; image?: string | null };
   items: Array<{
     id: string;
-    product: { title: string; slug: string; previewUrl?: string | null; price?: number | string };
+    product: { title: string; slug: string; previewUrl?: string | null; price?: number | string; compareAtPrice?: number | string | null; discountEndsAt?: string | null; downloadCount?: number | null };
   }>;
   payments?: Array<{
     id: string;

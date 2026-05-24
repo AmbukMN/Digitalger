@@ -24,8 +24,7 @@ import {
   SelectValue,
   Separator,
 } from '@digitalger/shared/ui';
-import { Download, Pencil, Search, ShoppingCart, Shield, User } from 'lucide-react';
-import Image from 'next/image';
+import { Ban, Download, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import type { AdminUser } from '@/types/admin';
 
@@ -72,10 +71,14 @@ export default function UsersPage() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('USER');
+  const [blockTarget, setBlockTarget] = useState<AdminUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'users', search],
     queryFn: () => adminApi.users.list({ search: search || undefined }),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const updateMutation = useMutation({
@@ -86,6 +89,26 @@ export default function UsersPage() {
       setEditing(null);
     },
     onError: () => toast.error('Хадгалахад алдаа'),
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: (u: AdminUser) => adminApi.users.block(u.id, !u.blocked),
+    onSuccess: (_, u) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast.success(u.blocked ? 'Хэрэглэгч идэвхжүүлэгдлээ' : 'Хэрэглэгч хаагдлаа');
+      setBlockTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.message ?? 'Алдаа гарлаа'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.users.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast.success('Хэрэглэгч устгагдлаа');
+      setDeleteTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.message ?? 'Алдаа гарлаа'),
   });
 
   function openEdit(user: AdminUser) {
@@ -103,9 +126,21 @@ export default function UsersPage() {
         const u = row.original;
         return (
           <div className="flex items-center gap-3 min-w-0">
-            <UserAvatar user={u} size={9} />
+            <div className="relative shrink-0">
+              <UserAvatar user={u} size={9} />
+              {u.blocked && (
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive ring-2 ring-background">
+                  <Ban className="h-2 w-2 text-destructive-foreground" />
+                </span>
+              )}
+            </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate leading-tight">{u.name ?? <span className="text-muted-foreground font-normal">Нэргүй</span>}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold truncate leading-tight">{u.name ?? <span className="text-muted-foreground font-normal">Нэргүй</span>}</p>
+                {u.blocked && (
+                  <span className="inline-flex rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive shrink-0">Хаагдсан</span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground truncate">{u.email}</p>
               {u.phone && <p className="text-xs text-muted-foreground">{u.phone}</p>}
             </div>
@@ -174,11 +209,39 @@ export default function UsersPage() {
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(row.original)} title="Засах">
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      ),
+      cell: ({ row }) => {
+        const u = row.original;
+        const isAdmin = u.role === 'ADMIN';
+        return (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={() => openEdit(u)} title="Засах"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            {!isAdmin && (
+              <>
+                <Button
+                  variant="ghost" size="icon"
+                  className={`h-7 w-7 ${u.blocked ? 'text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950' : 'text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950'}`}
+                  onClick={() => setBlockTarget(u)}
+                  title={u.blocked ? 'Идэвхжүүлэх' : 'Хаах'}
+                >
+                  {u.blocked ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setDeleteTarget(u)} title="Устгах"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -246,6 +309,70 @@ export default function UsersPage() {
             <Button variant="outline" onClick={() => setEditing(null)}>Цуцлах</Button>
             <Button disabled={updateMutation.isPending} onClick={() => updateMutation.mutate()}>
               {updateMutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block/Unblock confirm dialog */}
+      <Dialog open={!!blockTarget} onOpenChange={(o) => !o && setBlockTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{blockTarget?.blocked ? 'Хэрэглэгч идэвхжүүлэх үү?' : 'Хэрэглэгч хаах уу?'}</DialogTitle>
+          </DialogHeader>
+          {blockTarget && (
+            <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-4 py-3">
+              <UserAvatar user={blockTarget} size={9} />
+              <div>
+                <p className="text-sm font-semibold">{blockTarget.name ?? 'Нэргүй'}</p>
+                <p className="text-xs text-muted-foreground">{blockTarget.email}</p>
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            {blockTarget?.blocked
+              ? 'Хэрэглэгч дахин нэвтрэх боломжтой болно.'
+              : 'Хаагдсаны дараа тухайн хэрэглэгч системд нэвтрэх боломжгүй болно.'}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockTarget(null)}>Цуцлах</Button>
+            <Button
+              variant={blockTarget?.blocked ? 'default' : 'destructive'}
+              disabled={blockMutation.isPending}
+              onClick={() => blockTarget && blockMutation.mutate(blockTarget)}
+            >
+              {blockMutation.isPending ? 'Түр хүлээнэ үү...' : blockTarget?.blocked ? 'Идэвхжүүлэх' : 'Хаах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Хэрэглэгч устгах уу?</DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-4 py-3">
+              <UserAvatar user={deleteTarget} size={9} />
+              <div>
+                <p className="text-sm font-semibold">{deleteTarget.name ?? 'Нэргүй'}</p>
+                <p className="text-xs text-muted-foreground">{deleteTarget.email}</p>
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Хэрэглэгчийн бүртгэл болон холбоотой бүх өгөгдөл бүрмөсөн устгагдана. Буцаах боломжгүй.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? 'Устгаж байна...' : 'Устгах'}
             </Button>
           </DialogFooter>
         </DialogContent>

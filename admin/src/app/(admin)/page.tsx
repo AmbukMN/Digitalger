@@ -101,21 +101,24 @@ function UserAvatar({ user }: { user: AdminOrder['user'] }) {
 
 function OrderRow({ order }: { order: AdminOrder }) {
   const d = new Date(order.createdAt);
-  const dateStr = d.toLocaleDateString('mn-MN', { year: '2-digit', month: '2-digit', day: '2-digit' });
-  const timeStr = d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = `${String(d.getFullYear()).slice(2)}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
   const statusInfo = STATUS_MAP[order.status] ?? STATUS_MAP.CANCELLED;
 
   return (
-    <Link href="/orders" className="grid grid-cols-[auto_1fr_auto_auto_auto] lg:grid-cols-[auto_minmax(140px,180px)_1fr_auto_auto_auto] items-center gap-x-3 px-4 py-2.5 hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0 group min-w-0">
+    <Link
+      href="/orders"
+      className="flex items-center gap-2 px-4 py-2.5 hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0 group min-w-0"
+    >
       {/* Order ID */}
-      <span className="shrink-0 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-[11px] font-bold tracking-wide text-foreground">
+      <span className="shrink-0 w-28 inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-[11px] font-bold tracking-wide text-foreground">
         #{order.id.slice(-8).toUpperCase()}
       </span>
 
-      {/* User */}
-      <div className="hidden lg:flex items-center gap-2 min-w-0">
+      {/* User — only on xl */}
+      <div className="hidden xl:flex items-center gap-2 min-w-0 w-48 shrink-0">
         <UserAvatar user={order.user} />
         <div className="min-w-0">
           <p className="text-xs font-semibold truncate leading-tight">{order.user.name ?? '—'}</p>
@@ -123,7 +126,7 @@ function OrderRow({ order }: { order: AdminOrder }) {
         </div>
       </div>
 
-      {/* Product */}
+      {/* Product — takes remaining space */}
       <div className="flex-1 min-w-0 flex items-center gap-2">
         {firstItem?.product.previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -136,22 +139,35 @@ function OrderRow({ order }: { order: AdminOrder }) {
         )}
         <div className="min-w-0">
           <p className="truncate text-xs font-medium leading-tight">{firstItem?.product.title ?? '—'}</p>
-          {extraCount > 0 && <p className="text-[10px] text-muted-foreground">+{extraCount} бүтээгдэхүүн</p>}
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {firstItem?.product.compareAtPrice && (
+              <span className="text-[10px] line-through text-muted-foreground tabular-nums">{formatMoney(firstItem.product.compareAtPrice)}</span>
+            )}
+            <span className="text-[10px] font-semibold text-primary tabular-nums">{formatMoney(firstItem?.product.price ?? 0)}</span>
+            {extraCount > 0 && <span className="text-[10px] text-muted-foreground">+{extraCount}</span>}
+          </div>
         </div>
       </div>
 
+      {/* Download count */}
+      <div className="shrink-0 w-20 text-right">
+        <p className="text-xs tabular-nums text-muted-foreground">{firstItem?.product.downloadCount ?? 0}</p>
+      </div>
+
       {/* Amount */}
-      <div className="shrink-0 text-right">
+      <div className="shrink-0 text-right w-32 pr-6">
         <p className="text-sm font-bold tabular-nums">{formatMoney(order.total)}</p>
       </div>
 
       {/* Status */}
-      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${statusInfo.cls}`}>
-        {statusInfo.icon}{statusInfo.label}
-      </span>
+      <div className="shrink-0 w-28 flex justify-start">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${statusInfo.cls}`}>
+          {statusInfo.icon}{statusInfo.label}
+        </span>
+      </div>
 
       {/* Date */}
-      <div className="shrink-0 text-right hidden sm:block min-w-13">
+      <div className="shrink-0 text-right w-20">
         <p className="text-[10px] font-medium text-foreground tabular-nums">{dateStr}</p>
         <p className="text-[10px] text-muted-foreground tabular-nums">{timeStr}</p>
       </div>
@@ -282,6 +298,8 @@ export default function DashboardPage() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'dashboard'],
     queryFn: () => adminApi.dashboard(),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) return <Loading label="Хяналтын самбар ачаалж байна..." />;
@@ -340,7 +358,7 @@ export default function DashboardPage() {
       </div>
 
       {/* This month mini stats */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
           <div className="rounded-lg bg-amber-100 dark:bg-amber-900/40 p-2 shrink-0">
             <ShoppingCart className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -359,6 +377,18 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Энэ сарын шинэ хэрэглэгч</p>
           </div>
         </div>
+        <Link href="/orders" className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:border-destructive/40 group
+          {stats.pendingExpiredCount > 0 ? 'border-destructive/30' : 'border-border'}">
+          <div className={`rounded-lg p-2 shrink-0 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'bg-destructive/10' : 'bg-muted'}`}>
+            <Clock className={`h-4 w-4 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
+          </div>
+          <div>
+            <p className={`text-xl font-bold tabular-nums ${(stats.pendingExpiredCount ?? 0) > 0 ? 'text-destructive' : ''}`}>
+              {(stats.pendingExpiredCount ?? 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground">48ц+ хүлээгдэж буй захиалга</p>
+          </div>
+        </Link>
       </div>
 
       {/* Email + Revenue row */}
@@ -376,13 +406,14 @@ export default function DashboardPage() {
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-        <div className="grid grid-cols-[auto_1fr_auto_auto_auto] lg:grid-cols-[auto_minmax(140px,180px)_1fr_auto_auto_auto] items-center gap-x-3 px-4 py-2 bg-muted/30 border-b border-border">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Дугаар</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:block">Хэрэглэгч</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Бүтээгдэхүүн</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Дүн</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Төлөв</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden sm:block text-right">Огноо</span>
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 border-b border-border">
+          <span className="shrink-0 w-28 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Дугаар</span>
+          <span className="hidden xl:flex shrink-0 w-48 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Хэрэглэгч</span>
+          <span className="flex-1 min-w-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Бүтээгдэхүүн</span>
+          <span className="shrink-0 w-20 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Таталт</span>
+          <span className="shrink-0 w-32 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right pr-6">Дүн</span>
+          <span className="shrink-0 w-28 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Төлөв</span>
+          <span className="shrink-0 w-20 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Огноо</span>
         </div>
         {recentOrders.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">Захиалга байхгүй байна</p>

@@ -94,6 +94,27 @@ services:
       backend:
         condition: service_healthy
 
+  zip-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - /opt/DigitalGer/.env.production
+    command: ["node", "dist/src/worker.js"]
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped

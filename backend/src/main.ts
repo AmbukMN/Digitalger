@@ -17,8 +17,9 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  // Том файл upload-д зориулан body limit-ийг нэмэгдүүлнэ
   app.use(helmet());
-  app.use(compression());
+  app.use(compression({ filter: (req) => !req.path.includes('/uploads') }));
 
   app.enableCors({
     origin: corsOrigins.length ? corsOrigins : true,

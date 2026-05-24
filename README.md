@@ -1,4 +1,4 @@
-# DigitalGer
+# DigitalGer server ip:62.238.47.2
 
 **Домэйн:** [digitalger.mn](https://digitalger.mn)  
 Монголын дижитал бүтээгдэхүүний зах зээл — курс, загвар, файл, видео.

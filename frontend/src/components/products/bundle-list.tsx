@@ -46,6 +46,7 @@ function BundleFileRow({
   const { download } = useFileDownload();
 
   async function handleDownload() {
+    if (loading) return;
     setLoading(true);
     try {
       await download(fileId, fileName);

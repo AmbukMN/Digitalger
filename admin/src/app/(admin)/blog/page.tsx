@@ -19,6 +19,7 @@ import {
   ErrorState,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import { RichEditor } from '@/components/ui/rich-editor';
 
 interface BlogPost {
@@ -145,7 +146,7 @@ function BlogDialog({
     if (!file) return;
     setUploading(true);
     try {
-      const result = await adminApi.upload(file);
+      const result = await uploadWithProgress(file);
       set('coverImageUrl', result.url);
       toast.success('Зураг ачаалагдлаа');
     } catch {
@@ -158,7 +159,7 @@ function BlogDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto max-w-2xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto max-w-5xl">
         <DialogHeader>
           <DialogTitle>{post ? 'Нийтлэл засах' : 'Шинэ нийтлэл'}</DialogTitle>
         </DialogHeader>

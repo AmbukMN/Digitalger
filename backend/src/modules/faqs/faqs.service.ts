@@ -1,20 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export class CreateFaqDto {
-  question!: string;
-  answer!: string;
-  category?: string;
-  sortOrder?: number;
-  active?: boolean;
+  @IsString() question!: string;
+  @IsString() answer!: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsNumber() sortOrder?: number;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class UpdateFaqDto {
-  question?: string;
-  answer?: string;
-  category?: string;
-  sortOrder?: number;
-  active?: boolean;
+  @IsOptional() @IsString() question?: string;
+  @IsOptional() @IsString() answer?: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsNumber() sortOrder?: number;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
 @Injectable()

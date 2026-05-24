@@ -40,8 +40,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'platform-lookaside.fbsbx.com' },
       { protocol: 'http', hostname: 'localhost' },
     ],
-    // Optimize images served from remote patterns
     formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400, // 24 цаг
   },
   outputFileTracingRoot: path.join(__dirname, '../'),
   experimental: {

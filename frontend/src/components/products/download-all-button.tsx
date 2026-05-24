@@ -17,11 +17,15 @@ export function DownloadAllButton({
   downloadFileKey,
   zipName,
   className,
+  variant = 'outline',
+  label,
 }: {
   productId: string;
   downloadFileKey?: string | null;
   zipName?: string;
   className?: string;
+  variant?: 'outline' | 'default';
+  label?: string;
 }) {
   const { data: session } = useSession();
   const [state, setState] = useState<State>('idle');
@@ -107,24 +111,24 @@ export function DownloadAllButton({
     return <Download className="h-3.5 w-3.5" />;
   };
 
-  const label = () => {
+  const getLabel = () => {
     if (state === 'loading') return 'Бэлдэж байна...';
     if (state === 'queued') return 'ZIP үүсгэж байна...';
     if (state === 'done') return 'Татагдлаа';
     if (state === 'failed') return 'Алдаа гарлаа';
-    return 'Бүгдийг татах';
+    return label ?? 'Бүгдийг татах';
   };
 
   return (
     <Button
-      variant="outline"
+      variant={variant}
       size="sm"
       className={`gap-2 text-xs${className ? ` ${className}` : ''}`}
       onClick={handleClick}
       disabled={state === 'loading' || state === 'queued'}
     >
       {icon()}
-      {label()}
+      {getLabel()}
     </Button>
   );
 }

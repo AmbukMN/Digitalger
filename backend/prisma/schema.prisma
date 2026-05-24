@@ -48,6 +48,7 @@ model User {
   oauthProvider String?
   oauthId       String?
   isGuest       Boolean        @default(false)
+  blocked       Boolean        @default(false)
   refreshToken  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -207,7 +208,7 @@ model Lesson {
 model Order {
   id             String      @id @default(cuid())
   userId         String
-  user           User        @relation(fields: [userId], references: [id])
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   total          Decimal     @db.Decimal(12, 2)
   currency       String      @default("MNT")
   status         OrderStatus @default(PENDING)
@@ -247,7 +248,7 @@ model Payment {
 model Review {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   rating    Int
@@ -260,7 +261,7 @@ model Review {
 model Download {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   fileId    String
   createdAt DateTime @default(now())
 
@@ -500,6 +501,7 @@ enum ZipJobStatus {
 model ZipJob {
   id        String       @id @default(cuid())
   userId    String
+  productId String?
   status    ZipJobStatus @default(PENDING)
   zipKey    String?
   error     String?
@@ -508,6 +510,7 @@ model ZipJob {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([userId, productId, status])
 }
 
 enum CouponType {

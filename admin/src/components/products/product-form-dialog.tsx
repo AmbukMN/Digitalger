@@ -175,8 +175,8 @@ function FaqAssignTab({
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-4">Ачаалж байна...</p>;
   if (!allFaqs.length) return (
-    <div className="py-8 text-center text-sm text-muted-foreground">
-      Глобал FAQ байхгүй байна. Эхлээд <span className="font-medium">FAQ</span> хуудаснаас нэмнэ үү.
+    <div className="py-10 text-center text-sm text-muted-foreground">
+      Глобал FAQ байхгүй байна. Эхлээд <span className="font-medium text-foreground">FAQ</span> хуудаснаас нэмнэ үү.
     </div>
   );
 
@@ -187,24 +187,34 @@ function FaqAssignTab({
     return acc;
   }, {});
 
+  const selectedCount = allFaqs.filter((f) => selectedIds.has(f.id)).length;
+
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">Энэ бүтээгдэхүүнд харагдуулах FAQ-уудыг сонгоно уу.</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Энэ бүтээгдэхүүнд харагдуулах FAQ-уудыг сонгоно уу.</p>
+        {selectedCount > 0 && (
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{selectedCount} сонгосон</span>
+        )}
+      </div>
       {Object.entries(byCategory).map(([cat, faqs]) => (
         <div key={cat}>
-          <p className="text-xs font-semibold text-muted-foreground mb-2">{cat}</p>
-          <div className="space-y-1">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{cat}</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <div className="space-y-1.5">
             {faqs.map((faq) => (
-              <label key={faq.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
+              <label key={faq.id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(faq.id) ? 'border-primary bg-primary/5' : 'border-border'}`}>
                 <input
                   type="checkbox"
-                  className="mt-0.5 h-4 w-4 accent-primary"
+                  className="mt-0.5 h-4 w-4 accent-primary shrink-0"
                   checked={selectedIds.has(faq.id)}
                   onChange={() => onToggle(faq.id)}
                 />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium leading-tight">{faq.question}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{faq.answer}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-snug">{faq.question}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{faq.answer}</p>
                 </div>
               </label>
             ))}
@@ -236,23 +246,38 @@ function TestimonialAssignTab({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <p className="text-xs text-muted-foreground">Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдуулах сэтгэгдлүүдийг сонгоно уу.</p>
       {allTestimonials.map((t: AdminTestimonial) => (
-        <label key={t.id} className="flex items-start gap-2 rounded-md border border-border p-2.5 cursor-pointer hover:bg-muted/50">
+        <label key={t.id} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(t.id) ? 'border-primary bg-primary/5' : 'border-border'}`}>
           <input
             type="checkbox"
-            className="mt-0.5 h-4 w-4 accent-primary"
+            className="mt-1 h-4 w-4 accent-primary shrink-0"
             checked={selectedIds.has(t.id)}
             onChange={() => onToggle(t.id)}
           />
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-              {t.name.charAt(0)}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium leading-tight">{t.name}</p>
-              {t.role && <p className="text-xs text-muted-foreground">{t.role}</p>}
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            {t.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={t.avatar} alt={t.name} className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                {t.name.charAt(0)}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-semibold leading-tight">{t.name}</p>
+                {t.role && <p className="text-xs text-muted-foreground">{t.role}</p>}
+                {t.rating > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs text-amber-500">
+                    {'★'.repeat(t.rating)}
+                  </span>
+                )}
+              </div>
+              {t.content && (
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">{t.content}</p>
+              )}
             </div>
           </div>
         </label>
@@ -513,17 +538,24 @@ function getVideoEmbedUrl(url: string): string | null {
   return null;
 }
 
+const UPLOAD_PROGRESS_THRESHOLD = 5 * 1024 * 1024; // 5MB-с дээш бол toast харуулна
+
 async function uploadWithProgress(
   file: File,
-  token: string,
-  onProgress: (pct: number) => void,
+  token?: string,
+  onProgress?: (pct: number) => void,
 ): Promise<{ key: string; url: string; fileName: string; mimeType: string; size: number }> {
+  // Token авах — дамжуулаагүй бол adminApi.upload ашиглана
+  if (!token) {
+    return adminApi.upload(file, onProgress);
+  }
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const form = new FormData();
     form.append('file', file);
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
@@ -531,9 +563,37 @@ async function uploadWithProgress(
     };
     xhr.onerror = () => reject(new Error('Network error'));
     xhr.open('POST', `${API_URL}/api/uploads`);
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(form);
   });
+}
+
+// Token-гүйгээр progress toast-тай upload хийх helper
+async function uploadFileWithToast(file: File): Promise<{ key: string; url: string; fileName: string; mimeType: string; size: number }> {
+  const { toast: sonnerToast } = await import('sonner');
+  const showProgress = file.size >= UPLOAD_PROGRESS_THRESHOLD;
+
+  if (!showProgress) {
+    return adminApi.upload(file);
+  }
+
+  const toastId = `upload-${Date.now()}-${Math.random()}`;
+  const mb = (file.size / (1024 * 1024)).toFixed(1);
+
+  sonnerToast.loading(`Байршуулж байна... (0%) — ${file.name} (${mb} MB)`, { id: toastId, duration: Infinity });
+
+  try {
+    const result = await adminApi.upload(file, (percent) => {
+      if (percent < 100) {
+        sonnerToast.loading(`Байршуулж байна... (${percent}%) — ${file.name} (${mb} MB)`, { id: toastId, duration: Infinity });
+      }
+    });
+    sonnerToast.success(`Байршуулагдлаа — ${file.name}`, { id: toastId, duration: 2500 });
+    return result;
+  } catch (err) {
+    sonnerToast.error(`Байршуулахад алдаа — ${file.name}`, { id: toastId, duration: 3000 });
+    throw err;
+  }
 }
 
 function VideoUploadInput({
@@ -1303,7 +1363,7 @@ function CourseTab({ productId }: { productId?: string }) {
   );
 }
 
-function FilesTab({ productId, product }: { productId?: string; product?: AdminProduct | null }) {
+function FilesTab({ productId, product: productProp }: { productId?: string; product?: AdminProduct | null }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const downloadFileRef = useRef<HTMLInputElement>(null);
@@ -1317,6 +1377,15 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
   const toggleFileBundle = (id: string) => setOpenFileBundles((p) => ({ ...p, [id]: p[id] !== true }));
   const isFileBundleOpen = (id: string) => openFileBundles[id] === true;
 
+  // downloadFileKey зэрэг шинэчлэгдэх талбарыг prop-оос биш өөрийн query-аар уншина —
+  // invalidateProduct() хийгдэхэд энэ query шууд refetch болж UI шинэчлэгдэнэ
+  const { data: productFresh } = useQuery({
+    queryKey: ['admin', 'products', productId],
+    queryFn: () => adminApi.products.get(productId!),
+    enabled: !!productId,
+  });
+  const product = productFresh ?? productProp;
+
   const { data: files = [], isLoading: filesLoading } = useQuery({
     queryKey: ['admin', 'products', productId, 'files'],
     queryFn: () => adminApi.products.files.list(productId!),
@@ -1327,6 +1396,14 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
     queryKey: ['admin', 'products', productId, 'bundles'],
     queryFn: () => adminApi.bundles.list(productId!),
     enabled: !!productId,
+  });
+
+  // bundle item fileIds нь өөр product-ийн файл байж болох тул тусдаа query-аар татна
+  const allBundleFileIds = (bundles as AdminBundle[]).flatMap((b) => b.items.flatMap((i) => i.fileIds ?? []));
+  const { data: bundleLinkedFiles = [] } = useQuery({
+    queryKey: ['admin', 'files', 'by-ids', allBundleFileIds],
+    queryFn: () => adminApi.files.byIds(allBundleFileIds),
+    enabled: allBundleFileIds.length > 0,
   });
 
   const invalidateFiles = () => queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'files'] });
@@ -1340,7 +1417,7 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
     if (!file) return;
     setUploadingDownloadFile(true);
     try {
-      const r = await adminApi.upload(file);
+      const r = await uploadFileWithToast(file);
       await adminApi.products.files.setDownloadFile(productId, r.key);
       toast.success('Татах файл тохируулагдлаа');
       invalidateProduct();
@@ -1354,7 +1431,7 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
     if (!file) return;
     setBundleDownloadUploading((p) => ({ ...p, [bundleId]: true }));
     try {
-      const r = await adminApi.upload(file);
+      const r = await uploadFileWithToast(file);
       await adminApi.bundles.setDownloadFile(productId, bundleId, r.key);
       toast.success('Бүлгийн татах файл тохируулагдлаа');
       invalidateBundles();
@@ -1397,11 +1474,12 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
     if (!picked.length) return;
     setUploading(true);
     try {
-      await Promise.all(picked.map(async (file) => {
-        const r = await adminApi.upload(file);
+      // Дараалан upload — том файлуудын progress toast зөрчихгүй
+      for (const file of picked) {
+        const r = await uploadFileWithToast(file);
         await adminApi.products.files.add(productId, { fileKey: r.key, fileName: file.name, mimeType: file.type || undefined, sizeBytes: file.size });
-      }));
-      toast.success(`${picked.length} файл нэмэгдлээ`);
+      }
+      if (picked.length > 1) toast.success(`${picked.length} файл нэмэгдлээ`);
       invalidateFiles();
     } catch { toast.error('Файл ачаалахад алдаа гарлаа'); }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
@@ -1414,7 +1492,7 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
     try {
       const newIds: string[] = [];
       for (const file of picked) {
-        const r = await adminApi.upload(file);
+        const r = await uploadFileWithToast(file);
         const added = await adminApi.products.files.add(productId, { fileKey: r.key, fileName: file.name, mimeType: file.type || undefined, sizeBytes: file.size });
         newIds.push(added.id);
       }
@@ -1550,8 +1628,11 @@ function FilesTab({ productId, product }: { productId?: string; product?: AdminP
               {isFileBundleOpen(bundle.id) && <div className="divide-y divide-border">
                 {bundle.items.map((item: AdminBundleItem) => {
                   const itemFileIds = item.fileIds ?? [];
+                  const allKnownFiles = [...(files as AdminProductFile[]), ...(bundleLinkedFiles as AdminProductFile[])];
+                  const seen = new Set<string>();
+                  const deduped = allKnownFiles.filter((f) => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
                   const linkedFiles = itemFileIds
-                    .map((fid) => (files as AdminProductFile[]).find((f) => f.id === fid))
+                    .map((fid) => deduped.find((f) => f.id === fid))
                     .filter(Boolean) as AdminProductFile[];
 
                   return (
@@ -1728,13 +1809,12 @@ function InlineMediaManager({
     if (productId) {
       setUploading(true);
       try {
-        // R2-д зэрэгцүүлэн upload хийж, файлын анхны дарааллыг хадгална
-        const uploaded = await Promise.all(
-          files.map(async (file) => {
-            const r = await adminApi.upload(file);
-            return { file, r };
-          }),
-        );
+        // Дараалан upload хийж progress toast-г зөрчихгүй байлгана
+        const uploaded: { file: File; r: Awaited<ReturnType<typeof uploadFileWithToast>> }[] = [];
+        for (const file of files) {
+          const r = await uploadFileWithToast(file);
+          uploaded.push({ file, r });
+        }
         // DB-д дарааллаар insert хийж sortOrder race-г арилгана
         for (let i = 0; i < uploaded.length; i++) {
           const { file, r } = uploaded[i];
@@ -1806,7 +1886,7 @@ function InlineMediaManager({
                 </div>
               ) : img.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={img.url} alt="" className="h-full w-full object-cover" />
+                <img src={img.url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <Package className="h-5 w-5 text-muted-foreground/40" />
@@ -1843,7 +1923,7 @@ function InlineMediaManager({
                 </div>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.preview!} alt="" className="h-full w-full object-cover" />
+                <img src={item.preview!} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               )}
               {i === 0 && existingImages.length === 0 && item.type === 'image' && (
                 <div className="absolute left-1 top-1">
@@ -1899,6 +1979,7 @@ export function ProductFormDialog({
   // FAQ / Testimonial selections — state in parent so tab switches don't lose them
   const [selectedFaqIds, setSelectedFaqIds] = useState<Set<string>>(new Set());
   const [selectedTestimonialIds, setSelectedTestimonialIds] = useState<Set<string>>(new Set());
+  // Сүүлийн удаа аль product.id-д зориулж init хийсэн — давхар init-ээс хамгаалдаг
   const faqIdsInitializedFor = useRef<string | null>(null);
   const testimonialIdsInitializedFor = useRef<string | null>(null);
 
@@ -1909,6 +1990,13 @@ export function ProductFormDialog({
     queryKey: ['admin', 'categories'],
     queryFn: () => adminApi.categories.list(),
   });
+
+  const { data: aiStatus } = useQuery({
+    queryKey: ['admin', 'ai-status'],
+    queryFn: () => adminApi.products.aiStatus(),
+    staleTime: 60 * 1000,
+  });
+  const aiEnabled = aiStatus?.enabled ?? false;
 
   const { data: productTypeConfigs = [] } = useQuery({
     queryKey: ['admin', 'product-types'],
@@ -1921,13 +2009,15 @@ export function ProductFormDialog({
   const { data: assignedFaqIds } = useQuery({
     queryKey: ['admin', 'products', product?.id, 'faq-ids'],
     queryFn: () => adminApi.products.getFaqIds(product!.id),
-    enabled: !!product?.id,
+    enabled: !!product?.id && open,
+    staleTime: 0,
   });
 
   const { data: assignedTestimonialIds } = useQuery({
     queryKey: ['admin', 'products', product?.id, 'testimonial-ids'],
     queryFn: () => adminApi.products.getTestimonialIds(product!.id),
-    enabled: !!product?.id,
+    enabled: !!product?.id && open,
+    staleTime: 0,
   });
 
   // Holds the data returned from the last successful save — avoids stale list data on re-open
@@ -1982,6 +2072,11 @@ export function ProductFormDialog({
       setSelectedFaqIds(new Set());
       setSelectedTestimonialIds(new Set());
       setSavedProduct(null);
+      // Dialog хаагдах үед FAQ/testimonial cache-г устгана — дараагийн нээлтэд server-ээс fresh fetch хийнэ
+      if (product?.id) {
+        queryClient.removeQueries({ queryKey: ['admin', 'products', product.id, 'faq-ids'] });
+        queryClient.removeQueries({ queryKey: ['admin', 'products', product.id, 'testimonial-ids'] });
+      }
       return;
     }
 
@@ -1992,11 +2087,16 @@ export function ProductFormDialog({
 
       if (initializedForRef.current === product.id) return;
       initializedForRef.current = product.id;
+      // FAQ/testimonial refs-ийг энд reset хийх — open болоход шинэ data-г дахин ачаалах
+      faqIdsInitializedFor.current = null;
+      testimonialIdsInitializedFor.current = null;
       setEditorResetToken((t) => t + 1);
       setForm(buildFormFromProduct(source));
     } else {
       if (initializedForRef.current === 'new') return;
       initializedForRef.current = 'new';
+      faqIdsInitializedFor.current = null;
+      testimonialIdsInitializedFor.current = null;
       setEditorResetToken((t) => t + 1);
       const firstType = productTypes[0]?.value ?? '';
       setForm({ ...emptyForm, type: firstType, types: firstType ? [firstType] : [] });
@@ -2112,8 +2212,6 @@ export function ProductFormDialog({
           adminApi.products.assignFaqs(effectiveProduct.id, Array.from(selectedFaqIds)),
           adminApi.products.assignTestimonials(effectiveProduct.id, Array.from(selectedTestimonialIds)),
         ]);
-        queryClient.invalidateQueries({ queryKey: ['admin', 'products', effectiveProduct.id, 'faq-ids'] });
-        queryClient.invalidateQueries({ queryKey: ['admin', 'products', effectiveProduct.id, 'testimonial-ids'] });
         return updated;
       }
 
@@ -2122,16 +2220,15 @@ export function ProductFormDialog({
       const tasks: Promise<unknown>[] = [];
       if (pendingFiles.length > 0) {
         let imageIdx = 0;
-        tasks.push(
-          ...pendingFiles.map(async (item) => {
-            const r = await adminApi.upload(item.file);
-            if (item.type === 'video') {
-              return adminApi.products.images.addVideo(created.id, r.url);
-            } else {
-              return adminApi.products.images.addImage(created.id, r.key, item.file.name, imageIdx++ === 0);
-            }
-          }),
-        );
+        // Дараалан upload — progress toast-г зөрчихгүй байлгана
+        for (const item of pendingFiles) {
+          const r = await uploadFileWithToast(item.file);
+          if (item.type === 'video') {
+            tasks.push(adminApi.products.images.addVideo(created.id, r.url));
+          } else {
+            tasks.push(adminApi.products.images.addImage(created.id, r.key, item.file.name, imageIdx++ === 0));
+          }
+        }
       }
       if (selectedFaqIds.size > 0) {
         tasks.push(adminApi.products.assignFaqs(created.id, Array.from(selectedFaqIds)));
@@ -2151,6 +2248,9 @@ export function ProductFormDialog({
         initializedForRef.current = (saved as AdminProduct).id;
         toast.success('Бүтээгдэхүүн нэмэгдлээ — таб ашиглан файл, багц нэмнэ үү');
       } else {
+        // Refs-г reset хийж, дараагийн нээлтэд шинэ data-г fetch хийлгэнэ
+        faqIdsInitializedFor.current = null;
+        testimonialIdsInitializedFor.current = null;
         toast.success('Бүтээгдэхүүн шинэчлэгдлээ');
         onOpenChange(false);
       }
@@ -2170,7 +2270,7 @@ export function ProductFormDialog({
     if (!file) return;
     setUploadingProof(true);
     try {
-      const result = await adminApi.upload(file);
+      const result = await uploadFileWithToast(file);
       set('proofImageUrl', result.url);
       toast.success('Зураг ачаалагдлаа');
     } catch {
@@ -2208,9 +2308,13 @@ export function ProductFormDialog({
 
           {/* Basic Tab */}
           <TabsContent value="basic" className="space-y-5 pt-4">
+            {/* Media */}
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Зураг / Видео медиа</Label>
-              <p className="text-xs text-muted-foreground -mt-1">Олон зураг болон видео холилдуулан нэмнэ үү. Эхний зурагт бүтээгдэхүүний thumbnail байна.</p>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Медиа</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <p className="text-xs text-muted-foreground">Олон зураг болон видео холилдуулан нэмнэ үү. Эхний зурагт бүтээгдэхүүний thumbnail байна.</p>
               <InlineMediaManager
                 productId={effectiveProduct?.id}
                 pendingFiles={pendingFiles}
@@ -2218,102 +2322,129 @@ export function ProductFormDialog({
               />
             </div>
 
-            <Separator />
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="title">Гарчиг *</Label>
-                <Input id="title" value={form.title} onChange={(e) => handleTitleChange(e.target.value)} required placeholder="Бүтээгдэхүүний нэр" />
+            {/* Title & slug */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Үндсэн мэдээлэл</span>
+                <div className="flex-1 h-px bg-border" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="slug">URL slug *</Label>
-                <Input id="slug" value={form.slug} onChange={(e) => set('slug', slugify(e.target.value))} required placeholder="url-slug" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="title">Гарчиг <span className="text-destructive">*</span></Label>
+                  <Input id="title" value={form.title} onChange={(e) => handleTitleChange(e.target.value)} required placeholder="Бүтээгдэхүүний нэр" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="slug">URL slug <span className="text-destructive">*</span></Label>
+                  <Input id="slug" value={form.slug} onChange={(e) => set('slug', slugify(e.target.value))} required placeholder="url-slug" className="font-mono text-sm" />
+                </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Тайлбар *</Label>
-              <RichEditor
-                key={`description-${editorResetToken}`}
-                value={form.description}
-                onChange={(v) => set('description', v)}
-                placeholder="Бүтээгдэхүүний дэлгэрэнгүй тайлбар"
-                minHeight="120px"
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-4">
-              <div className="space-y-2">
-                <Label htmlFor="price">Үнэ (₮) *</Label>
-                <Input id="price" type="number" min={0} step={100} value={form.price} onChange={(e) => set('price', e.target.value)} required placeholder="0" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="compareAtPrice">Жагсаалтын үнэ</Label>
-                <Input id="compareAtPrice" type="number" min={0} step={100} value={form.compareAtPrice} onChange={(e) => set('compareAtPrice', e.target.value)} placeholder="Хэвийн үнэ" />
-              </div>
-              <div className="space-y-2">
-                <Label>Төрөл *</Label>
-                <PopoverMultiSelect
-                  options={productTypes}
-                  selected={form.types}
-                  placeholder="Төрөл сонгох..."
-                  onChange={(next) => setForm((f) => ({ ...f, types: next, type: next[0] ?? f.type }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Ангилал</Label>
-                <PopoverMultiSelect
-                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                  selected={form.categoryIds}
-                  placeholder={categories.length === 0 ? 'Ангилал байхгүй' : 'Ангилал сонгох...'}
-                  onChange={(next) => setForm((f) => ({
-                    ...f,
-                    categoryIds: next,
-                    categoryId: next[0] ?? f.categoryId,
-                  }))}
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Тайлбар <span className="text-destructive">*</span></Label>
+                <RichEditor
+                  key={`description-${editorResetToken}`}
+                  value={form.description}
+                  onChange={(v) => set('description', v)}
+                  placeholder="Бүтээгдэхүүний дэлгэрэнгүй тайлбар"
+                  minHeight="120px"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Хямдрал дуусах огноо</Label>
-              <Input type="datetime-local" value={form.discountEndsAt} onChange={(e) => set('discountEndsAt', e.target.value)} className="max-w-xs" />
+            {/* Pricing & classification */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Үнэ & Ангилал</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="price">Үнэ (₮) <span className="text-destructive">*</span></Label>
+                  <Input id="price" type="number" min={0} step={100} value={form.price} onChange={(e) => set('price', e.target.value)} required placeholder="0" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="compareAtPrice">Жагсаалтын үнэ</Label>
+                  <Input id="compareAtPrice" type="number" min={0} step={100} value={form.compareAtPrice} onChange={(e) => set('compareAtPrice', e.target.value)} placeholder="Хэвийн үнэ" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Төрөл <span className="text-destructive">*</span></Label>
+                  <PopoverMultiSelect
+                    options={productTypes}
+                    selected={form.types}
+                    placeholder="Төрөл сонгох..."
+                    onChange={(next) => setForm((f) => ({ ...f, types: next, type: next[0] ?? f.type }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Ангилал</Label>
+                  <PopoverMultiSelect
+                    options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                    selected={form.categoryIds}
+                    placeholder={categories.length === 0 ? 'Ангилал байхгүй' : 'Ангилал сонгох...'}
+                    onChange={(next) => setForm((f) => ({
+                      ...f,
+                      categoryIds: next,
+                      categoryId: next[0] ?? f.categoryId,
+                    }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Хямдрал дуусах огноо</Label>
+                <Input type="datetime-local" value={form.discountEndsAt} onChange={(e) => set('discountEndsAt', e.target.value)} className="max-w-xs" />
+              </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="flex gap-6 items-end pb-1 sm:col-span-1">
+            {/* Status & ratings */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Статус & Үнэлгээ</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="flex flex-wrap gap-6 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
                   <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={form.published} onChange={(e) => set('published', e.target.checked)} />
-                  <span>Нийтэлсэн</span>
+                  <span className="font-medium">Нийтэлсэн</span>
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
                   <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={form.featured} onChange={(e) => set('featured', e.target.checked)} />
-                  <span>Онцлох</span>
+                  <span className="font-medium">Онцлох</span>
                 </label>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="rating">Үнэлгээ (0–5)</Label>
-                <Input id="rating" type="number" min={0} max={5} step={0.1} value={form.rating} onChange={(e) => set('rating', e.target.value)} placeholder="4.8" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ratingCount">Үнэлгээний тоо</Label>
-                <Input id="ratingCount" type="number" min={0} step={1} value={form.ratingCount} onChange={(e) => set('ratingCount', e.target.value)} placeholder="124" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="rating">Үнэлгээ (0–5)</Label>
+                  <Input id="rating" type="number" min={0} max={5} step={0.1} value={form.rating} onChange={(e) => set('rating', e.target.value)} placeholder="4.8" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ratingCount">Үнэлгээний тоо</Label>
+                  <Input id="ratingCount" type="number" min={0} step={1} value={form.ratingCount} onChange={(e) => set('ratingCount', e.target.value)} placeholder="124" />
+                </div>
               </div>
             </div>
           </TabsContent>
 
           {/* Content Tab */}
           <TabsContent value="content" className="space-y-5 pt-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">AI ашиглан агуулга автоматаар үүсгэх</p>
-              <Button type="button" variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="gap-2">
+            {/* AI Generate */}
+            <div className="flex items-center justify-between rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">AI Generate</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {aiEnabled ? 'Файлуудын нэрээс агуулгыг автоматаар үүсгэнэ' : 'ANTHROPIC_API_KEY тохируулаагүй тул идэвхгүй'}
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleGenerate} disabled={generating || !aiEnabled} className="gap-2 shrink-0">
                 <Sparkles className="h-4 w-4" />
                 {generating ? 'Үүсгэж байна...' : 'AI Generate'}
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label>Багцад юу багтсан вэ?</Label>
+            {/* whatsIncluded */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Багцад юу багтсан вэ?</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
               <RichEditor
                 key={`whatsIncluded-${editorResetToken}`}
                 value={form.whatsIncluded}
@@ -2323,18 +2454,15 @@ export function ProductFormDialog({
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Хэрхэн ашиглах вэ? (текст/HTML)</Label>
+            {/* howToUse */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Хэрхэн ашиглах вэ?</span>
+                <div className="flex-1 h-px bg-border" />
                 <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-muted-foreground gap-1"
-                  onClick={() => {
-                    setEditorResetToken((t) => t + 1);
-                    set('howToUse', DEFAULT_HOW_TO_USE);
-                  }}
+                  type="button" size="sm" variant="ghost"
+                  className="h-6 text-xs text-muted-foreground gap-1 px-2"
+                  onClick={() => { setEditorResetToken((t) => t + 1); set('howToUse', DEFAULT_HOW_TO_USE); }}
                 >
                   Дефолт болгох
                 </Button>
@@ -2350,188 +2478,224 @@ export function ProductFormDialog({
 
             {/* howToUseSteps */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Алхамууд (Хэрхэн ашиглах вэ?)</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Алхамууд</span>
+                <div className="flex-1 h-px bg-border" />
                 <div className="flex gap-1.5">
                   <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="gap-1 h-7 text-xs text-muted-foreground"
+                    type="button" size="sm" variant="ghost"
+                    className="h-6 text-xs text-muted-foreground gap-1 px-2"
                     onClick={() => setForm((f) => ({ ...f, howToUseSteps: DEFAULT_HOW_TO_USE_STEPS }))}
                   >
                     Дефолт
                   </Button>
                   <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 h-7 text-xs"
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        howToUseSteps: [...f.howToUseSteps, { title: '', description: '' }],
-                      }))
-                    }
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-xs gap-1 px-2"
+                    onClick={() => setForm((f) => ({ ...f, howToUseSteps: [...f.howToUseSteps, { title: '', description: '' }] }))}
                   >
                     <Plus className="h-3 w-3" /> Алхам нэмэх
                   </Button>
                 </div>
               </div>
-              {form.howToUseSteps.length === 0 && (
-                <p className="text-xs text-muted-foreground">Алхам нэмэгдээгүй байна. Дугаарлагдсан картаар харуулна.</p>
-              )}
-              <div className="space-y-2">
-                {form.howToUseSteps.map((step, i) => (
-                  <div key={i} className="rounded-lg border border-border p-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-xs font-mono font-bold text-primary/50 w-6 shrink-0">
-                        {String(i + 1).padStart(2, '0')}
+              {form.howToUseSteps.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border py-5 text-center text-xs text-muted-foreground">
+                  Алхам нэмэгдээгүй байна. Дугаарлагдсан картаар харуулна.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {form.howToUseSteps.map((step, i) => (
+                    <div key={i} className="group flex gap-3 rounded-lg border border-border bg-muted/20 p-3 hover:bg-muted/40 transition-colors">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary mt-0.5">
+                        {i + 1}
                       </span>
-                      <Input
-                        value={step.title ?? ''}
-                        onChange={(e) => {
-                          const steps = [...form.howToUseSteps];
-                          steps[i] = { ...steps[i], title: e.target.value };
-                          setForm((f) => ({ ...f, howToUseSteps: steps }));
-                        }}
-                        placeholder="Алхмын гарчиг"
-                        className="h-7 text-sm flex-1"
-                      />
+                      <div className="flex-1 space-y-1.5 min-w-0">
+                        <Input
+                          value={step.title ?? ''}
+                          onChange={(e) => {
+                            const steps = [...form.howToUseSteps];
+                            steps[i] = { ...steps[i], title: e.target.value };
+                            setForm((f) => ({ ...f, howToUseSteps: steps }));
+                          }}
+                          placeholder="Алхмын гарчиг"
+                          className="h-7 text-sm font-medium"
+                        />
+                        <Input
+                          value={step.description ?? ''}
+                          onChange={(e) => {
+                            const steps = [...form.howToUseSteps];
+                            steps[i] = { ...steps[i], description: e.target.value };
+                            setForm((f) => ({ ...f, howToUseSteps: steps }));
+                          }}
+                          placeholder="Алхмын тайлбар"
+                          className="h-7 text-xs"
+                        />
+                      </div>
                       <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            howToUseSteps: f.howToUseSteps.filter((_, idx) => idx !== i),
-                          }))
-                        }
+                        type="button" size="icon" variant="ghost"
+                        className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                        onClick={() => setForm((f) => ({ ...f, howToUseSteps: f.howToUseSteps.filter((_, idx) => idx !== i) }))}
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                    <div className="ml-10">
-                      <Input
-                        value={step.description ?? ''}
-                        onChange={(e) => {
-                          const steps = [...form.howToUseSteps];
-                          steps[i] = { ...steps[i], description: e.target.value };
-                          setForm((f) => ({ ...f, howToUseSteps: steps }));
-                        }}
-                        placeholder="Алхмын тайлбар"
-                        className="h-7 text-xs w-full"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </TabsContent>
 
           {/* SEO Tab */}
-          <TabsContent value="seo" className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="seoTitle">SEO гарчиг</Label>
-              <Input id="seoTitle" value={form.seoTitle} onChange={(e) => set('seoTitle', e.target.value)} placeholder={form.title || 'SEO гарчиг'} maxLength={70} />
-              <p className="text-right text-xs text-muted-foreground">{form.seoTitle.length}/70</p>
+          <TabsContent value="seo" className="space-y-5 pt-4">
+            <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+              Хайлтын системд (Google гэх мэт) харагдах гарчиг болон тайлбар. Хоосон орхивол бүтээгдэхүүний гарчиг, тайлбарыг автоматаар ашиглана.
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="seoDesc">SEO тайлбар</Label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="seoTitle">SEO гарчиг</Label>
+                <span className={`text-xs tabular-nums ${form.seoTitle.length > 60 ? 'text-amber-500' : 'text-muted-foreground'}`}>{form.seoTitle.length}/70</span>
+              </div>
+              <Input id="seoTitle" value={form.seoTitle} onChange={(e) => set('seoTitle', e.target.value)} placeholder={form.title || 'SEO гарчиг'} maxLength={70} />
+              {form.seoTitle.length === 0 && form.title && (
+                <p className="text-xs text-muted-foreground">Автоматаар ашиглагдах: <span className="text-foreground">{form.title}</span></p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="seoDesc">SEO тайлбар</Label>
+                <span className={`text-xs tabular-nums ${form.seoDescription.length > 140 ? 'text-amber-500' : 'text-muted-foreground'}`}>{form.seoDescription.length}/160</span>
+              </div>
               <textarea
                 id="seoDesc"
-                className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 value={form.seoDescription}
                 onChange={(e) => set('seoDescription', e.target.value)}
-                placeholder="Хайлтын үр дүнд харагдах тайлбар"
+                placeholder="Хайлтын үр дүнд харагдах тайлбар (120–160 тэмдэгт)"
                 maxLength={160}
               />
-              <p className="text-right text-xs text-muted-foreground">{form.seoDescription.length}/160</p>
             </div>
+            {/* Google preview */}
+            {(form.seoTitle || form.title) && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Google Preview</span>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-xs text-green-700 dark:text-green-400 truncate">digitalger.mn › products › {form.slug || 'url-slug'}</p>
+                  <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mt-0.5 line-clamp-1">{form.seoTitle || form.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{form.seoDescription || 'Тайлбар оруулаагүй байна...'}</p>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Social Proof Tab */}
-          <TabsContent value="proof" className="space-y-4 pt-4">
-            <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдах "нийгмийн нотолгоо" блок: зүүн талд хүний зураг, баруун талд иш үг. Иш үг заавал байх ёстой. Хүний зураг заавал биш.
+          <TabsContent value="proof" className="space-y-5 pt-4">
+            <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+              Бүтээгдэхүүний хуудаст харагдах "нийгмийн нотолгоо" блок. Иш үг заавал байх ёстой. Зураг болон нэр нэмэлт.
             </div>
-            <div className="space-y-2">
-              <Label>Хүний зураг</Label>
-              <div className="flex gap-3 items-start">
-                {form.proofImageUrl && (
-                  <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={form.proofImageUrl} alt="" className="h-full w-full object-cover" />
+
+            {/* Author */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Хүн</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="flex gap-4 items-start">
+                {/* Avatar upload */}
+                <div className="shrink-0">
+                  {form.proofImageUrl ? (
+                    <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-border bg-muted">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={form.proofImageUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      <button
+                        type="button"
+                        className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
+                        onClick={() => set('proofImageUrl', '')}
+                      >
+                        <X className="h-4 w-4 text-white" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5"
-                      onClick={() => set('proofImageUrl', '')}
+                      className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                      onClick={() => proofImgRef.current?.click()}
+                      disabled={uploadingProof}
                     >
-                      <X className="h-3 w-3 text-destructive" />
+                      {uploadingProof ? <Star className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
                     </button>
-                  </div>
-                )}
-                <div className="flex-1 space-y-1.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => proofImgRef.current?.click()}
-                    disabled={uploadingProof}
-                    className="gap-1.5"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {uploadingProof ? 'Ачаалж...' : 'Зураг оруулах (R2)'}
-                  </Button>
+                  )}
                   <input ref={proofImgRef} type="file" accept="image/*" className="hidden" onChange={handleProofImgUpload} />
-                  <Input
-                    value={form.proofImageUrl}
-                    onChange={(e) => set('proofImageUrl', e.target.value)}
-                    placeholder="Эсвэл URL шууд оруулах"
-                    className="h-7 text-xs"
-                  />
+                </div>
+                <div className="flex-1 grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Нэр</Label>
+                    <Input value={form.proofAuthorName} onChange={(e) => set('proofAuthorName', e.target.value)} placeholder="Бат-Эрдэнэ Д." />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Албан тушаал</Label>
+                    <Input value={form.proofAuthorRole} onChange={(e) => set('proofAuthorRole', e.target.value)} placeholder="Маркетингийн менежер" />
+                  </div>
                 </div>
               </div>
+              {form.proofImageUrl && (
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => proofImgRef.current?.click()} disabled={uploadingProof}>
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploadingProof ? 'Ачаалж...' : 'Зураг солих'}
+                </Button>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>Үндсэн иш үг *</Label>
-              <textarea
-                className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={form.proofQuote}
-                onChange={(e) => set('proofQuote', e.target.value)}
-                placeholder="Томоор харагдах гол мессеж..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Дэлгэрэнгүй текст (заавал биш)</Label>
-              <textarea
-                className="min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={form.proofText}
-                onChange={(e) => set('proofText', e.target.value)}
-                placeholder="Нэмэлт тайлбар текст..."
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Нэр</Label>
-                <Input
-                  value={form.proofAuthorName}
-                  onChange={(e) => set('proofAuthorName', e.target.value)}
-                  placeholder="Бат-Эрдэнэ Д."
+
+            {/* Quote */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Иш үг</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Үндсэн иш үг <span className="text-destructive">*</span></Label>
+                <textarea
+                  className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  value={form.proofQuote}
+                  onChange={(e) => set('proofQuote', e.target.value)}
+                  placeholder="Томоор харагдах гол мессеж..."
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Албан тушаал / Үүрэг</Label>
-                <Input
-                  value={form.proofAuthorRole}
-                  onChange={(e) => set('proofAuthorRole', e.target.value)}
-                  placeholder="Маркетингийн менежер"
+              <div className="space-y-1.5">
+                <Label>Дэлгэрэнгүй текст <span className="text-xs text-muted-foreground font-normal">(заавал биш)</span></Label>
+                <textarea
+                  className="min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  value={form.proofText}
+                  onChange={(e) => set('proofText', e.target.value)}
+                  placeholder="Нэмэлт тайлбар текст..."
                 />
               </div>
             </div>
+
+            {/* Preview */}
+            {form.proofQuote && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Preview</span>
+                <div className="flex gap-4 items-start rounded-xl border border-border bg-muted/20 p-4">
+                  {form.proofImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={form.proofImageUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-border" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
+                      {form.proofAuthorName ? form.proofAuthorName.charAt(0) : '?'}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold italic leading-snug">"{form.proofQuote}"</p>
+                    {form.proofText && <p className="mt-1 text-xs text-muted-foreground">{form.proofText}</p>}
+                    {(form.proofAuthorName || form.proofAuthorRole) && (
+                      <p className="mt-2 text-xs font-medium">
+                        {form.proofAuthorName}{form.proofAuthorRole && <span className="text-muted-foreground font-normal"> · {form.proofAuthorRole}</span>}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Files Tab */}

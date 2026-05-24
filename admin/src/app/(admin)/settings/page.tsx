@@ -21,6 +21,7 @@ import {
   TabsTrigger,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import type { SiteSettings, ThemeSettings } from '@/types/admin';
 
 // ——— Default theme options ——————————————————————————————————
@@ -279,7 +280,7 @@ function GeneralTab({
     }
     setUploading(true);
     try {
-      const result = await adminApi.upload(file);
+      const result = await uploadWithProgress(file);
       setLogoPreview(result.url);
       setForm((prev) => ({ ...prev, logoUrl: result.url }));
       toast.success('Лого амжилттай байршлаа');

@@ -1,34 +1,27 @@
-export const revalidate = 300;
-
+import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { API_URL, SITE_URL } from '@/lib/constants';
+import { SITE_URL } from '@/lib/constants';
 import { PageHeader } from '@/components/ui/page-header';
+import { sanitizeHtml } from '@/lib/safe-html';
+
+export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: 'Бидний тухай',
-  description: 'DigitalGer — Монголын хамгийн том дижитал бүтээгдэхүүний зах зээл.',
+  title: 'Бидний тухай | DigitalGer',
+  description: 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.',
   alternates: { canonical: `${SITE_URL}/about` },
   openGraph: {
     title: 'Бидний тухай | DigitalGer',
-    description: 'DigitalGer — Монголын хамгийн том дижитал бүтээгдэхүүний зах зээл.',
+    description: 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.',
     url: `${SITE_URL}/about`,
   },
 };
-
-const DEFAULT_CONTENT = `
-<h2>DigitalGer-ийн тухай</h2>
-<p>DigitalGer нь Монголын хамгийн том дижитал бүтээгдэхүүний зах зээл бөгөөд 2023 онд үүсгэн байгуулагдсан. Бид дижитал файл, загвар, хичээл болон бусад бүтээгдэхүүнийг нэг дороос татаж авах боломжийг олгодог.</p>
-<h2>Манай зорилго</h2>
-<p>Монгол хэрэглэгчдэд чанартай дижитал контентийг хялбар, аюулгүй байдлаар хүргэх замаар дижитал эдийн засгийг хөгжүүлэхэд хувь нэмэр оруулах.</p>
-<h2>Холбоо барих</h2>
-<p>И-мэйл: info@digitalger.mn</p>
-`;
 
 async function getAboutPage() {
   try {
     const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const res = await fetch(`${apiUrl}/api/pages/about`, {
-      next: { revalidate: 300 },
+      next: { revalidate: 60 },
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
@@ -42,15 +35,14 @@ async function getAboutPage() {
 
 export default async function AboutPage() {
   const page = await getAboutPage();
-  const title = page?.title ?? 'Бидний тухай';
-  const content = page?.content ?? DEFAULT_CONTENT;
+  if (!page) notFound();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-      <PageHeader title={title} />
+      <PageHeader title={page.title} />
       <div
-        className="prose prose-lg max-w-none dark:prose-invert prose-headings:font-bold prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
-        dangerouslySetInnerHTML={{ __html: content }}
+        className="prose prose-base max-w-none dark:prose-invert prose-headings:font-bold prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
       />
     </div>
   );

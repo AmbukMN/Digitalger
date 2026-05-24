@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { toast } from 'sonner';
 import { useCartStore } from '@/store/cart';
 import { useCouponStore, MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import type { AppliedCoupon } from '@/store/coupon';
@@ -29,35 +28,9 @@ import { couponsApi, downloadsApi } from '@/lib/api';
 import type { ProductDetail, PurchasedProduct } from '@/types/api';
 import { useFileDownload } from '@/hooks/use-file-download';
 import { DiscountTimer } from './discount-timer';
+import { DownloadAllButton } from './download-all-button';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
-
-// ─── Download all helper ──────────────────────────────────────────────────────
-async function downloadAll(
-  token: string,
-  files: { id: string; fileName: string }[],
-  onStart: () => void,
-  onDone: () => void,
-) {
-  onStart();
-  try {
-    for (const file of files) {
-      const result = await downloadsApi.signedUrl(token, file.id);
-      const a = document.createElement('a');
-      a.href = result.url;
-      a.download = file.fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      if (files.length > 1) await new Promise((r) => setTimeout(r, 600));
-    }
-  } catch {
-    toast.error('Татахад алдаа гарлаа');
-  } finally {
-    onDone();
-  }
-}
 
 // ─── Purchased sidebar card (desktop) ────────────────────────────────────────
 function PurchasedCard({
@@ -67,10 +40,8 @@ function PurchasedCard({
   purchase: PurchasedProduct;
   product: ProductDetail;
 }) {
-  const { data: session } = useSession();
   const { download } = useFileDownload();
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const hasBundles = (purchase.product.bundles?.length ?? 0) > 0;
 
@@ -102,17 +73,13 @@ function PurchasedCard({
   });
 
   async function handleDownloadOne(fileId: string, fileName: string) {
+    if (downloading === fileId) return;
     setDownloading(fileId);
     try {
       await download(fileId, fileName);
     } finally {
       setDownloading(null);
     }
-  }
-
-  async function handleDownloadAll() {
-    if (!session?.accessToken) return;
-    await downloadAll(session.accessToken, files, () => setDownloadingAll(true), () => setDownloadingAll(false));
   }
 
   return (
@@ -142,15 +109,14 @@ function PurchasedCard({
       {/* Download files */}
       {hasFiles && (
         <div className="space-y-2">
-          <Button
-            className="w-full font-semibold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
-            size="sm"
-            onClick={handleDownloadAll}
-            disabled={downloadingAll}
-          >
-            {downloadingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Бүх файлыг татах ({files.length})
-          </Button>
+          <DownloadAllButton
+            productId={purchase.product.id}
+            downloadFileKey={purchase.product.downloadFileKey}
+            zipName={`${purchase.product.slug}.zip`}
+            variant="default"
+            label={`Бүх файлыг татах (${files.length})`}
+            className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+          />
           <ul className={`space-y-1 ${files.length > 5 ? 'max-h-56 overflow-y-auto pr-1' : ''}`}>
             {files.map((file) => (
               <li key={file.id} className="flex items-center gap-2 rounded-lg bg-muted/30 dark:bg-muted/20 border border-border/50 px-3 py-1.5">
@@ -161,7 +127,7 @@ function PurchasedCard({
                   variant="ghost"
                   className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                   onClick={() => handleDownloadOne(file.id, file.fileName)}
-                  disabled={downloading === file.id || downloadingAll}
+                  disabled={downloading === file.id}
                 >
                   {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                   Татах
@@ -474,7 +440,6 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [downloadingAll, setDownloadingAll] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [btnShake, setBtnShake] = useState(false);
   const couponRef = useRef<HTMLDivElement>(null);
@@ -572,36 +537,13 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   };
 
   async function handleDownloadOne(fileId: string, fileName: string) {
+    if (downloading === fileId) return;
     setDownloading(fileId);
     try {
       await download(fileId, fileName);
     } finally {
       setDownloading(null);
     }
-  }
-
-  async function handleDownloadAll() {
-    if (!session?.accessToken || !purchase) return;
-    // bundle + standalone нэгтгэнэ
-    const allProductFiles = product.files ?? [];
-    const standaloneMobile = purchase.product.files;
-    const bundleFileIdsMobile = new Set(
-      (purchase.product.bundles ?? []).flatMap((b) =>
-        b.items.flatMap((item) =>
-          item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
-        ),
-      ),
-    );
-    const bundleFilesMobile = allProductFiles.filter(
-      (f) => bundleFileIdsMobile.has(f.id) && !standaloneMobile.some((sf) => sf.id === f.id),
-    );
-    const allFiles = [...standaloneMobile, ...bundleFilesMobile];
-    await downloadAll(
-      session.accessToken,
-      allFiles,
-      () => setDownloadingAll(true),
-      () => setDownloadingAll(false),
-    );
   }
 
   if (sessionLoading) return null;
@@ -643,7 +585,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                     variant="ghost"
                     className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                     onClick={() => handleDownloadOne(file.id, file.fileName)}
-                    disabled={downloading === file.id || downloadingAll}
+                    disabled={downloading === file.id}
                   >
                     {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                     Татах
@@ -684,18 +626,17 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
             </div>
 
             {hasFiles ? (
-              <Button
-                className="font-semibold px-3 shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
-                size="sm"
-                onClick={handleDownloadAll}
-                disabled={downloadingAll}
-              >
-                {downloadingAll ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-                Бүх файлыг татах
-              </Button>
+              <DownloadAllButton
+                productId={purchase.product.id}
+                downloadFileKey={purchase.product.downloadFileKey}
+                zipName={`${purchase.product.slug}.zip`}
+                variant="default"
+                label="Бүх файлыг татах"
+                className="shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+              />
             ) : (
               <Button asChild variant="outline" size="sm" className="shrink-0 text-xs h-8 text-muted-foreground hover:text-foreground">
-                <Link href="/orders">Захиалга</Link>
+                <Link href="/orders">За��иалга</Link>
               </Button>
             )}
           </div>

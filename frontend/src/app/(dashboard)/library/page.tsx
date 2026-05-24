@@ -230,7 +230,7 @@ export default function LibraryPage() {
   });
 
   const handleDownload = async (fileId: string, fileName: string) => {
-    if (!token) return;
+    if (!token || downloading !== null) return;
     setDownloading(fileId);
     try {
       const result = await downloadsApi.signedUrl(token, fileId);
@@ -272,6 +272,8 @@ export default function LibraryPage() {
     productId: string,
     zipName: string,
     downloadFileKey?: string | null,
+    singleFileId?: string | null,
+    singleFileName?: string | null,
   ) => {
     if (!token) return;
     const cur = zipStates[entryKey];
@@ -279,6 +281,7 @@ export default function LibraryPage() {
 
     setZipState(entryKey, 'pending');
 
+    // 1. Бэлэн zip файл байвал шууд татна
     if (downloadFileKey) {
       try {
         const { url, fileName } = await downloadsApi.productDownloadFile(token, productId);
@@ -293,6 +296,22 @@ export default function LibraryPage() {
       return;
     }
 
+    // 2. Ганц файл байвал signed URL-р шууд татна (ZIP хийхгүй)
+    if (singleFileId) {
+      try {
+        const result = await downloadsApi.signedUrl(token, singleFileId);
+        triggerDownload(result.url, singleFileName || singleFileId);
+        setZipState(entryKey, 'done');
+        setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+      } catch {
+        setZipState(entryKey, 'failed');
+        toast.error('Файл татахад алдаа гарлаа');
+        setTimeout(() => setZipState(entryKey, 'idle'), 2500);
+      }
+      return;
+    }
+
+    // 3. Олон файл → ZIP queue
     try {
       const { jobId } = await downloadsApi.enqueueProductZip(token, productId);
       setZipState(entryKey, 'queued');
@@ -433,8 +452,22 @@ export default function LibraryPage() {
             const zipBusy = zipState === 'pending' || zipState === 'queued';
             const hasFiles = entry.product.files.length > 0;
             const hasBundles = (entry.product.bundles?.length ?? 0) > 0;
-            const showFlatFiles = hasFiles; // flat files үргэлж харуулна, bundle байсан ч
+            const showFlatFiles = hasFiles;
             const zipName = `${entry.product.slug ?? entry.product.id}.zip`;
+
+            // Нийт татах боломжтой файлын тоо тооцоол
+            const allBundleFileIds = (entry.product.bundles ?? []).flatMap((b: LibBundle) =>
+              b.items.flatMap((item) => item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [])
+            );
+            const totalFileCount = entry.product.files.length + allBundleFileIds.length;
+            // Ганц файл байвал шууд татах (ZIP хийхгүй)
+            const isSingleFile = !entry.product.downloadFileKey && totalFileCount === 1;
+            const singleFileId = isSingleFile
+              ? (entry.product.files[0]?.id ?? allBundleFileIds[0] ?? null)
+              : null;
+            const singleFileName = isSingleFile
+              ? (entry.product.files[0]?.fileName ?? null)
+              : null;
 
             const zipLabel = (st: ZipState) => {
               if (st === 'pending') return 'Бэлдэж байна...';
@@ -485,15 +518,15 @@ export default function LibraryPage() {
                       }
                     />
                   </div>
-                  {hasFiles && (
+                  {(hasFiles || hasBundles) && (
                     <Button
                       size="sm"
                       className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
                       disabled={zipBusy}
-                      onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey)}
+                      onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey, singleFileId, singleFileName)}
                     >
                       {zipIcon(zipState)}
-                      {zipLabel(zipState)}
+                      {isSingleFile ? 'Татах' : zipLabel(zipState)}
                     </Button>
                   )}
                 </div>
@@ -565,16 +598,16 @@ export default function LibraryPage() {
                 )}
 
                 {/* Mobile: all download button */}
-                {showFlatFiles && (
+                {(hasFiles || hasBundles) && (
                   <div className="px-4 py-2.5 border-t border-border/50 sm:hidden">
                     <Button
                       size="sm"
                       className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
                       disabled={zipBusy}
-                      onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey)}
+                      onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey, singleFileId, singleFileName)}
                     >
                       {zipIcon(zipState)}
-                      {zipLabel(zipState)}
+                      {isSingleFile ? 'Татах' : zipLabel(zipState)}
                     </Button>
                   </div>
                 )}

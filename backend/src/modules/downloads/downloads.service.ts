@@ -152,18 +152,39 @@ export class DownloadsService {
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      include: { files: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        files: { orderBy: { sortOrder: 'asc' } },
+        bundles: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
+      },
     });
     if (!product) throw new NotFoundException('Product not found');
-    if (!product.files.length) throw new NotFoundException('No files');
+
+    // flat файл + бүх bundle-ийн файлууд нэгтгэнэ (давхардал хасна)
+    const flatFileIds = product.files.map((f) => f.id);
+    const bundleFileIds = product.bundles.flatMap((b) =>
+      b.items.flatMap((item) =>
+        item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+      ),
+    );
+    const allFileIds = [...new Set([...flatFileIds, ...bundleFileIds])];
+    if (!allFileIds.length) throw new NotFoundException('No files');
+
+    // Өмнө нь ижил бүтээгдэхүүнд амжилттай хийгдсэн zip байвал шууд буцаана
+    const cached = await this.prisma.zipJob.findFirst({
+      where: { userId, productId, status: 'DONE' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (cached?.zipKey) {
+      return { jobId: cached.id };
+    }
 
     const job = await this.prisma.zipJob.create({
-      data: { userId, status: 'PENDING' },
+      data: { userId, productId, status: 'PENDING' },
     });
 
     const zipName = `${product.slug ?? productId}.zip`;
     await this.zipQueue.add(
-      { jobId: job.id, userId, productId, fileIds: product.files.map((f) => f.id), zipName },
+      { jobId: job.id, userId, productId, fileIds: allFileIds, zipName },
       { attempts: 2, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: 100, removeOnFail: 50 },
     );
 

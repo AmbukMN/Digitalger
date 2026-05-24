@@ -26,6 +26,11 @@ export class AdminAiService {
     });
   }
 
+  isEnabled(): boolean {
+    const key = this.config.get<string>('anthropicApiKey');
+    return !!(key && key.length > 0);
+  }
+
   async generateProductContent(input: GenerateInput): Promise<GeneratedContent> {
     const { fileNames, fileTypes, productType, categoryName } = input;
 

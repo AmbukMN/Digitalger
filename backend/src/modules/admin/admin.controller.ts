@@ -22,6 +22,8 @@ import { OrderStatus, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -59,6 +61,8 @@ export class AdminController {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOf3MonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
 
+    const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
     const [
       usersCount,
       productsCount,
@@ -69,6 +73,7 @@ export class AdminController {
       newUsersThisMonth,
       monthlyRevenue,
       emailStats,
+      pendingExpiredCount,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.product.count(),
@@ -90,6 +95,9 @@ export class AdminController {
                   slug: true,
                   previewUrl: true,
                   price: true,
+                  compareAtPrice: true,
+                  discountEndsAt: true,
+                  downloadCount: true,
                   images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
                 },
               },
@@ -112,6 +120,9 @@ export class AdminController {
         _sum: { total: true },
       }),
       this.emailService.getStats(),
+      this.prisma.order.count({
+        where: { status: 'PENDING', createdAt: { lt: cutoff48h } },
+      }),
     ]);
 
     // Сар бүрийн орлогыг тооцоолно
@@ -149,11 +160,17 @@ export class AdminController {
         revenue: revenueAgg._sum.total ?? 0,
         ordersThisMonth,
         newUsersThisMonth,
+        pendingExpiredCount,
       },
       recentOrders: mapOrderImages(recentOrders),
       monthlyRevenue: monthlyRevenueSummary,
       emailStats,
     };
+  }
+
+  @Get('ai/status')
+  getAiStatus() {
+    return { enabled: this.adminAi.isEnabled() };
   }
 
   // AI generate
@@ -382,6 +399,13 @@ export class AdminController {
     return this.adminProducts.listFiles(id);
   }
 
+  @Post('files/by-ids')
+  getFilesByIds(@Body() body: { ids: string[] }) {
+    return this.prisma.productFile.findMany({
+      where: { id: { in: body.ids } },
+    });
+  }
+
   @Post('products/:id/files')
   async addProductFile(
     @Param('id') id: string,
@@ -598,6 +622,20 @@ export class AdminController {
     @Body() body: { name?: string; role?: string; image?: string },
   ) {
     return this.users.updateByAdmin(id, body);
+  }
+
+  @Patch('users/:id/block')
+  blockUser(
+    @Param('id') id: string,
+    @Body() body: { blocked: boolean },
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.users.blockUser(id, body.blocked, me.sub);
+  }
+
+  @Delete('users/:id')
+  deleteUser(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.users.deleteUser(id, me.sub);
   }
 
   // Settings

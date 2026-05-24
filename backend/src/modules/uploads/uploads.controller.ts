@@ -53,7 +53,7 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 100 * 1024 * 1024 },
+      limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB
     }),
   )
   async upload(@UploadedFile() file: Express.Multer.File) {

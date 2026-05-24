@@ -196,7 +196,7 @@ export default async function BlogDetailPage({ params }: Props) {
               <div className="mt-6">
                 {post.content.startsWith('<') ? (
                   <div
-                    className="prose prose-sm sm:prose max-w-none text-foreground leading-relaxed
+                    className="prose prose-base max-w-none text-foreground leading-relaxed
                       prose-headings:font-bold prose-headings:text-foreground
                       prose-a:text-primary prose-a:no-underline hover:prose-a:underline
                       prose-img:rounded-xl prose-img:shadow-sm

@@ -17,6 +17,8 @@ const REFRESH_THRESHOLD_MS = 60_000;
 export function useFileDownload() {
   const { data: session } = useSession();
   const cache = useRef<Map<string, CachedUrl>>(new Map());
+  // fileId → in-flight promise: давтан дарах үед нэг л request явна
+  const inflight = useRef<Map<string, Promise<string | null>>>(new Map());
 
   const getUrl = useCallback(
     async (fileId: string): Promise<string | null> => {
@@ -29,21 +31,28 @@ export function useFileDownload() {
         if (remaining > REFRESH_THRESHOLD_MS) {
           return cached.url;
         }
-        // Expired or about to expire — refresh
         cache.current.delete(fileId);
       }
 
-      try {
-        const result = await downloadsApi.signedUrl(session.accessToken, fileId);
-        cache.current.set(fileId, {
-          url: result.url,
-          generatedAt: result.generatedAt ?? Date.now(),
-          expiresIn: result.expiresIn ?? 300,
-        });
-        return result.url;
-      } catch {
-        return null;
-      }
+      // Аль хэдийн request явж байвал түүнийг хуваалцана — давхар request гарахгүй
+      const existing = inflight.current.get(fileId);
+      if (existing) return existing;
+
+      const promise = downloadsApi
+        .signedUrl(session.accessToken, fileId)
+        .then((result) => {
+          cache.current.set(fileId, {
+            url: result.url,
+            generatedAt: result.generatedAt ?? Date.now(),
+            expiresIn: result.expiresIn ?? 300,
+          });
+          return result.url;
+        })
+        .catch(() => null)
+        .finally(() => { inflight.current.delete(fileId); });
+
+      inflight.current.set(fileId, promise);
+      return promise;
     },
     [session?.accessToken],
   );

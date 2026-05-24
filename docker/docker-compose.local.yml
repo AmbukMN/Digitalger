@@ -102,6 +102,22 @@ services:
       backend:
         condition: service_healthy
 
+  zip-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env.docker
+    command: ["node", "dist/src/worker.js"]
+    networks:
+      - local_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # nginx temporarily disabled for local validation (nginx:1.27-alpine pull fails due to network)
   # nginx:
   #   image: nginx:1.27-alpine

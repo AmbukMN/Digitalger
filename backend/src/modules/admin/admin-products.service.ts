@@ -92,6 +92,10 @@ export class AdminProductsService {
         images: true,
         files: true,
         course: { include: { lessons: true } },
+        bundles: {
+          orderBy: { sortOrder: 'asc' },
+          include: { items: { orderBy: { sortOrder: 'asc' } } },
+        },
       },
     });
 

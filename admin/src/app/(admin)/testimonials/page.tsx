@@ -21,6 +21,7 @@ import {
   Loading,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 
 interface Testimonial {
   id: string;
@@ -66,7 +67,7 @@ function TestimonialDialog({
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const result = await adminApi.upload(file);
+      const result = await uploadWithProgress(file);
       setForm(f => ({ ...f, avatar: result.url }));
     } catch { toast.error('Зураг байршуулахад алдаа'); }
     finally { setUploading(false); }

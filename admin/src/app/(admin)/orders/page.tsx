@@ -217,6 +217,8 @@ export default function OrdersPage() {
       page,
       pageSize: PAGE_SIZE,
     }),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const statusCounts = (data?.items ?? []).reduce<Record<string, number>>((acc, o) => {

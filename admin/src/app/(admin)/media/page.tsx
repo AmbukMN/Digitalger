@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import type { UploadResult } from '@/types/admin';
 
 export default function MediaPage() {
@@ -22,10 +23,10 @@ export default function MediaPage() {
     try {
       const results: UploadResult[] = [];
       for (const file of Array.from(files)) {
-        results.push(await adminApi.upload(file));
+        results.push(await uploadWithProgress(file));
       }
       setUploads((prev) => [...results, ...prev]);
-      toast.success(`${results.length} файл ачаалагдлаа`);
+      if (results.length > 1) toast.success(`${results.length} файл ачаалагдлаа`);
     } catch {
       toast.error('Ачаалахад алдаа');
     } finally {

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -13,6 +13,7 @@ const USER_SELECT = {
   image: true,
   role: true,
   isGuest: true,
+  blocked: true,
   oauthProvider: true,
   emailVerified: true,
   createdAt: true,
@@ -147,9 +148,10 @@ export class UsersService {
           role: true,
           image: true,
           isGuest: true,
+          blocked: true,
           oauthProvider: true,
           createdAt: true,
-          _count: { select: { orders: true } },
+          _count: { select: { orders: true, downloads: true } },
         },
       }),
       this.prisma.user.count({ where }),
@@ -185,5 +187,30 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
+  }
+
+  async blockUser(id: string, blocked: boolean, adminId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === 'ADMIN') throw new ForbiddenException('Админ хэрэглэгчийг block хийх боломжгүй');
+    if (id === adminId) throw new ForbiddenException('Өөрийгөө block хийх боломжгүй');
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { blocked },
+      select: USER_SELECT,
+    });
+  }
+
+  async deleteUser(id: string, adminId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === 'ADMIN') throw new ForbiddenException('Админ хэрэглэгчийг устгах боломжгүй');
+    if (id === adminId) throw new ForbiddenException('Өөрийгөө устгах боломжгүй');
+
+    await this.prisma.$transaction([
+      this.prisma.zipJob.deleteMany({ where: { userId: id } }),
+      this.prisma.user.delete({ where: { id } }),
+    ]);
   }
 }

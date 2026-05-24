@@ -2,6 +2,7 @@
 @import '@digitalger/shared/styles/globals.css';
 @source '../../../shared/src/**/*.{ts,tsx}';
 @source '../**/*.{ts,tsx}';
+@plugin '@tailwindcss/typography';
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -12,3 +13,41 @@ body {
   @apply bg-background text-foreground antialiased;
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* Tiptap editor — зөвхөн prose override хийхгүй зүйлс */
+.tiptap,
+.ProseMirror { outline: none; width: 100%; box-sizing: border-box; }
+
+/* prose default line-height хэтэрхий том — editor дотор 1.5 болгоно */
+.ProseMirror p, .ProseMirror li { line-height: 1.5; }
+.ProseMirror h1, .ProseMirror h2, .ProseMirror h3 { line-height: 1.3; }
+
+/* prose font-family override — сайтын үндсэн фонт ашиглах */
+.ProseMirror { font-family: var(--font-sans), system-ui, sans-serif; }
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Table selection & resize — prose-д байхгүй */
+.ProseMirror .selectedCell::after {
+  background: hsl(var(--primary) / 0.15);
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+.ProseMirror .column-resize-handle {
+  background-color: hsl(var(--primary));
+  bottom: -2px;
+  pointer-events: none;
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 3px;
+}
+.tableWrapper { overflow-x: auto; }

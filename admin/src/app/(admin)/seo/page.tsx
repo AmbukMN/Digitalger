@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@digitalger/shared';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import type { SiteSettings } from '@/types/admin';
 
 function Textarea({
@@ -376,7 +377,7 @@ export default function SeoPage() {
                     if (!file) return;
                     setOgUploading(true);
                     try {
-                      const result = await adminApi.upload(file);
+                      const result = await uploadWithProgress(file);
                       setForm((p) => ({ ...p, ogImageUrl: result.url }));
                     } catch {
                       toast.error('Зураг upload хийхэд алдаа гарлаа');

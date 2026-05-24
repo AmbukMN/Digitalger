@@ -38,7 +38,7 @@ export class BlogService {
     if (params?.tag) where.tags = { has: params.tag };
     const select = { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, tags: true, authorName: true, createdAt: true };
     const [items, total] = await Promise.all([
-      this.prisma.blogPost.findMany({ where, orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }], take: pageSize, skip, select }),
+      this.prisma.blogPost.findMany({ where, orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }], take: pageSize, skip, select }),
       this.prisma.blogPost.count({ where }),
     ]);
     return { items, total, page, pageSize };
@@ -55,7 +55,7 @@ export class BlogService {
           { tags: { has: q } },
         ],
       },
-      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
       take: 10,
       select: { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, tags: true, authorName: true, createdAt: true },
     });
@@ -64,7 +64,7 @@ export class BlogService {
   findLatest(count = 3) {
     return this.prisma.blogPost.findMany({
       where: { published: true },
-      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
       take: count,
       select: { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, authorName: true, createdAt: true },
     });

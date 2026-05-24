@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { pagesApi } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
+import { sanitizeHtml } from '@/lib/safe-html';
 
 export const metadata: Metadata = {
   title: 'Үйлчилгээний нөхцөл | DigitalGer',
@@ -53,11 +54,11 @@ export default async function TermsOfUsePage() {
 
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
         <div
-          className="prose prose-sm sm:prose max-w-none text-muted-foreground
+          className="prose prose-base max-w-none text-muted-foreground
             prose-headings:text-foreground prose-headings:font-semibold
             prose-a:text-primary prose-a:no-underline hover:prose-a:underline
             prose-li:marker:text-muted-foreground"
-          dangerouslySetInnerHTML={{ __html: content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
         />
       </div>
     </div>

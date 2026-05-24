@@ -137,6 +137,7 @@ export const adminApi = {
         '/admin/products/generate',
         { method: 'POST', body: JSON.stringify(body) },
       ),
+    aiStatus: () => adminFetch<{ enabled: boolean }>('/admin/ai/status'),
     bulkImport: (file: File) => {
       const fd = new FormData();
       fd.append('file', file);
@@ -281,6 +282,13 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    block: (id: string, blocked: boolean) =>
+      adminFetch<AdminUser>(`/admin/users/${id}/block`, {
+        method: 'PATCH',
+        body: JSON.stringify({ blocked }),
+      }),
+    delete: (id: string) =>
+      adminFetch<void>(`/admin/users/${id}`, { method: 'DELETE' }),
   },
 
   settings: {
@@ -349,6 +357,11 @@ export const adminApi = {
       adminFetch<void>(`/admin/products/${productId}/bundles/${bundleId}/items/${itemId}`, { method: 'DELETE' }),
   },
 
+  files: {
+    byIds: (ids: string[]) =>
+      adminFetch<AdminProductFile[]>('/admin/files/by-ids', { method: 'POST', body: JSON.stringify({ ids }) }),
+  },
+
   menu: {
     list: () => adminFetch<AdminMenuItem[]>('/admin/menu'),
     create: (body: Partial<AdminMenuItem>) =>
@@ -412,12 +425,39 @@ export const adminApi = {
     clean: () => adminFetch<{ success: boolean }>('/admin/queue/clean', { method: 'DELETE' }),
   },
 
-  upload: (file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    return adminFetch<UploadResult>('/uploads', {
-      method: 'POST',
-      body: form,
+  upload: (
+    file: File,
+    onProgress?: (percent: number) => void,
+  ): Promise<UploadResult> => {
+    return new Promise(async (resolve, reject) => {
+      const token = await getAccessToken();
+      const form = new FormData();
+      form.append('file', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}/api/uploads`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      if (onProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new ApiError('Invalid response', xhr.status)); }
+        } else {
+          reject(new ApiError(xhr.responseText || xhr.statusText, xhr.status));
+        }
+      };
+      xhr.onerror = () => reject(new ApiError('Network error', 0));
+      xhr.ontimeout = () => reject(new ApiError('Timeout', 0));
+
+      xhr.send(form);
     });
   },
 };

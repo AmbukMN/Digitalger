@@ -15,6 +15,7 @@ import {
   Label,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import type { AdminBanner } from '@/types/admin';
 
 interface Props {
@@ -103,7 +104,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
   const handleUpload = async (file: File, field: UploadField) => {
     setUploading(field);
     try {
-      const result = await adminApi.upload(file);
+      const result = await uploadWithProgress(file);
       setForm((f) => ({ ...f, [field]: result.url }));
     } catch {
       toast.error('Файл байршуулахад алдаа');

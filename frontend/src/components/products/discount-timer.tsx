@@ -39,7 +39,8 @@ export function DiscountTimer({ endsAt, discountLabel, compact = false }: Discou
 
   if (diff === null || diff <= 0) return null;
 
-  const h = Math.floor(diff / 3600);
+  const d = Math.floor(diff / 86400);
+  const h = Math.floor((diff % 86400) / 3600);
   const m = Math.floor((diff % 3600) / 60);
   const s = diff % 60;
 
@@ -48,12 +49,22 @@ export function DiscountTimer({ endsAt, discountLabel, compact = false }: Discou
       <div className="flex items-center gap-2 rounded-lg bg-secondary/90 px-3 py-2">
         <Clock className="h-3.5 w-3.5 text-secondary-foreground/80 shrink-0" />
         <span className="text-xs font-semibold text-secondary-foreground/80">Хямдрал:</span>
-        <div className="flex items-baseline gap-0.5">
+        <div className="flex items-baseline gap-1">
+          {d > 0 && (
+            <>
+              <span className="font-mono text-sm font-black text-secondary-foreground tabular-nums">{d}</span>
+              <span className="text-[10px] font-semibold text-secondary-foreground/70">өдөр</span>
+              <span className="text-secondary-foreground/60 text-xs font-bold mx-0.5">·</span>
+            </>
+          )}
           <span className="font-mono text-sm font-black text-secondary-foreground tabular-nums">{pad(h)}</span>
+          <span className="text-[10px] font-semibold text-secondary-foreground/70">цаг</span>
           <span className="text-secondary-foreground/60 text-xs font-bold mx-0.5">:</span>
           <span className="font-mono text-sm font-black text-secondary-foreground tabular-nums">{pad(m)}</span>
+          <span className="text-[10px] font-semibold text-secondary-foreground/70">мин</span>
           <span className="text-secondary-foreground/60 text-xs font-bold mx-0.5">:</span>
           <span className="font-mono text-sm font-black text-secondary-foreground tabular-nums">{pad(s)}</span>
+          <span className="text-[10px] font-semibold text-secondary-foreground/70">сек</span>
         </div>
         {discountLabel && (
           <span className="ml-auto rounded-full bg-secondary-foreground/15 px-2 py-0.5 text-xs font-bold text-secondary-foreground">
@@ -76,6 +87,12 @@ export function DiscountTimer({ endsAt, discountLabel, compact = false }: Discou
         )}
       </div>
       <div className="flex items-center justify-center gap-1.5">
+        {d > 0 && (
+          <>
+            <TimeBlock value={String(d)} label="ӨДӨР" />
+            <span className="text-xl font-black text-secondary-foreground/40 mb-3.5">·</span>
+          </>
+        )}
         <TimeBlock value={pad(h)} label="ЦАГ" />
         <span className="text-xl font-black text-secondary-foreground/40 mb-3.5">:</span>
         <TimeBlock value={pad(m)} label="МИНУТ" />
