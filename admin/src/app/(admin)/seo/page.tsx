@@ -26,6 +26,8 @@ import {
   Search,
   Settings,
   Share2,
+  Upload,
+  X,
 } from 'lucide-react';
 import { cn } from '@digitalger/shared';
 import { adminApi } from '@/lib/api';
@@ -238,6 +240,7 @@ function Field({
 export default function SeoPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [ogUploading, setOgUploading] = useState(false);
 
   const f = (key: keyof FormState) => ({
     id: key,
@@ -345,13 +348,53 @@ export default function SeoPage() {
               onChange={(e) => setForm((p) => ({ ...p, ogDescription: e.target.value }))}
             />
           </Field>
-          <Field id="ogImageUrl" label="OG Image URL" hint="Зөвлөмж: 1200×630px, PNG эсвэл JPG">
-            <Input placeholder="https://digitalger.mn/og-image.jpg" {...f('ogImageUrl')} />
-            {form.ogImageUrl && (
-              <div className="mt-2 overflow-hidden rounded-lg border border-border">
+          <Field id="ogImageUrl" label="OG Image" hint="Зөвлөмж: 1200×630px, PNG эсвэл JPG">
+            {form.ogImageUrl ? (
+              <div className="relative overflow-hidden rounded-lg border border-border">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={form.ogImageUrl} alt="OG preview" className="max-h-40 w-full object-cover" referrerPolicy="no-referrer" />
+                <img src={form.ogImageUrl} alt="OG preview" className="max-h-48 w-full object-cover" referrerPolicy="no-referrer" />
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, ogImageUrl: '' }))}
+                  className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
+            ) : (
+              <label className={cn(
+                'flex flex-col items-center justify-center gap-2 h-36 w-full rounded-lg border-2 border-dashed border-border cursor-pointer transition-colors',
+                ogUploading ? 'opacity-60 cursor-wait' : 'hover:border-primary/50 hover:bg-muted/30',
+              )}>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  disabled={ogUploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setOgUploading(true);
+                    try {
+                      const result = await adminApi.upload(file);
+                      setForm((p) => ({ ...p, ogImageUrl: result.url }));
+                    } catch {
+                      toast.error('Зураг upload хийхэд алдаа гарлаа');
+                    } finally {
+                      setOgUploading(false);
+                    }
+                  }}
+                />
+                {ogUploading ? (
+                  <span className="text-sm text-muted-foreground">Байршуулж байна...</span>
+                ) : (
+                  <>
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Зургаа энд дарж upload хийнэ</span>
+                    <span className="text-xs text-muted-foreground/60">PNG, JPG, WEBP · 1200×630px</span>
+                  </>
+                )}
+              </label>
             )}
           </Field>
           <Field id="twitterCardType" label="Twitter Card төрөл">

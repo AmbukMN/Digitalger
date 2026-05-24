@@ -31,6 +31,16 @@ export class AppController {
       primaryColor: theme?.primaryColor ?? null,
       accentColor: theme?.accentColor ?? null,
       defaultTheme: theme?.defaultTheme ?? 'system',
+      metaTitle: site?.metaTitle ?? null,
+      metaDescription: site?.metaDescription ?? null,
+      metaKeywords: site?.metaKeywords ?? null,
+      ogTitle: site?.ogTitle ?? null,
+      ogDescription: site?.ogDescription ?? null,
+      ogImageUrl: site?.ogImageUrl ?? null,
+      twitterCardType: site?.twitterCardType ?? 'summary_large_image',
+      googleAnalyticsId: site?.googleAnalyticsId ?? null,
+      googleTagManagerId: site?.googleTagManagerId ?? null,
+      fbPixelId: site?.fbPixelId ?? null,
     };
   }
 

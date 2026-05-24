@@ -16,6 +16,25 @@ interface Banner {
   imageUrl: string;
 }
 
+interface PublicSettings {
+  ogImageUrl?: string | null;
+  metaTitle?: string | null;
+  ogTitle?: string | null;
+}
+
+async function getPublicSettings(): Promise<PublicSettings | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/settings/public`, {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function getHeroBanner(): Promise<Banner | null> {
   try {
     const res = await fetch(`${API_BASE}/api/banners`, {
@@ -36,7 +55,17 @@ const GOLD = '#ffbe00';
 const GOLD_LIGHT = '#ffd84d';
 
 export default async function Image() {
-  const banner = await getHeroBanner();
+  const [settings, banner] = await Promise.all([getPublicSettings(), getHeroBanner()]);
+
+  // Admin panel-аас upload хийсэн OG image байвал full-bleed ашиглана
+  if (settings?.ogImageUrl) {
+    return new ImageResponse(
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={settings.ogImageUrl} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+      { ...size },
+    );
+  }
+
   const hasImage = !!banner?.imageUrl;
 
   return new ImageResponse(

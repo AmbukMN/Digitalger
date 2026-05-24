@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import type { Metadata } from 'next';
 import { Button } from '@digitalger/shared/ui';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -7,10 +8,45 @@ import { ProductSection } from '@/components/home/product-section';
 import { BannerCarousel } from '@/components/home/banner-carousel';
 import { TestimonialsSection } from '@/components/home/testimonials-section';
 import { BlogSection } from '@/components/home/blog-section';
-import { bannersApi, blogApi, testimonialsApi } from '@/lib/api';
+import { bannersApi, blogApi, testimonialsApi, siteSettingsApi } from '@/lib/api';
 import type { Banner, BlogPost, Testimonial } from '@/types/api';
 import { Shield, Zap, Download, Star } from 'lucide-react';
 import { CategoryStrip } from '@/components/home/category-strip';
+import { SITE_NAME, SITE_URL } from '@/lib/constants';
+
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const s = await siteSettingsApi.getPublic();
+    const title = s.metaTitle || `${s.siteName} — Дижитал бүтээгдэхүүний marketplace`;
+    const description = s.metaDescription || 'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
+    const ogTitle = s.ogTitle || title;
+    const ogDesc = s.ogDescription || description;
+    return {
+      title,
+      description,
+      alternates: { canonical: SITE_URL },
+      openGraph: {
+        type: 'website',
+        title: ogTitle,
+        description: ogDesc,
+        url: SITE_URL,
+        ...(s.ogImageUrl ? { images: [{ url: s.ogImageUrl, width: 1200, height: 630, alt: ogTitle }] } : {}),
+      },
+      twitter: {
+        card: (s.twitterCardType as 'summary' | 'summary_large_image') || 'summary_large_image',
+        title: ogTitle,
+        description: ogDesc,
+        ...(s.ogImageUrl ? { images: [s.ogImageUrl] } : {}),
+      },
+    };
+  } catch {
+    return {
+      title: `${SITE_NAME} — Дижитал бүтээгдэхүүний marketplace`,
+      description: 'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.',
+      alternates: { canonical: SITE_URL },
+    };
+  }
+}
 
 async function getBanners(): Promise<Banner[]> {
   try { return await bannersApi.list(); } catch { return []; }

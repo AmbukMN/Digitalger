@@ -76,6 +76,15 @@ export default async function Image({ params }: Props) {
   const { slug } = await params;
   const product = await getProduct(slug);
 
+  // Бүтээгдэхүүний thumbnail байвал шууд full-bleed ашиглана
+  if (product?.thumbnailUrl) {
+    return new ImageResponse(
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={product.thumbnailUrl} alt={product.title} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+      { ...size },
+    );
+  }
+
   const title = product?.title ?? 'Дижитал бүтээгдэхүүн';
   const description = product
     ? clamp(stripHtml(product.description ?? ''), 110)

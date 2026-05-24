@@ -58,13 +58,22 @@ export default async function Image({ params }: Props) {
   const { slug } = await params;
   const post = await getBlogPost(slug);
 
+  // Blog-д cover image байвал шууд ашиглана — давхар generate хийхгүй
+  if (post?.coverImageUrl) {
+    return new ImageResponse(
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={post.coverImageUrl} alt={post.title} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+      { ...size },
+    );
+  }
+
   const title = post?.title ?? 'DigitalGer блог';
   const excerpt = post?.excerpt ? clamp(post.excerpt, 130) : '';
   const author = post?.authorName ?? 'DigitalGer';
   const date = formatDate(post?.publishedAt ?? post?.createdAt);
-  const cover = post?.coverImageUrl ?? null;
+  const cover = null;
   const tags = (post?.tags ?? []).slice(0, 3);
-  const hasImage = !!cover;
+  const hasImage = false;
 
   return new ImageResponse(
     (

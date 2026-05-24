@@ -52,15 +52,28 @@ export default async function CategoryPage({ params }: Props) {
     products = [];
   }
 
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Нүүр', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Ангилал', item: `${SITE_URL}/categories` },
+      { '@type': 'ListItem', position: 3, name: category.name, item: `${SITE_URL}/categories/${slug}` },
+    ],
+  };
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold">{category.name}</h1>
-      {category.description && (
-        <p className="mt-2 text-muted-foreground">{category.description}</p>
-      )}
-      <div className="mt-8">
-        <ProductGrid products={products} />
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <h1 className="text-3xl font-bold">{category.name}</h1>
+        {category.description && (
+          <p className="mt-2 text-muted-foreground">{category.description}</p>
+        )}
+        <div className="mt-8">
+          <ProductGrid products={products} />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

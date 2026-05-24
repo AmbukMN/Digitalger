@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const title = post.title;
     const description = post.excerpt ?? post.title;
     const canonicalUrl = `${SITE_URL}/blog/${slug}`;
+    const publishedAt = post.publishedAt ?? post.createdAt;
     return {
       title,
       description,
@@ -28,12 +29,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
         url: canonicalUrl,
-        // opengraph-image.tsx in this segment auto-generates the og:image
+        publishedTime: publishedAt,
+        authors: [post.authorName],
+        tags: post.tags ?? [],
+        ...(post.coverImageUrl ? { images: [{ url: post.coverImageUrl, width: 1200, height: 630, alt: title }] } : {}),
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
+        ...(post.coverImageUrl ? { images: [post.coverImageUrl] } : {}),
       },
     };
   } catch {
@@ -119,8 +124,24 @@ export default async function BlogDetailPage({ params }: Props) {
   const otherPosts = latestPosts.filter((p) => p.slug !== slug);
   const date = formatDate(post.publishedAt ?? post.createdAt);
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.excerpt ?? undefined,
+    image: post.coverImageUrl ?? undefined,
+    datePublished: post.publishedAt ?? post.createdAt,
+    dateModified: post.publishedAt ?? post.createdAt,
+    author: { '@type': 'Person', name: post.authorName },
+    publisher: { '@type': 'Organization', name: 'DigitalGer', url: SITE_URL },
+    url: `${SITE_URL}/blog/${post.slug}`,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE_URL}/blog/${post.slug}` },
+    ...(post.tags?.length ? { keywords: post.tags.join(', ') } : {}),
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Breadcrumb */}
       <div className="border-b border-border bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2.5">

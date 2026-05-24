@@ -307,4 +307,27 @@ export const pagesApi = {
   bySlug: (slug: string) => request<{ slug: string; title: string; content: string } | null>(`/pages/${slug}`),
 };
 
+// —— Public Site Settings ——
+export interface PublicSiteSettings {
+  siteName: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  accentColor: string | null;
+  defaultTheme: 'light' | 'dark' | 'system';
+  metaTitle: string | null;
+  metaDescription: string | null;
+  metaKeywords: string | null;
+  ogTitle: string | null;
+  ogDescription: string | null;
+  ogImageUrl: string | null;
+  twitterCardType: string | null;
+  googleAnalyticsId: string | null;
+  googleTagManagerId: string | null;
+  fbPixelId: string | null;
+}
+
+export const siteSettingsApi = {
+  getPublic: () => request<PublicSiteSettings>('/settings/public'),
+};
+
 export { ApiError };

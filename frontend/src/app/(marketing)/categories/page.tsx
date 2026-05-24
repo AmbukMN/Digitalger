@@ -5,8 +5,19 @@ import Link from 'next/link';
 import { categoriesApi } from '@/lib/api';
 import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { PageHeader } from '@/components/ui/page-header';
+import { SITE_URL } from '@/lib/constants';
 
-export const metadata: Metadata = { title: 'Ангилал' };
+export const metadata: Metadata = {
+  title: 'Бүх Ангилал — DigitalGer',
+  description: 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.',
+  alternates: { canonical: `${SITE_URL}/categories` },
+  openGraph: {
+    type: 'website',
+    title: 'Бүх Ангилал — DigitalGer',
+    description: 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.',
+    url: `${SITE_URL}/categories`,
+  },
+};
 
 const COLORS = [
   'from-blue-500/20 to-blue-600/10 text-blue-600 dark:text-blue-400',
