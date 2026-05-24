@@ -1,16 +1,28 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { AuthModal } from '@/components/auth/auth-modal';
 
-export default function SignupPage() {
+function SignupModal() {
   const router = useRouter();
+  const params = useSearchParams();
+  const callbackUrl = params.get('callbackUrl') ?? '/';
 
   return (
     <AuthModal
       open
-      onClose={() => router.replace('/')}
+      onClose={() => router.back()}
       defaultTab="signup"
+      callbackUrl={callbackUrl}
     />
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupModal />
+    </Suspense>
   );
 }

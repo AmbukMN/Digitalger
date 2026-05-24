@@ -1,13 +1,12 @@
 export const revalidate = 60;
 
 import type { Metadata } from 'next';
-import { Button } from '@digitalger/shared/ui';
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { ProductSection } from '@/components/home/product-section';
 import { BannerCarousel } from '@/components/home/banner-carousel';
 import { TestimonialsSection } from '@/components/home/testimonials-section';
 import { BlogSection } from '@/components/home/blog-section';
+import { HomeCta } from '@/components/home/home-cta';
 import { bannersApi, blogApi, testimonialsApi, siteSettingsApi } from '@/lib/api';
 import type { Banner, BlogPost, Testimonial } from '@/types/api';
 import { Shield, Zap, Download, Star } from 'lucide-react';
@@ -154,24 +153,7 @@ export default async function HomePage() {
       </Suspense>
 
       {/* CTA */}
-      <section className="py-8 sm:py-10 bg-muted/30">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl bg-linear-to-r from-primary to-accent p-6 sm:p-8 md:p-12 text-primary-foreground flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
-            <div>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">Долоо хоног бүр шинэ бүтээгдэхүүн нэмэгддэг</h2>
-              <p className="mt-2 text-sm sm:text-base text-primary-foreground/80">Бүртгүүлээд 10% хөнгөлөлт авдаг. Шинэ бүтээгдэхүүн гарах бүрт хамгийн түрүүнд мэдэгдэнэ — Боломжийг бүү алд.</p>
-            </div>
-            <div className="flex gap-3 shrink-0 flex-wrap">
-              <Button asChild size="lg" className="font-bold bg-[#ffbe00] text-[#022179] hover:bg-[#ffd84d] dark:bg-[#ffbe00] dark:text-[#022179] dark:hover:bg-[#ffd84d]">
-                <Link href="/signup">Бүртгүүлэх</Link>
-              </Button>
-              <Button asChild size="lg" className="bg-white/15 border border-white/40 text-white hover:bg-white/25 font-semibold">
-                <Link href="/products">Бүтээгдэхүүн</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HomeCta />
 
       {/* Хамгийн их хямдарсан — CTA дараа */}
       <Suspense fallback={<ProductSectionSkeleton />}>
