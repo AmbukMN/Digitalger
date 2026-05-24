@@ -7,15 +7,23 @@ import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { PageHeader } from '@/components/ui/page-header';
 import { SITE_URL } from '@/lib/constants';
 
+const META_TITLE = 'Бүх Ангилал — DigitalGer';
+const META_DESC = 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.';
+
 export const metadata: Metadata = {
-  title: 'Бүх Ангилал — DigitalGer',
-  description: 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.',
+  title: 'Бүх Ангилал',
+  description: META_DESC,
   alternates: { canonical: `${SITE_URL}/categories` },
   openGraph: {
     type: 'website',
-    title: 'Бүх Ангилал — DigitalGer',
-    description: 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.',
+    title: META_TITLE,
+    description: META_DESC,
     url: `${SITE_URL}/categories`,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: META_TITLE,
+    description: META_DESC,
   },
 };
 
@@ -38,7 +46,23 @@ export default async function CategoriesPage() {
     categories = [];
   }
 
+  const collectionJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Бүх Ангилал',
+    description: META_DESC,
+    url: `${SITE_URL}/categories`,
+    numberOfItems: categories.length,
+    hasPart: categories.map((cat) => ({
+      '@type': 'Thing',
+      name: cat.name,
+      url: `${SITE_URL}/categories/${cat.slug}`,
+    })),
+  };
+
   return (
+    <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <PageHeader title="Бүх Ангилал" description="Өөрт тохирох ангиллаас бүтээгдэхүүн хайж олоорой" />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -68,5 +92,6 @@ export default async function CategoriesPage() {
         })}
       </div>
     </div>
+    </>
   );
 }

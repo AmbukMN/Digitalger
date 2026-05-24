@@ -66,6 +66,18 @@ const TRUST_ITEMS = [
 
 
 
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE_NAME,
+  url: SITE_URL,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}/products?q={search_term_string}` },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
 export default async function HomePage() {
   const [banners, testimonials, blogPosts] = await Promise.all([
     getBanners(),
@@ -75,6 +87,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
       <BannerCarousel banners={banners} />
 
       {/* Trust badges */}

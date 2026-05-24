@@ -58,11 +58,19 @@ export default async function Image({ params }: Props) {
   const { slug } = await params;
   const post = await getBlogPost(slug);
 
-  // Blog-д cover image байвал шууд ашиглана — давхар generate хийхгүй
+  // Cover image байвал letterbox: blur background + contain foreground
+  // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй
   if (post?.coverImageUrl) {
     return new ImageResponse(
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={post.coverImageUrl} alt={post.title} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: NAVY }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={post.coverImageUrl} alt="" width={1200} height={630}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={post.coverImageUrl} alt={post.title} width={1200} height={630}
+          style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+      </div>,
       { ...size },
     );
   }

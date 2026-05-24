@@ -79,7 +79,18 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
   const activeCount = [params.category, typesKey, sortBy, onSale, featured].filter(Boolean).length;
 
+  const collectionJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: heading.title,
+    description: heading.desc,
+    url: `${SITE_URL}/products${params.category ? `?category=${params.category}` : ''}`,
+    numberOfItems: total,
+  };
+
   return (
+    <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader title={heading.title} description={heading.desc} className="mb-6" />
 
@@ -122,5 +133,6 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
     </div>
+    </>
   );
 }
