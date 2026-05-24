@@ -190,13 +190,15 @@ export class ImageProcessorService {
       const thumbKey = `${folder}/${randomUUID()}_thumb.webp`;
 
       // Thumbnail → WebP
-      let thumbWebpBuf = thumbBuf;
+      let thumbWebpBuf: Buffer = thumbBuf;
       if (thumbBuf.length > 0) {
         try {
-          thumbWebpBuf = await sharp(thumbBuf)
-            .resize({ width: 800, withoutEnlargement: true })
-            .webp({ quality: 85 })
-            .toBuffer();
+          thumbWebpBuf = Buffer.from(
+            await sharp(thumbBuf)
+              .resize({ width: 800, withoutEnlargement: true })
+              .webp({ quality: 85 })
+              .toBuffer(),
+          );
         } catch {
           thumbWebpBuf = thumbBuf;
         }

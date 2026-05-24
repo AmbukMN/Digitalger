@@ -30,7 +30,7 @@ const s3 = new S3Client({
   },
 });
 
-const BUCKET = process.env.R2_BUCKET!;
+const BUCKET = (process.env.R2_BUCKET_NAME ?? process.env.R2_BUCKET)!;
 const PUBLIC_URL = (process.env.R2_PUBLIC_URL ?? '').replace(/\/$/, '');
 
 const VARIANTS: { size: string; maxWidth: number; quality: number }[] = [
