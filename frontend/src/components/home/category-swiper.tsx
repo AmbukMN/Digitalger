@@ -76,6 +76,7 @@ export function CategorySwiper({ categories }: { categories: Category[] }) {
           paddingBottom: '10px',
           scrollSnapType: 'x mandatory',
           WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x',
         }}
       >
         {categories.map((cat, i) => (
