@@ -1,4 +1,6 @@
 import { ImageResponse } from 'next/og';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 export const alt = 'DigitalGer бүтээгдэхүүн';
 export const size = { width: 1200, height: 630 };
@@ -70,11 +72,33 @@ function stripHtml(html: string) {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+async function getFallbackImageData(): Promise<string> {
+  try {
+    const filePath = path.join(process.cwd(), 'public', 'brand', 'og-default.jpg');
+    const buf = await readFile(filePath);
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
 type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
   const { slug } = await params;
   const product = await getProduct(slug);
+
+  // Product олдоогүй → static fallback OG зураг
+  if (!product) {
+    const fallbackSrc = await getFallbackImageData();
+    if (fallbackSrc) {
+      return new ImageResponse(
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={fallbackSrc} alt="DigitalGer" width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+        { ...size },
+      );
+    }
+  }
 
   // Thumbnail байвал letterbox: blur background + contain foreground
   // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй

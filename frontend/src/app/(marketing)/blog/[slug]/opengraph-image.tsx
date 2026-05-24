@@ -1,4 +1,6 @@
 import { ImageResponse } from 'next/og';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 export const alt = 'DigitalGer блог';
 export const size = { width: 1200, height: 630 };
@@ -52,11 +54,33 @@ function clamp(str: string, max: number) {
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
 
+async function getFallbackImageData(): Promise<string> {
+  try {
+    const filePath = path.join(process.cwd(), 'public', 'brand', 'og-default.jpg');
+    const buf = await readFile(filePath);
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
 type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
   const { slug } = await params;
   const post = await getBlogPost(slug);
+
+  // Post олдоогүй → static fallback OG зураг
+  if (!post) {
+    const fallbackSrc = await getFallbackImageData();
+    if (fallbackSrc) {
+      return new ImageResponse(
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={fallbackSrc} alt="DigitalGer" width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+        { ...size },
+      );
+    }
+  }
 
   // Cover image байвал letterbox: blur background + contain foreground
   // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй

@@ -1,4 +1,6 @@
 import { ImageResponse } from 'next/og';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 export const alt = 'DigitalGer — Монголын дижитал бүтээгдэхүүний marketplace';
 export const size = { width: 1200, height: 630 };
@@ -54,16 +56,38 @@ const NAVY = '#022179';
 const GOLD = '#ffbe00';
 const GOLD_LIGHT = '#ffd84d';
 
+async function getFallbackImageData(): Promise<string> {
+  try {
+    const filePath = path.join(process.cwd(), 'public', 'brand', 'og-default.jpg');
+    const buf = await readFile(filePath);
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
 export default async function Image() {
   const [settings, banner] = await Promise.all([getPublicSettings(), getHeroBanner()]);
 
-  // Admin panel-аас upload хийсэн OG image байвал full-bleed ашиглана
+  // 1. Admin panel-аас upload хийсэн OG image байвал full-bleed ашиглана
   if (settings?.ogImageUrl) {
     return new ImageResponse(
       // eslint-disable-next-line @next/next/no-img-element
       <img src={settings.ogImageUrl} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
       { ...size },
     );
+  }
+
+  // 2. Backend хариулаагүй, banner ч байхгүй → static fallback зураг (public/brand/og-default.jpg)
+  if (!banner) {
+    const fallbackSrc = await getFallbackImageData();
+    if (fallbackSrc) {
+      return new ImageResponse(
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={fallbackSrc} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+        { ...size },
+      );
+    }
   }
 
   const hasImage = !!banner?.imageUrl;
