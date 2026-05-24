@@ -212,8 +212,8 @@ export default async function ProductDetailPage({ params }: Props) {
                 <ProductTitleActions product={product} />
               </div>
 
-              {/* Rating row */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+              {/* Rating + download row */}
+              <div className="mt-3 flex items-center gap-4 text-sm flex-wrap">
                 <a href="#reviews" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity shrink-0">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
@@ -232,12 +232,13 @@ export default async function ProductDetailPage({ params }: Props) {
                   <Download className="h-3.5 w-3.5" />
                   {product.downloadCount} удаа татсан
                 </div>
-                <div className="flex items-baseline gap-2 lg:hidden">
-                  <p className="text-lg font-bold text-primary">{formatPrice(Number(product.price))}</p>
-                  {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
-                    <p className="text-sm text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
-                  )}
-                </div>
+              </div>
+              {/* Price — mobile only, shown below rating row */}
+              <div className="mt-2 flex items-baseline gap-2 lg:hidden">
+                <p className="text-lg font-bold text-primary">{formatPrice(Number(product.price))}</p>
+                {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
+                  <p className="text-sm text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
+                )}
               </div>
             </div>
 
