@@ -101,7 +101,7 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/DigitalGer/.env.production
-    command: ["node", "dist/src/worker.js"]
+    command: ["node", "dist/worker.js"]
     networks:
       - internal
     depends_on:
