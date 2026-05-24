@@ -1,5 +1,5 @@
--- CreateTable
-CREATE TABLE "ImageVariant" (
+-- CreateTable (IF NOT EXISTS — dump-с restore хийсэн үед аль хэдийн байж болно)
+CREATE TABLE IF NOT EXISTS "ImageVariant" (
     "id" TEXT NOT NULL,
     "productImageId" TEXT NOT NULL,
     "size" TEXT NOT NULL,
@@ -14,7 +14,14 @@ CREATE TABLE "ImageVariant" (
 );
 
 -- CreateIndex
-CREATE INDEX "ImageVariant_productImageId_idx" ON "ImageVariant"("productImageId");
+CREATE INDEX IF NOT EXISTS "ImageVariant_productImageId_idx" ON "ImageVariant"("productImageId");
 
--- AddForeignKey
-ALTER TABLE "ImageVariant" ADD CONSTRAINT "ImageVariant_productImageId_fkey" FOREIGN KEY ("productImageId") REFERENCES "ProductImage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (зөвхөн байхгүй бол нэмнэ)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ImageVariant_productImageId_fkey'
+  ) THEN
+    ALTER TABLE "ImageVariant" ADD CONSTRAINT "ImageVariant_productImageId_fkey"
+      FOREIGN KEY ("productImageId") REFERENCES "ProductImage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
