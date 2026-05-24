@@ -182,11 +182,19 @@ export class AdminProductsService {
     const images = await this.prisma.productImage.findMany({
       where: { productId },
       orderBy: { sortOrder: 'asc' },
+      include: { variants: { orderBy: { createdAt: 'asc' } } },
     });
-    return images.map((img) => ({
-      ...img,
-      url: img.videoUrl ? '' : this.storage.getAssetUrl(img.fileKey),
-    }));
+    return images.map((img) => {
+      const variantMap: Record<string, string> = {};
+      for (const v of img.variants) {
+        variantMap[v.size] = this.storage.getAssetUrl(v.fileKey);
+      }
+      return {
+        ...img,
+        url: img.videoUrl ? '' : this.storage.getAssetUrl(img.fileKey),
+        variants: img.variants.length > 0 ? variantMap : undefined,
+      };
+    });
   }
 
   async listFiles(productId: string) {

@@ -64,6 +64,12 @@ export interface AdminProductImage {
   alt?: string | null;
   sortOrder: number;
   isPrimary: boolean;
+  variants?: {
+    thumbnail?: string;
+    medium?: string;
+    large?: string;
+    original?: string;
+  };
 }
 
 export interface AdminProduct {
@@ -295,12 +301,24 @@ export interface AdminProductFile {
   createdAt: string;
 }
 
+export interface UploadVariantInfo {
+  size: string;
+  key: string;
+  url: string;
+  width: number;
+  height: number;
+  bytes: number;
+}
+
 export interface UploadResult {
   key: string;
   url: string;
   fileName: string;
   mimeType: string;
   size: number;
+  variantData?: UploadVariantInfo[];
+  thumbnailUrl?: string;
+  thumbnailKey?: string;
 }
 
 export interface AdminProfile {

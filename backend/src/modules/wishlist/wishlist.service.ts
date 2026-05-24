@@ -21,7 +21,7 @@ export class WishlistService {
             price: true,
             type: true,
             previewUrl: true,
-            images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
+            images: { where: { isPrimary: true }, take: 1, select: { fileKey: true, variants: { select: { size: true, fileKey: true }, where: { size: 'thumbnail' }, take: 1 } } },
           },
         },
       },
@@ -30,8 +30,9 @@ export class WishlistService {
 
     return items.map((item) => {
       const img = item.product.images[0];
-      const thumbnailUrl = img
-        ? this.storage.getAssetUrl(img.fileKey)
+      const thumbKey = img?.variants?.[0]?.fileKey ?? img?.fileKey;
+      const thumbnailUrl = thumbKey
+        ? this.storage.getAssetUrl(thumbKey)
         : (item.product.previewUrl ?? null);
       return {
         id: item.id,

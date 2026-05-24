@@ -153,10 +153,16 @@ export const adminApi = {
           method: 'POST',
           body: JSON.stringify({ videoUrl, alt }),
         }),
-      addImage: (productId: string, fileKey: string, alt?: string, isPrimary?: boolean) =>
+      addImage: (
+        productId: string,
+        fileKey: string,
+        alt?: string,
+        isPrimary?: boolean,
+        variants?: { size: string; fileKey: string; width: number; height: number; bytes: number }[],
+      ) =>
         adminFetch<AdminProductImage>(`/admin/products/${productId}/images`, {
           method: 'POST',
-          body: JSON.stringify({ fileKey, alt, isPrimary }),
+          body: JSON.stringify({ fileKey, alt, isPrimary, variants }),
         }),
       update: (productId: string, imageId: string, body: { alt?: string; isPrimary?: boolean; sortOrder?: number }) =>
         adminFetch<AdminProductImage>(`/admin/products/${productId}/images/${imageId}`, {

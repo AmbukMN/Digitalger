@@ -40,7 +40,7 @@ export class OrdersService {
                   images: {
                     where: { isPrimary: true },
                     take: 1,
-                    select: { fileKey: true },
+                    select: { fileKey: true, variants: { select: { size: true, fileKey: true }, where: { size: 'thumbnail' }, take: 1 } },
                   },
                 },
               },
@@ -60,7 +60,9 @@ export class OrdersService {
           ...item,
           product: {
             ...productRest,
-            thumbnailUrl: images?.[0]?.fileKey ? this.storage.getAssetUrl(images[0].fileKey) : null,
+            thumbnailUrl: images?.[0]
+              ? this.storage.getAssetUrl(images[0].variants?.[0]?.fileKey ?? images[0].fileKey)
+              : null,
           },
         };
       }),

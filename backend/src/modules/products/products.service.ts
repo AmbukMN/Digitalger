@@ -11,15 +11,25 @@ export class ProductsService {
     private readonly storage: StorageService,
   ) {}
 
-  private mapProduct<T extends { previewUrl?: string | null; images?: { fileKey: string; videoUrl?: string | null; alt: string | null; isPrimary: boolean; sortOrder: number }[] }>(
-    product: T,
-  ) {
+  private mapProduct<T extends {
+    previewUrl?: string | null;
+    images?: {
+      fileKey: string;
+      videoUrl?: string | null;
+      alt: string | null;
+      isPrimary: boolean;
+      sortOrder: number;
+      variants?: { size: string; fileKey: string }[];
+    }[];
+  }>(product: T) {
     const primary =
       product.images?.find((i) => i.isPrimary && !i.videoUrl) ??
       product.images?.filter((i) => !i.videoUrl).sort((a, b) => a.sortOrder - b.sortOrder)[0];
 
+    // variant байвал thumbnail variant ашиглана, эс бөгөөс оригинал key
+    const thumbVariant = primary?.variants?.find((v) => v.size === 'thumbnail');
     const thumbnailUrl = primary
-      ? this.storage.getAssetUrl(primary.fileKey)
+      ? this.storage.getAssetUrl(thumbVariant?.fileKey ?? primary.fileKey)
       : (product.previewUrl ?? null);
 
     const mainVideoUrl = product.images?.find((i) => i.videoUrl)?.videoUrl ?? null;
@@ -31,10 +41,17 @@ export class ProductsService {
       thumbnailUrl,
       mainVideoUrl,
       lessonCount,
-      images: product.images?.map((img) => ({
-        ...img,
-        url: img.videoUrl ? '' : this.storage.getAssetUrl(img.fileKey),
-      })),
+      images: product.images?.map((img) => {
+        const variantMap: Record<string, string> = {};
+        for (const v of img.variants ?? []) {
+          variantMap[v.size] = this.storage.getAssetUrl(v.fileKey);
+        }
+        return {
+          ...img,
+          url: img.videoUrl ? '' : this.storage.getAssetUrl(img.fileKey),
+          variants: Object.keys(variantMap).length > 0 ? variantMap : undefined,
+        };
+      }),
     };
   }
 
@@ -74,7 +91,7 @@ export class ProductsService {
         orderBy,
         include: {
           category: { select: { id: true, name: true, slug: true } },
-          images: { orderBy: { sortOrder: 'asc' } },
+          images: { orderBy: { sortOrder: 'asc' }, include: { variants: { select: { size: true, fileKey: true } } } },
           course: { select: { _count: { select: { lessons: true } } } },
         },
       }),
@@ -223,7 +240,7 @@ export class ProductsService {
         orderBy: { createdAt: 'desc' },
         include: {
           category: { select: { id: true, name: true, slug: true } },
-          images: { orderBy: { sortOrder: 'asc' } },
+          images: { orderBy: { sortOrder: 'asc' }, include: { variants: { select: { size: true, fileKey: true } } } },
           course: { select: { _count: { select: { lessons: true } } } },
         },
       }),

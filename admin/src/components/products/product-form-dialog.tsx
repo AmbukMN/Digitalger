@@ -1819,10 +1819,17 @@ function InlineMediaManager({
         for (let i = 0; i < uploaded.length; i++) {
           const { file, r } = uploaded[i];
           if (file.type.startsWith('video/')) {
-            await adminApi.products.images.addVideo(productId, r.url);
+            await adminApi.products.images.addVideo(productId, r.thumbnailUrl ?? r.url);
           } else {
             const isFirst = existingImages.length === 0 && i === 0;
-            await adminApi.products.images.addImage(productId, r.key, file.name, isFirst);
+            const variantPayload = r.variantData?.map((v) => ({
+              size: v.size,
+              fileKey: v.key,
+              width: v.width,
+              height: v.height,
+              bytes: v.bytes,
+            }));
+            await adminApi.products.images.addImage(productId, r.key, file.name, isFirst, variantPayload);
           }
         }
         toast.success(`${files.length} файл нэмэгдлээ`);
@@ -2224,9 +2231,16 @@ export function ProductFormDialog({
         for (const item of pendingFiles) {
           const r = await uploadFileWithToast(item.file);
           if (item.type === 'video') {
-            tasks.push(adminApi.products.images.addVideo(created.id, r.url));
+            tasks.push(adminApi.products.images.addVideo(created.id, r.thumbnailUrl ?? r.url));
           } else {
-            tasks.push(adminApi.products.images.addImage(created.id, r.key, item.file.name, imageIdx++ === 0));
+            const variantPayload = r.variantData?.map((v) => ({
+              size: v.size,
+              fileKey: v.key,
+              width: v.width,
+              height: v.height,
+              bytes: v.bytes,
+            }));
+            tasks.push(adminApi.products.images.addImage(created.id, r.key, item.file.name, imageIdx++ === 0, variantPayload));
           }
         }
       }

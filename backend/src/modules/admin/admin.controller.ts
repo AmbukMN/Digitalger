@@ -285,7 +285,13 @@ export class AdminController {
   @Post('products/:id/images')
   async addProductImage(
     @Param('id') id: string,
-    @Body() body: { fileKey?: string; videoUrl?: string; alt?: string; isPrimary?: boolean },
+    @Body() body: {
+      fileKey?: string;
+      videoUrl?: string;
+      alt?: string;
+      isPrimary?: boolean;
+      variants?: { size: string; fileKey: string; width: number; height: number; bytes: number }[];
+    },
   ) {
     const count = await this.prisma.productImage.count({ where: { productId: id } });
     return this.prisma.productImage.create({
@@ -296,7 +302,22 @@ export class AdminController {
         alt: body.alt,
         isPrimary: body.isPrimary ?? false,
         sortOrder: count,
+        variants: body.variants?.length
+          ? {
+              createMany: {
+                data: body.variants.map((v) => ({
+                  size: v.size,
+                  fileKey: v.fileKey,
+                  width: v.width,
+                  height: v.height,
+                  bytes: v.bytes,
+                  mimeType: 'image/webp',
+                })),
+              },
+            }
+          : undefined,
       },
+      include: { variants: true },
     });
   }
 

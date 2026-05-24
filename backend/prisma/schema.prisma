@@ -163,14 +163,32 @@ model ProductFile {
 }
 
 model ProductImage {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  fileKey   String   @default("")
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fileKey   String         @default("")
   videoUrl  String?
   alt       String?
-  sortOrder Int      @default(0)
-  isPrimary Boolean  @default(false)
+  sortOrder Int            @default(0)
+  isPrimary Boolean        @default(false)
+  variants  ImageVariant[]
+}
+
+// Upload хийхэд үүсгэсэн WebP variant-уудыг хадгалана
+// size: thumbnail(320px) | medium(800px) | large(1400px) | original
+model ImageVariant {
+  id             String       @id @default(cuid())
+  productImageId String
+  productImage   ProductImage @relation(fields: [productImageId], references: [id], onDelete: Cascade)
+  size           String       // 'thumbnail' | 'medium' | 'large' | 'original'
+  fileKey        String       // R2 key: 'uploads/uuid_thumbnail.webp'
+  width          Int
+  height         Int
+  bytes          Int
+  mimeType       String       @default("image/webp")
+  createdAt      DateTime     @default(now())
+
+  @@index([productImageId])
 }
 
 model Course {

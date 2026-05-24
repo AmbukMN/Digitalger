@@ -141,4 +141,11 @@ export class StorageService {
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
   }
+
+  // Variant-уудыг зэрэг R2-д хуулна
+  async uploadMany(
+    items: { key: string; buffer: Buffer; contentType: string }[],
+  ): Promise<void> {
+    await Promise.all(items.map((item) => this.upload(item.key, item.buffer, item.contentType)));
+  }
 }
