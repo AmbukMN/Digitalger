@@ -164,7 +164,6 @@ function BlogSwiper({ posts }: { posts: BlogPost[] }) {
           paddingBottom: 10,
           scrollSnapType: 'x mandatory',
           WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-x',
         }}
       >
         {cardW > 0 && posts.map((post) => (

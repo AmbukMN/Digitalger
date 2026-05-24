@@ -107,9 +107,8 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
-    /* Prevent horizontal overflow bleed + mobile side-swipe navigation */
+    /* Prevent horizontal overflow bleed */
     overflow-x: hidden;
-    overscroll-behavior-x: none;
     /* Premium font rendering */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

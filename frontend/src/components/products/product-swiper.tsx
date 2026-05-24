@@ -125,7 +125,6 @@ export function ProductSwiper({
           paddingBottom: 10,
           scrollSnapType: 'x mandatory',
           WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-x',
         }}
       >
         {cardW > 0 && products.map((p) => (
