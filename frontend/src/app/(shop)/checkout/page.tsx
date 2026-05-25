@@ -36,6 +36,7 @@ function CheckoutContent() {
   const [paying, setPaying] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [qpayResult, setQpayResult] = useState<PaymentInitiateResult | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const autoPayTriggered = useRef(false);
 
   // Checkout-level coupons (addable on this page)
@@ -147,39 +148,53 @@ function CheckoutContent() {
     if (!items.length) return;
     setPaying(true);
     try {
-      const order = await ordersApi.create(
-        session.accessToken,
-        items.map((i) => i.productId),
-        allCouponCodes,
-      );
+      let orderId = pendingOrderId;
 
-      // Free order or already PAID (backend auto-marks if total=0)
-      if (isFree || order.status === 'PAID') {
-        toast.success('Амжилттай худалдан авлаа!');
-        clear();
-        router.push('/orders');
-        return;
+      if (!orderId) {
+        const order = await ordersApi.create(
+          session.accessToken,
+          items.map((i) => i.productId),
+          allCouponCodes,
+        );
+
+        // Free order or already PAID (backend auto-marks if total=0)
+        if (isFree || order.status === 'PAID') {
+          toast.success('Амжилттай худалдан авлаа!');
+          clear();
+          router.push('/library');
+          return;
+        }
+
+        if (order.devMode) {
+          toast.success('Төлбөр амжилттай (dev)');
+          clear();
+          router.push('/library');
+          return;
+        }
+
+        orderId = order.id;
+        setPendingOrderId(order.id);
       }
 
-      if (order.devMode) {
-        toast.success('Төлбөр амжилттай (dev)');
-        clear();
-        router.push('/orders');
-        return;
-      }
-
-      const payment = await paymentsApi.initiateQPay(session.accessToken, order.id);
+      const payment = await paymentsApi.initiateQPay(session.accessToken, orderId);
 
       if (payment.devMode) {
         toast.success('Төлбөр амжилттай (dev)');
         clear();
-        router.push('/orders');
+        router.push('/library');
         return;
       }
 
       setQpayResult(payment);
-    } catch {
-      toast.error('Төлбөр эхлүүлж чадсангүй');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('unavailable')) {
+        toast.error('Нэг буюу хэд хэдэн бүтээгдэхүүн боломжгүй байна');
+      } else if (msg.includes('QPay') || msg.includes('invoice')) {
+        toast.error('QPay холболтод алдаа гарлаа. Дахин оролдоно уу');
+      } else {
+        toast.error('Төлбөр эхлүүлж чадсангүй. Дахин оролдоно уу');
+      }
     } finally {
       setPaying(false);
     }
@@ -188,7 +203,8 @@ function CheckoutContent() {
   const handlePaymentSuccess = () => {
     clear();
     setQpayResult(null);
-    router.push('/orders');
+    setPendingOrderId(null);
+    router.push('/library');
   };
 
   return (
@@ -414,7 +430,7 @@ function CheckoutContent() {
           payment={qpayResult}
           token={session.accessToken}
           onSuccess={handlePaymentSuccess}
-          onClose={() => setQpayResult(null)}
+          onClose={() => { setQpayResult(null); setPendingOrderId(null); }}
         />
       )}
     </>
