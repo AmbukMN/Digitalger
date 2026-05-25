@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -6,14 +7,20 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ValidateDto } from './dto/validate.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { EmailService } from '../notifications/email.service';
 
 const BCRYPT_ROUNDS = 12;
+const OTP_EXPIRY_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_SENT_PER_HOUR = 5;
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
 export interface AuthTokens {
   accessToken: string;
@@ -29,6 +36,7 @@ export interface AuthUser {
   phone: string | null;
   isGuest: boolean;
   oauthProvider: string | null;
+  emailVerified: Date | null;
 }
 
 @Injectable()
@@ -37,6 +45,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -67,10 +76,10 @@ export class AuthService {
       },
     });
 
-    const tokens = await this.issueTokens(user.id, user.email, user.role);
-    await this.saveRefreshToken(user.id, tokens.refreshToken);
+    // Send verification OTP — don't auto-login
+    await this.createAndSendOtp(user.email, user.name, 'verify');
 
-    return { user: this.sanitizeUser(user), ...tokens };
+    return { message: 'OTP sent', email: user.email };
   }
 
   async login(dto: LoginDto) {
@@ -102,7 +111,6 @@ export class AuthService {
   }
 
   async oauthLogin(dto: OAuthDto) {
-    // Try to find user by provider account
     const account = await this.prisma.account.findUnique({
       where: {
         provider_providerAccountId: {
@@ -114,7 +122,6 @@ export class AuthService {
     });
 
     if (account) {
-      // Update user profile from OAuth
       const updated = await this.prisma.user.update({
         where: { id: account.userId },
         data: {
@@ -127,13 +134,11 @@ export class AuthService {
       return { user: this.sanitizeUser(updated), ...tokens };
     }
 
-    // Try to find by email
     let user = dto.email
       ? await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } })
       : null;
 
     if (!user) {
-      // Create new user from OAuth
       const email = dto.email?.toLowerCase() ?? `oauth_${dto.provider}_${dto.providerAccountId}@noemail.digitalger.mn`;
       user = await this.prisma.user.create({
         data: {
@@ -146,7 +151,6 @@ export class AuthService {
         },
       });
     } else {
-      // Update existing user with OAuth info
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -159,7 +163,6 @@ export class AuthService {
       });
     }
 
-    // Create Account record
     await this.prisma.account.upsert({
       where: {
         provider_providerAccountId: {
@@ -225,6 +228,94 @@ export class AuthService {
     return { user: this.sanitizeUser(user), ...tokens, tempEmail: email, tempPassword };
   }
 
+  /** Send OTP for email verification (for already logged-in users) */
+  async sendVerifyOtp(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.emailVerified) {
+      throw new BadRequestException('Email already verified');
+    }
+    await this.createAndSendOtp(user.email, user.name, 'verify');
+    return { message: 'OTP sent' };
+  }
+
+  /** Verify email OTP (logged-in user) */
+  async verifyEmailOtp(userId: string, otp: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.consumeOtp(user.email, otp, 'verify');
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerified: new Date() },
+    });
+    return { message: 'Email verified' };
+  }
+
+  /** Verify OTP after signup (unauthenticated — returns tokens on success) */
+  async verifySignupOtp(email: string, otp: string) {
+    const normalizedEmail = email.toLowerCase();
+    await this.consumeOtp(normalizedEmail, otp, 'verify');
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { email: normalizedEmail } });
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: new Date() },
+    });
+    const tokens = await this.issueTokens(user.id, user.email, user.role);
+    await this.saveRefreshToken(user.id, tokens.refreshToken);
+    return { user: this.sanitizeUser(user), ...tokens };
+  }
+
+  /** Resend OTP (both logged-in and signup flow) */
+  async resendOtp(email: string, purpose: 'verify' | 'reset') {
+    const normalizedEmail = email.toLowerCase();
+
+    // For verify: check user exists; for reset: check user exists
+    const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (!user) throw new BadRequestException('User not found');
+
+    const existing = await this.prisma.emailOtp.findFirst({
+      where: { email: normalizedEmail, purpose },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing) {
+      const secondsSinceSent = (Date.now() - existing.lastSentAt.getTime()) / 1000;
+      if (secondsSinceSent < OTP_RESEND_COOLDOWN_SECONDS) {
+        const wait = Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - secondsSinceSent);
+        throw new BadRequestException(`Please wait ${wait} seconds before resending`);
+      }
+
+      const hourAgo = new Date(Date.now() - 3600_000);
+      if (existing.sentCount >= OTP_MAX_SENT_PER_HOUR && existing.lastSentAt > hourAgo) {
+        throw new BadRequestException('Too many OTP requests. Try again in an hour.');
+      }
+    }
+
+    await this.createAndSendOtp(normalizedEmail, user.name, purpose);
+    return { message: 'OTP resent' };
+  }
+
+  /** Forgot password: send reset OTP */
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    // Don't reveal if user exists
+    if (user && !user.isGuest) {
+      await this.createAndSendOtp(normalizedEmail, user.name, 'reset');
+    }
+    return { message: 'If that email exists, an OTP has been sent' };
+  }
+
+  /** Reset password with OTP */
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    const normalizedEmail = email.toLowerCase();
+    await this.consumeOtp(normalizedEmail, otp, 'reset');
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { email: normalizedEmail },
+      data: { passwordHash },
+    });
+    return { message: 'Password reset successfully' };
+  }
+
   /** NextAuth credentials callback */
   async validate(dto: ValidateDto): Promise<AuthUser | null> {
     const user = await this.prisma.user.findFirst({
@@ -245,6 +336,72 @@ export class AuthService {
     }
 
     return this.sanitizeUser(user);
+  }
+
+  private async createAndSendOtp(
+    email: string,
+    name: string | null,
+    purpose: 'verify' | 'reset',
+  ) {
+    const otp = String(crypto.randomInt(100000, 999999));
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60_000);
+
+    const existing = await this.prisma.emailOtp.findFirst({
+      where: { email, purpose },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    await this.prisma.emailOtp.upsert({
+      where: { id: existing?.id ?? 'new' },
+      create: {
+        email,
+        otpHash,
+        purpose,
+        expiresAt,
+        sentCount: 1,
+        lastSentAt: new Date(),
+        attempts: 0,
+      },
+      update: {
+        otpHash,
+        expiresAt,
+        attempts: 0,
+        sentCount: { increment: 1 },
+        lastSentAt: new Date(),
+      },
+    });
+
+    await this.email.sendEmailOtp({ to: email, name, otp, purpose });
+  }
+
+  private async consumeOtp(email: string, otp: string, purpose: 'verify' | 'reset') {
+    const record = await this.prisma.emailOtp.findFirst({
+      where: { email, purpose },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!record) throw new BadRequestException('OTP not found. Please request a new one.');
+    if (record.expiresAt < new Date()) {
+      throw new BadRequestException('OTP expired. Please request a new one.');
+    }
+    if (record.attempts >= OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Please request a new OTP.');
+    }
+
+    const valid = await bcrypt.compare(otp, record.otpHash);
+
+    if (!valid) {
+      await this.prisma.emailOtp.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 } },
+      });
+      const remaining = OTP_MAX_ATTEMPTS - record.attempts - 1;
+      throw new BadRequestException(`Invalid OTP. ${remaining} attempts remaining.`);
+    }
+
+    // Delete OTP record after successful verification
+    await this.prisma.emailOtp.delete({ where: { id: record.id } });
   }
 
   private async issueTokens(userId: string, email: string, role: string): Promise<AuthTokens> {
@@ -283,6 +440,7 @@ export class AuthService {
     phone?: string | null;
     isGuest?: boolean;
     oauthProvider?: string | null;
+    emailVerified?: Date | null;
   }): AuthUser {
     return {
       id: user.id,
@@ -293,6 +451,7 @@ export class AuthService {
       phone: user.phone ?? null,
       isGuest: user.isGuest ?? false,
       oauthProvider: user.oauthProvider ?? null,
+      emailVerified: user.emailVerified ?? null,
     };
   }
 }

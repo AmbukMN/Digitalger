@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -6,6 +6,15 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { ValidateDto } from './dto/validate.dto';
 import { OAuthDto } from './dto/oauth.dto';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  SendOtpDto,
+  VerifyEmailOtpDto,
+  VerifySignupOtpDto,
+} from './dto/otp.dto';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -47,5 +56,49 @@ export class AuthController {
       return { valid: false, user: null };
     }
     return { valid: true, user };
+  }
+
+  /** Verify OTP after signup (unauthenticated) */
+  @Post('verify-signup-otp')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  verifySignupOtp(@Body() dto: VerifySignupOtpDto) {
+    return this.authService.verifySignupOtp(dto.email, dto.otp);
+  }
+
+  /** Send OTP to verify already-logged-in user's email */
+  @Post('send-verify-otp')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  sendVerifyOtp(@CurrentUser() user: JwtPayload) {
+    return this.authService.sendVerifyOtp(user.sub);
+  }
+
+  /** Verify email OTP (logged-in user) */
+  @Post('verify-email')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  verifyEmail(@CurrentUser() user: JwtPayload, @Body() dto: VerifyEmailOtpDto) {
+    return this.authService.verifyEmailOtp(user.sub, dto.otp);
+  }
+
+  /** Resend OTP (both signup flow and logged-in verify) */
+  @Post('resend-otp')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  resendOtp(@Body() dto: SendOtpDto) {
+    return this.authService.resendOtp(dto.email, dto.purpose);
+  }
+
+  /** Forgot password */
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  /** Reset password with OTP */
+  @Post('reset-password')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
   }
 }

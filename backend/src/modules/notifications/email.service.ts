@@ -117,6 +117,67 @@ export class EmailService {
     this.enqueue(() => this.send(to, `Захиалга баталгаажлаа — #${orderId.slice(-8).toUpperCase()}`, html));
   }
 
+  async sendEmailOtp(opts: {
+    to: string;
+    name: string | null;
+    otp: string;
+    purpose: 'verify' | 'reset';
+  }) {
+    const { to, name, otp, purpose } = opts;
+    const greeting = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
+    const isReset = purpose === 'reset';
+    const subject = isReset ? 'Нууц үг шинэчлэх — DigitalGer' : 'Имэйл баталгаажуулах — DigitalGer';
+    const heading = isReset ? 'Нууц үг шинэчлэх' : 'Имэйл баталгаажуулах';
+    const desc = isReset
+      ? 'Нууц үгээ шинэчлэхийн тулд доорх нэг удаагийн кодыг оруулна уу.'
+      : 'Имэйл хаягаа баталгаажуулахын тулд доорх нэг удаагийн кодыг оруулна уу.';
+
+    const digits = otp.split('').map(
+      (d) =>
+        `<span style="display:inline-block;width:44px;height:54px;line-height:54px;text-align:center;font-size:28px;font-weight:900;color:#022179;background:#f0f4ff;border-radius:10px;margin:0 3px;letter-spacing:0">${d}</span>`,
+    ).join('');
+
+    const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
+  <!-- Header -->
+  <tr><td style="background:#022179;padding:28px 36px;text-align:center">
+    <div style="display:inline-flex;align-items:center;gap:10px">
+      <span style="background:#ffbe00;color:#022179;font-weight:900;font-size:16px;padding:6px 12px;border-radius:8px">DG</span>
+      <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">DigitalGer</span>
+    </div>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 36px 32px;text-align:center">
+    <div style="display:inline-block;background:${isReset ? '#fff7ed' : '#eff6ff'};border-radius:50%;width:64px;height:64px;line-height:64px;font-size:30px;margin-bottom:20px">
+      ${isReset ? '🔑' : '✉️'}
+    </div>
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#022179">${heading}</h1>
+    <p style="margin:0 0 4px;font-size:15px;color:#555">${greeting}</p>
+    <p style="margin:0 0 32px;font-size:14px;color:#777">${desc}</p>
+    <!-- OTP digits -->
+    <div style="margin:0 auto 12px;display:block;text-align:center">
+      ${digits}
+    </div>
+    <p style="margin:0 0 32px;font-size:12px;color:#aaa">Энэ код <strong>10 минутын</strong> дотор хүчинтэй.</p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 20px;text-align:left;margin-bottom:8px">
+      <p style="margin:0;font-size:13px;color:#92400e">⚠️ Энэ кодыг хэн нэгэнд <strong>хэзээ ч хэлж болохгүй</strong>. DigitalGer ажилтнууд таны кодыг хэзээ ч асуухгүй.</p>
+    </div>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
+    <p style="margin:0 0 4px;font-size:12px;color:#aaa">Хэрэв та энэ хүсэлт гаргаагүй бол энэ имэйлийг үл тоомсорлоно уу.</p>
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="https://digitalger.mn" style="color:#022179;text-decoration:none">digitalger.mn</a></p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    this.enqueue(() => this.send(to, subject, html));
+  }
+
   async getStats(): Promise<{
     configured: boolean;
     sentThisMonth: number;

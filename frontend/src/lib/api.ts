@@ -114,7 +114,7 @@ export const productTypesApi = {
 // —— Auth ——
 export const authApi = {
   register: (body: { email: string; password: string; name?: string; phone?: string }) =>
-    request<AuthTokens>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+    request<{ message: string; email: string }>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
 
   login: (body: { email?: string; phone?: string; userId?: string; password: string }) =>
     request<AuthTokens>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
@@ -135,6 +135,37 @@ export const authApi = {
     request<AuthTokens>('/auth/refresh', {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
+    }),
+
+  verifySignupOtp: (body: { email: string; otp: string }) =>
+    request<AuthTokens & { user: AuthUser }>('/auth/verify-signup-otp', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  sendVerifyOtp: (token: string) =>
+    request<{ message: string }>('/auth/send-verify-otp', { method: 'POST', token }),
+
+  verifyEmail: (token: string, otp: string) =>
+    request<{ message: string }>('/auth/verify-email', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ otp }),
+    }),
+
+  resendOtp: (body: { email: string; purpose: 'verify' | 'reset' }) =>
+    request<{ message: string }>('/auth/resend-otp', { method: 'POST', body: JSON.stringify(body) }),
+
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (body: { email: string; otp: string; newPassword: string }) =>
+    request<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
 };
 

@@ -74,7 +74,7 @@ export class UsersService {
         ...(dto.email !== undefined && {
           email: dto.email.toLowerCase(),
           isGuest: false,
-          emailVerified: new Date(),
+          emailVerified: null,
         }),
       },
       select: USER_SELECT,
@@ -97,7 +97,7 @@ export class UsersService {
       const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
       return this.prisma.user.update({
         where: { id: userId },
-        data: { email: normalizedEmail, passwordHash, isGuest: false, emailVerified: new Date() },
+        data: { email: normalizedEmail, passwordHash, isGuest: false, emailVerified: null },
         select: USER_SELECT,
       });
     }

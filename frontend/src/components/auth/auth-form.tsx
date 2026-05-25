@@ -2,15 +2,16 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Label } from '@digitalger/shared/ui';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { authApi } from '@/lib/api';
+import { OtpInput } from './otp-input';
 
 function PasswordInput({ id, ...props }: React.ComponentProps<typeof Input>) {
   const [show, setShow] = useState(false);
@@ -109,19 +110,8 @@ export function SignupForm() {
         password: values.password,
         name: values.name,
       });
-      const res = await signIn('credentials', {
-        redirect: false,
-        email: values.email,
-        password: values.password,
-      });
-      if (res?.error) {
-        toast.success('Бүртгэл амжилттай. Нэвтэрнэ үү.');
-        router.push('/login');
-        return;
-      }
-      toast.success('Тавтай морил!');
-      router.push('/');
-      router.refresh();
+      toast.success('Бүртгэл амжилттай. И-мэйл баталгаажуулна уу.');
+      router.push('/login');
     } catch {
       toast.error('Бүртгэл амжилтгүй — и-мэйл давхардаж байж болно');
     }
@@ -154,69 +144,154 @@ export function SignupForm() {
   );
 }
 
-const forgotSchema = z.object({
-  email: z.string().email(),
-});
+type ForgotStep = 'email' | 'otp';
 
 export function ForgotPasswordForm() {
-  const form = useForm<z.infer<typeof forgotSchema>>({
-    resolver: zodResolver(forgotSchema),
-    defaultValues: { email: '' },
-  });
+  const router = useRouter();
+  const [step, setStep] = useState<ForgotStep>('email');
+  const [email, setEmail] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resending, setResending] = useState(false);
 
-  const onSubmit = async () => {
-    toast.info('Нууц үг сэргээх холбоос удахгүй идэвхжинэ');
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const t = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCountdown]);
+
+  const handleSendOtp = async () => {
+    const v = emailInput.trim();
+    if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
+      setEmailError('Зөв и-мэйл оруулна уу');
+      return;
+    }
+    setEmailError('');
+    setSending(true);
+    try {
+      await authApi.forgotPassword(v);
+      setEmail(v);
+      setResendCountdown(60);
+      setStep('otp');
+    } catch {
+      toast.error('Алдаа гарлаа. Дахин оролдоно уу.');
+    } finally {
+      setSending(false);
+    }
   };
 
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="email">И-мэйл</Label>
-        <Input id="email" type="email" {...form.register('email')} />
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await authApi.resendOtp({ email, purpose: 'reset' });
+      toast.success('Шинэ код илгээлээ');
+      setOtp('');
+      setResendCountdown(60);
+    } catch {
+      toast.error('Код илгээхэд алдаа гарлаа');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (otp.length !== 6) { toast.error('6 оронтой код оруулна уу'); return; }
+    if (newPassword.length < 8) { setPwError('Хамгийн багадаа 8 тэмдэгт'); return; }
+    if (newPassword !== confirmPassword) { setPwError('Нууц үг таарахгүй байна'); return; }
+    setPwError('');
+    setSubmitting(true);
+    try {
+      await authApi.resetPassword({ email, otp, newPassword });
+      toast.success('Нууц үг амжилттай шинэчлэгдлээ. Нэвтэрнэ үү.');
+      router.push('/login');
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('expired')) toast.error('Код хугацаа дуусжээ. Дахин илгээнэ үү.');
+      else if (msg.includes('Invalid')) toast.error('Код буруу байна');
+      else toast.error('Алдаа гарлаа');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (step === 'email') {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">Бүртгэлтэй и-мэйл хаягаа оруулна уу. Нэг удаагийн код илгээнэ.</p>
+        <div className="space-y-2">
+          <Label htmlFor="forgot-email">И-мэйл</Label>
+          <Input
+            id="forgot-email"
+            type="email"
+            autoFocus
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSendOtp(); }}
+          />
+          {emailError && <p className="text-sm text-destructive">{emailError}</p>}
+        </div>
+        <Button type="button" className="w-full" onClick={handleSendOtp} disabled={sending}>
+          {sending ? 'Илгээж байна...' : 'Код илгээх'}
+        </Button>
       </div>
-      <Button type="submit" className="w-full">
-        Холбоос илгээх
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground text-center">
+        <span className="font-medium text-foreground">{email}</span> руу код илгээлээ
+      </p>
+
+      <OtpInput value={otp} onChange={setOtp} autoFocus />
+
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <Label htmlFor="new-pw">Шинэ нууц үг</Label>
+          <PasswordInput id="new-pw" autoComplete="new-password" placeholder="8+ тэмдэгт" value={newPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirm-pw">Нууц үг давтах</Label>
+          <PasswordInput id="confirm-pw" autoComplete="new-password" placeholder="Дахин оруулна уу" value={confirmPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)} />
+        </div>
+        {pwError && <p className="text-sm text-destructive">{pwError}</p>}
+      </div>
+
+      <Button
+        type="button"
+        className="w-full"
+        onClick={handleReset}
+        disabled={otp.length !== 6 || submitting}
+      >
+        {submitting ? 'Шинэчилж байна...' : 'Нууц үг шинэчлэх'}
       </Button>
-    </form>
+
+      <div className="flex items-center justify-between text-sm">
+        <button type="button" onClick={() => setStep('email')} className="text-muted-foreground hover:text-foreground transition-colors">← Буцах</button>
+        {resendCountdown > 0 ? (
+          <span className="text-muted-foreground text-xs">{resendCountdown}с дараа дахин илгээх</span>
+        ) : (
+          <button type="button" onClick={handleResend} disabled={resending} className="flex items-center gap-1 text-primary hover:underline disabled:opacity-50">
+            <RotateCcw className="h-3 w-3" />
+            {resending ? 'Илгээж байна...' : 'Дахин илгээх'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
-const resetSchema = z
-  .object({
-    password: z.string().min(6),
-    confirm: z.string(),
-  })
-  .refine((d) => d.password === d.confirm, {
-    message: 'Нууц үг таарахгүй байна',
-    path: ['confirm'],
-  });
-
+// ResetPasswordForm is no longer needed as standalone — handled in ForgotPasswordForm above
+// Keeping for backwards compatibility
 export function ResetPasswordForm() {
-  const form = useForm<z.infer<typeof resetSchema>>({
-    resolver: zodResolver(resetSchema),
-    defaultValues: { password: '', confirm: '' },
-  });
-
-  const onSubmit = async () => {
-    toast.info('Нууц үг сэргээх API удахгүй нэмэгдэнэ');
-  };
-
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="password">Шинэ нууц үг</Label>
-        <PasswordInput id="password" {...form.register('password')} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="confirm">Давтах</Label>
-        <PasswordInput id="confirm" {...form.register('confirm')} />
-        {form.formState.errors.confirm && (
-          <p className="text-sm text-destructive">{form.formState.errors.confirm.message}</p>
-        )}
-      </div>
-      <Button type="submit" className="w-full">
-        Хадгалах
-      </Button>
-    </form>
-  );
+  return <ForgotPasswordForm />;
 }

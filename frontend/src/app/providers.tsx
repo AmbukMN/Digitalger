@@ -6,18 +6,64 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { SessionProvider } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Toaster } from 'sonner';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { downloadsApi, wishlistApi } from '@/lib/api';
 
-// Нэвтрэхэд: сагс + wishlist давхардал шийдэх
+const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
+
+// Нэвтрэхэд: сагс + wishlist давхардал шийдэх + email verify reminder
 function SessionSyncEffect() {
   const { data: session, status } = useSession();
   const removePurchased = useCartStore((s) => s.removePurchased);
   const mergeWishlist = useWishlistStore((s) => s.mergeFromBackend);
   const wishlistItems = useWishlistStore((s) => s.items);
   const syncedRef = useRef<string | null>(null);
+
+  // Email verify toast — session-once (зөвхөн баталгаажуулаагүй хэрэглэгчид)
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.accessToken) return;
+    const user = session.user as any;
+    if (!user || user.isGuest || user.oauthProvider) return;
+    if (user.emailVerified) return;
+    const shown = sessionStorage.getItem(VERIFY_TOAST_KEY);
+    if (shown) return;
+    const t = setTimeout(() => {
+      sessionStorage.setItem(VERIFY_TOAST_KEY, '1');
+      toast.warning('И-мэйл баталгаажаагүй байна', {
+        description: 'Профайл хуудсаа нээж и-мэйл хаягаа баталгаажуулна уу.',
+        duration: 8000,
+        action: {
+          label: 'Профайл',
+          onClick: () => { window.location.href = '/profile'; },
+        },
+      });
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [status, session?.accessToken]);
+
+  // Guest recommendation notice — session-once
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.accessToken) return;
+    const user = session.user as any;
+    if (!user?.isGuest) return;
+    const shown = sessionStorage.getItem('dg-guest-notice-shown');
+    if (shown) return;
+    const t = setTimeout(() => {
+      sessionStorage.setItem('dg-guest-notice-shown', '1');
+      toast.info('Та зочноор нэвтэрч байна', {
+        description: 'И-мэйл бүртгэл үүсгэснээр худалдан авалтын түүх, татаж авах боломжтой болно.',
+        duration: 10000,
+        action: {
+          label: 'Бүртгүүлэх',
+          onClick: () => { window.location.href = '/profile'; },
+        },
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [status, session?.accessToken]);
 
   useEffect(() => {
     if (status !== 'authenticated' || !session?.accessToken) return;

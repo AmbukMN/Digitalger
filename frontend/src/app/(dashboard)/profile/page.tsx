@@ -18,11 +18,12 @@ import {
 } from '@digitalger/shared/ui';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Camera, Check, Eye, EyeOff, Ghost, KeyRound, LogOut, Pencil, Shield, X } from 'lucide-react';
+import { Camera, Check, Eye, EyeOff, Ghost, KeyRound, LogOut, Mail, Pencil, RotateCcw, Shield, X } from 'lucide-react';
 import Image from 'next/image';
-import { usersApi } from '@/lib/api';
+import { usersApi, authApi } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import type { AuthUser } from '@/types/api';
+import { OtpInput } from '@/components/auth/otp-input';
 
 // ── Password schemas ──────────────────────────────────────────
 const setPasswordSchema = z
@@ -321,6 +322,141 @@ function PasswordDialog({
   );
 }
 
+function EmailVerifySection({
+  email,
+  emailVerified,
+  token,
+  onVerified,
+}: {
+  email: string;
+  emailVerified: Date | null | undefined;
+  token: string;
+  onVerified: () => void;
+}) {
+  const [showOtp, setShowOtp] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const t = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCountdown]);
+
+  const handleSendOtp = async () => {
+    setSending(true);
+    try {
+      await authApi.sendVerifyOtp(token);
+      setShowOtp(true);
+      setResendCountdown(60);
+      toast.success('Код илгээлээ');
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('already')) toast.error('И-мэйл аль хэдийн баталгаажсан байна');
+      else toast.error('Код илгээхэд алдаа гарлаа');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (otp.length !== 6) return;
+    setVerifying(true);
+    try {
+      await authApi.verifyEmail(token, otp);
+      toast.success('И-мэйл амжилттай баталгаажлаа!');
+      onVerified();
+      setShowOtp(false);
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('expired')) toast.error('Код хугацаа дуусжээ. Дахин илгээнэ үү.');
+      else if (msg.includes('attempts')) toast.error('Оролдлогын тоо хэтэрлээ. Дахин илгээнэ үү.');
+      else toast.error('Код буруу байна');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await authApi.resendOtp({ email, purpose: 'verify' });
+      toast.success('Шинэ код илгээлээ');
+      setOtp('');
+      setResendCountdown(60);
+    } catch {
+      toast.error('Код илгээхэд алдаа гарлаа');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (emailVerified) {
+    return (
+      <div className="flex items-center gap-2 py-3">
+        <span className="text-sm text-muted-foreground">И-мэйл</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm font-medium">{email}</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
+            <Check className="h-3 w-3" />
+            Баталгаажсан
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-3 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">{email}</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+              Баталгаажаагүй
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">И-мэйл хаягаа баталгаажуулна уу</p>
+        </div>
+        {!showOtp && (
+          <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={handleSendOtp} disabled={sending}>
+            <Mail className="h-3.5 w-3.5" />
+            {sending ? 'Илгээж байна...' : 'Баталгаажуулах'}
+          </Button>
+        )}
+      </div>
+
+      {showOtp && (
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+          <p className="text-xs text-muted-foreground text-center">И-мэйлд ирсэн 6 оронтой кодыг оруулна уу</p>
+          <OtpInput value={otp} onChange={setOtp} autoFocus disabled={verifying} />
+          <div className="flex gap-2">
+            <Button size="sm" className="flex-1" onClick={handleVerify} disabled={otp.length !== 6 || verifying}>
+              {verifying ? 'Баталгаажуулж байна...' : 'Баталгаажуулах'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setShowOtp(false); setOtp(''); }}>
+              Болих
+            </Button>
+          </div>
+          <div className="flex justify-end">
+            {resendCountdown > 0 ? (
+              <span className="text-xs text-muted-foreground">{resendCountdown}с дараа дахин илгээх</span>
+            ) : (
+              <button type="button" onClick={handleResend} disabled={resending} className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50">
+                <RotateCcw className="h-3 w-3" />
+                {resending ? 'Илгээж байна...' : 'Дахин илгээх'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -395,6 +531,7 @@ export default function ProfilePage() {
 
   const isGuest = user?.isGuest ?? session.user?.email?.endsWith('@guest.digitalger.mn') ?? false;
   const provider = user?.oauthProvider ?? (session.user as any)?.oauthProvider ?? null;
+  const emailVerified: Date | null = user?.emailVerified ? new Date(user.emailVerified as any) : null;
   const canEditEmail = isGuest || !provider;
   const displayName = user?.name ?? (isGuest ? 'Зочин' : session.user?.email ?? '—');
 
@@ -576,6 +713,17 @@ export default function ProfilePage() {
             }
           />
           <InfoRow label="Бүртгүүлсэн" value={joined} />
+          {!isGuest && !provider && user?.email && token && (
+            <EmailVerifySection
+              email={user.email}
+              emailVerified={emailVerified}
+              token={token}
+              onVerified={async () => {
+                await updateSession({ emailVerified: new Date().toISOString() });
+                queryClient.invalidateQueries({ queryKey: ['me'] });
+              }}
+            />
+          )}
         </div>
         <div className="flex items-center gap-2 px-5 py-4">
           {!provider && token && (

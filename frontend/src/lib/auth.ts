@@ -61,6 +61,7 @@ export const authOptions: NextAuthOptions = {
             phone: (data.user as any).phone ?? null,
             isGuest: (data.user as any).isGuest ?? false,
             oauthProvider: (data.user as any).oauthProvider ?? null,
+            emailVerified: (data.user as any).emailVerified ?? null,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
           };
@@ -100,6 +101,7 @@ export const authOptions: NextAuthOptions = {
           (user as any).phone = data.user.phone ?? null;
           (user as any).isGuest = data.user.isGuest ?? false;
           (user as any).oauthProvider = account.provider;
+          (user as any).emailVerified = data.user.emailVerified ?? null;
           (user as any).accessToken = data.accessToken;
           (user as any).refreshToken = data.refreshToken;
           // Keep image from OAuth provider
@@ -118,12 +120,14 @@ export const authOptions: NextAuthOptions = {
         token.phone = (user as any).phone ?? null;
         token.isGuest = (user as any).isGuest ?? false;
         token.oauthProvider = (user as any).oauthProvider ?? null;
+        token.emailVerified = (user as any).emailVerified ?? null;
         token.accessToken = (user as any).accessToken;
         token.refreshToken = (user as any).refreshToken;
         token.picture = user.image;
       }
-      if (trigger === 'update' && session?.picture) {
-        token.picture = session.picture;
+      if (trigger === 'update') {
+        if (session?.picture) token.picture = session.picture;
+        if (session?.emailVerified !== undefined) token.emailVerified = session.emailVerified;
       }
       return token;
     },
@@ -135,6 +139,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).phone = token.phone ?? null;
         (session.user as any).isGuest = token.isGuest ?? false;
         (session.user as any).oauthProvider = token.oauthProvider ?? null;
+        (session.user as any).emailVerified = token.emailVerified ?? null;
         session.user.image = (token.picture as string) ?? session.user.image;
       }
       session.accessToken = token.accessToken as string;

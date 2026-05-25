@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Eye, EyeOff, Ghost, X } from 'lucide-react';
+import { Eye, EyeOff, Ghost, Mail, RotateCcw, X } from 'lucide-react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -11,13 +11,12 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button, Input, Label } from '@digitalger/shared/ui';
 import { authApi } from '@/lib/api';
+import { OtpInput } from './otp-input';
 
 const GUEST_KEY = 'digitalger-guest';
 
 function saveGuestCredentials(userId: string, password: string) {
-  try {
-    localStorage.setItem(GUEST_KEY, JSON.stringify({ userId, password }));
-  } catch {}
+  try { localStorage.setItem(GUEST_KEY, JSON.stringify({ userId, password })); } catch {}
 }
 
 function loadGuestCredentials(): { userId: string; password: string } | null {
@@ -27,15 +26,11 @@ function loadGuestCredentials(): { userId: string; password: string } | null {
     const parsed = JSON.parse(raw);
     if (parsed.userId) return parsed;
     return null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function clearGuestCredentials() {
-  try {
-    localStorage.removeItem(GUEST_KEY);
-  } catch {}
+  try { localStorage.removeItem(GUEST_KEY); } catch {}
 }
 
 async function loginAsGuestWithPersistence(
@@ -147,7 +142,7 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
   );
 }
 
-function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?: string }) {
+function LoginForm({ onClose, callbackUrl, onForgotPassword }: { onClose: () => void; callbackUrl?: string; onForgotPassword: () => void }) {
   const router = useRouter();
   const [guestLoading, setGuestLoading] = useState(false);
   const form = useForm<LoginValues>({
@@ -198,7 +193,16 @@ function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?
         <FieldError message={form.formState.errors.identifier?.message} />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="login-password">Нууц үг</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="login-password">Нууц үг</Label>
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className="text-xs text-primary hover:underline"
+          >
+            Нууц үгээ мартсан?
+          </button>
+        </div>
         <PasswordInput id="login-password" autoComplete="current-password" {...form.register('password')} />
         <FieldError message={form.formState.errors.password?.message} />
       </div>
@@ -216,9 +220,136 @@ function LoginForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?
   );
 }
 
+interface SignupOtpScreenProps {
+  email: string;
+  password: string;
+  onSuccess: () => void;
+  onBack: () => void;
+  callbackUrl?: string;
+}
+
+function SignupOtpScreen({ email, password, onSuccess, onBack, callbackUrl }: SignupOtpScreenProps) {
+  const router = useRouter();
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(60);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const t = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCountdown]);
+
+  const handleVerify = async () => {
+    if (otp.length !== 6) return;
+    setLoading(true);
+    try {
+      await authApi.verifySignupOtp({ email, otp });
+      // Auto sign-in with email+password credentials
+      const res = await signIn('credentials', {
+        redirect: false,
+        email,
+        password,
+      });
+      if (res?.error) {
+        toast.success('И-мэйл баталгаажлаа! Нэвтэрнэ үү.');
+        onBack();
+        return;
+      }
+      toast.success('Тавтай морил! DigitalGer-д бүртгүүлсэнд баярлалаа 🎉');
+      onSuccess();
+      router.push(callbackUrl ?? '/');
+      router.refresh();
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('expired')) {
+        toast.error('Код хугацаа дуусжээ. Дахин илгээнэ үү.');
+      } else if (msg.includes('attempts')) {
+        toast.error('Оролдлогын тоо хэтэрлээ. Дахин илгээнэ үү.');
+      } else {
+        toast.error('Код буруу байна');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await authApi.resendOtp({ email, purpose: 'verify' });
+      toast.success('Шинэ код илгээлээ');
+      setOtp('');
+      setResendCountdown(60);
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('wait')) {
+        toast.error(msg.includes('seconds') ? msg : 'Түр хүлээнэ үү');
+      } else if (msg.includes('Too many')) {
+        toast.error('Хэт олон хүсэлт. 1 цагийн дараа дахин оролдоно уу.');
+      } else {
+        toast.error('Код илгээхэд алдаа гарлаа');
+      }
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 mx-auto">
+          <Mail className="h-7 w-7 text-primary" />
+        </div>
+        <h3 className="font-bold text-lg">И-мэйл баталгаажуулах</h3>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{email}</span> хаяг руу<br />
+          6 оронтой код илгээлээ
+        </p>
+      </div>
+
+      <OtpInput value={otp} onChange={setOtp} autoFocus disabled={loading} />
+
+      <button
+        type="button"
+        onClick={handleVerify}
+        disabled={otp.length !== 6 || loading}
+        className="auth-submit-btn inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50"
+      >
+        {loading ? 'Баталгаажуулж байна...' : 'Баталгаажуулах'}
+      </button>
+
+      <div className="flex items-center justify-between text-sm">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Буцах
+        </button>
+        {resendCountdown > 0 ? (
+          <span className="text-muted-foreground text-xs">{resendCountdown}с дараа дахин илгээх</span>
+        ) : (
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending}
+            className="flex items-center gap-1 text-primary hover:underline disabled:opacity-50"
+          >
+            <RotateCcw className="h-3 w-3" />
+            {resending ? 'Илгээж байна...' : 'Дахин илгээх'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?: string }) {
   const router = useRouter();
   const [guestLoading, setGuestLoading] = useState(false);
+  const [otpData, setOtpData] = useState<{ email: string; password: string } | null>(null);
   const form = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: { name: '', phone: '', email: '', password: '', confirmPassword: '' },
@@ -232,27 +363,15 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
         name: values.name,
         phone: values.phone,
       });
-      const res = await signIn('credentials', {
-        redirect: false,
-        email: values.email,
-        password: values.password,
-      });
-      if (res?.error) {
-        toast.success('Бүртгэл амжилттай. Нэвтэрнэ үү.');
-        onClose();
-        router.push('/login');
-        return;
-      }
-      toast.success('Тавтай морил! DigitalGer-д бүртгүүлсэнд баярлалаа 🎉');
-      onClose();
-      router.push(callbackUrl ?? '/');
-      router.refresh();
+      setOtpData({ email: values.email, password: values.password });
     } catch (err: any) {
       const msg = err?.message ?? '';
-      if (msg.includes('Phone')) {
-        toast.error('Энэ утасны дугаар бүртгэлтэй байна');
+      if (msg.includes('Email already')) {
+        form.setError('email', { message: 'Энэ и-мэйл аль хэдийн бүртгэлтэй байна' });
+      } else if (msg.includes('Phone')) {
+        form.setError('phone', { message: 'Энэ утасны дугаар бүртгэлтэй байна' });
       } else {
-        toast.error('Бүртгэл амжилтгүй — и-мэйл давхардаж байж болно');
+        toast.error('Бүртгэл амжилтгүй. Дахин оролдоно уу.');
       }
     }
   };
@@ -268,6 +387,18 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
       setGuestLoading(false);
     }
   };
+
+  if (otpData) {
+    return (
+      <SignupOtpScreen
+        email={otpData.email}
+        password={otpData.password}
+        onSuccess={onClose}
+        onBack={() => setOtpData(null)}
+        callbackUrl={callbackUrl}
+      />
+    );
+  }
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
@@ -364,9 +495,10 @@ function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string })
 
 export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: AuthModalProps) {
   const [tab, setTab] = useState<Tab>(defaultTab);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
-    if (open) setTab(defaultTab);
+    if (open) { setTab(defaultTab); setShowForgotPassword(false); }
   }, [open, defaultTab]);
 
   useEffect(() => {
@@ -405,42 +537,204 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
           >
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold">
-                {tab === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
+                {showForgotPassword ? 'Нууц үг сэргээх' : tab === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
               </h2>
               <Button variant="ghost" size="icon" onClick={onClose} aria-label="Хаах">
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="mt-4 flex rounded-lg bg-muted p-1">
-              {(['login', 'signup'] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                    tab === t
-                      ? 'bg-popover text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setTab(t)}
-                >
-                  {t === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
-                </button>
-              ))}
-            </div>
+            {!showForgotPassword && (
+              <div className="mt-4 flex rounded-lg bg-muted p-1">
+                {(['login', 'signup'] as Tab[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                      tab === t
+                        ? 'bg-popover text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => setTab(t)}
+                  >
+                    {t === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="mt-5">
-              {tab === 'login' ? (
-                <LoginForm onClose={onClose} callbackUrl={callbackUrl} />
+              {showForgotPassword ? (
+                <ForgotPasswordModalFlow onBack={() => setShowForgotPassword(false)} />
+              ) : tab === 'login' ? (
+                <LoginForm onClose={onClose} callbackUrl={callbackUrl} onForgotPassword={() => setShowForgotPassword(true)} />
               ) : (
                 <SignupForm onClose={onClose} callbackUrl={callbackUrl} />
               )}
             </div>
 
-            <SocialButtons tab={tab} callbackUrl={callbackUrl} />
+            {!showForgotPassword && (
+              <SocialButtons tab={tab} callbackUrl={callbackUrl} />
+            )}
           </motion.div>
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+// Forgot password flow embedded inside auth modal
+type ForgotStep = 'email' | 'otp';
+
+function ForgotPasswordModalFlow({ onBack }: { onBack: () => void }) {
+  const [step, setStep] = useState<ForgotStep>('email');
+  const [email, setEmail] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const t = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCountdown]);
+
+  const handleSendOtp = async () => {
+    const v = emailInput.trim();
+    if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
+      setEmailError('Зөв и-мэйл оруулна уу');
+      return;
+    }
+    setEmailError('');
+    setSending(true);
+    try {
+      await authApi.forgotPassword(v);
+      setEmail(v);
+      setResendCountdown(60);
+      setStep('otp');
+    } catch {
+      toast.error('Алдаа гарлаа. Дахин оролдоно уу.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await authApi.resendOtp({ email, purpose: 'reset' });
+      toast.success('Шинэ код илгээлээ');
+      setOtp('');
+      setResendCountdown(60);
+    } catch (err: any) {
+      toast.error('Код илгээхэд алдаа гарлаа');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (otp.length !== 6) { toast.error('6 оронтой код оруулна уу'); return; }
+    if (newPassword.length < 8) { setPwError('Хамгийн багадаа 8 тэмдэгт'); return; }
+    if (newPassword !== confirmPassword) { setPwError('Нууц үг таарахгүй байна'); return; }
+    setPwError('');
+    setSubmitting(true);
+    try {
+      await authApi.resetPassword({ email, otp, newPassword });
+      toast.success('Нууц үг амжилттай шинэчлэгдлээ. Нэвтэрнэ үү.');
+      onBack();
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('expired')) toast.error('Код хугацаа дуусжээ');
+      else if (msg.includes('Invalid')) toast.error('Код буруу байна');
+      else toast.error('Алдаа гарлаа');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (step === 'email') {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">Бүртгэлтэй и-мэйл хаягаа оруулна уу. Нэг удаагийн код илгээнэ.</p>
+        <div className="space-y-2">
+          <Label htmlFor="forgot-email">И-мэйл</Label>
+          <Input
+            id="forgot-email"
+            type="email"
+            autoFocus
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSendOtp(); }}
+          />
+          {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={handleSendOtp}
+          disabled={sending}
+          className="auth-submit-btn inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50"
+        >
+          {sending ? 'Илгээж байна...' : 'Код илгээх'}
+        </button>
+        <button type="button" onClick={onBack} className="w-full text-sm text-muted-foreground hover:text-foreground text-center">
+          ← Нэвтрэх хуудас руу буцах
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="text-center space-y-1">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{email}</span> руу код илгээлээ
+        </p>
+      </div>
+
+      <OtpInput value={otp} onChange={setOtp} autoFocus />
+
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <Label htmlFor="new-pw">Шинэ нууц үг</Label>
+          <PasswordInput id="new-pw" autoComplete="new-password" placeholder="8+ тэмдэгт" value={newPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirm-pw">Нууц үг давтах</Label>
+          <PasswordInput id="confirm-pw" autoComplete="new-password" placeholder="Дахин оруулна уу" value={confirmPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)} />
+        </div>
+        {pwError && <p className="text-xs text-destructive">{pwError}</p>}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleReset}
+        disabled={otp.length !== 6 || submitting}
+        className="auth-submit-btn inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50"
+      >
+        {submitting ? 'Шинэчилж байна...' : 'Нууц үг шинэчлэх'}
+      </button>
+
+      <div className="flex items-center justify-between text-sm">
+        <button type="button" onClick={() => setStep('email')} className="text-muted-foreground hover:text-foreground transition-colors">← Буцах</button>
+        {resendCountdown > 0 ? (
+          <span className="text-muted-foreground text-xs">{resendCountdown}с дараа дахин илгээх</span>
+        ) : (
+          <button type="button" onClick={handleResend} disabled={resending} className="flex items-center gap-1 text-primary hover:underline disabled:opacity-50">
+            <RotateCcw className="h-3 w-3" />
+            {resending ? 'Илгээж байна...' : 'Дахин илгээх'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
