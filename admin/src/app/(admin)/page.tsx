@@ -176,9 +176,12 @@ function OrderRow({ order }: { order: AdminOrder }) {
 }
 
 function EmailStatsPanel({ stats }: { stats: EmailStats }) {
-  const usedPct = Math.round((stats.sentThisMonth / stats.monthlyLimit) * 100);
-  const isWarning = usedPct >= 80;
+  const usedPct = stats.monthlyLimit > 0
+    ? Math.round((stats.sentThisMonth / stats.monthlyLimit) * 100)
+    : 0;
+  const isWarning  = usedPct >= 80;
   const isCritical = usedPct >= 95;
+  const provider   = stats.provider ?? 'AWS SES';
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -186,8 +189,9 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
         <div className="flex items-center gap-2">
           <Mail className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold">Имэйл хяналт</h2>
+          <Badge variant="secondary" className="text-[10px] font-mono">{provider}</Badge>
           {!stats.configured && (
-            <Badge variant="secondary" className="text-[10px]">Холбоогүй</Badge>
+            <Badge variant="destructive" className="text-[10px]">Холбоогүй</Badge>
           )}
         </div>
         {stats.configured ? (
@@ -200,14 +204,14 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
       <div className="p-4 space-y-4">
         {!stats.configured && (
           <p className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
-            RESEND_API_KEY тохируулаагүй байна. Имэйл явуулж чадахгүй.
+            AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY тохируулаагүй байна. Имэйл явуулж чадахгүй.
           </p>
         )}
 
         {/* Progress bar */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Энэ сар ашигласан</span>
+            <span className="text-xs text-muted-foreground">Энэ сар илгээсэн</span>
             <span className={`text-xs font-bold tabular-nums ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-foreground'}`}>
               {stats.sentThisMonth.toLocaleString()} / {stats.monthlyLimit.toLocaleString()}
             </span>
@@ -219,7 +223,7 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
             />
           </div>
           <p className={`mt-1 text-[11px] ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-muted-foreground'}`}>
-            {isCritical ? '⚠️ Лимит дүүрэхэд ойрхон!' : isWarning ? '⚠️ 80% ашигласан' : `${usedPct}% ашигласан`}
+            {isCritical ? '⚠️ Лимит дүүрэхэд ойрхон!' : isWarning ? '⚠️ 80% ашигласан' : usedPct > 0 ? `${usedPct}% ашигласан` : 'Тоолуур Redis-д хадгалагдана'}
           </p>
         </div>
 
@@ -247,7 +251,7 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
           <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
             <Zap className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <p className="text-xs text-blue-700 dark:text-blue-300">
-              {stats.queueLength} имэйл дарааллаас хүлээж байна
+              {stats.queueLength} имэйл дарааллаас илгээгдэхийг хүлээж байна
             </p>
           </div>
         )}

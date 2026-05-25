@@ -7,6 +7,7 @@ export interface EmailStats {
   sentTwoMonthsAgo: number;
   monthlyLimit: number;
   queueLength: number;
+  provider?: string;
 }
 
 export interface DashboardStats {

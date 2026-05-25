@@ -1,24 +1,56 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import Redis from 'ioredis';
+
+const EMAIL_COUNT_KEY = 'email:sent:count';
+const EMAIL_QUEUE_KEY  = 'email:queue:length';
 
 @Injectable()
-export class EmailService {
+export class EmailService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EmailService.name);
-  private readonly resend: Resend | null;
+  private readonly ses: SESClient | null;
   private readonly from: string;
+  private readonly siteUrl: string;
+  private readonly redis: Redis;
   private readonly queue: Array<() => Promise<void>> = [];
   private draining = false;
 
-  private readonly siteUrl: string;
-
   constructor(private readonly config: ConfigService) {
-    const apiKey = this.config.get<string>('RESEND_API_KEY');
-    this.from = this.config.get<string>('EMAIL_FROM') ?? 'noreply@digitalger.mn';
-    this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
-    this.resend = apiKey ? new Resend(apiKey) : null;
-    if (!apiKey) this.logger.warn('RESEND_API_KEY тохируулаагүй — имэйл явуулахгүй');
+    this.from       = this.config.get<string>('MAIL_FROM') ?? this.config.get<string>('EMAIL_FROM') ?? 'noreply@digitalger.mn';
+    this.siteUrl    = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
+    const region    = this.config.get<string>('AWS_REGION') ?? 'eu-north-1';
+    const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID');
+    const secretKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
+    const redisUrl  = this.config.get<string>('redisUrl') ?? this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+
+    this.redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 3 });
+
+    if (accessKey && secretKey) {
+      this.ses = new SESClient({
+        region,
+        credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+      });
+      this.logger.log(`AWS SES тохируулагдлаа — region: ${region}, sender: ${this.from}`);
+    } else {
+      this.ses = null;
+      this.logger.warn('AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY тохируулаагүй — имэйл явуулахгүй');
+    }
   }
+
+  async onModuleInit() {
+    try {
+      await this.redis.connect();
+    } catch {
+      // lazyConnect тул алдаа гарсан ч үргэлжилнэ
+    }
+  }
+
+  async onModuleDestroy() {
+    await this.redis.quit().catch(() => {});
+  }
+
+  // ─── private helpers ────────────────────────────────────────────────────────
 
   private emailHeader(): string {
     return `
@@ -39,6 +71,7 @@ export class EmailService {
 
   private enqueue(task: () => Promise<void>): void {
     this.queue.push(task);
+    this.redis.set(EMAIL_QUEUE_KEY, this.queue.length).catch(() => {});
     if (!this.draining) void this.drain();
   }
 
@@ -46,21 +79,55 @@ export class EmailService {
     this.draining = true;
     while (this.queue.length > 0) {
       const task = this.queue.shift()!;
+      this.redis.set(EMAIL_QUEUE_KEY, this.queue.length).catch(() => {});
       await task();
       if (this.queue.length > 0) await new Promise((r) => setTimeout(r, 300));
     }
+    this.redis.set(EMAIL_QUEUE_KEY, 0).catch(() => {});
     this.draining = false;
   }
 
-  private async send(to: string, subject: string, html: string) {
-    if (!this.resend) return;
+  private async send(to: string, subject: string, html: string): Promise<void> {
+    if (!this.ses) return;
     if (!this.isValidEmail(to)) return;
+
+    this.logger.log(`Имэйл боловсруулж байна → ${to} | ${subject}`);
+
     try {
-      await this.resend.emails.send({ from: `DigitalGer <${this.from}>`, to, subject, html });
+      await this.ses.send(
+        new SendEmailCommand({
+          Source: `DigitalGer <${this.from}>`,
+          Destination: { ToAddresses: [to] },
+          Message: {
+            Subject: { Data: subject, Charset: 'UTF-8' },
+            Body:    { Html: { Data: html,    Charset: 'UTF-8' } },
+          },
+        }),
+      );
+
+      // Redis-д энэ сарын тоолуур нэмэх
+      const monthKey = `${EMAIL_COUNT_KEY}:${this.currentMonthSlug()}`;
+      await this.redis.incr(monthKey).catch(() => {});
+      await this.redis.expire(monthKey, 60 * 60 * 24 * 95).catch(() => {}); // ~3 сар
+
+      this.logger.log(`Имэйл амжилттай илгээгдлээ → ${to}`);
     } catch (err) {
       this.logger.error(`Имэйл явуулж чадсангүй → ${to}: ${err}`);
     }
   }
+
+  private currentMonthSlug(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private monthSlug(offset: number): string {
+    const d = new Date();
+    d.setMonth(d.getMonth() - offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // ─── public email methods ────────────────────────────────────────────────────
 
   async sendOrderConfirmation(opts: {
     to: string;
@@ -94,7 +161,6 @@ export class EmailService {
       <p style="margin:0 0 4px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px">Захиалгын дугаар</p>
       <p style="margin:0;font-size:15px;font-weight:700;color:#022179;font-family:monospace">#${orderId.slice(-8).toUpperCase()}</p>
     </div>
-    <!-- Items table -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px">
       <tr><th style="text-align:left;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #022179">Бүтээгдэхүүн</th>
           <th style="text-align:right;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #022179">Үнэ</th></tr>
@@ -105,14 +171,12 @@ export class EmailService {
       <p style="margin:0;font-size:18px;font-weight:800;color:#022179">Нийт: ₮${total.toLocaleString()}</p>
     </div>
   </td></tr>
-  <!-- CTA -->
   <tr><td style="padding:28px 36px;text-align:center">
     <a href="${this.siteUrl}/library" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
       Татаж авах →
     </a>
     <p style="margin:16px 0 0;font-size:13px;color:#888">Асуулт байвал: <a href="mailto:support@digitalger.mn" style="color:#022179">support@digitalger.mn</a></p>
   </td></tr>
-  <!-- Footer -->
   <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
     <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
   </td></tr>
@@ -120,6 +184,7 @@ export class EmailService {
 </td></tr></table>
 </body></html>`;
 
+    this.logger.log(`Захиалгын имэйл дараалалд оруулав → ${to} | #${orderId.slice(-8).toUpperCase()}`);
     this.enqueue(() => this.send(to, `Захиалга баталгаажлаа — #${orderId.slice(-8).toUpperCase()}`, html));
   }
 
@@ -130,11 +195,11 @@ export class EmailService {
     purpose: 'verify' | 'reset';
   }) {
     const { to, name, otp, purpose } = opts;
-    const greeting = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
-    const isReset = purpose === 'reset';
-    const subject = isReset ? 'Нууц үг шинэчлэх — DigitalGer' : 'Имэйл баталгаажуулах — DigitalGer';
-    const heading = isReset ? 'Нууц үг шинэчлэх' : 'Имэйл баталгаажуулах';
-    const desc = isReset
+    const greeting  = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
+    const isReset   = purpose === 'reset';
+    const subject   = isReset ? 'Нууц үг шинэчлэх — DigitalGer' : 'Имэйл баталгаажуулах — DigitalGer';
+    const heading   = isReset ? 'Нууц үг шинэчлэх' : 'Имэйл баталгаажуулах';
+    const desc      = isReset
       ? 'Нууц үгээ шинэчлэхийн тулд доорх нэг удаагийн кодыг оруулна уу.'
       : 'Имэйл хаягаа баталгаажуулахын тулд доорх нэг удаагийн кодыг оруулна уу.';
 
@@ -149,7 +214,6 @@ export class EmailService {
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
   ${this.emailHeader()}
-  <!-- Body -->
   <tr><td style="padding:40px 36px 32px;text-align:center">
     <div style="display:inline-block;background:${isReset ? '#fff7ed' : '#eff6ff'};border-radius:50%;width:64px;height:64px;line-height:64px;font-size:30px;margin-bottom:20px">
       ${isReset ? '🔑' : '✉️'}
@@ -157,7 +221,6 @@ export class EmailService {
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#022179">${heading}</h1>
     <p style="margin:0 0 4px;font-size:15px;color:#555">${greeting}</p>
     <p style="margin:0 0 32px;font-size:14px;color:#777">${desc}</p>
-    <!-- OTP digits -->
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 12px">
       <tr>${digitCells}</tr>
     </table>
@@ -166,7 +229,6 @@ export class EmailService {
       <p style="margin:0;font-size:13px;color:#92400e">⚠️ Энэ кодыг хэн нэгэнд <strong>хэзээ ч хэлж болохгүй</strong>. DigitalGer ажилтнууд таны кодыг хэзээ ч асуухгүй.</p>
     </div>
   </td></tr>
-  <!-- Footer -->
   <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
     <p style="margin:0 0 4px;font-size:12px;color:#aaa">Хэрэв та энэ хүсэлт гаргаагүй бол энэ имэйлийг үл тоомсорлоно уу.</p>
     <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
@@ -175,52 +237,8 @@ export class EmailService {
 </td></tr></table>
 </body></html>`;
 
+    this.logger.log(`OTP имэйл дараалалд оруулав → ${to} | ${purpose}`);
     this.enqueue(() => this.send(to, subject, html));
-  }
-
-  async getStats(): Promise<{
-    configured: boolean;
-    sentThisMonth: number;
-    sentLastMonth: number;
-    sentTwoMonthsAgo: number;
-    monthlyLimit: number;
-    queueLength: number;
-  }> {
-    const queueLength = this.queue.length;
-    const monthlyLimit = 3000;
-
-    if (!this.resend) {
-      return { configured: false, sentThisMonth: 0, sentLastMonth: 0, sentTwoMonthsAgo: 0, monthlyLimit, queueLength };
-    }
-
-    try {
-      const now = new Date();
-      const getMonthRange = (offset: number) => {
-        const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-        const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 0, 23, 59, 59);
-        return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
-      };
-
-      const fetchCount = async (offset: number) => {
-        try {
-          const { start, end } = getMonthRange(offset);
-          const res = await (this.resend as any).emails.list({ limit: 100, from: start, to: end });
-          return (res?.data?.data?.length ?? res?.data?.length ?? 0) as number;
-        } catch {
-          return 0;
-        }
-      };
-
-      const [sentThisMonth, sentLastMonth, sentTwoMonthsAgo] = await Promise.all([
-        fetchCount(0),
-        fetchCount(1),
-        fetchCount(2),
-      ]);
-
-      return { configured: true, sentThisMonth, sentLastMonth, sentTwoMonthsAgo, monthlyLimit, queueLength };
-    } catch {
-      return { configured: true, sentThisMonth: 0, sentLastMonth: 0, sentTwoMonthsAgo: 0, monthlyLimit, queueLength };
-    }
   }
 
   async sendPaymentConfirmation(opts: {
@@ -261,6 +279,47 @@ export class EmailService {
 </td></tr></table>
 </body></html>`;
 
+    this.logger.log(`Төлбөрийн имэйл дараалалд оруулав → ${to} | ₮${total.toLocaleString()}`);
     this.enqueue(() => this.send(to, `Төлбөр амжилттай — ₮${total.toLocaleString()}`, html));
+  }
+
+  // ─── stats (Redis-ийн тоолуур, Resend API гүйлгэхгүй) ─────────────────────
+
+  async getStats(): Promise<{
+    configured: boolean;
+    sentThisMonth: number;
+    sentLastMonth: number;
+    sentTwoMonthsAgo: number;
+    monthlyLimit: number;
+    queueLength: number;
+    provider: string;
+  }> {
+    const queueLength = this.queue.length;
+
+    const getCount = async (offset: number): Promise<number> => {
+      try {
+        const key = `${EMAIL_COUNT_KEY}:${this.monthSlug(offset)}`;
+        const val = await this.redis.get(key);
+        return val ? parseInt(val, 10) : 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    const [sentThisMonth, sentLastMonth, sentTwoMonthsAgo] = await Promise.all([
+      getCount(0),
+      getCount(1),
+      getCount(2),
+    ]);
+
+    return {
+      configured: this.ses !== null,
+      sentThisMonth,
+      sentLastMonth,
+      sentTwoMonthsAgo,
+      monthlyLimit: 50000, // AWS SES лимит (таны тохиргооноос хамаарна)
+      queueLength,
+      provider: 'AWS SES',
+    };
   }
 }

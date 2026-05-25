@@ -67,6 +67,7 @@ services:
       CORS_ORIGIN: http://localhost:3000,http://localhost:3001
       FRONTEND_URL: http://localhost:3000
       ADMIN_URL: http://localhost:3001
+      AWS_REGION: eu-north-1
     ports:
       - '4000:4000'
     depends_on:
