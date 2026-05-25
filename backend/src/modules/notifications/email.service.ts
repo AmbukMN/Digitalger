@@ -10,11 +10,24 @@ export class EmailService {
   private readonly queue: Array<() => Promise<void>> = [];
   private draining = false;
 
+  private readonly siteUrl: string;
+
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('RESEND_API_KEY');
     this.from = this.config.get<string>('EMAIL_FROM') ?? 'noreply@digitalger.mn';
+    this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
     this.resend = apiKey ? new Resend(apiKey) : null;
     if (!apiKey) this.logger.warn('RESEND_API_KEY тохируулаагүй — имэйл явуулахгүй');
+  }
+
+  private emailHeader(): string {
+    const logoUrl = `${this.siteUrl}/brand/DigitalGer-color%20logo.png`;
+    return `
+  <tr><td style="background:#022179;padding:20px 36px;text-align:center">
+    <a href="${this.siteUrl}" style="text-decoration:none;display:inline-block">
+      <img src="${logoUrl}" alt="DigitalGer" height="44" style="height:44px;width:auto;display:block;border:0" />
+    </a>
+  </td></tr>`;
   }
 
   private isGuest(email: string): boolean {
@@ -73,13 +86,7 @@ export class EmailService {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
-  <!-- Header -->
-  <tr><td style="background:#022179;padding:28px 36px;text-align:center">
-    <div style="display:inline-flex;align-items:center;gap:10px">
-      <span style="background:#ffbe00;color:#022179;font-weight:900;font-size:16px;padding:6px 12px;border-radius:8px">DG</span>
-      <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">DigitalGer</span>
-    </div>
-  </td></tr>
+  ${this.emailHeader()}
   <!-- Body -->
   <tr><td style="padding:36px 36px 0">
     <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#022179">Захиалга баталгаажлаа ✓</h1>
@@ -101,14 +108,14 @@ export class EmailService {
   </td></tr>
   <!-- CTA -->
   <tr><td style="padding:28px 36px;text-align:center">
-    <a href="https://digitalger.mn/library" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
+    <a href="${this.siteUrl}/library" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
       Татаж авах →
     </a>
     <p style="margin:16px 0 0;font-size:13px;color:#888">Асуулт байвал: <a href="mailto:support@digitalger.mn" style="color:#022179">support@digitalger.mn</a></p>
   </td></tr>
   <!-- Footer -->
   <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
-    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · digitalger.mn</p>
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
   </td></tr>
 </table>
 </td></tr></table>
@@ -132,9 +139,9 @@ export class EmailService {
       ? 'Нууц үгээ шинэчлэхийн тулд доорх нэг удаагийн кодыг оруулна уу.'
       : 'Имэйл хаягаа баталгаажуулахын тулд доорх нэг удаагийн кодыг оруулна уу.';
 
-    const digits = otp.split('').map(
+    const digitCells = otp.split('').map(
       (d) =>
-        `<span style="display:inline-block;width:44px;height:54px;line-height:54px;text-align:center;font-size:28px;font-weight:900;color:#022179;background:#f0f4ff;border-radius:10px;margin:0 3px;letter-spacing:0">${d}</span>`,
+        `<td style="padding:0 4px"><div style="width:44px;height:54px;line-height:54px;text-align:center;font-size:28px;font-weight:900;color:#022179;background:#f0f4ff;border-radius:10px">${d}</div></td>`,
     ).join('');
 
     const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -142,13 +149,7 @@ export class EmailService {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
-  <!-- Header -->
-  <tr><td style="background:#022179;padding:28px 36px;text-align:center">
-    <div style="display:inline-flex;align-items:center;gap:10px">
-      <span style="background:#ffbe00;color:#022179;font-weight:900;font-size:16px;padding:6px 12px;border-radius:8px">DG</span>
-      <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">DigitalGer</span>
-    </div>
-  </td></tr>
+  ${this.emailHeader()}
   <!-- Body -->
   <tr><td style="padding:40px 36px 32px;text-align:center">
     <div style="display:inline-block;background:${isReset ? '#fff7ed' : '#eff6ff'};border-radius:50%;width:64px;height:64px;line-height:64px;font-size:30px;margin-bottom:20px">
@@ -158,9 +159,9 @@ export class EmailService {
     <p style="margin:0 0 4px;font-size:15px;color:#555">${greeting}</p>
     <p style="margin:0 0 32px;font-size:14px;color:#777">${desc}</p>
     <!-- OTP digits -->
-    <div style="margin:0 auto 12px;display:block;text-align:center">
-      ${digits}
-    </div>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 12px">
+      <tr>${digitCells}</tr>
+    </table>
     <p style="margin:0 0 32px;font-size:12px;color:#aaa">Энэ код <strong>10 минутын</strong> дотор хүчинтэй.</p>
     <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 20px;text-align:left;margin-bottom:8px">
       <p style="margin:0;font-size:13px;color:#92400e">⚠️ Энэ кодыг хэн нэгэнд <strong>хэзээ ч хэлж болохгүй</strong>. DigitalGer ажилтнууд таны кодыг хэзээ ч асуухгүй.</p>
@@ -169,7 +170,7 @@ export class EmailService {
   <!-- Footer -->
   <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
     <p style="margin:0 0 4px;font-size:12px;color:#aaa">Хэрэв та энэ хүсэлт гаргаагүй бол энэ имэйлийг үл тоомсорлоно уу.</p>
-    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="https://digitalger.mn" style="color:#022179;text-decoration:none">digitalger.mn</a></p>
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
   </td></tr>
 </table>
 </td></tr></table>
@@ -237,10 +238,7 @@ export class EmailService {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
-  <tr><td style="background:#022179;padding:28px 36px;text-align:center">
-    <span style="background:#ffbe00;color:#022179;font-weight:900;font-size:16px;padding:6px 12px;border-radius:8px">DG</span>
-    <span style="color:#fff;font-size:22px;font-weight:800;margin-left:10px">DigitalGer</span>
-  </td></tr>
+  ${this.emailHeader()}
   <tr><td style="padding:36px">
     <div style="text-align:center;margin-bottom:28px">
       <div style="display:inline-block;background:#dcfce7;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:32px;text-align:center">✓</div>
@@ -252,13 +250,13 @@ export class EmailService {
       <p style="margin:0;font-size:16px;font-weight:700;color:#022179;font-family:monospace">#${orderId.slice(-8).toUpperCase()}</p>
     </div>
     <div style="text-align:center">
-      <a href="https://digitalger.mn/library" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
+      <a href="${this.siteUrl}/library" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
         Файлаа татах →
       </a>
     </div>
   </td></tr>
   <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
-    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · digitalger.mn</p>
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
   </td></tr>
 </table>
 </td></tr></table>
