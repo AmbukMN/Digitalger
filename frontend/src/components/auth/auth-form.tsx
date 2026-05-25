@@ -252,7 +252,7 @@ export function ForgotPasswordForm() {
         <span className="font-medium text-foreground">{email}</span> руу код илгээлээ
       </p>
 
-      <OtpInput value={otp} onChange={setOtp} autoFocus />
+      <OtpInput value={otp} onChange={setOtp} onComplete={() => { document.getElementById('new-pw')?.focus(); }} autoFocus />
 
       <div className="space-y-3">
         <div className="space-y-2">

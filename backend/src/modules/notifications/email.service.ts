@@ -21,11 +21,10 @@ export class EmailService {
   }
 
   private emailHeader(): string {
-    const logoUrl = `${this.siteUrl}/brand/DigitalGer-color%20logo.png`;
     return `
-  <tr><td style="background:#022179;padding:16px 36px;text-align:center">
-    <a href="${this.siteUrl}" style="text-decoration:none;display:inline-block">
-      <img src="${logoUrl}" alt="DigitalGer" width="180" style="width:180px;height:auto;display:block;border:0;margin:0 auto" />
+  <tr><td style="background:#022179;padding:20px 36px;text-align:center">
+    <a href="${this.siteUrl}" style="text-decoration:none">
+      <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;font-family:system-ui,-apple-system,sans-serif">Digital<span style="color:#ffbe00">Ger</span></span>
     </a>
   </td></tr>`;
   }

@@ -309,7 +309,7 @@ function SignupOtpScreen({ email, password, onSuccess, onBack, callbackUrl }: Si
         </p>
       </div>
 
-      <OtpInput value={otp} onChange={setOtp} autoFocus disabled={loading} />
+      <OtpInput value={otp} onChange={setOtp} onComplete={handleVerify} autoFocus disabled={loading} />
 
       <button
         type="button"
@@ -701,7 +701,7 @@ function ForgotPasswordModalFlow({ onBack }: { onBack: () => void }) {
         </p>
       </div>
 
-      <OtpInput value={otp} onChange={setOtp} autoFocus />
+      <OtpInput value={otp} onChange={setOtp} onComplete={() => { document.getElementById('new-pw')?.focus(); }} autoFocus />
 
       <div className="space-y-3">
         <div className="space-y-2">

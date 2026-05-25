@@ -432,7 +432,7 @@ function EmailVerifySection({
       {showOtp && (
         <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
           <p className="text-xs text-muted-foreground text-center">И-мэйлд ирсэн 6 оронтой кодыг оруулна уу</p>
-          <OtpInput value={otp} onChange={setOtp} autoFocus disabled={verifying} />
+          <OtpInput value={otp} onChange={setOtp} onComplete={handleVerify} autoFocus disabled={verifying} />
           <div className="flex gap-2">
             <Button size="sm" className="flex-1" onClick={handleVerify} disabled={otp.length !== 6 || verifying}>
               {verifying ? 'Баталгаажуулж байна...' : 'Баталгаажуулах'}

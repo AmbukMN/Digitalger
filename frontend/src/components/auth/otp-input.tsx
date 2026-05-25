@@ -7,11 +7,12 @@ interface OtpInputProps {
   length?: number;
   value: string;
   onChange: (value: string) => void;
+  onComplete?: (value: string) => void;
   disabled?: boolean;
   autoFocus?: boolean;
 }
 
-export function OtpInput({ length = 6, value, onChange, disabled, autoFocus }: OtpInputProps) {
+export function OtpInput({ length = 6, value, onChange, onComplete, disabled, autoFocus }: OtpInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = value.padEnd(length, '').slice(0, length).split('');
 
@@ -27,6 +28,9 @@ export function OtpInput({ length = 6, value, onChange, disabled, autoFocus }: O
     onChange(newVal);
     if (d && index < length - 1) {
       focus(index + 1);
+    } else if (d && index === length - 1) {
+      inputRefs.current[index]?.blur();
+      if (newVal.length === length) onComplete?.(newVal);
     }
   };
 
@@ -54,8 +58,12 @@ export function OtpInput({ length = 6, value, onChange, disabled, autoFocus }: O
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
     if (!pasted) return;
     onChange(pasted);
-    const focusIdx = Math.min(pasted.length, length - 1);
-    focus(focusIdx);
+    if (pasted.length === length) {
+      inputRefs.current[length - 1]?.blur();
+      onComplete?.(pasted);
+    } else {
+      focus(Math.min(pasted.length, length - 1));
+    }
   };
 
   return (
