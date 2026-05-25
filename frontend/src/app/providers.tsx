@@ -10,9 +10,21 @@ import { toast } from 'sonner';
 import { Toaster } from 'sonner';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
+import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi } from '@/lib/api';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
+
+// Zustand persist store-уудыг SSR-ийн дараа нэг л удаа rehydrate хийнэ.
+// skipHydration:true тохиргоотой хамт ажиллана — hydration mismatch арилна.
+function StoreHydration() {
+  useEffect(() => {
+    useCartStore.persist.rehydrate();
+    useWishlistStore.persist.rehydrate();
+    useCouponStore.persist.rehydrate();
+  }, []);
+  return null;
+}
 
 // Нэвтрэхэд: сагс + wishlist давхардал шийдэх + email verify reminder
 function SessionSyncEffect() {
@@ -117,6 +129,7 @@ export function Providers({ children, defaultTheme = 'system' }: ProvidersProps)
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme={defaultTheme} storageKey="digitalger-theme">
+          <StoreHydration />
           <SessionSyncEffect />
           {children}
           <Toaster position="top-center" richColors closeButton />

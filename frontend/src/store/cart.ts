@@ -69,6 +69,6 @@ export const useCartStore = create<CartState>()(
           items: s.items.filter((i) => !purchasedIds.includes(i.productId)),
         })),
     }),
-    { name: 'digitalger-cart' },
+    { name: 'digitalger-cart', skipHydration: true },
   ),
 );

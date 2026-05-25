@@ -34,6 +34,6 @@ export const useWishlistStore = create<WishlistState>()(
         }),
       getPendingIds: () => get().items.map((i) => i.id),
     }),
-    { name: 'digitalger-wishlist' },
+    { name: 'digitalger-wishlist', skipHydration: true },
   ),
 );

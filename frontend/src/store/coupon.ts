@@ -59,6 +59,6 @@ export const useCouponStore = create<CouponState>()(
       getFinalPrice: (productId, basePrice) =>
         Math.max(0, basePrice - (get().coupons[productId] ?? []).reduce((sum, c) => sum + c.discount, 0)),
     }),
-    { name: 'digitalger-coupons' },
+    { name: 'digitalger-coupons', skipHydration: true },
   ),
 );
