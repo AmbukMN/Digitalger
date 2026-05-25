@@ -655,6 +655,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
           <DiscountTimer
             endsAt={product.discountEndsAt}
             compact
+            hideDay
             discountLabel={
               product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price)
                 ? `-${Math.round((1 - Number(product.price) / Number(product.compareAtPrice)) * 100)}%`

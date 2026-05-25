@@ -24,9 +24,10 @@ interface DiscountTimerProps {
   endsAt: string;
   discountLabel?: string;
   compact?: boolean;
+  hideDay?: boolean;
 }
 
-export function DiscountTimer({ endsAt, discountLabel, compact = false }: DiscountTimerProps) {
+export function DiscountTimer({ endsAt, discountLabel, compact = false, hideDay = false }: DiscountTimerProps) {
   const [diff, setDiff] = useState<number | null>(null);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export function DiscountTimer({ endsAt, discountLabel, compact = false }: Discou
         <Clock className="h-3.5 w-3.5 text-secondary-foreground/80 shrink-0" />
         <span className="text-xs font-semibold text-secondary-foreground/80">Хямдрал:</span>
         <div className="flex items-baseline gap-1">
-          {d > 0 && (
+          {d > 0 && !hideDay && (
             <>
               <span className="font-mono text-sm font-black text-secondary-foreground tabular-nums">{d}</span>
               <span className="text-[10px] font-semibold text-secondary-foreground/70">өдөр</span>
