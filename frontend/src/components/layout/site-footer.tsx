@@ -16,6 +16,9 @@ export function SiteFooter() {
             <Link href="/terms-of-use" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Үйлчилгээний нөхцөл
             </Link>
+            <Link href="/data-deletion" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Мэдээлэл устгах
+            </Link>
           </div>
         </div>
       </div>
