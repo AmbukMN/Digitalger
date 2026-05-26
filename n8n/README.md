@@ -1,142 +1,115 @@
 # DigitalGer — n8n Automation Layer
 
-Isolated enterprise automation service running alongside the main DigitalGer stack.
-**Does not share Docker networks or volumes with the main application.**
+Isolated enterprise automation service.
+**Main DigitalGer stack-тай docker network, volume хуваалцахгүй.**
 
 ---
 
-## Quick Start
+## Local хөгжүүлэлт
 
 ```bash
 cd n8n
-
-# 1. Configure environment
-cp .env.example .env
-# Edit .env — set N8N_ENCRYPTION_KEY, N8N_BASIC_AUTH_PASSWORD, SMTP credentials
-
-# 2. Generate encryption key
-openssl rand -hex 32
-
-# 3. Start
 docker compose up -d
 
-# 4. Open editor
-# https://bot.digitalger.mn  (production)
-# http://localhost:5678       (local)
+# http://localhost:5678 нээнэ
+# Setup wizard → эхний хэрэглэгч бүртгэнэ
+```
+
+Local-д `.env` файл шаардлагагүй — `docker-compose.yml` default утгуудаар ажиллана.
+
+---
+
+## Production Deploy (VPS)
+
+```bash
+# 1. VPS дээр pull хийнэ
+cd /opt/DigitalGer/n8n
+
+# 2. .env тохируулна
+cp .env.example .env
+nano .env
+
+# 3. Заавал тохируулах утгууд:
+#    N8N_ENCRYPTION_KEY  → openssl rand -hex 32
+#    N8N_BASIC_AUTH_PASSWORD → хүчтэй нууц үг
+#    N8N_SMTP_USER / N8N_SMTP_PASS → AWS SES SMTP credential
+
+# 4. Ажиллуулна
+docker compose up -d
+
+# 5. Log шалгана
+docker compose logs -f
 ```
 
 ---
 
-## Commands
+## Командууд
 
-| Action | Command |
-|--------|---------|
-| Start | `docker compose up -d` |
-| Stop | `docker compose down` |
-| Restart | `docker compose restart` |
-| Logs (follow) | `docker compose logs -f` |
-| Logs (n8n only) | `docker compose logs -f n8n` |
-| Status | `docker compose ps` |
-| Update image | `docker compose pull && docker compose up -d` |
-| Shell access | `docker exec -it digitalger-n8n sh` |
+| Үйлдэл | Команд |
+|--------|--------|
+| Эхлүүлэх | `docker compose up -d` |
+| Зогсоох | `docker compose down` |
+| Дахин эхлүүлэх | `docker compose restart` |
+| Log (дагах) | `docker compose logs -f` |
+| Статус | `docker compose ps` |
+| Image шинэчлэх | `docker compose pull && docker compose up -d` |
+| Shell | `docker exec -it digitalger-n8n sh` |
 
 ---
 
-## Directory Structure
+## Хавтасны зориулалт
 
 ```
 n8n/
-├── docker-compose.yml     — isolated service definition
-├── .env.example           — all configurable variables with docs
-├── .env                   — actual config (gitignored)
+├── docker-compose.yml     — container тодорхойлолт (local + production)
+├── .env.example           — бүх variable жишээтэй
+├── .env                   — жинхэнэ config (gitignored)
 ├── .gitignore
 ├── README.md
 │
-├── data/                  — n8n runtime data (gitignored)
-│   ├── database.sqlite    — workflow definitions, execution history
-│   ├── config             — n8n internal config
-│   └── .n8n/             — credentials (encrypted)
+├── data/                  — n8n runtime (gitignored)
+│   └── database.sqlite    — workflow, execution, credential өгөгдөл
 │
-├── workflows/             — exported workflow JSON backups
-│   └── *.json            — export manually or via backup script
-│
-├── credentials/           — credential export snapshots (gitignored)
-│   └── *.json            — encrypted, safe to store
-│
-├── backups/               — automated backup archives (gitignored)
-│   └── YYYY-MM-DD.tar.gz
-│
-└── custom-nodes/          — custom n8n node packages
-    └── node_modules/      — installed via npm inside this folder
+├── workflows/             — workflow JSON export
+├── credentials/           — credential snapshot (gitignored)
+├── backups/               — backup архив (gitignored)
+└── custom-nodes/          — custom n8n node package-ууд
 ```
 
 ---
 
-## Backup Strategy
+## Backup
 
-### Manual backup
+### Гараар backup авах
 ```bash
-# Export all workflows from n8n UI:
-# Settings → Import/Export → Export all workflows
+# Workflow-уудыг export хийнэ
+docker exec digitalger-n8n n8n export:workflow --all \
+  --output=/home/node/backups/workflows-$(date +%Y%m%d).json
 
-# Or via CLI inside container:
-docker exec digitalger-n8n n8n export:workflow --all --output=/home/node/backups/workflows-$(date +%Y%m%d).json
-docker exec digitalger-n8n n8n export:credentials --all --output=/home/node/backups/credentials-$(date +%Y%m%d).json
+# Credential-уудыг export хийнэ
+docker exec digitalger-n8n n8n export:credentials --all \
+  --output=/home/node/backups/credentials-$(date +%Y%m%d).json
 ```
 
-### Automated daily backup (add to VPS crontab)
+### Автоматаар (VPS crontab)
 ```bash
 # crontab -e
-0 3 * * * cd /opt/DigitalGer/n8n && docker exec digitalger-n8n n8n export:workflow --all --output=/home/node/backups/workflows-$(date +\%Y\%m\%d).json && docker exec digitalger-n8n n8n export:credentials --all --output=/home/node/backups/credentials-$(date +\%Y\%m\%d).json
+0 3 * * * cd /opt/DigitalGer/n8n && \
+  docker exec digitalger-n8n n8n export:workflow --all --output=/home/node/backups/workflows-$(date +\%Y\%m\%d).json && \
+  docker exec digitalger-n8n n8n export:credentials --all --output=/home/node/backups/credentials-$(date +\%Y\%m\%d).json
 ```
 
-### Restore from backup
+### Restore хийх
 ```bash
-docker exec -i digitalger-n8n n8n import:workflow --input=/home/node/backups/workflows-YYYYMMDD.json
-docker exec -i digitalger-n8n n8n import:credentials --input=/home/node/backups/credentials-YYYYMMDD.json
-```
-
-### Full data backup (includes SQLite DB)
-```bash
-tar -czf backups/n8n-full-$(date +%Y%m%d).tar.gz data/
+docker exec -i digitalger-n8n n8n import:workflow \
+  --input=/home/node/backups/workflows-YYYYMMDD.json
+docker exec -i digitalger-n8n n8n import:credentials \
+  --input=/home/node/backups/credentials-YYYYMMDD.json
 ```
 
 ---
 
-## Architecture
-
-```
-Internet
-    │
-    ▼
-Nginx / Caddy (reverse proxy)
-    │  bot.digitalger.mn → localhost:5678
-    ▼
-digitalger-n8n (container)
-    │
-    ├── Webhooks  ← Facebook, Instagram, Telegram, QPay
-    ├── Schedules ← Cron-based automations
-    └── Triggers  ← DigitalGer API events
-```
-
-### Planned integrations
-
-| Integration | Status | Purpose |
-|-------------|--------|---------|
-| DigitalGer API | Planned | Order events, user triggers |
-| Facebook Messenger | Planned | Customer support automation |
-| Instagram | Planned | DM automation, comment replies |
-| Telegram | Planned | Admin alerts, notifications |
-| AWS SES events | Planned | Bounce/complaint handling |
-| PostgreSQL | Planned | Analytics queries, reporting |
-| pgvector | Planned | AI agent memory, embeddings |
-| Anthropic Claude | Planned | AI-powered workflow steps |
-
----
-
-## Nginx Configuration (VPS)
-
-Add to your nginx config at `/etc/nginx/sites-available/bot.digitalger.mn`:
+## Nginx Config (bot.digitalger.mn)
 
 ```nginx
 server {
@@ -169,7 +142,6 @@ server {
 }
 ```
 
-Then:
 ```bash
 certbot --nginx -d bot.digitalger.mn
 nginx -t && nginx -s reload
@@ -177,24 +149,26 @@ nginx -t && nginx -s reload
 
 ---
 
-## Upgrading n8n
+## Аюулгүй байдал
 
-```bash
-docker compose pull
-docker compose up -d
-docker compose logs -f n8n
-```
-
-n8n runs automatic DB migrations on startup — no manual steps needed.
+- [ ] `N8N_ENCRYPTION_KEY` → `openssl rand -hex 32`
+- [ ] `N8N_BASIC_AUTH_PASSWORD` тохируулсан
+- [ ] `.env` файл gitignored, commit хийгдэхгүй
+- [ ] Nginx HTTPS шаардана
+- [ ] VPS firewall: 80/443 нээлттэй, 5678 зөвхөн дотоод
+- [ ] Cron backup тохируулсан
 
 ---
 
-## Security Checklist
+## Ирээдүйн интеграц
 
-- [ ] `N8N_ENCRYPTION_KEY` set to a strong random value (`openssl rand -hex 32`)
-- [ ] `N8N_BASIC_AUTH_PASSWORD` changed from default
-- [ ] `.env` is gitignored and never committed
-- [ ] Nginx enforces HTTPS
-- [ ] VPS firewall allows only port 80/443 externally (5678 is internal only)
-- [ ] Backup cron job configured
-- [ ] Credentials exported and stored securely
+| Интеграц | Зориулалт |
+|----------|-----------|
+| DigitalGer API | Захиалга, хэрэглэгч trigger |
+| Facebook Messenger | Харилцагчийн дэмжлэг автоматжуулалт |
+| Instagram | DM, сэтгэгдэл хариулах |
+| Telegram | Admin alert, мэдэгдэл |
+| AWS SES events | Bounce/complaint шийдвэрлэлт |
+| PostgreSQL | Аналитик, тайлан |
+| pgvector | AI agent санах ой |
+| Anthropic Claude | AI-powered workflow алхам |

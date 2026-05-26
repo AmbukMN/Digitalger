@@ -1,88 +1,86 @@
 # DigitalGer — n8n Automation Layer
-# Isolated service — does NOT connect to digitalger docker network
-# Deploy: cd n8n && docker compose up -d
+# Isolated service — does NOT share network or volumes with main DigitalGer stack
+#
+# Local:       cd n8n && docker compose up -d
+# Production:  cd n8n && docker compose up -d   (same file, .env controls behavior)
 
 services:
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:2.21.7
     container_name: digitalger-n8n
     restart: always
+
     ports:
       - '5678:5678'
+
     environment:
-      # Host & protocol
-      - N8N_HOST=${N8N_HOST:-bot.digitalger.mn}
+      # ── Host & protocol ────────────────────────────────────────────────────
+      - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
-      - WEBHOOK_URL=${WEBHOOK_URL:-https://bot.digitalger.mn}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://localhost:5678}
 
-      # Editor URL (for internal links in emails/alerts)
-      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-https://bot.digitalger.mn}
-
-      # Timezone
+      # ── Timezone ───────────────────────────────────────────────────────────
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Ulaanbaatar}
       - TZ=${TZ:-Asia/Ulaanbaatar}
 
-      # Security — basic auth for editor UI
-      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
-      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      # ── Auth (disable locally, enable in production .env) ─────────────────
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-false}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-}
 
-      # Encryption key — REQUIRED for credential storage
+      # ── Encryption — REQUIRED, generate: openssl rand -hex 32 ─────────────
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
 
-      # Database — persistent SQLite (default) inside ./data
-      # Switch to PostgreSQL when ready (see .env.example)
+      # ── Database (SQLite default — upgrade to PostgreSQL for scale) ────────
       - DB_TYPE=${DB_TYPE:-sqlite}
       - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
 
-      # PostgreSQL (optional — uncomment in .env when scaling)
-      # - DB_TYPE=postgresdb
-      # - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST}
-      # - DB_POSTGRESDB_PORT=${DB_POSTGRESDB_PORT:-5432}
-      # - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE}
-      # - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER}
-      # - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD}
-      # - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
+      # PostgreSQL (set DB_TYPE=postgresdb in .env to activate)
+      - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST:-}
+      - DB_POSTGRESDB_PORT=${DB_POSTGRESDB_PORT:-5432}
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-n8n}
+      - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-}
+      - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-}
+      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
 
-      # Execution settings
+      # ── Execution history ──────────────────────────────────────────────────
       - EXECUTIONS_DATA_SAVE_ON_ERROR=all
       - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
       - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=336
 
-      # Queue mode (scale-out) — enable when adding workers
+      # ── Queue mode (enable when adding workers) ────────────────────────────
       # - EXECUTIONS_MODE=queue
       # - QUEUE_BULL_REDIS_HOST=${REDIS_HOST}
       # - QUEUE_BULL_REDIS_PORT=${REDIS_PORT:-6379}
 
-      # Email (AWS SES SMTP relay)
+      # ── Email via AWS SES SMTP ─────────────────────────────────────────────
       - N8N_EMAIL_MODE=${N8N_EMAIL_MODE:-smtp}
       - N8N_SMTP_HOST=${N8N_SMTP_HOST:-email-smtp.eu-north-1.amazonaws.com}
       - N8N_SMTP_PORT=${N8N_SMTP_PORT:-587}
-      - N8N_SMTP_USER=${N8N_SMTP_USER}
-      - N8N_SMTP_PASS=${N8N_SMTP_PASS}
+      - N8N_SMTP_USER=${N8N_SMTP_USER:-}
+      - N8N_SMTP_PASS=${N8N_SMTP_PASS:-}
       - N8N_SMTP_SENDER=${N8N_SMTP_SENDER:-noreply@digitalger.mn}
       - N8N_SMTP_SSL=false
       - N8N_SMTP_STARTTLS=true
 
-      # Logging
+      # ── Logging ────────────────────────────────────────────────────────────
       - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
       - N8N_LOG_OUTPUT=console
 
-      # Metrics (Prometheus scrape at /metrics)
-      - N8N_METRICS=${N8N_METRICS:-false}
-
-      # Payload size — large for file/webhook handling
+      # ── Limits ────────────────────────────────────────────────────────────
       - N8N_PAYLOAD_SIZE_MAX=${N8N_PAYLOAD_SIZE_MAX:-64}
 
-      # Custom nodes path
+      # ── Custom nodes ───────────────────────────────────────────────────────
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
 
-      # Disable telemetry in production
+      # ── Disable telemetry ──────────────────────────────────────────────────
       - N8N_DIAGNOSTICS_ENABLED=false
       - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+      - N8N_METRICS=${N8N_METRICS:-false}
 
     volumes:
       - ./data:/home/node/.n8n
@@ -95,6 +93,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
 
     networks:
       - n8n-internal
