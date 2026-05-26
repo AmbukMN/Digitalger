@@ -4,8 +4,15 @@
 @source '../**/*.{ts,tsx}';
 @plugin '@tailwindcss/typography';
 
+/* Geist Sans → Tailwind font-sans token-д холбоно */
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
 /* prose font-family override — сайтын үндсэн фонт ашиглах */
-.prose { font-family: var(--font-sans), system-ui, sans-serif; }
+.prose { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
+.prose :where(h1,h2,h3,h4,h5,h6) { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
 
 /* prose default line-height хэтэрхий том — 1.5 болгоно */
 .prose p, .prose li { line-height: 1.5; }

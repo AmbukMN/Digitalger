@@ -156,22 +156,56 @@ export function BannerCarousel({ banners }: Props) {
 
       {banners.length > 1 && (
         <>
+          {/* Desktop: зүүн/баруун дунд — mobile-д нуух */}
           <button
             onClick={prev}
             aria-label="Өмнөх"
-            className="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-2 text-white backdrop-blur-sm transition hover:bg-black/50"
+            className="hidden sm:flex absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-2 text-white backdrop-blur-sm transition hover:bg-black/50"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={next}
             aria-label="Дараах"
-            className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-2 text-white backdrop-blur-sm transition hover:bg-black/50"
+            className="hidden sm:flex absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-2 text-white backdrop-blur-sm transition hover:bg-black/50"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
 
-          <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-1.5">
+          {/* Mobile: сум + dot indicator хамт доод хэсэгт */}
+          <div className="sm:hidden absolute bottom-3 left-0 right-0 z-20 flex items-center justify-center gap-3">
+            <button
+              onClick={prev}
+              aria-label="Өмнөх"
+              className="rounded-full bg-black/30 p-1.5 text-white backdrop-blur-sm transition active:bg-black/50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              {banners.map((_, i) => (
+                <button
+                  key={i}
+                  aria-label={`Слайд ${i + 1}`}
+                  onClick={() => go(i, i > current ? 1 : -1)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === current ? 'w-5 bg-white' : 'w-1.5 bg-white/50'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={next}
+              aria-label="Дараах"
+              className="rounded-full bg-black/30 p-1.5 text-white backdrop-blur-sm transition active:bg-black/50"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Desktop dot indicator */}
+          <div className="hidden sm:flex absolute bottom-4 left-1/2 z-20 -translate-x-1/2 gap-1.5">
             {banners.map((_, i) => (
               <button
                 key={i}

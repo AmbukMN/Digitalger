@@ -349,6 +349,17 @@ model SiteSetting {
   sitemapChangeFreq     String?  @default("weekly")
   sitemapPriority       String?  @default("0.8")
 
+  // Social links
+  socialFacebook        String?
+  socialInstagram       String?
+  socialTwitter         String?
+  socialThreads         String?
+  socialTelegram        String?
+  socialWhatsapp        String?
+  socialTiktok          String?
+  socialYoutube         String?
+  socialLinkedin        String?
+
   updatedAt             DateTime @updatedAt
 }
 

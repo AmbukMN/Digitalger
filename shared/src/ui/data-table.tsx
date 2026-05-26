@@ -19,6 +19,10 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   loading?: boolean;
   pageSize?: number;
+  // Server-side pagination
+  pageCount?: number;
+  pageIndex?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -26,8 +30,13 @@ export function DataTable<TData, TValue>({
   data,
   loading,
   pageSize = 10,
+  pageCount,
+  pageIndex,
+  onPageChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const isServerPaginated = onPageChange !== undefined;
+
   const table = useReactTable({
     data,
     columns,
@@ -35,8 +44,16 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
-    state: { sorting },
-    initialState: { pagination: { pageSize } },
+    ...(isServerPaginated
+      ? {
+          manualPagination: true,
+          pageCount: pageCount ?? -1,
+          state: { sorting, pagination: { pageIndex: pageIndex ?? 0, pageSize } },
+        }
+      : {
+          state: { sorting },
+          initialState: { pagination: { pageSize } },
+        }),
   });
 
   if (loading) {
@@ -106,19 +123,27 @@ export function DataTable<TData, TValue>({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => {
+              if (isServerPaginated) onPageChange!((pageIndex ?? 0) - 1);
+              else table.previousPage();
+            }}
+            disabled={isServerPaginated ? (pageIndex ?? 0) === 0 : !table.getCanPreviousPage()}
           >
             Өмнөх
           </Button>
           <span className="text-sm text-muted-foreground">
-            {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+            {(isServerPaginated ? (pageIndex ?? 0) : table.getState().pagination.pageIndex) + 1} / {table.getPageCount()}
           </span>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => {
+              if (isServerPaginated) onPageChange!((pageIndex ?? 0) + 1);
+              else table.nextPage();
+            }}
+            disabled={isServerPaginated
+              ? (pageIndex ?? 0) >= (pageCount ?? 1) - 1
+              : !table.getCanNextPage()}
           >
             Дараах
           </Button>

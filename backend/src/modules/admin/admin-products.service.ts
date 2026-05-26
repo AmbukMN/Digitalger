@@ -21,7 +21,7 @@ export class AdminProductsService {
 
   async findAll(query: { page?: number; pageSize?: number; search?: string }) {
     const page = Math.max(1, query.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
+    const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
     const terms = query.search ? expandQuery(query.search) : [];

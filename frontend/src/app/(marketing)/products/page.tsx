@@ -8,6 +8,7 @@ import { productsApi, productTypesApi, categoriesApi, siteSettingsApi } from '@/
 import { SITE_URL } from '@/lib/constants';
 import type { ProductSummary } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
+import { PagePagination } from '@/components/ui/page-pagination';
 
 export async function generateMetadata(): Promise<Metadata> {
   let ogImageUrl: string | null = null;
@@ -140,7 +141,27 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
               <p className="mt-1 text-sm text-muted-foreground">Шүүлтүүрийг өөрчилж дахин хайна уу</p>
             </div>
           ) : (
-            <ProductGrid products={products} cols="three" />
+            <>
+              <ProductGrid products={products} cols="three" />
+              <div className="mt-8">
+                <PagePagination
+                  page={page}
+                  total={total}
+                  pageSize={24}
+                  buildUrl={(p) => {
+                    const sp = new URLSearchParams();
+                    if (p > 1) sp.set('page', String(p));
+                    if (params.category) sp.set('category', params.category);
+                    if (typesKey) sp.set('types', typesKey);
+                    if (sortBy) sp.set('sortBy', sortBy);
+                    if (params.onSale) sp.set('onSale', params.onSale);
+                    if (params.featured) sp.set('featured', params.featured);
+                    const s = sp.toString();
+                    return `/products${s ? `?${s}` : ''}`;
+                  }}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

@@ -78,6 +78,7 @@ type ImportResult = {
 export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
@@ -94,9 +95,14 @@ export default function ProductsPage() {
     onError: () => toast.error('Импортлоход алдаа гарлаа'),
   });
 
+  const PAGE_SIZE = 50;
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'products', search],
-    queryFn: () => adminApi.products.list({ search: search || undefined }),
+    queryKey: ['admin', 'products', search, page],
+    queryFn: () => adminApi.products.list({ search: search || undefined, page: page + 1, pageSize: PAGE_SIZE }),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const deleteMutation = useMutation({
@@ -308,12 +314,19 @@ export default function ProductsPage() {
         <Input
           placeholder="Бүтээгдэхүүн хайх..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           className="pl-9"
         />
       </div>
 
-      <DataTable columns={columns} data={data?.items ?? []} />
+      <DataTable
+        columns={columns}
+        data={data?.items ?? []}
+        pageSize={PAGE_SIZE}
+        pageCount={data ? Math.ceil(data.total / PAGE_SIZE) : 1}
+        pageIndex={page}
+        onPageChange={setPage}
+      />
 
       <ProductFormDialog open={dialogOpen} onOpenChange={setDialogOpen} product={editing} />
 

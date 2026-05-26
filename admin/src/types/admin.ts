@@ -125,6 +125,18 @@ export interface AdminOrder {
   }>;
 }
 
+export interface AdminPaymentRow {
+  id: string;
+  amount: number | string;
+  status: string;
+  qpayPaymentId?: string | null;
+  createdAt: string;
+  order: {
+    id: string;
+    user: { id: string; email: string; name: string | null; image?: string | null };
+  };
+}
+
 export interface ThemeSettings {
   id: string;
   primaryColor: string;
@@ -164,6 +176,17 @@ export interface SiteSettings {
   sitemapEnabled: boolean;
   sitemapChangeFreq: string | null;
   sitemapPriority: string | null;
+
+  // Social
+  socialFacebook: string | null;
+  socialInstagram: string | null;
+  socialTwitter: string | null;
+  socialThreads: string | null;
+  socialTelegram: string | null;
+  socialWhatsapp: string | null;
+  socialTiktok: string | null;
+  socialYoutube: string | null;
+  socialLinkedin: string | null;
 }
 
 export interface AdminProductTypeConfig {

@@ -41,6 +41,15 @@ export class AppController {
       googleAnalyticsId: site?.googleAnalyticsId ?? null,
       googleTagManagerId: site?.googleTagManagerId ?? null,
       fbPixelId: site?.fbPixelId ?? null,
+      socialFacebook: site?.socialFacebook ?? null,
+      socialInstagram: site?.socialInstagram ?? null,
+      socialTwitter: site?.socialTwitter ?? null,
+      socialThreads: site?.socialThreads ?? null,
+      socialTelegram: site?.socialTelegram ?? null,
+      socialWhatsapp: site?.socialWhatsapp ?? null,
+      socialTiktok: site?.socialTiktok ?? null,
+      socialYoutube: site?.socialYoutube ?? null,
+      socialLinkedin: site?.socialLinkedin ?? null,
     };
   }
 

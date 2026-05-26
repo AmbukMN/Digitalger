@@ -107,4 +107,40 @@ export class UpdateSiteDto {
   @IsOptional()
   @IsString()
   sitemapPriority?: string;
+
+  @IsOptional()
+  @IsString()
+  socialFacebook?: string;
+
+  @IsOptional()
+  @IsString()
+  socialInstagram?: string;
+
+  @IsOptional()
+  @IsString()
+  socialTwitter?: string;
+
+  @IsOptional()
+  @IsString()
+  socialThreads?: string;
+
+  @IsOptional()
+  @IsString()
+  socialTelegram?: string;
+
+  @IsOptional()
+  @IsString()
+  socialWhatsapp?: string;
+
+  @IsOptional()
+  @IsString()
+  socialTiktok?: string;
+
+  @IsOptional()
+  @IsString()
+  socialYoutube?: string;
+
+  @IsOptional()
+  @IsString()
+  socialLinkedin?: string;
 }

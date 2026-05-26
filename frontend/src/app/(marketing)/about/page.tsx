@@ -56,7 +56,7 @@ export default async function AboutPage() {
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
       <PageHeader title={page.title} />
       <div
-        className="prose prose-base max-w-none dark:prose-invert prose-headings:font-bold prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
+        className="prose prose-base max-w-none font-sans dark:prose-invert prose-headings:font-sans prose-headings:font-bold prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
         dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
       />
     </div>

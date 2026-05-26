@@ -601,6 +601,40 @@ export class AdminController {
     return { success: true };
   }
 
+  @Get('payments')
+  async listPayments(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+  ) {
+    const p = Math.max(1, page ? parseInt(page, 10) : 1);
+    const ps = Math.min(100, pageSize ? parseInt(pageSize, 10) : 20);
+    const skip = (p - 1) * ps;
+
+    const where = status && status !== 'ALL'
+      ? { status: status as 'PENDING' | 'SUCCESS' | 'FAILED' }
+      : {};
+
+    const [items, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        skip,
+        take: ps,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          order: {
+            include: {
+              user: { select: { id: true, email: true, name: true, image: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    return { items, total, page: p, pageSize: ps };
+  }
+
   @Patch('payments/:id')
   updatePayment(
     @Param('id') id: string,

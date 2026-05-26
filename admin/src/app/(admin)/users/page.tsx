@@ -26,7 +26,10 @@ import {
 } from '@digitalger/shared/ui';
 import { Ban, Download, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { Pagination } from '@/components/ui/pagination';
 import type { AdminUser } from '@/types/admin';
+
+const PAGE_SIZE = 50;
 
 function UserAvatar({ user, size = 8 }: { user: AdminUser; size?: number }) {
   const initials = (user.name ?? user.email).charAt(0).toUpperCase();
@@ -67,6 +70,7 @@ function RoleBadge({ role }: { role: string }) {
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -75,10 +79,11 @@ export default function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'users', search],
-    queryFn: () => adminApi.users.list({ search: search || undefined }),
+    queryKey: ['admin', 'users', search, page],
+    queryFn: () => adminApi.users.list({ search: search || undefined, page, pageSize: PAGE_SIZE }),
     staleTime: 0,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const updateMutation = useMutation({
@@ -262,12 +267,13 @@ export default function UsersPage() {
         <Input
           placeholder="Нэр, и-мэйл, утас..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           className="pl-9"
         />
       </div>
 
-      <DataTable columns={columns} data={data?.items ?? []} />
+      <DataTable columns={columns} data={data?.items ?? []} pageSize={PAGE_SIZE} />
+      <Pagination page={page} total={data?.total ?? 0} pageSize={PAGE_SIZE} onPage={setPage} />
 
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>

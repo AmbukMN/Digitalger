@@ -38,6 +38,17 @@ import { blogApi, menuApi, productsApi } from '@/lib/api';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { AuthModal } from '@/components/auth/auth-modal';
+import {
+  FacebookIcon,
+  InstagramIcon,
+  TwitterXIcon,
+  ThreadsIcon,
+  TelegramIcon,
+  WhatsAppIcon,
+  TikTokIcon,
+  YouTubeIcon,
+  LinkedInIcon,
+} from '@/components/social-icons';
 import type { MenuItem } from '@/types/api';
 
 
@@ -53,7 +64,19 @@ function usePublicSettings() {
     queryFn: async () => {
       const res = await fetch(`${API_URL}/api/settings/public`);
       if (!res.ok) throw new Error('settings fetch failed');
-      return res.json() as Promise<{ siteName: string; logoUrl: string | null }>;
+      return res.json() as Promise<{
+        siteName: string;
+        logoUrl: string | null;
+        socialFacebook: string | null;
+        socialInstagram: string | null;
+        socialTwitter: string | null;
+        socialThreads: string | null;
+        socialTelegram: string | null;
+        socialWhatsapp: string | null;
+        socialTiktok: string | null;
+        socialYoutube: string | null;
+        socialLinkedin: string | null;
+      }>;
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -555,10 +578,45 @@ export function SiteNavbar() {
               </div>
             </nav>
 
-            {/* Theme toggle */}
-            <div className="px-3 py-1 border-t border-border mt-1">
-              <ThemeToggle iconOnly={false} />
-            </div>
+            {/* Theme toggle + Social icons — нэг мөрт */}
+            {(() => {
+              const socialItems = [
+                { key: 'socialFacebook' as const, label: 'Facebook', Icon: FacebookIcon },
+                { key: 'socialInstagram' as const, label: 'Instagram', Icon: InstagramIcon },
+                { key: 'socialTwitter' as const, label: 'Twitter / X', Icon: TwitterXIcon },
+                { key: 'socialThreads' as const, label: 'Threads', Icon: ThreadsIcon },
+                { key: 'socialTelegram' as const, label: 'Telegram', Icon: TelegramIcon },
+                { key: 'socialWhatsapp' as const, label: 'WhatsApp', Icon: WhatsAppIcon },
+                { key: 'socialTiktok' as const, label: 'TikTok', Icon: TikTokIcon },
+                { key: 'socialYoutube' as const, label: 'YouTube', Icon: YouTubeIcon },
+                { key: 'socialLinkedin' as const, label: 'LinkedIn', Icon: LinkedInIcon },
+              ].filter(({ key }) => !!publicSettings?.[key]);
+              return (
+                <div className="border-t border-border mt-1 px-4 py-2.5 flex items-center gap-2">
+                  <ThemeToggle />
+                  {socialItems.length > 0 && (
+                    <>
+                      <div className="w-px h-5 bg-border shrink-0" />
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {socialItems.map(({ key, label, Icon }) => (
+                          <Link
+                            key={key}
+                            href={publicSettings![key]!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={label}
+                            onClick={() => setMobileOpen(false)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Icon className="h-5 w-5" />
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Featured products */}
             <div className="px-3">

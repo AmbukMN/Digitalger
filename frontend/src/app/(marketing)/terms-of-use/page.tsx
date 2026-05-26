@@ -54,8 +54,8 @@ export default async function TermsOfUsePage() {
 
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
         <div
-          className="prose prose-base max-w-none text-muted-foreground
-            prose-headings:text-foreground prose-headings:font-semibold
+          className="prose prose-base max-w-none font-sans text-muted-foreground
+            prose-headings:font-sans prose-headings:text-foreground prose-headings:font-semibold
             prose-a:text-primary prose-a:no-underline hover:prose-a:underline
             prose-li:marker:text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}

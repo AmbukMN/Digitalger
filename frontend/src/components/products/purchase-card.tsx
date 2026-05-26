@@ -31,6 +31,7 @@ import { DiscountTimer } from './discount-timer';
 import { DownloadAllButton } from './download-all-button';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
+const FILES_PAGE_SIZE = 20;
 
 // ─── Purchased sidebar card (desktop) ────────────────────────────────────────
 function PurchasedCard({
@@ -42,6 +43,7 @@ function PurchasedCard({
 }) {
   const { download } = useFileDownload();
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [visibleFiles, setVisibleFiles] = useState(FILES_PAGE_SIZE);
 
   const hasBundles = (purchase.product.bundles?.length ?? 0) > 0;
 
@@ -117,8 +119,8 @@ function PurchasedCard({
             label={`Бүх файлыг татах (${files.length})`}
             className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
           />
-          <ul className={`space-y-1 ${files.length > 5 ? 'max-h-56 overflow-y-auto pr-1' : ''}`}>
-            {files.map((file) => (
+          <ul className="space-y-1">
+            {files.slice(0, visibleFiles).map((file) => (
               <li key={file.id} className="flex items-center gap-2 rounded-lg bg-muted/30 dark:bg-muted/20 border border-border/50 px-3 py-1.5">
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
@@ -135,6 +137,16 @@ function PurchasedCard({
               </li>
             ))}
           </ul>
+          {files.length > visibleFiles && (
+            <button
+              type="button"
+              onClick={() => setVisibleFiles((v) => v + FILES_PAGE_SIZE)}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              {files.length - visibleFiles} файл нэмж харах
+            </button>
+          )}
         </div>
       )}
 
@@ -437,6 +449,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const removeCoupon = useCouponStore((s) => s.remove);
   const [couponOpen, setCouponOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [mobileVisibleFiles, setMobileVisibleFiles] = useState(FILES_PAGE_SIZE);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -575,8 +588,8 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
         {/* Individual files (expandable) */}
         {filesOpen && hasFiles && (
           <div className="border-b border-border/40 px-4 py-3 bg-muted/30 dark:bg-muted/10">
-            <div className={files.length > 5 ? 'max-h-52 overflow-y-auto space-y-1 pr-1' : 'space-y-1'}>
-              {files.map((file) => (
+            <div className="space-y-1">
+              {files.slice(0, mobileVisibleFiles).map((file) => (
                 <div key={file.id} className="flex items-center gap-2 rounded-lg bg-card dark:bg-card border border-border/50 px-3 py-1.5">
                   <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
@@ -593,6 +606,16 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                 </div>
               ))}
             </div>
+            {files.length > mobileVisibleFiles && (
+              <button
+                type="button"
+                onClick={() => setMobileVisibleFiles((v) => v + FILES_PAGE_SIZE)}
+                className="w-full flex items-center justify-center gap-1.5 pt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+                {files.length - mobileVisibleFiles} файл нэмж харах
+              </button>
+            )}
           </div>
         )}
 

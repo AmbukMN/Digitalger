@@ -538,14 +538,34 @@ function getVideoEmbedUrl(url: string): string | null {
   return null;
 }
 
-const UPLOAD_PROGRESS_THRESHOLD = 5 * 1024 * 1024; // 5MB-с дээш бол toast харуулна
+const UPLOAD_PROGRESS_THRESHOLD = 5 * 1024 * 1024;   // 5MB-с дээш → progress toast
+const PRESIGN_THRESHOLD = 100 * 1024 * 1024;          // 100MB-с дээш → presigned R2 direct upload
 
 async function uploadWithProgress(
   file: File,
   token?: string,
   onProgress?: (pct: number) => void,
-): Promise<{ key: string; url: string; fileName: string; mimeType: string; size: number }> {
-  // Token авах — дамжуулаагүй бол adminApi.upload ашиглана
+): Promise<Awaited<ReturnType<typeof adminApi.upload>>> {
+  // 100MB-с дээш → presigned URL-ээр browser→R2 шууд upload
+  if (file.size >= PRESIGN_THRESHOLD) {
+    const { uploadUrl, key, publicUrl } = await adminApi.presignUpload({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+    });
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2 upload failed: ${xhr.status}`)));
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(file);
+    });
+    return { key, url: publicUrl, fileName: file.name, mimeType: file.type, size: file.size };
+  }
+
   if (!token) {
     return adminApi.upload(file, onProgress);
   }
@@ -569,29 +589,32 @@ async function uploadWithProgress(
 }
 
 // Token-гүйгээр progress toast-тай upload хийх helper
-async function uploadFileWithToast(file: File): Promise<{ key: string; url: string; fileName: string; mimeType: string; size: number }> {
+async function uploadFileWithToast(file: File): Promise<Awaited<ReturnType<typeof adminApi.upload>>> {
   const { toast: sonnerToast } = await import('sonner');
   const showProgress = file.size >= UPLOAD_PROGRESS_THRESHOLD;
-
-  if (!showProgress) {
-    return adminApi.upload(file);
-  }
-
-  const toastId = `upload-${Date.now()}-${Math.random()}`;
+  const toastId = showProgress ? `upload-${Date.now()}-${Math.random()}` : undefined;
   const mb = (file.size / (1024 * 1024)).toFixed(1);
 
-  sonnerToast.loading(`Байршуулж байна... (0%) — ${file.name} (${mb} MB)`, { id: toastId, duration: Infinity });
+  if (toastId) {
+    sonnerToast.loading(`Байршуулж байна... (0%) — ${file.name} (${mb} MB)`, { id: toastId, duration: Infinity });
+  }
+
+  const onProgress = toastId
+    ? (percent: number) => {
+        if (percent < 100) {
+          sonnerToast.loading(`Байршуулж байна... (${percent}%) — ${file.name} (${mb} MB)`, { id: toastId, duration: Infinity });
+        }
+      }
+    : undefined;
 
   try {
-    const result = await adminApi.upload(file, (percent) => {
-      if (percent < 100) {
-        sonnerToast.loading(`Байршуулж байна... (${percent}%) — ${file.name} (${mb} MB)`, { id: toastId, duration: Infinity });
-      }
-    });
-    sonnerToast.success(`Байршуулагдлаа — ${file.name}`, { id: toastId, duration: 2500 });
+    const result = file.size >= PRESIGN_THRESHOLD
+      ? await uploadWithProgress(file, undefined, onProgress)
+      : await adminApi.upload(file, onProgress);
+    if (toastId) sonnerToast.success(`Байршуулагдлаа — ${file.name}`, { id: toastId, duration: 2500 });
     return result;
   } catch (err) {
-    sonnerToast.error(`Байршуулахад алдаа — ${file.name}`, { id: toastId, duration: 3000 });
+    if (toastId) sonnerToast.error(`Байршуулахад алдаа — ${file.name}`, { id: toastId, duration: 3000 });
     throw err;
   }
 }

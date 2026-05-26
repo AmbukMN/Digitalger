@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Post,
   UploadedFile,
@@ -15,6 +16,9 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { StorageService } from '../../storage/storage.service';
 import { ImageProcessorService } from '../../storage/image-processor.service';
 import path from 'path';
+
+// Файлын хэмжээний хязгаар: зураг/doc 100MB, видео/том файл presigned URL ашиглана
+const PROXY_SIZE_LIMIT = 100 * 1024 * 1024; // 100 MB
 
 const ALLOWED_MIME_TYPES = new Set([
   // Images
@@ -75,11 +79,27 @@ export class UploadsController {
     private readonly imageProcessor: ImageProcessorService,
   ) {}
 
+  /** Том файлд (видео, архив) presigned PUT URL буцаана — browser шууд R2-д upload хийнэ */
+  @Post('presign')
+  async presign(
+    @Body() body: { fileName: string; contentType: string; folder?: string },
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string }> {
+    const { fileName, contentType, folder = 'uploads' } = body;
+    if (!fileName || !contentType) throw new BadRequestException('fileName, contentType шаардлагатай');
+
+    const ext = path.extname(fileName).toLowerCase();
+    if (BLOCKED_EXTENSIONS.has(ext)) throw new BadRequestException(`Тохирохгүй файлын төрөл: ${ext}`);
+
+    const key = this.storage.buildKey(folder, fileName);
+    const uploadUrl = await this.storage.getPresignedUrl(key, 3600, 'put');
+    return { uploadUrl, key, publicUrl: this.storage.getAssetUrl(key) };
+  }
+
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB
+      limits: { fileSize: PROXY_SIZE_LIMIT },
     }),
   )
   async upload(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {

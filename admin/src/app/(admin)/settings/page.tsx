@@ -4,7 +4,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon } from 'lucide-react';
+import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon, Share2 } from 'lucide-react';
+import {
+  FacebookIcon,
+  InstagramIcon,
+  TwitterXIcon,
+  ThreadsIcon,
+  TelegramIcon,
+  WhatsAppIcon,
+  TikTokIcon,
+  YouTubeIcon,
+  LinkedInIcon,
+} from '@/components/social-icons';
 import {
   Button,
   Card,
@@ -467,6 +478,111 @@ function GeneralTab({
   );
 }
 
+// ——— Social tab ——————————————————————————————————————————————
+const SOCIAL_FIELDS = [
+  { key: 'socialFacebook', label: 'Facebook', placeholder: 'https://facebook.com/digitalger', Icon: FacebookIcon },
+  { key: 'socialInstagram', label: 'Instagram', placeholder: 'https://instagram.com/digitalger', Icon: InstagramIcon },
+  { key: 'socialTwitter', label: 'Twitter / X', placeholder: 'https://x.com/digitalger', Icon: TwitterXIcon },
+  { key: 'socialThreads', label: 'Threads', placeholder: 'https://threads.net/@digitalger', Icon: ThreadsIcon },
+  { key: 'socialTelegram', label: 'Telegram', placeholder: 'https://t.me/digitalger', Icon: TelegramIcon },
+  { key: 'socialWhatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/97699XXXXXX', Icon: WhatsAppIcon },
+  { key: 'socialTiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@digitalger', Icon: TikTokIcon },
+  { key: 'socialYoutube', label: 'YouTube', placeholder: 'https://youtube.com/@digitalger', Icon: YouTubeIcon },
+  { key: 'socialLinkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/digitalger', Icon: LinkedInIcon },
+] as const;
+
+type SocialKey = typeof SOCIAL_FIELDS[number]['key'];
+
+function SocialTab({
+  site,
+  onSave,
+  isSaving,
+}: {
+  site: SiteSettings | null;
+  onSave: (data: Partial<SiteSettings>) => void;
+  isSaving: boolean;
+}) {
+  const [form, setForm] = useState<Record<SocialKey, string>>({
+    socialFacebook: site?.socialFacebook ?? '',
+    socialInstagram: site?.socialInstagram ?? '',
+    socialTwitter: site?.socialTwitter ?? '',
+    socialThreads: site?.socialThreads ?? '',
+    socialTelegram: site?.socialTelegram ?? '',
+    socialWhatsapp: site?.socialWhatsapp ?? '',
+    socialTiktok: site?.socialTiktok ?? '',
+    socialYoutube: site?.socialYoutube ?? '',
+    socialLinkedin: site?.socialLinkedin ?? '',
+  });
+
+  useEffect(() => {
+    if (site) {
+      setForm({
+        socialFacebook: site.socialFacebook ?? '',
+        socialInstagram: site.socialInstagram ?? '',
+        socialTwitter: site.socialTwitter ?? '',
+        socialThreads: site.socialThreads ?? '',
+        socialTelegram: site.socialTelegram ?? '',
+        socialWhatsapp: site.socialWhatsapp ?? '',
+        socialTiktok: site.socialTiktok ?? '',
+        socialYoutube: site.socialYoutube ?? '',
+        socialLinkedin: site.socialLinkedin ?? '',
+      });
+    }
+  }, [site]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const data: Partial<SiteSettings> = {};
+    for (const key of Object.keys(form) as SocialKey[]) {
+      (data as Record<string, string | null>)[key] = form[key] || null;
+    }
+    onSave(data);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Share2 className="h-5 w-5" />
+          Нийгмийн сүлжээ
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Холбоос оруулсан сүлжээнүүд нь footer болон mobile menu-д харагдана.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {SOCIAL_FIELDS.map(({ key, label, placeholder, Icon }) => (
+            <div key={key} className="space-y-1.5">
+              <Label htmlFor={key} className="flex items-center gap-2">
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                {label}
+              </Label>
+              <Input
+                id={key}
+                value={form[key]}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                placeholder={placeholder}
+                type="url"
+              />
+            </div>
+          ))}
+          <Button type="submit" disabled={isSaving} className="w-full mt-2">
+            {isSaving ? (
+              'Хадгалж байна...'
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Холбоосууд хадгалах
+              </>
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ——— Main page ———————————————————————————————————————————————
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -515,6 +631,10 @@ export default function SettingsPage() {
             <Palette className="mr-2 h-4 w-4" />
             Дизайн
           </TabsTrigger>
+          <TabsTrigger value="social" className="flex-1">
+            <Share2 className="mr-2 h-4 w-4" />
+            Нийгмийн сүлжээ
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-6">
@@ -530,6 +650,14 @@ export default function SettingsPage() {
             theme={data?.theme ?? null}
             onSave={(colors) => themeMutation.mutate(colors)}
             isSaving={themeMutation.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value="social" className="mt-6">
+          <SocialTab
+            site={data?.site ?? null}
+            onSave={(body) => siteMutation.mutate(body)}
+            isSaving={siteMutation.isPending}
           />
         </TabsContent>
       </Tabs>

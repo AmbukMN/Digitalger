@@ -24,20 +24,9 @@ import {
 import { CheckCircle2, Clock, Pencil, Trash2, XCircle, CreditCard } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
-import type { AdminOrder } from '@/types/admin';
+import type { AdminPaymentRow } from '@/types/admin';
 
 const PAGE_SIZE = 20;
-
-type PaymentRow = {
-  id: string;
-  orderId: string;
-  amount: number | string;
-  status: string;
-  userEmail: string;
-  userName: string | null;
-  userImage: string | null;
-  orderDate: string;
-};
 
 type StatusFilter = 'ALL' | 'SUCCESS' | 'PENDING' | 'FAILED';
 
@@ -83,14 +72,14 @@ function UserCell({ name, email, image }: { name: string | null; email: string; 
   );
 }
 
-function EditPaymentDialog({ payment, open, onClose }: { payment: PaymentRow; open: boolean; onClose: () => void }) {
+function EditPaymentDialog({ payment, open, onClose }: { payment: AdminPaymentRow; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(payment.status);
 
   const mutation = useMutation({
     mutationFn: () => adminApi.orders.updatePayment(payment.id, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'orders', 'payments'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
       toast.success('Төлбөрийн төлөв шинэчлэгдлээ');
       onClose();
     },
@@ -110,11 +99,11 @@ function EditPaymentDialog({ payment, open, onClose }: { payment: PaymentRow; op
           <div className="rounded-lg bg-muted/50 px-4 py-3 space-y-1">
             <div className="flex justify-between items-center">
               <p className="text-xs text-muted-foreground">Захиалга</p>
-              <span className="font-mono text-xs font-bold">#{payment.orderId.slice(-8).toUpperCase()}</span>
+              <span className="font-mono text-xs font-bold">#{payment.order.id.slice(-8).toUpperCase()}</span>
             </div>
             <div className="flex justify-between items-center">
               <p className="text-xs text-muted-foreground">Хэрэглэгч</p>
-              <p className="text-xs font-medium">{payment.userName ?? payment.userEmail}</p>
+              <p className="text-xs font-medium">{payment.order.user.name ?? payment.order.user.email}</p>
             </div>
           </div>
           <div className="space-y-1.5">
@@ -140,12 +129,12 @@ function EditPaymentDialog({ payment, open, onClose }: { payment: PaymentRow; op
   );
 }
 
-function DeletePaymentDialog({ payment, open, onClose }: { payment: PaymentRow; open: boolean; onClose: () => void }) {
+function DeletePaymentDialog({ payment, open, onClose }: { payment: AdminPaymentRow; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: () => adminApi.orders.removePayment(payment.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'orders', 'payments'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
       toast.success('Төлбөрийн бүртгэл устгагдлаа');
       onClose();
     },
@@ -157,7 +146,7 @@ function DeletePaymentDialog({ payment, open, onClose }: { payment: PaymentRow; 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>Төлбөр устгах</DialogTitle></DialogHeader>
         <div className="py-2 space-y-2">
-          <p className="text-sm">Захиалга <span className="font-mono font-bold">#{payment.orderId.slice(-8).toUpperCase()}</span>-ийн төлбөрийг <span className="text-destructive font-semibold">бүрмөсөн устгах</span> уу?</p>
+          <p className="text-sm">Захиалга <span className="font-mono font-bold">#{payment.order.id.slice(-8).toUpperCase()}</span>-ийн төлбөрийг <span className="text-destructive font-semibold">бүрмөсөн устгах</span> уу?</p>
           <p className="text-xs text-muted-foreground">Зөвхөн QPay-ийн бүртгэл устах бөгөөд захиалга хэвээр үлдэнэ.</p>
         </div>
         <DialogFooter>
@@ -171,7 +160,7 @@ function DeletePaymentDialog({ payment, open, onClose }: { payment: PaymentRow; 
   );
 }
 
-function PaymentActions({ payment }: { payment: PaymentRow }) {
+function PaymentActions({ payment }: { payment: AdminPaymentRow }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   return (
@@ -195,37 +184,21 @@ export default function PaymentsPage() {
   const [page, setPage] = useState(1);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'orders', 'payments', page],
-    queryFn: () => adminApi.orders.list({ page, pageSize: PAGE_SIZE }),
+    queryKey: ['admin', 'payments', statusFilter, page],
+    queryFn: () => adminApi.orders.listPayments({ page, pageSize: PAGE_SIZE, status: statusFilter }),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
-  const allRows: PaymentRow[] =
-    data?.items.flatMap((order: AdminOrder) =>
-      (order.payments ?? []).map((p) => ({
-        id: p.id,
-        orderId: order.id,
-        amount: p.amount,
-        status: p.status,
-        userEmail: order.user.email,
-        userName: order.user.name,
-        userImage: order.user.image ?? null,
-        orderDate: order.createdAt,
-      })),
-    ) ?? [];
-
-  const rows = statusFilter === 'ALL' ? allRows : allRows.filter((r) => r.status === statusFilter);
-
-  const counts: Record<string, number> = {};
-  allRows.forEach((r) => { counts[r.status] = (counts[r.status] ?? 0) + 1; });
-
-  const columns: ColumnDef<PaymentRow>[] = [
+  const columns: ColumnDef<AdminPaymentRow>[] = [
     {
       id: 'order',
       header: 'Захиалга',
       cell: ({ row }) => (
         <div>
           <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 font-mono text-xs font-bold tracking-wide">
-            #{row.original.orderId.slice(-8).toUpperCase()}
+            #{row.original.order.id.slice(-8).toUpperCase()}
           </span>
           <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
             {row.original.id.slice(-10).toUpperCase()}
@@ -236,7 +209,13 @@ export default function PaymentsPage() {
     {
       id: 'user',
       header: 'Хэрэглэгч',
-      cell: ({ row }) => <UserCell name={row.original.userName} email={row.original.userEmail} image={row.original.userImage} />,
+      cell: ({ row }) => (
+        <UserCell
+          name={row.original.order.user.name}
+          email={row.original.order.user.email}
+          image={row.original.order.user.image}
+        />
+      ),
     },
     {
       accessorKey: 'amount',
@@ -251,10 +230,10 @@ export default function PaymentsPage() {
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
-      accessorKey: 'orderDate',
+      accessorKey: 'createdAt',
       header: 'Огноо',
       cell: ({ row }) => {
-        const d = new Date(row.original.orderDate);
+        const d = new Date(row.original.createdAt);
         return (
           <div className="whitespace-nowrap">
             <p className="text-xs font-medium">{d.toLocaleDateString('mn-MN', { year: 'numeric', month: '2-digit', day: '2-digit' })}</p>
@@ -277,12 +256,11 @@ export default function PaymentsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Төлбөр</h1>
-        <p className="text-sm text-muted-foreground">QPay гүйлгээний бүртгэл</p>
+        <p className="text-sm text-muted-foreground">Нийт {data?.total ?? 0} төлбөрийн бүртгэл</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => {
-          const count = f.value === 'ALL' ? allRows.length : (counts[f.value] ?? 0);
           const active = statusFilter === f.value;
           return (
             <button
@@ -294,15 +272,12 @@ export default function PaymentsPage() {
               }`}
             >
               {f.label}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${active ? 'bg-white/20' : 'bg-background text-foreground'}`}>
-                {count}
-              </span>
             </button>
           );
         })}
       </div>
 
-      <DataTable columns={columns} data={rows} />
+      <DataTable columns={columns} data={data?.items ?? []} pageSize={PAGE_SIZE} />
       <Pagination page={page} total={data?.total ?? 0} pageSize={PAGE_SIZE} onPage={setPage} />
     </div>
   );
