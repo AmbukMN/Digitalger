@@ -73,3 +73,23 @@ docs/*.xls
 
 # ── Local product materials ──────────────────────────────────────────────────────
 /products/
+
+# ── Local planning & working docs (not for repo) ────────────────────────────────
+DIGITALGER_SOCIAL_MASTER_PLAN.md
+DIGITALGER_MASTER_PLAN.md
+IMPROVEMENT_PLAN.md
+blog-preview.html
+*.docx
+*.xlsx
+belen_tusluud_tailan.docx
+/logs/
+/assets/
+
+# ── n8n runtime data (gitignored) ────────────────────────────────────────────────
+n8n/data/
+n8n/credentials/
+n8n/backups/
+n8n/.env
+
+# ── Claude local settings ─────────────────────────────────────────────────────────
+.claude/settings.local.json

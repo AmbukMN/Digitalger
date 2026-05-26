@@ -1,19 +1,20 @@
 {
-  "name": "QPay Paid Telegram Alert",
+  "id": "b2c3d4e5-0002-0002-0002-000000000001",
+  "name": "QPay Paid → Telegram Alert",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "qpay-paid",
+        "path": "payment-paid",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "a1b2c3d4-0001-0001-0001-000000000001",
-      "name": "QPay Webhook",
+      "id": "b2c3d4e5-0002-0002-0002-000000000010",
+      "name": "Payment Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [240, 300],
-      "webhookId": "a1b2c3d4-0001-0001-0001-000000000099"
+      "webhookId": "b2c3d4e5-0002-0002-0002-000000000099"
     },
     {
       "parameters": {
@@ -25,7 +26,7 @@
           },
           "conditions": [
             {
-              "id": "a1b2c3d4-0001-0001-0001-000000000002",
+              "id": "b2c3d4e5-0002-0002-0002-000000000020",
               "leftValue": "={{ $json.body.event }}",
               "rightValue": "payment.paid",
               "operator": {
@@ -38,7 +39,7 @@
         },
         "options": {}
       },
-      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "id": "b2c3d4e5-0002-0002-0002-000000000030",
       "name": "Filter payment.paid",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
@@ -46,37 +47,50 @@
     },
     {
       "parameters": {
-        "chatId": "={{ $env.TELEGRAM_ADMIN_CHAT_ID }}",
-        "text": "=💳 *Шинэ төлбөр амжилттай!*\n\n👤 *Хэрэлэгч:* {{ $json.body.user?.name ?? $json.body.user?.email ?? 'Тодорхойгүй' }}\n📦 *Бүтээгдэхүүн:* {{ $json.body.product?.title ?? 'Тодорхойгүй' }}\n💰 *Дүн:* {{ $json.body.amount }}₮\n🆔 *Захиалга:* `{{ $json.body.orderId }}`\n✅ *Төлөв:* ТӨЛӨГДСӨН\n🕐 *Цаг:* {{ new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' }) }}",
-        "additionalFields": {
-          "parse_mode": "Markdown"
-        }
+        "jsCode": "const body = $input.item.json.body;\n\nconst products = (body.products ?? []);\nconst productLines = products\n  .map((p, i) => `  ${i + 1}. ${p.title} — ${Number(p.price).toLocaleString('mn-MN')}t`)\n  .join('\\n');\n\nconst amount = Number(body.amount ?? 0).toLocaleString('mn-MN');\nconst shortId = (body.orderId ?? '').slice(-8).toUpperCase();\nconst user = [body.userName, body.userEmail].filter(Boolean).join(' / ') || 'Тодорхойгүй';\n\nconst paidAt = body.paidAt\n  ? new Date(body.paidAt).toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' })\n  : new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' });\n\nconst productCount = products.length;\nconst productSummary = productCount === 1\n  ? products[0]?.title ?? 'Тодорхойгүй'\n  : `${productCount} бүтээгдэхүүн`;\n\nconst message = `Шинэ төлбөр амжилттай!\\n\\n` +\n  `Хэрэглэгч: ${user}\\n` +\n  `Захиалга: ${productSummary}\\n` +\n  `Нийт дүн: ${amount}t\\n` +\n  `ID: ${shortId}\\n` +\n  (productCount > 1 ? `\\nБүтээгдэхүүн:\\n${productLines}\\n` : '') +\n  `Төлөв: ТӨЛӨГДСӨН\\n` +\n  `Цаг: ${paidAt}`;\n\nreturn [{ json: { message } }];"
       },
-      "id": "a1b2c3d4-0001-0001-0001-000000000004",
-      "name": "Telegram Admin Alert",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "id": "b2c3d4e5-0002-0002-0002-000000000040",
+      "name": "Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [680, 300]
     },
     {
       "parameters": {
+        "chatId": "1587161751",
+        "text": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "b2c3d4e5-0002-0002-0002-000000000050",
+      "name": "Telegram Admin Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"received\": true\n}",
+        "responseBody": "={ \"received\": true }",
         "options": {}
       },
-      "id": "a1b2c3d4-0001-0001-0001-000000000005",
+      "id": "b2c3d4e5-0002-0002-0002-000000000060",
       "name": "Respond 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [680, 480]
+      "position": [460, 480]
     }
   ],
   "connections": {
-    "QPay Webhook": {
+    "Payment Webhook": {
       "main": [
         [
           {
             "node": "Filter payment.paid",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond 200",
             "type": "main",
             "index": 0
           }
@@ -87,12 +101,18 @@
       "main": [
         [
           {
-            "node": "Telegram Admin Alert",
+            "node": "Build Message",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Build Message": {
+      "main": [
+        [
           {
-            "node": "Respond 200",
+            "node": "Telegram Admin Alert",
             "type": "main",
             "index": 0
           }
@@ -104,7 +124,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "a1b2c3d4-0001-0001-0001-000000000010",
+  "versionId": "b2c3d4e5-0002-0002-0002-000000000100",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "digitalger-n8n"

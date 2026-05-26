@@ -1,0 +1,70 @@
+{
+  "id": "e5f6a7b8-0005-0005-0005-000000000001",
+  "name": "Daily Report → Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "daily-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e5f6a7b8-0005-0005-0005-000000000010",
+      "name": "Daily Report Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "e5f6a7b8-0005-0005-0005-000000000099"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body;\n\nconst revenue = Number(body.totalRevenue ?? 0).toLocaleString('mn-MN');\nconst date = body.date || new Date().toISOString().split('T')[0];\nconst topProducts = (body.topProducts ?? []);\n\nconst topLines = topProducts.length > 0\n  ? topProducts\n      .map((p, i) => `  ${i + 1}. ${p.title} — ${p.count}ш / ${Number(p.revenue).toLocaleString('mn-MN')}t`)\n      .join('\\n')\n  : '  Борлуулалт байхгүй';\n\nreturn [{\n  json: {\n    message: `Өдрийн тайлан — ${date}\\n\\n` +\n      `Орлого: ${revenue}t\\n` +\n      `Захиалга: ${body.orderCount ?? 0}\\n` +\n      `Шинэ хэрэглэгч: ${body.newUserCount ?? 0}\\n\\n` +\n      `Шилдэг бүтээгдэхүүн:\\n${topLines}`\n  }\n}];"
+      },
+      "id": "e5f6a7b8-0005-0005-0005-000000000040",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "1587161751",
+        "text": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "e5f6a7b8-0005-0005-0005-000000000050",
+      "name": "Telegram Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"received\": true }",
+        "options": {}
+      },
+      "id": "e5f6a7b8-0005-0005-0005-000000000060",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 480]
+    }
+  ],
+  "connections": {
+    "Daily Report Webhook": {
+      "main": [[
+        { "node": "Build Report", "type": "main", "index": 0 },
+        { "node": "Respond 200", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build Report": {
+      "main": [[{ "node": "Telegram Report", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "e5f6a7b8-0005-0005-0005-000000000100",
+  "meta": { "templateCredsSetupCompleted": true, "instanceId": "digitalger-n8n" },
+  "tags": []
+}

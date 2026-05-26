@@ -1,0 +1,95 @@
+{
+  "id": "d4e5f6a7-0004-0004-0004-000000000001",
+  "name": "Product Published → Telegram Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "product-published",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000010",
+      "name": "Product Published Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "d4e5f6a7-0004-0004-0004-000000000099"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "d4e5f6a7-0004-0004-0004-000000000020",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "product.published",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000030",
+      "name": "Filter product.published",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body;\n\nconst price = Number(body.price ?? 0).toLocaleString('mn-MN');\nconst category = body.categoryName || 'Ангилалгүй';\nconst publishedAt = body.publishedAt\n  ? new Date(body.publishedAt).toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' })\n  : new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' });\n\nreturn [{\n  json: {\n    message: `Шинэ бүтээгдэхүүн нийтлэгдлээ!\\n\\n` +\n      `Нэр: ${body.title}\\n` +\n      `Ангилал: ${category}\\n` +\n      `Үнэ: ${price}t\\n` +\n      `Slug: ${body.slug}\\n` +\n      `Цаг: ${publishedAt}`\n  }\n}];"
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000040",
+      "name": "Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "1587161751",
+        "text": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000050",
+      "name": "Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"received\": true }",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000060",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 480]
+    }
+  ],
+  "connections": {
+    "Product Published Webhook": {
+      "main": [[
+        { "node": "Filter product.published", "type": "main", "index": 0 },
+        { "node": "Respond 200", "type": "main", "index": 0 }
+      ]]
+    },
+    "Filter product.published": {
+      "main": [[{ "node": "Build Message", "type": "main", "index": 0 }]]
+    },
+    "Build Message": {
+      "main": [[{ "node": "Telegram Alert", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "d4e5f6a7-0004-0004-0004-000000000100",
+  "meta": { "templateCredsSetupCompleted": true, "instanceId": "digitalger-n8n" },
+  "tags": []
+}

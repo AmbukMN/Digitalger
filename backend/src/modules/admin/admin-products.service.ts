@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { N8nService } from '../n8n/n8n.service';
 import { expandQuery } from '../../common/transliterate';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -15,6 +16,7 @@ export class AdminProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly n8n: N8nService,
   ) {}
 
   async findAll(query: { page?: number; pageSize?: number; search?: string }) {
@@ -138,7 +140,7 @@ export class AdminProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto) {
-    await this.ensureProductExists(id);
+    const existing = await this.ensureProductExists(id);
 
     if (dto.slug) {
       const conflict = await this.prisma.product.findFirst({
@@ -152,7 +154,7 @@ export class AdminProductsService {
     const { price, compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, ...rest } = dto;
     const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dto.categoryId;
 
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
@@ -171,6 +173,20 @@ export class AdminProductsService {
       },
       include: { category: true, images: true },
     });
+
+    // published: false → true болсон үед n8n-д мэдэгдэл
+    if (!existing.published && updated.published) {
+      this.n8n.emitProductPublished({
+        productId: updated.id,
+        title: updated.title,
+        slug: updated.slug,
+        price: Number(updated.price),
+        categoryName: (updated.category as any)?.name ?? null,
+        publishedAt: new Date().toISOString(),
+      }).catch(() => null);
+    }
+
+    return updated;
   }
 
   async remove(id: string) {

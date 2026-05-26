@@ -30,4 +30,8 @@ export default () => ({
     callbackUrl: process.env.QPAY_CALLBACK_URL,
     webhookSecret: process.env.QPAY_WEBHOOK_SECRET,
   },
+  n8n: {
+    webhookUrl: process.env.N8N_WEBHOOK_URL ?? null,
+    webhookSecret: process.env.N8N_WEBHOOK_SECRET ?? null,
+  },
 });

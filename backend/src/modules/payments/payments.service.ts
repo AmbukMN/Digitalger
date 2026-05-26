@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { N8nService } from '../n8n/n8n.service';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -30,6 +31,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly n8n: N8nService,
   ) {}
 
   isQPayConfigured(): boolean {
@@ -271,6 +273,9 @@ export class PaymentsService {
         qpayPaymentId: paymentId,
         rawPayload: body,
       });
+    } else if (!isPaid && payment.order.status === OrderStatus.PENDING) {
+      const reason = (body.payment_status as string) ?? 'UNKNOWN';
+      this.emitN8nPaymentFailed(payment.orderId, payment.id, reason).catch(() => null);
     }
 
     return { received: true, matched: true };
@@ -307,6 +312,56 @@ export class PaymentsService {
         },
       }),
     ]);
+
+    // n8n-рүү event илгээх (non-blocking — backend-ийн үндсэн урсгалд нөлөөлөхгүй)
+    this.emitN8nPaymentPaid(orderId, paymentId).catch((err) =>
+      this.logger.error('n8n emit алдаа', err),
+    );
+  }
+
+  private async emitN8nPaymentPaid(orderId: string, paymentId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        items: { include: { product: { select: { id: true, title: true, price: true } } } },
+      },
+    });
+    if (!order) return;
+
+    await this.n8n.emitPaymentPaid({
+      orderId: order.id,
+      paymentId,
+      userId: order.userId,
+      userName: order.user?.name ?? null,
+      userEmail: order.user?.email ?? '',
+      amount: Number(order.total),
+      products: order.items.map((i) => ({
+        id: i.product.id,
+        title: i.product.title,
+        price: Number(i.product.price),
+      })),
+      paidAt: new Date().toISOString(),
+    });
+  }
+
+  async emitN8nPaymentFailed(orderId: string, paymentId: string, reason: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    if (!order) return;
+
+    await this.n8n.emitPaymentFailed({
+      orderId: order.id,
+      paymentId,
+      userId: order.userId,
+      userName: order.user?.name ?? null,
+      userEmail: order.user?.email ?? '',
+      amount: Number(order.total),
+      reason,
+      failedAt: new Date().toISOString(),
+    });
   }
 
   private async getQPayToken(): Promise<string> {
