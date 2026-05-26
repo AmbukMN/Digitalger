@@ -1,0 +1,7 @@
+.env
+data/
+credentials/
+backups/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

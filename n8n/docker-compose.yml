@@ -1,0 +1,105 @@
+# DigitalGer — n8n Automation Layer
+# Isolated service — does NOT connect to digitalger docker network
+# Deploy: cd n8n && docker compose up -d
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: digitalger-n8n
+    restart: always
+    ports:
+      - '5678:5678'
+    environment:
+      # Host & protocol
+      - N8N_HOST=${N8N_HOST:-bot.digitalger.mn}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+      - WEBHOOK_URL=${WEBHOOK_URL:-https://bot.digitalger.mn}
+
+      # Editor URL (for internal links in emails/alerts)
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-https://bot.digitalger.mn}
+
+      # Timezone
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Ulaanbaatar}
+      - TZ=${TZ:-Asia/Ulaanbaatar}
+
+      # Security — basic auth for editor UI
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+
+      # Encryption key — REQUIRED for credential storage
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+
+      # Database — persistent SQLite (default) inside ./data
+      # Switch to PostgreSQL when ready (see .env.example)
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
+
+      # PostgreSQL (optional — uncomment in .env when scaling)
+      # - DB_TYPE=postgresdb
+      # - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST}
+      # - DB_POSTGRESDB_PORT=${DB_POSTGRESDB_PORT:-5432}
+      # - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE}
+      # - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER}
+      # - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD}
+      # - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
+
+      # Execution settings
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=336
+
+      # Queue mode (scale-out) — enable when adding workers
+      # - EXECUTIONS_MODE=queue
+      # - QUEUE_BULL_REDIS_HOST=${REDIS_HOST}
+      # - QUEUE_BULL_REDIS_PORT=${REDIS_PORT:-6379}
+
+      # Email (AWS SES SMTP relay)
+      - N8N_EMAIL_MODE=${N8N_EMAIL_MODE:-smtp}
+      - N8N_SMTP_HOST=${N8N_SMTP_HOST:-email-smtp.eu-north-1.amazonaws.com}
+      - N8N_SMTP_PORT=${N8N_SMTP_PORT:-587}
+      - N8N_SMTP_USER=${N8N_SMTP_USER}
+      - N8N_SMTP_PASS=${N8N_SMTP_PASS}
+      - N8N_SMTP_SENDER=${N8N_SMTP_SENDER:-noreply@digitalger.mn}
+      - N8N_SMTP_SSL=false
+      - N8N_SMTP_STARTTLS=true
+
+      # Logging
+      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
+      - N8N_LOG_OUTPUT=console
+
+      # Metrics (Prometheus scrape at /metrics)
+      - N8N_METRICS=${N8N_METRICS:-false}
+
+      # Payload size — large for file/webhook handling
+      - N8N_PAYLOAD_SIZE_MAX=${N8N_PAYLOAD_SIZE_MAX:-64}
+
+      # Custom nodes path
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
+
+      # Disable telemetry in production
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+
+    volumes:
+      - ./data:/home/node/.n8n
+      - ./custom-nodes:/home/node/.n8n/custom
+      - ./backups:/home/node/backups
+
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:5678/healthz || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - n8n-internal
+
+networks:
+  n8n-internal:
+    name: digitalger-n8n-network
+    driver: bridge
