@@ -100,6 +100,12 @@ services:
       # ── Custom nodes ─────────────────────────────────────────────────────────
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
 
+      # ── Allow workflows to read env vars ─────────────────────────────────────
+      - N8N_ALLOW_EXEC=true
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - N8N_RUNNERS_ALLOWED_MODULES=*
+
       # ── Disable telemetry ────────────────────────────────────────────────────
       - N8N_DIAGNOSTICS_ENABLED=false
       - N8N_VERSION_NOTIFICATIONS_ENABLED=false

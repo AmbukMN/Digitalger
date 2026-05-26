@@ -1,5 +1,5 @@
 {
-  "name": "QPay Paid → Telegram Alert",
+  "name": "QPay Paid Telegram Alert",
   "nodes": [
     {
       "parameters": {
@@ -8,12 +8,12 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-trigger",
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
       "name": "QPay Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [240, 300],
-      "webhookId": "qpay-paid-digitalger"
+      "webhookId": "a1b2c3d4-0001-0001-0001-000000000099"
     },
     {
       "parameters": {
@@ -25,7 +25,7 @@
           },
           "conditions": [
             {
-              "id": "paid-check",
+              "id": "a1b2c3d4-0001-0001-0001-000000000002",
               "leftValue": "={{ $json.body.event }}",
               "rightValue": "payment.paid",
               "operator": {
@@ -38,8 +38,8 @@
         },
         "options": {}
       },
-      "id": "filter-paid-event",
-      "name": "Filter: payment.paid only",
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "name": "Filter payment.paid",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
       "position": [460, 300]
@@ -47,30 +47,24 @@
     {
       "parameters": {
         "chatId": "={{ $env.TELEGRAM_ADMIN_CHAT_ID }}",
-        "text": "=💳 *Шинэ төлбөр амжилттай!*\n\n👤 *Хэрэглэгч:* {{ $json.body.user.name ?? $json.body.user.email ?? 'Тодорхойгүй' }}\n📦 *Бүтээгдэхүүн:* {{ $json.body.product.title ?? 'Тодорхойгүй' }}\n💰 *Дүн:* {{ $json.body.amount }}₮\n🆔 *Захиалга:* `{{ $json.body.orderId }}`\n✅ *Төлөв:* ТӨЛӨГДСӨН\n🕐 *Цаг:* {{ new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' }) }}",
+        "text": "=💳 *Шинэ төлбөр амжилттай!*\n\n👤 *Хэрэлэгч:* {{ $json.body.user?.name ?? $json.body.user?.email ?? 'Тодорхойгүй' }}\n📦 *Бүтээгдэхүүн:* {{ $json.body.product?.title ?? 'Тодорхойгүй' }}\n💰 *Дүн:* {{ $json.body.amount }}₮\n🆔 *Захиалга:* `{{ $json.body.orderId }}`\n✅ *Төлөв:* ТӨЛӨГДСӨН\n🕐 *Цаг:* {{ new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' }) }}",
         "additionalFields": {
           "parse_mode": "Markdown"
         }
       },
-      "id": "telegram-send",
-      "name": "Telegram: Admin Alert",
+      "id": "a1b2c3d4-0001-0001-0001-000000000004",
+      "name": "Telegram Admin Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [680, 300],
-      "credentials": {
-        "telegramApi": {
-          "id": "telegram-bot",
-          "name": "DigitalGer Telegram Bot"
-        }
-      }
+      "position": [680, 300]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"received\": true }",
+        "responseBody": "={\n  \"received\": true\n}",
         "options": {}
       },
-      "id": "respond-ok",
+      "id": "a1b2c3d4-0001-0001-0001-000000000005",
       "name": "Respond 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -81,15 +75,27 @@
     "QPay Webhook": {
       "main": [
         [
-          { "node": "Filter: payment.paid only", "type": "main", "index": 0 }
+          {
+            "node": "Filter payment.paid",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Filter: payment.paid only": {
+    "Filter payment.paid": {
       "main": [
         [
-          { "node": "Telegram: Admin Alert", "type": "main", "index": 0 },
-          { "node": "Respond 200", "type": "main", "index": 0 }
+          {
+            "node": "Telegram Admin Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
@@ -98,8 +104,10 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "tags": ["payment", "telegram", "qpay"],
+  "versionId": "a1b2c3d4-0001-0001-0001-000000000010",
   "meta": {
-    "description": "QPay webhook-аас payment.paid event хүлээн авч Telegram admin chat руу мэдэгдэл илгээнэ. DigitalGer backend source of truth хэвээр — observer only."
-  }
+    "templateCredsSetupCompleted": true,
+    "instanceId": "digitalger-n8n"
+  },
+  "tags": []
 }
