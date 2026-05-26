@@ -15,16 +15,6 @@ interface Props {
 }
 
 function BannerMedia({ banner }: { banner: Banner }) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-
   if (banner.videoUrl) {
     return (
       <video
@@ -39,21 +29,37 @@ function BannerMedia({ banner }: { banner: Banner }) {
     );
   }
 
-  const imgSrc = isMobile
-    ? (banner.mobileImageUrl || banner.imageUrl)
-    : (banner.desktopImageUrl || banner.imageUrl);
+  const desktopSrc = banner.desktopImageUrl || banner.imageUrl;
+  const mobileSrc  = banner.mobileImageUrl  || banner.imageUrl;
 
-  if (!imgSrc) return null;
+  if (!desktopSrc && !mobileSrc) return null;
 
+  // CSS-ээр responsive зураг — JS/state ашиглахгүй тул SSR + hydration алдаагүй
   return (
-    <Image
-      src={imgSrc}
-      alt={banner.title}
-      fill
-      className="object-cover"
-      priority
-      sizes="100vw"
-    />
+    <>
+      {/* Mobile ≤767px */}
+      {mobileSrc && (
+        <Image
+          src={mobileSrc}
+          alt={banner.title}
+          fill
+          className="object-cover sm:hidden"
+          priority
+          sizes="100vw"
+        />
+      )}
+      {/* Desktop ≥768px */}
+      {desktopSrc && (
+        <Image
+          src={desktopSrc}
+          alt={banner.title}
+          fill
+          className="object-cover hidden sm:block"
+          priority
+          sizes="100vw"
+        />
+      )}
+    </>
   );
 }
 
