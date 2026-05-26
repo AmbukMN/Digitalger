@@ -1,0 +1,105 @@
+{
+  "name": "QPay Paid → Telegram Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qpay-paid",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "QPay Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "qpay-paid-digitalger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "paid-check",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "payment.paid",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-paid-event",
+      "name": "Filter: payment.paid only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_ADMIN_CHAT_ID }}",
+        "text": "=💳 *Шинэ төлбөр амжилттай!*\n\n👤 *Хэрэглэгч:* {{ $json.body.user.name ?? $json.body.user.email ?? 'Тодорхойгүй' }}\n📦 *Бүтээгдэхүүн:* {{ $json.body.product.title ?? 'Тодорхойгүй' }}\n💰 *Дүн:* {{ $json.body.amount }}₮\n🆔 *Захиалга:* `{{ $json.body.orderId }}`\n✅ *Төлөв:* ТӨЛӨГДСӨН\n🕐 *Цаг:* {{ new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' }) }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-send",
+      "name": "Telegram: Admin Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [680, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-bot",
+          "name": "DigitalGer Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"received\": true }",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 480]
+    }
+  ],
+  "connections": {
+    "QPay Webhook": {
+      "main": [
+        [
+          { "node": "Filter: payment.paid only", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Filter: payment.paid only": {
+      "main": [
+        [
+          { "node": "Telegram: Admin Alert", "type": "main", "index": 0 },
+          { "node": "Respond 200", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["payment", "telegram", "qpay"],
+  "meta": {
+    "description": "QPay webhook-аас payment.paid event хүлээн авч Telegram admin chat руу мэдэгдэл илгээнэ. DigitalGer backend source of truth хэвээр — observer only."
+  }
+}
