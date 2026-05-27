@@ -105,8 +105,6 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <PageHeader title={heading.title} description={heading.desc} className="mb-6" />
-
       <div className="flex gap-8">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block w-56 shrink-0">
@@ -123,6 +121,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
         {/* Main */}
         <div className="flex-1 min-w-0">
+          <PageHeader title={heading.title} description={heading.desc} className="mb-6" />
           {/* Mobile filter bar */}
           <div className="mb-4 flex items-center justify-between lg:hidden">
             <p className="text-sm text-muted-foreground">{total.toLocaleString()} бүтээгдэхүүн</p>

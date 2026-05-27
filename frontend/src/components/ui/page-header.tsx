@@ -20,7 +20,7 @@ export function PageHeader({ title, description, badge, className }: PageHeaderP
         <div className="mt-2 h-1 w-full rounded-full bg-primary" />
       </div>
       {description && (
-        <p className="mt-2 text-muted-foreground text-base sm:text-lg max-w-2xl leading-relaxed">
+        <p className="mt-2 text-muted-foreground text-base sm:text-lg leading-relaxed">
           {description}
         </p>
       )}
