@@ -134,7 +134,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
         </div>
 
         <Link href={`/products/${product.slug}`} className="flex-1">
-          <h3 className="line-clamp-2 text-xs sm:text-sm font-medium leading-snug transition-colors hover:text-primary" style={{ lineHeight: 1.4 }}>
+          <h3 className="text-xs sm:text-sm font-medium leading-snug transition-colors hover:text-primary" style={{ lineHeight: 1.4 }}>
             {product.title}
           </h3>
         </Link>
