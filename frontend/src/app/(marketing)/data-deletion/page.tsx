@@ -53,7 +53,7 @@ export default async function DataDeletionPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-8">
         <Link href="/" className="hover:text-foreground transition-colors">Нүүр</Link>
         <ChevronRight className="h-3 w-3" />

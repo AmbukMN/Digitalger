@@ -53,12 +53,17 @@ export default async function AboutPage() {
   if (!page) notFound();
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <PageHeader title={page.title} />
-      <div
-        className="prose prose-base max-w-none font-sans dark:prose-invert prose-headings:font-sans prose-headings:font-bold prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
-      />
+      <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
+        <div
+          className="prose prose-base max-w-none font-sans text-muted-foreground
+            prose-headings:font-sans prose-headings:text-foreground prose-headings:font-bold
+            prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+            prose-li:marker:text-muted-foreground"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
+        />
+      </div>
     </div>
   );
 }
