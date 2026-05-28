@@ -17,7 +17,7 @@ function isBot(ua: string): boolean {
   return /bot|crawler|spider|googlebot|bingbot|slurp|duckduckbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegram/i.test(ua);
 }
 
-@Controller('api/analytics')
+@Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
