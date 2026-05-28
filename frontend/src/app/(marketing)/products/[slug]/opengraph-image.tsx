@@ -108,7 +108,7 @@ export default async function Image({ params }: Props) {
         {/* Blur background layer — fill the gaps with the same image */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={product.thumbnailUrl} alt="" width={1200} height={630}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
         {/* Dark overlay to improve contrast */}
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
         {/* Main image — cover, fills full 1200x630 */}
