@@ -14,6 +14,7 @@ import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { downloadsApi, wishlistApi } from '@/lib/api';
+import { trackProductClick, trackAddToCart } from '@/lib/analytics';
 import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
@@ -50,6 +51,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       return;
     }
     add(product);
+    trackAddToCart(product.id, product.slug);
     toast.success('Сагсанд нэмэгдлээ', { description: product.title });
   };
 
@@ -68,7 +70,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
 
   return (
     <Card className="group flex h-full flex-col overflow-hidden hover:-translate-y-0.5 hover:shadow-xl hover:border-primary/30">
-      <Link href={`/products/${product.slug}`} className="block">
+      <Link href={`/products/${product.slug}`} className="block" onClick={() => trackProductClick(product.id, product.slug)}>
         <div className="relative aspect-4/3 overflow-hidden bg-muted">
           {product.mainVideoUrl ? (
             <video

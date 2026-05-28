@@ -9,6 +9,7 @@ import { CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { couponsApi, ordersApi, paymentsApi, productsApi } from '@/lib/api';
+import { trackPurchase } from '@/lib/analytics';
 import { useCartStore } from '@/store/cart';
 import { MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import { SiteNavbar } from '@/components/layout/site-navbar';
@@ -159,6 +160,7 @@ function CheckoutContent() {
 
         // Free order or already PAID (backend auto-marks if total=0)
         if (isFree || order.status === 'PAID') {
+          items.forEach((i) => trackPurchase(i.productId, i.slug));
           toast.success('Амжилттай худалдан авлаа!');
           clear();
           router.push('/library');
@@ -166,6 +168,7 @@ function CheckoutContent() {
         }
 
         if (order.devMode) {
+          items.forEach((i) => trackPurchase(i.productId, i.slug));
           toast.success('Төлбөр амжилттай (dev)');
           clear();
           router.push('/library');
@@ -201,6 +204,7 @@ function CheckoutContent() {
   };
 
   const handlePaymentSuccess = () => {
+    items.forEach((i) => trackPurchase(i.productId, i.slug));
     clear();
     setQpayResult(null);
     setPendingOrderId(null);
