@@ -44,10 +44,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description = stripHtmlForMeta(rawDesc).slice(0, 160);
     const canonicalUrl = `${SITE_URL}/products/${product.slug}`;
 
-    // Always use the dynamic OG image route — it renders a proper 1200x630 PNG
-    // regardless of the source thumbnail's original aspect ratio.
-    const ogImageUrl = `${SITE_URL}/products/${product.slug}/opengraph-image`;
-
     return {
       title,
       description,
@@ -57,13 +53,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
         url: canonicalUrl,
-        images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }],
+        // opengraph-image.tsx handles og:image automatically with correct hash URL
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
-        images: [ogImageUrl],
       },
     };
   } catch {
