@@ -41,8 +41,9 @@ export async function generateMetadata(): Promise<Metadata> {
     // fallback to no image — acceptable
   }
 
-  const resolvedOgUrl = ogImageUrl ?? `${SITE_URL}/brand/og-default.jpg`;
-  const ogImages = [{ url: resolvedOgUrl, width: 1200, height: 630, alt: DEFAULT_TITLE }];
+  const ogImages = ogImageUrl
+    ? [{ url: ogImageUrl, width: 1200, height: 630, alt: DEFAULT_TITLE }]
+    : [];
 
   return {
     metadataBase: new URL(SITE_URL),
@@ -65,13 +66,13 @@ export async function generateMetadata(): Promise<Metadata> {
       url: SITE_URL,
       title: DEFAULT_TITLE,
       description: DEFAULT_DESC,
-      images: ogImages,
+      ...(ogImages.length ? { images: ogImages } : {}),
     },
     twitter: {
       card: 'summary_large_image',
       title: DEFAULT_TITLE,
       description: DEFAULT_DESC,
-      images: [resolvedOgUrl],
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
     },
     robots: {
       index: true,

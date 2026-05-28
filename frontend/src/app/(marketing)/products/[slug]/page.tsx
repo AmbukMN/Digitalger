@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
         url: canonicalUrl,
-        // opengraph-image.tsx handles og:image automatically with correct hash URL
+        // opengraph-image.tsx in this segment auto-generates the og:image
       },
       twitter: {
         card: 'summary_large_image',
