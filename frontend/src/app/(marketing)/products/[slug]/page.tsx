@@ -53,12 +53,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
         url: canonicalUrl,
-        // opengraph-image.tsx in this segment auto-generates the og:image
+        ...(product.thumbnailUrl ? { images: [{ url: product.thumbnailUrl, alt: title }] } : {}),
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
+        ...(product.thumbnailUrl ? { images: [product.thumbnailUrl] } : {}),
       },
     };
   } catch {
