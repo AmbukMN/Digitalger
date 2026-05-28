@@ -44,6 +44,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description = stripHtmlForMeta(rawDesc).slice(0, 160);
     const canonicalUrl = `${SITE_URL}/products/${product.slug}`;
 
+    // Explicit OG image URL — messaging apps (Viber, Telegram) need a direct URL,
+    // they don't follow Next.js dynamic /opengraph-image routes.
+    // Use thumbnailUrl when available, otherwise fall back to the dynamic route.
+    const ogImageUrl = product.thumbnailUrl
+      ? product.thumbnailUrl
+      : `${SITE_URL}/products/${product.slug}/opengraph-image`;
+
     return {
       title,
       description,
@@ -53,12 +60,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
         url: canonicalUrl,
-        // opengraph-image.tsx in this segment auto-generates the og:image
+        images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }],
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
+        images: [ogImageUrl],
       },
     };
   } catch {

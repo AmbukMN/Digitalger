@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ProductGrid } from '@/components/products/product-grid';
 import { categoriesApi, productsApi } from '@/lib/api';
-import { SITE_URL } from '@/lib/constants';
+import { SITE_URL, SITE_NAME } from '@/lib/constants';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -22,12 +22,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
         url: canonicalUrl,
-        // opengraph-image.tsx in this segment auto-generates the og:image
+        images: [{ url: `${SITE_URL}/brand/og-default.jpg`, width: 1200, height: 630, alt: `${title} | ${SITE_NAME}` }],
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
+        images: [`${SITE_URL}/brand/og-default.jpg`],
       },
     };
   } catch {
