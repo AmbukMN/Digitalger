@@ -16,12 +16,12 @@ function send(endpoint: string, data: Record<string, unknown>) {
   if (typeof window === 'undefined') return;
   const url = `${API_BASE}/api/analytics/${endpoint}`;
   const body = JSON.stringify({ ...data, sessionId: getSessionId() });
-  if (navigator.sendBeacon) {
-    const blob = new Blob([body], { type: 'application/json' });
-    navigator.sendBeacon(url, blob);
-  } else {
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
-  }
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {});
 }
 
 export function trackPageView(path: string, referrer?: string) {
