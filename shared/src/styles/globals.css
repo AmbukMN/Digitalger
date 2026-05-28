@@ -44,15 +44,15 @@
     /* ── Backgrounds: Deep blue — тодорхой elevation шатлал ──
        Surface hierarchy:  bg(L11.5) → card(L16.5) → popover(L21.5) → secondary(L24.5)
        Hue 240 (truer blue) + higher chroma → deep-blue premium feel.      ── */
-    --background: oklch(0.115 0.028 240);
+    --background: oklch(0.185 0.068 255);
     --foreground: oklch(0.955 0.005 247.839);
 
     /* Card: background-аас +5% L */
-    --card: oklch(0.165 0.035 240);
+    --card: oklch(0.225 0.072 255);
     --card-foreground: oklch(0.955 0.005 247.839);
 
     /* Popover / modal: card-аас +5% L */
-    --popover: oklch(0.215 0.040 240);
+    --popover: oklch(0.265 0.076 255);
     --popover-foreground: oklch(0.955 0.005 247.839);
 
     /* ── Primary: GOLD — харанхуйд логоны алтан өнгө ── */
@@ -60,12 +60,12 @@
     --primary-foreground: oklch(0.1 0.04 264.052);
 
     /* ── Secondary: hover / pressed surface — popover-оос +3% L ── */
-    --secondary: oklch(0.245 0.042 240);
-    --secondary-foreground: oklch(0.88 0.01 240);
+    --secondary: oklch(0.295 0.080 255);
+    --secondary-foreground: oklch(0.88 0.01 255);
 
     /* ── Muted: subtle background (chip, tag, skeleton) ── */
-    --muted: oklch(0.185 0.032 240);
-    --muted-foreground: oklch(0.675 0.015 240);
+    --muted: oklch(0.235 0.070 255);
+    --muted-foreground: oklch(0.675 0.015 255);
 
     /* ── Accent: medium-bright blue ── */
     --accent: oklch(0.52 0.185 240);
