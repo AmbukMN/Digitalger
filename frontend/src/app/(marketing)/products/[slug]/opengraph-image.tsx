@@ -100,21 +100,36 @@ export default async function Image({ params }: Props) {
     }
   }
 
-  // Thumbnail байвал letterbox: blur background + contain foreground
-  // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй
+  // Thumbnail байвал: blur background cover + foreground cover
+  // → 1200x630 бүтэн дүүргэнэ, Viber/Telegram large card mode ажиллана
   if (product?.thumbnailUrl) {
     return new ImageResponse(
-      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: NAVY }}>
-        {/* Blur background layer — fill the gaps with the same image */}
+      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden' }}>
+        {/* Blur background — fills entire 1200x630 */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={product.thumbnailUrl} alt="" width={1200} height={630}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
-        {/* Dark overlay to improve contrast */}
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
-        {/* Main image — contained, never cropped */}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(20px) brightness(0.45) saturate(1.3)', transform: 'scale(1.1)' }} />
+        {/* Centered foreground — cover дүүргэнэ, aspect ratio хадгалахын тулд max size */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={product.thumbnailUrl} alt={product.title} width={1200} height={630}
-          style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        {/* Bottom gradient overlay for text legibility */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '45%', background: 'linear-gradient(to top, rgba(2,33,121,0.92) 0%, transparent 100%)', display: 'flex' }} />
+        {/* Title + brand bottom bar */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 40px 32px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '28px', fontWeight: '800', color: '#fff', lineHeight: 1.25, letterSpacing: '-0.5px', fontFamily: 'system-ui, sans-serif' }}>
+            {clamp(product.title, 80)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: NAVY, fontFamily: 'system-ui, sans-serif' }}>DG</div>
+              <span style={{ fontSize: '15px', fontWeight: '700', color: 'rgba(255,255,255,0.85)', fontFamily: 'system-ui, sans-serif' }}>DigitalGer</span>
+            </div>
+            <span style={{ fontSize: '18px', fontWeight: '900', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+              {product.price != null ? `₮${Number(product.price).toLocaleString('mn-MN')}` : ''}
+            </span>
+          </div>
+        </div>
       </div>,
       { ...size },
     );
