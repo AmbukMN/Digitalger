@@ -5,7 +5,7 @@ import path from 'node:path';
 export const alt = 'DigitalGer блог';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 const API_BASE =
   process.env.INTERNAL_API_URL ??
