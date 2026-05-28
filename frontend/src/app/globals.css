@@ -18,6 +18,10 @@
 .prose p, .prose li { line-height: 1.5; }
 .prose h1, .prose h2, .prose h3 { line-height: 1.3; }
 
+/* Dark mode-д editor-аас inline color тавигдсан текст уншигдахгүй болохоос сэргийлнэ */
+.dark .prose [style*="color"] { color: inherit !important; }
+.dark .prose [style*="background-color"] { background-color: transparent !important; }
+
 /* Editor HTML output-ийн table style */
 .prose table { border-collapse: collapse; width: 100%; }
 .prose th, .prose td {
