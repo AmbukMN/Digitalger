@@ -73,7 +73,7 @@ export default async function Image() {
   if (settings?.ogImageUrl) {
     return new ImageResponse(
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={settings.ogImageUrl} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+      <img src={settings.ogImageUrl} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />,
       { ...size },
     );
   }
@@ -84,7 +84,7 @@ export default async function Image() {
     if (fallbackSrc) {
       return new ImageResponse(
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={fallbackSrc} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />,
+        <img src={fallbackSrc} alt={alt} width={1200} height={630} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />,
         { ...size },
       );
     }
@@ -118,7 +118,7 @@ export default async function Image() {
               inset: 0,
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
               objectPosition: 'center',
             }}
           />
