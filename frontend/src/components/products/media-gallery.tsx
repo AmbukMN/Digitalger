@@ -249,7 +249,7 @@ function Lightbox({
   );
 }
 
-const AUTO_SLIDE_INTERVAL = 4000;
+const AUTO_SLIDE_INTERVAL = 6000;
 
 export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: MediaGalleryProps) {
   const allItems: MediaItem[] = (() => {
