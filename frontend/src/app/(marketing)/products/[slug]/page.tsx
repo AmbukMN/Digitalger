@@ -44,12 +44,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description = stripHtmlForMeta(rawDesc).slice(0, 160);
     const canonicalUrl = `${SITE_URL}/products/${product.slug}`;
 
-    // Explicit OG image URL — messaging apps (Viber, Telegram) need a direct URL,
-    // they don't follow Next.js dynamic /opengraph-image routes.
-    // Use thumbnailUrl when available, otherwise fall back to the dynamic route.
-    const ogImageUrl = product.thumbnailUrl
-      ? product.thumbnailUrl
-      : `${SITE_URL}/products/${product.slug}/opengraph-image`;
+    // Always use the dynamic OG image route — it renders a proper 1200x630 PNG
+    // regardless of the source thumbnail's original aspect ratio.
+    const ogImageUrl = `${SITE_URL}/products/${product.slug}/opengraph-image`;
 
     return {
       title,
