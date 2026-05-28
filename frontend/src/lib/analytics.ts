@@ -12,16 +12,19 @@ function getSessionId(): string {
   return sid;
 }
 
+// Navigation үед keepalive fetch найдваргүй — sendBeacon ашиглана
+// sendBeacon нь GET дэмждэггүй, POST+Blob-той JSON дамжуулна
 function send(endpoint: string, data: Record<string, unknown>) {
   if (typeof window === 'undefined') return;
   const url = `${API_BASE}/api/analytics/${endpoint}`;
   const body = JSON.stringify({ ...data, sessionId: getSessionId() });
-  fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-    keepalive: true,
-  }).catch(() => {});
+  const blob = new Blob([body], { type: 'application/json' });
+  // sendBeacon нь page unload/navigate-д ч найдвартай ажилладаг
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url, blob);
+  } else {
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+  }
 }
 
 export function trackPageView(path: string, referrer?: string) {

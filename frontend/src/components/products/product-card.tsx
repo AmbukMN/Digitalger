@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useProductTypeIcon, useProductTypeLabel } from '@/hooks/use-product-types';
 import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
@@ -19,6 +20,7 @@ import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const token = session?.accessToken;
 
   const add = useCartStore((s) => s.add);
@@ -55,6 +57,12 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     toast.success('Сагсанд нэмэгдлээ', { description: product.title });
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    trackProductClick(product.id, product.slug);
+    router.push(`/products/${product.slug}`);
+  };
+
   const handleWishlist = async () => {
     toggleWishlistLocal(product);
     if (token) {
@@ -70,7 +78,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
 
   return (
     <Card className="group flex h-full flex-col overflow-hidden hover:-translate-y-0.5 hover:shadow-xl hover:border-primary/30">
-      <Link href={`/products/${product.slug}`} className="block" onClick={() => trackProductClick(product.id, product.slug)}>
+      <Link href={`/products/${product.slug}`} className="block" onClick={handleCardClick}>
         <div className="relative aspect-4/3 overflow-hidden bg-muted">
           {product.mainVideoUrl ? (
             <video
@@ -135,7 +143,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           )}
         </div>
 
-        <Link href={`/products/${product.slug}`} className="flex-1">
+        <Link href={`/products/${product.slug}`} className="flex-1" onClick={handleCardClick}>
           <h3 className="text-xs sm:text-sm font-medium leading-snug transition-colors hover:text-primary" style={{ lineHeight: 1.4 }}>
             {product.title}
           </h3>
