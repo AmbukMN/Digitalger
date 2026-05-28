@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button, EmptyState } from '@digitalger/shared/ui';
+import { SITE_NAME } from '@/lib/constants';
+
+export const metadata: Metadata = {
+  title: `Хуудас байхгүй байна | ${SITE_NAME}`,
+  robots: { index: false, follow: false },
+};
 
 export default function NotFound() {
   return (
