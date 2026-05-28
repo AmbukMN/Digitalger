@@ -56,7 +56,8 @@ export function AnalyticsSection() {
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'dashboard', days],
     queryFn: () => adminApi.getAnalyticsDashboard(days),
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
 
