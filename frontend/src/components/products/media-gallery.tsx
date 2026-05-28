@@ -249,6 +249,8 @@ function Lightbox({
   );
 }
 
+const AUTO_SLIDE_INTERVAL = 4000;
+
 export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: MediaGalleryProps) {
   const allItems: MediaItem[] = (() => {
     if (items.length > 0) return items;
@@ -264,10 +266,53 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const count = allItems.length;
 
-  const prev = useCallback(() => setActiveIndex((i) => (i - 1 + count) % count), [count]);
-  const next = useCallback(() => setActiveIndex((i) => (i + 1) % count), [count]);
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (count <= 1) return;
+    timerRef.current = setTimeout(() => setPaused(false), AUTO_SLIDE_INTERVAL);
+  }, [count]);
+
+  // Auto-advance: skip video slides (they advance themselves via onEnded)
+  useEffect(() => {
+    if (count <= 1 || paused || lightboxOpen) return;
+    const active = allItems[activeIndex];
+    if (active?.videoUrl) return; // video handles its own timing
+
+    const id = setTimeout(() => {
+      setActiveIndex((i) => (i + 1) % count);
+    }, AUTO_SLIDE_INTERVAL);
+    return () => clearTimeout(id);
+  }, [activeIndex, count, paused, lightboxOpen, allItems]);
+
+  // Clean up timer on unmount
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  const prev = useCallback(() => {
+    setPaused(true);
+    setActiveIndex((i) => (i - 1 + count) % count);
+    resetTimer();
+  }, [count, resetTimer]);
+
+  const next = useCallback(() => {
+    setPaused(true);
+    setActiveIndex((i) => (i + 1) % count);
+    resetTimer();
+  }, [count, resetTimer]);
+
+  // Video-ийн onEnded дуусахад pause хийхгүйгээр дараагийнх руу шилжих
+  const autoNext = useCallback(() => {
+    setActiveIndex((i) => (i + 1) % count);
+  }, [count]);
+
+  const goTo = useCallback((idx: number) => {
+    setPaused(true);
+    setActiveIndex(idx);
+    resetTimer();
+  }, [resetTimer]);
 
   const openLightbox = useCallback((idx: number) => {
     setActiveIndex(idx);
@@ -294,7 +339,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
         {/* Main viewer */}
         <div className="group relative w-full overflow-hidden rounded-2xl bg-muted" style={{ aspectRatio: '4/3' }}>
           {isActiveVideo && active.videoUrl ? (
-            <VideoEmbed videoUrl={active.videoUrl} autoPlay onEnded={next} />
+            <VideoEmbed videoUrl={active.videoUrl} autoPlay onEnded={autoNext} />
           ) : active?.url ? (
             <Image
               src={active.url}
@@ -347,12 +392,24 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setActiveIndex(i)}
-                    className={`h-1.5 rounded-full transition-all ${
-                      i === activeIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/60'
+                    onClick={() => goTo(i)}
+                    className={`relative h-1.5 overflow-hidden rounded-full transition-all ${
+                      i === activeIndex ? 'w-8 bg-white/40' : 'w-1.5 bg-white/60'
                     }`}
                     aria-label={`${i + 1}-р зураг`}
-                  />
+                  >
+                    {i === activeIndex && !paused && !allItems[i]?.videoUrl && (
+                      <span
+                        className="absolute inset-y-0 left-0 rounded-full bg-white"
+                        style={{
+                          animation: `slideProgress ${AUTO_SLIDE_INTERVAL}ms linear forwards`,
+                        }}
+                      />
+                    )}
+                    {i === activeIndex && (paused || allItems[i]?.videoUrl) && (
+                      <span className="absolute inset-0 rounded-full bg-white" />
+                    )}
+                  </button>
                 ))}
               </div>
             </>
@@ -367,7 +424,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
                 key={item.id}
                 item={item}
                 active={i === activeIndex}
-                onClick={() => setActiveIndex(i)}
+                onClick={() => goTo(i)}
               />
             ))}
           </div>

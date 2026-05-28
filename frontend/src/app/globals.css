@@ -22,6 +22,12 @@
 .dark .prose [style*="color"] { color: inherit !important; }
 .dark .prose [style*="background-color"] { background-color: transparent !important; }
 
+/* Media gallery auto-slide progress bar */
+@keyframes slideProgress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
 /* Editor HTML output-ийн table style */
 .prose table { border-collapse: collapse; width: 100%; }
 .prose th, .prose td {
