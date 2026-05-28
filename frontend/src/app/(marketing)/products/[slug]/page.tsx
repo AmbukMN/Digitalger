@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { formatPrice } from '@digitalger/shared';
 import { sanitizeHtml } from '@/lib/safe-html';
+import { ProductTracker } from '@/components/products/product-tracker';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -169,6 +170,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <>
+      <ProductTracker productId={product.id} productSlug={product.slug} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}

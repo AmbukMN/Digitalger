@@ -17,7 +17,10 @@
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:4000/api\" -TimeoutSec 5 -ErrorAction Stop; \"Backend OK: $\\($r.StatusCode\\)\" } catch { try { $r2 = Invoke-WebRequest -Uri \"http://localhost:4000\" -TimeoutSec 5 -ErrorAction Stop; \"Backend OK: $\\($r2.StatusCode\\)\" } catch { \"Backend: $\\($_.Exception.Message\\)\" } })",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ALIENWARE\\\\Desktop\\\\DigitalGer\" -Depth 1)",
       "Bash(Select-Object Name, PSIsContainer)",
-      "Bash(Format-Table -AutoSize)"
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ALIENWARE\\\\Desktop\\\\DigitalGer\\\\frontend\\\\src\\\\app\\\\\\(auth\\)\" -Recurse)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

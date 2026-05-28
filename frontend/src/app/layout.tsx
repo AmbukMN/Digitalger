@@ -6,6 +6,7 @@ import { SITE_NAME, SITE_URL } from '@/lib/constants';
 import { siteSettingsApi } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
+import { AnalyticsTracker } from '@/components/analytics-tracker';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -147,7 +148,10 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
-        <Providers defaultTheme={defaultTheme}>{children}</Providers>
+        <Providers defaultTheme={defaultTheme}>
+          <AnalyticsTracker />
+          {children}
+        </Providers>
         <WebVitalsReporter />
       </body>
     </html>

@@ -574,3 +574,40 @@ model EmailOtp {
 
   @@index([email, purpose])
 }
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  sessionId String?
+  country   String?
+  device    String?  // mobile | desktop | tablet
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([path, createdAt])
+  @@index([createdAt])
+}
+
+model ProductEvent {
+  id        String   @id @default(cuid())
+  type      String   // view | click | cart | purchase
+  productId String
+  productSlug String
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([productId, type, createdAt])
+  @@index([type, createdAt])
+  @@index([productSlug, type])
+}
+
+model SearchEvent {
+  id        String   @id @default(cuid())
+  query     String
+  results   Int      @default(0)
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([query, createdAt])
+  @@index([createdAt])
+}

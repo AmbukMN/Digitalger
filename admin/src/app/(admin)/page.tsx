@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
+import { AnalyticsSection } from '@/components/analytics-section';
 
 type StatusInfo = { label: string; cls: string; icon: React.ReactNode };
 const STATUS_MAP: Record<string, StatusInfo> = {
@@ -400,6 +401,9 @@ export default function DashboardPage() {
         <EmailStatsPanel stats={emailStats} />
         <MonthlyRevenuePanel data={monthlyRevenue} />
       </div>
+
+      {/* Analytics section */}
+      <AnalyticsSection />
 
       {/* Recent orders */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">

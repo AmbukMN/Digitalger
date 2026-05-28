@@ -484,4 +484,15 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  getAnalyticsDashboard: (days = 30) =>
+    adminFetch<{
+      overview: { totalViews: number; todayViews: number; yesterdayViews: number; growthPercent: number | null };
+      dailyViews: { date: string; count: number }[];
+      topPages: { path: string; count: number }[];
+      topProducts: { slug: string; productId: string; views: number }[];
+      topSearches: { query: string; count: number }[];
+      deviceStats: { device: string; count: number }[];
+      funnel: { view: number; click: number; cart: number; purchase: number };
+    }>(`/analytics/dashboard?days=${days}`),
 };

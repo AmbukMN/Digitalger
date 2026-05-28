@@ -10,6 +10,7 @@ import { formatPrice } from '@digitalger/shared';
 import { Badge } from '@digitalger/shared/ui';
 import type { BlogPost, ProductSummary } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
+import { SearchTracker } from '@/components/search-tracker';
 
 export const metadata: Metadata = {
   title: 'Хайлт',
@@ -81,6 +82,8 @@ export default async function SearchPage({
   const total = products.length + blogPosts.length;
 
   return (
+    <>
+      {q.trim() && <SearchTracker query={q.trim()} results={total} />}
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <PageHeader
         title="Хайлтын үр дүн"
@@ -128,5 +131,6 @@ export default async function SearchPage({
         </section>
       )}
     </div>
+    </>
   );
 }
