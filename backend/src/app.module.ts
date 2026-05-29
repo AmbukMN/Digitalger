@@ -31,6 +31,7 @@ import { PagesModule } from './modules/pages/pages.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     CouponsModule,
     NotificationsModule,
     AnalyticsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [
