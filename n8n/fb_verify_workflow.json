@@ -1,0 +1,81 @@
+﻿{
+    "name":  "Facebook Webhook Verify",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "GET",
+                                         "path":  "facebook-webhook",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "webhook-verify",
+                      "name":  "Webhook GET",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       240,
+                                       300
+                                   ],
+                      "webhookId":  "facebook-webhook-verify"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const params = $input.first().json.query;\nconst verifyToken = $env[\u0027FB_VERIFY_TOKEN\u0027];\n\nif (\n  params[\u0027hub.mode\u0027] === \u0027subscribe\u0027 \u0026\u0026\n  params[\u0027hub.verify_token\u0027] === verifyToken\n) {\n  return [{ json: { challenge: params[\u0027hub.challenge\u0027] } }];\n}\n\nreturn [{ json: { error: \u0027Forbidden\u0027, status: 403 } }];"
+                                     },
+                      "id":  "verify-logic",
+                      "name":  "Verify Token",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       460,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "text",
+                                         "responseBody":  "={{ $json.challenge }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json.error ? 403 : 200 }}"
+                                                     }
+                                     },
+                      "id":  "respond-challenge",
+                      "name":  "Respond Challenge",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1,
+                      "position":  [
+                                       680,
+                                       300
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook GET":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Verify Token",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Verify Token":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Respond Challenge",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 }
+}

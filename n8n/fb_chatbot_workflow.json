@@ -1,0 +1,391 @@
+﻿{
+    "name":  "Facebook Chatbot â€” DigitalGer AI",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "facebook-webhook",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "webhook-post",
+                      "name":  "Facebook Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       100,
+                                       400
+                                   ],
+                      "webhookId":  "facebook-webhook-post"
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "text",
+                                         "responseBody":  "EVENT_RECEIVED",
+                                         "options":  {
+                                                         "responseCode":  200
+                                                     }
+                                     },
+                      "id":  "respond-ok",
+                      "name":  "Respond 200 OK",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1,
+                      "position":  [
+                                       320,
+                                       200
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Facebook webhook payload Ð·Ð°Ð´Ð»Ð°Ñ…\nconst body = $input.first().json.body;\n\nif (!body || body.object !== \u0027page\u0027) {\n  return [];\n}\n\nconst results = [];\nfor (const entry of (body.entry || [])) {\n  for (const msg of (entry.messaging || [])) {\n    if (!msg.message || msg.message.is_echo) continue;\n    if (!msg.message.text) continue;\n\n    results.push({\n      json: {\n        psid: msg.sender.id,\n        text: msg.message.text.trim(),\n        mid: msg.message.mid,\n        timestamp: msg.timestamp\n      }\n    });\n  }\n}\n\nreturn results;"
+                                     },
+                      "id":  "parse-message",
+                      "name":  "Parse Message",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       320,
+                                       400
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO fb_conversations (psid, last_message, message_count, updated_at)\nVALUES (\u0027{{ $json.psid }}\u0027, \u0027{{ $json.text.replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, 1, NOW())\nON CONFLICT (psid) DO UPDATE SET\n  last_message = EXCLUDED.last_message,\n  message_count = fb_conversations.message_count + 1,\n  updated_at = NOW()\nRETURNING psid, display_name, message_count;",
+                                         "additionalFields":  {
+
+                                                              }
+                                     },
+                      "id":  "upsert-conversation",
+                      "name":  "Upsert Conversation",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       560,
+                                       400
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "n8n-postgres-cred",
+                                                           "name":  "N8N PostgreSQL"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO fb_messages (psid, role, content, created_at)\nVALUES (\u0027{{ $(\u0027Parse Message\u0027).first().json.psid }}\u0027, \u0027user\u0027, \u0027{{ $(\u0027Parse Message\u0027).first().json.text.replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, NOW());",
+                                         "additionalFields":  {
+
+                                                              }
+                                     },
+                      "id":  "save-user-msg",
+                      "name":  "Save User Message",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       780,
+                                       400
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "n8n-postgres-cred",
+                                                           "name":  "N8N PostgreSQL"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT role, content FROM fb_messages\nWHERE psid = \u0027{{ $(\u0027Parse Message\u0027).first().json.psid }}\u0027\nORDER BY created_at DESC\nLIMIT 10;",
+                                         "additionalFields":  {
+
+                                                              }
+                                     },
+                      "id":  "get-history",
+                      "name":  "Get Chat History",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       1000,
+                                       400
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "n8n-postgres-cred",
+                                                           "name":  "N8N PostgreSQL"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://api.digitalger.mn/api/ai/search",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "contentType":  "json",
+                                         "body":  "={{ JSON.stringify({ query: $(\u0027Parse Message\u0027).first().json.text }) }}",
+                                         "options":  {
+                                                         "timeout":  10000,
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "fullResponse":  false
+                                                                                       }
+                                                                      }
+                                                     }
+                                     },
+                      "id":  "search-products",
+                      "name":  "Search DigitalGer",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       1220,
+                                       400
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Ð¥Ð°Ð¹Ð»Ñ‚Ñ‹Ð½ Ò¯Ñ€ Ð´Ò¯Ð½ Ð±Ð¾Ð»Ð¾Ð½ chat history-Ð³ Gemini prompt-Ð´ Ð±ÑÐ»Ñ‚Ð³ÑÑ…\nconst userText = $(\u0027Parse Message\u0027).first().json.text;\nconst searchResult = $(\u0027Search DigitalGer\u0027).first().json;\nconst historyRows = $(\u0027Get Chat History\u0027).all().map(r =\u003e r.json);\n\n// History-Ð³ Ñ†Ð°Ð³Ð¸Ð¹Ð½ Ð´Ð°Ñ€Ð°Ð°Ð»Ð»Ð°Ð°Ñ€ ÑÑ€ÑÐ¼Ð±ÑÐ»Ð¶ (DESC Ð°Ð²ÑÐ°Ð½ Ñ‚ÑƒÐ» reverse)\nconst history = historyRows.reverse();\nconst historyText = history.slice(0, -1) // ÑÒ¯Ò¯Ð»Ð¸Ð¹Ð½ Ñ…ÑÑ€ÑÐ³Ð»ÑÐ³Ñ‡Ð¸Ð¹Ð½ Ð¼ÐµÑÑÐµÐ¶Ð¸Ð¹Ð³ Ð¾Ñ€ÑƒÑƒÐ»Ð°Ñ…Ð³Ò¯Ð¹\n  .map(h =\u003e `${h.role === \u0027user\u0027 ? \u0027Ð¥ÑÑ€ÑÐ³Ð»ÑÐ³Ñ‡\u0027 : \u0027Ð¢ÑƒÑÐ»Ð°Ñ…\u0027}: ${h.content}`)\n  .join(\u0027\\n\u0027);\n\n// Ð‘Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½Ð¸Ð¹ Ð¶Ð°Ð³ÑÐ°Ð°Ð»Ñ‚ Ð±ÑÐ»Ñ‚Ð³ÑÑ…\nconst products = searchResult.products || [];\nlet productsText = \u0027\u0027;\nif (products.length \u003e 0) {\n  productsText = products.slice(0, 5).map((p, i) =\u003e {\n    const price = Number(p.price).toLocaleString(\u0027mn-MN\u0027);\n    return `${i+1}. **${p.title}**\\n   Ò®Ð½Ñ: ${price}â‚®\\n   Ð¨Ð°Ð»Ñ‚Ð³Ð°Ð°Ð½: ${p.matchReason}\\n   Ð›Ð¸Ð½Ðº: https://digitalger.mn/products/${p.slug}`;\n  }).join(\u0027\\n\\n\u0027);\n} else {\n  productsText = \u0027Ð¥Ð°Ð¹Ð»Ñ‚Ð°Ð´ Ñ‚Ð¾Ñ…Ð¸Ñ€Ð¾Ñ… Ð±Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½ Ð¾Ð»Ð´ÑÐ¾Ð½Ð³Ò¯Ð¹.\u0027;\n}\n\nreturn [{\n  json: {\n    psid: $(\u0027Parse Message\u0027).first().json.psid,\n    userText,\n    productsText,\n    historyText,\n    hasProducts: products.length \u003e 0,\n    productCount: products.length\n  }\n}];"
+                                     },
+                      "id":  "prepare-prompt",
+                      "name":  "Prepare Gemini Prompt",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1440,
+                                       400
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env[\u0027GEMINI_API_KEY\u0027] }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "contentType":  "json",
+                                         "body":  "={\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [{\n        \"text\": \"Ð¢Ð° DigitalGer.mn Ð²ÑÐ±ÑÐ°Ð¹Ñ‚Ñ‹Ð½ AI Ñ‚ÑƒÑÐ»Ð°Ñ…. Ð—Ó©Ð²Ñ…Ó©Ð½ Ð¼Ð¾Ð½Ð³Ð¾Ð» Ñ…ÑÐ»ÑÑÑ€ Ñ…Ð°Ñ€Ð¸ÑƒÐ»Ð½Ð°. Ð¥ÑÑ€ÑÐ³Ð»ÑÐ³Ñ‡Ð¸Ð¹Ð½ Ð°ÑÑƒÑƒÐ»Ñ‚Ð°Ð´ Ñ…Ð°Ñ€Ð¸ÑƒÐ»Ð°Ñ…Ð´Ð°Ð° Ð´Ð¾Ð¾Ñ€Ñ… Ð±Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½Ð¸Ð¹ Ð¼ÑÐ´ÑÑÐ»Ð»Ð¸Ð¹Ð³ Ð°ÑˆÐ¸Ð³Ð»Ð°Ð½Ð°.\\n\\nÐ”Ò®Ð Ð­Ðœ:\\n- Ð¥ÑÑ€ÑÐ² Ð±Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½ Ð¾Ð»Ð´Ð²Ð¾Ð»: Ð½ÑÑ€, Ò¯Ð½Ñ, Ð»Ð¸Ð½ÐºÐ¸Ð¹Ð³ Ñ‚Ð¾Ð´Ð¾Ñ€Ñ…Ð¾Ð¹ Ñ…Ð°Ñ€ÑƒÑƒÐ»Ð½Ð°\\n- Ð¥ÑÑ€ÑÐ² Ð¾Ð»Ð´Ð¾Ñ…Ð³Ò¯Ð¹ Ð±Ð¾Ð»: DigitalGer Ð´ÑÑÑ€ Ð¸Ð¹Ð¼ Ñ‚Ó©Ñ€Ð»Ð¸Ð¹Ð½ Ð±Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½ Ð±Ð°Ð¹Ð³Ð°Ð°Ð³ Ñ…ÑÐ»Ð¶, https://digitalger.mn/products Ñ…ÑƒÑƒÐ´Ð°Ñ Ñ€ÑƒÑƒ Ñ‡Ð¸Ð³Ð»Ò¯Ò¯Ð»Ð½Ñ\\n- Ð¥Ð°Ñ€Ð¸ÑƒÐ»Ñ‚ Ð½ÑŒ Ð±Ð¾Ð³Ð¸Ð½Ð¾, Ñ†ÑÐ³Ñ†Ñ‚ÑÐ¹ Ð±Ð°Ð¹Ð½Ð° (3-5 Ó©Ð³Ò¯Ò¯Ð»Ð±ÑÑ€)\\n- Emoji Ñ…ÑÑ€ÑÐ³Ð»ÑÐ¶ Ð±Ð¾Ð»Ð½Ð¾\\n- Ò®Ð½Ð¸Ð¹Ð³ Ð·Ð°Ð°Ð²Ð°Ð» â‚® Ñ‚ÑÐ¼Ð´ÑÐ³Ñ‚ÑÐ¹ Ñ…Ð°Ñ€ÑƒÑƒÐ»Ð½Ð°\\n\\nÐ§ÐÐ¢Ð«Ð Ð¢Ò®Ò®Ð¥:\\n{{ $json.historyText || \u0027Ð¨Ð¸Ð½Ñ Ñ…Ð°Ñ€Ð¸Ð»Ñ†Ð°Ð½ ÑÑ€Ð¸Ð°\u0027 }}\\n\\nÐ¥ÐÐ™Ð›Ð¢Ð«Ð Ò®Ð  Ð”Ò®Ð (digitalger.mn-Ñ):\\n{{ $json.productsText }}\\n\\nÐ¥Ð­Ð Ð­Ð“Ð›Ð­Ð“Ð§: {{ $json.userText }}\"\n      }]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"maxOutputTokens\": 500,\n    \"topP\": 0.9\n  }\n}",
+                                         "options":  {
+                                                         "timeout":  15000,
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "fullResponse":  false
+                                                                                       }
+                                                                      }
+                                                     }
+                                     },
+                      "id":  "call-gemini",
+                      "name":  "Call Gemini AI",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       1660,
+                                       400
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Gemini Ñ…Ð°Ñ€Ð¸ÑƒÐ³ Ð·Ð°Ð´Ð»Ð°Ñ…\nconst geminiResponse = $input.first().json;\nconst psid = $(\u0027Parse Message\u0027).first().json.psid;\n\nlet replyText = \u0027\u0027;\ntry {\n  replyText = geminiResponse.candidates[0].content.parts[0].text.trim();\n} catch(e) {\n  replyText = \u0027Ð£ÑƒÑ‡Ð»Ð°Ð°Ñ€Ð°Ð¹, Ñ…Ð°Ñ€Ð¸ÑƒÐ»Ñ‚ Ð±Ð¾Ð»Ð¾Ð²ÑÑ€ÑƒÑƒÐ»Ð°Ñ…Ð°Ð´ Ð°Ð»Ð´Ð°Ð° Ð³Ð°Ñ€Ð»Ð°Ð°. Ð”Ð°Ñ…Ð¸Ð½ Ð¾Ñ€Ð¾Ð»Ð´Ð¾Ð½Ð¾ ÑƒÑƒ.\u0027;\n}\n\n// Facebook 1000 Ñ‚ÑÐ¼Ð´ÑÐ³Ñ‚Ð¸Ð¹Ð½ Ñ…ÑÐ·Ð³Ð°Ð°Ñ€ â€” ÑƒÑ€Ñ‚ Ð±Ð¾Ð» Ñ‚Ð°ÑÐ»Ð°Ð½Ð°\nif (replyText.length \u003e 1000) {\n  replyText = replyText.slice(0, 990) + \u0027...\u0027;\n}\n\nreturn [{ json: { psid, replyText } }];"
+                                     },
+                      "id":  "extract-reply",
+                      "name":  "Extract Reply",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1880,
+                                       400
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO fb_messages (psid, role, content, created_at)\nVALUES (\u0027{{ $json.psid }}\u0027, \u0027assistant\u0027, \u0027{{ $json.replyText.replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, NOW());\n\nUPDATE fb_conversations SET last_reply = \u0027{{ $json.replyText.slice(0,200).replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, updated_at = NOW()\nWHERE psid = \u0027{{ $json.psid }}\u0027;",
+                                         "additionalFields":  {
+
+                                                              }
+                                     },
+                      "id":  "save-reply",
+                      "name":  "Save Assistant Reply",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       2100,
+                                       400
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "n8n-postgres-cred",
+                                                           "name":  "N8N PostgreSQL"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://graph.facebook.com/v21.0/me/messages?access_token={{ $env[\u0027FB_PAGE_ACCESS_TOKEN\u0027] }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "contentType":  "json",
+                                         "body":  "={\n  \"recipient\": { \"id\": \"{{ $(\u0027Extract Reply\u0027).first().json.psid }}\" },\n  \"message\": { \"text\": \"{{ $(\u0027Extract Reply\u0027).first().json.replyText.replace(/\"/g, \u0027\\\\\"\u0027).replace(/\\n/g, \u0027\\\\n\u0027) }}\" },\n  \"messaging_type\": \"RESPONSE\"\n}",
+                                         "options":  {
+                                                         "timeout":  10000
+                                                     }
+                                     },
+                      "id":  "send-fb-message",
+                      "name":  "Send Facebook Message",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       2320,
+                                       400
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Facebook Webhook":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Respond 200 OK",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  },
+                                                                  {
+                                                                      "node":  "Parse Message",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Parse Message":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Upsert Conversation",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Upsert Conversation":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Save User Message",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Save User Message":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Get Chat History",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Get Chat History":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Search DigitalGer",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Search DigitalGer":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Prepare Gemini Prompt",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Prepare Gemini Prompt":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Call Gemini AI",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Call Gemini AI":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Extract Reply",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Extract Reply":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Save Assistant Reply",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Save Assistant Reply":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Send Facebook Message",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "saveManualExecutions":  true,
+                     "callerPolicy":  "workflowsFromSameOwner"
+                 }
+}
