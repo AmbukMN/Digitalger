@@ -14,6 +14,7 @@ def rd(name):
 code_prep    = rd('code_prep.js')
 code_extract = rd('code_extract.js')
 code_build   = rd('code_build.js')
+code_parse   = rd('code_parse.js')
 system_msg   = rd('system_message.txt')
 
 # Хуучин workflow-оос тогтвортой node-уудын параметрийг авна
@@ -31,8 +32,10 @@ nodes.append(old_nodes['FB Verify (GET)'])
 nodes.append(old_nodes['Respond Challenge'])
 # 3. FB Message (POST) — хэвээр
 nodes.append(old_nodes['FB Message (POST)'])
-# 4. Parse — хэвээр
-nodes.append(old_nodes['Parse'])
+# 4. Parse — ШИНЭ код (postback + quick_reply/Ice Breaker уншина)
+parse_node = old_nodes['Parse']
+parse_node['parameters']['jsCode'] = code_parse
+nodes.append(parse_node)
 # 5. Get User Profile — хэвээр
 nodes.append(old_nodes['Get User Profile'])
 
