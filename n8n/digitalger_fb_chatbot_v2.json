@@ -20,7 +20,7 @@
     {
       "parameters": {
         "respondWith": "text",
-        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",
+        "responseBody": "={{ $json.query['hub.verify_token'] === $env['FB_VERIFY_TOKEN'] ? $json.query['hub.challenge'] : '' }}",
         "options": {}
       },
       "id": "node_verify_respond",
