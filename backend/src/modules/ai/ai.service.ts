@@ -36,6 +36,42 @@ export type SearchResult = ProductResult;
 
 const SITE_URL = 'https://digitalger.mn';
 
+// ─── Монгол үгийн нөхцөл хасагч (хялбар stemmer) ──────────────────────────────
+// Монгол хэлэнд нэг үгийн олон хувилбар: ферм/фермийн/фермд/фермээс.
+// Хэрэглэгч "фермийн" гэж бичихэд DB-д "ферм", "фермер" байж болно.
+// Тиймээс хайлтын өмнө түгээмэл нөхцлийг хасч ҮНДСИЙГ нь гаргана.
+// Дараа нь prefix tsquery (үндэс:*) хэрэглэснээр бүх нөхцөлтэй хувилбар таарна:
+//   "ферм" → "ферм:*" → ферм, фермийн, фермер, фермд бүгд таарна.
+const MN_SUFFIXES = [
+  // 4-5 үсэгт (урт нөхцөл эхэнд — урт нь түрүүлж таарна)
+  'уудаас', 'үүдээс', 'ийнхээ', 'ынхаа',
+  'аасаа', 'ээсээ', 'оосоо', 'өөсөө',
+  'нуудад', 'нүүдэд', 'чуудад', 'чүүдэд',
+  'ийгээ', 'ыгаа', 'дээ', 'таа', 'тоо', 'дой',
+  // 3 үсэгт
+  'ийн', 'ыйн', 'ний', 'нии', 'ний', 'аас', 'ээс', 'оос', 'өөс',
+  'тай', 'тэй', 'той', 'руу', 'рүү', 'луу', 'лүү',
+  'аар', 'ээр', 'оор', 'өөр', 'иар',
+  'нууд', 'нүүд', 'чууд', 'чүүд', 'ууд', 'үүд',
+  // 2 үсэгт
+  'ын', 'ин', 'ий', 'ыг', 'иг', 'ад', 'эд', 'од', 'өд',
+  'аа', 'ээ', 'оо', 'өө', 'ьш',
+  // 1 үсэгт
+  'д', 'г', 'т', 'ч',
+];
+
+function mnStem(word: string): string {
+  let w = word;
+  // Хамгийн урт тохирох нөхцлийг нэг л удаа хасна (давхар хасахгүй —
+  // үндэс хэт богино болохоос сэргийлнэ).
+  for (const suf of MN_SUFFIXES) {
+    if (w.length - suf.length >= 3 && w.endsWith(suf)) {
+      return w.slice(0, w.length - suf.length);
+    }
+  }
+  return w;
+}
+
 // ─── Stop words / туслах үгс ──────────────────────────────────────────────────
 // Эдгээр үг хайлтад утгагүй (асуулт, төлөөний, туслах үйл үг). Хайлтаас БҮРЭН
 // хасна — relevance-д огт нөлөөлөхгүй. ("байна уу", "сайн уу", "вэ" гэх мэт)
@@ -112,12 +148,27 @@ export class AiService {
     let keyWords = words.filter((w) => !COMMON_WORDS.has(w));
     if (keyWords.length === 0) keyWords = [...words];
 
-    // 3) Үг бүрийн галиг хувилбар (Латин↔Кирилл)
-    const wordGroups = words.map((w) => ({
-      word: w,
-      isCommon: COMMON_WORDS.has(w) && !keyWords.includes(w),
-      variants: Array.from(new Set([w, ...expandQuery(w)])).filter(Boolean),
-    }));
+    // 3) Үг бүрийн хайх хувилбарууд:
+    //    - өөрөө (ферм)
+    //    - Монгол нөхцөл хассан үндэс (фермийн → ферм) — DB-д "ферм","фермер"
+    //      гэх олон нөхцөлтэй хувилбартай таарахын тулд
+    //    - галиг (Латин↔Кирилл) — өөрийн болон үндсийн аль алинд
+    const wordGroups = words.map((w) => {
+      const stem = mnStem(w);
+      const base = new Set<string>([w]);
+      if (stem !== w && stem.length >= 3) base.add(stem);
+      // Галиг хувилбаруудыг өөр + үндэст хоёуланд нэмнэ
+      const variants = new Set<string>();
+      for (const b of base) {
+        variants.add(b);
+        for (const v of expandQuery(b)) variants.add(v);
+      }
+      return {
+        word: w,
+        isCommon: COMMON_WORDS.has(w) && !keyWords.includes(w),
+        variants: Array.from(variants).filter(Boolean),
+      };
+    });
 
     const [productResult, faqs] = await Promise.all([
       this.searchProducts(wordGroups),
@@ -335,10 +386,12 @@ export class AiService {
       .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
     if (words.length === 0) return [];
 
-    // Үг бүрийн галиг + prefix tsquery (бүх үг заавал биш, аль нэг таарвал)
-    const variants = words.flatMap((w) =>
-      Array.from(new Set([w, ...expandQuery(w)])),
-    );
+    // Үг бүрийн үндэс + галиг + prefix tsquery (бүх үг заавал биш, аль нэг таарвал)
+    const variants = words.flatMap((w) => {
+      const stem = mnStem(w);
+      const base = stem !== w && stem.length >= 3 ? [w, stem] : [w];
+      return base.flatMap((b) => [b, ...expandQuery(b)]);
+    });
     const tsq = variants
       .map((v) => v.replace(/[':&|!()*]/g, '').trim())
       .filter(Boolean)
