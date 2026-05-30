@@ -31,7 +31,9 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "facebook-webhook",
-        "responseMode": "lastNode",
+        "responseMode": "onReceived",
+        "responseCode": 200,
+        "responseData": "allEntries",
         "options": {}
       },
       "id": "node_msg_webhook",
@@ -39,7 +41,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [128, 416],
-      "webhookId": "d6ab6946-e3fc-4372-af97-6850b142d47b"
+      "webhookId": "fb000000-0000-4000-8000-000000000002"
     },
     {
       "parameters": {
@@ -150,7 +152,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// AI-ийн текст хариулт + бүтээгдэхүүний carousel card-уудыг бэлдэнэ\n// FB limit: текст 2000, carousel max 10 element, title/subtitle max 80, button text max 20\nconst psid = $('Prep Context').first().json.psid;\nconst products = $('Prep Context').first().json.products || [];\n\n// AI Agent-ийн текст хариулт\nlet replyText = ($input.first().json.output || '').trim();\nif (!replyText) {\n  replyText = 'Уучлаарай, түр алдаа гарлаа. Дахин оролдоно уу.';\n}\nif (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';\n\n// Туслах: тэмдэгт хязгаарлах\nconst clip = (s, n) => {\n  s = String(s || '').replace(/\\s+/g, ' ').trim();\n  return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;\n};\nconst fmt = (n) => Number(n).toLocaleString('mn-MN') + '₮';\n\n// Carousel element-үүд (max 10)\nconst elements = products.slice(0, 10).map((p) => {\n  // subtitle: үнэ + товч тайлбар (нийт 80 тэмдэгт)\n  const priceStr = (p.salePrice != null)\n    ? `${fmt(p.salePrice)} (хямд. ${fmt(p.price)})`\n    : fmt(p.price);\n  const descShort = clip(p.description, Math.max(0, 78 - priceStr.length - 3));\n  const subtitle = clip(`${priceStr} · ${descShort}`, 80);\n\n  const el = {\n    title: clip(p.title, 80),\n    subtitle: subtitle,\n    default_action: {\n      type: 'web_url',\n      url: p.url,\n      webview_height_ratio: 'full',\n    },\n    buttons: [\n      { type: 'web_url', url: p.url, title: 'Дэлгэрэнгүй харах' },\n    ],\n  };\n  // Зураг байвал нэмнэ (заавал биш)\n  if (p.imageUrl) el.image_url = p.imageUrl;\n  return el;\n});\n\nreturn [{\n  json: {\n    psid,\n    replyText,\n    hasCards: elements.length > 0,\n    elements,\n  },\n}];"
+        "jsCode": "// AI-ийн текст хариулт + бүтээгдэхүүний carousel card-уудыг бэлдэнэ\n// FB limit: текст 2000, carousel max 10 element, title/subtitle max 80, button text max 20\nconst psid = $('Prep Context').first().json.psid;\nconst products = $('Prep Context').first().json.products || [];\n\n// AI Agent-ийн текст хариулт\nlet replyText = ($input.first().json.output || '').trim();\nif (!replyText) {\n  replyText = 'Уучлаарай, түр алдаа гарлаа. Дахин оролдоно уу.';\n}\nif (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';\n\n// Туслах: тэмдэгт хязгаарлах\nconst clip = (s, n) => {\n  s = String(s || '').replace(/\\s+/g, ' ').trim();\n  return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;\n};\n// Үнийг мянгатын таслалтайгаар форматлана (locale-гүй, найдвартай)\nconst fmt = (n) => {\n  const num = Math.round(Number(n) || 0);\n  return String(num).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '₮';\n};\n\n// Carousel element-үүд (max 10)\nconst elements = products.slice(0, 10).map((p) => {\n  // subtitle: үнэ + товч тайлбар (нийт 80 тэмдэгт)\n  const priceStr = (p.salePrice != null)\n    ? `${fmt(p.salePrice)} (хямд. ${fmt(p.price)})`\n    : fmt(p.price);\n  const descShort = clip(p.description, Math.max(0, 78 - priceStr.length - 3));\n  const subtitle = clip(`${priceStr} · ${descShort}`, 80);\n\n  const el = {\n    title: clip(p.title, 80),\n    subtitle: subtitle,\n    default_action: {\n      type: 'web_url',\n      url: p.url,\n      webview_height_ratio: 'full',\n    },\n    buttons: [\n      { type: 'web_url', url: p.url, title: 'Дэлгэрэнгүй харах' },\n    ],\n  };\n  // Зураг байвал нэмнэ (заавал биш)\n  if (p.imageUrl) el.image_url = p.imageUrl;\n  return el;\n});\n\nreturn [{\n  json: {\n    psid,\n    replyText,\n    hasCards: elements.length > 0,\n    elements,\n  },\n}];"
       },
       "id": "node_build",
       "name": "Build Messages",
