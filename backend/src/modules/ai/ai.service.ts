@@ -153,10 +153,37 @@ export class AiService {
     const KEY_WEIGHT_DESC = 5;
     const COMMON_WEIGHT_TITLE = 1;
 
-    // Бүх product-ийн нэгтгэсэн текст
+    // Бүх product-ийн нэгтгэсэн ХАЙХ ТЕКСТ.
+    // Product-ийн өөрийн талбараас гадна тухайн product-той холбоотой
+    // BundleItem (багц доторх зүйл), Lesson (хичээл), ProductFile (файлын нэр),
+    // ProductFAQ-аар оноосон FAQ-уудыг subquery-ээр нэгтгэнэ.
+    // Жишээ: "бяруу" нь зөвхөн BundleItem.name-д байдаг — энэ нэгтгэлгүй бол олдохгүй.
     const fullText = Prisma.sql`(
       COALESCE(p.title,'') || ' ' || COALESCE(p.description,'') || ' ' ||
-      COALESCE(p."whatsIncluded",'') || ' ' || COALESCE(p."howToUse",'')
+      COALESCE(p."whatsIncluded",'') || ' ' || COALESCE(p."howToUse",'') || ' ' ||
+      COALESCE((
+        SELECT string_agg(
+          COALESCE(bi.name,'') || ' ' || COALESCE(bi.description,'') || ' ' || COALESCE(bi.label,''), ' ')
+        FROM "BundleItem" bi
+        JOIN "ProductBundle" pb ON pb.id = bi."bundleId"
+        WHERE pb."productId" = p.id
+      ), '') || ' ' ||
+      COALESCE((
+        SELECT string_agg(COALESCE(l.title,'') || ' ' || COALESCE(l.description,''), ' ')
+        FROM "Lesson" l
+        JOIN "Course" c ON c.id = l."courseId"
+        WHERE c."productId" = p.id
+      ), '') || ' ' ||
+      COALESCE((
+        SELECT string_agg(COALESCE(pf."fileName",''), ' ')
+        FROM "ProductFile" pf WHERE pf."productId" = p.id
+      ), '') || ' ' ||
+      COALESCE((
+        SELECT string_agg(f.question || ' ' || f.answer, ' ')
+        FROM "ProductFAQ" pfaq
+        JOIN "FAQ" f ON f.id = pfaq."faqId"
+        WHERE pfaq."productId" = p.id AND f.active = true
+      ), '')
     )`;
 
     // Үг бүрийн оноо болон таарсан эсэхийг тооцох SQL хэсгүүд
@@ -232,11 +259,17 @@ export class AiService {
     // ── Relevance шүүлт ──
     // Ядаж 1 ГОЛ үг таарсан бүтээгдэхүүн байвал → зөвхөн тэдгээрийг авна
     // (түгээмэл үгээр л таарсан "шум"-ыг хасна).
-    const maxKeyHits = Math.max(...rows.map((r) => r.key_hits));
+    // ЧУХАЛ: key_hits-ийг Number()-ээр хөрвүүлнэ. Зарим тохиолдолд Postgres
+    // bigint буцааж Math.max(...) TypeError өгдөг ("max is not a function"/
+    // BigInt convert) — тиймээс reduce-аар найдвартай тооцно.
+    const maxKeyHits = rows.reduce(
+      (m, r) => Math.max(m, Number(r.key_hits) || 0),
+      0,
+    );
     let relevant: MatchRow[];
     if (maxKeyHits > 0) {
       // Хамгийн олон гол үг таарсан түвшний бүтээгдэхүүнүүд (доод тал нь 1 гол үг)
-      relevant = rows.filter((r) => r.key_hits >= 1);
+      relevant = rows.filter((r) => Number(r.key_hits) >= 1);
     } else {
       // Гол үг огт таараагүй — top хэдийг (түгээмэл/similarity) буцаана
       relevant = rows.slice(0, 5);
