@@ -15,13 +15,9 @@ curl -s -X POST "$API" -H "Content-Type: application/json" -d '{
   "get_started": { "payload": "GET_STARTED" }
 }' | head -c 200; echo
 
-echo "=== 2. Greeting (Welcome дэлгэцэд, анх удаа) ==="
-curl -s -X POST "$API" -H "Content-Type: application/json" -d '{
-  "greeting": [{
-    "locale": "default",
-    "text": "Сайн байна уу! 👋 DigitalGer.mn — Монголын дижитал бүтээгдэхүүний онлайн дэлгүүрт тавтай морилно уу. Бэлэн төсөл, ном, албан баримтын загвар хайж байна уу? Доорх товчоор эхэлээрэй 👇"
-  }]
-}' | head -c 200; echo
+# ТЭМДЭГЛЭЛ: FB Messenger Platform v21-д "greeting" параметрийг устгасан.
+# Welcome дэлгэцийн текстийг одоо ice_breakers + get_started хослолоор харуулна.
+# (Хуучин greeting API #100 алдаа өгдөг тул алгассан.)
 
 echo "=== 3. Persistent Menu (чатын доод байнгын цэс) ==="
 curl -s -X POST "$API" -H "Content-Type: application/json" -d "{
