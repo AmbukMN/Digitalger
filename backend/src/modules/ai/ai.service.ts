@@ -92,6 +92,21 @@ const STOP_WORDS = new Set([
   // Татах / худалдан авах процесс (FAQ хариулдаг)
   'татаж', 'татах', 'авсан', 'файлаа', 'яаж', 'хэрхэн', 'хаанаас',
   'төлбөр', 'төлбөрөө', 'төлөх', 'худалдаж', 'захиалга', 'захиалах',
+  // ─── ЛАТИН хувилбарууд (хэрэглэгч латинаар их бичдэг) ──────────────────────
+  // Асуулт / туслах
+  'baina', 'bna', 'bn', 'yu', 'yum', 've', 'be', 'sain', 'uu',
+  'bolohuu', 'boloh', 'bolno', 'bolomjtoi', 'hiih', 'hiij', 'hiine',
+  'yaj', 'yaaj', 'herhen', 'herhen', 'haanaas', 'hed', 'hediy', 'aль',
+  'bi', 'ta', 'tani', 'tanii', 'minii', 'nadad', 'tand',
+  'haij', 'haih', 'asuuh', 'asuuya', 'uzeh', 'avah', 'avya',
+  // Мэндчилгээ
+  'hi', 'hello', 'mend', 'mendee', 'sonin', 'hun', 'odriin', 'ogloonii',
+  // Холбоо барих
+  'holboo', 'barih', 'holbogdoh', 'tuslamj', 'tuslamzh', 'admin', 'huntei',
+  // Татах / төлбөр процесс
+  'tataj', 'tatah', 'avsan', 'failaa', 'fail', 'tolbor', 'tulbur',
+  'tulburuu', 'tolboroo', 'toloh', 'tolokh', 'hudaldaj', 'zahialga',
+  'zahialah', 'qpay', 'kart', 'data',
 ]);
 
 // ─── Түгээмэл (жин багатай) үгс ───────────────────────────────────────────────
