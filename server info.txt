@@ -1,5 +1,0 @@
-aws ses: amgalanbayar1984@gmail.com Mongol.,123
-hetzher vps: 62.238.47.2   shkey pass:1234
-domain: digitalger.mn
-domain amarbot.mn
-claudflare: amgalanbayar1984 gmail nevtrene

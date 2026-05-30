@@ -26,6 +26,13 @@ build/
 !.env.example
 !.env.production.example
 
+# ── Secrets / нууц мэдээлэл (хэзээ ч commit хийхгүй) ──────────────────────────────
+server info.txt
+*.dump
+full_dump.sql
+schema_dump.sql
+UsersALIENWARE.claudesettings.json
+
 # ── Logs ────────────────────────────────────────────────────────────────────────
 *.log
 npm-debug.log*
