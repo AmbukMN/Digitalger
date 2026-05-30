@@ -12,7 +12,10 @@
       "name": "FB Verify (GET)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [128, 160],
+      "position": [
+        128,
+        160
+      ],
       "webhookId": "d6ab6946-e3fc-4372-af97-6850b142d47b"
     },
     {
@@ -25,7 +28,10 @@
       "name": "Respond Challenge",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [352, 160]
+      "position": [
+        352,
+        160
+      ]
     },
     {
       "parameters": {
@@ -40,7 +46,10 @@
       "name": "FB Message (POST)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [128, 416],
+      "position": [
+        128,
+        416
+      ],
       "webhookId": "fb000000-0000-4000-8000-000000000002"
     },
     {
@@ -51,7 +60,10 @@
       "name": "Parse",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [352, 416]
+      "position": [
+        352,
+        416
+      ]
     },
     {
       "parameters": {
@@ -59,14 +71,21 @@
         "url": "=https://graph.facebook.com/v21.0/{{ $json.psid }}?fields=first_name,last_name&access_token={{ $env['FB_PAGE_ACCESS_TOKEN'] }}",
         "options": {
           "timeout": 5000,
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "node_profile",
       "name": "Get User Profile",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [576, 416],
+      "position": [
+        576,
+        416
+      ],
       "onError": "continueRegularOutput"
     },
     {
@@ -78,25 +97,35 @@
         "jsonBody": "={\n  \"query\": \"{{ $('Parse').first().json.text.replace(/\"/g, '\\\\\"') }}\"\n}",
         "options": {
           "timeout": 10000,
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "node_search",
       "name": "Search DigitalGer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [800, 416],
+      "position": [
+        800,
+        416
+      ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Хэрэглэгчийн нэр + хайлтын үр дүнг AI Agent-д өгөх контекст болгон бэлдэнэ\nconst psid = $('Parse').first().json.psid;\nconst userText = $('Parse').first().json.text;\n\n// Хэрэглэгчийн нэр (profile-аас)\nconst profile = $('Get User Profile').first().json || {};\nconst firstName = (profile.first_name || '').trim();\n\n// Хайлтын үр дүн\nconst search = $('Search DigitalGer').first().json || {};\nconst products = Array.isArray(search.products) ? search.products : [];\nconst faqs = Array.isArray(search.faqs) ? search.faqs : [];\n\n// Бүтээгдэхүүний мэдээллийг AI-д текстээр өгнө (matchReason оруулна — AI ойлгоход)\nconst fmt = (n) => Number(n).toLocaleString('mn-MN') + '₮';\nconst productsText = products.length\n  ? products.slice(0, 5).map((p, i) => {\n      const priceLine = (p.salePrice != null)\n        ? `Үнэ: ${fmt(p.price)}, хямдарсан үнэ: ${fmt(p.salePrice)}`\n        : `Үнэ: ${fmt(p.price)}`;\n      return `${i + 1}. ${p.title}\\n   Төрөл: ${p.productType}\\n   ${priceLine}\\n   Тайлбар: ${p.description}\\n   Холбоос: ${p.url}\\n   (Дотоод тэмдэглэл: ${p.matchReason})`;\n    }).join('\\n\\n')\n  : '(Бүтээгдэхүүн олдсонгүй)';\n\nconst faqsText = faqs.length\n  ? faqs.slice(0, 3).map((f, i) => `${i + 1}. Асуулт: ${f.question}\\n   Хариулт: ${f.answer}`).join('\\n\\n')\n  : '(FAQ олдсонгүй)';\n\nconst nothingFound = (products.length === 0 && faqs.length === 0);\n\n// Get Started товч дарсан эсэх (анх удаа орж ирсэн хүн)\nconst isGetStarted = (userText === '__GET_STARTED__');\n\n// AI Agent-д өгөх нэгдсэн оролт\nconst agentInput = isGetStarted\n  ? [\n      firstName ? `Хэрэглэгчийн нэр: ${firstName}` : 'Хэрэглэгчийн нэр: (тодорхойгүй)',\n      ``,\n      `=== ОНЦГОЙ НӨХЦӨЛ: Хэрэглэгч \"Эхлэх\" товч дарж АНХ УДАА чатад орж ирлээ. ===`,\n      `Дулаан, найрсаг угтах мэндчилгээ бич. Хэрэглэгчийн нэр байвал ашигла.`,\n      `DigitalGer.mn дээр юу байдгийг (бэлэн төсөл, 1000+ ном, албан баримтын загвар) товч танилцуул.`,\n      `Юу хайж байгааг нь асуу. Хайлт хийх шаардлагагүй, зүгээр л угтах текст бич. 2-4 өгүүлбэр.`,\n    ].join('\\n')\n  : [\n      firstName ? `Хэрэглэгчийн нэр: ${firstName}` : 'Хэрэглэгчийн нэр: (тодорхойгүй)',\n      ``,\n      `=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===`,\n      userText,\n      ``,\n      `=== ХАЙЛТЫН ҮР ДҮН: БҮТЭЭГДЭХҮҮН ===`,\n      productsText,\n      ``,\n      `=== ХАЙЛТЫН ҮР ДҮН: FAQ ===`,\n      faqsText,\n    ].join('\\n');\n\nreturn [{\n  json: {\n    psid,\n    userText,\n    firstName,\n    agentInput,\n    products,\n    faqs,\n    hasProducts: products.length > 0,\n    nothingFound,\n  },\n}];"
+        "jsCode": "// Хэрэглэгчийн нэр + хайлтын үр дүнг AI Agent-д өгөх контекст болгон бэлдэнэ\nconst psid = $('Parse').first().json.psid;\nconst userText = $('Parse').first().json.text;\n\n// Хэрэглэгчийн нэр (profile-аас)\nconst profile = $('Get User Profile').first().json || {};\nconst firstName = (profile.first_name || '').trim();\n\n// Хайлтын үр дүн\nconst search = $('Search DigitalGer').first().json || {};\nconst products = Array.isArray(search.products) ? search.products : [];\nconst faqs = Array.isArray(search.faqs) ? search.faqs : [];\nconst searchTerms = Array.isArray(search.searchTerms) ? search.searchTerms : [];\n\n// Үнэ форматлагч (locale-гүй, найдвартай)\nconst fmt = (n) => { const num = Math.round(Number(n)||0); return String(num).replace(/B(?=(d{3})+(?!d))/g, ',') + '₮'; };\n\n// Бүтээгдэхүүний мэдээллийг AI-д текстээр өгнө\nconst productsText = products.length\n  ? products.slice(0, 5).map((p, i) => {\n      const priceLine = (p.salePrice != null)\n        ? `Үнэ: ${fmt(p.price)}, хямдарсан үнэ: ${fmt(p.salePrice)}`\n        : `Үнэ: ${fmt(p.price)}`;\n      return `${i + 1}. ${p.title}\n   Төрөл: ${p.productType}\n   ${priceLine}\n   Тайлбар: ${p.description}\n   (Энэ бүтээгдэхүүнээс олдсон хайлтын үг: ${(p.matchedKeywords||[]).join(', ') || 'ойролцоо тохирол'})`;\n    }).join('\n\n')\n  : '(Бүтээгдэхүүн олдсонгүй)';\n\nconst faqsText = faqs.length\n  ? faqs.slice(0, 3).map((f, i) => `${i + 1}. Асуулт: ${f.question}\n   Хариулт: ${f.answer}`).join('\n\n')\n  : '(FAQ олдсонгүй)';\n\nconst nothingFound = (products.length === 0 && faqs.length === 0);\nconst isGetStarted = (userText === '__GET_STARTED__');\n\n// AI Agent-д өгөх нэгдсэн оролт\nconst agentInput = isGetStarted\n  ? [\n      firstName ? `Хэрэглэгчийн нэр: ${firstName}` : 'Хэрэглэгчийн нэр: (тодорхойгүй)',\n      ``,\n      `=== ОНЦГОЙ НӨХЦӨЛ: Хэрэглэгч \"Эхлэх\" товч дарж АНХ УДАА чатад орж ирлээ. ===`,\n      `Дулаан, найрсаг угтах мэндчилгээ бич. Хэрэглэгчийн нэр байвал ашигла.`,\n      `DigitalGer.mn дээр юу байдгийг (бэлэн төсөл, 1000+ ном, албан баримтын загвар) товч танилцуул.`,\n      `Юу хайж байгааг нь асуу. Хайлт хийх шаардлагагүй, зүгээр л угтах текст бич. 2-4 өгүүлбэр.`,\n    ].join('\n')\n  : [\n      firstName ? `Хэрэглэгчийн нэр: ${firstName}` : 'Хэрэглэгчийн нэр: (тодорхойгүй)',\n      ``,\n      `=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===`,\n      userText,\n      ``,\n      searchTerms.length ? `=== ХАЙЛТЫН ГОЛ ҮГ: ${searchTerms.join(', ')} ===` : '',\n      `=== ХАЙЛТЫН ҮР ДҮН: БҮТЭЭГДЭХҮҮН ===`,\n      productsText,\n      ``,\n      `=== ХАЙЛТЫН ҮР ДҮН: FAQ ===`,\n      faqsText,\n    ].filter(x => x !== '').join('\n')\n;\n\nreturn [{\n  json: {\n    psid,\n    userText,\n    firstName,\n    agentInput,\n    products,\n    faqs,\n    searchTerms,\n    hasProducts: products.length > 0,\n    nothingFound,\n  },\n}];"
       },
       "id": "node_prep",
       "name": "Prep Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1024, 416]
+      "position": [
+        1024,
+        416
+      ]
     },
     {
       "parameters": {
@@ -110,7 +139,10 @@
       "name": "AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [1280, 416],
+      "position": [
+        1280,
+        416
+      ],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 3000
@@ -129,9 +161,15 @@
       "name": "OpenAI Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
-      "position": [1200, 656],
+      "position": [
+        1200,
+        656
+      ],
       "credentials": {
-        "openAiApi": { "id": "qpjrNb8Yo010i6C9", "name": "OpenAI account" }
+        "openAiApi": {
+          "id": "qpjrNb8Yo010i6C9",
+          "name": "OpenAI account"
+        }
       }
     },
     {
@@ -145,20 +183,29 @@
       "name": "Postgres Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
       "typeVersion": 1.3,
-      "position": [1360, 656],
+      "position": [
+        1360,
+        656
+      ],
       "credentials": {
-        "postgres": { "id": "ngOFGxWpH1dywpIn", "name": "N8N PostgreSQL" }
+        "postgres": {
+          "id": "ngOFGxWpH1dywpIn",
+          "name": "N8N PostgreSQL"
+        }
       }
     },
     {
       "parameters": {
-        "jsCode": "// AI-ийн текст хариулт + бүтээгдэхүүний carousel card-уудыг бэлдэнэ\n// FB limit: текст 2000, carousel max 10 element, title/subtitle max 80, button text max 20\nconst psid = $('Prep Context').first().json.psid;\nconst products = $('Prep Context').first().json.products || [];\n\n// AI Agent-ийн текст хариулт\nlet replyText = ($input.first().json.output || '').trim();\nif (!replyText) {\n  replyText = 'Уучлаарай, түр алдаа гарлаа. Дахин оролдоно уу.';\n}\n\n// ─── Давхардлаас хамгаалах (ЧУХАЛ) ───────────────────────────────────────────\n// Бүтээгдэхүүн олдсон үед AI заримдаа system prompt-ыг үл хайхран бүтээгдэхүүний\n// нэр, үнэ, холбоосыг текстдээ жагсаадаг. Энэ нь доорх CARD-уудтай давхардана.\n// Тиймээс бүтээгдэхүүн байгаа бөгөөд AI текст нь жагсаалт/холбоос/үнэ агуулсан бол\n// богино танилцуулга текстээр АЛБАДАН солино.\nconst productsForCheck = $('Prep Context').first().json.products || [];\nif (productsForCheck.length > 0) {\n  const looksLikeList =\n    /https?:\\/\\//.test(replyText) ||        // холбоос\n    /^\\s*\\d+[.)]/m.test(replyText) ||         // дугаарласан жагсаалт (1. 2.)\n    /[•\\-—]\\s+\\S/.test(replyText) ||          // цэгтэй жагсаалт\n    /\\d[\\d,]{3,}\\s*₮/.test(replyText) ||      // үнэ (₮)\n    replyText.length > 240;                    // хэт урт\n  if (looksLikeList) {\n    const n = productsForCheck.length;\n    replyText = `Танд тохирох ${n} бүтээгдэхүүн оллоо 👇 Доорх картуудаас сонгон дэлгэрэнгүйг үзээрэй.`;\n  }\n}\n\nif (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';\n\n// Туслах: тэмдэгт хязгаарлах\nconst clip = (s, n) => {\n  s = String(s || '').replace(/\\s+/g, ' ').trim();\n  return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;\n};\n// Үнийг мянгатын таслалтайгаар форматлана (locale-гүй, найдвартай)\nconst fmt = (n) => {\n  const num = Math.round(Number(n) || 0);\n  return String(num).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '₮';\n};\n\n// Carousel element-үүд (max 10).\n// FB subtitle нэг талбар, max 80 тэмдэгт. Тиймээс: эхний мөрөнд ҮНЭ (тод),\n// дараа нь зай гарвал товч тайлбар. Үнэ хэрэглэгчид хамгийн чухал тул тэргүүлнэ.\nconst elements = products.slice(0, 10).map((p) => {\n  // Үнэ: хямдрал байвал \"хямдарсан үнэ (хуучин үнэ)\", байхгүй бол энгийн үнэ\n  const priceLine = (p.salePrice != null)\n    ? `💰 ${fmt(p.salePrice)} (хуучин ${fmt(p.price)})`\n    : `💰 ${fmt(p.price)}`;\n  // Үлдсэн зайд товч тайлбар (newline-аар доор)\n  const room = 79 - priceLine.length;\n  const descShort = room > 12 ? clip(p.description, room) : '';\n  const subtitle = descShort\n    ? clip(`${priceLine}\\n${descShort}`, 80)\n    : clip(priceLine, 80);\n\n  const el = {\n    title: clip(p.title, 80),\n    subtitle: subtitle,\n    default_action: {\n      type: 'web_url',\n      url: p.url,\n      webview_height_ratio: 'full',\n    },\n    buttons: [\n      { type: 'web_url', url: p.url, title: 'Дэлгэрэнгүй үзэх' },\n    ],\n  };\n  // Зураг байвал нэмнэ (заавал биш)\n  if (p.imageUrl) el.image_url = p.imageUrl;\n  return el;\n});\n\nreturn [{\n  json: {\n    psid,\n    replyText,\n    hasCards: elements.length > 0,\n    elements,\n  },\n}];"
+        "jsCode": "// AI-ийн текст хариулт + бүтээгдэхүүний carousel card-уудыг бэлдэнэ\n// FB limit: текст 2000, carousel max 10 element, title/subtitle max 80, button text max 20\nconst psid = $('Prep Context').first().json.psid;\nconst products = $('Prep Context').first().json.products || [];\n\n// AI Agent-ийн текст хариулт\nlet replyText = ($input.first().json.output || '').trim();\nif (!replyText) {\n  replyText = 'Уучлаарай, түр алдаа гарлаа. Дахин оролдоно уу.';\n}\n\n// ─── Давхардлаас хамгаалах + хайлтын тайлбар (ЧУХАЛ) ──────────────────────────\n// Бүтээгдэхүүн олдсон үед AI заримдаа prompt-ыг үл хайхран нэр/үнэ/холбоосыг\n// текстдээ жагсаадаг — энэ нь доорх CARD-уудтай давхардана. Тиймээс AI текст нь\n// жагсаалт/холбоос/үнэ агуулсан бол ХАЙЛТЫН ГОЛ ҮГ дурдсан богино тайлбараар солино.\nconst prepData = $('Prep Context').first().json;\nconst productsForCheck = prepData.products || [];\nconst searchTerms = prepData.searchTerms || [];\nif (productsForCheck.length > 0) {\n  const looksLikeList =\n    /https?:///.test(replyText) ||\n    /^s*d+[.)]/m.test(replyText) ||\n    /[•-—]s+S/.test(replyText) ||\n    /d[d,]{3,}s*₮/.test(replyText) ||\n    replyText.length > 260;\n  if (looksLikeList) {\n    const n = productsForCheck.length;\n    // Хайлтын гол үгийг дурдаж, яагаад санал болгож буйг тайлбарлана\n    const termStr = searchTerms.length ? searchTerms.join(\", \") : \"\";\n    if (termStr) {\n      replyText = `Таны хайсан \"${termStr}\" холбоотой ${n} бүтээгдэхүүн оллоо 👇 Доорх картуудаас сонгоод дэлгэрэнгүйг нь үзээрэй.`;\n    } else {\n      replyText = `Танд тохирох ${n} бүтээгдэхүүн оллоо 👇 Доорх картуудаас сонгоод дэлгэрэнгүйг нь үзээрэй.`;\n    }\n  }\n}\nif (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';\n\n// Туслах: тэмдэгт хязгаарлах\nconst clip = (s, n) => {\n  s = String(s || '').replace(/\\s+/g, ' ').trim();\n  return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;\n};\n// Үнийг мянгатын таслалтайгаар форматлана (locale-гүй, найдвартай)\nconst fmt = (n) => {\n  const num = Math.round(Number(n) || 0);\n  return String(num).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '₮';\n};\n\n// Carousel element-үүд (max 10).\n// FB subtitle нэг талбар, max 80 тэмдэгт. Тиймээс: эхний мөрөнд ҮНЭ (тод),\n// дараа нь зай гарвал товч тайлбар. Үнэ хэрэглэгчид хамгийн чухал тул тэргүүлнэ.\nconst elements = products.slice(0, 10).map((p) => {\n  // Үнэ: хямдрал байвал \"хямдарсан үнэ (хуучин үнэ)\", байхгүй бол энгийн үнэ\n  const priceLine = (p.salePrice != null)\n    ? `💰 ${fmt(p.salePrice)} (хуучин ${fmt(p.price)})`\n    : `💰 ${fmt(p.price)}`;\n  // Үлдсэн зайд товч тайлбар (newline-аар доор)\n  const room = 79 - priceLine.length;\n  const descShort = room > 12 ? clip(p.description, room) : '';\n  const subtitle = descShort\n    ? clip(`${priceLine}\\n${descShort}`, 80)\n    : clip(priceLine, 80);\n\n  const el = {\n    title: clip(p.title, 80),\n    subtitle: subtitle,\n    default_action: {\n      type: 'web_url',\n      url: p.url,\n      webview_height_ratio: 'full',\n    },\n    buttons: [\n      { type: 'web_url', url: p.url, title: 'Дэлгэрэнгүй үзэх' },\n    ],\n  };\n  // Зураг байвал нэмнэ (заавал биш)\n  if (p.imageUrl) el.image_url = p.imageUrl;\n  return el;\n});\n\nreturn [{\n  json: {\n    psid,\n    replyText,\n    hasCards: elements.length > 0,\n    elements,\n  },\n}];"
       },
       "id": "node_build",
       "name": "Build Messages",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1536, 416]
+      "position": [
+        1536,
+        416
+      ]
     },
     {
       "parameters": {
@@ -166,7 +213,12 @@
         "url": "=https://graph.facebook.com/v21.0/me/messages?access_token={{ $env['FB_PAGE_ACCESS_TOKEN'] }}",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "contentType": "raw",
@@ -174,26 +226,41 @@
         "body": "={{ JSON.stringify({ recipient: { id: $json.psid }, message: { text: $json.replyText }, messaging_type: 'RESPONSE' }) }}",
         "options": {
           "timeout": 10000,
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "node_send_text",
       "name": "Send Text",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1760, 416],
+      "position": [
+        1760,
+        416
+      ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "cond_has_cards",
               "leftValue": "={{ $('Build Messages').first().json.hasCards }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -204,7 +271,10 @@
       "name": "Has Cards?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1984, 416]
+      "position": [
+        1984,
+        416
+      ]
     },
     {
       "parameters": {
@@ -212,7 +282,12 @@
         "url": "=https://graph.facebook.com/v21.0/me/messages?access_token={{ $env['FB_PAGE_ACCESS_TOKEN'] }}",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "contentType": "raw",
@@ -220,57 +295,160 @@
         "body": "={{ JSON.stringify({ recipient: { id: $('Build Messages').first().json.psid }, message: { attachment: { type: 'template', payload: { template_type: 'generic', image_aspect_ratio: 'square', elements: $('Build Messages').first().json.elements } } }, messaging_type: 'RESPONSE' }) }}",
         "options": {
           "timeout": 10000,
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "node_send_cards",
       "name": "Send Cards",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2208, 320],
+      "position": [
+        2208,
+        320
+      ],
       "onError": "continueRegularOutput"
     }
   ],
   "connections": {
     "FB Verify (GET)": {
-      "main": [[{ "node": "Respond Challenge", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "FB Message (POST)": {
-      "main": [[{ "node": "Parse", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse": {
-      "main": [[{ "node": "Get User Profile", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get User Profile": {
-      "main": [[{ "node": "Search DigitalGer", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Search DigitalGer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Search DigitalGer": {
-      "main": [[{ "node": "Prep Context", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Prep Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Prep Context": {
-      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "AI Agent": {
-      "main": [[{ "node": "Build Messages", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "OpenAI Chat Model": {
-      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Postgres Memory": {
-      "ai_memory": [[{ "node": "AI Agent", "type": "ai_memory", "index": 0 }]]
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Messages": {
-      "main": [[{ "node": "Send Text", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Send Text": {
-      "main": [[{ "node": "Has Cards?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Has Cards?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Has Cards?": {
       "main": [
-        [{ "node": "Send Cards", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "Send Cards",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

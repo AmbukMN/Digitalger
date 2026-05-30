@@ -10,12 +10,14 @@ export interface ProductResult {
   id: string;
   title: string;
   description: string;
-  price: number; // үндсэн үнэ
-  salePrice: number | null; // хямдарсан үнэ (compareAtPrice байвал price нь хямдарсан үнэ); байхгүй бол null
-  imageUrl: string | null; // үндсэн зургийн бүрэн линк (n8n-д шууд ачаалах боломжтой)
-  productType: string; // type label, жишээ: "Төсөл", "Видео" (enum value биш)
-  url: string; // бүтээгдэхүүний дэлгэрэнгүй хуудасны бүрэн линк
-  matchReason: string; // AI agent-д зориулсан дэлгэрэнгүй тайлбар
+  price: number;
+  salePrice: number | null;
+  imageUrl: string | null;
+  productType: string;
+  url: string;
+  matchReason: string;
+  // AI-д зориулсан: ямар үгээр энэ бүтээгдэхүүн олдсон (хэрэглэгчид тайлбарлахад)
+  matchedKeywords: string[];
 }
 
 export interface FaqResult {
@@ -27,40 +29,60 @@ export interface FaqResult {
 export interface SearchResponse {
   products: ProductResult[];
   faqs: FaqResult[];
-  message?: string; // юу ч олдоогүй үед тайлбар мессеж
+  // AI-д зориулсан: хайлтын гол үгс (хэрэглэгчид яагаад санал болгож буйг тайлбарлах)
+  searchTerms?: string[];
+  message?: string;
 }
 
-// Хуучин нэрийг хадгалах (backward-compat, өмнө export хийсэн)
 export type SearchResult = ProductResult;
 
 const SITE_URL = 'https://digitalger.mn';
 
-// ─── Хайлтын стратеги ────────────────────────────────────────────────────────
+// Монгол хэлний түгээмэл туслах үгс (relevance-д жин багатай).
+// "төсөл", "бэлэн" гэх мэт үг бараг бүх бүтээгдэхүүний нэрэнд байдаг тул
+// зөвхөн эдгээрээр таарсныг "сул тохирол" гэж үзнэ.
+const COMMON_WORDS = new Set([
+  'бэлэн',
+  'төсөл',
+  'төслүүд',
+  'загвар',
+  'загварууд',
+  'багц',
+  'файл',
+  'ном',
+  'болон',
+  'бусад',
+  'гэх',
+  'мэт',
+  'зэрэг',
+  'дээр',
+  'таны',
+  'миний',
+  'би',
+  'та',
+  'хайж',
+  'байна',
+  'вэ',
+  'юу',
+  'үзэх',
+  'авах',
+]);
+
+// ─── Хайлтын шинэ стратеги (keyword-AND relevance) ───────────────────────────
 //
-// 0. ГАЛИГ (transliteration): хэрэглэгч латинаар "byaruu" гэж бичвэл түүнийг
-//    Кирилл бүх хувилбарт ("бяруу", "бярүү", "бяру"...) хөрвүүлж хайна
-//    (expandQuery). Кирилл бичвэл латин хувилбарыг нь нэмж хайна. Ингэснээр
-//    "byaruu" гэж бичихэд "бяруу" гэсэн Монгол бүтээгдэхүүн олдоно.
-//    Бүх хувилбарыг SQL дотор `terms` CTE-д төвлөрүүлж, tsquery / ILIKE /
-//    similarity гурвууланд хэрэглэнэ.
+// АСУУДАЛ (хуучин): олон үгтэй хайлт ("бяруу бордох төсөл") бүх үгээ '|' (OR)-оор
+// нэгтгэдэг байсан тул "төсөл" гэдэг түгээмэл үгэнд таарсан БҮХ бүтээгдэхүүн
+// буцдаг байв (9+ ширхэг). Жинхэнэ хамаатай нь "бяруу"-тэй 2 л байсан.
 //
-// 1. Хайлтын үгийг цэвэрлэж, PostgreSQL tsquery форматад хөрвүүлнэ.
-//    'russian' config нь Кирилл үсгийг stem хийдэг — ашиглана.
-//
-// 2. PRODUCT хайлт 5 эх сурвалжид явна:
-//    A. Product.title / description / whatsIncluded / howToUse
-//    B. Lesson.title / description  → Course → Product
-//    C. BundleItem.name / description / label → ProductBundle → Product
-//    D. ProductFile.fileName  → Product
-//    E. ProductFAQ-аар холбогдсон FAQ.question / answer → Product
-//
-// 3. FAQ хайлт нь TUS DAA — backend-ийн БҮХ идэвхтэй FAQ-аас хайна.
-//
-// 4. Бүх product эх сурвалжаас олдсон productId-уудыг нэгтгэж, нийт таарах
-//    тоогоор эрэмбэлнэ.
-//
-// 5. Хариу буцаахдаа ямар ч тэмдэгтийн хязгаар тавихгүй. products болон faqs
-//    хоёр зэрэг олдож болно. Хоёулаа хоосон бол "Хайлтад юм олсонгүй".
+// ШИЙДЭЛ: хайлтыг ГОЛ ҮГ тус бүрээр задалж, product бүрд "хэдэн өөр гол үг
+// таарсныг" тоолж relevance оноо өгнө:
+//   - Гол үг (бяруу, бордох) таарвал → 10 оноо/үг (хүчтэй)
+//   - Түгээмэл үг (төсөл, бэлэн) таарвал → 1 оноо/үг (сул)
+//   - title-д таарвал description-аас 2 дахин их жинтэй
+// Эцэст нь:
+//   1. Ядаж 1 ГОЛ үг таарсан бүтээгдэхүүн байвал → зөвхөн тэдгээрийг буцаана
+//      (түгээмэл үгээр л таарсан "шум"-ыг хасна).
+//   2. Гол үг огт таараагүй (зөвхөн түгээмэл үг) бол → top хэдийг буцаана.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -76,213 +98,154 @@ export class AiService {
       return { products: [], faqs: [], message: 'Хайлтад юм олсонгүй' };
     }
 
-    // ── Галиг хувилбарууд: латин ↔ Кирилл ──
-    // expandQuery: "byaruu" → ["byaruu", "бяруу", "бярүү", ...]
-    //              "бяруу"  → ["бяруу", "byaruu"]
-    // Хоосон/давхардлыг цэвэрлэнэ.
-    const variants = Array.from(
-      new Set([cleaned.toLowerCase(), ...expandQuery(cleaned)]),
-    ).filter(Boolean);
+    // 1) Хайлтыг гол үгсэд задлах (түгээмэл болон гол үгээр ангилна)
+    const rawWords = cleaned
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w) => w.replace(/['"\\:&|!()?.,;]/g, ''))
+      .filter((w) => w.length >= 2);
 
-    // Бүх хувилбараас нэгдсэн tsquery бүтээнэ:
-    //   variant бүрийг үгээр салгаж '&'-ээр (бүх үг заавал байх),
-    //   variant-уудыг '|'-ээр (аль нэг хувилбар таарвал болно).
-    //   жишээ: "(бяруу) | (бярүү) | (byaruu)"
-    const tsParts = variants
-      .map((v) =>
-        v
-          .split(/\s+/)
-          .filter(Boolean)
-          .map((w) => w.replace(/['"\\:&|!()]/g, ''))
-          .filter(Boolean)
-          .join(' & '),
-      )
-      .filter(Boolean)
-      .map((p) => `(${p})`);
+    // Гол үгс (түгээмэл биш). Хэрэв бүгд түгээмэл бол бүгдийг гол гэж үзнэ.
+    let keyWords = rawWords.filter((w) => !COMMON_WORDS.has(w));
+    if (keyWords.length === 0) keyWords = [...rawWords];
 
-    // tsquery хоосон болох эрсдэлээс хамгаална.
-    const tsQuery = tsParts.length ? tsParts.join(' | ') : 'x__no_match__x';
+    // 2) Гол үг бүрийн галиг хувилбаруудыг бэлдэнэ
+    //    [{ word: 'бяруу', variants: ['бяруу','byaruu',...], isCommon: false }, ...]
+    const allWords = rawWords.length ? rawWords : [cleaned.toLowerCase()];
+    const wordGroups = allWords.map((w) => ({
+      word: w,
+      isCommon: COMMON_WORDS.has(w) && keyWords.length > 0 && !keyWords.includes(w),
+      variants: Array.from(new Set([w, ...expandQuery(w)])).filter(Boolean),
+    }));
 
-    const [productRows, faqs] = await Promise.all([
-      this.searchProducts(tsQuery, variants),
-      this.searchFaqs(tsQuery, variants),
+    const [productResult, faqs] = await Promise.all([
+      this.searchProducts(wordGroups, cleaned),
+      this.searchFaqs(cleaned),
     ]);
 
-    if (productRows.length === 0 && faqs.length === 0) {
-      return { products: [], faqs: [], message: 'Хайлтад юм олсонгүй' };
+    if (productResult.length === 0 && faqs.length === 0) {
+      return {
+        products: [],
+        faqs: [],
+        searchTerms: keyWords,
+        message: 'Хайлтад юм олсонгүй',
+      };
     }
 
-    return { products: productRows, faqs };
+    return { products: productResult, faqs, searchTerms: keyWords };
   }
 
-  // ─── Бүтээгдэхүүний хайлт ────────────────────────────────────────────────────
-  // tsQuery: нэгдсэн tsquery (galig variant-ууд '|'-ээр холбогдсон)
-  // variants: бүх галиг хувилбар (ILIKE болон similarity-д ашиглана)
+  // ─── Бүтээгдэхүүний хайлт (keyword-AND relevance) ─────────────────────────────
   private async searchProducts(
-    tsQuery: string,
-    variants: string[],
+    wordGroups: { word: string; isCommon: boolean; variants: string[] }[],
+    rawQuery: string,
   ): Promise<ProductResult[]> {
-    type MatchRow = { product_id: string; source: string; match_count: bigint };
+    type MatchRow = {
+      product_id: string;
+      score: number;
+      key_hits: number; // хэдэн ГОЛ үг таарсан
+      matched: string[]; // таарсан гол үгс
+    };
+
+    // Гол үг бүрийн оноо/таарсан тоог тооцох SQL фрагментуудыг үүсгэнэ.
+    // Гол үг бүрд: title-д таарвал бүрэн оноо, description-д таарвал хагас.
+    const KEY_WEIGHT_TITLE = 10;
+    const KEY_WEIGHT_DESC = 5;
+    const COMMON_WEIGHT_TITLE = 1;
+
+    // Бүх product-ийн нэгтгэсэн текст
+    const fullText = Prisma.sql`(
+      COALESCE(p.title,'') || ' ' || COALESCE(p.description,'') || ' ' ||
+      COALESCE(p."whatsIncluded",'') || ' ' || COALESCE(p."howToUse",'')
+    )`;
+
+    // Үг бүрийн оноо болон таарсан эсэхийг тооцох SQL хэсгүүд
+    const scoreParts: Prisma.Sql[] = [];
+    const keyHitParts: Prisma.Sql[] = [];
+    const matchedParts: Prisma.Sql[] = [];
+
+    for (const g of wordGroups) {
+      const pats = g.variants.map((v) => `%${v}%`);
+      const patsArr = Prisma.sql`${pats}::text[]`;
+
+      if (g.isCommon) {
+        // Түгээмэл үг — зөвхөн title-д таарвал бага оноо
+        scoreParts.push(
+          Prisma.sql`CASE WHEN p.title ILIKE ANY(${patsArr}) THEN ${COMMON_WEIGHT_TITLE} ELSE 0 END`,
+        );
+      } else {
+        // Гол үг — title-д таарвал их, description/бусдад таарвал дунд оноо
+        scoreParts.push(
+          Prisma.sql`CASE
+            WHEN p.title ILIKE ANY(${patsArr}) THEN ${KEY_WEIGHT_TITLE}
+            WHEN ${fullText} ILIKE ANY(${patsArr}) THEN ${KEY_WEIGHT_DESC}
+            ELSE 0 END`,
+        );
+        // Гол үг таарсан эсэх (title эсвэл бүх текстэд)
+        keyHitParts.push(
+          Prisma.sql`CASE WHEN ${fullText} ILIKE ANY(${patsArr}) THEN 1 ELSE 0 END`,
+        );
+        matchedParts.push(
+          Prisma.sql`CASE WHEN ${fullText} ILIKE ANY(${patsArr}) THEN ${g.word} ELSE NULL END`,
+        );
+      }
+    }
+
+    // Хэрэв гол үг байхгүй бол (бүгд түгээмэл) — key_hits-г 0 болгоно
+    const keyHitsSql = keyHitParts.length
+      ? Prisma.join(keyHitParts, ' + ')
+      : Prisma.sql`0`;
+    const scoreSql = scoreParts.length
+      ? Prisma.join(scoreParts, ' + ')
+      : Prisma.sql`0`;
+    const matchedSql = matchedParts.length
+      ? Prisma.sql`ARRAY_REMOVE(ARRAY[${Prisma.join(matchedParts)}], NULL)`
+      : Prisma.sql`ARRAY[]::text[]`;
+
+    // Бүх variant (similarity fallback-д ашиглах)
+    const allVariants = Array.from(
+      new Set(wordGroups.flatMap((g) => g.variants)),
+    );
 
     const rows = await this.prisma.$queryRaw<MatchRow[]>(Prisma.sql`
-      WITH
-      -- Галиг бүх хувилбар: t = хувилбар, pat = ILIKE pattern
-      terms AS (
-        SELECT DISTINCT t, '%' || t || '%' AS pat
-        FROM unnest(${variants}::text[]) AS t
-        WHERE t <> ''
-      ),
-
-      -- A. Product өөрийн талбарууд дотор хайх
-      product_match AS (
+      WITH scored AS (
         SELECT
           p.id AS product_id,
-          'product' AS source,
-          (
-            CASE WHEN to_tsvector('russian', COALESCE(p.title, ''))
-                      @@ to_tsquery('russian', ${tsQuery}) THEN 2 ELSE 0 END
-            +
-            CASE WHEN to_tsvector('russian', COALESCE(p.title, '') || ' ' ||
-                                             COALESCE(p.description, '') || ' ' ||
-                                             COALESCE(p."whatsIncluded", '') || ' ' ||
-                                             COALESCE(p."howToUse", ''))
-                      @@ to_tsquery('russian', ${tsQuery}) THEN 1 ELSE 0 END
-            +
-            CASE WHEN EXISTS (SELECT 1 FROM terms WHERE p.title ILIKE terms.pat) THEN 1 ELSE 0 END
-            +
-            CASE WHEN (
-                   SELECT max(similarity(
-                     p.title || ' ' || COALESCE(p.description,'') || ' ' ||
-                     COALESCE(p."whatsIncluded",'') || ' ' || COALESCE(p."howToUse",''),
-                     terms.t))
-                   FROM terms
-                 ) > 0.1 THEN 1 ELSE 0 END
-          )::bigint AS match_count
+          (${scoreSql})::int AS score,
+          (${keyHitsSql})::int AS key_hits,
+          ${matchedSql} AS matched,
+          -- similarity fallback (үсгийн алдаа, хагас үг)
+          (SELECT COALESCE(max(similarity(p.title, t)), 0)
+           FROM unnest(${allVariants}::text[]) AS t) AS sim
         FROM "Product" p
         WHERE p.published = true
-          AND (
-            to_tsvector('russian', COALESCE(p.title,'') || ' ' ||
-                                   COALESCE(p.description,'') || ' ' ||
-                                   COALESCE(p."whatsIncluded",'') || ' ' ||
-                                   COALESCE(p."howToUse",''))
-              @@ to_tsquery('russian', ${tsQuery})
-            OR EXISTS (SELECT 1 FROM terms WHERE
-                 p.title ILIKE terms.pat
-                 OR p.description ILIKE terms.pat
-                 OR COALESCE(p."whatsIncluded",'') ILIKE terms.pat
-                 OR COALESCE(p."howToUse",'') ILIKE terms.pat)
-            OR (SELECT max(similarity(p.title, terms.t)) FROM terms) > 0.2
-          )
-      ),
-
-      -- B. Lesson дотор хайж → Course → Product
-      lesson_match AS (
-        SELECT
-          c."productId" AS product_id,
-          'lesson' AS source,
-          COUNT(*)::bigint AS match_count
-        FROM "Lesson" l
-        JOIN "Course" c ON c.id = l."courseId"
-        JOIN "Product" p ON p.id = c."productId"
-        WHERE p.published = true
-          AND (
-            to_tsvector('russian', COALESCE(l.title,'') || ' ' || COALESCE(l.description,''))
-              @@ to_tsquery('russian', ${tsQuery})
-            OR EXISTS (SELECT 1 FROM terms WHERE
-                 l.title ILIKE terms.pat OR COALESCE(l.description,'') ILIKE terms.pat)
-            OR (SELECT max(similarity(l.title || ' ' || COALESCE(l.description,''), terms.t)) FROM terms) > 0.2
-          )
-        GROUP BY c."productId"
-      ),
-
-      -- C. BundleItem дотор хайж → ProductBundle → Product
-      bundle_match AS (
-        SELECT
-          pb."productId" AS product_id,
-          'bundle' AS source,
-          COUNT(*)::bigint AS match_count
-        FROM "BundleItem" bi
-        JOIN "ProductBundle" pb ON pb.id = bi."bundleId"
-        JOIN "Product" p ON p.id = pb."productId"
-        WHERE p.published = true
-          AND (
-            to_tsvector('russian', COALESCE(bi.name,'') || ' ' ||
-                                   COALESCE(bi.description,'') || ' ' ||
-                                   COALESCE(bi.label,''))
-              @@ to_tsquery('russian', ${tsQuery})
-            OR EXISTS (SELECT 1 FROM terms WHERE
-                 bi.name ILIKE terms.pat
-                 OR COALESCE(bi.description,'') ILIKE terms.pat
-                 OR COALESCE(bi.label,'') ILIKE terms.pat)
-            OR (SELECT max(similarity(bi.name || ' ' || COALESCE(bi.description,''), terms.t)) FROM terms) > 0.2
-          )
-        GROUP BY pb."productId"
-      ),
-
-      -- D. ProductFile.fileName дотор хайх
-      file_match AS (
-        SELECT
-          pf."productId" AS product_id,
-          'file' AS source,
-          COUNT(*)::bigint AS match_count
-        FROM "ProductFile" pf
-        JOIN "Product" p ON p.id = pf."productId"
-        WHERE p.published = true
-          AND (
-            EXISTS (SELECT 1 FROM terms WHERE pf."fileName" ILIKE terms.pat)
-            OR (SELECT max(similarity(pf."fileName", terms.t)) FROM terms) > 0.25
-          )
-        GROUP BY pf."productId"
-      ),
-
-      -- E. Тухайн бүтээгдэхүүнд оноосон FAQ → ProductFAQ → Product
-      faq_match AS (
-        SELECT
-          pfaq."productId" AS product_id,
-          'faq' AS source,
-          COUNT(*)::bigint AS match_count
-        FROM "FAQ" f
-        JOIN "ProductFAQ" pfaq ON pfaq."faqId" = f.id
-        JOIN "Product" p ON p.id = pfaq."productId"
-        WHERE p.published = true
-          AND f.active = true
-          AND (
-            to_tsvector('russian', f.question || ' ' || f.answer)
-              @@ to_tsquery('russian', ${tsQuery})
-            OR EXISTS (SELECT 1 FROM terms WHERE
-                 f.question ILIKE terms.pat OR f.answer ILIKE terms.pat)
-            OR (SELECT max(similarity(f.question || ' ' || f.answer, terms.t)) FROM terms) > 0.15
-          )
-        GROUP BY pfaq."productId"
-      ),
-
-      -- Бүх эх сурвалжийг нэгтгэнэ
-      all_matches AS (
-        SELECT product_id, source, match_count FROM product_match  WHERE match_count > 0
-        UNION ALL
-        SELECT product_id, source, match_count FROM lesson_match
-        UNION ALL
-        SELECT product_id, source, match_count FROM bundle_match
-        UNION ALL
-        SELECT product_id, source, match_count FROM file_match
-        UNION ALL
-        SELECT product_id, source, match_count FROM faq_match
       )
-
-      -- Давхардлыг нэгтгэж, нийт оноогоор эрэмбэлнэ
-      SELECT
-        product_id,
-        string_agg(DISTINCT source, ',') AS source,
-        SUM(match_count)::bigint AS match_count
-      FROM all_matches
-      GROUP BY product_id
-      ORDER BY match_count DESC
-      LIMIT 10
+      SELECT product_id, score, key_hits, matched
+      FROM scored
+      WHERE score > 0 OR sim > 0.3
+      ORDER BY key_hits DESC, score DESC, sim DESC
+      LIMIT 20
     `);
 
     if (!rows.length) return [];
 
-    const productIds = rows.map((r) => r.product_id);
+    // ── Relevance шүүлт ──
+    // Ядаж 1 ГОЛ үг таарсан бүтээгдэхүүн байвал → зөвхөн тэдгээрийг авна
+    // (түгээмэл үгээр л таарсан "шум"-ыг хасна).
+    const maxKeyHits = Math.max(...rows.map((r) => r.key_hits));
+    let relevant: MatchRow[];
+    if (maxKeyHits > 0) {
+      // Хамгийн олон гол үг таарсан түвшний бүтээгдэхүүнүүд (доод тал нь 1 гол үг)
+      relevant = rows.filter((r) => r.key_hits >= 1);
+    } else {
+      // Гол үг огт таараагүй — top хэдийг (түгээмэл/similarity) буцаана
+      relevant = rows.slice(0, 5);
+    }
+
+    // Top 10
+    relevant = relevant.slice(0, 10);
+
+    const productIds = relevant.map((r) => r.product_id);
 
     const [products, typeConfigs] = await Promise.all([
       this.prisma.product.findMany({
@@ -296,7 +259,6 @@ export class AiService {
           compareAtPrice: true,
           type: true,
           images: {
-            // Үндсэн зураг: isPrimary эхэнд, дараа нь sortOrder.
             orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
             select: { fileKey: true, videoUrl: true },
           },
@@ -308,18 +270,7 @@ export class AiService {
     ]);
 
     const typeLabelMap = new Map(typeConfigs.map((t) => [t.value, t.label]));
-    const rowMap = new Map(rows.map((r) => [r.product_id, r]));
-
-    const SOURCE_LABELS: Record<string, string> = {
-      product:
-        'Бүтээгдэхүүний нэр болон тайлбарт хайлтын үгтэй шууд тохирсон',
-      lesson:
-        'Энэ бүтээгдэхүүний дотор багтсан хичээлийн агуулга хайлтын үгтэй тохирсон',
-      bundle:
-        'Энэ багц бүтээгдэхүүний доторх агуулгад хайлтын үгтэй тохирсон',
-      file: 'Энэ бүтээгдэхүүнд хавсаргасан файлын нэр хайлтын үгтэй тохирсон',
-      faq: 'Энэ бүтээгдэхүүнд оноосон түгээмэл асуулт хариулт хайлтын үгтэй тохирсон',
-    };
+    const rowMap = new Map(relevant.map((r) => [r.product_id, r]));
 
     const result: ProductResult[] = [];
 
@@ -328,11 +279,8 @@ export class AiService {
       if (!product) continue;
 
       const row = rowMap.get(id)!;
-      const reasonParts = row.source
-        .split(',')
-        .map((s) => SOURCE_LABELS[s] ?? s);
+      const matched = (row.matched || []).filter(Boolean);
 
-      // Үндсэн зураг: видео биш, fileKey-тэй эхний зураг
       const primaryImage = product.images.find(
         (img) => !img.videoUrl && img.fileKey,
       );
@@ -340,17 +288,19 @@ export class AiService {
         ? this.storage.getAssetUrl(primaryImage.fileKey)
         : null;
 
-      // Үнэ: compareAtPrice байвал price нь хямдарсан үнэ, compareAtPrice нь
-      // үндсэн (хямдрахаас өмнөх) үнэ болно.
       const currentPrice = Number(product.price);
       const compareAt =
         product.compareAtPrice != null ? Number(product.compareAtPrice) : null;
       const hasDiscount = compareAt != null && compareAt > currentPrice;
-
       const basePrice = hasDiscount ? compareAt! : currentPrice;
       const salePrice = hasDiscount ? currentPrice : null;
 
       const productType = typeLabelMap.get(product.type) ?? product.type;
+
+      // matchReason: AI-д зориулж, ямар үгээр олдсоныг тодорхой бичнэ
+      const matchReason = matched.length
+        ? `Хайлтын "${matched.join(', ')}" гэсэн үг(ийг) энэ бүтээгдэхүүний нэр эсвэл тайлбараас олсон.`
+        : 'Хайлтын үгтэй ойролцоо тохирол олдсон.';
 
       result.push({
         id: product.id,
@@ -361,7 +311,8 @@ export class AiService {
         imageUrl,
         productType,
         url: `${SITE_URL}/products/${product.slug}`,
-        matchReason: reasonParts.join('. ') + '.',
+        matchReason,
+        matchedKeywords: matched,
       });
     }
 
@@ -369,39 +320,32 @@ export class AiService {
   }
 
   // ─── FAQ хайлт (backend-ийн БҮХ идэвхтэй FAQ-аас) ────────────────────────────
-  private async searchFaqs(
-    tsQuery: string,
-    variants: string[],
-  ): Promise<FaqResult[]> {
+  private async searchFaqs(rawQuery: string): Promise<FaqResult[]> {
+    // FAQ-д галиг + үг-AND хэрэггүй (ерөнхий асуулт), энгийн ILIKE + similarity
+    const variants = Array.from(
+      new Set([rawQuery.toLowerCase(), ...expandQuery(rawQuery)]),
+    ).filter(Boolean);
+    const pats = variants.map((v) => `%${v}%`);
+
     type FaqRow = { question: string; answer: string; score: number };
 
     const rows = await this.prisma.$queryRaw<FaqRow[]>(Prisma.sql`
-      WITH terms AS (
-        SELECT DISTINCT t, '%' || t || '%' AS pat
-        FROM unnest(${variants}::text[]) AS t
-        WHERE t <> ''
-      )
       SELECT
         f.question,
         f.answer,
         (
-          CASE WHEN to_tsvector('russian', f.question || ' ' || f.answer)
-                    @@ to_tsquery('russian', ${tsQuery}) THEN 2 ELSE 0 END
-          +
-          CASE WHEN EXISTS (SELECT 1 FROM terms WHERE f.question ILIKE terms.pat) THEN 1 ELSE 0 END
-          +
-          CASE WHEN EXISTS (SELECT 1 FROM terms WHERE f.answer ILIKE terms.pat) THEN 1 ELSE 0 END
-          +
-          (SELECT COALESCE(max(similarity(f.question || ' ' || f.answer, terms.t)), 0) FROM terms)
+          CASE WHEN f.question ILIKE ANY(${pats}::text[]) THEN 2 ELSE 0 END
+          + CASE WHEN f.answer ILIKE ANY(${pats}::text[]) THEN 1 ELSE 0 END
+          + (SELECT COALESCE(max(similarity(f.question || ' ' || f.answer, t)), 0)
+             FROM unnest(${variants}::text[]) AS t)
         )::float AS score
       FROM "FAQ" f
       WHERE f.active = true
         AND (
-          to_tsvector('russian', f.question || ' ' || f.answer)
-            @@ to_tsquery('russian', ${tsQuery})
-          OR EXISTS (SELECT 1 FROM terms WHERE
-               f.question ILIKE terms.pat OR f.answer ILIKE terms.pat)
-          OR (SELECT max(similarity(f.question || ' ' || f.answer, terms.t)) FROM terms) > 0.15
+          f.question ILIKE ANY(${pats}::text[])
+          OR f.answer ILIKE ANY(${pats}::text[])
+          OR (SELECT max(similarity(f.question || ' ' || f.answer, t)) > 0.2
+              FROM unnest(${variants}::text[]) AS t)
         )
       ORDER BY score DESC
       LIMIT 5
