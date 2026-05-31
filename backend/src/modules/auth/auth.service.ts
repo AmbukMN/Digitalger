@@ -249,6 +249,79 @@ export class AuthService {
     return { message: 'Email verified' };
   }
 
+  /**
+   * Имэйл солих хүсэлт — ШИНЭ имэйл рүү OTP илгээнэ.
+   * ⚠️ User.email-ийг ОДОО СОЛИХГҮЙ — зөвхөн pendingEmail-д хадгална.
+   * Баталгаажсаны дараа л confirmEmailChange-д солигдоно.
+   */
+  async requestEmailChange(userId: string, newEmail: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+    // OAuth бүртгэлд имэйл солих боломжгүй
+    if (user.oauthProvider && !user.isGuest) {
+      throw new BadRequestException('OAuth бүртгэлд имэйл солих боломжгүй');
+    }
+
+    const normalizedEmail = newEmail.toLowerCase();
+
+    // Одоогийнхтойгоо ижил бол утгагүй
+    if (normalizedEmail === user.email.toLowerCase()) {
+      throw new BadRequestException('Энэ нь таны одоогийн имэйл байна');
+    }
+
+    // Өөр хэрэглэгч эзэмшсэн эсэх
+    const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (existing && existing.id !== userId) {
+      throw new ConflictException('Энэ имэйл аль хэдийн бүртгэлтэй байна');
+    }
+
+    // Шинэ имэйлийг түр хадгална (User.email-д хүрэхгүй)
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { pendingEmail: normalizedEmail },
+    });
+
+    // OTP-г ШИНЭ имэйл рүү илгээнэ (email_change purpose)
+    await this.createAndSendOtp(normalizedEmail, user.name, 'email_change');
+    return { message: 'OTP sent to new email' };
+  }
+
+  /**
+   * Имэйл солих баталгаажуулалт — OTP зөв бол User.email = pendingEmail болно.
+   * Зөвхөн ЭНД л имэйл бодитоор солигдоно.
+   */
+  async confirmEmailChange(userId: string, otp: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+    if (!user.pendingEmail) {
+      throw new BadRequestException('Хүлээгдэж буй имэйл солих хүсэлт алга');
+    }
+    const pending = user.pendingEmail.toLowerCase();
+
+    // Давхар шалгалт (хооронд нь өөр хэн нэгэн авсан байж болзошгүй)
+    const existing = await this.prisma.user.findUnique({ where: { email: pending } });
+    if (existing && existing.id !== userId) {
+      // pending-ийг цэвэрлээд татгалзана
+      await this.prisma.user.update({ where: { id: userId }, data: { pendingEmail: null } });
+      throw new ConflictException('Энэ имэйл аль хэдийн бүртгэлтэй байна');
+    }
+
+    // OTP-г ШИНЭ имэйлээр баталгаажуулна
+    await this.consumeOtp(pending, otp, 'email_change');
+
+    // Зөвхөн ОДОО л имэйл солигдоно — баталгаажсан тул emailVerified тавина
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: pending,
+        pendingEmail: null,
+        isGuest: false,
+        emailVerified: new Date(),
+      },
+    });
+    return { message: 'Email changed', user: this.sanitizeUser(updated) };
+  }
+
   /** Verify OTP after signup (unauthenticated — returns tokens on success) */
   async verifySignupOtp(email: string, otp: string) {
     const normalizedEmail = email.toLowerCase();
@@ -341,7 +414,7 @@ export class AuthService {
   private async createAndSendOtp(
     email: string,
     name: string | null,
-    purpose: 'verify' | 'reset',
+    purpose: 'verify' | 'reset' | 'email_change',
   ) {
     const otp = String(crypto.randomInt(100000, 999999));
     const otpHash = await bcrypt.hash(otp, 10);
@@ -375,7 +448,11 @@ export class AuthService {
     await this.email.sendEmailOtp({ to: email, name, otp, purpose });
   }
 
-  private async consumeOtp(email: string, otp: string, purpose: 'verify' | 'reset') {
+  private async consumeOtp(
+    email: string,
+    otp: string,
+    purpose: 'verify' | 'reset' | 'email_change',
+  ) {
     const record = await this.prisma.emailOtp.findFirst({
       where: { email, purpose },
       orderBy: { createdAt: 'desc' },

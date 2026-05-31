@@ -7,7 +7,9 @@ import { RefreshDto } from './dto/refresh.dto';
 import { ValidateDto } from './dto/validate.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import {
+  ConfirmEmailChangeDto,
   ForgotPasswordDto,
+  RequestEmailChangeDto,
   ResetPasswordDto,
   SendOtpDto,
   VerifyEmailOtpDto,
@@ -79,6 +81,22 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   verifyEmail(@CurrentUser() user: JwtPayload, @Body() dto: VerifyEmailOtpDto) {
     return this.authService.verifyEmailOtp(user.sub, dto.otp);
+  }
+
+  /** Имэйл солих хүсэлт — шинэ имэйл рүү OTP илгээнэ (User.email солихгүй) */
+  @Post('request-email-change')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  requestEmailChange(@CurrentUser() user: JwtPayload, @Body() dto: RequestEmailChangeDto) {
+    return this.authService.requestEmailChange(user.sub, dto.email);
+  }
+
+  /** Имэйл солих баталгаажуулалт — OTP зөв бол л User.email солигдоно */
+  @Post('confirm-email-change')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  confirmEmailChange(@CurrentUser() user: JwtPayload, @Body() dto: ConfirmEmailChangeDto) {
+    return this.authService.confirmEmailChange(user.sub, dto.otp);
   }
 
   /** Resend OTP (both signup flow and logged-in verify) */

@@ -153,6 +153,22 @@ export const authApi = {
       body: JSON.stringify({ otp }),
     }),
 
+  // Имэйл солих хүсэлт — шинэ имэйл рүү OTP илгээнэ (баталгаажтал email солихгүй)
+  requestEmailChange: (token: string, email: string) =>
+    request<{ message: string }>('/auth/request-email-change', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ email }),
+    }),
+
+  // Имэйл солих баталгаажуулалт — OTP зөв бол л email солигдоно
+  confirmEmailChange: (token: string, otp: string) =>
+    request<{ message: string }>('/auth/confirm-email-change', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ otp }),
+    }),
+
   resendOtp: (body: { email: string; purpose: 'verify' | 'reset' }) =>
     request<{ message: string }>('/auth/resend-otp', { method: 'POST', body: JSON.stringify(body) }),
 

@@ -19,6 +19,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { StorageService } from '../../storage/storage.service';
 import { UsersService } from './users.service';
+import { UpdateMeDto, UpdatePasswordDto } from './dto/update-me.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -34,17 +35,14 @@ export class UsersController {
   }
 
   @Patch('me')
-  updateMe(
-    @CurrentUser('sub') userId: string,
-    @Body() body: { name?: string; image?: string; phone?: string; email?: string },
-  ) {
+  updateMe(@CurrentUser('sub') userId: string, @Body() body: UpdateMeDto) {
     return this.usersService.updateMe(userId, body);
   }
 
   @Patch('me/password')
   updatePassword(
     @CurrentUser('sub') userId: string,
-    @Body() body: { email?: string; currentPassword?: string; newPassword: string },
+    @Body() body: UpdatePasswordDto,
   ) {
     return this.usersService.updatePassword(userId, body);
   }

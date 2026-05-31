@@ -41,23 +41,20 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    // Email editable only for guests or if no oauth provider
-    if (dto.email !== undefined) {
-      const canEditEmail = user.isGuest || (!user.oauthProvider);
-      if (!canEditEmail) {
-        throw new BadRequestException('Cannot change email for OAuth accounts');
-      }
-      // Check email uniqueness
-      const existing = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-      if (existing && existing.id !== userId) {
-        throw new ConflictException('Email already in use');
-      }
+    // ⚠️ ИМЭЙЛ ЭНД СОЛИХГҮЙ. Имэйл солих нь зөвхөн OTP баталгаажуулалтаар
+    // явдаг: POST /auth/request-email-change → confirm-email-change.
+    // (Өмнө энд имэйлийг verify-гүй шууд хадгалдаг буг байсан.)
+    if (dto.email !== undefined && dto.email !== '' &&
+        dto.email.toLowerCase() !== user.email.toLowerCase()) {
+      throw new BadRequestException(
+        'Имэйл солихын тулд баталгаажуулалт шаардлагатай (request-email-change)',
+      );
     }
 
     // Normalize empty string phone to null
     const phone = dto.phone === '' ? null : dto.phone;
 
-    // Phone uniqueness check
+    // Phone uniqueness check (утас verify шаарддаггүй — шууд солино)
     if (phone) {
       const existing = await this.prisma.user.findUnique({ where: { phone } });
       if (existing && existing.id !== userId) {
@@ -71,11 +68,7 @@ export class UsersService {
         ...(dto.name !== undefined && { name: dto.name || null }),
         ...(dto.image !== undefined && { image: dto.image }),
         ...(dto.phone !== undefined && { phone }),
-        ...(dto.email !== undefined && {
-          email: dto.email.toLowerCase(),
-          isGuest: false,
-          emailVerified: null,
-        }),
+        // email-ийг ЗОРИУДААР оруулахгүй — verify flow-р л солино
       },
       select: USER_SELECT,
     });
@@ -89,7 +82,9 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     if (user.isGuest) {
-      // Guest → set email + password to become a full user
+      // Guest → нууц үг хадгалаад, имэйлийг pendingEmail-д тавина.
+      // ⚠️ User.email-ийг ЭНД СОЛИХГҮЙ — frontend дараа нь
+      // request-email-change/confirm-email-change-ээр имэйлийг баталгаажуулна.
       if (!dto.email) throw new BadRequestException('И-мэйл шаардлагатай');
       const normalizedEmail = dto.email.toLowerCase();
       const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -97,7 +92,9 @@ export class UsersService {
       const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
       return this.prisma.user.update({
         where: { id: userId },
-        data: { email: normalizedEmail, passwordHash, isGuest: false, emailVerified: null },
+        // email хэвээр (guest_xxx@...), зөвхөн нууц үг + pendingEmail хадгална.
+        // Имэйл баталгаажихад confirmEmailChange нь email солих + isGuest:false болгоно.
+        data: { passwordHash, pendingEmail: normalizedEmail },
         select: USER_SELECT,
       });
     }

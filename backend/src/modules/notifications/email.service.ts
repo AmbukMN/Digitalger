@@ -249,7 +249,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     to: string;
     name: string | null;
     otp: string;
-    purpose: 'verify' | 'reset';
+    purpose: 'verify' | 'reset' | 'email_change';
   }) {
     const { to, name, otp, purpose } = opts;
     const greeting  = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';

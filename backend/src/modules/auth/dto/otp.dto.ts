@@ -8,6 +8,19 @@ export class SendOtpDto {
   purpose: 'verify' | 'reset';
 }
 
+// Имэйл солих хүсэлт — шинэ имэйл рүү OTP илгээнэ (баталгаажтал User.email солихгүй)
+export class RequestEmailChangeDto {
+  @IsEmail()
+  email: string;
+}
+
+// Имэйл солих баталгаажуулалт — OTP зөв бол User.email шинэ имэйл болно
+export class ConfirmEmailChangeDto {
+  @IsString()
+  @Length(6, 6)
+  otp: string;
+}
+
 export class VerifySignupOtpDto {
   @IsEmail()
   email: string;

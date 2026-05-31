@@ -25,7 +25,23 @@ import { API_URL } from '@/lib/constants';
 import type { AuthUser } from '@/types/api';
 import { OtpInput } from '@/components/auth/otp-input';
 
-// ── Password schemas ──────────────────────────────────────────
+// ── Schemas ────────────────────────────────────────────────────
+const GUEST_NAMES = ['зочин', 'guest', 'хоосон'];
+const profileSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Жинхэнэ нэрээ оруулна уу (2+ тэмдэгт)')
+    .max(60, 'Нэр хэт урт байна')
+    .refine((v) => !GUEST_NAMES.includes(v.toLowerCase()), 'Жинхэнэ нэрээ оруулна уу'),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9]{8,15}$/, 'Утасны дугаар бүтэн оруулна уу (8-15 орон)'),
+  email: z.string().trim().email('Зөв и-мэйл оруулна уу'),
+});
+type ProfileValues = z.infer<typeof profileSchema>;
+
 const setPasswordSchema = z
   .object({
     email: z.string().email('Зөв и-мэйл оруулна уу'),
@@ -176,10 +192,13 @@ function PasswordDialog({
   token,
   isGuest,
   currentEmail,
+  onGuestEmailPending,
 }: {
   token: string;
   isGuest: boolean;
   currentEmail?: string | null;
+  // Guest бүртгэл бүрэн болгоход имэйл verify шаардлагатай — pending email буцаана
+  onGuestEmailPending?: (email: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -198,15 +217,21 @@ function PasswordDialog({
     mutationFn: (body: { email?: string; currentPassword?: string; newPassword: string }) =>
       usersApi.updatePassword(token, body),
     onSuccess: async (_data, variables) => {
-      toast.success(isGuest ? 'Бүртгэл амжилттай үүслээ!' : 'Нууц үг амжилттай солигдлоо');
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ['me'] });
       if (isGuest && variables.email && variables.newPassword) {
-        await signIn('credentials', {
-          redirect: false,
-          email: variables.email,
-          password: variables.newPassword,
-        });
+        // Guest: нууц үг хадгалагдсан, имэйл нь pendingEmail-д орсон.
+        // Одоо шинэ имэйл рүү OTP илгээж, баталгаажуулах popup нээнэ —
+        // баталгаажсаны дараа л имэйл солигдож бүртгэл бүрэн болно.
+        toast.success('Нууц үг тохирлоо. Одоо и-мэйлээ баталгаажуулна уу.');
+        try {
+          await authApi.requestEmailChange(token, variables.email);
+        } catch {
+          /* доорх popup-аас дахин илгээх боломжтой */
+        }
+        onGuestEmailPending?.(variables.email);
+      } else {
+        toast.success('Нууц үг амжилттай солигдлоо');
       }
     },
     onError: (err: any) => {
@@ -319,6 +344,112 @@ function PasswordDialog({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// Имэйл солих баталгаажуулах popup — шинэ имэйл рүү OTP илгээж, зөв код
+// оруулсан үед л имэйл бодитоор солигдоно.
+function EmailChangeDialog({
+  open,
+  newEmail,
+  token,
+  onClose,
+  onConfirmed,
+}: {
+  open: boolean;
+  newEmail: string;
+  token: string;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  const [otp, setOtp] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(60);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setOtp('');
+    setResendCountdown(60);
+  }, [open, newEmail]);
+
+  useEffect(() => {
+    if (!open || resendCountdown <= 0) return;
+    const t = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [open, resendCountdown]);
+
+  const handleVerify = async () => {
+    if (otp.length !== 6) return;
+    setVerifying(true);
+    try {
+      await authApi.confirmEmailChange(token, otp);
+      toast.success('И-мэйл амжилттай солигдож баталгаажлаа!');
+      onConfirmed();
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('expired')) toast.error('Код хугацаа дуусжээ. Дахин илгээнэ үү.');
+      else if (msg.includes('attempts')) toast.error('Оролдлогын тоо хэтэрлээ. Дахин илгээнэ үү.');
+      else if (msg.toLowerCase().includes('use') || msg.includes('бүртгэлтэй'))
+        toast.error('Энэ и-мэйл аль хэдийн бүртгэлтэй байна');
+      else toast.error('Код буруу байна');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await authApi.requestEmailChange(token, newEmail);
+      toast.success('Шинэ код илгээлээ');
+      setOtp('');
+      setResendCountdown(60);
+    } catch {
+      toast.error('Код илгээхэд алдаа гарлаа');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>И-мэйл баталгаажуулах</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{newEmail}</span> хаяг руу 6 оронтой код
+            илгээлээ. И-мэйлээ шалгаад кодыг оруулна уу. Баталгаажуулсны дараа л и-мэйл солигдоно.
+          </p>
+          <OtpInput value={otp} onChange={setOtp} onComplete={handleVerify} autoFocus disabled={verifying} />
+          <div className="flex gap-2">
+            <Button size="sm" className="flex-1" onClick={handleVerify} disabled={otp.length !== 6 || verifying}>
+              {verifying ? 'Баталгаажуулж байна...' : 'Баталгаажуулах'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Болих
+            </Button>
+          </div>
+          <div className="flex justify-end">
+            {resendCountdown > 0 ? (
+              <span className="text-xs text-muted-foreground">{resendCountdown}с дараа дахин илгээх</span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {resending ? 'Илгээж байна...' : 'Дахин илгээх'}
+              </button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -470,30 +601,56 @@ export default function ProfilePage() {
   });
 
   const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', email: '' });
+  // Имэйл солих баталгаажуулах popup
+  const [emailChange, setEmailChange] = useState<{ open: boolean; email: string }>({
+    open: false,
+    email: '',
+  });
+
+  const profileForm = useForm<ProfileValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { name: '', phone: '', email: '' },
+  });
 
   useEffect(() => {
     if (user) {
-      setForm({
+      profileForm.reset({
         name: user.name ?? '',
         phone: user.phone ?? '',
         email: user.email ?? '',
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const updateMutation = useMutation({
-    mutationFn: () => {
+  // Имэйл солих хүсэлт (OTP илгээж popup нээх) — баталгаажтал email солигдохгүй
+  const emailChangeMutation = useMutation({
+    mutationFn: (newEmail: string) => {
       if (!token) throw new Error('Нэвтэрч орно уу');
-      const canEditEmail = user?.isGuest || !user?.oauthProvider;
-      const body: Record<string, string | null> = {
-        name: form.name,
-        phone: form.phone.trim() || null,
-      };
-      if (canEditEmail) {
-        body.email = form.email.trim() || null;
-      }
-      return usersApi.updateMe(token, body as any);
+      return authApi.requestEmailChange(token, newEmail);
+    },
+    onSuccess: (_data, newEmail) => {
+      setEmailChange({ open: true, email: newEmail });
+      toast.success('Шинэ и-мэйл рүү код илгээлээ');
+    },
+    onError: (err: any) => {
+      const raw = err?.message ?? '';
+      let msg = 'Код илгээхэд алдаа гарлаа';
+      if (raw.toLowerCase().includes('use') || raw.includes('бүртгэлтэй'))
+        msg = 'Энэ и-мэйл аль хэдийн бүртгэлтэй байна';
+      else if (raw.includes('одоогийн')) msg = 'Энэ нь таны одоогийн и-мэйл байна';
+      toast.error(msg);
+    },
+  });
+
+  // Профайл хадгалах (нэр/утас). Имэйл өөрчлөгдсөн бол тусдаа verify flow руу.
+  const updateMutation = useMutation({
+    mutationFn: (values: ProfileValues) => {
+      if (!token) throw new Error('Нэвтэрч орно уу');
+      return usersApi.updateMe(token, {
+        name: values.name.trim(),
+        phone: values.phone.trim(),
+      } as any);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] });
@@ -509,8 +666,6 @@ export default function ProfilePage() {
         const m: string = arr ? arr.join(', ') : (parsed?.message ?? '');
         if (m.toLowerCase().includes('phone') || raw.toLowerCase().includes('phone')) {
           msg = 'Энэ утасны дугаар бүртгэлтэй байна';
-        } else if (m.toLowerCase().includes('email') || raw.toLowerCase().includes('email')) {
-          msg = 'Энэ и-мэйл бүртгэлтэй байна';
         } else if (parsed?.statusCode === 401 || m.toLowerCase().includes('unauthorized')) {
           msg = 'Нэвтрэлт дууссан, дахин нэвтэрнэ үү';
         } else if (m) {
@@ -518,13 +673,13 @@ export default function ProfilePage() {
         }
       } catch {
         if (raw.toLowerCase().includes('phone')) msg = 'Энэ утасны дугаар бүртгэлтэй байна';
-        else if (raw.toLowerCase().includes('email')) msg = 'Энэ и-мэйл бүртгэлтэй байна';
         else if (raw.includes('401') || raw.toLowerCase().includes('unauthorized'))
           msg = 'Нэвтрэлт дууссан, дахин нэвтэрнэ үү';
       }
       toast.error(msg);
     },
   });
+
 
   if (!session) return null;
   if (isLoading) return <Loading className="mt-8" />;
@@ -534,6 +689,26 @@ export default function ProfilePage() {
   const emailVerified: Date | null = user?.emailVerified ? new Date(user.emailVerified as any) : null;
   const canEditEmail = isGuest || !provider;
   const displayName = user?.name ?? (isGuest ? 'Зочин' : session.user?.email ?? '—');
+
+  // Хадгалах товч: нэр/утас өөрчлөгдсөн бол хадгална; имэйл өөрчлөгдсөн бол
+  // ШУУД хадгалахгүй — verify popup нээж, баталгаажсаны дараа л солино.
+  const onProfileSubmit = (values: ProfileValues) => {
+    const emailChanged =
+      canEditEmail && values.email.trim().toLowerCase() !== (user?.email ?? '').toLowerCase();
+    const nameOrPhoneChanged =
+      values.name.trim() !== (user?.name ?? '') || values.phone.trim() !== (user?.phone ?? '');
+
+    if (nameOrPhoneChanged) {
+      updateMutation.mutate(values);
+    }
+    if (emailChanged) {
+      emailChangeMutation.mutate(values.email.trim());
+    }
+    if (!nameOrPhoneChanged && !emailChanged) {
+      toast.info('Өөрчлөлт алга байна');
+      setEditMode(false);
+    }
+  };
 
   const joined = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString('mn-MN', {
@@ -613,30 +788,27 @@ export default function ProfilePage() {
           {editMode ? (
             <form
               className="space-y-4 py-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                updateMutation.mutate();
-              }}
+              onSubmit={profileForm.handleSubmit(onProfileSubmit)}
             >
               <div className="space-y-1.5">
                 <Label htmlFor="edit-name">Нэр</Label>
                 <Input
                   id="edit-name"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Нэрээ оруулна уу"
+                  placeholder="Жинхэнэ нэрээ оруулна уу"
                   autoFocus
+                  {...profileForm.register('name')}
                 />
+                <FieldError message={profileForm.formState.errors.name?.message} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-phone">Утасны дугаар</Label>
                 <Input
                   id="edit-phone"
                   type="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder="99001122"
+                  {...profileForm.register('phone')}
                 />
+                <FieldError message={profileForm.formState.errors.phone?.message} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-email">
@@ -650,16 +822,26 @@ export default function ProfilePage() {
                 <Input
                   id="edit-email"
                   type="email"
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   disabled={!canEditEmail}
                   className={!canEditEmail ? 'bg-muted' : ''}
+                  {...profileForm.register('email')}
                 />
+                <FieldError message={profileForm.formState.errors.email?.message} />
+                {canEditEmail && (
+                  <p className="text-xs text-muted-foreground">
+                    И-мэйл солих бол баталгаажуулах код шинэ хаяг руу илгээгдэнэ.
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 pt-1">
-                <Button type="submit" size="sm" className="gap-1.5" disabled={updateMutation.isPending}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={updateMutation.isPending || emailChangeMutation.isPending}
+                >
                   <Check className="h-3.5 w-3.5" />
-                  {updateMutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
+                  {updateMutation.isPending || emailChangeMutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
                 </Button>
                 <Button
                   type="button"
@@ -668,7 +850,7 @@ export default function ProfilePage() {
                   className="gap-1.5"
                   onClick={() => {
                     setEditMode(false);
-                    setForm({
+                    profileForm.reset({
                       name: user?.name ?? '',
                       phone: user?.phone ?? '',
                       email: user?.email ?? '',
@@ -727,7 +909,12 @@ export default function ProfilePage() {
         </div>
         <div className="flex items-center gap-2 px-5 py-4">
           {!provider && token && (
-            <PasswordDialog token={token} isGuest={isGuest} currentEmail={user?.email} />
+            <PasswordDialog
+              token={token}
+              isGuest={isGuest}
+              currentEmail={user?.email}
+              onGuestEmailPending={(email) => setEmailChange({ open: true, email })}
+            />
           )}
           <Button
             variant="outline"
@@ -740,6 +927,27 @@ export default function ProfilePage() {
           </Button>
         </div>
       </div>
+
+      {/* Имэйл солих баталгаажуулах popup — verify хийж байж л email солигдоно */}
+      {token && (
+        <EmailChangeDialog
+          open={emailChange.open}
+          newEmail={emailChange.email}
+          token={token}
+          onClose={() => setEmailChange({ open: false, email: '' })}
+          onConfirmed={async () => {
+            setEmailChange({ open: false, email: '' });
+            await queryClient.invalidateQueries({ queryKey: ['me'] });
+            setEditMode(false);
+            // Session-ийг шинэ имэйлээр шинэчлэх
+            try {
+              await updateSession({});
+            } catch {
+              /* зүгээр */
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
