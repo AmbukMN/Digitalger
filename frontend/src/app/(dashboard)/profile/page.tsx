@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { Camera, Check, Eye, EyeOff, Ghost, KeyRound, LogOut, Mail, Pencil, RotateCcw, Shield, X } from 'lucide-react';
 import Image from 'next/image';
 import { usersApi, authApi } from '@/lib/api';
+import { markGuestHasPassword } from '@/lib/guest-session';
 import { API_URL } from '@/lib/constants';
 import type { AuthUser } from '@/types/api';
 import { OtpInput } from '@/components/auth/otp-input';
@@ -211,6 +212,8 @@ function PasswordDialog({
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  // Зочин нууц үг тохируулахад "тусдаа шинэ хэрэглэгч болохыг зөвшөөрөх" checkbox.
+  const [agreeChecked, setAgreeChecked] = useState(false);
 
   const setForm = useForm<SetPasswordValues>({
     resolver: zodResolver(setPasswordSchema),
@@ -228,6 +231,13 @@ function PasswordDialog({
     onSuccess: async (_data, variables) => {
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ['me'] });
+      // Зочин нууц үг тохирууллаа → энэ төхөөрөмжийн localStorage-д
+      // hasPassword:true болгож tempPassword-ийг устгана. Ингэснээр дараа
+      // "Зочноор нэвтрэх" дарвал нууц үг асууж, ИЖИЛ зочин руугаа орно
+      // (өмнө tempPass хэвээр үлдэж login амжилтгүй→шинэ зочин үүсдэг буг).
+      if (isGuest) {
+        markGuestHasPassword();
+      }
       if (isGuest && variables.email && variables.newPassword) {
         // Guest: нууц үг хадгалагдсан, имэйл нь pendingEmail-д орсон.
         // Одоо шинэ имэйл рүү OTP илгээж, баталгаажуулах popup нээнэ —
@@ -260,6 +270,7 @@ function PasswordDialog({
     if (!val) {
       setForm.reset();
       changeForm.reset();
+      setAgreeChecked(false);
     }
     setOpen(val);
   }
@@ -312,8 +323,21 @@ function PasswordDialog({
                 <PasswordField id="sp-confirm" placeholder="Дахин оруулна уу" {...setForm.register('confirm')} />
                 <FieldError message={setForm.formState.errors.confirm?.message} />
               </div>
+              {/* Зочин → тусдаа шинэ хэрэглэгч болохыг зөвшөөрөх (заавал check) */}
+              <label className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer dark:border-amber-900/40 dark:bg-amber-950/20">
+                <input
+                  type="checkbox"
+                  checked={agreeChecked}
+                  onChange={(e) => setAgreeChecked(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary cursor-pointer"
+                />
+                <span className="text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+                  Та зочин статустай хэрэглэгчид нууц үг тохируулж байгаа тул энэ
+                  хэрэглэгч нь тусдаа шинэ хэрэглэгч болж үүсэхийг зөвшөөрч байна.
+                </span>
+              </label>
               <div className="flex gap-2 pt-1">
-                <Button type="submit" size="sm" className="gap-1.5 flex-1" disabled={mutation.isPending}>
+                <Button type="submit" size="sm" className="gap-1.5 flex-1" disabled={mutation.isPending || !agreeChecked}>
                   <Check className="h-3.5 w-3.5" />
                   {mutation.isPending ? 'Хадгалж байна...' : 'Бүртгэл үүсгэх'}
                 </Button>
