@@ -44,13 +44,46 @@ export class DownloadsService {
       throw new NotFoundException('File not found');
     }
 
-    const owned = await this.prisma.order.findFirst({
+    // ── Эзэмшил шалгах ──
+    // (1) Файлын эх product-ийг ШУУД эзэмшсэн эсэх, ЭСВЭЛ
+    // (2) Энэ fileId нь хэрэглэгчийн эзэмшсэн ЯМАР НЭГЭН bundle-ийн fileIds-д
+    //     багтсан эсэх (BundleItem.fileIds нь өөр product-ийн файл байж болно —
+    //     bundle худалдсан хэрэглэгч тэр файлыг татах эрхтэй).
+    const ownedDirect = await this.prisma.order.findFirst({
       where: {
         userId,
         status: OrderStatus.PAID,
         items: { some: { productId: file.productId } },
       },
+      select: { id: true },
     });
+
+    let owned = !!ownedDirect;
+
+    if (!owned) {
+      // Хэрэглэгчийн эзэмшсэн бүх product-ийн bundle-уудаас энэ fileId-г хайна
+      const ownedProductIds = (
+        await this.prisma.orderItem.findMany({
+          where: { order: { userId, status: OrderStatus.PAID } },
+          select: { productId: true },
+        })
+      ).map((i) => i.productId);
+
+      if (ownedProductIds.length) {
+        const bundles = await this.prisma.productBundle.findMany({
+          where: { productId: { in: ownedProductIds } },
+          select: { items: { select: { fileId: true, fileIds: true } } },
+        });
+        const ownedFileIds = new Set<string>();
+        for (const b of bundles) {
+          for (const it of b.items) {
+            if (it.fileId) ownedFileIds.add(it.fileId);
+            for (const fid of it.fileIds ?? []) ownedFileIds.add(fid);
+          }
+        }
+        owned = ownedFileIds.has(fileId);
+      }
+    }
 
     if (!owned) {
       throw new ForbiddenException('You do not own this product');
