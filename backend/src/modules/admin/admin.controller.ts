@@ -73,6 +73,7 @@ export class AdminController {
       newUsersThisMonth,
       monthlyRevenue,
       emailStats,
+      resendStats,
       pendingExpiredCount,
     ] = await Promise.all([
       this.prisma.user.count(),
@@ -120,6 +121,7 @@ export class AdminController {
         _sum: { total: true },
       }),
       this.emailService.getStats(),
+      this.emailService.getResendStats(),
       this.prisma.order.count({
         where: { status: 'PENDING', createdAt: { lt: cutoff48h } },
       }),
@@ -165,6 +167,7 @@ export class AdminController {
       recentOrders: mapOrderImages(recentOrders),
       monthlyRevenue: monthlyRevenueSummary,
       emailStats,
+      resendStats,
     };
   }
 

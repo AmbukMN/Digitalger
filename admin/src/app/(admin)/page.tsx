@@ -18,11 +18,12 @@ import {
   UserPlus,
   XCircle,
   Zap,
+  Send,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
-import type { AdminOrder, EmailStats } from '@/types/admin';
+import type { AdminOrder, EmailStats, DashboardStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
 
 type StatusInfo = { label: string; cls: string; icon: React.ReactNode };
@@ -191,6 +192,9 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
           <Mail className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold">Имэйл хяналт</h2>
           <Badge variant="secondary" className="text-[10px] font-mono">{provider}</Badge>
+          {stats.active === false && (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">Нөөц</Badge>
+          )}
           {!stats.configured && (
             <Badge variant="destructive" className="text-[10px]">Холбоогүй</Badge>
           )}
@@ -261,6 +265,99 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
   );
 }
 
+// Resend имэйл хяналт — AWS SES-ийн хажуугийн карт.
+// Resend нь одоогийн идэвхтэй провайдер (AWS verify болоогүй тул).
+function ResendStatsPanel({ stats }: { stats?: DashboardStats['resendStats'] }) {
+  const s = stats ?? {
+    configured: false, sentThisMonth: 0, sentLastMonth: 0, sentTwoMonthsAgo: 0,
+    monthlyLimit: 3000, queueLength: 0, provider: 'Resend', active: true,
+  };
+  const usedPct = s.monthlyLimit > 0
+    ? Math.round((s.sentThisMonth / s.monthlyLimit) * 100)
+    : 0;
+  const isWarning  = usedPct >= 80;
+  const isCritical = usedPct >= 95;
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Send className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-semibold">Resend хяналт</h2>
+          <Badge variant="secondary" className="text-[10px] font-mono">{s.provider ?? 'Resend'}</Badge>
+          {s.active && (
+            <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Идэвхтэй</Badge>
+          )}
+          {!s.configured && (
+            <Badge variant="destructive" className="text-[10px]">Холбоогүй</Badge>
+          )}
+        </div>
+        {s.configured ? (
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+        ) : (
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+        )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        {!s.configured && (
+          <p className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
+            RESEND_API_KEY тохируулаагүй байна. Имэйл явуулж чадахгүй.
+          </p>
+        )}
+
+        {/* Progress bar */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-muted-foreground">Энэ сар илгээсэн</span>
+            <span className={`text-xs font-bold tabular-nums ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-foreground'}`}>
+              {s.sentThisMonth.toLocaleString()} / {s.monthlyLimit.toLocaleString()}
+            </span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${isCritical ? 'bg-destructive' : isWarning ? 'bg-amber-500' : 'bg-primary'}`}
+              style={{ width: `${Math.min(usedPct, 100)}%` }}
+            />
+          </div>
+          <p className={`mt-1 text-[11px] ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-muted-foreground'}`}>
+            {isCritical ? '⚠️ Лимит дүүрэхэд ойрхон!' : isWarning ? '⚠️ 80% ашигласан' : usedPct > 0 ? `${usedPct}% ашигласан` : 'Тоолуур Redis-д хадгалагдана'}
+          </p>
+        </div>
+
+        {/* Monthly breakdown */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: getMonthLabel(2), value: s.sentTwoMonthsAgo },
+            { label: getMonthLabel(1), value: s.sentLastMonth },
+            { label: getMonthLabel(0), value: s.sentThisMonth, highlight: true },
+          ].map((m) => (
+            <div
+              key={m.label}
+              className={`rounded-lg p-2.5 text-center ${m.highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted/40'}`}
+            >
+              <p className={`text-lg font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
+                {m.value.toLocaleString()}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{m.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Queue */}
+        {s.queueLength > 0 && (
+          <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
+            <Zap className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              {s.queueLength} имэйл дарааллаас илгээгдэхийг хүлээж байна
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MonthlyRevenuePanel({ data }: { data: { month: string; revenue: number }[] }) {
   if (!data.length) return null;
   const max = Math.max(...data.map((d) => d.revenue), 1);
@@ -311,7 +408,7 @@ export default function DashboardPage() {
   if (isError || !data)
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const { stats, recentOrders, monthlyRevenue, emailStats } = data;
+  const { stats, recentOrders, monthlyRevenue, emailStats, resendStats } = data;
 
   const statValues: Record<string, number> = {
     users: stats.users,
@@ -396,11 +493,14 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Email + Revenue row */}
+      {/* Resend + Email хяналт row (Resend идэвхтэй, AWS SES нөөц) */}
       <div className="grid gap-4 lg:grid-cols-2">
+        <ResendStatsPanel stats={resendStats} />
         <EmailStatsPanel stats={emailStats} />
-        <MonthlyRevenuePanel data={monthlyRevenue} />
       </div>
+
+      {/* Revenue row */}
+      <MonthlyRevenuePanel data={monthlyRevenue} />
 
       {/* Analytics section */}
       <AnalyticsSection />

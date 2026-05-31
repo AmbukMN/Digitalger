@@ -8,7 +8,11 @@ export interface EmailStats {
   monthlyLimit: number;
   queueLength: number;
   provider?: string;
+  active?: boolean; // одоо идэвхтэй провайдер эсэх
 }
+
+// Resend статистик — EmailStats-тэй ижил бүтэц
+export interface ResendStats extends EmailStats {}
 
 export interface DashboardStats {
   stats: {
@@ -23,6 +27,7 @@ export interface DashboardStats {
   recentOrders: AdminOrder[];
   monthlyRevenue: { month: string; revenue: number }[];
   emailStats: EmailStats;
+  resendStats?: ResendStats;
 }
 
 export interface AdminUser {

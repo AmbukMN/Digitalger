@@ -1,15 +1,23 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { Resend } from 'resend';
 import Redis from 'ioredis';
 
-const EMAIL_COUNT_KEY = 'email:sent:count';
-const EMAIL_QUEUE_KEY  = 'email:queue:length';
+const EMAIL_COUNT_KEY        = 'email:sent:count';        // AWS SES тоолуур
+const EMAIL_RESEND_COUNT_KEY = 'email:resend:count';      // Resend тоолуур (тусдаа)
+const EMAIL_QUEUE_KEY        = 'email:queue:length';
+
+// Имэйл илгээх провайдер. AWS verify болоогүй тул түр Resend ашиглана.
+// EMAIL_PROVIDER=resend (анхдагч) | ses — env-ээр сэлгэнэ, код дахин бичихгүй.
+type EmailProvider = 'resend' | 'ses';
 
 @Injectable()
 export class EmailService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EmailService.name);
   private readonly ses: SESClient | null;
+  private readonly resend: Resend | null;
+  private readonly provider: EmailProvider;
   private readonly from: string;
   private readonly siteUrl: string;
   private readonly redis: Redis;
@@ -22,20 +30,38 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     const region    = this.config.get<string>('AWS_REGION') ?? 'eu-north-1';
     const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID');
     const secretKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
+    const resendKey = this.config.get<string>('RESEND_API_KEY');
     const redisUrl  = this.config.get<string>('redisUrl') ?? this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+
+    // Провайдерийг env-ээс. Анхдагч 'resend' (AWS verify болоогүй).
+    const rawProvider = (this.config.get<string>('EMAIL_PROVIDER') ?? 'resend').toLowerCase();
+    this.provider = rawProvider === 'ses' ? 'ses' : 'resend';
 
     this.redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 3 });
 
+    // ── Resend client ──
+    if (resendKey) {
+      this.resend = new Resend(resendKey);
+      this.logger.log(`Resend тохируулагдлаа — sender: ${this.from}`);
+    } else {
+      this.resend = null;
+      if (this.provider === 'resend') {
+        this.logger.warn('RESEND_API_KEY тохируулаагүй — Resend имэйл явуулахгүй');
+      }
+    }
+
+    // ── AWS SES client (хадгалсан — verify болмогц EMAIL_PROVIDER=ses) ──
     if (accessKey && secretKey) {
       this.ses = new SESClient({
         region,
         credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
       });
-      this.logger.log(`AWS SES тохируулагдлаа — region: ${region}, sender: ${this.from}`);
+      this.logger.log(`AWS SES бэлэн (нөөц) — region: ${region}`);
     } else {
       this.ses = null;
-      this.logger.warn('AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY тохируулаагүй — имэйл явуулахгүй');
     }
+
+    this.logger.log(`Имэйлийн идэвхтэй провайдер: ${this.provider.toUpperCase()}`);
   }
 
   async onModuleInit() {
@@ -88,11 +114,40 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async send(to: string, subject: string, html: string): Promise<void> {
-    if (!this.ses) return;
     if (!this.isValidEmail(to)) return;
 
-    this.logger.log(`Имэйл боловсруулж байна → ${to} | ${subject}`);
+    this.logger.log(`Имэйл боловсруулж байна (${this.provider}) → ${to} | ${subject}`);
 
+    // ── Resend (идэвхтэй провайдер) ──
+    if (this.provider === 'resend') {
+      if (!this.resend) {
+        this.logger.warn(`Resend тохируулаагүй — имэйл алгассан → ${to}`);
+        return;
+      }
+      try {
+        const { error } = await this.resend.emails.send({
+          from: `DigitalGer <${this.from}>`,
+          to: [to],
+          subject,
+          html,
+        });
+        if (error) {
+          this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${JSON.stringify(error)}`);
+          return;
+        }
+        await this.bumpCounter(EMAIL_RESEND_COUNT_KEY);
+        this.logger.log(`Resend имэйл амжилттай илгээгдлээ → ${to}`);
+      } catch (err) {
+        this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${err}`);
+      }
+      return;
+    }
+
+    // ── AWS SES (нөөц провайдер) ──
+    if (!this.ses) {
+      this.logger.warn(`AWS SES тохируулаагүй — имэйл алгассан → ${to}`);
+      return;
+    }
     try {
       await this.ses.send(
         new SendEmailCommand({
@@ -104,16 +159,18 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           },
         }),
       );
-
-      // Redis-д энэ сарын тоолуур нэмэх
-      const monthKey = `${EMAIL_COUNT_KEY}:${this.currentMonthSlug()}`;
-      await this.redis.incr(monthKey).catch(() => {});
-      await this.redis.expire(monthKey, 60 * 60 * 24 * 95).catch(() => {}); // ~3 сар
-
-      this.logger.log(`Имэйл амжилттай илгээгдлээ → ${to}`);
+      await this.bumpCounter(EMAIL_COUNT_KEY);
+      this.logger.log(`AWS SES имэйл амжилттай илгээгдлээ → ${to}`);
     } catch (err) {
-      this.logger.error(`Имэйл явуулж чадсангүй → ${to}: ${err}`);
+      this.logger.error(`AWS SES имэйл явуулж чадсангүй → ${to}: ${err}`);
     }
+  }
+
+  // Redis-д тухайн провайдерийн энэ сарын тоолуурыг нэмнэ (~3 сар хадгална)
+  private async bumpCounter(baseKey: string): Promise<void> {
+    const monthKey = `${baseKey}:${this.currentMonthSlug()}`;
+    await this.redis.incr(monthKey).catch(() => {});
+    await this.redis.expire(monthKey, 60 * 60 * 24 * 95).catch(() => {});
   }
 
   private currentMonthSlug(): string {
@@ -283,8 +340,23 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.enqueue(() => this.send(to, `Төлбөр амжилттай — ₮${total.toLocaleString()}`, html));
   }
 
-  // ─── stats (Redis-ийн тоолуур, Resend API гүйлгэхгүй) ─────────────────────
+  // ─── stats (Redis-ийн тоолуур) ────────────────────────────────────────────
 
+  // Тухайн base key-ийн сүүлийн 3 сарын тоог Redis-ээс уншина.
+  private async readMonthlyCounts(baseKey: string): Promise<[number, number, number]> {
+    const getCount = async (offset: number): Promise<number> => {
+      try {
+        const key = `${baseKey}:${this.monthSlug(offset)}`;
+        const val = await this.redis.get(key);
+        return val ? parseInt(val, 10) : 0;
+      } catch {
+        return 0;
+      }
+    };
+    return Promise.all([getCount(0), getCount(1), getCount(2)]);
+  }
+
+  // AWS SES статистик (admin dashboard-ийн 'Имэйл хяналт' карт)
   async getStats(): Promise<{
     configured: boolean;
     sentThisMonth: number;
@@ -293,33 +365,46 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     monthlyLimit: number;
     queueLength: number;
     provider: string;
+    active: boolean;
   }> {
-    const queueLength = this.queue.length;
-
-    const getCount = async (offset: number): Promise<number> => {
-      try {
-        const key = `${EMAIL_COUNT_KEY}:${this.monthSlug(offset)}`;
-        const val = await this.redis.get(key);
-        return val ? parseInt(val, 10) : 0;
-      } catch {
-        return 0;
-      }
-    };
-
-    const [sentThisMonth, sentLastMonth, sentTwoMonthsAgo] = await Promise.all([
-      getCount(0),
-      getCount(1),
-      getCount(2),
-    ]);
+    const [sentThisMonth, sentLastMonth, sentTwoMonthsAgo] =
+      await this.readMonthlyCounts(EMAIL_COUNT_KEY);
 
     return {
       configured: this.ses !== null,
       sentThisMonth,
       sentLastMonth,
       sentTwoMonthsAgo,
-      monthlyLimit: 50000, // AWS SES лимит (таны тохиргооноос хамаарна)
-      queueLength,
+      monthlyLimit: 50000, // AWS SES лимит
+      queueLength: this.queue.length,
       provider: 'AWS SES',
+      active: this.provider === 'ses', // одоо идэвхтэй провайдер эсэх
+    };
+  }
+
+  // Resend статистик (admin dashboard-ийн 'Resend хяналт' карт)
+  async getResendStats(): Promise<{
+    configured: boolean;
+    sentThisMonth: number;
+    sentLastMonth: number;
+    sentTwoMonthsAgo: number;
+    monthlyLimit: number;
+    queueLength: number;
+    provider: string;
+    active: boolean;
+  }> {
+    const [sentThisMonth, sentLastMonth, sentTwoMonthsAgo] =
+      await this.readMonthlyCounts(EMAIL_RESEND_COUNT_KEY);
+
+    return {
+      configured: this.resend !== null,
+      sentThisMonth,
+      sentLastMonth,
+      sentTwoMonthsAgo,
+      monthlyLimit: 3000, // Resend free tier (сард 3000)
+      queueLength: this.queue.length,
+      provider: 'Resend',
+      active: this.provider === 'resend', // одоо идэвхтэй провайдер эсэх
     };
   }
 }
