@@ -24,7 +24,8 @@ import {
   SelectValue,
   Separator,
 } from '@digitalger/shared/ui';
-import { Ban, Download, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2 } from 'lucide-react';
+import { Ban, Download, Gift, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2 } from 'lucide-react';
+import { GrantProductsDialog } from '@/components/grant-products-dialog';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminUser } from '@/types/admin';
@@ -78,6 +79,7 @@ export default function UsersPage() {
   const [editRole, setEditRole] = useState<UserRole>('USER');
   const [newPassword, setNewPassword] = useState('');
   const [blockTarget, setBlockTarget] = useState<AdminUser | null>(null);
+  const [grantTarget, setGrantTarget] = useState<AdminUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -246,6 +248,15 @@ export default function UsersPage() {
         const isAdmin = u.role === 'ADMIN';
         return (
           <div className="flex items-center gap-1">
+            {!isAdmin && (
+              <Button
+                variant="ghost" size="icon"
+                className="h-7 w-7 text-primary/70 hover:text-primary hover:bg-primary/10"
+                onClick={() => setGrantTarget(u)} title="Бүтээгдэхүүн идэвхжүүлэх"
+              >
+                <Gift className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => openEdit(u)} title="Засах"
@@ -443,6 +454,9 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Бүтээгдэхүүн идэвхжүүлэх popup (multi-select + search) */}
+      <GrantProductsDialog user={grantTarget} onClose={() => setGrantTarget(null)} />
     </div>
   );
 }

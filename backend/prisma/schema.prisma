@@ -232,6 +232,9 @@ model Order {
   total          Decimal     @db.Decimal(12, 2)
   currency       String      @default("MNT")
   status         OrderStatus @default(PENDING)
+  // Захиалгын эх сурвалж: "PURCHASE" (хэрэглэгч мөнгөөр) | "ADMIN_GRANT" (админ үнэгүй идэвхжүүлсэн)
+  source         String      @default("PURCHASE")
+  grantedByAdminId String?   // ADMIN_GRANT үед идэвхжүүлсэн админ
   qpayIdentifier String?     @unique
   couponCode     String?
   createdAt      DateTime    @default(now())
@@ -241,6 +244,7 @@ model Order {
 
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
+  @@index([userId, source])
 }
 
 model OrderItem {

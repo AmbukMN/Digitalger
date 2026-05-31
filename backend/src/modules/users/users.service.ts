@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -22,7 +23,10 @@ const USER_SELECT = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   async findMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -258,6 +262,140 @@ export class UsersService {
 
     // Frontend res.json() амжилттай parse хийхэд { success: true } буцаана
     // (өмнө void буцаадгаас 'Unexpected end of JSON input' алдаа гардаг байсан).
+    return { success: true };
+  }
+
+  // ─── Admin: хэрэглэгчид бүтээгдэхүүн ҮНЭГҮЙ идэвхжүүлэх (grant) ──────────────
+  // total=0, status=PAID, source=ADMIN_GRANT захиалга үүсгэнэ. Ингэснээр бүх
+  // эзэмшлийн логик (татах/сургалт/Миний сан) яг худалдаж авсан мэт ажиллана.
+
+  /** Хэрэглэгчид сонгосон бүтээгдэхүүнүүдийг үнэгүй идэвхжүүлнэ. Аль хэдийн
+   * эзэмшсэн (худалдаж авсан эсвэл grant) бүтээгдэхүүнийг алгасна. */
+  async grantProductsToUser(userId: string, productIds: string[], adminId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+
+    const ids = [...new Set((productIds || []).filter(Boolean))];
+    if (!ids.length) throw new BadRequestException('Бүтээгдэхүүн сонгоно уу');
+
+    // Бодит бүтээгдэхүүн эсэхийг шалгана
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, title: true, price: true },
+    });
+    if (!products.length) throw new BadRequestException('Сонгосон бүтээгдэхүүн олдсонгүй');
+
+    // Хэрэглэгч аль хэдийн эзэмшсэн (PAID order) бүтээгдэхүүнийг алгасна (давхардахгүй)
+    const ownedItems = await this.prisma.orderItem.findMany({
+      where: {
+        productId: { in: products.map((p) => p.id) },
+        order: { userId, status: OrderStatus.PAID },
+      },
+      select: { productId: true },
+    });
+    const ownedSet = new Set(ownedItems.map((i) => i.productId));
+    const toGrant = products.filter((p) => !ownedSet.has(p.id));
+
+    if (!toGrant.length) {
+      return { granted: 0, skipped: products.length, message: 'Бүгд аль хэдийн идэвхтэй' };
+    }
+
+    // total=0, PAID, ADMIN_GRANT захиалга үүсгэнэ (item бүр price=0)
+    const order = await this.prisma.order.create({
+      data: {
+        userId,
+        total: 0,
+        status: OrderStatus.PAID,
+        source: 'ADMIN_GRANT',
+        grantedByAdminId: adminId,
+        items: {
+          create: toGrant.map((p) => ({ productId: p.id, price: 0 })),
+        },
+      },
+      include: { items: { include: { product: { select: { title: true } } } } },
+    });
+
+    // Хэрэглэгчид имэйл (худалдаж авсан шиг — Миний санд нэмэгдсэн тухай)
+    if (user.email) {
+      this.email
+        .sendPaymentConfirmation({
+          to: user.email,
+          name: user.name,
+          orderId: order.id,
+          total: 0,
+          items: order.items.map((i) => ({ title: i.product.title, price: 0 })),
+        })
+        .catch(() => null);
+    }
+
+    return { granted: toGrant.length, skipped: ownedSet.size, orderId: order.id };
+  }
+
+  /** Хэрэглэгчид админаас идэвхжүүлсэн (ADMIN_GRANT) бүтээгдэхүүний жагсаалт. */
+  async listGrantedProducts(userId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: { userId, source: 'ADMIN_GRANT', status: OrderStatus.PAID },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        createdAt: true,
+        items: {
+          select: {
+            productId: true,
+            product: {
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                price: true,
+                images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Бүх grant item-ийг нэг жагсаалт болгоно (orderId хадгална — цуцлахад хэрэгтэй)
+    const items = orders.flatMap((o) =>
+      o.items.map((it) => ({
+        orderId: o.id,
+        grantedAt: o.createdAt,
+        productId: it.productId,
+        title: it.product.title,
+        type: it.product.type,
+        price: it.product.price,
+        imageKey: it.product.images?.[0]?.fileKey ?? null,
+      })),
+    );
+    return { items };
+  }
+
+  /** Админаас идэвхжүүлсэн нэг бүтээгдэхүүнийг ЦУЦЛАХ (зөвхөн ADMIN_GRANT).
+   * Худалдаж авсан (PURCHASE) захиалгыг цуцлахгүй. Нэг item бол захиалга
+   * бүхэлдээ устгана, олон item бол зөвхөн тэр item-ийг устгана. */
+  async revokeGrantedProduct(userId: string, productId: string) {
+    // Тухайн хэрэглэгчийн ADMIN_GRANT order доторх энэ бүтээгдэхүүний item
+    const item = await this.prisma.orderItem.findFirst({
+      where: {
+        productId,
+        order: { userId, source: 'ADMIN_GRANT', status: OrderStatus.PAID },
+      },
+      include: { order: { select: { id: true, _count: { select: { items: true } } } } },
+    });
+
+    if (!item) {
+      throw new NotFoundException('Идэвхжүүлсэн бүтээгдэхүүн олдсонгүй (зөвхөн админ идэвхжүүлсэнийг цуцална)');
+    }
+
+    if (item.order._count.items <= 1) {
+      // Захиалгад ганц л item — захиалга бүхэлдээ устгана (item cascade)
+      await this.prisma.order.delete({ where: { id: item.order.id } });
+    } else {
+      // Олон item — зөвхөн энэ item-ийг устгана
+      await this.prisma.orderItem.delete({ where: { id: item.id } });
+    }
+
     return { success: true };
   }
 }

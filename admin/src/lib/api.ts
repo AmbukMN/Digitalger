@@ -9,6 +9,7 @@ import type {
   AdminFaq,
   AdminLesson,
   AdminCourseModule,
+  GrantedProduct,
   AdminMenuItem,
   AdminOrder,
   AdminPaymentRow,
@@ -315,6 +316,18 @@ export const adminApi = {
       }),
     delete: (id: string) =>
       adminFetch<{ success: boolean }>(`/admin/users/${id}`, { method: 'DELETE' }),
+    // Бүтээгдэхүүн үнэгүй идэвхжүүлэх (admin grant)
+    grantProducts: (id: string, productIds: string[]) =>
+      adminFetch<{ granted: number; skipped: number; orderId?: string; message?: string }>(
+        `/admin/users/${id}/grant-products`,
+        { method: 'POST', body: JSON.stringify({ productIds }) },
+      ),
+    listGranted: (id: string) =>
+      adminFetch<{ items: GrantedProduct[] }>(`/admin/users/${id}/granted-products`),
+    revokeGranted: (id: string, productId: string) =>
+      adminFetch<{ success: boolean }>(`/admin/users/${id}/granted-products/${productId}`, {
+        method: 'DELETE',
+      }),
   },
 
   settings: {

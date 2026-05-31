@@ -735,6 +735,29 @@ export class AdminController {
     return this.users.deleteUser(id, me.sub);
   }
 
+  // ── Хэрэглэгчид бүтээгдэхүүн ҮНЭГҮЙ идэвхжүүлэх (admin grant) ──────────────
+  /** Сонгосон бүтээгдэхүүнүүдийг хэрэглэгчид үнэгүй идэвхжүүлнэ (Миний санд орно) */
+  @Post('users/:id/grant-products')
+  grantProducts(
+    @Param('id') id: string,
+    @Body() body: { productIds: string[] },
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.users.grantProductsToUser(id, body.productIds ?? [], me.sub);
+  }
+
+  /** Хэрэглэгчид админаас идэвхжүүлсэн бүтээгдэхүүний жагсаалт */
+  @Get('users/:id/granted-products')
+  listGrantedProducts(@Param('id') id: string) {
+    return this.users.listGrantedProducts(id);
+  }
+
+  /** Админаас идэвхжүүлсэн бүтээгдэхүүнийг цуцлах (зөвхөн ADMIN_GRANT) */
+  @Delete('users/:id/granted-products/:productId')
+  revokeGrantedProduct(@Param('id') id: string, @Param('productId') productId: string) {
+    return this.users.revokeGrantedProduct(id, productId);
+  }
+
   // Settings
   @Get('settings')
   async getSettings() {

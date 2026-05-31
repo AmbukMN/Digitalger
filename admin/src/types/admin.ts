@@ -14,6 +14,17 @@ export interface EmailStats {
 // Resend статистик — EmailStats-тэй ижил бүтэц
 export interface ResendStats extends EmailStats {}
 
+// Админаас хэрэглэгчид үнэгүй идэвхжүүлсэн бүтээгдэхүүн
+export interface GrantedProduct {
+  orderId: string;
+  grantedAt: string;
+  productId: string;
+  title: string;
+  type: string;
+  price: number | string;
+  imageKey: string | null;
+}
+
 export interface TopDownloadedProduct {
   id: string;
   title: string;
