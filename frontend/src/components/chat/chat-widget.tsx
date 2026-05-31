@@ -228,9 +228,25 @@ export function ChatWidget() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Нээгдэхэд input-д focus
+  // Нээгдэхэд: хамгийн сүүлийн мессеж рүү шууд гүйлгэх + input-д focus.
+  // Цонх нээгдэх анимэйшн дуустал (~350ms) хүлээж, instant (smooth биш) scroll.
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 350);
+    if (!open) return;
+    const t1 = setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 60);
+    const t2 = setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+      inputRef.current?.focus();
+    }, 380);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [open]);
 
   const send = async () => {
