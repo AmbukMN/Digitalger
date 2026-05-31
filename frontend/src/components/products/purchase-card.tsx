@@ -32,7 +32,7 @@ import { DiscountTimer } from './discount-timer';
 import { DownloadAllButton } from './download-all-button';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
-const FILES_PAGE_SIZE = 20;
+const FILES_PAGE_SIZE = 10;
 
 // ─── Purchased sidebar card (desktop) ────────────────────────────────────────
 function PurchasedCard({
@@ -58,6 +58,10 @@ function PurchasedCard({
   );
   const files = [...standaloneFiles, ...bundleFiles];
   const hasFiles = files.length > 0;
+  // "Бүх файлыг татах" товч — файлын жагсаалт байгаа ЭСВЭЛ бэлэн zip (downloadFileKey)
+  // байгаа бол гарна. Зарим bundle нь файлуудаа нэг нэгээр upload хийгээгүй ч бэлэн
+  // zip линктэй байдаг — энэ үед жагсаалт хоосон ч zip-ийг шууд татна.
+  const canDownloadAll = hasFiles || !!purchase.product.downloadFileKey;
   const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
   const purchaseDate = new Date(purchase.purchasedAt).toLocaleDateString('mn-MN', {
     year: 'numeric',
@@ -100,43 +104,53 @@ function PurchasedCard({
       )}
 
       {/* Download files */}
-      {hasFiles && (
+      {canDownloadAll && (
         <div className="space-y-2">
           <DownloadAllButton
             productId={purchase.product.id}
             downloadFileKey={purchase.product.downloadFileKey}
             zipName={`${purchase.product.slug}.zip`}
             variant="default"
-            label={`Бүх файлыг татах (${files.length})`}
+            label={hasFiles ? `Бүх файлыг татах (${files.length})` : 'Бүх файлыг татах'}
             className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
           />
-          <ul className="space-y-1">
-            {files.slice(0, visibleFiles).map((file) => (
-              <li key={file.id} className="flex items-center gap-2 rounded-lg bg-muted/30 dark:bg-muted/20 border border-border/50 px-3 py-1.5">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
-                  onClick={() => handleDownloadOne(file.id, file.fileName)}
-                  disabled={downloading === file.id}
+          {hasFiles && (
+            <>
+              <ul
+                className={`space-y-1${
+                  visibleFiles >= files.length && files.length > FILES_PAGE_SIZE
+                    ? ' files-scroll max-h-72 overflow-y-auto pr-1'
+                    : ''
+                }`}
+              >
+                {files.slice(0, visibleFiles).map((file) => (
+                  <li key={file.id} className="flex items-center gap-2 rounded-lg bg-muted/30 dark:bg-muted/20 border border-border/50 px-3 py-1.5">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                      onClick={() => handleDownloadOne(file.id, file.fileName)}
+                      disabled={downloading === file.id}
+                    >
+                      {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                      Татах
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {files.length > visibleFiles && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleFiles(files.length)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
                 >
-                  {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                  Татах
-                </Button>
-              </li>
-            ))}
-          </ul>
-          {files.length > visibleFiles && (
-            <button
-              type="button"
-              onClick={() => setVisibleFiles((v) => v + FILES_PAGE_SIZE)}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-              {files.length - visibleFiles} файл нэмж харах
-            </button>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  {files.length - visibleFiles} файл нэмж харах
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -563,6 +577,8 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
     );
     const files = [...standaloneM, ...bundleFilesM];
     const hasFiles = files.length > 0;
+    // Файлын жагсаалт байгаа ЭСВЭЛ бэлэн zip (downloadFileKey) байвал татах товч гарна
+    const canDownloadAll = hasFiles || !!purchase.product.downloadFileKey;
     const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
 
     return (
@@ -574,7 +590,13 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
         {/* Individual files (expandable) */}
         {filesOpen && hasFiles && (
           <div className="border-b border-border/40 px-4 py-3 bg-muted/30 dark:bg-muted/10">
-            <div className="space-y-1">
+            <div
+              className={`space-y-1${
+                mobileVisibleFiles >= files.length && files.length > FILES_PAGE_SIZE
+                  ? ' files-scroll max-h-64 overflow-y-auto pr-1'
+                  : ''
+              }`}
+            >
               {files.slice(0, mobileVisibleFiles).map((file) => (
                 <div key={file.id} className="flex items-center gap-2 rounded-lg bg-card dark:bg-card border border-border/50 px-3 py-1.5">
                   <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -595,7 +617,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
             {files.length > mobileVisibleFiles && (
               <button
                 type="button"
-                onClick={() => setMobileVisibleFiles((v) => v + FILES_PAGE_SIZE)}
+                onClick={() => setMobileVisibleFiles(files.length)}
                 className="w-full flex items-center justify-center gap-1.5 pt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
               >
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -634,7 +656,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
               </div>
             </div>
 
-            {hasFiles ? (
+            {canDownloadAll ? (
               <DownloadAllButton
                 productId={purchase.product.id}
                 downloadFileKey={purchase.product.downloadFileKey}
@@ -645,7 +667,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
               />
             ) : (
               <Button asChild variant="outline" size="sm" className="shrink-0 text-xs h-8 text-muted-foreground hover:text-foreground">
-                <Link href="/orders">За��иалга</Link>
+                <Link href="/orders">Захиалга</Link>
               </Button>
             )}
           </div>
