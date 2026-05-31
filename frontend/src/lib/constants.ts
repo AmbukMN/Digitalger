@@ -8,4 +8,8 @@ export const API_URL =
     ? process.env.INTERNAL_API_URL
     : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 
+// n8n web-chat webhook (AI туслах). Вэб chat widget энэ рүү fetch хийнэ.
+export const CHAT_WEBHOOK_URL =
+  process.env.NEXT_PUBLIC_CHAT_WEBHOOK_URL ?? 'https://bot.digitalger.mn/webhook/web-chat';
+
 

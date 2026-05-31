@@ -8,3 +8,7 @@ backups/
 
 # Workflow backups (deploy үед үүснэ)
 _backup_live_workflow_*.json
+
+# _live ажлын фолдер (workflow-ийн үндсэн хувилбар n8n/ дотор)
+_live/
+_fbtoken.txt

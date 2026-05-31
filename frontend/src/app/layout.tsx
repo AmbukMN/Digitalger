@@ -7,6 +7,7 @@ import { siteSettingsApi } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
+import { ChatWidget } from '@/components/chat/chat-widget';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -151,6 +152,7 @@ export default async function RootLayout({
         <Providers defaultTheme={defaultTheme}>
           <AnalyticsTracker />
           {children}
+          <ChatWidget />
         </Providers>
         <WebVitalsReporter />
       </body>

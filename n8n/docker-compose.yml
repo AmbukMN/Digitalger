@@ -76,6 +76,15 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=336
 
+      # ── Facebook/Instagram chatbot (workflow {{ $env[...] }} ашиглана) ─────────
+      # ⚠️ ЗААВАЛ: энэ мөргүй бол FB Send API token хүрэхгүй → чат хариу өгөхгүй.
+      # N8N_BLOCK_ENV_ACCESS_IN_NODE=false → workflow node-д $env уншихыг зөвшөөрнө
+      # (n8n 2.21 default=true → 'access to env vars denied' алдаа).
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - FB_PAGE_ACCESS_TOKEN=${FB_PAGE_ACCESS_TOKEN}
+      - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
       # ── Email via AWS SES SMTP ───────────────────────────────────────────────
       - N8N_EMAIL_MODE=${N8N_EMAIL_MODE:-smtp}
       - N8N_SMTP_HOST=${N8N_SMTP_HOST:-email-smtp.eu-north-1.amazonaws.com}
