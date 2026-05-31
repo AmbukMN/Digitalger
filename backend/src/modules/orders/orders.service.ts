@@ -261,6 +261,7 @@ export class OrdersService {
       },
       include: {
         user: { select: { email: true, name: true } },
+        items: { include: { product: { select: { title: true } } } },
       },
     });
 
@@ -270,6 +271,7 @@ export class OrdersService {
         name: order.user.name,
         orderId: order.id,
         total: Number(order.total),
+        items: order.items.map((i) => ({ title: i.product.title, price: Number(i.price) })),
       }).catch(() => null);
     }
 

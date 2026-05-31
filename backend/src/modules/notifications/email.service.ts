@@ -303,9 +303,27 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     name: string | null;
     orderId: string;
     total: number;
+    items?: { title: string; price: number }[];
   }) {
-    const { to, name, orderId, total } = opts;
+    const { to, name, orderId, total, items = [] } = opts;
     const greeting = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
+
+    // Худалдан авсан бүтээгдэхүүний жагсаалт (нэр + үнэ)
+    const rows = items
+      .map(
+        (i) =>
+          `<tr><td style="padding:10px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333">${i.title}</td>
+           <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;text-align:right;white-space:nowrap">₮${i.price.toLocaleString()}</td></tr>`,
+      )
+      .join('');
+
+    const itemsBlock = items.length
+      ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px">
+      <tr><th style="text-align:left;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:10px;border-bottom:2px solid #022179">Худалдан авсан бүтээгдэхүүн</th>
+          <th style="text-align:right;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:10px;border-bottom:2px solid #022179">Үнэ</th></tr>
+      ${rows}
+    </table>`
+      : '';
 
     const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
@@ -318,14 +336,22 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       <div style="display:inline-block;background:#dcfce7;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:32px;text-align:center">✓</div>
     </div>
     <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#022179;text-align:center">Төлбөр амжилттай!</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;text-align:center">${greeting}<br>₮${total.toLocaleString()} төлбөр амжилттай тооцогдлоо.</p>
-    <div style="background:#f8f9fb;border-radius:10px;padding:16px 20px;margin-bottom:28px;text-align:center">
+    <p style="margin:0 0 24px;font-size:15px;color:#555;text-align:center">${greeting}<br>Таны худалдан авалт амжилттай баталгаажлаа.</p>
+    <div style="background:#f8f9fb;border-radius:10px;padding:16px 20px;margin-bottom:24px;text-align:center">
       <p style="margin:0 0 4px;font-size:12px;color:#888">Захиалгын дугаар</p>
       <p style="margin:0;font-size:16px;font-weight:700;color:#022179;font-family:monospace">#${orderId.slice(-8).toUpperCase()}</p>
     </div>
+    ${itemsBlock}
+    <div style="border-top:2px solid #022179;padding-top:12px;margin-bottom:24px;text-align:right">
+      <p style="margin:0;font-size:18px;font-weight:800;color:#022179">Нийт төлсөн: ₮${total.toLocaleString()}</p>
+    </div>
+    <!-- Миний сан тайлбар -->
+    <div style="background:#f0f4ff;border:1px solid #d6e0ff;border-radius:10px;padding:16px 20px;margin-bottom:28px">
+      <p style="margin:0;font-size:14px;color:#1e3a8a;line-height:1.6">📁 Таны худалдан авсан бүтээгдэхүүн нь хэрэглэгчийн <strong>«Миний сан»</strong> хэсэгт байрласан ба та тэндээс дэлгэрэнгүй болно.</p>
+    </div>
     <div style="text-align:center">
       <a href="${this.siteUrl}/library" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
-        Файлаа татах →
+        Миний сан руу очих →
       </a>
     </div>
   </td></tr>
