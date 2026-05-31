@@ -48,23 +48,13 @@ function PurchasedCard({
 
   const hasBundles = (purchase.product.bundles?.length ?? 0) > 0;
 
-  // sidebar/mobile-д bundle + standalone файлуудыг нэгтгэж харуулна
-  // product.files нь ProductDetail-аас ирсэн бүх файл (bundle-ийнх ч орно)
-  const allProductFiles = product.files ?? [];
+  // sidebar/mobile-д standalone + bundle файлуудыг нэгтгэж харуулна.
+  // Bundle доторх файл нь ӨӨР product-ийн файл (cross-product) байж болох тул
+  // product.files-аас хайхгүй — backend нэрийн хамт resolve хийсэн bundleFiles-ийг
+  // шууд ашиглана (хоосон жагсаалтаас сэргийлнэ).
   const standaloneFiles = purchase.product.files; // backend-с шүүсэн standalone
-
-  // bundle items-ийн fileId-уудыг цуглуулна
-  const bundleFileIds = new Set(
-    (purchase.product.bundles ?? []).flatMap((b) =>
-      b.items.flatMap((item) =>
-        item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
-      ),
-    ),
-  );
-
-  // sidebar: standalone + bundle-ийн файлуудыг нэрийн мэдээллийн хамт нэгтгэнэ
-  const bundleFiles = allProductFiles.filter(
-    (f) => bundleFileIds.has(f.id) && !standaloneFiles.some((sf) => sf.id === f.id),
+  const bundleFiles = (purchase.product.bundleFiles ?? []).filter(
+    (f) => !standaloneFiles.some((sf) => sf.id === f.id),
   );
   const files = [...standaloneFiles, ...bundleFiles];
   const hasFiles = files.length > 0;
@@ -566,17 +556,10 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
 
   // ── Purchased state ──────────────────────────────────────────────────────
   if (purchase) {
-    const allProdFiles = product.files ?? [];
+    // Bundle доторх (cross-product) файлыг backend-ийн resolve хийсэн bundleFiles-ээс авна
     const standaloneM = purchase.product.files;
-    const bundleIdsM = new Set(
-      (purchase.product.bundles ?? []).flatMap((b) =>
-        b.items.flatMap((item) =>
-          item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
-        ),
-      ),
-    );
-    const bundleFilesM = allProdFiles.filter(
-      (f) => bundleIdsM.has(f.id) && !standaloneM.some((sf) => sf.id === f.id),
+    const bundleFilesM = (purchase.product.bundleFiles ?? []).filter(
+      (f) => !standaloneM.some((sf) => sf.id === f.id),
     );
     const files = [...standaloneM, ...bundleFilesM];
     const hasFiles = files.length > 0;

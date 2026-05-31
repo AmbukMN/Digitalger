@@ -202,6 +202,8 @@ export interface PurchasedProduct {
     thumbnailUrl?: string | null;
     downloadFileKey?: string | null;
     files: { id: string; fileName: string; sortOrder: number }[];
+    // bundle доторх (cross-product) файлууд — нэрийн хамт backend-ээс resolve хийгдэж ирнэ
+    bundleFiles?: { id: string; fileName: string; sortOrder: number }[];
     bundles?: {
       id: string;
       title: string;

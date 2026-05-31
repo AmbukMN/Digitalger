@@ -370,6 +370,31 @@ export class DownloadsService {
       },
     });
 
+    // ── Bundle (cross-product) файлуудын нэрийг resolve хийх ──
+    // BundleItem.fileId/fileIds нь ӨӨР product-ийн файл байж болно (cross-product).
+    // Эдгээр файлын нэр энэ bundle product-ийн `files`-д байхгүй тул ProductFile-аас
+    // тусад нь татаж нэрийн хамт буцаана (frontend жагсаалт + Бүх файлыг татах товчид хэрэгтэй).
+    const allBundleFileIds = new Set<string>();
+    for (const order of orders) {
+      for (const item of order.items) {
+        for (const bundle of ((item.product as any).bundles ?? [])) {
+          for (const bi of (bundle.items ?? [])) {
+            if (bi.fileId) allBundleFileIds.add(bi.fileId);
+            for (const fid of (bi.fileIds ?? [])) allBundleFileIds.add(fid);
+          }
+        }
+      }
+    }
+
+    const bundleFileMap = new Map<string, { id: string; fileName: string; sortOrder: number }>();
+    if (allBundleFileIds.size > 0) {
+      const resolved = await this.prisma.productFile.findMany({
+        where: { id: { in: [...allBundleFileIds] } },
+        select: { id: true, fileName: true, sortOrder: true },
+      });
+      for (const f of resolved) bundleFileMap.set(f.id, f);
+    }
+
     return orders.flatMap((order) =>
       order.items.map((item) => {
         const { images, bundles, files, ...productRest } = item.product as any;
@@ -387,12 +412,32 @@ export class DownloadsService {
           (f: { id: string }) => !bundleFileIdSet.has(f.id),
         );
 
+        // bundle item-уудын дарааллыг хадгалж нэр бүхий файл жагсаалт үүсгэнэ
+        const resolvedBundleFiles: { id: string; fileName: string; sortOrder: number }[] = [];
+        const seen = new Set<string>();
+        for (const bundle of (bundles ?? [])) {
+          for (const bi of (bundle.items ?? [])) {
+            const ids = (bi.fileIds && bi.fileIds.length > 0)
+              ? bi.fileIds
+              : (bi.fileId ? [bi.fileId] : []);
+            for (const fid of ids) {
+              if (seen.has(fid)) continue;
+              const f = bundleFileMap.get(fid);
+              if (f) {
+                resolvedBundleFiles.push(f);
+                seen.add(fid);
+              }
+            }
+          }
+        }
+
         return {
           orderId: order.id,
           purchasedAt: order.createdAt,
           product: {
             ...productRest,
             files: standaloneFiles,
+            bundleFiles: resolvedBundleFiles,
             bundles: bundles ?? [],
             thumbnailUrl: images?.[0]?.fileKey ? this.storage.getAssetUrl(images[0].fileKey) : null,
           },
