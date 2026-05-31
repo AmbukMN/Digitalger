@@ -45,6 +45,7 @@ model User {
   image         String?
   role          Role           @default(USER)
   emailVerified DateTime?
+  pendingEmail  String?
   oauthProvider String?
   oauthId       String?
   isGuest       Boolean        @default(false)
