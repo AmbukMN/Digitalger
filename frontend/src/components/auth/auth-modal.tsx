@@ -17,49 +17,47 @@ import {
   clearGuestSession,
 } from '@/lib/guest-session';
 import { OtpInput } from './otp-input';
-import { GuestPasswordPrompt } from './guest-password-prompt';
 
-// "Зочноор нэвтрэх"-ийн үр дүн:
-//  - 'done'           : амжилттай нэвтэрсэн (шинэ/хуучин зочин)
-//  - 'need-password'  : нууц үг тохируулсан зочин — нууц үг асуух popup нээнэ
-//  - 'error'          : алдаа
-type GuestLoginResult = 'done' | 'need-password' | 'error';
-
+// "Зочноор нэвтрэх"-ийн үр дүн: амжилттай нэвтэрсэн эсэх.
+//
+// Логик:
+//  - localStorage-д ХАДГАЛСАН зочин байгаа (tempPassword-тай) → тэр ХУУЧИН
+//    зочин руугаа л орно (шинэ зочин үүсгэхгүй).
+//  - localStorage хоосон → ШИНЭ зочин үүснэ.
+//
+// ⚠️ Зочин имэйл+нууц үг тохируулж БҮРЭН хэрэглэгч болоход (имэйл verify
+// амжилттай болох үед) localStorage цэвэрлэгддэг (profile EmailChangeDialog →
+// forgetGuestSession). Тиймээс бүрэн болсон зочин ЭНД дахин сэргэхгүй —
+// "Зочноор нэвтрэх" дарвал шинэ зочин үүснэ, харин бүрэн хэрэглэгч нь зөвхөн
+// login хуудсаар имэйл/нууц үгээрээ нэвтэрнэ.
 async function loginAsGuestWithPersistence(
   router: ReturnType<typeof useRouter>,
   callbackUrl: string,
   onClose: () => void,
-): Promise<GuestLoginResult> {
+): Promise<boolean> {
   const stored = loadGuestSession();
 
-  // Хадгалсан зочин байгаа бол:
-  if (stored) {
-    // (а) Нууц үг тохируулсан зочин → tempPassword байхгүй тул нууц үг асууна.
-    if (stored.hasPassword) {
-      return 'need-password';
+  // Хадгалсан зочин байгаа (tempPassword-тай) → хуучин account руугаа орно.
+  if (stored?.password) {
+    const res = await signIn('credentials', {
+      redirect: false,
+      userId: stored.userId,
+      password: stored.password,
+    });
+    if (!res?.error) {
+      toast.success('Зочноор нэвтэрлээ.');
+      onClose();
+      router.push(callbackUrl);
+      router.refresh();
+      return true;
     }
-    // (б) Нууц үггүй зочин → tempPassword-аар шууд хуучин account руугаа орно.
-    if (stored.password) {
-      const res = await signIn('credentials', {
-        redirect: false,
-        userId: stored.userId,
-        password: stored.password,
-      });
-      if (!res?.error) {
-        toast.success('Зочноор нэвтэрлээ.');
-        onClose();
-        router.push(callbackUrl);
-        router.refresh();
-        return 'done';
-      }
-      // tempPass буруу болсон (backend талд солигдсон г.м.) → цэвэрлээд шинээр.
-      clearGuestSession();
-    }
+    // tempPass буруу болсон (backend талд солигдсон г.м.) → цэвэрлээд шинээр.
+    clearGuestSession();
   }
 
   // Хадгалсан зочин байхгүй (эсвэл хүчингүй) → ШИНЭ зочин үүснэ.
   const data = await authApi.loginAsGuest();
-  saveGuestSession({ userId: data.user.id, password: data.tempPassword, hasPassword: false });
+  saveGuestSession({ userId: data.user.id, password: data.tempPassword });
   const res = await signIn('credentials', {
     redirect: false,
     userId: data.user.id,
@@ -70,32 +68,9 @@ async function loginAsGuestWithPersistence(
     onClose();
     router.push(callbackUrl);
     router.refresh();
-    return 'done';
+    return true;
   }
-  return 'error';
-}
-
-// Нууц үг тохируулсан зочин popup-д нууц үгээ оруулахад дуудна.
-async function loginGuestWithPassword(
-  password: string,
-  router: ReturnType<typeof useRouter>,
-  callbackUrl: string,
-  onClose: () => void,
-): Promise<void> {
-  const stored = loadGuestSession();
-  if (!stored) throw new Error('Зочин бүртгэл олдсонгүй');
-  const res = await signIn('credentials', {
-    redirect: false,
-    userId: stored.userId,
-    password,
-  });
-  if (res?.error) {
-    throw new Error('Нууц үг буруу байна');
-  }
-  toast.success('Зочноор нэвтэрлээ.');
-  onClose();
-  router.push(callbackUrl);
-  router.refresh();
+  return false;
 }
 
 function PasswordInput({ id, autoComplete, ...props }: React.ComponentProps<typeof Input>) {
@@ -171,7 +146,6 @@ function GuestButton({ onClick, loading }: { onClick: () => void; loading: boole
 function LoginForm({ onClose, callbackUrl, onForgotPassword }: { onClose: () => void; callbackUrl?: string; onForgotPassword: () => void }) {
   const router = useRouter();
   const [guestLoading, setGuestLoading] = useState(false);
-  const [guestPwPrompt, setGuestPwPrompt] = useState(false);
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { identifier: '', password: '' },
@@ -197,12 +171,8 @@ function LoginForm({ onClose, callbackUrl, onForgotPassword }: { onClose: () => 
   const handleGuest = async () => {
     setGuestLoading(true);
     try {
-      const result = await loginAsGuestWithPersistence(router, callbackUrl ?? '/', onClose);
-      if (result === 'need-password') {
-        setGuestPwPrompt(true); // нууц үг тохируулсан зочин → нууц үг асуух popup
-      } else if (result === 'error') {
-        toast.error('Зочин нэвтрэхэд алдаа гарлаа');
-      }
+      const ok = await loginAsGuestWithPersistence(router, callbackUrl ?? '/', onClose);
+      if (!ok) toast.error('Зочин нэвтрэхэд алдаа гарлаа');
     } catch {
       toast.error('Зочин нэвтрэхэд алдаа гарлаа');
     } finally {
@@ -247,15 +217,6 @@ function LoginForm({ onClose, callbackUrl, onForgotPassword }: { onClose: () => 
       </button>
 
       <GuestButton onClick={handleGuest} loading={guestLoading} />
-
-      <GuestPasswordPrompt
-        open={guestPwPrompt}
-        onClose={() => setGuestPwPrompt(false)}
-        onSubmit={async (pw) => {
-          await loginGuestWithPassword(pw, router, callbackUrl ?? '/', onClose);
-          setGuestPwPrompt(false);
-        }}
-      />
     </form>
   );
 }
@@ -389,7 +350,6 @@ function SignupOtpScreen({ email, password, onSuccess, onBack, callbackUrl }: Si
 function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?: string }) {
   const router = useRouter();
   const [guestLoading, setGuestLoading] = useState(false);
-  const [guestPwPrompt, setGuestPwPrompt] = useState(false);
   const [otpData, setOtpData] = useState<{ email: string; password: string } | null>(null);
   const form = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
@@ -420,12 +380,8 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
   const handleGuest = async () => {
     setGuestLoading(true);
     try {
-      const result = await loginAsGuestWithPersistence(router, callbackUrl ?? '/', onClose);
-      if (result === 'need-password') {
-        setGuestPwPrompt(true); // нууц үг тохируулсан зочин → нууц үг асуух popup
-      } else if (result === 'error') {
-        toast.error('Зочин нэвтрэхэд алдаа гарлаа');
-      }
+      const ok = await loginAsGuestWithPersistence(router, callbackUrl ?? '/', onClose);
+      if (!ok) toast.error('Зочин нэвтрэхэд алдаа гарлаа');
     } catch {
       toast.error('Зочин нэвтрэхэд алдаа гарлаа');
     } finally {
@@ -482,15 +438,6 @@ function SignupForm({ onClose, callbackUrl }: { onClose: () => void; callbackUrl
       </button>
 
       <GuestButton onClick={handleGuest} loading={guestLoading} />
-
-      <GuestPasswordPrompt
-        open={guestPwPrompt}
-        onClose={() => setGuestPwPrompt(false)}
-        onSubmit={async (pw) => {
-          await loginGuestWithPassword(pw, router, callbackUrl ?? '/', onClose);
-          setGuestPwPrompt(false);
-        }}
-      />
     </form>
   );
 }

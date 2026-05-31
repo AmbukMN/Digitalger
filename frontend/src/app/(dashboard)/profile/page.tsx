@@ -21,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import { Camera, Check, Eye, EyeOff, Ghost, KeyRound, LogOut, Mail, Pencil, RotateCcw, Shield, X } from 'lucide-react';
 import Image from 'next/image';
 import { usersApi, authApi } from '@/lib/api';
-import { markGuestHasPassword } from '@/lib/guest-session';
+import { forgetGuestSession } from '@/lib/guest-session';
 import { API_URL } from '@/lib/constants';
 import type { AuthUser } from '@/types/api';
 import { OtpInput } from '@/components/auth/otp-input';
@@ -231,13 +231,6 @@ function PasswordDialog({
     onSuccess: async (_data, variables) => {
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ['me'] });
-      // Зочин нууц үг тохирууллаа → энэ төхөөрөмжийн localStorage-д
-      // hasPassword:true болгож tempPassword-ийг устгана. Ингэснээр дараа
-      // "Зочноор нэвтрэх" дарвал нууц үг асууж, ИЖИЛ зочин руугаа орно
-      // (өмнө tempPass хэвээр үлдэж login амжилтгүй→шинэ зочин үүсдэг буг).
-      if (isGuest) {
-        markGuestHasPassword();
-      }
       if (isGuest && variables.email && variables.newPassword) {
         // Guest: нууц үг хадгалагдсан, имэйл нь pendingEmail-д орсон.
         // Одоо шинэ имэйл рүү OTP илгээж, баталгаажуулах popup нээнэ —

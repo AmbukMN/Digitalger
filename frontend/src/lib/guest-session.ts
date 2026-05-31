@@ -1,21 +1,24 @@
 // Зочин (guest) хэрэглэгчийн төхөөрөмж дэх хадгалалт.
 //
-// Зорилго: нэг төхөөрөмжөөс "Зочноор нэвтрэх" дарахад өмнө үүсгэсэн зочин
-// account руугаа л дахин ороx (шинэ зочин дахин үүсгэхгүй).
+// Зорилго: нэг төхөөрөмжөөс "Зочноор нэвтрэх" дарахад НУУЦ ҮГ ТОХИРУУЛААГҮЙ
+// зочин account руугаа л дахин орох (шинэ зочин дахин үүсгэхгүй).
+//
+// ⚠️ Зочин нууц үг + имэйл тохируулж БҮРЭН хэрэглэгч болмогц localStorage-ийг
+// БҮХЭЛД НЬ цэвэрлэнэ (forgetGuestSession). Учир нь:
+//  - Бүрэн хэрэглэгч зөвхөн username/нууц үгээрээ нэвтрэх ёстой.
+//  - Нэг компьютерийг олон хүн ашигладаг: эхний хүн зочноор худалдан авч,
+//    имэйл+нууц үг үүсгээд гарвал, ДАРААГИЙН хүн "Зочноор нэвтрэх" дарахад
+//    ШИНЭ зочин үүсэх ёстой (өмнөх хүний бүрэн бүртгэл рүү орох ёсгүй).
 //
 // Хадгалах өгөгдөл (localStorage['digitalger-guest']):
-//   { userId, password, hasPassword }
-//   - password:    зочин үүсэх үед өгсөн tempPassword. Нууц үг тохируулсны
-//                  дараа УСТГАНА (буруу tempPass-аар нэвтрэхгүйн тулд).
-//   - hasPassword: зочин өөрөө нууц үг тохируулсан эсэх. true бол "Зочноор
-//                  нэвтрэх" дарахад нууц үг асууна (өөрийн мэдэх нууц үгээр).
+//   { userId, password }
+//   - password: зочин үүсэх үед өгсөн tempPassword. Нэг л зочинд хамаарна.
 
 const GUEST_KEY = 'digitalger-guest';
 
 export interface GuestSession {
   userId: string;
-  password?: string | null; // tempPassword (нууц үг тохируулсны дараа null)
-  hasPassword?: boolean;     // зочин өөрөө нууц үг тохируулсан эсэх
+  password?: string | null; // tempPassword
 }
 
 export function saveGuestSession(s: GuestSession) {
@@ -46,11 +49,10 @@ export function clearGuestSession() {
   }
 }
 
-// Зочин өөрөө нууц үг тохируулмагц дуудна: tempPassword-ийг УСТГАЖ,
-// hasPassword:true болгоно. Ингэснээр дараа "Зочноор нэвтрэх" дарвал
-// нууц үг асуух popup гарна (буруу tempPass-аар нэвтрэхгүй).
-export function markGuestHasPassword() {
-  const cur = loadGuestSession();
-  if (!cur) return;
-  saveGuestSession({ userId: cur.userId, password: null, hasPassword: true });
+// Зочин нууц үг + имэйл тохируулж БҮРЭН хэрэглэгч болмогц дуудна.
+// localStorage-ийг бүхэлд нь цэвэрлэснээр энэ зочин дахин "Зочноор нэвтрэх"-д
+// сэргэхгүй (бүрэн хэрэглэгч зөвхөн username/нууц үгээрээ нэвтэрнэ), мөн
+// дараагийн "Зочноор нэвтрэх" дарвал ШИНЭ зочин үүснэ.
+export function forgetGuestSession() {
+  clearGuestSession();
 }
