@@ -8,12 +8,50 @@ import { SessionProvider } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Toaster } from 'sonner';
+import { signOut } from 'next-auth/react';
+import { useQuery } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { useCouponStore } from '@/store/coupon';
-import { downloadsApi, wishlistApi } from '@/lib/api';
+import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
+
+// Realtime бүртгэл хяналт: админ хэрэглэгчийг блоклосон/устгасан үед
+// тухайн хэрэглэгчийг бүх хуудсанд автоматаар гаргана (сайт удаашруулахгүйгээр).
+//
+// Хэрхэн ажилладаг:
+// - Зөвхөн НЭВТЭРСЭН хэрэглэгчид л ажиллана (enabled: !!token) — зочинд fetch хийхгүй.
+// - 45 секунд тутамд + таб руу буцаж ирэх (window focus) бүрд /users/me-г шалгана.
+//   /users/me нь маш хөнгөн (1 мөр select) тул ачаалал бараг тэг.
+// - backend jwt.strategy блоклосон/устсан үед 401 шиддэг → энд барьж signOut хийнэ.
+function AuthWatcher() {
+  const { data: session, status } = useSession();
+  const token = session?.accessToken;
+
+  const { error } = useQuery({
+    queryKey: ['auth-watch', token],
+    queryFn: () => usersApi.me(token!),
+    enabled: status === 'authenticated' && !!token,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: token ? 45_000 : false, // idle үед 45с тутам
+    refetchIntervalInBackground: false,       // нуугдсан таб дээр сэмжихгүй
+    refetchOnWindowFocus: true,               // таб руу буцахад шууд шалгана
+  });
+
+  useEffect(() => {
+    const s = (error as any)?.status;
+    // blocked/устсан/токен хүчингүй → 401/403/404. Шууд гаргана.
+    if (s === 401 || s === 403 || s === 404) {
+      toast.error('Таны бүртгэл идэвхгүй болсон байна');
+      signOut({ callbackUrl: '/' });
+    }
+  }, [error]);
+
+  return null;
+}
 
 // Zustand persist store-уудыг SSR-ийн дараа нэг л удаа rehydrate хийнэ.
 // skipHydration:true тохиргоотой хамт ажиллана — hydration mismatch арилна.
@@ -131,6 +169,7 @@ export function Providers({ children, defaultTheme = 'system' }: ProvidersProps)
         <ThemeProvider defaultTheme={defaultTheme} storageKey="digitalger-theme">
           <StoreHydration />
           <SessionSyncEffect />
+          <AuthWatcher />
           {children}
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
