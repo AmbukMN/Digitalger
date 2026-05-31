@@ -27,6 +27,7 @@ import { OtpInput } from '@/components/auth/otp-input';
 
 // ── Schemas ────────────────────────────────────────────────────
 const GUEST_NAMES = ['зочин', 'guest', 'хоосон'];
+const GUEST_EMAIL_DOMAIN = '@guest.digitalger.mn';
 const profileSchema = z.object({
   name: z
     .string()
@@ -38,7 +39,15 @@ const profileSchema = z.object({
     .string()
     .trim()
     .regex(/^\+?[0-9]{8,15}$/, 'Утасны дугаар бүтэн оруулна уу (8-15 орон)'),
-  email: z.string().trim().email('Зөв и-мэйл оруулна уу'),
+  // Имэйлийг ЗААВАЛ шаардахгүй (зочин/хоосон байж болно). Зөвхөн утга оруулсан
+  // үед формат шалгана. Имэйл солих verify нь onProfileSubmit-д тусдаа.
+  email: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || v.endsWith(GUEST_EMAIL_DOMAIN) || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v),
+      'Зөв и-мэйл оруулна уу',
+    ),
 });
 type ProfileValues = z.infer<typeof profileSchema>;
 
@@ -594,11 +603,22 @@ export default function ProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const token = session?.accessToken;
 
-  const { data: user, isLoading } = useQuery<AuthUser>({
+  const { data: user, isLoading, error: meError } = useQuery<AuthUser>({
     queryKey: ['me', token],
     queryFn: () => usersApi.me(token!),
     enabled: !!token,
+    retry: false,
   });
+
+  // Хэрэглэгчийг админ устгасан/блоклосон бол /users/me нь 401/404 буцаана.
+  // Энэ үед session-ийг шууд signOut хийж нэвтрэлтийг цуцална.
+  useEffect(() => {
+    const status = (meError as any)?.status;
+    if (status === 401 || status === 404) {
+      toast.error('Таны бүртгэл идэвхгүй болсон байна');
+      signOut({ callbackUrl: '/' });
+    }
+  }, [meError]);
 
   const [editMode, setEditMode] = useState(false);
   // Имэйл солих баталгаажуулах popup
@@ -690,11 +710,29 @@ export default function ProfilePage() {
   const canEditEmail = isGuest || !provider;
   const displayName = user?.name ?? (isGuest ? 'Зочин' : session.user?.email ?? '—');
 
-  // Хадгалах товч: нэр/утас өөрчлөгдсөн бол хадгална; имэйл өөрчлөгдсөн бол
-  // ШУУД хадгалахгүй — verify popup нээж, баталгаажсаны дараа л солино.
+  // Хэрэглэгчид одоо бодит (баталгаажсан) имэйл байгаа эсэх.
+  // Зочны guest_xxx@... болон хоосныг "бодит имэйлгүй" гэж үзнэ.
+  const curEmailLc = (user?.email ?? '').toLowerCase();
+  const hasRealEmail = !!curEmailLc && !curEmailLc.endsWith(GUEST_EMAIL_DOMAIN);
+
+  // Хадгалах товч:
+  //  • АНХНЫ удаа (бодит имэйлгүй зочин) → нэр/утас/имэйл 3-уулаа ЗААВАЛ.
+  //    Имэйлийг verify хийж байж бүртгэл бүрэн болно.
+  //  • Бодит имэйлтэй болсон бол → нэр/утас дангаар засаж болно (имэйл шаардахгүй).
+  //    Имэйл өөрчилбөл л verify шаардана.
   const onProfileSubmit = (values: ProfileValues) => {
-    const emailChanged =
-      canEditEmail && values.email.trim().toLowerCase() !== (user?.email ?? '').toLowerCase();
+    const newEmail = values.email.trim().toLowerCase();
+    const newIsReal = !!newEmail && !newEmail.endsWith(GUEST_EMAIL_DOMAIN);
+    const emailChanged = canEditEmail && newIsReal && newEmail !== (hasRealEmail ? curEmailLc : '');
+
+    // Анхны бүртгэл (бодит имэйлгүй) үед имэйл ЗААВАЛ шаардлагатай
+    if (canEditEmail && !hasRealEmail && !newIsReal) {
+      profileForm.setError('email', {
+        message: 'Бүртгэл бүрэн болгохын тулд жинхэнэ и-мэйл оруулна уу',
+      });
+      return;
+    }
+
     const nameOrPhoneChanged =
       values.name.trim() !== (user?.name ?? '') || values.phone.trim() !== (user?.phone ?? '');
 
@@ -829,7 +867,9 @@ export default function ProfilePage() {
                 <FieldError message={profileForm.formState.errors.email?.message} />
                 {canEditEmail && (
                   <p className="text-xs text-muted-foreground">
-                    И-мэйл солих бол баталгаажуулах код шинэ хаяг руу илгээгдэнэ.
+                    {!hasRealEmail
+                      ? 'Бүртгэл бүрэн болгохын тулд и-мэйлээ оруулж баталгаажуулна уу.'
+                      : 'И-мэйл солих бол баталгаажуулах код шинэ хаяг руу илгээгдэнэ.'}
                   </p>
                 )}
               </div>

@@ -4,8 +4,8 @@ export class SendOtpDto {
   @IsEmail()
   email: string;
 
-  @IsIn(['verify', 'reset'])
-  purpose: 'verify' | 'reset';
+  @IsIn(['verify', 'reset', 'email_change'])
+  purpose: 'verify' | 'reset' | 'email_change';
 }
 
 // Имэйл солих хүсэлт — шинэ имэйл рүү OTP илгээнэ (баталгаажтал User.email солихгүй)

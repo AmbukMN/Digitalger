@@ -79,7 +79,10 @@ export async function adminFetch<T>(
   }
 
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  // 200 + хоосон body үед res.json() нь 'Unexpected end of JSON input' өгдөг.
+  // Эхлээд текстээр уншаад хоосон бол undefined буцаана.
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const adminApi = {
@@ -294,10 +297,16 @@ export const adminApi = {
       );
     },
     get: (id: string) => adminFetch<AdminUserDetail>(`/admin/users/${id}`),
-    update: (id: string, body: { name?: string; role?: string; phone?: string }) =>
+    update: (id: string, body: { name?: string; role?: string; phone?: string; email?: string }) =>
       adminFetch<AdminUser>(`/admin/users/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
+      }),
+    // Админ хэрэглэгчийн нууц үгийг шууд тохируулна
+    setPassword: (id: string, newPassword: string) =>
+      adminFetch<{ success: boolean }>(`/admin/users/${id}/password`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newPassword }),
       }),
     block: (id: string, blocked: boolean) =>
       adminFetch<AdminUser>(`/admin/users/${id}/block`, {
@@ -305,7 +314,7 @@ export const adminApi = {
         body: JSON.stringify({ blocked }),
       }),
     delete: (id: string) =>
-      adminFetch<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+      adminFetch<{ success: boolean }>(`/admin/users/${id}`, { method: 'DELETE' }),
   },
 
   settings: {

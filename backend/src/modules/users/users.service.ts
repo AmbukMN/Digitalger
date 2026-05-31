@@ -170,20 +170,61 @@ export class UsersService {
     return user;
   }
 
-  async updateByAdmin(id: string, dto: { name?: string; role?: string; image?: string; phone?: string }) {
+  async updateByAdmin(
+    id: string,
+    dto: { name?: string; role?: string; image?: string; phone?: string; email?: string },
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
+
+    // Утас давхцал шалгах (хоосон → null)
+    const phone = dto.phone === '' ? null : dto.phone;
+    if (phone) {
+      const existing = await this.prisma.user.findUnique({ where: { phone } });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('Энэ утасны дугаар өөр хэрэглэгчид бүртгэлтэй байна');
+      }
+    }
+
+    // Email давхцал шалгах. Админ нь verify-гүйгээр ШУУД солино
+    // (зочин биш бол emailVerified=now, зочин бол хэвээр).
+    let emailData: { email: string; emailVerified: Date; isGuest: false } | undefined;
+    if (dto.email !== undefined && dto.email !== '' &&
+        dto.email.toLowerCase() !== user.email.toLowerCase()) {
+      const normalizedEmail = dto.email.toLowerCase();
+      const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('Энэ имэйл өөр хэрэглэгчид бүртгэлтэй байна');
+      }
+      emailData = { email: normalizedEmail, emailVerified: new Date(), isGuest: false };
+    }
 
     return this.prisma.user.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.image !== undefined && { image: dto.image }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.phone !== undefined && { phone }),
         ...(dto.role !== undefined && { role: dto.role as any }),
+        ...(emailData ?? {}),
       },
       select: USER_SELECT,
     });
+  }
+
+  /** Админ хэрэглэгчийн нууц үгийг ШУУД тохируулна (одоогийн нууц үг шаардахгүй) */
+  async setPasswordByAdmin(id: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Нууц үг хамгийн багадаа 8 тэмдэгт байх ёстой');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.oauthProvider) {
+      throw new BadRequestException('OAuth бүртгэлд нууц үг тохируулах боломжгүй');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({ where: { id }, data: { passwordHash } });
+    return { success: true };
   }
 
   async blockUser(id: string, blocked: boolean, adminId: string) {
@@ -205,9 +246,18 @@ export class UsersService {
     if (user.role === 'ADMIN') throw new ForbiddenException('Админ хэрэглэгчийг устгах боломжгүй');
     if (id === adminId) throw new ForbiddenException('Өөрийгөө устгах боломжгүй');
 
+    // Хэрэглэгчтэй холбоотой БҮХ өгөгдлийг устгана.
+    // orders/reviews/downloads/wishlists/notifications/accounts/sessions нь
+    // schema-д onDelete:Cascade тул user.delete-д автоматаар устана.
+    // ZipJob (FK relation-гүй) болон EmailOtp (email-ээр холбоотой) гар аргаар устгана.
     await this.prisma.$transaction([
       this.prisma.zipJob.deleteMany({ where: { userId: id } }),
+      this.prisma.emailOtp.deleteMany({ where: { email: user.email } }),
       this.prisma.user.delete({ where: { id } }),
     ]);
+
+    // Frontend res.json() амжилттай parse хийхэд { success: true } буцаана
+    // (өмнө void буцаадгаас 'Unexpected end of JSON input' алдаа гардаг байсан).
+    return { success: true };
   }
 }

@@ -180,8 +180,17 @@ export function ForgotPasswordForm() {
       setEmail(v);
       setResendCountdown(60);
       setStep('otp');
-    } catch {
-      toast.error('Алдаа гарлаа. Дахин оролдоно уу.');
+    } catch (err: any) {
+      // Бүртгэлгүй/зочин/OAuth имэйлд тодорхой алдаа (OTP алхам руу орохгүй)
+      const raw = err?.message ?? '';
+      let msg = 'Алдаа гарлаа. Дахин оролдоно уу.';
+      if (raw.includes('бүртгэл олдсонгүй') || raw.toLowerCase().includes('not found'))
+        msg = 'Энэ имэйлээр бүртгэл олдсонгүй';
+      else if (raw.includes('нийгмийн сүлжээ') || raw.toLowerCase().includes('oauth'))
+        msg = 'Энэ бүртгэл нийгмийн сүлжээгээр нэвтэрдэг тул нууц үг сэргээх боломжгүй';
+      else if (raw && !raw.includes('{')) msg = raw;
+      setEmailError(msg);
+      toast.error(msg);
     } finally {
       setSending(false);
     }

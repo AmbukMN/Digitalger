@@ -74,7 +74,9 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('USER');
+  const [newPassword, setNewPassword] = useState('');
   const [blockTarget, setBlockTarget] = useState<AdminUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
 
@@ -87,13 +89,35 @@ export default function UsersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => adminApi.users.update(editing!.id, { name: editName, role: editRole, phone: editPhone || undefined }),
+    // Админ нь нэр/утас/email/role-ийг verify-гүйгээр шууд засна.
+    // Нууц үг оруулсан бол түүнийг ч шууд тохируулна.
+    mutationFn: async () => {
+      await adminApi.users.update(editing!.id, {
+        name: editName,
+        role: editRole,
+        phone: editPhone || undefined,
+        email: editEmail.trim() || undefined,
+      });
+      if (newPassword.trim()) {
+        await adminApi.users.setPassword(editing!.id, newPassword.trim());
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       toast.success('Хэрэглэгч шинэчлэгдлээ');
       setEditing(null);
+      setNewPassword('');
     },
-    onError: () => toast.error('Хадгалахад алдаа'),
+    onError: (e: any) => {
+      const raw = e?.message ?? '';
+      if (raw.toLowerCase().includes('имэйл') || raw.toLowerCase().includes('email'))
+        toast.error('Энэ имэйл өөр хэрэглэгчид бүртгэлтэй байна');
+      else if (raw.toLowerCase().includes('утас') || raw.toLowerCase().includes('phone'))
+        toast.error('Энэ утас өөр хэрэглэгчид бүртгэлтэй байна');
+      else if (raw.includes('8 тэмдэгт')) toast.error('Нууц үг хамгийн багадаа 8 тэмдэгт');
+      else if (raw.includes('OAuth')) toast.error('OAuth бүртгэлд нууц үг тохируулах боломжгүй');
+      else toast.error('Хадгалахад алдаа');
+    },
   });
 
   const blockMutation = useMutation({
@@ -120,7 +144,10 @@ export default function UsersPage() {
     setEditing(user);
     setEditName(user.name ?? '');
     setEditPhone(user.phone ?? '');
+    // Зочны guest_xxx@guest.digitalger.mn имэйлийг хоосон харуулна
+    setEditEmail(user.isGuest ? '' : user.email ?? '');
     setEditRole(user.role);
+    setNewPassword('');
   }
 
   const columns: ColumnDef<AdminUser>[] = [
@@ -301,6 +328,23 @@ export default function UsersPage() {
               <Input id="editPhone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+976..." />
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="editEmail">И-мэйл</Label>
+              <Input
+                id="editEmail"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="you@example.com"
+                disabled={!!editing?.oauthProvider}
+                className={editing?.oauthProvider ? 'bg-muted' : ''}
+              />
+              <p className="text-xs text-muted-foreground">
+                {editing?.oauthProvider
+                  ? 'OAuth бүртгэлийн имэйлийг засах боломжгүй'
+                  : 'Админ имэйлийг баталгаажуулалтгүйгээр шууд солино'}
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label>Эрх</Label>
               <Select value={editRole} onValueChange={(v) => setEditRole(v as UserRole)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -310,6 +354,22 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {!editing?.oauthProvider && (
+              <div className="space-y-1.5">
+                <Label htmlFor="newPassword">Шинэ нууц үг (заавал биш)</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Хоосон бол өөрчлөхгүй"
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Бичвэл хэрэглэгчийн нууц үг шууд солигдоно (8+ тэмдэгт)
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Цуцлах</Button>

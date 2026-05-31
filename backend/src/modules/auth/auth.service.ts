@@ -336,8 +336,8 @@ export class AuthService {
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
-  /** Resend OTP (both logged-in and signup flow) */
-  async resendOtp(email: string, purpose: 'verify' | 'reset') {
+  /** Resend OTP (signup verify, password reset, болон имэйл солих) */
+  async resendOtp(email: string, purpose: 'verify' | 'reset' | 'email_change') {
     const normalizedEmail = email.toLowerCase();
 
     // For verify: check user exists; for reset: check user exists
@@ -366,15 +366,24 @@ export class AuthService {
     return { message: 'OTP resent' };
   }
 
-  /** Forgot password: send reset OTP */
+  /** Forgot password: send reset OTP. Зөвхөн бүртгэлтэй (зочин/OAuth биш) хэрэглэгчид. */
   async forgotPassword(email: string) {
     const normalizedEmail = email.toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
-    // Don't reveal if user exists
-    if (user && !user.isGuest) {
-      await this.createAndSendOtp(normalizedEmail, user.name, 'reset');
+
+    // Бүртгэлгүй имэйлд reset хийх боломжгүй — тодорхой хэлнэ
+    if (!user || user.isGuest) {
+      throw new BadRequestException('Энэ имэйлээр бүртгэл олдсонгүй');
     }
-    return { message: 'If that email exists, an OTP has been sent' };
+    // OAuth (Google г.м.)-аар нэвтэрсэн бол нууц үггүй тул reset утгагүй
+    if (user.oauthProvider && !user.passwordHash) {
+      throw new BadRequestException(
+        'Энэ бүртгэл нийгмийн сүлжээгээр нэвтэрдэг тул нууц үг сэргээх боломжгүй',
+      );
+    }
+
+    await this.createAndSendOtp(normalizedEmail, user.name, 'reset');
+    return { message: 'OTP sent' };
   }
 
   /** Reset password with OTP */

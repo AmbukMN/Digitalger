@@ -677,9 +677,17 @@ export class AdminController {
   @Patch('users/:id')
   updateUser(
     @Param('id') id: string,
-    @Body() body: { name?: string; role?: string; image?: string },
+    @Body()
+    body: { name?: string; role?: string; image?: string; phone?: string; email?: string },
   ) {
+    // Админ нь нэр/утас/email/role-ийг verify-гүйгээр ШУУД засна.
     return this.users.updateByAdmin(id, body);
+  }
+
+  // Админ хэрэглэгчийн нууц үгийг ШУУД тохируулна (одоогийн нууц үг шаардахгүй)
+  @Patch('users/:id/password')
+  setUserPassword(@Param('id') id: string, @Body() body: { newPassword: string }) {
+    return this.users.setPasswordByAdmin(id, body.newPassword);
   }
 
   @Patch('users/:id/block')
