@@ -123,7 +123,8 @@ model Product {
   featured       Boolean              @default(false)
   rating         Float                @default(0)
   ratingCount    Int                  @default(0)
-  downloadCount  Int                  @default(0)
+  downloadCount  Int                  @default(0) // ГАРААР тохируулсан "харагдах" тоо (frontend)
+  realDownloadCount Int               @default(0) // БОДИТ таталт (хэрэглэгч татах болгонд +1, зөвхөн admin)
   previewUrl     String?
   seoTitle       String?
   seoDescription String?

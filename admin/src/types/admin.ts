@@ -14,6 +14,16 @@ export interface EmailStats {
 // Resend статистик — EmailStats-тэй ижил бүтэц
 export interface ResendStats extends EmailStats {}
 
+export interface TopDownloadedProduct {
+  id: string;
+  title: string;
+  type: string;
+  categoryName: string | null;
+  price: number | string;
+  realDownloadCount: number;
+  imageUrl: string | null;
+}
+
 export interface DashboardStats {
   stats: {
     users: number;
@@ -23,11 +33,13 @@ export interface DashboardStats {
     ordersThisMonth: number;
     newUsersThisMonth: number;
     pendingExpiredCount: number;
+    totalRealDownloads: number;
   };
   recentOrders: AdminOrder[];
   monthlyRevenue: { month: string; revenue: number }[];
   emailStats: EmailStats;
   resendStats?: ResendStats;
+  topDownloaded: TopDownloadedProduct[];
 }
 
 export interface AdminUser {

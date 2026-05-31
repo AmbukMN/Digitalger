@@ -218,9 +218,24 @@ export default function ProductsPage() {
       id: 'downloadCount',
       header: 'Таталт',
       cell: ({ row }) => (
-        <div className="flex items-center gap-1" title="Дарж тоог засах">
+        <div className="flex items-center gap-1" title="Дарж тоог засах (харагдах тоо)">
           <Download className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
           <DownloadCountCell product={row.original} />
+        </div>
+      ),
+    },
+    {
+      id: 'realDownloadCount',
+      header: 'Бодит таталт',
+      cell: ({ row }) => (
+        <div
+          className="flex items-center gap-1 tabular-nums"
+          title="Хэрэглэгчид бодитоор татсан жинхэнэ тоо (зөвхөн админд харагдана)"
+        >
+          <Download className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+          <span className="font-semibold text-foreground">
+            {((row.original as { realDownloadCount?: number }).realDownloadCount ?? 0).toLocaleString()}
+          </span>
         </div>
       ),
     },

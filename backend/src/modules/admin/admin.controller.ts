@@ -75,6 +75,8 @@ export class AdminController {
       emailStats,
       resendStats,
       pendingExpiredCount,
+      totalDownloadsAgg,
+      topDownloadedRaw,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.product.count(),
@@ -125,6 +127,22 @@ export class AdminController {
       this.prisma.order.count({
         where: { status: 'PENDING', createdAt: { lt: cutoff48h } },
       }),
+      // Бодит таталтын статистик (хэрэглэгчид татсан жинхэнэ тоо)
+      this.prisma.product.aggregate({ _sum: { realDownloadCount: true } }),
+      this.prisma.product.findMany({
+        where: { realDownloadCount: { gt: 0 } },
+        orderBy: { realDownloadCount: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          price: true,
+          realDownloadCount: true,
+          category: { select: { name: true } },
+          images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
+        },
+      }),
     ]);
 
     // Сар бүрийн орлогыг тооцоолно
@@ -154,6 +172,17 @@ export class AdminController {
         })),
       }));
 
+    // Топ татагдсан бүтээгдэхүүний зураг URL-ийг бэлдэнэ
+    const topDownloaded = topDownloadedRaw.map((p) => ({
+      id: p.id,
+      title: p.title,
+      type: p.type,
+      categoryName: p.category?.name ?? null,
+      price: p.price,
+      realDownloadCount: p.realDownloadCount,
+      imageUrl: p.images?.[0]?.fileKey ? this.storage.getAssetUrl(p.images[0].fileKey) : null,
+    }));
+
     return {
       stats: {
         users: usersCount,
@@ -163,11 +192,13 @@ export class AdminController {
         ordersThisMonth,
         newUsersThisMonth,
         pendingExpiredCount,
+        totalRealDownloads: totalDownloadsAgg._sum.realDownloadCount ?? 0,
       },
       recentOrders: mapOrderImages(recentOrders),
       monthlyRevenue: monthlyRevenueSummary,
       emailStats,
       resendStats,
+      topDownloaded,
     };
   }
 

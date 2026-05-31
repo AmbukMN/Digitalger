@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock,
   DollarSign,
+  Download,
   Mail,
   Package,
   RotateCcw,
@@ -21,6 +22,7 @@ import {
   Send,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats, DashboardStats } from '@/types/admin';
@@ -408,7 +410,7 @@ export default function DashboardPage() {
   if (isError || !data)
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const { stats, recentOrders, monthlyRevenue, emailStats, resendStats } = data;
+  const { stats, recentOrders, monthlyRevenue, emailStats, resendStats, topDownloaded } = data;
 
   const statValues: Record<string, number> = {
     users: stats.users,
@@ -491,6 +493,66 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">48ц+ хүлээгдэж буй захиалга</p>
           </div>
         </Link>
+      </div>
+
+      {/* Бодит таталтын самбар (хэрэглэгчид татсан жинхэнэ тоо) */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-primary/10 p-1.5">
+              <Download className="h-4 w-4 text-primary" />
+            </div>
+            <h2 className="font-semibold">Бодит таталт</h2>
+          </div>
+          <div className="text-right">
+            <p className="text-xl font-bold tabular-nums text-primary">
+              {(stats.totalRealDownloads ?? 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Нийт татагдсан</p>
+          </div>
+        </div>
+        {topDownloaded && topDownloaded.length > 0 ? (
+          <div className="divide-y divide-border">
+            <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+              Хамгийн их татагдсан бүтээгдэхүүн
+            </p>
+            {topDownloaded.map((p, i) => (
+              <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{i + 1}</span>
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
+                  {p.imageUrl ? (
+                    <Image src={p.imageUrl} alt={p.title} fill sizes="44px" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                      <Package className="h-4 w-4" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{p.title}</p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{p.type}</Badge>
+                    {p.categoryName && (
+                      <span className="text-[11px] text-muted-foreground">{p.categoryName}</span>
+                    )}
+                    <span className="text-[11px] font-medium text-foreground">{formatMoney(p.price)}</span>
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="flex items-center gap-1 text-sm font-bold tabular-nums text-primary">
+                    <Download className="h-3.5 w-3.5" />
+                    {p.realDownloadCount.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">удаа татсан</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            Одоогоор бодит таталт бүртгэгдээгүй байна.
+          </p>
+        )}
       </div>
 
       {/* Resend + Email хяналт row (Resend идэвхтэй, AWS SES нөөц) */}

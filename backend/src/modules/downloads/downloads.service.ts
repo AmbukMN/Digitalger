@@ -20,6 +20,20 @@ export class DownloadsService {
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue<ZipJobPayload>,
   ) {}
 
+  // Бодит таталт тоолуурыг +1 (хэрэглэгч тухайн бүтээгдэхүүнийг бодитоор татах болгонд).
+  // Зөвхөн admin-д харагдана; frontend-ийн "харагдах" downloadCount-д НӨЛӨӨЛӨХГҮЙ.
+  // Алдаа гарвал татах урсгалыг таслахгүй (catch).
+  private async bumpRealDownload(productId: string) {
+    try {
+      await this.prisma.product.update({
+        where: { id: productId },
+        data: { realDownloadCount: { increment: 1 } },
+      });
+    } catch {
+      /* тоолуурын алдаа татах урсгалд нөлөөлөхгүй */
+    }
+  }
+
   async verifyAndGetSignedUrl(userId: string, fileId: string) {
     const file = await this.prisma.productFile.findUnique({
       where: { id: fileId },
@@ -45,6 +59,7 @@ export class DownloadsService {
     await this.prisma.download.create({
       data: { userId, fileId: file.id },
     });
+    await this.bumpRealDownload(file.productId);
 
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
 
@@ -76,6 +91,8 @@ export class DownloadsService {
     if (!owned) throw new ForbiddenException('You do not own this product');
 
     if (!product.files.length) throw new NotFoundException('No files to download');
+
+    await this.bumpRealDownload(productId);
 
     const zipName = `${product.slug ?? productId}.zip`;
     res.setHeader('Content-Type', 'application/zip');
@@ -115,6 +132,8 @@ export class DownloadsService {
     );
     if (!allFileIds.length) throw new NotFoundException('No files in bundle');
 
+    await this.bumpRealDownload(productId);
+
     const files = await this.prisma.productFile.findMany({
       where: { id: { in: allFileIds } },
     });
@@ -149,6 +168,7 @@ export class DownloadsService {
 
   async enqueueProductZip(userId: string, productId: string) {
     await this.assertOwned(userId, productId);
+    await this.bumpRealDownload(productId);
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -193,6 +213,7 @@ export class DownloadsService {
 
   async enqueueBundleZip(userId: string, productId: string, bundleId: string) {
     await this.assertOwned(userId, productId);
+    await this.bumpRealDownload(productId);
 
     const bundle = await this.prisma.productBundle.findUnique({
       where: { id: bundleId },
@@ -240,6 +261,8 @@ export class DownloadsService {
     if (!product) throw new NotFoundException('Product not found');
     if (!product.downloadFileKey) throw new NotFoundException('No download file configured');
 
+    await this.bumpRealDownload(productId);
+
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
     return { url, fileName };
@@ -255,6 +278,8 @@ export class DownloadsService {
     await this.assertOwned(userId, bundle.productId);
 
     if (!bundle.downloadFileKey) throw new NotFoundException('No download file configured');
+
+    await this.bumpRealDownload(bundle.productId);
 
     const url = await this.storage.getPresignedUrl(bundle.downloadFileKey, 900, 'get');
     const fileName = bundle.downloadFileKey.split('/').pop() ?? `${bundle.title.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
