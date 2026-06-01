@@ -1,10 +1,12 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { MessageCircle, X, Send, Bot, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Send, Bot, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import type { DotLottie } from '@lottiefiles/dotlottie-react';
 import { cn } from '@digitalger/shared';
 import { CHAT_WEBHOOK_URL } from '@/lib/constants';
 
@@ -205,6 +207,27 @@ export function ChatWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // ── Floating дүрсний Lottie робот ──
+  // Хэвийн үед тэвчээр (зогссон), hover үед тоглоно. Мөн анхаарал татахаар
+  // 6 секунд тутам нэг удаа богино тоглоод зогсоно.
+  const dotLottieRef = useRef<DotLottie | null>(null);
+  const playBot = () => {
+    const dl = dotLottieRef.current;
+    if (!dl) return;
+    try {
+      dl.setMode('forward');
+      dl.stop();
+      dl.play();
+    } catch {
+      /* player бэлэн биш бол алгасна */
+    }
+  };
+  useEffect(() => {
+    if (open) return; // нээлттэй үед floating дүрс харагдахгүй
+    const id = setInterval(playBot, 6000);
+    return () => clearInterval(id);
+  }, [open]);
+
   // Яриаг localStorage-аас сэргээх
   useEffect(() => {
     try {
@@ -306,23 +329,16 @@ export function ChatWidget() {
         // хаахгүйн тулд bottom-32). Бусад хуудсанд ердийн доод (bottom-5).
         // Desktop: ямар ч хуудсанд доод буланд хэвээр (md:bottom-6).
         className={cn(
-          'fixed right-5 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
+          'fixed right-5 z-[60] flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
-        whileHover={{ scale: 1.06 }}
+        whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.94 }}
         initial={{ scale: 0, opacity: 1 }}
-        // 5 сек тутам зөөлөн хөвсөлзөх анимэйшн (зөвхөн нээгээгүй үед).
-        animate={
-          open
-            ? { scale: 1, opacity: 1, y: 0, rotate: 0 }
-            : { scale: 1, opacity: 1, y: [0, -8, 0, -4, 0], rotate: [0, -4, 4, -2, 0] }
-        }
-        transition={
-          open
-            ? { type: 'spring', stiffness: 260, damping: 20 }
-            : { duration: 0.9, repeat: Infinity, repeatDelay: 4.1, ease: 'easeInOut' }
-        }
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        // Hover үед робот тоглоно
+        onMouseEnter={playBot}
       >
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
@@ -330,14 +346,29 @@ export function ChatWidget() {
               <X className="h-6 w-6" />
             </motion.span>
           ) : (
-            <motion.span key="c" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }}>
-              <MessageCircle className="h-6 w-6" />
+            <motion.span
+              key="bot"
+              className="flex h-full w-full items-center justify-center"
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.6, opacity: 0 }}
+            >
+              {/* Хөдөлгөөнт робот (Lottie). Хэвийн үед эхний frame, hover/үе үе тоглоно. */}
+              <DotLottieReact
+                src="/digitalgerBot.json"
+                autoplay
+                loop={false}
+                dotLottieRefCallback={(dl) => {
+                  dotLottieRef.current = dl;
+                }}
+                className="h-12 w-12"
+              />
             </motion.span>
           )}
         </AnimatePresence>
         {/* Анхаарал татах цэг (нээгээгүй үед) */}
         {!open && (
-          <span className="absolute right-0 top-0 flex h-3.5 w-3.5">
+          <span className="absolute right-0.5 top-0.5 flex h-3.5 w-3.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
             <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary" />
           </span>
