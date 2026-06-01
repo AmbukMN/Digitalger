@@ -51,6 +51,25 @@ import {
 } from '@/components/social-icons';
 import type { MenuItem } from '@/types/api';
 
+// ─── Статик placeholder-ууд ───────────────────────────────────────────────
+// Анх удаа (cache-гүй) ачаалахад API хариу ирэхээс ӨМНӨ шууд харагдах ёстой
+// зүйлс. Ингэснээр лого/меню API timeout болж гацах асуудал арилна.
+// API ирвэл доорх утгууд admin-аас ирсэн динамик утгаар солигдоно.
+const STATIC_LOGO = '/brand/logo-color.png';
+
+// API ачаалагдаагүй/гацсан ч харагдах үндсэн меню (Light DOM, шууд render).
+const FALLBACK_MENU: MenuItem[] = [
+  { id: 'f-home', label: 'Нүүр', url: '/', pageSlug: null, target: '_self', openInNew: false },
+  { id: 'f-products', label: 'Бүтээгдэхүүн', url: '/products', pageSlug: null, target: '_self', openInNew: false },
+  { id: 'f-blog', label: 'Нийтлэл', url: '/blog', pageSlug: null, target: '_self', openInNew: false },
+  { id: 'f-about', label: 'Бидний тухай', url: '/about', pageSlug: null, target: '_self', openInNew: false },
+];
+
+// Public fetch-д timeout — API удаан/унавал хязгааргүй хүлээж гацахаас сэргийлнэ
+async function fetchWithTimeout(url: string, ms = 6000): Promise<Response> {
+  return fetch(url, { signal: AbortSignal.timeout(ms) });
+}
+
 
 function menuHref(item: MenuItem): string {
   if (item.url) return item.url;
@@ -62,7 +81,7 @@ function usePublicSettings() {
   return useQuery({
     queryKey: ['public', 'settings'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/api/settings/public`);
+      const res = await fetchWithTimeout(`${API_URL}/api/settings/public`);
       if (!res.ok) throw new Error('settings fetch failed');
       return res.json() as Promise<{
         siteName: string;
@@ -79,6 +98,7 @@ function usePublicSettings() {
       }>;
     },
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }
 
@@ -87,6 +107,9 @@ function useMenuItems() {
     queryKey: ['public', 'menu'],
     queryFn: () => menuApi.list(),
     staleTime: 2 * 60 * 1000,
+    retry: 1,
+    // API ачаалагдах хүртэл/унавал үндсэн меню шууд харагдана (гацахгүй)
+    placeholderData: FALLBACK_MENU,
   });
 }
 
@@ -96,6 +119,7 @@ function useFeaturedProducts() {
     queryFn: () => productsApi.list({ featured: true, pageSize: 6 }).then((r) => r.items),
     staleTime: 5 * 60 * 1000,
     select: (items) => items.slice(0, 3),
+    retry: 1,
   });
 }
 
@@ -104,6 +128,7 @@ function useLatestPosts() {
     queryKey: ['public', 'latest-posts-menu'],
     queryFn: () => blogApi.latest(3),
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }
 
@@ -280,12 +305,15 @@ export function SiteNavbar() {
     }
     return () => { if (shakeIntervalRef.current) clearInterval(shakeIntervalRef.current); };
   }, [cartCount]);
-  const { data: publicSettings, isLoading: settingsLoading } = usePublicSettings();
-  const { data: menuItems, isLoading: menuLoading } = useMenuItems();
+  const { data: publicSettings } = usePublicSettings();
+  const { data: menuItems } = useMenuItems();
 
   const siteName = publicSettings?.siteName || 'DigitalGer';
-  const logoSrc = publicSettings?.logoUrl || '/brand/logo.svg';
-  const activeMenu = menuItems ?? [];
+  // Лого: admin оруулсан logoUrl байвал түүнийг, эс бол статик PNG-г шууд харуулна.
+  // Анх удаа (cache-гүй) ачаалахад API хүлээлгүйгээр лого шууд гарна.
+  const [logoError, setLogoError] = useState(false);
+  const logoSrc = !logoError && publicSettings?.logoUrl ? publicSettings.logoUrl : STATIC_LOGO;
+  const activeMenu = (menuItems && menuItems.length > 0) ? menuItems : FALLBACK_MENU;
 
   const isGuest =
     (session?.user as any)?.isGuest ??
@@ -364,54 +392,43 @@ export function SiteNavbar() {
           )}
 
           <Link href="/" className="flex shrink-0 items-center gap-2">
-            {settingsLoading ? (
-              <div className="h-9 w-9 rounded-lg bg-muted animate-pulse" />
-            ) : (
-              <Image
-                src={logoSrc}
-                alt={siteName || 'DigitalGer'}
-                width={36}
-                height={36}
-                className="h-9 w-9"
-                priority
-              />
-            )}
-            {settingsLoading ? (
-              <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-            ) : (
-              <span className="font-bold navbar-logo-text">{siteName || 'DigitalGer'}</span>
-            )}
+            {/* Лого — статик placeholder тул API хүлээлгүй шууд харагдана.
+                next/image-ийн optimize-аас болж анхны ачаалал удаахаас сэргийлж
+                unoptimized — статик PNG жижиг тул шууд serve хийгдэнэ. */}
+            <Image
+              src={logoSrc}
+              alt={siteName || 'DigitalGer'}
+              width={36}
+              height={36}
+              className="h-9 w-9 object-contain"
+              priority
+              unoptimized
+              onError={() => setLogoError(true)}
+            />
+            <span className="font-bold navbar-logo-text">{siteName || 'DigitalGer'}</span>
           </Link>
 
           <nav className="hidden flex-1 justify-center gap-1 md:flex">
-            {menuLoading ? (
-              <>
-                {[80, 96, 72, 64, 88].map((w) => (
-                  <div key={w} className={`h-8 w-${w === 80 ? '[80px]' : w === 96 ? '[96px]' : w === 72 ? '[72px]' : w === 64 ? '[64px]' : '[88px]'} rounded-lg bg-muted animate-pulse`} />
-                ))}
-              </>
-            ) : (
-              activeMenu.map((item) => {
-                const href = menuHref(item);
-                const active = href === '/'
-                  ? pathname === '/'
-                  : pathname.startsWith(href.split('?')[0]);
-                return (
-                  <Link
-                    key={item.id}
-                    href={href}
-                    target={item.openInNew ? '_blank' : undefined}
-                    rel={item.openInNew ? 'noopener noreferrer' : undefined}
-                    className={cn(
-                      'rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent/10',
-                      active ? 'text-primary' : 'text-muted-foreground',
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })
-            )}
+            {activeMenu.map((item) => {
+              const href = menuHref(item);
+              const active = href === '/'
+                ? pathname === '/'
+                : pathname.startsWith(href.split('?')[0]);
+              return (
+                <Link
+                  key={item.id}
+                  href={href}
+                  target={item.openInNew ? '_blank' : undefined}
+                  rel={item.openInNew ? 'noopener noreferrer' : undefined}
+                  className={cn(
+                    'rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent/10',
+                    active ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
 
           <SearchAutocomplete
@@ -523,16 +540,16 @@ export function SiteNavbar() {
         <SheetContent side="left" className="w-72 p-0 flex flex-col">
           <SheetHeader className="flex-row items-center justify-between border-b border-border px-4 py-3 shrink-0">
             <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2">
-              {settingsLoading ? (
-                <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
-              ) : (
-                <Image src={logoSrc} alt={siteName || 'DigitalGer'} width={32} height={32} className="h-8 w-8" />
-              )}
-              {settingsLoading ? (
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-              ) : (
-                <SheetTitle className="text-base font-bold navbar-logo-text">{siteName || 'DigitalGer'}</SheetTitle>
-              )}
+              <Image
+                src={logoSrc}
+                alt={siteName || 'DigitalGer'}
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+                unoptimized
+                onError={() => setLogoError(true)}
+              />
+              <SheetTitle className="text-base font-bold navbar-logo-text">{siteName || 'DigitalGer'}</SheetTitle>
             </Link>
             <button
               onClick={() => setMobileOpen(false)}
@@ -544,37 +561,29 @@ export function SiteNavbar() {
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto">
-            {/* Navigation links */}
+            {/* Navigation links — статик fallback тул API гацсан ч шууд харагдана */}
             <nav className="py-3 px-3">
               <div className="space-y-0.5">
-                {menuLoading ? (
-                  <>
-                    {[100, 120, 90, 80, 110].map((w, i) => (
-                      <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" style={{ width: `${w}px` }} />
-                    ))}
-                  </>
-                ) : (
-                  activeMenu.map((item) => {
-                    const href = menuHref(item);
-                    const active = href === '/'
-                      ? pathname === '/'
-                      : pathname.startsWith(href.split('?')[0]);
-                    return (
-                      <Link
-                        key={item.id}
-                        href={href}
-                        target={item.openInNew ? '_blank' : undefined}
-                        onClick={() => setMobileOpen(false)}
-                        className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                          active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted',
-                        )}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  })
-                )}
+                {activeMenu.map((item) => {
+                  const href = menuHref(item);
+                  const active = href === '/'
+                    ? pathname === '/'
+                    : pathname.startsWith(href.split('?')[0]);
+                  return (
+                    <Link
+                      key={item.id}
+                      href={href}
+                      target={item.openInNew ? '_blank' : undefined}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                        active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted',
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </div>
             </nav>
 

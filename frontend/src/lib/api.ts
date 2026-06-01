@@ -29,9 +29,12 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { token, headers, ...rest } = options;
+  const { token, headers, signal, ...rest } = options;
   const res = await fetch(`${API_URL}/api${path}`, {
     ...rest,
+    // signal дамжуулаагүй бол default 15сек timeout — API удаан/унавал
+    // хязгааргүй хүлээж UI гацахаас сэргийлнэ
+    signal: signal ?? AbortSignal.timeout(15000),
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
