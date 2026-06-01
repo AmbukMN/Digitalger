@@ -380,4 +380,41 @@ export const siteSettingsApi = {
   getPublic: () => request<PublicSiteSettings>('/settings/public'),
 };
 
+// ─── Navbar SSR prefetch ──────────────────────────────────────────────────
+// Server дээр меню + public settings-ийг урьдчилан татаж navbar-ийн анхны HTML-д
+// бодит утгаар суулгана → cache-гүй ачаалал дээр flash/үсрэлт ОГТ гарахгүй.
+// ISR (revalidate 60с) — admin меню/лого шинэчилбэл 1 минутын дотор шинэчилнэ.
+// API унавал null буцаана → navbar статик FALLBACK_MENU + статик лого ашиглана.
+export type NavbarPrefetch = {
+  menu: MenuItem[] | null;
+  settings: PublicSiteSettings | null;
+};
+
+export async function getNavbarData(): Promise<NavbarPrefetch> {
+  const apiBase =
+    (typeof window === 'undefined' && process.env.INTERNAL_API_URL) ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://localhost:4000';
+
+  async function safeGet<T>(path: string): Promise<T | null> {
+    try {
+      const res = await fetch(`${apiBase}/api${path}`, {
+        next: { revalidate: 60 },
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  const [menu, settings] = await Promise.all([
+    safeGet<MenuItem[]>('/menu'),
+    safeGet<PublicSiteSettings>('/settings/public'),
+  ]);
+
+  return { menu, settings };
+}
+
 export { ApiError };

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 import { SITE_NAME, SITE_URL } from '@/lib/constants';
-import { siteSettingsApi } from '@/lib/api';
+import { siteSettingsApi, getNavbarData } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
@@ -134,7 +134,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const defaultTheme = await getDefaultTheme();
+  // Theme + navbar (меню/лого)-г server дээр зэрэг prefetch — navbar анхны HTML-д
+  // бодит утгаар орох тул flash/үсрэлт гарахгүй.
+  const [defaultTheme, navbar] = await Promise.all([
+    getDefaultTheme(),
+    getNavbarData(),
+  ]);
 
   return (
     <html lang="mn" suppressHydrationWarning>
@@ -149,7 +154,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
-        <Providers defaultTheme={defaultTheme}>
+        <Providers defaultTheme={defaultTheme} navbar={navbar}>
           <AnalyticsTracker />
           {children}
           <ChatWidget />

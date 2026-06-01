@@ -14,6 +14,7 @@ import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
+import type { NavbarPrefetch } from '@/lib/api';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
 
@@ -151,17 +152,27 @@ function SessionSyncEffect() {
 interface ProvidersProps {
   children: React.ReactNode;
   defaultTheme?: Theme;
+  navbar?: NavbarPrefetch;
 }
 
-export function Providers({ children, defaultTheme = 'system' }: ProvidersProps) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: { staleTime: 60_000, retry: 1 },
-        },
-      }),
-  );
+export function Providers({ children, defaultTheme = 'system', navbar }: ProvidersProps) {
+  const [queryClient] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { staleTime: 60_000, retry: 1 },
+      },
+    });
+    // Server дээр prefetch хийсэн меню/settings-ийг cache-д суулгана.
+    // Navbar-ийн useQuery эдгээрийг анхны render-ээс шууд олж бодит утгаар
+    // харуулна → cache-гүй ачаалал дээр flash/үсрэлт гарахгүй.
+    if (navbar?.menu) {
+      client.setQueryData(['public', 'menu'], navbar.menu);
+    }
+    if (navbar?.settings) {
+      client.setQueryData(['public', 'settings'], navbar.settings);
+    }
+    return client;
+  });
 
   return (
     <SessionProvider>

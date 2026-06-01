@@ -108,8 +108,9 @@ function useMenuItems() {
     queryFn: () => menuApi.list(),
     staleTime: 2 * 60 * 1000,
     retry: 1,
-    // API ачаалагдах хүртэл/унавал үндсэн меню шууд харагдана (гацахгүй)
-    placeholderData: FALLBACK_MENU,
+    // Server (RootLayout)-д prefetch хийсэн меню cache-д аль хэдийн байгаа тул
+    // анхны render шууд бодит утгаар гарна (flash-гүй). Cache хоосон (API унасан)
+    // үед л доорх activeMenu logic FALLBACK_MENU руу шилжинэ.
   });
 }
 
