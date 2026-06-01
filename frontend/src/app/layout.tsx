@@ -7,15 +7,9 @@ import { siteSettingsApi, getNavbarData } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
-import dynamic from 'next/dynamic';
-
-// Chat widget framer-motion агуулдаг бөгөөд анхны ачаалалд шаардлагагүй —
-// dynamic import (ssr:false) хийж анхны JS bundle-аас гаргана. Хэрэглэгч
-// бусад контентыг ачаалсны дараа background-д ачаалагдана.
-const ChatWidget = dynamic(
-  () => import('@/components/chat/chat-widget').then((m) => m.ChatWidget),
-  { ssr: false },
-);
+// Chat widget-ийг client wrapper дотор dynamic(ssr:false) хийж анхны JS
+// bundle-аас гаргасан (ssr:false нь server component-д зөвшөөрөгдөхгүй).
+import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -165,7 +159,7 @@ export default async function RootLayout({
         <Providers defaultTheme={defaultTheme} navbar={navbar}>
           <AnalyticsTracker />
           {children}
-          <ChatWidget />
+          <ChatWidgetLazy />
         </Providers>
         <WebVitalsReporter />
       </body>
