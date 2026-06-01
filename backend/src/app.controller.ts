@@ -1,12 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 import { PrismaService } from './prisma/prisma.service';
+import { AppCacheService, CacheKeys } from './common/cache/app-cache.service';
 
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly prisma: PrismaService,
+    private readonly cache: AppCacheService,
   ) {}
 
   @Get()
@@ -21,6 +23,14 @@ export class AppController {
 
   @Get('settings/public')
   async publicSettings() {
+    // Settings ховор өөрчлөгддөг ч navbar/footer/SSR-д байнга уншигддаг тул
+    // 5 мин Redis cache. Admin тохиргоо засахад admin модуль cache-г del хийнэ.
+    return this.cache.getOrSet(CacheKeys.publicSettings, 5 * 60_000, () =>
+      this.buildPublicSettings(),
+    );
+  }
+
+  private async buildPublicSettings() {
     const [theme, site] = await Promise.all([
       this.prisma.themeSetting.findUnique({ where: { id: 'default' } }),
       this.prisma.siteSetting.findUnique({ where: { id: 'default' } }),
@@ -55,10 +65,13 @@ export class AppController {
 
   @Get('product-types')
   async productTypes() {
-    return this.prisma.productTypeConfig.findMany({
-      where: { active: true },
-      orderBy: { sortOrder: 'asc' },
-      select: { id: true, value: true, label: true, description: true, icon: true, sortOrder: true },
-    });
+    // Product type config бараг өөрчлөгддөггүй ч product-card бүрд уншигддаг.
+    return this.cache.getOrSet(CacheKeys.productTypes, 10 * 60_000, () =>
+      this.prisma.productTypeConfig.findMany({
+        where: { active: true },
+        orderBy: { sortOrder: 'asc' },
+        select: { id: true, value: true, label: true, description: true, icon: true, sortOrder: true },
+      }),
+    );
   }
 }

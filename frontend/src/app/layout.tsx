@@ -7,7 +7,15 @@ import { siteSettingsApi, getNavbarData } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
-import { ChatWidget } from '@/components/chat/chat-widget';
+import dynamic from 'next/dynamic';
+
+// Chat widget framer-motion агуулдаг бөгөөд анхны ачаалалд шаардлагагүй —
+// dynamic import (ssr:false) хийж анхны JS bundle-аас гаргана. Хэрэглэгч
+// бусад контентыг ачаалсны дараа background-д ачаалагдана.
+const ChatWidget = dynamic(
+  () => import('@/components/chat/chat-widget').then((m) => m.ChatWidget),
+  { ssr: false },
+);
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

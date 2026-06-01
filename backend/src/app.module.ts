@@ -7,6 +7,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AppCacheModule } from './common/cache/app-cache.module';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
@@ -59,6 +60,7 @@ import { AiModule } from './modules/ai/ai.module';
         }
       },
     }),
+    AppCacheModule,
     PrismaModule,
     StorageModule,
     AuthModule,

@@ -15,6 +15,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  compress: true, // gzip response compression (nginx-ийн өмнө давхар хамгаалалт)
+  poweredByHeader: false,
   async headers() {
     return [
       {
@@ -42,10 +44,13 @@ const nextConfig: NextConfig = {
     ],
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 86400, // 24 цаг
+    // Зөвхөн бодит хэрэгцээт хэмжээ — илүүдэл variant үүсгэхгүй (хурдан, хямд)
+    deviceSizes: [360, 640, 768, 1024, 1280, 1536],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   outputFileTracingRoot: path.join(__dirname, '../'),
   experimental: {
-    optimizePackageImports: ['lucide-react', 'framer-motion'],
+    optimizePackageImports: ['lucide-react', 'framer-motion', '@digitalger/shared'],
   },
   webpack: (config) => {
     config.resolve.modules = [

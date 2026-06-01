@@ -32,6 +32,7 @@ import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
+import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
@@ -53,6 +54,7 @@ export class AdminController {
     private readonly storage: StorageService,
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue,
     private readonly emailService: EmailService,
+    private readonly cache: AppCacheService,
   ) {}
 
   @Get('dashboard')
@@ -770,21 +772,25 @@ export class AdminController {
   }
 
   @Put('settings/theme')
-  updateTheme(@Body() dto: UpdateThemeDto) {
-    return this.prisma.themeSetting.upsert({
+  async updateTheme(@Body() dto: UpdateThemeDto) {
+    const res = await this.prisma.themeSetting.upsert({
       where: { id: 'default' },
       create: { id: 'default', ...dto },
       update: dto,
     });
+    await this.cache.del(CacheKeys.publicSettings);
+    return res;
   }
 
   @Put('settings/site')
-  updateSite(@Body() dto: UpdateSiteDto) {
-    return this.prisma.siteSetting.upsert({
+  async updateSite(@Body() dto: UpdateSiteDto) {
+    const res = await this.prisma.siteSetting.upsert({
       where: { id: 'default' },
       create: { id: 'default', ...dto },
       update: dto,
     });
+    await this.cache.del(CacheKeys.publicSettings);
+    return res;
   }
 
   // Product Type Config
@@ -796,23 +802,29 @@ export class AdminController {
   }
 
   @Post('product-types')
-  createProductType(
+  async createProductType(
     @Body() dto: { value: string; label: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
   ) {
-    return this.prisma.productTypeConfig.create({ data: dto });
+    const res = await this.prisma.productTypeConfig.create({ data: dto });
+    await this.cache.del(CacheKeys.productTypes);
+    return res;
   }
 
   @Patch('product-types/:id')
-  updateProductType(
+  async updateProductType(
     @Param('id') id: string,
     @Body() dto: { label?: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
   ) {
-    return this.prisma.productTypeConfig.update({ where: { id }, data: dto });
+    const res = await this.prisma.productTypeConfig.update({ where: { id }, data: dto });
+    await this.cache.del(CacheKeys.productTypes);
+    return res;
   }
 
   @Delete('product-types/:id')
-  deleteProductType(@Param('id') id: string) {
-    return this.prisma.productTypeConfig.delete({ where: { id } });
+  async deleteProductType(@Param('id') id: string) {
+    const res = await this.prisma.productTypeConfig.delete({ where: { id } });
+    await this.cache.del(CacheKeys.productTypes);
+    return res;
   }
 
   // ── Queue Monitoring ─────────────────────────────────────────────────────

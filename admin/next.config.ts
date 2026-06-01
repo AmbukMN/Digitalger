@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
     ],
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
+    formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 86400, // 24 цаг
   },
   outputFileTracingRoot: path.join(__dirname, '../'),

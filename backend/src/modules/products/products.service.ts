@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { AppCacheService } from '../../common/cache/app-cache.service';
 import { expandQuery } from '../../common/transliterate';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly cache: AppCacheService,
   ) {}
 
   private mapProduct<T extends {
@@ -256,6 +258,14 @@ export class ProductsService {
   }
 
   async findSuggested(slug: string, count = 8) {
+    // Suggested products ховор өөрчлөгддөг ч product detail бүрд уншигддаг,
+    // муу тохиолдолд 4 дараалсан query ажилладаг. 10 мин cache → DB ачаалал бараг тэг.
+    return this.cache.getOrSet(`suggested:${slug}:${count}`, 10 * 60_000, () =>
+      this.computeSuggested(slug, count),
+    );
+  }
+
+  private async computeSuggested(slug: string, count: number) {
     const product = await this.prisma.product.findFirst({
       where: { slug, published: true },
       select: { id: true, categoryId: true, type: true },
