@@ -1,36 +1,56 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 
 /**
- * Public read endpoint-уудын Redis cache helper.
+ * Public read endpoint-уудын Redis cache helper (ioredis дээр шууд суурилсан).
  *
- * Зорилго: menu/settings/categories/product-types зэрэг ХҮСЭЛТ БҮРД DB-ээс
- * уншигддаг, ховор өөрчлөгддөг өгөгдлийг Redis-д кэшлэж хариуг хурдасгана.
- * Cache унавал (Redis алга/алдаа) шууд factory-г дуудна — fail-open тул хэзээ ч
- * хариу алдагдахгүй. Admin өөрчлөлт хийхэд тухайн key-г del хийж шинэчилнэ.
+ * Зорилго: menu/settings/categories/product-types/suggested зэрэг ХҮСЭЛТ БҮРД
+ * DB-ээс уншигддаг, ховор өөрчлөгддөг өгөгдлийг Redis-д кэшлэж хариуг хурдасгана.
+ *
+ * Яагаад cache-manager биш ioredis: cache-manager v7 нь cache-manager-redis-yet-тэй
+ * нийцэхгүй чимээгүй memory store руу унадаг (Redis-д бичигддэггүй). ioredis-ийг
+ * шууд ашигласнаар бодит Redis cache (restart-д хадгалагдах, олон instance хуваалцах)
+ * баталгаатай. Redis алга/алдаа бол factory-г шууд дуудна — fail-open, хариу алдагдахгүй.
  */
 @Injectable()
-export class AppCacheService {
+export class AppCacheService implements OnModuleDestroy {
   private readonly logger = new Logger(AppCacheService.name);
+  private readonly redis: Redis;
+  private readonly prefix = 'cache:';
 
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(config: ConfigService) {
+    const redisUrl = config.get<string>('redisUrl') ?? 'redis://localhost:6379';
+    this.redis = new Redis(redisUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+    });
+    this.redis.connect().catch((e) => {
+      this.logger.warn(`redis connect failed: ${(e as Error).message}`);
+    });
+    this.redis.on('error', (e) => {
+      // Чимээгүй — fail-open. Алдаа бүрд лог хийхгүй (давтагдахаас сэргийлнэ).
+      this.logger.debug(`redis error: ${e.message}`);
+    });
+  }
 
   /** Cache-аас уншина; байхгүй бол factory дуудаж кэшлээд буцаана. */
   async getOrSet<T>(key: string, ttlMs: number, factory: () => Promise<T>): Promise<T> {
+    const fullKey = this.prefix + key;
     try {
-      const cached = await this.cache.get<T>(key);
-      if (cached !== undefined && cached !== null) return cached;
-    } catch (e) {
-      this.logger.warn(`cache get failed (${key}): ${(e as Error).message}`);
+      const cached = await this.redis.get(fullKey);
+      if (cached !== null) return JSON.parse(cached) as T;
+    } catch {
+      // Redis унасан — factory руу шилжинэ (fail-open)
     }
 
     const fresh = await factory();
 
     try {
-      await this.cache.set(key, fresh, ttlMs);
-    } catch (e) {
-      this.logger.warn(`cache set failed (${key}): ${(e as Error).message}`);
+      await this.redis.set(fullKey, JSON.stringify(fresh), 'PX', ttlMs);
+    } catch {
+      // Бичиж чадсангүй — хариу буцаахад нөлөөлөхгүй
     }
 
     return fresh;
@@ -38,12 +58,19 @@ export class AppCacheService {
 
   /** Нэг буюу хэд хэдэн key-г cache-аас устгана (admin өөрчлөлтийн дараа). */
   async del(...keys: string[]): Promise<void> {
-    for (const key of keys) {
-      try {
-        await this.cache.del(key);
-      } catch (e) {
-        this.logger.warn(`cache del failed (${key}): ${(e as Error).message}`);
-      }
+    if (!keys.length) return;
+    try {
+      await this.redis.del(...keys.map((k) => this.prefix + k));
+    } catch {
+      // Redis унасан — TTL дээр түшиглэнэ (хамгийн муудаа ttl хүртэл хуучин утга)
+    }
+  }
+
+  async onModuleDestroy() {
+    try {
+      await this.redis.quit();
+    } catch {
+      /* ignore */
     }
   }
 }
