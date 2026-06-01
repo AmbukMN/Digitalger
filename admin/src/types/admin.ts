@@ -45,6 +45,13 @@ export interface DashboardStats {
     newUsersThisMonth: number;
     pendingExpiredCount: number;
     totalRealDownloads: number;
+    revenueThisMonth: number;
+  };
+  // Өмнөх сартай харьцуулсан өсөлтийн хувь (null = өмнөх өгөгдөлгүй)
+  trends: {
+    orders: number | null;
+    users: number | null;
+    revenue: number | null;
   };
   recentOrders: AdminOrder[];
   monthlyRevenue: { month: string; revenue: number }[];

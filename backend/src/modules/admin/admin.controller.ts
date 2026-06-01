@@ -61,6 +61,7 @@ export class AdminController {
   async dashboard() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const startOf3MonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
 
     const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
@@ -79,6 +80,11 @@ export class AdminController {
       pendingExpiredCount,
       totalDownloadsAgg,
       topDownloadedRaw,
+      // ── Тренд: өмнөх сартай харьцуулах тоонууд ──
+      ordersPrevMonth,
+      usersPrevMonth,
+      revenueThisMonthAgg,
+      revenuePrevMonthAgg,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.product.count(),
@@ -145,7 +151,43 @@ export class AdminController {
           images: { where: { isPrimary: true }, take: 1, select: { fileKey: true } },
         },
       }),
+      // ── Тренд тооцоолох query-нүүд (өмнөх сар) ──
+      this.prisma.order.count({
+        where: {
+          status: 'PAID',
+          createdAt: { gte: startOfPrevMonth, lt: startOfMonth },
+        },
+      }),
+      this.prisma.user.count({
+        where: { createdAt: { gte: startOfPrevMonth, lt: startOfMonth } },
+      }),
+      this.prisma.order.aggregate({
+        where: { status: 'PAID', createdAt: { gte: startOfMonth } },
+        _sum: { total: true },
+      }),
+      this.prisma.order.aggregate({
+        where: {
+          status: 'PAID',
+          createdAt: { gte: startOfPrevMonth, lt: startOfMonth },
+        },
+        _sum: { total: true },
+      }),
     ]);
+
+    // Өсөлтийн хувь тооцоолох туслах (өмнөх 0 бол: одоо >0 → +100%, тэнцүү → 0)
+    const pct = (current: number, prev: number): number | null => {
+      if (prev === 0) return current > 0 ? 100 : null;
+      return Math.round(((current - prev) / prev) * 100);
+    };
+
+    const revenueThisMonth = Number(revenueThisMonthAgg._sum.total ?? 0);
+    const revenuePrevMonth = Number(revenuePrevMonthAgg._sum.total ?? 0);
+
+    const trends = {
+      orders: pct(ordersThisMonth, ordersPrevMonth),
+      users: pct(newUsersThisMonth, usersPrevMonth),
+      revenue: pct(revenueThisMonth, revenuePrevMonth),
+    };
 
     // Сар бүрийн орлогыг тооцоолно
     const monthlyRevenueMap: Record<string, number> = {};
@@ -195,7 +237,9 @@ export class AdminController {
         newUsersThisMonth,
         pendingExpiredCount,
         totalRealDownloads: totalDownloadsAgg._sum.realDownloadCount ?? 0,
+        revenueThisMonth,
       },
+      trends,
       recentOrders: mapOrderImages(recentOrders),
       monthlyRevenue: monthlyRevenueSummary,
       emailStats,

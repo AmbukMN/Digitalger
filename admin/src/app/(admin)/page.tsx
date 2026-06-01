@@ -12,9 +12,14 @@ import {
   Download,
   Mail,
   Package,
+  Plus,
   RotateCcw,
   ShoppingCart,
   TrendingUp,
+  TrendingDown,
+  Minus,
+  Image as ImageIcon,
+  Tag,
   Users,
   UserPlus,
   XCircle,
@@ -23,10 +28,74 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats, DashboardStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
+
+// ── Тренд badge (өмнөх сартай харьцуулсан өсөлт/бууралт) ──
+function TrendBadge({ value }: { value: number | null }) {
+  if (value === null) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <Minus className="h-3 w-3" /> шинэ
+      </span>
+    );
+  }
+  const up = value > 0;
+  const flat = value === 0;
+  const Icon = flat ? Minus : up ? TrendingUp : TrendingDown;
+  const cls = flat
+    ? 'bg-muted text-muted-foreground'
+    : up
+      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${cls}`}>
+      <Icon className="h-3 w-3" />
+      {up ? '+' : ''}{value}%
+    </span>
+  );
+}
+
+// ── Хурдан үйлдлийн товчнууд (шинэ админд хайхгүй шууд эхлэх цэг) ──
+const QUICK_ACTIONS = [
+  { label: 'Бүтээгдэхүүн нэмэх', href: '/products/new', icon: Plus, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/40' },
+  { label: 'Баннер нэмэх', href: '/banners', icon: ImageIcon, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/40' },
+  { label: 'Купон үүсгэх', href: '/coupons', icon: Tag, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/40' },
+  { label: 'Захиалга харах', href: '/orders', icon: ShoppingCart, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/40' },
+];
+
+function QuickActions() {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {QUICK_ACTIONS.map((a) => {
+        const Icon = a.icon;
+        return (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all duration-200 hover:border-primary/40 hover:shadow-md"
+          >
+            <div className={`rounded-lg p-2 shrink-0 ${a.bg}`}>
+              <Icon className={`h-4 w-4 ${a.color}`} />
+            </div>
+            <span className="text-sm font-medium group-hover:text-primary transition-colors">{a.label}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 type StatusInfo = { label: string; cls: string; icon: React.ReactNode };
 const STATUS_MAP: Record<string, StatusInfo> = {
@@ -361,38 +430,73 @@ function ResendStatsPanel({ stats }: { stats?: DashboardStats['resendStats'] }) 
 }
 
 function MonthlyRevenuePanel({ data }: { data: { month: string; revenue: number }[] }) {
-  if (!data.length) return null;
-  const max = Math.max(...data.map((d) => d.revenue), 1);
+  // Сар бүрийг "N-р сар" болгож, revenue-г мянгад хөрвүүлэн график өгөгдөл бэлдэнэ
+  const chartData = data.map((d) => {
+    const mon = d.month.split('-')[1];
+    return { name: `${Number(mon)}-р сар`, revenue: d.revenue };
+  });
+  const total = data.reduce((s, d) => s + d.revenue, 0);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-3.5 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <div className="rounded-lg bg-primary/10 p-1.5">
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </div>
           <h2 className="font-semibold">Сарын орлого</h2>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-bold tabular-nums text-primary">{formatMoney(total)}</p>
+          <p className="text-[11px] text-muted-foreground">Сүүлийн 3 сар</p>
         </div>
       </div>
       <div className="p-4">
-        <div className="flex items-end gap-3 h-24">
-          {data.map((d) => {
-            const pct = (d.revenue / max) * 100;
-            const [year, mon] = d.month.split('-');
-            return (
-              <div key={d.month} className="flex-1 flex flex-col items-center gap-1.5">
-                <p className="text-[10px] font-semibold text-primary tabular-nums">
-                  {(d.revenue / 1000).toFixed(0)}K
-                </p>
-                <div className="w-full rounded-t-md bg-primary/20 relative overflow-hidden" style={{ height: '56px' }}>
-                  <div
-                    className="absolute bottom-0 w-full bg-primary rounded-t-md transition-all"
-                    style={{ height: `${pct}%` }}
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground">{mon}-р сар</p>
-              </div>
-            );
-          })}
-        </div>
+        {chartData.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Орлогын мэдээлэл алга байна</p>
+        ) : (
+          <div className="h-52 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#022179" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#022179" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  stroke="currentColor"
+                  className="text-muted-foreground"
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}K` : String(v))}
+                />
+                <RechartsTooltip
+                  formatter={(v) => [formatMoney(Number(v)), 'Орлого']}
+                  contentStyle={{
+                    background: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '0.5rem',
+                    fontSize: '12px',
+                  }}
+                  labelStyle={{ fontWeight: 600 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#022179"
+                  strokeWidth={2}
+                  fill="url(#revGradient)"
+                  dot={{ r: 3, fill: '#022179' }}
+                  activeDot={{ r: 5 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -410,7 +514,7 @@ export default function DashboardPage() {
   if (isError || !data)
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const { stats, recentOrders, monthlyRevenue, emailStats, resendStats, topDownloaded } = data;
+  const { stats, trends, recentOrders, monthlyRevenue, emailStats, resendStats, topDownloaded } = data;
 
   const statValues: Record<string, number> = {
     users: stats.users,
@@ -419,26 +523,49 @@ export default function DashboardPage() {
     revenue: stats.revenue,
   };
 
+  // Stat карт бүрд харгалзах тренд (нийт users-д шинэ хэрэглэгчийн, orders-д захиалгын,
+  // revenue-д орлогын сарын өсөлт). Бүтээгдэхүүнд тренд байхгүй.
+  const statTrend: Record<string, number | null | undefined> = {
+    users: trends?.users,
+    orders: trends?.orders,
+    revenue: trends?.revenue,
+  };
+
+  // Өнөөдрийн огноо (монголоор)
+  const todayLabel = new Date().toLocaleDateString('mn-MN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Хяналтын самбар</h1>
-          <p className="text-sm text-muted-foreground">DigitalGer удирдлагын тойм</p>
+          <p className="text-sm text-muted-foreground capitalize">{todayLabel}</p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <TrendingUp className="h-3.5 w-3.5" />
-          <span>Шууд мэдээлэл</span>
+        <div className="flex items-center gap-1.5 self-start rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400 sm:self-auto">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+          </span>
+          Шууд мэдээлэл
         </div>
       </div>
 
-      {/* Main stat cards */}
+      {/* Хурдан үйлдэл */}
+      <QuickActions />
+
+      {/* Main stat cards — тренд badge-тэй */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAT_CARDS.map((card) => {
           const raw = statValues[card.key] ?? 0;
           const display = card.isMoney ? formatMoney(raw) : raw.toLocaleString('mn-MN');
           const Icon = card.icon;
+          const trend = statTrend[card.key];
           return (
             <Link key={card.key} href={card.href}>
               <div className="group relative rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer">
@@ -446,7 +573,12 @@ export default function DashboardPage() {
                   <div className={`rounded-lg p-2 ${card.bg}`}>
                     <Icon className={`h-5 w-5 ${card.color}`} />
                   </div>
-                  <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  {/* Тренд (users/orders/revenue) — байгаа үед badge, эс бол hover сум */}
+                  {trend !== undefined ? (
+                    <TrendBadge value={trend} />
+                  ) : (
+                    <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
                 </div>
                 <p className="text-2xl font-bold tracking-tight">{display}</p>
                 <div className="mt-1.5 flex items-center justify-between">
@@ -481,8 +613,12 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Энэ сарын шинэ хэрэглэгч</p>
           </div>
         </div>
-        <Link href="/orders" className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:border-destructive/40 group
-          {stats.pendingExpiredCount > 0 ? 'border-destructive/30' : 'border-border'}">
+        <Link
+          href="/orders"
+          className={`group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:border-destructive/40 ${
+            (stats.pendingExpiredCount ?? 0) > 0 ? 'border-destructive/30' : 'border-border'
+          }`}
+        >
           <div className={`rounded-lg p-2 shrink-0 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'bg-destructive/10' : 'bg-muted'}`}>
             <Clock className={`h-4 w-4 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
           </div>
@@ -495,64 +631,80 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Бодит таталтын самбар (хэрэглэгчид татсан жинхэнэ тоо) */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-primary/10 p-1.5">
-              <Download className="h-4 w-4 text-primary" />
+      {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Сарын орлого */}
+        <MonthlyRevenuePanel data={monthlyRevenue} />
+
+        {/* Бодит таталтын самбар */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary/10 p-1.5">
+                <Download className="h-4 w-4 text-primary" />
+              </div>
+              <h2 className="font-semibold">Бодит таталт</h2>
             </div>
-            <h2 className="font-semibold">Бодит таталт</h2>
+            <div className="text-right">
+              <p className="text-xl font-bold tabular-nums text-primary">
+                {(stats.totalRealDownloads ?? 0).toLocaleString()}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Нийт татагдсан</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xl font-bold tabular-nums text-primary">
-              {(stats.totalRealDownloads ?? 0).toLocaleString()}
-            </p>
-            <p className="text-[11px] text-muted-foreground">Нийт татагдсан</p>
-          </div>
-        </div>
-        {topDownloaded && topDownloaded.length > 0 ? (
-          <div className="divide-y divide-border">
-            <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
-              Хамгийн их татагдсан бүтээгдэхүүн
-            </p>
-            {topDownloaded.map((p, i) => (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{i + 1}</span>
-                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
-                  {p.imageUrl ? (
-                    <Image src={p.imageUrl} alt={p.title} fill sizes="44px" className="object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                      <Package className="h-4 w-4" />
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{p.title}</p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{p.type}</Badge>
-                    {p.categoryName && (
-                      <span className="text-[11px] text-muted-foreground">{p.categoryName}</span>
+          {topDownloaded && topDownloaded.length > 0 ? (
+            <div className="divide-y divide-border">
+              <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+                Хамгийн их татагдсан бүтээгдэхүүн
+              </p>
+              {topDownloaded.map((p, i) => (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{i + 1}</span>
+                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
+                    {p.imageUrl ? (
+                      <Image src={p.imageUrl} alt={p.title} fill sizes="44px" className="object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                        <Package className="h-4 w-4" />
+                      </div>
                     )}
-                    <span className="text-[11px] font-medium text-foreground">{formatMoney(p.price)}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{p.title}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{p.type}</Badge>
+                      {p.categoryName && (
+                        <span className="text-[11px] text-muted-foreground">{p.categoryName}</span>
+                      )}
+                      <span className="text-[11px] font-medium text-foreground">{formatMoney(p.price)}</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="flex items-center gap-1 text-sm font-bold tabular-nums text-primary">
+                      <Download className="h-3.5 w-3.5" />
+                      {p.realDownloadCount.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">удаа татсан</p>
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="flex items-center gap-1 text-sm font-bold tabular-nums text-primary">
-                    <Download className="h-3.5 w-3.5" />
-                    {p.realDownloadCount.toLocaleString()}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">удаа татсан</p>
-                </div>
+              ))}
+            </div>
+          ) : (
+            /* Empty state — зөвлөмжтэй */
+            <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+              <div className="rounded-full bg-muted p-3">
+                <Download className="h-6 w-6 text-muted-foreground" />
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            Одоогоор бодит таталт бүртгэгдээгүй байна.
-          </p>
-        )}
+              <p className="text-sm font-medium">Одоогоор таталт бүртгэгдээгүй</p>
+              <p className="max-w-xs text-xs text-muted-foreground">
+                Хэрэглэгчид бүтээгдэхүүн татаж эхэлмэгц энд хамгийн их татагдсан бүтээгдэхүүнүүд харагдана.
+              </p>
+              <Link href="/products" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                Бүтээгдэхүүн харах <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Resend + Email хяналт row (Resend идэвхтэй, AWS SES нөөц) */}
@@ -560,9 +712,6 @@ export default function DashboardPage() {
         <ResendStatsPanel stats={resendStats} />
         <EmailStatsPanel stats={emailStats} />
       </div>
-
-      {/* Revenue row */}
-      <MonthlyRevenuePanel data={monthlyRevenue} />
 
       {/* Analytics section */}
       <AnalyticsSection />
