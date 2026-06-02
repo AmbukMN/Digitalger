@@ -453,6 +453,10 @@ export default function LibraryPage() {
             const hasFiles = entry.product.files.length > 0;
             const hasBundles = (entry.product.bundles?.length ?? 0) > 0;
             const showFlatFiles = hasFiles;
+            // Admin "Бүгдийг татах"-д бэлэн zip (downloadFileKey) оруулсан байж болно —
+            // нэг нэгээр файл/bundle байхгүй ч энэ zip-ийг шууд татах товч гарах ёстой.
+            const hasZip = !!entry.product.downloadFileKey;
+            const canDownloadAll = hasFiles || hasBundles || hasZip;
             const zipName = `${entry.product.slug ?? entry.product.id}.zip`;
 
             // Нийт татах боломжтой файлын тоо тооцоол
@@ -518,7 +522,7 @@ export default function LibraryPage() {
                       }
                     />
                   </div>
-                  {(hasFiles || hasBundles) && (
+                  {canDownloadAll && (
                     <Button
                       size="sm"
                       className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
@@ -593,12 +597,27 @@ export default function LibraryPage() {
                   </>
                 )}
 
-                {!showFlatFiles && !hasBundles && (
+                {/* Файл/bundle/zip огт байхгүй үед л "файл байхгүй" гэж харуулна.
+                    Зөвхөн zip (downloadFileKey) байвал дээрх "Бүгдийг татах" товч хангалттай. */}
+                {!showFlatFiles && !hasBundles && !hasZip && (
                   <p className="px-4 py-3 text-sm text-muted-foreground">Энэ бүтээгдэхүүнд татах файл байхгүй байна</p>
                 )}
 
+                {/* Зөвхөн zip байгаа (нэг нэгээр файл/bundle байхгүй) үед desktop дээр
+                    header-ийн товчоор хангалттай ч, мэдээлэл өгөхөөр мөр нэмнэ */}
+                {!showFlatFiles && !hasBundles && hasZip && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <DownloadCloud className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="flex-1 text-sm text-muted-foreground">
+                      Бүх файлыг нэг багцаар татаж авна уу.
+                    </span>
+                  </div>
+                )}
+
                 {/* Mobile: all download button */}
-                {(hasFiles || hasBundles) && (
+                {canDownloadAll && (
                   <div className="px-4 py-2.5 border-t border-border/50 sm:hidden">
                     <Button
                       size="sm"
