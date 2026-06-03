@@ -233,6 +233,19 @@ export const downloadsApi = {
 
   bundleDownloadFile: (token: string, bundleId: string) =>
     request<{ url: string; fileName: string }>(`/downloads/bundle/${bundleId}/download-file`, { method: 'POST', token }),
+
+  // ── ҮНЭГҮЙ бүтээгдэхүүн (нэвтрэхгүй, token-гүй) ──
+  freeFile: (productId: string, fileId: string) =>
+    request<{ fileId: string; fileName: string; url: string; expiresIn: number }>(
+      `/downloads/free/${productId}/file/${fileId}`,
+      { method: 'POST' },
+    ),
+  freeProductDownloadFile: (productId: string) =>
+    request<{ url: string; fileName: string }>(`/downloads/free/${productId}/download-file`, { method: 'POST' }),
+  enqueueFreeZip: (productId: string) =>
+    request<{ jobId: string }>(`/downloads/free/${productId}/zip`, { method: 'POST' }),
+  pollFreeZipJob: (jobId: string) =>
+    request<{ status: string; url?: string; error?: string }>(`/downloads/free/zip/status/${jobId}`),
 };
 
 // —— Payments ——

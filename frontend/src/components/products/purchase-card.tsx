@@ -168,6 +168,110 @@ function PurchasedCard({
   );
 }
 
+// ─── ҮНЭГҮЙ бүтээгдэхүүний карт (нэвтрэхгүй, public татах) ───────────────────
+// price=0/null бүтээгдэхүүн — хэн ч (нэвтрээгүй ч) шууд татна. Худалдаж авах
+// товч/QPay байхгүй, paid шиг шууд татах UI.
+function FreeCard({ product }: { product: ProductDetail }) {
+  const freeDl = useFileDownload(product.id); // free public горим
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [visibleFiles, setVisibleFiles] = useState(FILES_PAGE_SIZE);
+
+  const files = product.files ?? [];
+  const hasFiles = files.length > 0;
+  const hasBundles = (product.bundles?.length ?? 0) > 0;
+  const hasZip = !!product.downloadFileKey;
+  const canDownloadAll = hasFiles || hasBundles || hasZip;
+  const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
+
+  async function handleDownloadOne(fileId: string, fileName: string) {
+    if (downloading === fileId) return;
+    setDownloading(fileId);
+    try {
+      await freeDl.download(fileId, fileName);
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  return (
+    <div className="sticky top-24 rounded-2xl border border-green-200 dark:border-green-800 bg-card shadow-sm p-6 space-y-5">
+      {/* Үнэгүй header */}
+      <div className="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3">
+        <Gift className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-lg font-black text-green-700 dark:text-green-400">Үнэгүй</p>
+          <p className="text-xs text-green-600 dark:text-green-500 mt-0.5">Бүртгэлгүйгээр шууд татаж авна</p>
+        </div>
+      </div>
+
+      {/* Course info */}
+      {hasLessons && (
+        <div className="flex items-center gap-2 text-sm rounded-lg bg-muted/30 px-3 py-2.5">
+          <BookOpen className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-muted-foreground">
+            <span className="font-semibold text-foreground">{product.course!.lessons.length}</span> хичээл нээлттэй
+          </span>
+        </div>
+      )}
+
+      {/* Download */}
+      {canDownloadAll ? (
+        <div className="space-y-2">
+          <DownloadAllButton
+            productId={product.id}
+            downloadFileKey={product.downloadFileKey}
+            zipName={`${product.slug}.zip`}
+            variant="default"
+            free
+            label={hasFiles ? `Бүх файлыг татах (${files.length})` : 'Бүх файлыг татах'}
+            className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+          />
+          {hasFiles && (
+            <>
+              <ul
+                className={`space-y-1${
+                  visibleFiles >= files.length && files.length > FILES_PAGE_SIZE
+                    ? ' files-scroll max-h-72 overflow-y-auto pr-1'
+                    : ''
+                }`}
+              >
+                {files.slice(0, visibleFiles).map((file) => (
+                  <li key={file.id} className="flex items-center gap-2 rounded-lg bg-muted/30 dark:bg-muted/20 border border-border/50 px-3 py-1.5">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                      onClick={() => handleDownloadOne(file.id, file.fileName)}
+                      disabled={downloading === file.id}
+                    >
+                      {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                      Татах
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {files.length > visibleFiles && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleFiles(files.length)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  {files.length - visibleFiles} файл нэмж харах
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-2">Татах файл байхгүй байна</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Multi-coupon section ─────────────────────────────────────────────────────
 function MultiCouponSection({
   basePrice,
@@ -320,6 +424,8 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
   const sessionLoading = status === 'loading' || (!!session && libraryLoading);
 
   const basePrice = Number(product.price);
+  // Үнэгүй: үнэ 0/null/хоосон. Нэвтрэхгүй хэн ч шууд татна.
+  const isFree = product.price == null || basePrice === 0 || Number.isNaN(basePrice);
   const totalDiscount = coupons.reduce((sum, c) => sum + c.discount, 0);
   const finalPrice = Math.max(0, basePrice - totalDiscount);
   const comparePrice =
@@ -339,6 +445,12 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
     trackAddToCart(product.id, product.slug);
     router.push('/checkout');
   };
+
+  // Үнэгүй бол — нэвтрэх/худалдаж авах шаардлагагүй, шууд татах карт.
+  // (Эзэмшсэн бол ердийнхөөрөө PurchasedCard — давхар татахгүй.)
+  if (isFree && !purchase) {
+    return <FreeCard product={product} />;
+  }
 
   if (sessionLoading) {
     return (
@@ -448,7 +560,9 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
 export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { download } = useFileDownload();
+  // Үнэгүй бол public (нэвтрэхгүй) горимоор татна; эс бол ердийн (эзэмшсэн) горим.
+  const isFreeProduct = product.price == null || Number(product.price) === 0 || Number.isNaN(Number(product.price));
+  const { download } = useFileDownload(isFreeProduct ? product.id : undefined);
   const addToCart = useCartStore((s) => s.add);
   const coupons = useCouponStore((s) => s.coupons[product.id] ?? EMPTY_COUPONS);
   const addCoupon = useCouponStore((s) => s.add);
@@ -513,6 +627,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const sessionLoading = status === 'loading' || (!!session && libraryLoading);
 
   const basePrice = Number(product.price);
+  const isFree = product.price == null || basePrice === 0 || Number.isNaN(basePrice);
   const totalDiscount = coupons.reduce((sum, c) => sum + c.discount, 0);
   const finalPrice = Math.max(0, basePrice - totalDiscount);
 
@@ -567,6 +682,96 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   }
 
   if (sessionLoading) return null;
+
+  // ── Үнэгүй state (нэвтрэхгүй шууд татах) ──────────────────────────────────
+  if (isFree && !purchase) {
+    const freeFiles = product.files ?? [];
+    const freeHasFiles = freeFiles.length > 0;
+    const freeHasBundles = (product.bundles?.length ?? 0) > 0;
+    const freeHasZip = !!product.downloadFileKey;
+    const freeCanDownload = freeHasFiles || freeHasBundles || freeHasZip;
+
+    return (
+      <div
+        ref={filesBarRef}
+        className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        {/* Файлууд (expandable) */}
+        {filesOpen && freeHasFiles && (
+          <div className="border-b border-border/40 px-4 py-3 bg-muted/30 dark:bg-muted/10">
+            <div
+              className={`space-y-1${
+                mobileVisibleFiles >= freeFiles.length && freeFiles.length > FILES_PAGE_SIZE
+                  ? ' files-scroll max-h-64 overflow-y-auto pr-1'
+                  : ''
+              }`}
+            >
+              {freeFiles.slice(0, mobileVisibleFiles).map((file) => (
+                <div key={file.id} className="flex items-center gap-2 rounded-lg bg-card dark:bg-card border border-border/50 px-3 py-1.5">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-xs truncate text-foreground">{file.fileName}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                    onClick={() => handleDownloadOne(file.id, file.fileName)}
+                    disabled={downloading === file.id}
+                  >
+                    {downloading === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    Татах
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {freeFiles.length > mobileVisibleFiles && (
+              <button
+                type="button"
+                onClick={() => setMobileVisibleFiles(freeFiles.length)}
+                className="w-full flex items-center justify-center gap-1.5 pt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+                {freeFiles.length - mobileVisibleFiles} файл нэмж харах
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="px-4 py-3">
+          <div className="mx-auto flex max-w-7xl items-center gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Gift className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-green-700 dark:text-green-400 leading-tight">Үнэгүй</p>
+                {freeHasFiles && (
+                  <button
+                    type="button"
+                    onClick={() => setFilesOpen((p) => !p)}
+                    className="flex items-center gap-1 text-xs text-primary dark:text-secondary hover:underline mt-0.5"
+                  >
+                    <Download className="h-3 w-3" />
+                    {freeFiles.length} файл татах
+                    <ChevronDown className={`h-3 w-3 transition-transform ${filesOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                )}
+              </div>
+            </div>
+            {freeCanDownload && (
+              <DownloadAllButton
+                productId={product.id}
+                downloadFileKey={product.downloadFileKey}
+                zipName={`${product.slug}.zip`}
+                variant="default"
+                free
+                label="Бүх файлыг татах"
+                className="shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Purchased state ──────────────────────────────────────────────────────
   if (purchase) {

@@ -14,7 +14,11 @@ interface CachedUrl {
 // Refresh threshold: refresh if less than 60s remain
 const REFRESH_THRESHOLD_MS = 60_000;
 
-export function useFileDownload() {
+/**
+ * @param freeProductId — өгөгдвөл тухайн ҮНЭГҮЙ бүтээгдэхүүний public endpoint-ээр
+ *   (нэвтрэхгүй, token-гүй) татна. Эс бол ердийн (нэвтэрсэн, эзэмшсэн) горим.
+ */
+export function useFileDownload(freeProductId?: string) {
   const { data: session } = useSession();
   const cache = useRef<Map<string, CachedUrl>>(new Map());
   // fileId → in-flight promise: давтан дарах үед нэг л request явна
@@ -22,7 +26,8 @@ export function useFileDownload() {
 
   const getUrl = useCallback(
     async (fileId: string): Promise<string | null> => {
-      if (!session?.accessToken) return null;
+      // Үнэгүй биш горимд token заавал
+      if (!freeProductId && !session?.accessToken) return null;
 
       const cached = cache.current.get(fileId);
       if (cached) {
@@ -38,13 +43,16 @@ export function useFileDownload() {
       const existing = inflight.current.get(fileId);
       if (existing) return existing;
 
-      const promise = downloadsApi
-        .signedUrl(session.accessToken, fileId)
+      const req = freeProductId
+        ? downloadsApi.freeFile(freeProductId, fileId).then((r) => ({ url: r.url, expiresIn: r.expiresIn ?? 300, generatedAt: Date.now() }))
+        : downloadsApi.signedUrl(session!.accessToken!, fileId).then((r) => ({ url: r.url, expiresIn: r.expiresIn ?? 300, generatedAt: r.generatedAt ?? Date.now() }));
+
+      const promise = req
         .then((result) => {
           cache.current.set(fileId, {
             url: result.url,
-            generatedAt: result.generatedAt ?? Date.now(),
-            expiresIn: result.expiresIn ?? 300,
+            generatedAt: result.generatedAt,
+            expiresIn: result.expiresIn,
           });
           return result.url;
         })
@@ -54,7 +62,7 @@ export function useFileDownload() {
       inflight.current.set(fileId, promise);
       return promise;
     },
-    [session?.accessToken],
+    [session?.accessToken, freeProductId],
   );
 
   const download = useCallback(

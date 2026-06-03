@@ -239,9 +239,15 @@ export default async function ProductDetailPage({ params }: Props) {
               </div>
               {/* Price — mobile only, shown below rating row */}
               <div className="mt-2 flex items-baseline gap-2 lg:hidden">
-                <p className="text-lg font-bold text-primary">{formatPrice(Number(product.price))}</p>
-                {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
-                  <p className="text-sm text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
+                {(product.price == null || Number(product.price) === 0) ? (
+                  <p className="text-lg font-bold text-green-600 dark:text-green-400">Үнэгүй</p>
+                ) : (
+                  <>
+                    <p className="text-lg font-bold text-primary">{formatPrice(Number(product.price))}</p>
+                    {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
+                      <p className="text-sm text-muted-foreground line-through">{formatPrice(Number(product.compareAtPrice))}</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>

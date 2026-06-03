@@ -2,7 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardFooter, productTypeBadgeVariant } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
-import { BookOpen, CheckCircle, Heart, ShoppingCart, Star } from 'lucide-react';
+import { BookOpen, CheckCircle, Download, Heart, ShoppingCart, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -150,13 +150,21 @@ export function ProductCard({ product }: { product: ProductSummary }) {
         </Link>
 
         <div className="mt-2 flex items-baseline gap-1.5">
-          <p className="text-sm sm:text-base font-extrabold tabular-nums tracking-tight text-foreground">
-            {formatPrice(Number(product.price))}
-          </p>
-          {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
-            <p className="text-[10px] sm:text-xs tabular-nums text-muted-foreground line-through">
-              {formatPrice(Number(product.compareAtPrice))}
+          {(product.price == null || Number(product.price) === 0) ? (
+            <p className="text-sm sm:text-base font-extrabold tabular-nums tracking-tight text-green-600 dark:text-green-400">
+              Үнэгүй
             </p>
+          ) : (
+            <>
+              <p className="text-sm sm:text-base font-extrabold tabular-nums tracking-tight text-foreground">
+                {formatPrice(Number(product.price))}
+              </p>
+              {product.compareAtPrice && Number(product.compareAtPrice) > Number(product.price) && (
+                <p className="text-[10px] sm:text-xs tabular-nums text-muted-foreground line-through">
+                  {formatPrice(Number(product.compareAtPrice))}
+                </p>
+              )}
+            </>
           )}
         </div>
       </CardContent>
@@ -171,6 +179,18 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           >
             <CheckCircle className="mr-1 h-3.5 w-3.5" />
             Авсан
+          </Button>
+        ) : (product.price == null || Number(product.price) === 0) ? (
+          /* Үнэгүй — сагсанд биш, шууд бүтээгдэхүүн рүү (тэнд татна) */
+          <Button
+            asChild
+            size="sm"
+            className="flex-1 h-8 text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Link href={`/products/${product.slug}`}>
+              <Download className="mr-1 h-3.5 w-3.5" />
+              Үнэгүй татах
+            </Link>
           </Button>
         ) : (
           <Button
