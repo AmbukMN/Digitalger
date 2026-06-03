@@ -11,6 +11,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { authApi } from '@/lib/api';
+import { trackCompleteRegistration } from '@/lib/analytics';
 import { OtpInput } from './otp-input';
 
 function PasswordInput({ id, ...props }: React.ComponentProps<typeof Input>) {
@@ -110,6 +111,7 @@ export function SignupForm() {
         password: values.password,
         name: values.name,
       });
+      trackCompleteRegistration();
       toast.success('Бүртгэл амжилттай. И-мэйл баталгаажуулна уу.');
       router.push('/login');
     } catch {

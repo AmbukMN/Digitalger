@@ -170,7 +170,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <>
-      <ProductTracker productId={product.id} productSlug={product.slug} />
+      <ProductTracker productId={product.id} productSlug={product.slug} price={Number(product.price) || 0} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}

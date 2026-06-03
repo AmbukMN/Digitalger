@@ -27,7 +27,7 @@ import type { AppliedCoupon } from '@/store/coupon';
 import { couponsApi, downloadsApi } from '@/lib/api';
 import type { ProductDetail, PurchasedProduct } from '@/types/api';
 import { useFileDownload } from '@/hooks/use-file-download';
-import { trackAddToCart } from '@/lib/analytics';
+import { trackAddToCart, trackInitiateCheckout } from '@/lib/analytics';
 import { DiscountTimer } from './discount-timer';
 import { DownloadAllButton } from './download-all-button';
 
@@ -442,7 +442,8 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
         ? { couponCodes: coupons.map((c) => c.code), couponDiscount: totalDiscount }
         : undefined,
     );
-    trackAddToCart(product.id, product.slug);
+    trackAddToCart(product.id, product.slug, finalPrice);
+    trackInitiateCheckout(finalPrice, 1);
     router.push('/checkout');
   };
 
@@ -667,7 +668,8 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
         ? { couponCodes: coupons.map((c) => c.code), couponDiscount: totalDiscount }
         : undefined,
     );
-    trackAddToCart(product.id, product.slug);
+    trackAddToCart(product.id, product.slug, finalPrice);
+    trackInitiateCheckout(finalPrice, 1);
     router.push('/checkout');
   };
 

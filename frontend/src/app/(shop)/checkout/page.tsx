@@ -160,7 +160,7 @@ function CheckoutContent() {
 
         // Free order or already PAID (backend auto-marks if total=0)
         if (isFree || order.status === 'PAID') {
-          items.forEach((i) => trackPurchase(i.productId, i.slug));
+          items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
           toast.success('Амжилттай худалдан авлаа!');
           clear();
           router.push('/library');
@@ -168,7 +168,7 @@ function CheckoutContent() {
         }
 
         if (order.devMode) {
-          items.forEach((i) => trackPurchase(i.productId, i.slug));
+          items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
           toast.success('Төлбөр амжилттай (dev)');
           clear();
           router.push('/library');
@@ -204,7 +204,7 @@ function CheckoutContent() {
   };
 
   const handlePaymentSuccess = () => {
-    items.forEach((i) => trackPurchase(i.productId, i.slug));
+    items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
     clear();
     setQpayResult(null);
     setPendingOrderId(null);

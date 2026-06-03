@@ -276,6 +276,13 @@ export function ChatWidget() {
     const text = input.trim();
     if (!text || loading) return;
     const userMsg: ChatMessage = { id: 'u' + Date.now(), role: 'user', text };
+    // Meta Pixel Contact — чатаар анхны мессеж илгээх үед (нэг удаа)
+    if (!messages.some((m) => m.role === 'user')) {
+      try {
+        const fbq = (window as unknown as { fbq?: (a: string, e: string) => void }).fbq;
+        if (typeof fbq === 'function') fbq('track', 'Contact');
+      } catch { /* ignore */ }
+    }
     setMessages((m) => [...m, userMsg]);
     setInput('');
     setLoading(true);

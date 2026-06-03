@@ -15,7 +15,7 @@ import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { downloadsApi, wishlistApi } from '@/lib/api';
-import { trackProductClick, trackAddToCart } from '@/lib/analytics';
+import { trackProductClick, trackAddToCart, trackAddToWishlist } from '@/lib/analytics';
 import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
@@ -53,7 +53,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       return;
     }
     add(product);
-    trackAddToCart(product.id, product.slug);
+    trackAddToCart(product.id, product.slug, Number(product.price) || 0);
     toast.success('Сагсанд нэмэгдлээ', { description: product.title });
   };
 
@@ -72,8 +72,12 @@ export function ProductCard({ product }: { product: ProductSummary }) {
         toggleWishlistLocal(product);
       }
     }
-    if (!inWishlist) toast.success('Хадгалсанд нэмэгдлээ', { description: product.title });
-    else toast.info('Хадгалсанаас хасагдлаа', { description: product.title });
+    if (!inWishlist) {
+      trackAddToWishlist(product.id, Number(product.price) || 0);
+      toast.success('Хадгалсанд нэмэгдлээ', { description: product.title });
+    } else {
+      toast.info('Хадгалсанаас хасагдлаа', { description: product.title });
+    }
   };
 
   return (
