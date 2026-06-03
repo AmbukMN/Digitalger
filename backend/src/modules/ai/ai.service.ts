@@ -151,9 +151,18 @@ export class AiService {
       return { products: [], faqs: [], message: 'Хайлтад юм олсонгүй' };
     }
 
-    // 1) Үгсэд задлах, цэвэрлэх, stop word хасах
-    const rawWords = cleaned
+    // 0) Тоо+үсэг хооронд зай нэмж задлана (1000ном → "1000 ном",
+    //    3000ppt → "3000 ppt", 1000+ном → "1000 ном"). Хэрэглэгч ихэвчлэн
+    //    "1000+ном", "3000ppt" гэх мэт зайгүй бичдэг — энэ нь нэг үг болж DB-д
+    //    таарахгүй болдог. Тоо↔үсгийн зааг дээр зай тавьж салгана.
+    const normalized = cleaned
       .toLowerCase()
+      .replace(/\+/g, ' ') // 1000+ном → "1000 ном" (+ тэмдгийг зайгаар)
+      .replace(/(\d)([\p{L}])/gu, '$1 $2') // тоо → үсэг (1000ном → 1000 ном)
+      .replace(/([\p{L}])(\d)/gu, '$1 $2'); // үсэг → тоо (ном1000 → ном 1000)
+
+    // 1) Үгсэд задлах, цэвэрлэх, stop word хасах
+    const rawWords = normalized
       .split(/\s+/)
       .map((w) => w.replace(/['"\\:&|!()?.,;]/g, '').trim())
       .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
@@ -401,9 +410,12 @@ export class AiService {
 
   // ─── FAQ хайлт (БҮХ идэвхтэй FAQ-аас, үг хязгаараар) ──────────────────────────
   private async searchFaqs(rawQuery: string): Promise<FaqResult[]> {
-    // Stop word хассан гол үгсээ tsquery болгоно
+    // Stop word хассан гол үгсээ tsquery болгоно (тоо+үсэг зааг дээр зай нэмнэ)
     const words = rawQuery
       .toLowerCase()
+      .replace(/\+/g, ' ')
+      .replace(/(\d)([\p{L}])/gu, '$1 $2')
+      .replace(/([\p{L}])(\d)/gu, '$1 $2')
       .split(/\s+/)
       .map((w) => w.replace(/['"\\:&|!()?.,;]/g, '').trim())
       .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
