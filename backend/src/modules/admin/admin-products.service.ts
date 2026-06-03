@@ -192,20 +192,40 @@ export class AdminProductsService {
   async remove(id: string) {
     await this.ensureProductExists(id);
 
-    // Захиалгад (OrderItem) орсон бүтээгдэхүүнийг устгаж БОЛОХГҮЙ — захиалгын
-    // түүх, тайлан, хэрэглэгчийн "Миний сан" алдагдана (FK: OrderItem_productId_fkey).
-    // Оронд нь нуух (unpublish) санал болгоно.
-    const orderCount = await this.prisma.orderItem.count({ where: { productId: id } });
-    if (orderCount > 0) {
-      throw new ConflictException(
-        `Энэ бүтээгдэхүүнийг ${orderCount} захиалгад ашигласан тул устгах боломжгүй. ` +
-          `Захиалгын түүх хадгалагдах ёстой. Оронд нь "Нийтлэхгүй болгох" (нуух) товчийг ашиглана уу.`,
-      );
-    }
+    // HARD DELETE — захиалгатай ч бай шууд бүрэн устгана. Устгасан бүтээгдэхүүн
+    // хэрэглэгчийн "Миний сан"-д огт харагдахгүй (бүтээгдэхүүн байхгүй болно).
+    //
+    // OrderItem.product relation нь onDelete: Restrict тул эхлээд тухайн
+    // бүтээгдэхүүний OrderItem-уудыг устгана. Хэрэв энэ нь захиалгын ЦОР ГАНЦ
+    // зүйл байсан бол захиалга хоосон үлдэхээс сэргийлж тухайн Order-ийг ч
+    // устгана (хоосон болсон захиалгууд). Бусад зүйл (файл/зураг/курс/bundle/
+    // FAQ/wishlist) нь onDelete: Cascade-аар product устгах үед автоматаар арилна.
+    return this.prisma.$transaction(async (tx) => {
+      // Энэ бүтээгдэхүүнийг агуулсан захиалгуудын ID-г цуглуул
+      const items = await tx.orderItem.findMany({
+        where: { productId: id },
+        select: { orderId: true },
+      });
+      const orderIds = [...new Set(items.map((i) => i.orderId))];
 
-    // Захиалгагүй бол — холбоотой бүх зүйл (файл, зураг, курс, bundle, FAQ,
-    // wishlist) onDelete: Cascade-аар автоматаар арилна.
-    return this.prisma.product.delete({ where: { id } });
+      // Энэ бүтээгдэхүүний бүх OrderItem устгана
+      await tx.orderItem.deleteMany({ where: { productId: id } });
+
+      // Хоосон болсон (өөр item-гүй) захиалгуудыг устгана — Payment/Coupon г.м.
+      // нь Order onDelete: Cascade-аар арилна.
+      if (orderIds.length) {
+        const empties = await tx.order.findMany({
+          where: { id: { in: orderIds }, items: { none: {} } },
+          select: { id: true },
+        });
+        if (empties.length) {
+          await tx.order.deleteMany({ where: { id: { in: empties.map((o) => o.id) } } });
+        }
+      }
+
+      // Бүтээгдэхүүнийг устгана (бусад холбоотой зүйл cascade-аар арилна)
+      return tx.product.delete({ where: { id } });
+    });
   }
 
   async listImages(productId: string) {
