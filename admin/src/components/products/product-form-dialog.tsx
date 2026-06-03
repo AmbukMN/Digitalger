@@ -2395,12 +2395,14 @@ export function ProductFormDialog({
               </div>
               <div className="grid gap-4 sm:grid-cols-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="price">Үнэ (₮) <span className="text-destructive">*</span></Label>
-                  <Input id="price" type="number" min={0} step={100} value={form.price} onChange={(e) => set('price', e.target.value)} required placeholder="0" />
+                  <Label htmlFor="price">Зарах үнэ (₮) <span className="text-destructive">*</span></Label>
+                  <Input id="price" type="number" min={0} step={100} value={form.price} onChange={(e) => set('price', e.target.value)} required placeholder="0 = Үнэгүй" />
+                  <p className="text-[11px] text-muted-foreground">Худалдах одоогийн үнэ. 0 бол үнэгүй бүтээгдэхүүн болно.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="compareAtPrice">Жагсаалтын үнэ</Label>
-                  <Input id="compareAtPrice" type="number" min={0} step={100} value={form.compareAtPrice} onChange={(e) => set('compareAtPrice', e.target.value)} placeholder="Хэвийн үнэ" />
+                  <Label htmlFor="compareAtPrice">Хямдрахаас өмнөх үнэ</Label>
+                  <Input id="compareAtPrice" type="number" min={0} step={100} value={form.compareAtPrice} onChange={(e) => set('compareAtPrice', e.target.value)} placeholder="Жишээ: 49900" />
+                  <p className="text-[11px] text-muted-foreground">Зарах үнээс ӨНДӨР бол хямдралтай (зурсан) үнэ харагдана. Хоосон бол хямдрал харагдахгүй.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Төрөл <span className="text-destructive">*</span></Label>

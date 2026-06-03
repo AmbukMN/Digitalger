@@ -131,6 +131,21 @@ function buildThemeScript(serverDefault: Theme): string {
   return `(function(){try{var s=localStorage.getItem('digitalger-theme');var d='${serverDefault}';var t=s||d||'system';var r=t==='system'?(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):t;document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(r);}catch(e){}})();`;
 }
 
+// Meta (Facebook) Pixel — admin SEO-д fbPixelId оруулсан үед л ачаална.
+function buildMetaPixel(id: string): string {
+  return `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${id}');fbq('track','PageView');`;
+}
+
+// Google Analytics 4 (gtag) — admin SEO-д googleAnalyticsId оруулсан үед л.
+function buildGtag(id: string): string {
+  return `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}');`;
+}
+
+// Google Tag Manager — admin SEO-д googleTagManagerId оруулсан үед л.
+function buildGtm(id: string): string {
+  return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${id}');`;
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -143,6 +158,12 @@ export default async function RootLayout({
     getNavbarData(),
   ]);
 
+  // Admin SEO-д оруулсан analytics ID-нууд (оруулсан үед л script ачаална)
+  const s = navbar.settings;
+  const fbPixelId = s?.fbPixelId?.trim() || null;
+  const gaId = s?.googleAnalyticsId?.trim() || null;
+  const gtmId = s?.googleTagManagerId?.trim() || null;
+
   return (
     <html lang="mn" suppressHydrationWarning>
       <head>
@@ -152,36 +173,49 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
-        {/* Meta Pixel Code — бүх хуудсанд PageView track хийнэ */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '483200141886803');
-fbq('track', 'PageView');`,
-          }}
-        />
-        <noscript>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            height="1"
-            width="1"
-            style={{ display: 'none' }}
-            src="https://www.facebook.com/tr?id=483200141886803&ev=PageView&noscript=1"
-            alt=""
-          />
-        </noscript>
-        {/* End Meta Pixel Code */}
+        {/* Google Tag Manager — admin SEO-д ID оруулсан үед */}
+        {gtmId && (
+          <script dangerouslySetInnerHTML={{ __html: buildGtm(gtmId) }} />
+        )}
+        {/* Google Analytics (gtag) — admin SEO-д ID оруулсан үед */}
+        {gaId && (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} />
+            <script dangerouslySetInnerHTML={{ __html: buildGtag(gaId) }} />
+          </>
+        )}
+        {/* Meta (Facebook) Pixel — admin SEO-д ID оруулсан үед */}
+        {fbPixelId && (
+          <>
+            <script dangerouslySetInnerHTML={{ __html: buildMetaPixel(fbPixelId) }} />
+            <noscript>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                height="1"
+                width="1"
+                style={{ display: 'none' }}
+                src={`https://www.facebook.com/tr?id=${fbPixelId}&ev=PageView&noscript=1`}
+                alt=""
+              />
+            </noscript>
+          </>
+        )}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
+        {/* GTM noscript (body эхэнд) — JS идэвхгүй үед */}
+        {gtmId && (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+              height="0"
+              width="0"
+              style={{ display: 'none', visibility: 'hidden' }}
+              title="gtm"
+            />
+          </noscript>
+        )}
         <Providers defaultTheme={defaultTheme} navbar={navbar}>
           <AnalyticsTracker />
           {children}

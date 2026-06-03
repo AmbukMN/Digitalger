@@ -323,8 +323,9 @@ export default async function ProductDetailPage({ params }: Props) {
               />
             )}
 
-            {/* How to use */}
-            {(product.howToUse || (product.howToUseSteps && product.howToUseSteps.length > 0)) && (
+            {/* How to use — зөвхөн ҮНЭТЭЙ бүтээгдэхүүнд (үнэгүйд нуугдана) */}
+            {Number(product.price) > 0 &&
+              (product.howToUse || (product.howToUseSteps && product.howToUseSteps.length > 0)) && (
               <section>
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
