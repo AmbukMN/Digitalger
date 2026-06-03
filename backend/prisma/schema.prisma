@@ -535,7 +535,7 @@ enum ZipJobStatus {
 
 model ZipJob {
   id        String       @id @default(cuid())
-  userId    String
+  userId    String? // null = үнэгүй бүтээгдэхүүний нийтийн (нэвтрээгүй) zip
   productId String?
   status    ZipJobStatus @default(PENDING)
   zipKey    String?

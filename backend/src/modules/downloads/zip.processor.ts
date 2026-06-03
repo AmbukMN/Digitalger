@@ -43,7 +43,7 @@ export const ZIP_QUEUE = 'zip';
 
 export interface ZipJobPayload {
   jobId: string;
-  userId: string;
+  userId: string | null; // null = үнэгүй бүтээгдэхүүний нийтийн zip (нэвтрээгүй)
   productId: string;
   bundleId?: string;
   fileIds: string[];

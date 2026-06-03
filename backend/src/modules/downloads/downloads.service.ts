@@ -319,6 +319,133 @@ export class DownloadsService {
     return { url, fileName };
   }
 
+  // ─── ҮНЭГҮЙ бүтээгдэхүүний public download (auth-гүй) ──────────────────────
+  // price = 0 (эсвэл null) бүтээгдэхүүнийг хэн ч (нэвтрээгүй ч) шууд татна.
+  // Аюулгүй байдал: бүх public метод эхлээд assertFree-ээр price=0 эсэхийг
+  // шалгана — үнэтэй бүтээгдэхүүн public-аар ХЭЗЭЭ Ч татагдахгүй (Forbidden).
+
+  /** Бүтээгдэхүүн үнэгүй (price 0/null) эсэхийг шалгана. Үнэтэй бол Forbidden. */
+  private async assertFree(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, price: true, published: true },
+    });
+    if (!product || !product.published) {
+      throw new NotFoundException('Product not found');
+    }
+    if (product.price != null && Number(product.price) > 0) {
+      throw new ForbiddenException('This product is not free');
+    }
+    return product;
+  }
+
+  /** Үнэгүй: ганц файлын signed URL (нэвтрэхгүй). fileId нь үнэгүй product-ийнх байх ёстой. */
+  async freeFileUrl(productId: string, fileId: string) {
+    await this.assertFree(productId);
+
+    const file = await this.prisma.productFile.findUnique({
+      where: { id: fileId },
+      select: { id: true, fileName: true, fileKey: true, productId: true },
+    });
+    if (!file) throw new NotFoundException('File not found');
+
+    // Файл нь тухайн үнэгүй product-ийнх ЭСВЭЛ түүний bundle-ийн файл мөн эсэх
+    const belongs =
+      file.productId === productId ||
+      (await this.fileInProductBundles(productId, fileId));
+    if (!belongs) throw new ForbiddenException('File does not belong to this product');
+
+    await this.bumpRealDownload(productId);
+    const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
+    return { fileId: file.id, fileName: file.fileName, url, expiresIn: 300 };
+  }
+
+  /** fileId нь productId-ийн аль нэг bundle-ийн fileIds-д багтсан эсэх */
+  private async fileInProductBundles(productId: string, fileId: string): Promise<boolean> {
+    const bundles = await this.prisma.productBundle.findMany({
+      where: { productId },
+      select: { items: { select: { fileId: true, fileIds: true } } },
+    });
+    for (const b of bundles) {
+      for (const it of b.items) {
+        if (it.fileId === fileId) return true;
+        if ((it.fileIds ?? []).includes(fileId)) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Үнэгүй: бэлэн zip (downloadFileKey) шууд presign (нэвтрэхгүй). */
+  async freeProductDownloadFileUrl(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, slug: true, price: true, published: true, downloadFileKey: true },
+    });
+    if (!product || !product.published) throw new NotFoundException('Product not found');
+    if (product.price != null && Number(product.price) > 0) {
+      throw new ForbiddenException('This product is not free');
+    }
+    if (!product.downloadFileKey) throw new NotFoundException('No download file configured');
+
+    await this.bumpRealDownload(productId);
+    const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
+    const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
+    return { url, fileName };
+  }
+
+  /** Үнэгүй: бүх файлыг zip болгох queue (нэвтрэхгүй — userId-гүй job). */
+  async enqueueFreeProductZip(productId: string) {
+    await this.assertFree(productId);
+    await this.bumpRealDownload(productId);
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        files: { orderBy: { sortOrder: 'asc' } },
+        bundles: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
+      },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const flatFileIds = product.files.map((f) => f.id);
+    const bundleFileIds = product.bundles.flatMap((b) =>
+      b.items.flatMap((item) =>
+        item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
+      ),
+    );
+    const allFileIds = [...new Set([...flatFileIds, ...bundleFileIds])];
+    if (!allFileIds.length) throw new NotFoundException('No files');
+
+    // Үнэгүй product-ийн нийтийн zip кэш (userId null) байвал дахин ашиглана
+    const cached = await this.prisma.zipJob.findFirst({
+      where: { userId: null, productId, status: 'DONE' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (cached?.zipKey) return { jobId: cached.id };
+
+    const job = await this.prisma.zipJob.create({
+      data: { userId: null, productId, status: 'PENDING' },
+    });
+
+    const zipName = `${product.slug ?? productId}.zip`;
+    await this.zipQueue.add(
+      { jobId: job.id, userId: null, productId, fileIds: allFileIds, zipName },
+      { attempts: 2, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: 100, removeOnFail: 50 },
+    );
+    return { jobId: job.id };
+  }
+
+  /** Үнэгүй zip job-ийн статус (нэвтрэхгүй — userId шалгахгүй, зөвхөн userId=null job). */
+  async getFreeZipJobStatus(jobId: string) {
+    const job = await this.prisma.zipJob.findUnique({ where: { id: jobId } });
+    if (!job || job.userId !== null) throw new NotFoundException('Job not found');
+    if (job.status === 'DONE' && job.zipKey) {
+      const url = await this.storage.getPresignedUrl(job.zipKey, 900, 'get');
+      return { status: job.status, url };
+    }
+    return { status: job.status, error: job.error ?? undefined };
+  }
+
   async listUserDownloads(userId: string) {
     const orders = await this.prisma.order.findMany({
       where: { userId, status: OrderStatus.PAID },

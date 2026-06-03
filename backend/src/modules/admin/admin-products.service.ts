@@ -191,6 +191,20 @@ export class AdminProductsService {
 
   async remove(id: string) {
     await this.ensureProductExists(id);
+
+    // Захиалгад (OrderItem) орсон бүтээгдэхүүнийг устгаж БОЛОХГҮЙ — захиалгын
+    // түүх, тайлан, хэрэглэгчийн "Миний сан" алдагдана (FK: OrderItem_productId_fkey).
+    // Оронд нь нуух (unpublish) санал болгоно.
+    const orderCount = await this.prisma.orderItem.count({ where: { productId: id } });
+    if (orderCount > 0) {
+      throw new ConflictException(
+        `Энэ бүтээгдэхүүнийг ${orderCount} захиалгад ашигласан тул устгах боломжгүй. ` +
+          `Захиалгын түүх хадгалагдах ёстой. Оронд нь "Нийтлэхгүй болгох" (нуух) товчийг ашиглана уу.`,
+      );
+    }
+
+    // Захиалгагүй бол — холбоотой бүх зүйл (файл, зураг, курс, bundle, FAQ,
+    // wishlist) onDelete: Cascade-аар автоматаар арилна.
     return this.prisma.product.delete({ where: { id } });
   }
 
