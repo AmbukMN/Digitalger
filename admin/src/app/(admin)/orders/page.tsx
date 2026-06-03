@@ -120,7 +120,10 @@ function EditOrderDialog({ order, open, onClose }: { order: AdminOrder; open: bo
           <div className="rounded-lg bg-muted/50 px-4 py-3 space-y-1">
             <p className="text-xs text-muted-foreground mb-1">Бүтээгдэхүүн ({order.items.length})</p>
             {order.items.map((item) => (
-              <p key={item.id} className="text-sm truncate">• {item.product.title}</p>
+              <p key={item.id} className="flex gap-1.5 text-sm">
+                <span className="shrink-0">•</span>
+                <span className="min-w-0 flex-1" style={{ overflowWrap: 'anywhere' }}>{item.product.title}</span>
+              </p>
             ))}
           </div>
           <div className="space-y-1.5">
