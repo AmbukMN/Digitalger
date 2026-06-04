@@ -1,9 +1,18 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
+
+  // Үзэлт +1 (public, frontend client-side нэг удаа дуудна)
+  @Post(':slug/view')
+  @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
+  incrementView(@Param('slug') slug: string) {
+    return this.productsService.incrementView(slug);
+  }
 
   @Get()
   list(

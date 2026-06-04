@@ -74,6 +74,14 @@ export class BlogService {
     return this.prisma.blogPost.findUniqueOrThrow({ where: { slug } });
   }
 
+  // Уншилт +1 — frontend client-side (нэг л удаа) дуудна. Fire-and-forget.
+  async incrementView(slug: string) {
+    await this.prisma.blogPost
+      .updateMany({ where: { slug, published: true }, data: { viewCount: { increment: 1 } } })
+      .catch(() => {});
+    return { ok: true };
+  }
+
   findAll() {
     return this.prisma.blogPost.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],

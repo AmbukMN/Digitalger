@@ -131,6 +131,8 @@ export interface AdminProduct {
   rating?: number;
   ratingCount?: number;
   downloadCount?: number;
+  realDownloadCount?: number;
+  viewCount?: number;
   proofImageUrl?: string | null;
   proofQuote?: string | null;
   proofText?: string | null;

@@ -108,6 +108,15 @@ export class ProductsService {
     };
   }
 
+  // Үзэлт +1 — frontend client-side (нэг л удаа) дуудна. Fire-and-forget,
+  // унавал чимээгүй (хариу буцаахад нөлөөлөхгүй).
+  async incrementView(slug: string) {
+    await this.prisma.product
+      .updateMany({ where: { slug, published: true }, data: { viewCount: { increment: 1 } } })
+      .catch(() => {});
+    return { ok: true };
+  }
+
   async findBySlug(slug: string) {
     const product = await this.prisma.product.findFirst({
       where: { slug, published: true },

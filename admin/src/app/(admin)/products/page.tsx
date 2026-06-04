@@ -16,7 +16,7 @@ import {
   Input,
   Loading,
 } from '@digitalger/shared/ui';
-import { CheckCircle2, Clock, Copy, Download, ImageOff, Search, Star, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, Download, Eye, ImageOff, Search, Star, Upload, XCircle } from 'lucide-react';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
 import { adminApi } from '@/lib/api';
 import type { AdminProduct } from '@/types/admin';
@@ -235,6 +235,21 @@ export default function ProductsPage() {
           <Download className="h-3.5 w-3.5 shrink-0 text-primary/70" />
           <span className="font-semibold text-foreground">
             {((row.original as { realDownloadCount?: number }).realDownloadCount ?? 0).toLocaleString()}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'viewCount',
+      header: 'Үзсэн',
+      cell: ({ row }) => (
+        <div
+          className="flex items-center gap-1 tabular-nums"
+          title="Хэрэглэгчид бодитоор үзсэн тоо (product detail нээсэн)"
+        >
+          <Eye className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+          <span className="font-medium text-foreground">
+            {((row.original as { viewCount?: number }).viewCount ?? 0).toLocaleString()}
           </span>
         </div>
       ),

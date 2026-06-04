@@ -125,6 +125,7 @@ model Product {
   ratingCount    Int                  @default(0)
   downloadCount  Int                  @default(0) // ГАРААР тохируулсан "харагдах" тоо (frontend)
   realDownloadCount Int               @default(0) // БОДИТ таталт (хэрэглэгч татах болгонд +1, зөвхөн admin)
+  viewCount      Int                  @default(0) // БОДИТ үзэлт (хэрэглэгч product detail нээх болгонд +1)
   previewUrl     String?
   seoTitle       String?
   seoDescription String?
@@ -512,6 +513,7 @@ model BlogPost {
   tags          String[]
   authorName    String    @default("DigitalGer")
   sortOrder     Int       @default(0)
+  viewCount     Int       @default(0) // БОДИТ уншилт (хэрэглэгч нийтлэл нээх болгонд +1)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

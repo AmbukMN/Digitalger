@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CalendarDays, FileText, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
+import { CalendarDays, Eye, FileText, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
   Button,
   Card,
@@ -34,6 +34,7 @@ interface BlogPost {
   tags: string[];
   authorName: string;
   sortOrder: number;
+  viewCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -363,6 +364,10 @@ export default function BlogPage() {
                       <span className="flex items-center gap-1">
                         <CalendarDays className="h-3 w-3" />
                         {formatDate(post.publishedAt ?? post.createdAt)}
+                      </span>
+                      <span className="flex items-center gap-1" title="Хэдэн хүн уншсан (бодит)">
+                        <Eye className="h-3 w-3" />
+                        {(post.viewCount ?? 0).toLocaleString()} уншсан
                       </span>
                       {post.tags.length > 0 && (
                         <span>{post.tags.slice(0, 3).join(', ')}</span>

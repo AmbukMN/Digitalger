@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CalendarDays, ChevronRight, Tag, User } from 'lucide-react';
+import { CalendarDays, ChevronRight, Eye, Tag, User } from 'lucide-react';
 import { Badge } from '@digitalger/shared/ui';
 import { blogApi, productsApi } from '@/lib/api';
+import { BlogTracker } from '@/components/blog/blog-tracker';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { formatPrice } from '@digitalger/shared';
 import { SITE_URL } from '@/lib/constants';
@@ -148,6 +149,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
   return (
     <>
+      <BlogTracker slug={post.slug} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {/* Breadcrumb */}
@@ -224,6 +226,12 @@ export default async function BlogDetailPage({ params }: Props) {
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="h-4 w-4 shrink-0" />
                       <span>{date}</span>
+                    </span>
+                  )}
+                  {(post.viewCount ?? 0) > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Eye className="h-4 w-4 shrink-0" />
+                      <span>{(post.viewCount ?? 0).toLocaleString()} уншсан</span>
                     </span>
                   )}
                 </div>

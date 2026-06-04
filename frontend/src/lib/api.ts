@@ -90,6 +90,8 @@ export const productsApi = {
     ),
 
   bySlug: (slug: string) => request<ProductDetail>(`/products/${slug}`),
+  incrementView: (slug: string) =>
+    request<{ ok: boolean }>(`/products/${slug}/view`, { method: 'POST' }).catch(() => null),
   suggested: (slug: string, count = 4) => request<ProductSummary[]>(`/products/${slug}/suggested?count=${count}`),
 };
 
@@ -328,6 +330,8 @@ export const blogApi = {
   latest: (count = 3) => request<BlogPost[]>(`/blog/latest?count=${count}`),
   search: (q: string) => request<BlogPost[]>(`/blog/search?q=${encodeURIComponent(q)}`),
   bySlug: (slug: string) => request<BlogPost>(`/blog/${slug}`),
+  incrementView: (slug: string) =>
+    request<{ ok: boolean }>(`/blog/${slug}/view`, { method: 'POST' }).catch(() => null),
 };
 
 // —— Coupons ——

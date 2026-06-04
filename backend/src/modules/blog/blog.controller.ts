@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -32,6 +33,14 @@ export class BlogPublicController {
   @Get(':slug')
   bySlug(@Param('slug') slug: string) {
     return this.service.findBySlug(slug);
+  }
+
+  // Уншилт +1 (public, frontend client-side нэг удаа дуудна)
+  @Post(':slug/view')
+  @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
+  incrementView(@Param('slug') slug: string) {
+    return this.service.incrementView(slug);
   }
 }
 

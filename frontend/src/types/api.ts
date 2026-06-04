@@ -62,6 +62,7 @@ export interface ProductSummary {
   rating: number;
   ratingCount: number;
   downloadCount: number;
+  viewCount?: number;
   thumbnailUrl: string | null;
   mainVideoUrl?: string | null;
   previewUrl?: string | null;
@@ -114,6 +115,7 @@ export interface BlogPost {
   publishedAt?: string | null;
   tags: string[];
   authorName: string;
+  viewCount?: number;
   createdAt: string;
 }
 
