@@ -151,7 +151,17 @@ export function AnalyticsSection() {
 
             {/* Device breakdown */}
             <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-sm font-semibold mb-4">Төхөөрөмж</p>
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-sm font-semibold">Төхөөрөмж</p>
+                {data.deviceStats.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    Нийт{' '}
+                    <span className="font-bold tabular-nums text-foreground">
+                      {data.deviceStats.reduce((s, x) => s + x.count, 0).toLocaleString()}
+                    </span>
+                  </span>
+                )}
+              </div>
               {data.deviceStats.length > 0 ? (
                 <>
                   <ResponsiveContainer width="100%" height={130}>
@@ -161,7 +171,7 @@ export function AnalyticsSection() {
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v: number) => [v.toLocaleString(), 'Views']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Tooltip formatter={(v: number) => [v.toLocaleString(), 'Орсон']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="mt-2 space-y-1.5">
@@ -175,7 +185,10 @@ export function AnalyticsSection() {
                               {DEVICE_ICONS[d.device]}{d.device}
                             </span>
                           </div>
-                          <span className="font-semibold tabular-nums">{total > 0 ? Math.round((d.count / total) * 100) : 0}%</span>
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums text-muted-foreground">{d.count.toLocaleString()}</span>
+                            <span className="font-semibold tabular-nums w-9 text-right">{total > 0 ? Math.round((d.count / total) * 100) : 0}%</span>
+                          </div>
                         </div>
                       );
                     })}

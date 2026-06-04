@@ -365,14 +365,22 @@ export default function BlogPage() {
                         <CalendarDays className="h-3 w-3" />
                         {formatDate(post.publishedAt ?? post.createdAt)}
                       </span>
-                      <span className="flex items-center gap-1" title="Хэдэн хүн уншсан (бодит)">
-                        <Eye className="h-3 w-3" />
-                        {(post.viewCount ?? 0).toLocaleString()} уншсан
-                      </span>
                       {post.tags.length > 0 && (
                         <span>{post.tags.slice(0, 3).join(', ')}</span>
                       )}
                     </div>
+                  </div>
+
+                  {/* Уншсан тоо — тусдаа багана (action-ийн өмнө) */}
+                  <div
+                    className="hidden sm:flex shrink-0 w-20 flex-col items-center justify-center border-l border-border/60 px-2"
+                    title="Хэдэн хүн уншсан (бодит)"
+                  >
+                    <span className="flex items-center gap-1 text-sm font-semibold tabular-nums text-foreground">
+                      <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                      {(post.viewCount ?? 0).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">уншсан</span>
                   </div>
 
                   <div className="flex gap-1 shrink-0">

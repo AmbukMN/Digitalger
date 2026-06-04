@@ -12,14 +12,11 @@ import {
   Download,
   Mail,
   Package,
-  Plus,
   RotateCcw,
   ShoppingCart,
   TrendingUp,
   TrendingDown,
   Minus,
-  Image as ImageIcon,
-  Tag,
   Users,
   UserPlus,
   XCircle,
@@ -64,36 +61,6 @@ function TrendBadge({ value }: { value: number | null }) {
       <Icon className="h-3 w-3" />
       {up ? '+' : ''}{value}%
     </span>
-  );
-}
-
-// ── Хурдан үйлдлийн товчнууд (шинэ админд хайхгүй шууд эхлэх цэг) ──
-const QUICK_ACTIONS = [
-  { label: 'Бүтээгдэхүүн нэмэх', href: '/products/new', icon: Plus, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/40' },
-  { label: 'Баннер нэмэх', href: '/banners', icon: ImageIcon, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  { label: 'Купон үүсгэх', href: '/coupons', icon: Tag, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  { label: 'Захиалга харах', href: '/orders', icon: ShoppingCart, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/40' },
-];
-
-function QuickActions() {
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {QUICK_ACTIONS.map((a) => {
-        const Icon = a.icon;
-        return (
-          <Link
-            key={a.href}
-            href={a.href}
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all duration-200 hover:border-primary/40 hover:shadow-md"
-          >
-            <div className={`rounded-lg p-2 shrink-0 ${a.bg}`}>
-              <Icon className={`h-4 w-4 ${a.color}`} />
-            </div>
-            <span className="text-sm font-medium group-hover:text-primary transition-colors">{a.label}</span>
-          </Link>
-        );
-      })}
-    </div>
   );
 }
 
@@ -555,9 +522,6 @@ export default function DashboardPage() {
           Шууд мэдээлэл
         </div>
       </div>
-
-      {/* Хурдан үйлдэл */}
-      <QuickActions />
 
       {/* Main stat cards — тренд badge-тэй */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
