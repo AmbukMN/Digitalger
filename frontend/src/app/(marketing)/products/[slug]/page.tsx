@@ -18,7 +18,6 @@ import { ProductSwiper } from '@/components/products/product-swiper';
 import {
   Star,
   Download,
-  Eye,
   FileText,
   Package,
   BookOpen,
@@ -237,15 +236,6 @@ export default async function ProductDetailPage({ params }: Props) {
                   <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   {product.downloadCount} удаа татсан
                 </div>
-                {(product.viewCount ?? 0) > 0 && (
-                  <>
-                    <span className="text-muted-foreground/40 shrink-0">·</span>
-                    <div className="flex items-center gap-1 text-muted-foreground shrink-0">
-                      <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      {(product.viewCount ?? 0).toLocaleString()} үзсэн
-                    </div>
-                  </>
-                )}
               </div>
               {/* Price — mobile only, shown below rating row */}
               <div className="mt-2 flex items-baseline gap-2 lg:hidden">
