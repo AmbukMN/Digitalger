@@ -521,10 +521,13 @@ export class UsersService {
     });
     if (!products.length) throw new BadRequestException('Сонгосон бүтээгдэхүүн олдсонгүй');
 
-    // Хэрэглэгч аль хэдийн эзэмшсэн (PAID order) бүтээгдэхүүнийг алгасна (давхардахгүй)
+    const productIdList = products.map((p) => p.id);
+
+    // 1) Хэрэглэгч аль хэдийн эзэмшсэн (PAID order) бүтээгдэхүүнийг алгасна —
+    //    эдгээр нь "Миний сан"-д аль хэдийн байгаа тул дахин олгохгүй (давхардахгүй).
     const ownedItems = await this.prisma.orderItem.findMany({
       where: {
-        productId: { in: products.map((p) => p.id) },
+        productId: { in: productIdList },
         order: { userId, status: OrderStatus.PAID },
       },
       select: { productId: true },
@@ -536,19 +539,51 @@ export class UsersService {
       return { granted: 0, skipped: products.length, message: 'Бүгд аль хэдийн идэвхтэй' };
     }
 
-    // total=0, PAID, ADMIN_GRANT захиалга үүсгэнэ (item бүр price=0)
-    const order = await this.prisma.order.create({
-      data: {
-        userId,
-        total: 0,
-        status: OrderStatus.PAID,
-        source: 'ADMIN_GRANT',
-        grantedByAdminId: adminId,
-        items: {
-          create: toGrant.map((p) => ({ productId: p.id, price: 0 })),
-        },
+    const grantIds = toGrant.map((p) => p.id);
+
+    // 2) Тухайн бүтээгдэхүүний ХҮЛЭЭГДЭЖ БУЙ (PENDING) захиалгын item-ийг
+    //    цэвэрлэнэ. Хэрэглэгч худалдаж аваагүй (төлбөр хийгээгүй) байхад админ
+    //    үнэгүй олгож байгаа тул хуучин pending давхардал болж үлдэх ёсгүй —
+    //    admin олгосноор тэр бүтээгдэхүүн "Миний сан"-д PAID-аар орж, pending алга болно.
+    const pendingItems = await this.prisma.orderItem.findMany({
+      where: {
+        productId: { in: grantIds },
+        order: { userId, status: OrderStatus.PENDING },
       },
-      include: { items: { include: { product: { select: { title: true } } } } },
+      select: { id: true, orderId: true },
+    });
+
+    // 3) Бүх өөрчлөлтийг нэг transaction-д: pending item устгах → хоосон болсон
+    //    pending order-ийг устгах → шинэ PAID grant order үүсгэх.
+    const order = await this.prisma.$transaction(async (tx) => {
+      if (pendingItems.length) {
+        const pendingItemIds = pendingItems.map((i) => i.id);
+        await tx.orderItem.deleteMany({ where: { id: { in: pendingItemIds } } });
+
+        // Item нь үлдээгүй PENDING order-уудыг бүхэлд нь устгана (хог үлдэхгүй).
+        const affectedOrderIds = [...new Set(pendingItems.map((i) => i.orderId))];
+        for (const oid of affectedOrderIds) {
+          const remaining = await tx.orderItem.count({ where: { orderId: oid } });
+          if (remaining === 0) {
+            await tx.order.deleteMany({ where: { id: oid, status: OrderStatus.PENDING } });
+          }
+        }
+      }
+
+      // total=0, PAID, ADMIN_GRANT захиалга үүсгэнэ (item бүр price=0)
+      return tx.order.create({
+        data: {
+          userId,
+          total: 0,
+          status: OrderStatus.PAID,
+          source: 'ADMIN_GRANT',
+          grantedByAdminId: adminId,
+          items: {
+            create: toGrant.map((p) => ({ productId: p.id, price: 0 })),
+          },
+        },
+        include: { items: { include: { product: { select: { title: true } } } } },
+      });
     });
 
     // Хэрэглэгчид имэйл (худалдаж авсан шиг — Миний санд нэмэгдсэн тухай)

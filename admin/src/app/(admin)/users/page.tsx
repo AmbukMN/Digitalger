@@ -165,7 +165,7 @@ export default function UsersPage() {
           <button
             type="button"
             onClick={() => setDetailTarget(u)}
-            className="flex items-center gap-3 min-w-0 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-muted/60 group"
+            className="flex items-center gap-3 min-w-0 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-muted/60 group cursor-pointer"
             title="Дэлгэрэнгүй харах"
           >
             <div className="relative shrink-0">
