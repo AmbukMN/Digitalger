@@ -136,7 +136,7 @@ export function AnalyticsSection() {
                     <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                      formatter={(v: number) => [v.toLocaleString(), 'Views']}
+                      formatter={(v) => [Number(v).toLocaleString(), 'Views']}
                       labelFormatter={(l) => `Огноо: ${l}`}
                     />
                     <Area type="monotone" dataKey="count" stroke="#022179" strokeWidth={2} fill="url(#viewsGrad)" />
@@ -171,7 +171,7 @@ export function AnalyticsSection() {
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v: number) => [v.toLocaleString(), 'Орсон']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Tooltip formatter={(v) => [Number(v).toLocaleString(), 'Орсон']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="mt-2 space-y-1.5">
@@ -261,7 +261,7 @@ export function AnalyticsSection() {
                   <BarChart data={data.topSearches.slice(0, 6)} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
                     <XAxis type="number" tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="query" tick={{ fontSize: 10 }} width={80} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v: number) => [v, 'Хайлт']} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v) => [Number(v), 'Хайлт']} />
                     <Bar dataKey="count" fill="#ffbe00" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

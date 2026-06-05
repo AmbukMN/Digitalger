@@ -373,7 +373,7 @@ export default async function ProductDetailPage({ params }: Props) {
               <section>
                 <div className="mb-4">
                   <h2 className="text-lg font-bold">Түгээмэл асуулт</h2>
-                  <p className="text-xs text-muted-foreground mt-1">Таны дотоод эргэлзээг тайлж, бүх асуултад тодорхой хариулт өгье. Хэрвээ танд энд багтаагүй өөр нэмэлт асуулт гарвал <a href="mailto:info@digitalger.mn" className="text-primary hover:underline">info@digitalger.mn</a> хаягаар шууд бичээрэй, бид танд цаг алдалгүй маш хурдан хариулах болно.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Таны дотоод эргэлзээг тайлж, бүх асуултад тодорхой хариулт өгье. Хэрвээ танд энд багтаагүй өөр нэмэлт асуулт гарвал <a href="mailto:info@digitalger.mn" className="text-primary hover:underline">info@digitalger.mn</a> хаягаар эсвэл баруун доод буланд байрлах AI чат зөвлөхтэй харилцаарай!</p>
                 </div>
                 <FaqAccordion faqs={product.faqs!} />
               </section>

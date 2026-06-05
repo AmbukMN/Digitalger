@@ -42,7 +42,7 @@ interface HowToUseStep {
   description: string;
 }
 
-const DEFAULT_HOW_TO_USE = '<p>Та дараах алхмуудаар дижитал бүтээгдэхүүнийг авч хэрэглэнэ үү. Асуулт гарвал <strong>info@digitalger.mn</strong> хаягаар холбогдоорой.</p>';
+const DEFAULT_HOW_TO_USE = '<p>Та дараах алхмуудаар дижитал бүтээгдэхүүнийг авч хэрэглэнэ үү. Асуулт гарвал <strong>info@digitalger.mn</strong> хаягаар эсвэл баруун доод буланд байрлах AI чат зөвлөхтэй холбогдоорой!</p>';
 
 const DEFAULT_HOW_TO_USE_STEPS: HowToUseStep[] = [
   { title: 'Төлбөрийг хялбар систем', description: 'QPay болон банкны картаар хялбар, аюулгүй төлбөр хийнэ.' },
