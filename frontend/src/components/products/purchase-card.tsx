@@ -696,7 +696,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
     return (
       <div
         ref={filesBarRef}
-        className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 backdrop-blur-md md:hidden bg-[oklch(0.97_0.025_150)] dark:bg-[oklch(0.26_0.06_160)] shadow-[0_-4px_24px_rgba(0,0,0,0.12)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         {/* Файлууд (expandable) */}
@@ -791,7 +791,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
     return (
       <div
         ref={filesBarRef}
-        className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 bg-background/95 backdrop-blur-sm md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-30 border-t border-green-200 dark:border-green-800 backdrop-blur-md md:hidden bg-[oklch(0.97_0.025_150)] dark:bg-[oklch(0.26_0.06_160)] shadow-[0_-4px_24px_rgba(0,0,0,0.12)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         {/* Individual files (expandable) */}
@@ -887,7 +887,10 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
   const canAddMore = coupons.length < MAX_COUPONS_PER_PRODUCT;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur-sm md:hidden" style={{ borderTop: '2px solid oklch(0.847 0.178 85.87)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div
+      className="fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md md:hidden bg-[oklch(0.965_0.01_264)] dark:bg-[oklch(0.26_0.09_262)] shadow-[0_-4px_24px_rgba(0,0,0,0.12)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)]"
+      style={{ borderTop: '2px solid oklch(0.847 0.178 85.87)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {product.discountEndsAt && (
         <div className="border-b border-border/40 px-4 py-2">
           <DiscountTimer

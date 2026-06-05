@@ -18,9 +18,15 @@
 .prose p, .prose li { line-height: 1.5; }
 .prose h1, .prose h2, .prose h3 { line-height: 1.3; }
 
-/* Dark mode-д editor-аас inline color тавигдсан текст уншигдахгүй болохоос сэргийлнэ */
-.dark .prose [style*="color"] { color: inherit !important; }
+/* Dark mode-д editor-аас оруулсан inline өнгөт/тод текст харагдахгүй болохоос
+   сэргийлнэ. Admin цайвар горимд бараан (navy/хар) өнгөөр тодруулсан текст
+   dark горимд харагдахгүй болдог тул эсрэг — ТОД ЦАЙВАР (gold) болгож харуулна.
+   Ингэснээр онцолсон/тодруулсан хэсэг dark горимд ч ялгаран харагдана. */
+.dark .prose [style*="color"] { color: oklch(0.9 0.04 90) !important; }
 .dark .prose [style*="background-color"] { background-color: transparent !important; }
+/* Тод (bold/strong) текст dark горимд цайвар үндсэн өнгөтэй */
+.dark .prose strong,
+.dark .prose b { color: inherit; }
 
 /* Media gallery auto-slide progress bar */
 @keyframes slideProgress {

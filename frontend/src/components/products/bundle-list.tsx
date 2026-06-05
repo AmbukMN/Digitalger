@@ -195,9 +195,12 @@ export function BundleList({
   productId: string;
 }) {
   const { data: session } = useSession();
-  const [open, setOpen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(bundles.map((b, i) => [b.id, i === 0 && b.items.length <= 6])),
-  );
+  // Эхний бүлэг 15-аас БАГА зүйлстэй бол default нээлттэй (expand) —
+  // 15+ зүйлстэй (том багц) бол бүх бүлэг хаалттай (collapse) эхэлнэ.
+  const [open, setOpen] = useState<Record<string, boolean>>(() => {
+    const firstFits = (bundles[0]?.items.length ?? 0) < 15;
+    return Object.fromEntries(bundles.map((b, i) => [b.id, i === 0 && firstFits]));
+  });
   const [visibleCount, setVisibleCount] = useState<Record<string, number>>(() =>
     Object.fromEntries(bundles.map((b) => [b.id, BUNDLE_PAGE_SIZE])),
   );

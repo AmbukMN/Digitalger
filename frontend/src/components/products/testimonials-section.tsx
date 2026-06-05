@@ -91,11 +91,15 @@ export function ProductTestimonialsSection({ testimonials }: Props) {
 
   return (
     <>
-      {/* Mobile: 1 карт нэг удаа */}
+      {/* Mobile: 1 карт нэг удаа.
+          Контейнерт ТОГТСОН min-height — карусель солигдоход сэтгэгдэл бүрийн
+          өндөр ялгаатайгаас хуудас дээш доош үсрэх (layout shift) асуудлыг засна.
+          Карт min-height дотроо төвлөрнө, урт контент scroll болохгүй харагдана. */}
       <div className="lg:hidden relative px-8">
-        <div className="overflow-hidden rounded-2xl">
+        <div className="overflow-hidden rounded-2xl min-h-72">
           <motion.div
             key={mobileIdx}
+            className="h-full"
             initial={{ x: mobileDir > 0 ? '100%' : '-100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
