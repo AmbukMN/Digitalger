@@ -216,7 +216,7 @@ export const downloadsApi = {
   history: (token: string) => request<PurchasedProduct[]>('/downloads', { token }),
 
   signedUrl: (token: string, fileId: string) =>
-    request<{ url: string; expiresIn: number; generatedAt: number }>(`/downloads/${fileId}`, {
+    request<{ url: string; goUrl?: string; expiresIn: number; generatedAt: number }>(`/downloads/${fileId}`, {
       method: 'POST',
       token,
     }),
@@ -228,26 +228,26 @@ export const downloadsApi = {
   enqueueBundleZip: (token: string, productId: string, bundleId: string) =>
     request<{ jobId: string }>(`/downloads/async-zip/${productId}/bundle/${bundleId}`, { method: 'POST', token }),
   pollZipJob: (token: string, jobId: string) =>
-    request<{ status: string; url?: string; error?: string }>(`/downloads/async-zip/status/${jobId}`, { token }),
+    request<{ status: string; url?: string; goUrl?: string; error?: string }>(`/downloads/async-zip/status/${jobId}`, { token }),
 
   productDownloadFile: (token: string, productId: string) =>
-    request<{ url: string; fileName: string }>(`/downloads/product/${productId}/download-file`, { method: 'POST', token }),
+    request<{ url: string; fileName: string; goUrl?: string }>(`/downloads/product/${productId}/download-file`, { method: 'POST', token }),
 
   bundleDownloadFile: (token: string, bundleId: string) =>
-    request<{ url: string; fileName: string }>(`/downloads/bundle/${bundleId}/download-file`, { method: 'POST', token }),
+    request<{ url: string; fileName: string; goUrl?: string }>(`/downloads/bundle/${bundleId}/download-file`, { method: 'POST', token }),
 
   // ── ҮНЭГҮЙ бүтээгдэхүүн (нэвтрэхгүй, token-гүй) ──
   freeFile: (productId: string, fileId: string) =>
-    request<{ fileId: string; fileName: string; url: string; expiresIn: number }>(
+    request<{ fileId: string; fileName: string; url: string; goUrl?: string; expiresIn: number }>(
       `/downloads/free/${productId}/file/${fileId}`,
       { method: 'POST' },
     ),
   freeProductDownloadFile: (productId: string) =>
-    request<{ url: string; fileName: string }>(`/downloads/free/${productId}/download-file`, { method: 'POST' }),
+    request<{ url: string; fileName: string; goUrl?: string }>(`/downloads/free/${productId}/download-file`, { method: 'POST' }),
   enqueueFreeZip: (productId: string) =>
     request<{ jobId: string }>(`/downloads/free/${productId}/zip`, { method: 'POST' }),
   pollFreeZipJob: (jobId: string) =>
-    request<{ status: string; url?: string; error?: string }>(`/downloads/free/zip/status/${jobId}`),
+    request<{ status: string; url?: string; goUrl?: string; error?: string }>(`/downloads/free/zip/status/${jobId}`),
 };
 
 // —— Payments ——

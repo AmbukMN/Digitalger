@@ -46,49 +46,36 @@ export function isAndroid(): boolean {
   return /Android/i.test(navigator.userAgent);
 }
 
-/**
- * In-app browser-аас системийн браузер (Safari/Chrome) руу URL-ийг нээхийг
- * ОРОЛДоно. iOS → x-safari-https scheme, Android → intent scheme.
- * Эдгээр scheme нь зарим in-app browser-т ажилладаг (FB зэрэг). Ажиллах эсэхийг
- * JS мэдэх боломжгүй тул дуудагч тал нэмж заавар (modal) харуулах нь зүйтэй.
- */
-export function openInExternalBrowser(url: string): void {
-  if (typeof window === 'undefined') return;
-  if (isIOS()) {
-    // iOS Safari-руу үсрэх scheme — FB/IG WebView-аас Safari нээдэг.
-    window.location.href = `x-safari-${url}`;
-    return;
-  }
-  if (isAndroid()) {
-    // Android Chrome intent — https URL-ийг гадаад browser-т нээнэ.
-    const noScheme = url.replace(/^https?:\/\//, '');
-    window.location.href = `intent://${noScheme}#Intent;scheme=https;package=com.android.chrome;end`;
-    return;
-  }
-  // Бусад → энгийн navigate (fallback)
-  window.location.href = url;
-}
-
 // In-app browser үед татах боломжгүй болсныг бүх хуудсанд мэдэгдэх global event.
 // Layout-д суусан InAppBrowserModalHost үүнийг сонсож, заавар modal харуулна.
 export const IN_APP_DOWNLOAD_EVENT = 'dg:inapp-download-blocked';
 
 /**
- * Presigned URL-аас файл татна.
- *  · Ердийн браузер → `<a download>` (хэвийн татна).
- *  · In-app browser → системийн браузар руу нээхийг оролдоод (x-safari/intent),
- *    global event ялгаруулж заавар modal харуулна. `false` буцаана.
- * @returns true = ердийн татах эхэлсэн, false = in-app (заавар харуулсан)
+ * Файл татна.
+ *  · Ердийн браузер (desktop/Safari/Chrome) → presigned URL-аас `<a download>`
+ *    (хэвийн татна, юу ч өөрчлөгдөхгүй).
+ *  · In-app browser (FB/IG/Messenger) → backend "go" redirect линк рүү ШУУД
+ *    navigate. FB линкэд &fbclid=... нэмсэн ч, go линк манай домэйн дээр тул
+ *    backend цэвэр presigned URL руу 302 redirect хийнэ → signature эвдрэхгүй,
+ *    FB браузер дотроо татаж эхэлнэ. Хэрэв goUrl байхгүй бол заавар modal.
+ * @param url   presigned R2 URL (ердийн браузерт)
+ * @param fileName татах файлын нэр
+ * @param goUrl  FB/IG-д зориулсан backend redirect линк (байвал)
+ * @returns true = ердийн татах эхэлсэн, false = in-app (go руу шилжсэн)
  */
-export function triggerFileDownload(url: string, fileName: string): boolean {
+export function triggerFileDownload(url: string, fileName: string, goUrl?: string): boolean {
   if (typeof document === 'undefined') return false;
 
   if (isInAppBrowser()) {
-    // Системийн браузар руу нээхийг оролдоно (зарим FB браузерт ажиллана).
-    openInExternalBrowser(url);
-    // Ажиллахгүй бол хэрэглэгч FB браузерт үлдэх тул заавар modal-ийг
-    // global event-ээр асаана (бүх дуудагч талд автоматаар хүчинтэй).
-    window.dispatchEvent(new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url } }));
+    if (goUrl) {
+      // FB/IG доторх браузар: go линкээр шууд navigate (fbclid-д тэсвэртэй),
+      // backend цэвэр presigned URL руу 302 redirect → файл татагдана.
+      window.location.href = goUrl;
+    } else {
+      // goUrl байхгүй (ховор) — presigned URL fbclid-ээс эвдрэх эрсдэлтэй тул
+      // заавар modal-ийг global event-ээр асаана (Safari-д нээх зөвлөгөө).
+      window.dispatchEvent(new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url } }));
+    }
     return false;
   }
 

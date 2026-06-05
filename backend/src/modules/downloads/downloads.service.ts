@@ -7,18 +7,43 @@ import type { Response } from 'express';
 import * as archiver from 'archiver';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
+import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { ZIP_QUEUE, type ZipJobPayload } from './zip.processor';
+import { signDownloadToken, verifyDownloadToken } from './download-token';
 
 @Injectable()
 export class DownloadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly config: ConfigService,
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue<ZipJobPayload>,
   ) {}
+
+  // Татах токенд ашиглах secret (JWT secret-ийг дахин ашиглана).
+  private get downloadSecret(): string {
+    return this.config.get<string>('jwt.secret') ?? 'dg-download-fallback';
+  }
+
+  // fileKey/fileName-аас FB/IG-д тэсвэртэй "go" redirect линк үүсгэнэ.
+  // Энэ линкийг FB browser нээхэд (fbclid нэмсэн ч) backend цэвэр presigned
+  // URL руу 302 redirect хийнэ — signature эвдрэхгүй.
+  goLink(fileKey: string, fileName: string): string {
+    const token = signDownloadToken(this.downloadSecret, fileKey, fileName);
+    const base = this.config.get<string>('apiPublicUrl') ?? 'https://api.digitalger.mn';
+    return `${base}/api/downloads/go/${token}`;
+  }
+
+  // "go" token-ийг шалгаж, цэвэр presigned URL (fbclid-гүй) үүсгэж буцаана.
+  async resolveGoToken(token: string): Promise<{ url: string; fileName: string }> {
+    const payload = verifyDownloadToken(this.downloadSecret, token);
+    if (!payload) throw new ForbiddenException('Линкийн хугацаа дууссан эсвэл буруу байна');
+    const url = await this.storage.getPresignedUrl(payload.fileKey, 900, 'get');
+    return { url, fileName: payload.fileName };
+  }
 
   // Бодит таталт тоолуурыг +1 (хэрэглэгч тухайн бүтээгдэхүүнийг бодитоор татах болгонд).
   // Зөвхөн admin-д харагдана; frontend-ийн "харагдах" downloadCount-д НӨЛӨӨЛӨХГҮЙ.
@@ -117,6 +142,7 @@ export class DownloadsService {
       fileId: file.id,
       fileName: file.fileName,
       url,
+      goUrl: this.goLink(file.fileKey, file.fileName),
       expiresIn: 300,
       generatedAt: Date.now(),
     };
@@ -303,7 +329,9 @@ export class DownloadsService {
 
     if (job.status === 'DONE' && job.zipKey) {
       const url = await this.storage.getPresignedUrl(job.zipKey, 900, 'get');
-      return { status: job.status, url };
+      const fileName = job.zipKey.split('/').pop() ?? 'download.zip';
+      // goUrl — FB/IG browser-т fbclid-тэй ч ажиллах redirect линк
+      return { status: job.status, url, goUrl: this.goLink(job.zipKey, fileName) };
     }
 
     return { status: job.status, error: job.error ?? undefined };
@@ -330,7 +358,7 @@ export class DownloadsService {
 
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
-    return { url, fileName };
+    return { url, fileName, goUrl: this.goLink(product.downloadFileKey, fileName) };
   }
 
   async getBundleDownloadFileUrl(userId: string, bundleId: string) {
@@ -348,7 +376,7 @@ export class DownloadsService {
 
     const url = await this.storage.getPresignedUrl(bundle.downloadFileKey, 900, 'get');
     const fileName = bundle.downloadFileKey.split('/').pop() ?? `${bundle.title.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
-    return { url, fileName };
+    return { url, fileName, goUrl: this.goLink(bundle.downloadFileKey, fileName) };
   }
 
   // ─── ҮНЭГҮЙ бүтээгдэхүүний public download (auth-гүй) ──────────────────────
@@ -389,7 +417,13 @@ export class DownloadsService {
 
     await this.bumpRealDownload(productId);
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
-    return { fileId: file.id, fileName: file.fileName, url, expiresIn: 300 };
+    return {
+      fileId: file.id,
+      fileName: file.fileName,
+      url,
+      goUrl: this.goLink(file.fileKey, file.fileName),
+      expiresIn: 300,
+    };
   }
 
   /** fileId нь productId-ийн аль нэг bundle-ийн fileIds-д багтсан эсэх */
@@ -422,7 +456,7 @@ export class DownloadsService {
     await this.bumpRealDownload(productId);
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
-    return { url, fileName };
+    return { url, fileName, goUrl: this.goLink(product.downloadFileKey, fileName) };
   }
 
   /** Үнэгүй: бүх файлыг zip болгох queue (нэвтрэхгүй — userId-гүй job). */
@@ -473,7 +507,8 @@ export class DownloadsService {
     if (!job || job.userId !== null) throw new NotFoundException('Job not found');
     if (job.status === 'DONE' && job.zipKey) {
       const url = await this.storage.getPresignedUrl(job.zipKey, 900, 'get');
-      return { status: job.status, url };
+      const fileName = job.zipKey.split('/').pop() ?? 'download.zip';
+      return { status: job.status, url, goUrl: this.goLink(job.zipKey, fileName) };
     }
     return { status: job.status, error: job.error ?? undefined };
   }

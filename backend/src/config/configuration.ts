@@ -7,6 +7,8 @@ export default () => ({
       .filter(Boolean) ?? ['http://localhost:3000'],
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  // Backend-ийн нийтийн URL (FB/IG "go" татах redirect линкэд ашиглана)
+  apiPublicUrl: process.env.API_PUBLIC_URL ?? 'https://api.digitalger.mn',
   jwt: {
     secret: process.env.JWT_SECRET ?? 'dev-jwt-secret-change-me',
     refreshSecret:
