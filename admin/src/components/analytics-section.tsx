@@ -14,6 +14,8 @@ import {
 import { adminApi } from '@/lib/api';
 
 const DAYS_OPTIONS = [
+  { label: '1 хоног', value: 1 },
+  { label: '3 хоног', value: 3 },
   { label: '7 хоног', value: 7 },
   { label: '30 хоног', value: 30 },
   { label: '90 хоног', value: 90 },
@@ -64,12 +66,12 @@ export function AnalyticsSection() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-muted-foreground" />
           <h2 className="text-lg font-bold">Сайтын аналитик</h2>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
           {DAYS_OPTIONS.map((o) => (
             <button
               key={o.value}
