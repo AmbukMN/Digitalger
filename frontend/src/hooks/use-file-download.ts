@@ -4,6 +4,7 @@ import { useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { downloadsApi } from '@/lib/api';
+import { triggerFileDownload } from '@/lib/download-helper';
 
 interface CachedUrl {
   url: string;
@@ -72,13 +73,9 @@ export function useFileDownload(freeProductId?: string) {
         toast.error('Татахад алдаа гарлаа');
         return false;
       }
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // In-app browser (FB/IG)-т `<a download>` ажилладаггүй тул download-helper
+      // нь шууд navigate ашиглана (Page not found-аас сэргийлнэ).
+      triggerFileDownload(url, fileName);
       return true;
     },
     [getUrl],
