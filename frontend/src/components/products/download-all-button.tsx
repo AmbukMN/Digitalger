@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { Button } from '@digitalger/shared/ui';
 import { downloadsApi } from '@/lib/api';
-import { triggerFileDownload, isInAppBrowser, inAppBrowserName } from '@/lib/download-helper';
+import { triggerFileDownload } from '@/lib/download-helper';
 
 type State = 'idle' | 'loading' | 'queued' | 'done' | 'failed';
 
@@ -44,7 +44,7 @@ export function DownloadAllButton({
 
   // In-app browser (FB/IG/Messenger)-т `<a download>` ажилладаггүй тул
   // download-helper нь шууд navigate ашигладаг (Page not found-аас сэргийлнэ).
-  const triggerDownload = (url: string, name: string) => triggerFileDownload(url, name);
+  const triggerDownload = (url: string, name: string) => { triggerFileDownload(url, name); };
 
   const handleClick = useCallback(async () => {
     // Үнэгүй биш горимд нэвтрэх шаардлагатай
@@ -55,14 +55,6 @@ export function DownloadAllButton({
     // эдгээр браузер файл татахыг хязгаарладаг. Татах оролдлогыг үргэлжлүүлнэ
     // (window.location ажиллаж магадгүй), гэхдээ ажиллахгүй бол хэрэглэгч
     // гадаад браузераар нээх шаардлагатайг мэдэх болно.
-    if (isInAppBrowser()) {
-      const name = inAppBrowserName() ?? 'Энэ';
-      toast.info(`${name} доторх браузер татахыг хязгаарлаж магадгүй`, {
-        description: 'Хэрэв татагдахгүй бол баруун дээд "..." → "Системийн браузераар нээх" (Safari/Chrome) сонгоно уу.',
-        duration: 9000,
-      });
-    }
-
     setState('loading');
 
     // Admin uploaded file — шууд presign татна

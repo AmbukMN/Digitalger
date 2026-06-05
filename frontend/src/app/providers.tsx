@@ -16,6 +16,7 @@ import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
 import { setAnalyticsUserId } from '@/lib/analytics';
+import { InAppBrowserModalHost } from '@/components/in-app-browser-modal-host';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
 
@@ -196,6 +197,7 @@ export function Providers({ children, defaultTheme = 'system', navbar }: Provide
           <AuthWatcher />
           <AnalyticsUserSync />
           {children}
+          <InAppBrowserModalHost />
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
       </QueryClientProvider>

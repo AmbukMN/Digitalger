@@ -73,8 +73,9 @@ export function useFileDownload(freeProductId?: string) {
         toast.error('Татахад алдаа гарлаа');
         return false;
       }
-      // In-app browser (FB/IG)-т `<a download>` ажилладаггүй тул download-helper
-      // нь шууд navigate ашиглана (Page not found-аас сэргийлнэ).
+      // In-app browser (FB/IG) бол triggerFileDownload нь гадаад браузар руу
+      // нээхийг оролдоод, ажиллахгүй бол global event-ээр заавар modal асаана
+      // (layout-ийн InAppBrowserModalHost барина). Ердийн браузерт шууд татна.
       triggerFileDownload(url, fileName);
       return true;
     },

@@ -6,13 +6,14 @@
 // WebView) нь файл татахыг хязгаарладаг:
 //   · `<a download>` attribute-ийг ДЭМДЭГГҮЙ
 //   · шинэ таб / popup нээхийг блоклодог
-// Тиймээс эдгээр браузерт татах товч "Page not found" болж унадаг.
+//   · presigned URL руу navigate хийхэд "Page not found" болж унадаг
 //
-// ШИЙДЭЛ:
-//   1. triggerFileDownload — ердийн браузерт `<a download>`, in-app браузерт
-//      шууд `window.location.href` ашиглана (presigned URL руу navigate).
-//   2. isInAppBrowser — FB/IG/Messenger/TikTok зэрэг in-app browser илрүүлж,
-//      хэрэглэгчид "гадаад браузер дээр нээ" гэж зөвлөхөд ашиглана.
+// ШИЙДЭЛ (in-app browser үед):
+//   iOS  → `x-safari-https://...` scheme-ээр Safari-д шууд нээхийг оролдоно.
+//   Android → `intent://...#Intent;...end` scheme-ээр Chrome-д нээхийг оролдоно.
+//   Хэрэв scheme ажиллахгүй бол (хэрэглэгч хэвээр FB браузерт) → дуудагч тал
+//   modal харуулж "Safari-д нээ" гэж зааварчилна (triggerFileDownload-ийн
+//   буцаах утга false бол modal харуул).
 
 /** Facebook/Instagram/Messenger/TikTok зэрэг апп доторх браузер эсэхийг шалгана. */
 export function isInAppBrowser(): boolean {
@@ -33,26 +34,62 @@ export function inAppBrowserName(): string | null {
   return null;
 }
 
-/** iOS төхөөрөмж эсэх (зөвлөгөөний текст ялгахад). */
+/** iOS төхөөрөмж эсэх. */
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+/** Android төхөөрөмж эсэх. */
+export function isAndroid(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
 /**
- * Presigned URL-аас файл татна. In-app browser-т `<a download>` ажилладаггүй
- * тул шууд navigate хийнэ (Content-Disposition: attachment header нь браузерыг
- * татахад хүргэнэ). Ердийн браузерт `<a download>` ашиглана.
+ * In-app browser-аас системийн браузер (Safari/Chrome) руу URL-ийг нээхийг
+ * ОРОЛДоно. iOS → x-safari-https scheme, Android → intent scheme.
+ * Эдгээр scheme нь зарим in-app browser-т ажилладаг (FB зэрэг). Ажиллах эсэхийг
+ * JS мэдэх боломжгүй тул дуудагч тал нэмж заавар (modal) харуулах нь зүйтэй.
  */
-export function triggerFileDownload(url: string, fileName: string) {
-  if (typeof document === 'undefined') return;
+export function openInExternalBrowser(url: string): void {
+  if (typeof window === 'undefined') return;
+  if (isIOS()) {
+    // iOS Safari-руу үсрэх scheme — FB/IG WebView-аас Safari нээдэг.
+    window.location.href = `x-safari-${url}`;
+    return;
+  }
+  if (isAndroid()) {
+    // Android Chrome intent — https URL-ийг гадаад browser-т нээнэ.
+    const noScheme = url.replace(/^https?:\/\//, '');
+    window.location.href = `intent://${noScheme}#Intent;scheme=https;package=com.android.chrome;end`;
+    return;
+  }
+  // Бусад → энгийн navigate (fallback)
+  window.location.href = url;
+}
+
+// In-app browser үед татах боломжгүй болсныг бүх хуудсанд мэдэгдэх global event.
+// Layout-д суусан InAppBrowserModalHost үүнийг сонсож, заавар modal харуулна.
+export const IN_APP_DOWNLOAD_EVENT = 'dg:inapp-download-blocked';
+
+/**
+ * Presigned URL-аас файл татна.
+ *  · Ердийн браузер → `<a download>` (хэвийн татна).
+ *  · In-app browser → системийн браузар руу нээхийг оролдоод (x-safari/intent),
+ *    global event ялгаруулж заавар modal харуулна. `false` буцаана.
+ * @returns true = ердийн татах эхэлсэн, false = in-app (заавар харуулсан)
+ */
+export function triggerFileDownload(url: string, fileName: string): boolean {
+  if (typeof document === 'undefined') return false;
 
   if (isInAppBrowser()) {
-    // In-app browser: `<a download>` ажиллахгүй тул URL руу шууд navigate.
-    // Backend presigned URL дээр Content-Disposition: attachment байгаа тул
-    // браузер файлыг татаж эхэлнэ (хуудас "алга болохгүй").
-    window.location.href = url;
-    return;
+    // Системийн браузар руу нээхийг оролдоно (зарим FB браузерт ажиллана).
+    openInExternalBrowser(url);
+    // Ажиллахгүй бол хэрэглэгч FB браузерт үлдэх тул заавар modal-ийг
+    // global event-ээр асаана (бүх дуудагч талд автоматаар хүчинтэй).
+    window.dispatchEvent(new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url } }));
+    return false;
   }
 
   const a = document.createElement('a');
@@ -62,4 +99,5 @@ export function triggerFileDownload(url: string, fileName: string) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+  return true;
 }
