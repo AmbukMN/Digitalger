@@ -65,15 +65,16 @@ export function OpenInBrowserModal({ open, onClose, url, goUrl }: Props) {
           </button>
         </div>
 
-        {/* ГОЛ АРГА: goUrl байвал том "Татаж эхлүүлэх" жинхэнэ <a href> товч.
-            Хэрэглэгч ӨӨРӨӨ дарж нээх нь FB WebView-т хамгийн найдвартай navigate
-            (programmatic window.location event-handler дотроос блоклогддог). */}
+        {/* ГОЛ АРГА: goUrl (proxy stream линк) байвал том "Татаж эхлүүлэх"
+            жинхэнэ <a href> товч. Хэрэглэгч ӨӨРӨӨ дарах нь FB WebView-т хамгийн
+            найдвартай navigate. target ӨГӨХГҮЙ — proxy нь Content-Disposition:
+            attachment буцаадаг тул ижил цонхонд дарахад хуудас солигдохгүй, файл
+            татагдана (target=_blank нь FB WebView-т шинэ таб блоклож унадаг). */}
         {goUrl && (
           <a
             href={goUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setTimeout(onClose, 400)}
+            rel="noopener"
+            onClick={() => setTimeout(onClose, 1500)}
             className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
           >
             <Download className="h-5 w-5" />

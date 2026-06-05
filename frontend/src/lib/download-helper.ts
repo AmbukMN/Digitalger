@@ -74,8 +74,15 @@ export function triggerFileDownload(url: string, fileName: string, goUrl?: strin
     }
     // FB/IG доторх браузар: goUrl нь МАНАЙ домэйны proxy линк — backend R2-аас
     // файлыг өөрөө stream хийдэг (redirect/signed URL/fbclid оролцохгүй) тул
-    // FB WebView stable. window.location-оор шууд navigate хийхэд файл татагдана.
-    window.location.href = goUrl;
+    // FB WebView stable, файл татагдана.
+    //
+    // FB WebView нь programmatic window.location-ийг event-handler дотроос
+    // блоклодог тул дангаар найдваргүй. Тиймээс modal гаргаж, доторх ЖИНХЭНЭ
+    // <a href={goUrl}> товчийг ХЭРЭГЛЭГЧ ӨӨРӨӨ дарж нээнэ — хэрэглэгчийн шууд
+    // үйлдэл тул WebView блоклодоггүй, proxy stream-ээс файл татагдана.
+    window.dispatchEvent(
+      new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url, goUrl } }),
+    );
     return false;
   }
 
