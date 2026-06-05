@@ -34,6 +34,23 @@ export class DownloadsService {
     }
   }
 
+  // Нэвтэрсэн хэрэглэгчийн татаж авсан файл(ууд)-ыг Download-д бүртгэнэ.
+  // Энэ нь admin panel-ийн хэрэглэгчийн "Татсан" түүх болон хэрэглэгчийн
+  // татах бүртгэлийн ҮНДЭС — татах БҮХ метод (нэг файл/zip/bundle) дуудах ёстой.
+  // Алдаа гарвал татах урсгалыг таслахгүй (fire-and-forget).
+  private async recordDownloads(userId: string | null | undefined, fileIds: string[]) {
+    if (!userId || !fileIds.length) return;
+    const uniqueIds = [...new Set(fileIds.filter(Boolean))];
+    if (!uniqueIds.length) return;
+    try {
+      await this.prisma.download.createMany({
+        data: uniqueIds.map((fileId) => ({ userId, fileId })),
+      });
+    } catch {
+      /* бүртгэлийн алдаа татах урсгалд нөлөөлөхгүй */
+    }
+  }
+
   async verifyAndGetSignedUrl(userId: string, fileId: string) {
     const file = await this.prisma.productFile.findUnique({
       where: { id: fileId },
@@ -126,6 +143,7 @@ export class DownloadsService {
     if (!product.files.length) throw new NotFoundException('No files to download');
 
     await this.bumpRealDownload(productId);
+    await this.recordDownloads(userId, product.files.map((f) => f.id));
 
     const zipName = `${product.slug ?? productId}.zip`;
     res.setHeader('Content-Type', 'application/zip');
@@ -166,6 +184,7 @@ export class DownloadsService {
     if (!allFileIds.length) throw new NotFoundException('No files in bundle');
 
     await this.bumpRealDownload(productId);
+    await this.recordDownloads(userId, allFileIds);
 
     const files = await this.prisma.productFile.findMany({
       where: { id: { in: allFileIds } },
@@ -222,6 +241,9 @@ export class DownloadsService {
     const allFileIds = [...new Set([...flatFileIds, ...bundleFileIds])];
     if (!allFileIds.length) throw new NotFoundException('No files');
 
+    // Татсан түүхэнд бүртгэнэ (admin popup-д харагдана)
+    await this.recordDownloads(userId, allFileIds);
+
     // Өмнө нь ижил бүтээгдэхүүнд амжилттай хийгдсэн zip байвал шууд буцаана
     const cached = await this.prisma.zipJob.findFirst({
       where: { userId, productId, status: 'DONE' },
@@ -259,6 +281,9 @@ export class DownloadsService {
     );
     if (!allFileIds.length) throw new NotFoundException('No files in bundle');
 
+    // Татсан түүхэнд бүртгэнэ (admin popup-д харагдана)
+    await this.recordDownloads(userId, allFileIds);
+
     const job = await this.prisma.zipJob.create({
       data: { userId, status: 'PENDING' },
     });
@@ -289,12 +314,19 @@ export class DownloadsService {
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, slug: true, downloadFileKey: true },
+      select: {
+        id: true,
+        slug: true,
+        downloadFileKey: true,
+        files: { select: { id: true } },
+      },
     });
     if (!product) throw new NotFoundException('Product not found');
     if (!product.downloadFileKey) throw new NotFoundException('No download file configured');
 
     await this.bumpRealDownload(productId);
+    // "Бүгдийг татах" нэг zip — бүтээгдэхүүний бүх файлыг татсанд тооцож бүртгэнэ
+    await this.recordDownloads(userId, product.files.map((f) => f.id));
 
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
