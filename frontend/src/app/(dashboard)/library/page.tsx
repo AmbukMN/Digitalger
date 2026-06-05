@@ -227,6 +227,12 @@ export default function LibraryPage() {
     queryKey: ['library', token],
     queryFn: () => downloadsApi.history(token!),
     enabled: !!token,
+    // "Миний сан" нь REALTIME байх ёстой — хэрэглэгч QPay төлбөр төлмөгц
+    // энд шилжиж шинээр авсан бүтээгдэхүүн ШУУД харагдах ёстой. Тиймээс
+    // cache-д найдахгүй: үргэлж шинээр татна (mount + таб руу буцах бүрд).
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const handleDownload = async (fileId: string, fileName: string) => {

@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Input, Separator } from '@digitalger/shared/ui';
@@ -28,6 +29,7 @@ interface AppliedCoupon {
 function CheckoutContent() {
   const { data: session } = useSession();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const items = useCartStore((s) => s.items);
   const remove = useCartStore((s) => s.remove);
@@ -208,6 +210,10 @@ function CheckoutContent() {
     clear();
     setQpayResult(null);
     setPendingOrderId(null);
+    // "Миний сан"-ийг cache-аас цэвэрлэнэ — ингэснээр /library руу шилжихэд
+    // шинээр төлсөн бүтээгдэхүүн REALTIME-аар шууд харагдана (хуучин cache
+    // ашиглаж "бүтээгдэхүүн алга" гэж хэрэглэгчийг тэрүүлэхгүй).
+    queryClient.invalidateQueries({ queryKey: ['library'] });
     router.push('/library');
   };
 
