@@ -309,6 +309,8 @@ export class AuthService {
     // OTP-г ШИНЭ имэйлээр баталгаажуулна
     await this.consumeOtp(pending, otp, 'email_change');
 
+    const prevEmail = user.email;
+
     // Зөвхөн ОДОО л имэйл солигдоно — баталгаажсан тул emailVerified тавина
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -319,6 +321,14 @@ export class AuthService {
         emailVerified: new Date(),
       },
     });
+
+    // Имэйл солисон түүх (хэрэглэгч өөрөө, баталгаажсан) — fire-and-forget
+    this.prisma.userAuditLog
+      .create({
+        data: { userId, field: 'email', oldValue: prevEmail, newValue: pending, actor: 'self' },
+      })
+      .catch(() => {});
+
     return { message: 'Email changed', user: this.sanitizeUser(updated) };
   }
 

@@ -80,6 +80,81 @@ export interface AdminUserDetail extends AdminUser {
   _count: { orders: number; reviews: number; downloads: number };
 }
 
+// Хэрэглэгчийн дэлгэрэнгүй popup-ийн бүх дата (backend getUserDetail)
+export interface UserDetailOrderItem {
+  id: string;
+  price: string | number;
+  product: { id: string; title: string; slug: string } | null;
+}
+export interface UserDetailOrder {
+  id: string;
+  total: string | number;
+  currency: string;
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELLED';
+  source: string;
+  couponCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: UserDetailOrderItem[];
+  payments: { status: string; createdAt: string }[];
+}
+export interface UserDetailDownload {
+  id: string;
+  fileId: string;
+  fileName: string;
+  productTitle: string | null;
+  productSlug: string | null;
+  createdAt: string;
+}
+export interface UserDetailEvent {
+  id: string;
+  productId: string;
+  productTitle: string;
+  productSlug: string;
+  device: string | null;
+  createdAt: string;
+}
+export interface UserDetailAudit {
+  id: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  actor: string;
+  createdAt: string;
+}
+export interface AdminUserFullDetail {
+  user: {
+    id: string;
+    email: string;
+    phone: string | null;
+    name: string | null;
+    image: string | null;
+    role: UserRole;
+    isGuest: boolean;
+    blocked: boolean;
+    oauthProvider: string | null;
+    emailVerified: string | null;
+    pendingEmail: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  orders: UserDetailOrder[];
+  downloads: UserDetailDownload[];
+  viewedProducts: UserDetailEvent[];
+  clickedLinks: UserDetailEvent[];
+  devices: { device: string; count: number }[];
+  auditLogs: UserDetailAudit[];
+  summary: {
+    ordersTotal: number;
+    statusSummary: Record<string, number>;
+    downloadsTotal: number;
+    viewsTotal: number;
+    clicksTotal: number;
+    paidOrders: number;
+    pendingOrders: number;
+  };
+}
+
 export interface AdminCategory {
   id: string;
   name: string;

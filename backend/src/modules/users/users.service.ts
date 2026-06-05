@@ -28,6 +28,23 @@ export class UsersService {
     private readonly email: EmailService,
   ) {}
 
+  // Аккаунтын өөрчлөлтийн түүх бичих (email/phone/name/password/role/blocked).
+  // Fire-and-forget — лог бичилт амжилтгүй болсон ч үндсэн үйлдэлд саад болохгүй.
+  private async writeAudit(entries: {
+    userId: string;
+    field: string;
+    oldValue?: string | null;
+    newValue?: string | null;
+    actor: 'self' | 'admin';
+    actorId?: string;
+  }[]) {
+    const data = entries.filter((e) => e.oldValue !== e.newValue);
+    if (!data.length) return;
+    this.prisma.userAuditLog
+      .createMany({ data })
+      .catch(() => {});
+  }
+
   async findMe(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -66,7 +83,7 @@ export class UsersService {
       }
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(dto.name !== undefined && { name: dto.name || null }),
@@ -76,6 +93,16 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
+
+    // Өөрчлөлтийн түүх (хэрэглэгч өөрөө)
+    const audits: Parameters<typeof this.writeAudit>[0] = [];
+    if (dto.name !== undefined)
+      audits.push({ userId, field: 'name', oldValue: user.name, newValue: dto.name || null, actor: 'self' });
+    if (dto.phone !== undefined)
+      audits.push({ userId, field: 'phone', oldValue: user.phone, newValue: phone, actor: 'self' });
+    await this.writeAudit(audits);
+
+    return updated;
   }
 
   async updatePassword(
@@ -113,11 +140,15 @@ export class UsersService {
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Одоогийн нууц үг буруу байна');
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash },
       select: USER_SELECT,
     });
+    await this.writeAudit([
+      { userId, field: 'password', oldValue: null, newValue: 'Шинэчилсэн', actor: 'self' },
+    ]);
+    return result;
   }
 
   async findAllAdmin(query: { page?: number; pageSize?: number; search?: string }) {
@@ -174,9 +205,186 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * Админ панелийн хэрэглэгчийн ДЭЛГЭРЭНГҮЙ popup-д шаардлагатай БҮХ датаг
+   * нэг дуудлагаар нэгтгэж буцаана:
+   * - Үндсэн профайл (email/phone/name/role/verify/oauth/огноо)
+   * - Захиалга бүгд (PENDING/PAID/CANCELLED... + items + product нэр + paidAt)
+   * - Татсан файлууд (хэзээ, ямар файл, аль бүтээгдэхүүн)
+   * - Үзсэн бүтээгдэхүүн / дарсан линк (ProductEvent, userId-аар)
+   * - Төхөөрөмжийн хуваарилалт (PageView/ProductEvent.device)
+   * - Аккаунтын өөрчлөлтийн түүх (UserAuditLog)
+   */
+  async getUserDetail(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        name: true,
+        image: true,
+        role: true,
+        isGuest: true,
+        blocked: true,
+        oauthProvider: true,
+        emailVerified: true,
+        pendingEmail: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const [orders, downloadsRaw, productEvents, auditLogs] = await Promise.all([
+      // Захиалга бүгд (статусаар) + items + product
+      this.prisma.order.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          total: true,
+          currency: true,
+          status: true,
+          source: true,
+          couponCode: true,
+          createdAt: true,
+          updatedAt: true,
+          items: {
+            select: {
+              id: true,
+              price: true,
+              product: { select: { id: true, title: true, slug: true } },
+            },
+          },
+          payments: {
+            select: { status: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      }),
+      // Татсан файлууд (хэзээ)
+      this.prisma.download.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, fileId: true, createdAt: true },
+        take: 200,
+      }),
+      // Үзсэн / дарсан (ProductEvent userId-аар)
+      this.prisma.productEvent.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          type: true,
+          productId: true,
+          productSlug: true,
+          device: true,
+          createdAt: true,
+        },
+        take: 300,
+      }),
+      // Аккаунтын өөрчлөлтийн түүх
+      this.prisma.userAuditLog.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          field: true,
+          oldValue: true,
+          newValue: true,
+          actor: true,
+          createdAt: true,
+        },
+        take: 100,
+      }),
+    ]);
+
+    // Татсан файлуудын нэр + бүтээгдэхүүнийг resolve (Download.fileId → ProductFile)
+    const fileIds = [...new Set(downloadsRaw.map((d) => d.fileId))];
+    const files = fileIds.length
+      ? await this.prisma.productFile.findMany({
+          where: { id: { in: fileIds } },
+          select: {
+            id: true,
+            fileName: true,
+            product: { select: { id: true, title: true, slug: true } },
+          },
+        })
+      : [];
+    const fileMap = new Map(files.map((f) => [f.id, f]));
+    const downloads = downloadsRaw.map((d) => {
+      const f = fileMap.get(d.fileId);
+      return {
+        id: d.id,
+        fileId: d.fileId,
+        fileName: f?.fileName ?? '(устсан файл)',
+        productTitle: f?.product?.title ?? null,
+        productSlug: f?.product?.slug ?? null,
+        createdAt: d.createdAt,
+      };
+    });
+
+    // Үзсэн / дарсан-ийг ялгах + бүтээгдэхүүний нэр resolve
+    const evProductIds = [...new Set(productEvents.map((e) => e.productId))];
+    const evProducts = evProductIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: evProductIds } },
+          select: { id: true, title: true, slug: true },
+        })
+      : [];
+    const prodMap = new Map(evProducts.map((p) => [p.id, p]));
+    const mapEvent = (e: (typeof productEvents)[number]) => ({
+      id: e.id,
+      productId: e.productId,
+      productTitle: prodMap.get(e.productId)?.title ?? e.productSlug,
+      productSlug: e.productSlug,
+      device: e.device,
+      createdAt: e.createdAt,
+    });
+    const viewedProducts = productEvents.filter((e) => e.type === 'view').map(mapEvent);
+    const clickedLinks = productEvents.filter((e) => e.type === 'click').map(mapEvent);
+
+    // Төхөөрөмжийн хуваарилалт (ProductEvent.device-аас)
+    const deviceCounts: Record<string, number> = {};
+    for (const e of productEvents) {
+      if (e.device) deviceCounts[e.device] = (deviceCounts[e.device] ?? 0) + 1;
+    }
+    const devices = Object.entries(deviceCounts)
+      .map(([device, count]) => ({ device, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Захиалгын статусын тойм
+    const statusSummary = orders.reduce<Record<string, number>>((acc, o) => {
+      acc[o.status] = (acc[o.status] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      user,
+      orders,
+      downloads,
+      viewedProducts,
+      clickedLinks,
+      devices,
+      auditLogs,
+      summary: {
+        ordersTotal: orders.length,
+        statusSummary,
+        downloadsTotal: downloads.length,
+        viewsTotal: viewedProducts.length,
+        clicksTotal: clickedLinks.length,
+        paidOrders: orders.filter((o) => o.status === 'PAID').length,
+        pendingOrders: orders.filter((o) => o.status === 'PENDING').length,
+      },
+    };
+  }
+
   async updateByAdmin(
     id: string,
     dto: { name?: string; role?: string; image?: string; phone?: string; email?: string },
+    adminId?: string,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
@@ -203,7 +411,7 @@ export class UsersService {
       emailData = { email: normalizedEmail, emailVerified: new Date(), isGuest: false };
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -214,10 +422,24 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
+
+    // Админы хийсэн өөрчлөлтийн түүх
+    const audits: Parameters<typeof this.writeAudit>[0] = [];
+    if (dto.name !== undefined)
+      audits.push({ userId: id, field: 'name', oldValue: user.name, newValue: dto.name ?? null, actor: 'admin', actorId: adminId });
+    if (dto.phone !== undefined)
+      audits.push({ userId: id, field: 'phone', oldValue: user.phone, newValue: phone ?? null, actor: 'admin', actorId: adminId });
+    if (dto.role !== undefined)
+      audits.push({ userId: id, field: 'role', oldValue: user.role, newValue: dto.role, actor: 'admin', actorId: adminId });
+    if (emailData)
+      audits.push({ userId: id, field: 'email', oldValue: user.email, newValue: emailData.email, actor: 'admin', actorId: adminId });
+    await this.writeAudit(audits);
+
+    return updated;
   }
 
   /** Админ хэрэглэгчийн нууц үгийг ШУУД тохируулна (одоогийн нууц үг шаардахгүй) */
-  async setPasswordByAdmin(id: string, newPassword: string) {
+  async setPasswordByAdmin(id: string, newPassword: string, adminId?: string) {
     if (!newPassword || newPassword.length < 8) {
       throw new BadRequestException('Нууц үг хамгийн багадаа 8 тэмдэгт байх ёстой');
     }
@@ -228,6 +450,9 @@ export class UsersService {
     }
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await this.prisma.user.update({ where: { id }, data: { passwordHash } });
+    await this.writeAudit([
+      { userId: id, field: 'password', oldValue: null, newValue: 'Админ шинэчилсэн', actor: 'admin', actorId: adminId },
+    ]);
     return { success: true };
   }
 
@@ -237,11 +462,22 @@ export class UsersService {
     if (user.role === 'ADMIN') throw new ForbiddenException('Админ хэрэглэгчийг block хийх боломжгүй');
     if (id === adminId) throw new ForbiddenException('Өөрийгөө block хийх боломжгүй');
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { blocked },
       select: USER_SELECT,
     });
+    await this.writeAudit([
+      {
+        userId: id,
+        field: 'blocked',
+        oldValue: user.blocked ? 'true' : 'false',
+        newValue: blocked ? 'true' : 'false',
+        actor: 'admin',
+        actorId: adminId,
+      },
+    ]);
+    return updated;
   }
 
   async deleteUser(id: string, adminId: string) {

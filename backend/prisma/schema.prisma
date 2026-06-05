@@ -60,6 +60,9 @@ model User {
   notifications Notification[]
   accounts      Account[]
   sessions      Session[]
+  productEvents ProductEvent[]
+  pageViews     PageView[]
+  auditLogs     UserAuditLog[]
 }
 
 model Account {
@@ -109,48 +112,48 @@ model Category {
 }
 
 model Product {
-  id             String               @id @default(cuid())
-  title          String
-  slug           String               @unique
-  description    String               @db.Text
-  price          Decimal              @db.Decimal(12, 2)
-  compareAtPrice Decimal?             @db.Decimal(12, 2)
-  type           String
-  categoryId     String?
-  categoryIds    String[]             @default([])
-  category       Category?            @relation(fields: [categoryId], references: [id])
-  published      Boolean              @default(false)
-  featured       Boolean              @default(false)
-  rating         Float                @default(0)
-  ratingCount    Int                  @default(0)
-  downloadCount  Int                  @default(0) // ГАРААР тохируулсан "харагдах" тоо (frontend)
-  realDownloadCount Int               @default(0) // БОДИТ таталт (хэрэглэгч татах болгонд +1, зөвхөн admin)
-  viewCount      Int                  @default(0) // БОДИТ үзэлт (хэрэглэгч product detail нээх болгонд +1)
-  previewUrl     String?
-  seoTitle       String?
-  seoDescription String?
-  howToUse       String?              @db.Text
-  howToUseSteps  Json                 @default("[]")
-  whatsIncluded  String?              @db.Text
-  discountEndsAt DateTime?
-  videoUrl         String?
-  downloadFileKey  String?
-  proofImageUrl    String?
-  proofQuote     String?              @db.Text
-  proofText      String?              @db.Text
-  proofAuthorName String?
-  proofAuthorRole String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  files          ProductFile[]
-  images         ProductImage[]
-  course         Course?
-  orderItems     OrderItem[]
-  reviews        Review[]
-  wishlists      Wishlist[]
-  faqs           ProductFAQ[]
-  testimonials   ProductTestimonial[]
-  bundles        ProductBundle[]
+  id                String               @id @default(cuid())
+  title             String
+  slug              String               @unique
+  description       String               @db.Text
+  price             Decimal              @db.Decimal(12, 2)
+  compareAtPrice    Decimal?             @db.Decimal(12, 2)
+  type              String
+  categoryId        String?
+  categoryIds       String[]             @default([])
+  category          Category?            @relation(fields: [categoryId], references: [id])
+  published         Boolean              @default(false)
+  featured          Boolean              @default(false)
+  rating            Float                @default(0)
+  ratingCount       Int                  @default(0)
+  downloadCount     Int                  @default(0) // ГАРААР тохируулсан "харагдах" тоо (frontend)
+  realDownloadCount Int                  @default(0) // БОДИТ таталт (хэрэглэгч татах болгонд +1, зөвхөн admin)
+  viewCount         Int                  @default(0) // БОДИТ үзэлт (хэрэглэгч product detail нээх болгонд +1)
+  previewUrl        String?
+  seoTitle          String?
+  seoDescription    String?
+  howToUse          String?              @db.Text
+  howToUseSteps     Json                 @default("[]")
+  whatsIncluded     String?              @db.Text
+  discountEndsAt    DateTime?
+  videoUrl          String?
+  downloadFileKey   String?
+  proofImageUrl     String?
+  proofQuote        String?              @db.Text
+  proofText         String?              @db.Text
+  proofAuthorName   String?
+  proofAuthorRole   String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  files             ProductFile[]
+  images            ProductImage[]
+  course            Course?
+  orderItems        OrderItem[]
+  reviews           Review[]
+  wishlists         Wishlist[]
+  faqs              ProductFAQ[]
+  testimonials      ProductTestimonial[]
+  bundles           ProductBundle[]
 }
 
 model ProductFile {
@@ -183,8 +186,8 @@ model ImageVariant {
   id             String       @id @default(cuid())
   productImageId String
   productImage   ProductImage @relation(fields: [productImageId], references: [id], onDelete: Cascade)
-  size           String       // 'thumbnail' | 'medium' | 'large' | 'original'
-  fileKey        String       // R2 key: 'uploads/uuid_thumbnail.webp'
+  size           String // 'thumbnail' | 'medium' | 'large' | 'original'
+  fileKey        String // R2 key: 'uploads/uuid_thumbnail.webp'
   width          Int
   height         Int
   bytes          Int
@@ -195,9 +198,9 @@ model ImageVariant {
 }
 
 model Course {
-  id        String        @id @default(cuid())
-  productId String        @unique
-  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String         @id @default(cuid())
+  productId String         @unique
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   lessons   Lesson[]
   modules   CourseModule[]
 }
@@ -227,21 +230,21 @@ model Lesson {
 }
 
 model Order {
-  id             String      @id @default(cuid())
-  userId         String
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  total          Decimal     @db.Decimal(12, 2)
-  currency       String      @default("MNT")
-  status         OrderStatus @default(PENDING)
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  total            Decimal     @db.Decimal(12, 2)
+  currency         String      @default("MNT")
+  status           OrderStatus @default(PENDING)
   // Захиалгын эх сурвалж: "PURCHASE" (хэрэглэгч мөнгөөр) | "ADMIN_GRANT" (админ үнэгүй идэвхжүүлсэн)
-  source         String      @default("PURCHASE")
-  grantedByAdminId String?   // ADMIN_GRANT үед идэвхжүүлсэн админ
-  qpayIdentifier String?     @unique
-  couponCode     String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  items          OrderItem[]
-  payments       Payment[]
+  source           String      @default("PURCHASE")
+  grantedByAdminId String? // ADMIN_GRANT үед идэвхжүүлсэн админ
+  qpayIdentifier   String?     @unique
+  couponCode       String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  items            OrderItem[]
+  payments         Payment[]
 
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
@@ -326,48 +329,48 @@ model ThemeSetting {
 }
 
 model SiteSetting {
-  id                    String   @id @default("default")
-  siteName              String   @default("DigitalGer")
-  siteUrl               String   @default("https://digitalger.mn")
-  supportEmail          String?
-  logoUrl               String?
+  id           String  @id @default("default")
+  siteName     String  @default("DigitalGer")
+  siteUrl      String  @default("https://digitalger.mn")
+  supportEmail String?
+  logoUrl      String?
 
   // SEO
-  metaTitle             String?
-  metaDescription       String?
-  metaKeywords          String?
-  ogTitle               String?
-  ogDescription         String?
-  ogImageUrl            String?
-  twitterCardType       String?  @default("summary_large_image")
-  robotsNoIndex         Boolean  @default(false)
-  robotsNoFollow        Boolean  @default(false)
-  canonicalUrl          String?
+  metaTitle       String?
+  metaDescription String?
+  metaKeywords    String?
+  ogTitle         String?
+  ogDescription   String?
+  ogImageUrl      String?
+  twitterCardType String? @default("summary_large_image")
+  robotsNoIndex   Boolean @default(false)
+  robotsNoFollow  Boolean @default(false)
+  canonicalUrl    String?
 
   // Analytics & Verification
-  googleAnalyticsId     String?
-  googleTagManagerId    String?
-  fbPixelId             String?
+  googleAnalyticsId      String?
+  googleTagManagerId     String?
+  fbPixelId              String?
   googleSiteVerification String?
-  naverSiteVerification String?
+  naverSiteVerification  String?
 
   // Sitemap
-  sitemapEnabled        Boolean  @default(true)
-  sitemapChangeFreq     String?  @default("weekly")
-  sitemapPriority       String?  @default("0.8")
+  sitemapEnabled    Boolean @default(true)
+  sitemapChangeFreq String? @default("weekly")
+  sitemapPriority   String? @default("0.8")
 
   // Social links
-  socialFacebook        String?
-  socialInstagram       String?
-  socialTwitter         String?
-  socialThreads         String?
-  socialTelegram        String?
-  socialWhatsapp        String?
-  socialTiktok          String?
-  socialYoutube         String?
-  socialLinkedin        String?
+  socialFacebook  String?
+  socialInstagram String?
+  socialTwitter   String?
+  socialThreads   String?
+  socialTelegram  String?
+  socialWhatsapp  String?
+  socialTiktok    String?
+  socialYoutube   String?
+  socialLinkedin  String?
 
-  updatedAt             DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model Banner {
@@ -525,7 +528,7 @@ model Page {
   slug      String   @unique
   title     String
   content   String   @db.Text
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 enum ZipJobStatus {
@@ -587,26 +590,48 @@ model PageView {
   id        String   @id @default(cuid())
   path      String
   sessionId String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   country   String?
-  device    String?  // mobile | desktop | tablet
+  device    String? // mobile | desktop | tablet
   referrer  String?
   createdAt DateTime @default(now())
 
   @@index([path, createdAt])
   @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 model ProductEvent {
-  id        String   @id @default(cuid())
-  type      String   // view | click | cart | purchase
-  productId String
+  id          String   @id @default(cuid())
+  type        String // view | click | cart | purchase
+  productId   String
   productSlug String
-  sessionId String?
-  createdAt DateTime @default(now())
+  sessionId   String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device      String? // mobile | desktop | tablet
+  createdAt   DateTime @default(now())
 
   @@index([productId, type, createdAt])
   @@index([type, createdAt])
   @@index([productSlug, type])
+  @@index([userId, type, createdAt])
+}
+
+// Хэрэглэгчийн аккаунтын өөрчлөлтийн түүх (email/phone/name/password солих)
+model UserAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  field     String // email | phone | name | password | role | blocked
+  oldValue  String?
+  newValue  String?
+  actor     String // self | admin
+  actorId   String? // солисон admin-ийн id (admin бол)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model SearchEvent {

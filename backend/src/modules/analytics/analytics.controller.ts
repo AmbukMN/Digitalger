@@ -25,7 +25,7 @@ export class AnalyticsController {
 
   @Post('pageview')
   async trackPageView(
-    @Body() body: { path: string; sessionId?: string; referrer?: string },
+    @Body() body: { path: string; sessionId?: string; referrer?: string; userId?: string },
     @Req() req: Request,
   ) {
     const ua = req.headers['user-agent'] ?? '';
@@ -35,6 +35,7 @@ export class AnalyticsController {
       path: body.path,
       sessionId: body.sessionId,
       referrer: body.referrer,
+      userId: body.userId,
       device,
     });
     return { ok: true };
@@ -42,12 +43,20 @@ export class AnalyticsController {
 
   @Post('product-event')
   async trackProductEvent(
-    @Body() body: { type: string; productId: string; productSlug: string; sessionId?: string },
+    @Body()
+    body: {
+      type: string;
+      productId: string;
+      productSlug: string;
+      sessionId?: string;
+      userId?: string;
+    },
     @Req() req: Request,
   ) {
     const ua = req.headers['user-agent'] ?? '';
     if (isBot(ua)) return { ok: true };
-    await this.analyticsService.trackProductEvent(body);
+    const device = detectDevice(ua);
+    await this.analyticsService.trackProductEvent({ ...body, device });
     return { ok: true };
   }
 

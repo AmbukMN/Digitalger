@@ -5,13 +5,30 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
+  // Дамжуулсан userId DB-д бодитоор оршдог эсэхийг шалгана.
+  // (Хуучин/устсан/хуурамч id-аас FK алдаа гарахаас сэргийлж, fail-open.)
+  private async safeUserId(userId?: string): Promise<string | undefined> {
+    if (!userId) return undefined;
+    try {
+      const u = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      return u ? userId : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async trackPageView(data: {
     path: string;
     sessionId?: string;
     device?: string;
     referrer?: string;
+    userId?: string;
   }) {
-    return this.prisma.pageView.create({ data });
+    const userId = await this.safeUserId(data.userId);
+    return this.prisma.pageView.create({ data: { ...data, userId } });
   }
 
   async trackProductEvent(data: {
@@ -19,8 +36,11 @@ export class AnalyticsService {
     productId: string;
     productSlug: string;
     sessionId?: string;
+    userId?: string;
+    device?: string;
   }) {
-    return this.prisma.productEvent.create({ data });
+    const userId = await this.safeUserId(data.userId);
+    return this.prisma.productEvent.create({ data: { ...data, userId } });
   }
 
   async trackSearch(data: {

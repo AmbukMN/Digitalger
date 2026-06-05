@@ -21,6 +21,7 @@ import type {
   AdminTestimonial,
   AdminUser,
   AdminUserDetail,
+  AdminUserFullDetail,
   DashboardStats,
   QueueStatus,
   SiteSettings,
@@ -298,6 +299,9 @@ export const adminApi = {
       );
     },
     get: (id: string) => adminFetch<AdminUserDetail>(`/admin/users/${id}`),
+    // Хэрэглэгчийн ДЭЛГЭРЭНГҮЙ — popup-д бүх дата (захиалга/татсан/үзсэн/
+    // дарсан/төхөөрөмж/аккаунт түүх) нэг дуудлагаар.
+    detail: (id: string) => adminFetch<AdminUserFullDetail>(`/admin/users/${id}/detail`),
     update: (id: string, body: { name?: string; role?: string; phone?: string; email?: string }) =>
       adminFetch<AdminUser>(`/admin/users/${id}`, {
         method: 'PATCH',

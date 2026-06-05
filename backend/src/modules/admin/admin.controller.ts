@@ -751,20 +751,32 @@ export class AdminController {
     return this.users.findOneAdmin(id);
   }
 
+  // Хэрэглэгчийн ДЭЛГЭРЭНГҮЙ — popup-д бүх дата (захиалга/татсан/үзсэн/
+  // дарсан/төхөөрөмж/аккаунт түүх) нэг дуудлагаар.
+  @Get('users/:id/detail')
+  getUserDetail(@Param('id') id: string) {
+    return this.users.getUserDetail(id);
+  }
+
   @Patch('users/:id')
   updateUser(
     @Param('id') id: string,
     @Body()
     body: { name?: string; role?: string; image?: string; phone?: string; email?: string },
+    @CurrentUser() me: JwtPayload,
   ) {
     // Админ нь нэр/утас/email/role-ийг verify-гүйгээр ШУУД засна.
-    return this.users.updateByAdmin(id, body);
+    return this.users.updateByAdmin(id, body, me.sub);
   }
 
   // Админ хэрэглэгчийн нууц үгийг ШУУД тохируулна (одоогийн нууц үг шаардахгүй)
   @Patch('users/:id/password')
-  setUserPassword(@Param('id') id: string, @Body() body: { newPassword: string }) {
-    return this.users.setPasswordByAdmin(id, body.newPassword);
+  setUserPassword(
+    @Param('id') id: string,
+    @Body() body: { newPassword: string },
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.users.setPasswordByAdmin(id, body.newPassword, me.sub);
   }
 
   @Patch('users/:id/block')

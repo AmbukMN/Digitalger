@@ -15,6 +15,7 @@ import { useWishlistStore } from '@/store/wishlist';
 import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
+import { setAnalyticsUserId } from '@/lib/analytics';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
 
@@ -51,6 +52,18 @@ function AuthWatcher() {
     }
   }, [error]);
 
+  return null;
+}
+
+// Нэвтэрсэн хэрэглэгчийн userId-г analytics module-д тавина — ингэснээр
+// үзсэн/дарсан/төхөөрөмжийн tracking тухайн хэрэглэгчтэй холбогдоно.
+// Нэвтрэлт цуцлахад userId-г цэвэрлэнэ (зочин болно).
+function AnalyticsUserSync() {
+  const { data: session, status } = useSession();
+  useEffect(() => {
+    const id = (session?.user as { id?: string } | undefined)?.id;
+    setAnalyticsUserId(status === 'authenticated' ? id : undefined);
+  }, [status, session?.user]);
   return null;
 }
 
@@ -181,6 +194,7 @@ export function Providers({ children, defaultTheme = 'system', navbar }: Provide
           <StoreHydration />
           <SessionSyncEffect />
           <AuthWatcher />
+          <AnalyticsUserSync />
           {children}
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>

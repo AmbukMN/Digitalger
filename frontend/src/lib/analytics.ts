@@ -27,12 +27,20 @@ function getSessionId(): string {
   return sid;
 }
 
+// Нэвтэрсэн хэрэглэгчийн userId — analytics tracking-д хавсаргахын тулд
+// module-level хувьсагчид хадгална. setAnalyticsUserId-г SessionProvider
+// (AnalyticsUserSync) дуудаж, нэвтрэлтийн төлөв өөрчлөгдөх бүрд шинэчилнэ.
+let currentUserId: string | undefined;
+export function setAnalyticsUserId(userId?: string | null) {
+  currentUserId = userId || undefined;
+}
+
 // Navigation үед keepalive fetch найдваргүй — sendBeacon ашиглана
 // sendBeacon нь GET дэмждэггүй, POST+Blob-той JSON дамжуулна
 function send(endpoint: string, data: Record<string, unknown>) {
   if (typeof window === 'undefined') return;
   const url = `${API_BASE}/api/analytics/${endpoint}`;
-  const body = JSON.stringify({ ...data, sessionId: getSessionId() });
+  const body = JSON.stringify({ ...data, sessionId: getSessionId(), userId: currentUserId });
   const blob = new Blob([body], { type: 'application/json' });
   // sendBeacon нь page unload/navigate-д ч найдвартай ажилладаг
   if (navigator.sendBeacon) {

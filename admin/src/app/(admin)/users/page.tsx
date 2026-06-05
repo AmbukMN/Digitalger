@@ -26,6 +26,7 @@ import {
 } from '@digitalger/shared/ui';
 import { Ban, Download, Gift, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2 } from 'lucide-react';
 import { GrantProductsDialog } from '@/components/grant-products-dialog';
+import { UserDetailDialog } from '@/components/user-detail-dialog';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminUser } from '@/types/admin';
@@ -81,6 +82,7 @@ export default function UsersPage() {
   const [blockTarget, setBlockTarget] = useState<AdminUser | null>(null);
   const [grantTarget, setGrantTarget] = useState<AdminUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [detailTarget, setDetailTarget] = useState<AdminUser | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'users', search, page],
@@ -159,7 +161,13 @@ export default function UsersPage() {
       cell: ({ row }) => {
         const u = row.original;
         return (
-          <div className="flex items-center gap-3 min-w-0">
+          // Нэр/зураг дээр дарахад дэлгэрэнгүй popup нээгдэнэ
+          <button
+            type="button"
+            onClick={() => setDetailTarget(u)}
+            className="flex items-center gap-3 min-w-0 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-muted/60 group"
+            title="Дэлгэрэнгүй харах"
+          >
             <div className="relative shrink-0">
               <UserAvatar user={u} size={9} />
               {u.blocked && (
@@ -170,7 +178,7 @@ export default function UsersPage() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-semibold truncate leading-tight">{u.name ?? <span className="text-muted-foreground font-normal">Нэргүй</span>}</p>
+                <p className="text-sm font-semibold truncate leading-tight group-hover:text-primary transition-colors">{u.name ?? <span className="text-muted-foreground font-normal">Нэргүй</span>}</p>
                 {u.blocked && (
                   <span className="inline-flex rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive shrink-0">Хаагдсан</span>
                 )}
@@ -178,7 +186,7 @@ export default function UsersPage() {
               <p className="text-xs text-muted-foreground truncate">{u.email}</p>
               {u.phone && <p className="text-xs text-muted-foreground">{u.phone}</p>}
             </div>
-          </div>
+          </button>
         );
       },
     },
@@ -457,6 +465,9 @@ export default function UsersPage() {
 
       {/* Бүтээгдэхүүн идэвхжүүлэх popup (multi-select + search) */}
       <GrantProductsDialog user={grantTarget} onClose={() => setGrantTarget(null)} />
+
+      {/* Хэрэглэгчийн дэлгэрэнгүй popup (бүх дата: захиалга/татсан/үзсэн/түүх) */}
+      <UserDetailDialog user={detailTarget} onClose={() => setDetailTarget(null)} />
     </div>
   );
 }
