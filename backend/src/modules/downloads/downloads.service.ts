@@ -37,12 +37,17 @@ export class DownloadsService {
     return `${base}/api/downloads/go/${token}`;
   }
 
-  // "go" token-ийг шалгаж, цэвэр presigned URL (fbclid-гүй) үүсгэж буцаана.
-  async resolveGoToken(token: string): Promise<{ url: string; fileName: string }> {
+  // "go" token-ийг шалгаж, R2-аас файлын STREAM-ийг авч буцаана (proxy download).
+  // signed URL ил гаргахгүй, redirect хийхгүй — backend файлыг өөрөө дамжуулна
+  // (FB WebView-т stable). Stream pipe тул том файл ч memory-д ачаалахгүй.
+  async streamGoToken(token: string): Promise<{
+    stream: { body: NodeJS.ReadableStream; contentLength?: number; contentType?: string };
+    fileName: string;
+  }> {
     const payload = verifyDownloadToken(this.downloadSecret, token);
     if (!payload) throw new ForbiddenException('Линкийн хугацаа дууссан эсвэл буруу байна');
-    const url = await this.storage.getPresignedUrl(payload.fileKey, 900, 'get');
-    return { url, fileName: payload.fileName };
+    const stream = await this.storage.getObjectStream(payload.fileKey);
+    return { stream, fileName: payload.fileName };
   }
 
   // Бодит таталт тоолуурыг +1 (хэрэглэгч тухайн бүтээгдэхүүнийг бодитоор татах болгонд).

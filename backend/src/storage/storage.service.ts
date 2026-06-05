@@ -142,6 +142,29 @@ export class StorageService {
     );
   }
 
+  /**
+   * R2-аас файлын STREAM-ийг авна (proxy download-д ашиглана). Файлыг бүхэлд
+   * нь memory-д ачаалахгүй — chunk-аар урсгана, тиймээс том файл (GB) ч аюулгүй.
+   * Буцаах: body (Node.js Readable stream), contentLength, contentType.
+   */
+  async getObjectStream(key: string): Promise<{
+    body: NodeJS.ReadableStream;
+    contentLength?: number;
+    contentType?: string;
+  }> {
+    if (!this.client) {
+      throw new Error('Storage not configured');
+    }
+    const out = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    return {
+      body: out.Body as NodeJS.ReadableStream,
+      contentLength: out.ContentLength,
+      contentType: out.ContentType,
+    };
+  }
+
   // Variant-уудыг зэрэг R2-д хуулна
   async uploadMany(
     items: { key: string; buffer: Buffer; contentType: string }[],
