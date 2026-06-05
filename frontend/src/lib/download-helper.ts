@@ -67,15 +67,14 @@ export function triggerFileDownload(url: string, fileName: string, goUrl?: strin
   if (typeof document === 'undefined') return false;
 
   if (isInAppBrowser()) {
-    if (goUrl) {
-      // FB/IG доторх браузар: go линкээр шууд navigate (fbclid-д тэсвэртэй),
-      // backend цэвэр presigned URL руу 302 redirect → файл татагдана.
-      window.location.href = goUrl;
-    } else {
-      // goUrl байхгүй (ховор) — presigned URL fbclid-ээс эвдрэх эрсдэлтэй тул
-      // заавар modal-ийг global event-ээр асаана (Safari-д нээх зөвлөгөө).
-      window.dispatchEvent(new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url } }));
-    }
+    // FB/IG доторх браузар: presigned URL-ийг шууд нээвэл fbclid-ээс signature
+    // эвдэрдэг. goUrl (backend redirect) нь fbclid-д тэсвэртэй. ГЭХДЭЭ FB WebView
+    // нь programmatic navigate (window.location/<a>.click)-ийг event-handler
+    // дотроос блоклодог тул найдваргүй. Тиймээс modal гаргаж, доторх ЖИНХЭНЭ
+    // <a href> линкийг ХЭРЭГЛЭГЧ өөрөө дарж нээнэ — хамгийн найдвартай.
+    window.dispatchEvent(
+      new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url, goUrl } }),
+    );
     return false;
   }
 

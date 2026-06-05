@@ -11,11 +11,13 @@ import { OpenInBrowserModal } from '@/components/open-in-browser-modal';
 // татах товч бүрт modal нэмэх шаардлагагүй — нэг газар хангагдана.
 export function InAppBrowserModalHost() {
   const [url, setUrl] = useState<string | null>(null);
+  const [goUrl, setGoUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ url?: string }>).detail;
+      const detail = (e as CustomEvent<{ url?: string; goUrl?: string }>).detail;
       setUrl(detail?.url ?? window.location.href);
+      setGoUrl(detail?.goUrl);
     };
     window.addEventListener(IN_APP_DOWNLOAD_EVENT, handler);
     return () => window.removeEventListener(IN_APP_DOWNLOAD_EVENT, handler);
@@ -25,7 +27,8 @@ export function InAppBrowserModalHost() {
     <OpenInBrowserModal
       open={!!url}
       url={url ?? ''}
-      onClose={() => setUrl(null)}
+      goUrl={goUrl}
+      onClose={() => { setUrl(null); setGoUrl(undefined); }}
     />
   );
 }

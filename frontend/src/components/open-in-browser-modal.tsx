@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@digitalger/shared/ui';
-import { Check, Copy, ExternalLink, MoreHorizontal, X } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, MoreHorizontal, X } from 'lucide-react';
 import { inAppBrowserName, isIOS } from '@/lib/download-helper';
 
 interface Props {
@@ -10,22 +10,26 @@ interface Props {
   onClose: () => void;
   /** Хуулах/нээх линк (одоогийн хуудас эсвэл татах URL). */
   url: string;
+  /** Татах "go" линк (байвал том "Татаж эхлүүлэх" товч харагдана). */
+  goUrl?: string;
 }
 
 // ─── "Системийн браузераар нээх" заавар modal ──────────────────────────────
 // FB/IG доторх браузер файл татахыг блоклодог. Энэ modal нь хэрэглэгчид
 // Safari/Chrome дээр хэрхэн нээхийг ТОДОРХОЙ зааварчилна (toast биш — бүрэн,
 // алга болохгүй). Линк хуулах товч + ··· цэсний заавар.
-export function OpenInBrowserModal({ open, onClose, url }: Props) {
+export function OpenInBrowserModal({ open, onClose, url, goUrl }: Props) {
   const [copied, setCopied] = useState(false);
   const browser = inAppBrowserName() ?? 'Энэ апп';
   const ios = isIOS();
+  // Хуулах линк — татах goUrl байвал түүнийг, эс бол хуудсын URL-ийг.
+  const copyTarget = goUrl || url;
 
   if (!open) return null;
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(copyTarget);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
@@ -35,7 +39,7 @@ export function OpenInBrowserModal({ open, onClose, url }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-100 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -48,7 +52,7 @@ export function OpenInBrowserModal({ open, onClose, url }: Props) {
               <ExternalLink className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold leading-tight">Татахын тулд браузераар нээнэ үү</h3>
+              <h3 className="text-base font-bold leading-tight">Файл татах</h3>
               <p className="text-xs text-muted-foreground">{browser} доторх браузер татахыг хязгаарладаг</p>
             </div>
           </div>
@@ -61,7 +65,26 @@ export function OpenInBrowserModal({ open, onClose, url }: Props) {
           </button>
         </div>
 
-        {/* Алхамчилсан заавар */}
+        {/* ГОЛ АРГА: goUrl байвал том "Татаж эхлүүлэх" жинхэнэ <a href> товч.
+            Хэрэглэгч ӨӨРӨӨ дарж нээх нь FB WebView-т хамгийн найдвартай navigate
+            (programmatic window.location event-handler дотроос блоклогддог). */}
+        {goUrl && (
+          <a
+            href={goUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setTimeout(onClose, 400)}
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+          >
+            <Download className="h-5 w-5" />
+            Татаж эхлүүлэх
+          </a>
+        )}
+
+        {/* FALLBACK заавар: дээрх товч ажиллахгүй бол гадаад браузераар нээх */}
+        <p className="mb-2 mt-1 text-xs font-medium text-muted-foreground">
+          Хэрэв татагдахгүй бол:
+        </p>
         <div className="space-y-3 rounded-xl bg-muted/40 p-4">
           <div className="flex items-start gap-3">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
@@ -79,20 +102,14 @@ export function OpenInBrowserModal({ open, onClose, url }: Props) {
               <span className="font-semibold">
                 {ios ? '«Safari-д нээх»' : '«Системийн браузераар нээх» (Chrome)'}
               </span>{' '}
-              сонгоно
-            </p>
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">3</span>
-            <p className="text-sm leading-relaxed">
-              Нээгдсэн браузер дээр дахин <span className="font-semibold">«Татах»</span> дарна
+              сонгоод дахин татна
             </p>
           </div>
         </div>
 
         {/* Линк хуулах (нэмэлт арга) */}
         <div className="mt-4">
-          <p className="mb-2 text-xs text-muted-foreground">Эсвэл линкийг хуулж браузерт буулгана уу:</p>
+          <p className="mb-2 text-xs text-muted-foreground">Эсвэл татах линкийг хуулж браузерт буулгана уу:</p>
           <Button
             variant="outline"
             className="w-full gap-2"
