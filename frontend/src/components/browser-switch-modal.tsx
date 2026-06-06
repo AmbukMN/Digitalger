@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@digitalger/shared/ui';
 import { ArrowRight, Check, Copy, ExternalLink, MoreHorizontal, ShieldCheck, X } from 'lucide-react';
-import { inAppBrowserName, isIOS } from '@/lib/download-helper';
+import { inAppBrowserName } from '@/lib/download-helper';
 import { buildTransferUrl, switchToSystemBrowser } from '@/lib/browser-switch';
 
 interface Props {
@@ -14,12 +14,15 @@ interface Props {
 }
 
 // ─── Системийн браузар руу шилжих modal ────────────────────────────────────
-// FB/IG доторх браузар нь файл татаж чаддаггүй + тусдаа орчинтой тул худалдан
-// авах/нэвтрэхийн өмнө Safari/Chrome руу шилжүүлнэ. Сагс/wishlist/coupon бүгд
-// автоматаар дамжина — хэрэглэгч дахин сагслах шаардлагагүй.
+// FB/IG доторх цонх нь төлбөр/татахыг хязгаарладаг + тусдаа орчинтой тул
+// худалдан авах/нэвтрэхийн өмнө гадаад браузар руу шилжүүлнэ. Сагс/wishlist/
+// coupon бүгд автоматаар дамжина — хэрэглэгч дахин сагслах шаардлагагүй.
+//
+// UI зарчим: "Safari/Chrome" нэр ашиглахгүй (хэрэглэгч мэдэхгүй) — "браузер"
+// гэх ерөнхий үг. Заавар нь FB/IG-ийн ··· цэсэнд БОДИТООР байдаг "Open in
+// external browser" сонголтыг зааж өгнө. Текст богино, ойлгомжтой.
 export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
-  const browser = inAppBrowserName() ?? 'Энэ апп';
-  const ios = isIOS();
+  const browser = inAppBrowserName() ?? 'Энэ'; // 'Facebook' | 'Instagram' | ...
   const [copied, setCopied] = useState(false);
   const [transferUrl, setTransferUrl] = useState('');
   const [switching, setSwitching] = useState(false);
@@ -72,8 +75,8 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
               <ExternalLink className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold leading-tight">Үргэлжлүүлэхийн тулд браузараар нээнэ үү</h3>
-              <p className="text-xs text-muted-foreground">{browser} доторх цонхонд төлбөр/татах боломжгүй</p>
+              <h3 className="text-base font-bold leading-tight">Браузерт үргэлжлүүлнэ үү</h3>
+              <p className="text-xs text-muted-foreground">{browser} цонхонд төлбөр хийх боломжгүй</p>
             </div>
           </div>
           <button
@@ -85,55 +88,54 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
           </button>
         </div>
 
-        {/* State дамжих баталгаа — хэрэглэгчийг тайвшруулна */}
+        {/* State дамжих баталгаа */}
         <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 dark:bg-emerald-950/30">
           <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <p className="text-xs leading-relaxed text-emerald-700 dark:text-emerald-300">
-            Таны <span className="font-semibold">сагс, хадгалсан, купон</span> бүгд хадгалагдаж дамжина —
-            дахин нэмэх шаардлагагүй.
+            <span className="font-semibold">Сагс, купон</span> бүгд хадгалагдаж дамжина.
           </p>
         </div>
 
-        {/* ГОЛ ТОВЧ: системийн браузар руу шилжих */}
+        {/* ГОЛ ТОВЧ: гадаад браузар руу шилжих */}
         <Button
-          className="mb-3 h-12 w-full gap-2 text-base font-bold"
+          className="mb-4 h-12 w-full gap-2 text-base font-bold"
           disabled={switching}
           onClick={handleSwitch}
         >
-          {switching ? 'Бэлдэж байна...' : (
+          {switching ? 'Нээж байна...' : (
             <>
-              {ios ? 'Safari-д нээх' : 'Chrome-д нээх'}
+              Браузерт нээх
               <ArrowRight className="h-5 w-5" />
             </>
           )}
         </Button>
 
-        {/* FALLBACK: дээрх товч ажиллахгүй бол гар аргаар */}
+        {/* FALLBACK: дээрх товч ажиллахгүй бол — FB/IG-д БОДИТ заавар */}
         <div className="rounded-xl bg-muted/40 p-4">
           <p className="mb-2.5 text-xs font-medium text-muted-foreground">
-            Хэрэв нээгдэхгүй бол:
+            Нээгдэхгүй бол:
           </p>
-          <div className="space-y-2.5">
-            <div className="flex items-start gap-2.5">
+          <div className="space-y-2">
+            <p className="flex items-start gap-2 text-sm leading-relaxed">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
-              <p className="text-sm leading-relaxed">
-                Доорх товчоор линкээ хуулна
-              </p>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
-              <p className="text-sm leading-relaxed">
+              <span>
                 Баруун дээд{' '}
                 <span className="inline-flex items-center justify-center rounded-md border border-border bg-background px-1.5 py-0.5 align-middle">
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </span>{' '}
-                → <span className="font-semibold">{ios ? '«Safari-д нээх»' : '«Браузараар нээх»'}</span> → линкээ буулгана
-              </p>
-            </div>
+                товч дарна
+              </span>
+            </p>
+            <p className="flex items-start gap-2 text-sm leading-relaxed">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
+              <span>
+                <span className="font-semibold">"Open in external browser"</span> сонгоно
+              </span>
+            </p>
           </div>
           <Button variant="outline" className="mt-3 w-full gap-2" onClick={copyLink}>
             {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-            {copied ? 'Линк хуулагдлаа!' : 'Линк хуулах'}
+            {copied ? 'Хуулагдлаа!' : 'Линк хуулах'}
           </Button>
         </div>
       </div>
