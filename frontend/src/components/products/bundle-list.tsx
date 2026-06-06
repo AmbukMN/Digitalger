@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@digitalger/shared/ui';
 import { useFileDownload } from '@/hooks/use-file-download';
+import { triggerFileDownload } from '@/lib/download-helper';
 import { downloadsApi } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -99,14 +100,10 @@ function BundleDownloadButton({
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const triggerDownload = (url: string, name: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
+  // triggerFileDownload ашиглана (raw a.click() биш) — FB/IG доторх браузарт
+  // browser-switch event ялгаруулж системийн браузар руу шилжүүлнэ (эс бол
+  // "Бүлгээр татах" FB WebView-д page not found гардаг).
+  const triggerDownload = (url: string, name: string) => triggerFileDownload(url, name);
 
   async function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
