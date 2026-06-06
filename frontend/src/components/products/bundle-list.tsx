@@ -214,9 +214,16 @@ export function BundleList({
     staleTime: 60_000,
   });
 
+  // Hydration guard: server болон эхний client render үед purchased=false
+  // (тогтвортой markup) — mount-ийн дараа л бодит утга тооцно. Эс бол
+  // isFree/library-аас хамаарч SSR↔client HTML зөрж React #418 (hydration
+  // mismatch) гардаг.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Үнэгүй бүтээгдэхүүн (isFree) бол ХУДАЛДАЖ авсан шиг тооцож түгжээг нээнэ —
   // эс бол үнэгүй product-ийн bundle зүйлс lock icon-той (буруу) харагдана.
-  const purchased = isFree || library.some((item) => item.product.id === productId);
+  const purchased = mounted && (isFree || library.some((item) => item.product.id === productId));
   const fileMap = new Map((productFiles ?? []).map((f) => [f.id, f]));
 
   function toggle(id: string) {
