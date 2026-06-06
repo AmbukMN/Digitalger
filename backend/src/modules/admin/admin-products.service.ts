@@ -124,9 +124,11 @@ export class AdminProductsService {
         ...rest,
         categoryId: primaryCategoryId ?? rest.categoryId,
         categoryIds: categoryIds ?? (dto.categoryId ? [dto.categoryId] : []),
-        price: new Prisma.Decimal(dto.price),
+        // price null/undefined бол 0 (үнэгүй бүтээгдэхүүн) — Decimal(null) алдаа гаргадаг
+        price: new Prisma.Decimal(dto.price ?? 0),
         ...(compareAtPrice !== undefined && {
-          compareAtPrice: new Prisma.Decimal(compareAtPrice),
+          compareAtPrice:
+            compareAtPrice === null ? null : new Prisma.Decimal(compareAtPrice),
         }),
         ...(discountEndsAt !== undefined && {
           discountEndsAt: discountEndsAt ? new Date(discountEndsAt) : null,
