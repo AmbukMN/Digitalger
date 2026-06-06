@@ -158,8 +158,11 @@ function CheckoutContent() {
       router.replace('/checkout');
       handlePay();
     }
+    // items.length dep-д ОРСОН — browser-switch restore нь cart-ийг async
+    // сэргээдэг тул эхэнд items хоосон байж болзошгүй. items дүүрэхэд autopay
+    // ажиллахын тулд dep-д заавал байх ёстой (эс бол intent тасарна).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.accessToken, searchParams]);
+  }, [session?.accessToken, searchParams, items.length]);
 
   const handlePay = async () => {
     // FB/IG доторх браузар нь төлбөр/татах боломжгүй + тусдаа орчинтой. Тиймээс

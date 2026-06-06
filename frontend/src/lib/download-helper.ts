@@ -16,7 +16,10 @@
 export function isInAppBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
-  return /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|musical_ly|TikTok|Twitter|LinkedInApp|MicroMessenger|Snapchat|Pinterest|KAKAOTALK|Telegram/i.test(ua);
+  // Тодорхой токенуудаар л шалгана (false-positive-аас сэргийлж). "Twitter" нь
+  // "Twitter for iPhone/Android" гэж бодит in-app browser-т ирдэг — дангаараа
+  // ерөнхий тул "Twitter for"-оор шалгана.
+  return /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|musical_ly|TikTok|Twitter for|LinkedInApp|MicroMessenger|Snapchat|Pinterest\/|KAKAOTALK/i.test(ua);
 }
 
 /** Тухайн in-app browser-ийн нэрийг буцаана (зөвлөгөөнд харуулахад). */
@@ -26,9 +29,8 @@ export function inAppBrowserName(): string | null {
   if (/Instagram/i.test(ua)) return 'Instagram';
   if (/FBAN|FBAV|FB_IAB|Messenger/i.test(ua)) return 'Facebook';
   if (/musical_ly|TikTok/i.test(ua)) return 'TikTok';
-  if (/Twitter/i.test(ua)) return 'Twitter';
+  if (/Twitter for/i.test(ua)) return 'Twitter';
   if (/MicroMessenger/i.test(ua)) return 'WeChat';
-  if (/Telegram/i.test(ua)) return 'Telegram';
   if (/Snapchat/i.test(ua)) return 'Snapchat';
   if (/LinkedInApp/i.test(ua)) return 'LinkedIn';
   if (/Line\//i.test(ua)) return 'Line';
@@ -59,7 +61,11 @@ export function isAndroid(): boolean {
 export function triggerFileDownload(url: string, fileName: string) {
   if (typeof document === 'undefined') return;
   if (isInAppBrowser()) {
-    window.dispatchEvent(new CustomEvent(BROWSER_SWITCH_EVENT, { detail: { targetPath: '/library' } }));
+    // Шилжихдээ ОДООГИЙН хуудсыг targetPath болгоно — library бол /library
+    // (нэвтэрсэн), product бол /products/slug (зочин үнэгүй татах ч ажиллана).
+    // /library hardcode хийвэл зочин нэвтрэх шаардсан хуудсанд гацна.
+    const here = window.location.pathname + window.location.search;
+    window.dispatchEvent(new CustomEvent(BROWSER_SWITCH_EVENT, { detail: { targetPath: here } }));
     return;
   }
   const a = document.createElement('a');
