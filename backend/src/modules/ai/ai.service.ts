@@ -195,6 +195,19 @@ export class AiService {
       return { products: [], faqs: [], searchTerms: [], message: 'Хайлтад юм олсонгүй' };
     }
 
+    // ⚠️ ҮНЭГҮЙ хайлт: "үнэгүй"/"free" гэдэг үг нь product-ийн нэр/тайлбарт
+    // байдаггүй тул энгийн tsvector хайлтад олдохгүй. Хэрэглэгч "үнэгүй
+    // бүтээгдэхүүн байна уу" гэж асуувал price=0 (үнэгүй) product-уудыг шууд
+    // буцаана. "үнэгүй ppt" гэх мэт нэмэлт үгтэй бол доорх энгийн хайлтаар (free
+    // product-ийн нэр ppt-тэй таарвал) дамжина — энд зөвхөн ЦЭВЭР "үнэгүй" асуултыг
+    // (бусад гол үггүй) барина.
+    const freeWords = new Set(['үнэгүй', 'unegui', 'free', 'үнэгй', 'unekhgui']);
+    const nonFreeKey = words.filter((w) => !freeWords.has(w) && !COMMON_WORDS.has(w));
+    if (words.some((w) => freeWords.has(w)) && nonFreeKey.length === 0) {
+      const freeProducts = await this.listFreeProducts();
+      return { products: freeProducts, faqs: [], searchTerms: ['үнэгүй'], message: '' };
+    }
+
     // 2) Гол үг (түгээмэл биш). Бүгд түгээмэл бол бүгдийг гол гэж үзнэ.
     let keyWords = words.filter((w) => !COMMON_WORDS.has(w));
     if (keyWords.length === 0) keyWords = [...words];
@@ -427,6 +440,49 @@ export class AiService {
     }
 
     return result;
+  }
+
+  // ─── Үнэгүй бүтээгдэхүүн (price=0) — "үнэгүй байна уу" асуултад зориулсан ──────
+  // "үнэгүй"/"free" гэдэг үг product-ийн нэр/тайлбарт байдаггүй тул tsvector
+  // хайлтад олдохгүй. Тиймээс price=0 product-уудыг шууд DB-ээс татна.
+  private async listFreeProducts(): Promise<ProductResult[]> {
+    const [products, typeConfigs] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { published: true, price: 0 },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          description: true,
+          price: true,
+          type: true,
+          images: {
+            orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+            select: { fileKey: true },
+          },
+        },
+      }),
+      this.prisma.productTypeConfig.findMany({ select: { value: true, label: true } }),
+    ]);
+
+    const typeLabelMap = new Map(typeConfigs.map((t) => [t.value, t.label]));
+    return products.map((product) => {
+      const primaryImage = product.images[0];
+      return {
+        id: product.id,
+        title: product.title,
+        description: stripHtml(product.description),
+        price: 0,
+        salePrice: null,
+        imageUrl: primaryImage ? this.storage.getAssetUrl(primaryImage.fileKey) : null,
+        productType: typeLabelMap.get(product.type) ?? product.type,
+        url: `${SITE_URL}/products/${product.slug}`,
+        matchReason: 'Үнэгүй бүтээгдэхүүн.',
+        matchedKeywords: ['үнэгүй'],
+      };
+    });
   }
 
   // ─── FAQ хайлт (БҮХ идэвхтэй FAQ-аас, үг хязгаараар) ──────────────────────────
