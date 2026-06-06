@@ -2,6 +2,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { redisStore } from 'cache-manager-redis-yet';
 import { AppController } from './app.controller';
@@ -47,6 +48,10 @@ import { TransferModule } from './modules/transfer/transfer.module';
         limit: 100,
       },
     ]),
+    // ⚠️ ScheduleModule.forRoot() ЗӨВХӨН ЭНД (нэг удаа). Олон module-д давхар
+    // forRoot() дуудвал cron job бүр N удаа бүртгэгдэж N удаа зэрэг ажилладаг
+    // (payment reconcile 5 удаа confirm хийж Telegram/email 5 удаа явсан алдаа).
+    ScheduleModule.forRoot(),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],

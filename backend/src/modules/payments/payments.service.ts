@@ -349,6 +349,23 @@ export class PaymentsService {
     paymentId: string,
     meta: { qpayPaymentId?: string; rawPayload?: unknown; devMode?: boolean },
   ) {
+    // ⚠️ IDEMPOTENT GUARD: захиалга аль хэдийн PAID бол дахин confirm хийхгүй
+    // (n8n/Telegram/email давхар илгээхээс сэргийлнэ). Хэд хэдэн зам (webhook +
+    // reconcile + polling) нэгэн зэрэг ажиллаж болзошгүй тул заавал шалгана.
+    // updateMany нь where: status=PENDING нөхцөл хангагдсан үед Л PAID болгоно —
+    // count=0 буцвал өөр зам аль хэдийн confirm хийсэн тул энд зогсоно.
+    const claimed = await this.prisma.order.updateMany({
+      where: { id: orderId, status: OrderStatus.PENDING },
+      data: {
+        status: OrderStatus.PAID,
+        ...(meta.qpayPaymentId && { qpayIdentifier: meta.qpayPaymentId }),
+      },
+    });
+    if (claimed.count === 0) {
+      // Өөр зам аль хэдийн confirm хийсэн — давхар email/telegram явуулахгүй.
+      return;
+    }
+
     const paymentData: {
       status: PaymentStatus;
       qpayPaymentId?: string;
@@ -362,21 +379,14 @@ export class PaymentsService {
       paymentData.rawPayload = meta.rawPayload as object;
     }
 
-    await this.prisma.$transaction([
-      this.prisma.payment.update({
-        where: { id: paymentId },
-        data: paymentData,
-      }),
-      this.prisma.order.update({
-        where: { id: orderId },
-        data: {
-          status: OrderStatus.PAID,
-          ...(meta.qpayPaymentId && { qpayIdentifier: meta.qpayPaymentId }),
-        },
-      }),
-    ]);
+    // Order-ийг дээр updateMany-аар PAID болгосон тул энд зөвхөн Payment SUCCESS.
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: paymentData,
+    });
 
-    // n8n-рүү event илгээх (non-blocking — backend-ийн үндсэн урсгалд нөлөөлөхгүй)
+    // n8n-рүү event илгээх (non-blocking). Энэ нь claimed.count>0 (анх удаа
+    // confirm) үед Л дуудагдана — давхар Telegram/email явахгүй.
     this.emitN8nPaymentPaid(orderId, paymentId).catch((err) =>
       this.logger.error('n8n emit алдаа', err),
     );

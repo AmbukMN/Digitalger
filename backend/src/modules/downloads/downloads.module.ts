@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
-import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DownloadsController } from './downloads.controller';
 import { PublicDownloadsController } from './public-downloads.controller';
@@ -9,10 +8,10 @@ import { ZipProcessor, ZIP_QUEUE } from './zip.processor';
 import { ZipCleanupService } from './zip-cleanup.service';
 import { StorageModule } from '../../storage/storage.module';
 
+// ScheduleModule.forRoot() нь app.module-д нэг удаа — энд хасав (cron давхардлаас сэргийлэв).
 @Module({
   imports: [
     StorageModule,
-    ScheduleModule.forRoot(),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
