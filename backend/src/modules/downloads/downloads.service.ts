@@ -20,10 +20,32 @@ export class DownloadsService {
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue<ZipJobPayload>,
   ) {}
 
-  // Бодит таталт тоолуурыг +1 (хэрэглэгч тухайн бүтээгдэхүүнийг бодитоор татах болгонд).
-  // Зөвхөн admin-д харагдана; frontend-ийн "харагдах" downloadCount-д НӨЛӨӨЛӨХГҮЙ.
+  // Татах тоолуурын DEDUP cache: нэг (identifier + productId)-ийг богино хугацаанд
+  // дахин тоолохгүй (олон дарах / бот спам-аас realDownloadCount хуурамчаар
+  // хөөрөхөөс сэргийлнэ). identifier = нэвтэрсэн userId эсвэл public IP.
+  private static readonly BUMP_DEDUP_MS = 10 * 60 * 1000; // 10 минут
+  private readonly bumpSeen = new Map<string, number>();
+
+  // Бодит таталт тоолуурыг +1. identifier (userId/IP) өгөгдвөл богино хугацаанд
+  // ижил хүн дахин татвал тоолохгүй (analytics хуурамч хөөрөхөөс сэргийлнэ).
+  // Зөвхөн admin-д харагдана; frontend-ийн "харагдах" downloadCount-д нөлөөлөхгүй.
   // Алдаа гарвал татах урсгалыг таслахгүй (catch).
-  private async bumpRealDownload(productId: string) {
+  private async bumpRealDownload(productId: string, identifier?: string | null) {
+    if (identifier) {
+      const key = `${identifier}:${productId}`;
+      const now = Date.now();
+      const last = this.bumpSeen.get(key);
+      if (last && now - last < DownloadsService.BUMP_DEDUP_MS) {
+        return; // дөнгөж саяхан тоологдсон — давхар тоолохгүй
+      }
+      this.bumpSeen.set(key, now);
+      // Map хэт томрохоос сэргийлж хааяа цэвэрлэнэ (10мин-ээс хуучин бичлэг)
+      if (this.bumpSeen.size > 5000) {
+        for (const [k, t] of this.bumpSeen) {
+          if (now - t > DownloadsService.BUMP_DEDUP_MS) this.bumpSeen.delete(k);
+        }
+      }
+    }
     try {
       await this.prisma.product.update({
         where: { id: productId },
@@ -372,7 +394,7 @@ export class DownloadsService {
   }
 
   /** Үнэгүй: ганц файлын signed URL (нэвтрэхгүй). fileId нь үнэгүй product-ийнх байх ёстой. */
-  async freeFileUrl(productId: string, fileId: string) {
+  async freeFileUrl(productId: string, fileId: string, identifier?: string | null) {
     await this.assertFree(productId);
 
     const file = await this.prisma.productFile.findUnique({
@@ -387,7 +409,7 @@ export class DownloadsService {
       (await this.fileInProductBundles(productId, fileId));
     if (!belongs) throw new ForbiddenException('File does not belong to this product');
 
-    await this.bumpRealDownload(productId);
+    await this.bumpRealDownload(productId, identifier);
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
     return {
       fileId: file.id,
@@ -413,7 +435,7 @@ export class DownloadsService {
   }
 
   /** Үнэгүй: бэлэн zip (downloadFileKey) шууд presign (нэвтрэхгүй). */
-  async freeProductDownloadFileUrl(productId: string) {
+  async freeProductDownloadFileUrl(productId: string, identifier?: string | null) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       select: { id: true, slug: true, price: true, published: true, downloadFileKey: true },
@@ -424,16 +446,16 @@ export class DownloadsService {
     }
     if (!product.downloadFileKey) throw new NotFoundException('No download file configured');
 
-    await this.bumpRealDownload(productId);
+    await this.bumpRealDownload(productId, identifier);
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
     return { url, fileName };
   }
 
   /** Үнэгүй: бүх файлыг zip болгох queue (нэвтрэхгүй — userId-гүй job). */
-  async enqueueFreeProductZip(productId: string) {
+  async enqueueFreeProductZip(productId: string, identifier?: string | null) {
     await this.assertFree(productId);
-    await this.bumpRealDownload(productId);
+    await this.bumpRealDownload(productId, identifier);
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -460,6 +482,20 @@ export class DownloadsService {
       orderBy: { createdAt: 'desc' },
     });
     if (cached?.zipKey) return { jobId: cached.id };
+
+    // ⚠️ СПАМ ХАМГААЛАЛТ: саяхан (5 мин дотор) үүссэн PENDING/PROCESSING job байвал
+    // ШИНЭ job үүсгэхгүй, түүнийг л буцаана. Олон хүн зэрэг / бот спам дарахад
+    // эхнийх боловсрогдож дуустал хэдэн арван давхар zip job үүсэхээс сэргийлнэ.
+    const recentPending = await this.prisma.zipJob.findFirst({
+      where: {
+        userId: null,
+        productId,
+        status: { in: ['PENDING', 'PROCESSING'] },
+        createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recentPending) return { jobId: recentPending.id };
 
     const job = await this.prisma.zipJob.create({
       data: { userId: null, productId, status: 'PENDING' },
