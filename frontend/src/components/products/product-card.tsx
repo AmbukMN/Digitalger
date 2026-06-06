@@ -16,6 +16,7 @@ import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { downloadsApi, wishlistApi } from '@/lib/api';
 import { trackProductClick, trackAddToCart, trackAddToWishlist } from '@/lib/analytics';
+import { LazyCardVideo } from '@/components/products/lazy-card-video';
 import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
@@ -85,13 +86,10 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       <Link href={`/products/${product.slug}`} className="block" onClick={handleCardClick}>
         <div className="relative aspect-4/3 overflow-hidden bg-muted">
           {product.mainVideoUrl ? (
-            <video
-              src={product.mainVideoUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="h-full w-full object-cover"
+            <LazyCardVideo
+              videoUrl={product.mainVideoUrl}
+              posterUrl={product.thumbnailUrl}
+              alt={product.title}
             />
           ) : product.thumbnailUrl ? (
             <Image

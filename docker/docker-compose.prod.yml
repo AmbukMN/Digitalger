@@ -53,6 +53,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    # Memory leak/том upload host-г унагахаас сэргийлнэ
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
   frontend:
     build:
@@ -73,6 +78,10 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   admin:
     build:
@@ -93,6 +102,10 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   zip-worker:
     build:
@@ -129,9 +142,12 @@ services:
     networks:
       - internal
     depends_on:
-      - frontend
-      - admin
-      - backend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+      admin:
+        condition: service_started
 
 networks:
   internal:

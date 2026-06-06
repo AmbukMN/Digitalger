@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Post } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { DownloadsService } from './downloads.service';
 
 /**
@@ -10,14 +10,17 @@ import { DownloadsService } from './downloads.service';
  * тул ҮНЭТЭЙ бүтээгдэхүүн энэ замаар ХЭЗЭЭ Ч татагдахгүй (Forbidden буцаана).
  *
  * Зам: /downloads/free/...  (JwtAuthGuard-гүй — нийтэд нээлттэй)
+ *
+ * Throttle тавьсан (@SkipThrottle байсныг арилгав) — free-zip нь Bull job
+ * үүсгэдэг тул queue спамаас сэргийлнэ. status polling-д өндөр limit.
  */
+@Throttle({ default: { limit: 60, ttl: 60000 } })
 @Controller('downloads/free')
 export class PublicDownloadsController {
   constructor(private readonly downloadsService: DownloadsService) {}
 
   /** Ганц файл татах (үнэгүй product-ийн) */
   @Post(':productId/file/:fileId')
-  @SkipThrottle()
   freeFile(
     @Param('productId') productId: string,
     @Param('fileId') fileId: string,
@@ -27,21 +30,20 @@ export class PublicDownloadsController {
 
   /** Бэлэн zip (downloadFileKey) шууд татах */
   @Post(':productId/download-file')
-  @SkipThrottle()
   freeDownloadFile(@Param('productId') productId: string) {
     return this.downloadsService.freeProductDownloadFileUrl(productId);
   }
 
-  /** Бүх файлыг zip болгох queue */
+  /** Бүх файлыг zip болгох queue — job үүсгэдэг тул бага limit */
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post(':productId/zip')
-  @SkipThrottle()
   freeZip(@Param('productId') productId: string) {
     return this.downloadsService.enqueueFreeProductZip(productId);
   }
 
-  /** Zip job-ийн статус */
+  /** Zip job-ийн статус — polling тул өндөр limit */
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   @Get('zip/status/:jobId')
-  @SkipThrottle()
   freeZipStatus(@Param('jobId') jobId: string) {
     return this.downloadsService.getFreeZipJobStatus(jobId);
   }

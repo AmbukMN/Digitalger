@@ -243,9 +243,10 @@ export class DownloadsService {
     // Татсан түүхэнд бүртгэнэ (admin popup-д харагдана)
     await this.recordDownloads(userId, allFileIds);
 
-    // Өмнө нь ижил бүтээгдэхүүнд амжилттай хийгдсэн zip байвал шууд буцаана
+    // Кэшлэгдсэн zip — зөвхөн product сүүлд засагдсанаас ХОЙШ үүссэн бол ашиглана.
+    // Эс бол admin файл нэмэх/устгахад хэрэглэгч хуучин (дутуу) zip татна.
     const cached = await this.prisma.zipJob.findFirst({
-      where: { userId, productId, status: 'DONE' },
+      where: { userId, productId, status: 'DONE', createdAt: { gte: product.updatedAt } },
       orderBy: { createdAt: 'desc' },
     });
     if (cached?.zipKey) {
@@ -452,9 +453,10 @@ export class DownloadsService {
     const allFileIds = [...new Set([...flatFileIds, ...bundleFileIds])];
     if (!allFileIds.length) throw new NotFoundException('No files');
 
-    // Үнэгүй product-ийн нийтийн zip кэш (userId null) байвал дахин ашиглана
+    // Үнэгүй product-ийн нийтийн zip кэш — зөвхөн product засагдсанаас ХОЙШ
+    // үүссэн бол ашиглана (admin файл нэмэхэд хуучин дутуу zip татахаас сэргийлнэ).
     const cached = await this.prisma.zipJob.findFirst({
-      where: { userId: null, productId, status: 'DONE' },
+      where: { userId: null, productId, status: 'DONE', createdAt: { gte: product.updatedAt } },
       orderBy: { createdAt: 'desc' },
     });
     if (cached?.zipKey) return { jobId: cached.id };

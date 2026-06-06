@@ -62,9 +62,30 @@ export default async function CategoryPage({ params }: Props) {
     ],
   };
 
+  // Ангилал = бүтээгдэхүүний цуглуулга → CollectionPage + ItemList (Google-д
+  // тухайн ангилалд ямар бүтээгдэхүүн байгааг ойлгуулна).
+  const collectionJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: category.name,
+    url: `${SITE_URL}/categories/${slug}`,
+    ...(category.description ? { description: category.description } : {}),
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: products.length,
+      itemListElement: products.slice(0, 24).map((p, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: `${SITE_URL}/products/${p.slug}`,
+        name: p.title,
+      })),
+    },
+  };
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold">{category.name}</h1>
         {category.description && (

@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
-const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? 'digitalger-nextauth-secret-dev-2024');
+const SECRET = new TextEncoder().encode(
+  process.env.NEXTAUTH_SECRET ||
+    (() => {
+      throw new Error('NEXTAUTH_SECRET тохируулагдаагүй байна');
+    })(),
+);
 
 export async function GET() {
   const cookieStore = await cookies();

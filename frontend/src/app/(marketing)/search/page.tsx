@@ -10,7 +10,10 @@ import { formatPrice } from '@digitalger/shared';
 import { Badge } from '@digitalger/shared/ui';
 import type { BlogPost, ProductSummary } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
+import { PagePagination } from '@/components/ui/page-pagination';
 import { SearchTracker } from '@/components/search-tracker';
+
+const SEARCH_PAGE_SIZE = 12;
 
 export const metadata: Metadata = {
   title: 'Хайлт',
@@ -71,15 +74,22 @@ export default async function SearchPage({
 
   let products: ProductSummary[] = [];
   let blogPosts: BlogPost[] = [];
+  let productsTotal = 0;
 
   if (q.trim()) {
-    [products, blogPosts] = await Promise.all([
-      productsApi.search(q.trim(), page).then((r) => r.items).catch(() => [] as ProductSummary[]),
+    const [prodRes, blogRes] = await Promise.all([
+      productsApi
+        .search(q.trim(), page, SEARCH_PAGE_SIZE)
+        .catch(() => ({ items: [] as ProductSummary[], total: 0 })),
       blogApi.search(q.trim()).catch(() => [] as BlogPost[]),
     ]);
+    products = prodRes.items;
+    productsTotal = prodRes.total ?? products.length;
+    blogPosts = blogRes;
   }
 
-  const total = products.length + blogPosts.length;
+  // Нийт тоо: бүтээгдэхүүний БҮХ үр дүн (зөвхөн энэ хуудас биш) + блог
+  const total = productsTotal + blogPosts.length;
 
   return (
     <>
@@ -107,13 +117,20 @@ export default async function SearchPage({
         <section className="mb-12">
           <div className="flex items-center gap-2 mb-4">
             <h2 className="text-lg font-semibold">Бүтээгдэхүүн</h2>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{products.length}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{productsTotal}</span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {products.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
           </div>
+          {/* Бүтээгдэхүүний хуудаслалт — 1 хуудаснаас илүү бол харагдана */}
+          <PagePagination
+            page={page}
+            total={productsTotal}
+            pageSize={SEARCH_PAGE_SIZE}
+            buildUrl={(p) => `/search?q=${encodeURIComponent(q.trim())}&page=${p}`}
+          />
         </section>
       )}
 

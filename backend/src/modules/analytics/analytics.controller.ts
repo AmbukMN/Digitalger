@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -23,6 +23,9 @@ function isBot(ua: string): boolean {
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
+  // Public track endpoint — class-ийн @SkipThrottle-ийг override хийж throttle
+  // тавина (бот DB дүүргэх DoS-аас сэргийлнэ). 120/мин нэг IP-д хангалттай.
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Post('pageview')
   async trackPageView(
     @Body() body: { path: string; sessionId?: string; referrer?: string; userId?: string },
@@ -41,6 +44,7 @@ export class AnalyticsController {
     return { ok: true };
   }
 
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Post('product-event')
   async trackProductEvent(
     @Body()
@@ -76,6 +80,7 @@ export class AnalyticsController {
     return { ok: true };
   }
 
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Post('search')
   async trackSearch(
     @Body() body: { query: string; results: number; sessionId?: string; userId?: string },

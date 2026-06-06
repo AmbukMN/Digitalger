@@ -43,7 +43,12 @@ async function getAccessToken(): Promise<string | undefined> {
   if (typeof window === 'undefined') {
     const { cookies } = await import('next/headers');
     const { jwtVerify } = await import('jose');
-    const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? 'digitalger-nextauth-secret-dev-2024');
+    const SECRET = new TextEncoder().encode(
+      process.env.NEXTAUTH_SECRET ||
+        (() => {
+          throw new Error('NEXTAUTH_SECRET тохируулагдаагүй байна');
+        })(),
+    );
     const cookieStore = await cookies();
     const token = cookieStore.get('admin-session')?.value;
     if (!token) return undefined;

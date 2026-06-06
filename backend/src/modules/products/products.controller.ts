@@ -1,15 +1,16 @@
 import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  // Үзэлт +1 (public, frontend client-side нэг удаа дуудна)
+  // Үзэлт +1 (public). Throttle тавьсан — @SkipThrottle байсныг арилгав
+  // (нэг IP-ээс view тоог хийсвэрээр томруулах спамаас сэргийлнэ).
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Post(':slug/view')
   @HttpCode(HttpStatus.OK)
-  @SkipThrottle()
   incrementView(@Param('slug') slug: string) {
     return this.productsService.incrementView(slug);
   }

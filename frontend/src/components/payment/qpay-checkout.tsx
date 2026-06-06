@@ -131,6 +131,7 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkPayment = async (silent = false) => {
     if (!silent) setChecking(true);
@@ -140,7 +141,7 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
       if (result.paid) {
         setPaid(true);
         if (pollRef.current) clearInterval(pollRef.current);
-        setTimeout(onSuccess, 1500);
+        successTimerRef.current = setTimeout(onSuccess, 1500);
       }
     } catch {
       if (!silent) setError('Шалгахад алдаа гарлаа. Дахин оролдоно уу.');
@@ -153,6 +154,9 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
     pollRef.current = setInterval(() => checkPayment(true), POLL_INTERVAL);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      // unmount болоход success setTimeout-ийг ч цэвэрлэнэ (unmounted component
+      // дээр onSuccess дуудах React warning/navigation алдаанаас сэргийлнэ).
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payment.orderId]);
