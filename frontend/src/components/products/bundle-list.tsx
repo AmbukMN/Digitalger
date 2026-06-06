@@ -37,13 +37,17 @@ function BundleFileRow({
   fileId,
   fileName,
   isPurchased,
+  freeProductId,
 }: {
   fileId: string;
   fileName: string;
   isPurchased: boolean;
+  // Үнэгүй бүтээгдэхүүн бол public endpoint ашиглахын тулд productId дамжуулна
+  // (эс бол signed/paid endpoint руу явж "татахад алдаа гарлаа" болдог).
+  freeProductId?: string;
 }) {
   const [loading, setLoading] = useState(false);
-  const { download } = useFileDownload();
+  const { download } = useFileDownload(freeProductId);
 
   async function handleDownload() {
     if (loading) return;
@@ -323,6 +327,7 @@ export function BundleList({
                                 fileId={itemFileIds[0]}
                                 fileName={fileMap.get(itemFileIds[0])?.fileName ?? item.name}
                                 isPurchased={true}
+                                freeProductId={isFree ? productId : undefined}
                               />
                             )}
                             {hasFiles && !purchased && (
@@ -339,6 +344,7 @@ export function BundleList({
                                   fileId={fid}
                                   fileName={fileMap.get(fid)?.fileName ?? fid}
                                   isPurchased={true}
+                                  freeProductId={isFree ? productId : undefined}
                                 />
                               ))}
                             </div>
