@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -38,7 +38,7 @@ export class BlogPublicController {
   // Уншилт +1 (public, frontend client-side нэг удаа дуудна)
   @Post(':slug/view')
   @HttpCode(HttpStatus.OK)
-  @SkipThrottle()
+  @Throttle({ default: { limit: 120, ttl: 60000 } }) // view тоо хөөрүүлэх спамаас сэргийлэх (product view-тэй адил)
   incrementView(@Param('slug') slug: string) {
     return this.service.incrementView(slug);
   }

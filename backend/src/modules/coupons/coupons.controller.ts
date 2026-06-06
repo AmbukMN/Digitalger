@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -23,6 +24,7 @@ export class CouponsController {
   constructor(private readonly coupons: CouponsService) {}
 
   @Post('validate')
+  @Throttle({ default: { limit: 15, ttl: 60000 } }) // купон код brute force-аас сэргийлэх
   @UseGuards(OptionalJwtAuthGuard)
   validate(
     @Body() body: { code: string; price: number; productIds?: string[] },

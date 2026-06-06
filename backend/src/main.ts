@@ -19,6 +19,11 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  // ⚠️ nginx reverse proxy-ийн ард ажилладаг тул жинхэнэ клиент IP-г
+  // X-Forwarded-For header-ээс авна. Эс бол throttle бүх клиентийг nginx-ийн
+  // нэг IP гэж үзэж бүгдийг нэг bucket-д хийж (rate limit найдваргүй) болдог.
+  app.set('trust proxy', 1);
+
   // Том файл upload-д зориулан body limit нэмэгдүүлнэ (multipart/form-data нь multer хянана)
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));

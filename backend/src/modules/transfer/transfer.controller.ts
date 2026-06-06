@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { TransferService } from './transfer.service';
 
 /**
@@ -15,6 +16,7 @@ import { TransferService } from './transfer.service';
 export class TransferController {
   constructor(private readonly transfer: TransferService) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // DB дүүргэх спамаас сэргийлэх
   @Post()
   save(@Body() body: { payload: unknown }) {
     return this.transfer.save(body?.payload ?? {});

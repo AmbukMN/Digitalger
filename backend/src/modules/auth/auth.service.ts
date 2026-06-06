@@ -368,24 +368,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) throw new BadRequestException('User not found');
 
-    const existing = await this.prisma.emailOtp.findFirst({
-      where: { email: normalizedEmail, purpose },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (existing) {
-      const secondsSinceSent = (Date.now() - existing.lastSentAt.getTime()) / 1000;
-      if (secondsSinceSent < OTP_RESEND_COOLDOWN_SECONDS) {
-        const wait = Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - secondsSinceSent);
-        throw new BadRequestException(`Please wait ${wait} seconds before resending`);
-      }
-
-      const hourAgo = new Date(Date.now() - 3600_000);
-      if (existing.sentCount >= OTP_MAX_SENT_PER_HOUR && existing.lastSentAt > hourAgo) {
-        throw new BadRequestException('Too many OTP requests. Try again in an hour.');
-      }
-    }
-
+    // Cooldown/cap шалгалт createAndSendOtp дотор төвлөрсөн (давхар хийхгүй).
     await this.createAndSendOtp(normalizedEmail, user.name, purpose);
     return { message: 'OTP resent' };
   }
@@ -395,18 +378,13 @@ export class AuthService {
     const normalizedEmail = email.toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    // Бүртгэлгүй имэйлд reset хийх боломжгүй — тодорхой хэлнэ
-    if (!user || user.isGuest) {
-      throw new BadRequestException('Энэ имэйлээр бүртгэл олдсонгүй');
+    // ⚠️ EMAIL ENUMERATION-аас сэргийлж ИЖИЛ хариу буцаана — аль имэйл бүртгэлтэйг
+    // ил гаргахгүй. Бүртгэлгүй/зочин/OAuth-only бол ЧИМЭЭГҮЙ алгасна (имэйл
+    // явуулахгүй) ч хэрэглэгчид "OTP sent" гэнэ. Жинхэнэ хэрэглэгч л OTP авна.
+    const canReset = user && !user.isGuest && !(user.oauthProvider && !user.passwordHash);
+    if (canReset) {
+      await this.createAndSendOtp(normalizedEmail, user.name, 'reset');
     }
-    // OAuth (Google г.м.)-аар нэвтэрсэн бол нууц үггүй тул reset утгагүй
-    if (user.oauthProvider && !user.passwordHash) {
-      throw new BadRequestException(
-        'Энэ бүртгэл нийгмийн сүлжээгээр нэвтэрдэг тул нууц үг сэргээх боломжгүй',
-      );
-    }
-
-    await this.createAndSendOtp(normalizedEmail, user.name, 'reset');
     return { message: 'OTP sent' };
   }
 
@@ -459,6 +437,21 @@ export class AuthService {
       where: { email, purpose },
       orderBy: { createdAt: 'desc' },
     });
+
+    // ⚠️ ТӨВЛӨРСӨН OTP СПАМ ХАМГААЛАЛТ: cooldown (60с) + цагийн дээд хязгаар (5/цаг)
+    // ЭНД шалгана — ингэснээр register/forgot/email-change/resend БҮХ дуудагч
+    // автоматаар хамгаалагдана (mail-bomb, Resend cost-оос сэргийлнэ).
+    if (existing) {
+      const secondsSinceSent = (Date.now() - existing.lastSentAt.getTime()) / 1000;
+      if (secondsSinceSent < OTP_RESEND_COOLDOWN_SECONDS) {
+        const wait = Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - secondsSinceSent);
+        throw new BadRequestException(`${wait} секундын дараа дахин оролдоно уу`);
+      }
+      const hourAgo = new Date(Date.now() - 3600_000);
+      if (existing.sentCount >= OTP_MAX_SENT_PER_HOUR && existing.lastSentAt > hourAgo) {
+        throw new BadRequestException('Хэт олон код хүслээ. 1 цагийн дараа дахин оролдоно уу.');
+      }
+    }
 
     await this.prisma.emailOtp.upsert({
       where: { id: existing?.id ?? 'new' },

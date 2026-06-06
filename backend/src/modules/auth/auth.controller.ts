@@ -46,7 +46,7 @@ export class AuthController {
   }
 
   @Post('guest')
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 20→5: guest user flood (DB дүүргэх) сэргийлэх
   guest() {
     return this.authService.guestLogin();
   }
