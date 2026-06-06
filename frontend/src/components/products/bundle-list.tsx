@@ -189,10 +189,12 @@ export function BundleList({
   bundles,
   productFiles,
   productId,
+  isFree = false,
 }: {
   bundles: Bundle[];
   productFiles?: FileInfo[];
   productId: string;
+  isFree?: boolean;
 }) {
   const { data: session } = useSession();
   // Эхний бүлэг 15-аас БАГА зүйлстэй бол default нээлттэй (expand) —
@@ -212,7 +214,9 @@ export function BundleList({
     staleTime: 60_000,
   });
 
-  const purchased = library.some((item) => item.product.id === productId);
+  // Үнэгүй бүтээгдэхүүн (isFree) бол ХУДАЛДАЖ авсан шиг тооцож түгжээг нээнэ —
+  // эс бол үнэгүй product-ийн bundle зүйлс lock icon-той (буруу) харагдана.
+  const purchased = isFree || library.some((item) => item.product.id === productId);
   const fileMap = new Map((productFiles ?? []).map((f) => [f.id, f]));
 
   function toggle(id: string) {

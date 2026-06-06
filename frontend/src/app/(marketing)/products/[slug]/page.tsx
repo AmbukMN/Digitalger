@@ -320,6 +320,7 @@ export default async function ProductDetailPage({ params }: Props) {
                 bundles={product.bundles}
                 productId={product.id}
                 productFiles={product.files ?? []}
+                isFree={product.price == null || Number(product.price) === 0}
               />
             )}
 

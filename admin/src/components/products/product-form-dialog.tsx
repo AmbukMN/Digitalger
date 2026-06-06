@@ -1581,6 +1581,31 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
             </div>
           )}
           <input ref={downloadFileRef} type="file" className="hidden" onChange={handleDownloadFileSelect} disabled={uploadingDownloadFile || !productId} />
+          {/* Байгаа файлаас сонгож холбох — дахин upload-гүй (cloud зай хэмнэнэ) */}
+          {(() => {
+            const all = [...(files as AdminProductFile[]), ...(bundleLinkedFiles as AdminProductFile[])];
+            const seen = new Set<string>();
+            const dd = all.filter((f) => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+            if (!productId || !dd.length) return null;
+            return (
+              <select
+                className="h-7 w-full rounded-md border border-border bg-background text-xs px-2 text-muted-foreground"
+                value=""
+                onChange={async (e) => {
+                  const f = dd.find((x) => x.id === e.target.value);
+                  if (!f) return;
+                  await adminApi.products.files.setDownloadFile(productId, f.fileKey);
+                  invalidateProduct();
+                  toast.success('Татах файл холбогдлоо');
+                }}
+              >
+                <option value="">— Бүгдийг татах файлыг байгаагаас сонгох ({dd.length}) —</option>
+                {dd.map((f) => (
+                  <option key={f.id} value={f.id}>{f.fileName}</option>
+                ))}
+              </select>
+            );
+          })()}
         </div>
       </div>
 
@@ -1649,6 +1674,33 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
                 </span>
               </div>
               {isFileBundleOpen(bundle.id) && <div className="divide-y divide-border">
+                {/* Бүлгийн "Татах файл"-ыг байгаа файлаас сонгож холбох (дахин upload-гүй) */}
+                {(() => {
+                  const all = [...(files as AdminProductFile[]), ...(bundleLinkedFiles as AdminProductFile[])];
+                  const seen = new Set<string>();
+                  const dd = all.filter((f) => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+                  if (!dd.length) return null;
+                  return (
+                    <div className="px-3 py-2 bg-muted/20">
+                      <select
+                        className="h-7 w-full rounded-md border border-border bg-background text-xs px-2 text-muted-foreground"
+                        value=""
+                        onChange={async (e) => {
+                          const f = dd.find((x) => x.id === e.target.value);
+                          if (!f) return;
+                          await adminApi.bundles.setDownloadFile(productId!, bundle.id, f.fileKey);
+                          invalidateBundles();
+                          toast.success('Татах файл холбогдлоо');
+                        }}
+                      >
+                        <option value="">— Бүлгийн татах файлыг байгаагаас сонгох ({dd.length}) —</option>
+                        {dd.map((f) => (
+                          <option key={f.id} value={f.id}>{f.fileName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
                 {bundle.items.map((item: AdminBundleItem) => {
                   const itemFileIds = item.fileIds ?? [];
                   const allKnownFiles = [...(files as AdminProductFile[]), ...(bundleLinkedFiles as AdminProductFile[])];
@@ -1710,9 +1762,12 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
                         </div>
                       )}
 
-                      {/* Link existing file — show all files not already in this item */}
+                      {/* Байгаа файлаас холбох — энэ product дээр аль хэдийн оруулсан
+                          БҮХ файлаас (flat product files + бусад bundle item-д
+                          холбосон файлууд = deduped) сонгож дахин холбоно. Ингэснээр
+                          нэг файлыг олон газар дахин upload хийхгүй (cloud зай хэмнэнэ). */}
                       {(() => {
-                        const availableForItem = (files as AdminProductFile[]).filter((f) => !itemFileIds.includes(f.id));
+                        const availableForItem = deduped.filter((f) => !itemFileIds.includes(f.id));
                         if (!availableForItem.length) return null;
                         return (
                           <div className="ml-5">
@@ -1723,7 +1778,7 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
                                 if (e.target.value) linkExistingFileMut.mutate({ bundleId: bundle.id, itemId: item.id, fileId: e.target.value, currentIds: itemFileIds });
                               }}
                             >
-                              <option value="">— байгаа файлаас сонгох —</option>
+                              <option value="">— байгаа файлаас сонгож холбох ({availableForItem.length}) —</option>
                               {availableForItem.map((f) => (
                                 <option key={f.id} value={f.id}>{f.fileName}</option>
                               ))}
