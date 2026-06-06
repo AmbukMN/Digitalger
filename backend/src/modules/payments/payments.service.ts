@@ -175,9 +175,26 @@ export class PaymentsService {
 
     if (!this.isQPayConfigured()) return { paid: false, orderId };
 
+    const isPaid = await this.verifyPaymentWithQpay(payment.qpayPaymentId);
+    if (isPaid) {
+      await this.completePayment(order.id, payment.id, {
+        qpayPaymentId: payment.qpayPaymentId,
+      });
+      return { paid: true, orderId };
+    }
+    return { paid: false, orderId };
+  }
+
+  /**
+   * QPay-ийн /v2/payment/check API руу ШУУД залгаж тухайн invoice БОДИТООР
+   * төлөгдсөн эсэхийг сервер талаас баталгаажуулна. Webhook болон checkPayment
+   * хоёул үүнийг ашиглана — webhook-ийн body-д хэзээ ч итгэлгүй, QPay-аас өөрөөс
+   * нь баталгаа авна (хуурамч "PAID" webhook ажиллахгүй болно).
+   */
+  private async verifyPaymentWithQpay(qpayPaymentId: string): Promise<boolean> {
+    if (!this.isQPayConfigured()) return false;
     try {
       const token = await this.getQPayToken();
-
       const res = await fetch('https://merchant.qpay.mn/v2/payment/check', {
         method: 'POST',
         headers: {
@@ -186,33 +203,22 @@ export class PaymentsService {
         },
         body: JSON.stringify({
           object_type: 'INVOICE',
-          object_id: payment.qpayPaymentId,
+          object_id: qpayPaymentId,
           offset: { page_number: 1, page_limit: 100 },
         }),
       });
-
-      if (!res.ok) return { paid: false, orderId };
-
+      if (!res.ok) return false;
       const result = await res.json();
-      const isPaid =
+      return (
         result.count > 0 &&
         (result.rows ?? []).some(
-          (r: any) =>
-            r.payment_status === 'PAID' ||
-            r.payment_status === 'paid',
-        );
-
-      if (isPaid) {
-        await this.completePayment(order.id, payment.id, {
-          qpayPaymentId: payment.qpayPaymentId,
-        });
-        return { paid: true, orderId };
-      }
+          (r: any) => r.payment_status === 'PAID' || r.payment_status === 'paid',
+        )
+      );
     } catch (err) {
-      this.logger.error('Payment check failed', err);
+      this.logger.error('QPay payment verify failed', err);
+      return false;
     }
-
-    return { paid: false, orderId };
   }
 
   verifyWebhookSignature(payload: string, signature: string): boolean {
@@ -262,19 +268,30 @@ export class PaymentsService {
       return { received: true, matched: false };
     }
 
-    const paymentStatus = (body.payment_status as string)?.toUpperCase();
-    const isPaid =
-      paymentStatus === 'PAID' ||
-      body.payment_status === 'PAID' ||
-      (body.count as number) > 0;
+    // ⚠️ АЮУЛГҮЙ БАЙДАЛ: webhook body-д ХЭЗЭЭ Ч итгэхгүй. Хэн ч энэ нээлттэй
+    // хаяг руу хуурамч {"payment_status":"PAID"} илгээж болно. Тиймээс body-д
+    // "PAID" байгаа эсэхээс ҮЛ ХАМААРАН, QPay-ийн /v2/payment/check API-аар
+    // тухайн invoice БОДИТООР төлөгдсөн эсэхийг QPay-аас өөрөөс нь баталгаажуулна.
+    // QPay "PAID" гэж буцаасан тохиолдолд Л захиалгыг confirm хийнэ.
+    if (payment.order.status !== OrderStatus.PENDING) {
+      return { received: true, matched: true };
+    }
 
-    if (isPaid && payment.order.status === OrderStatus.PENDING) {
+    // QPay-аас баталгаажуулна (dev mode-д isQPayConfigured=false → шалгахгүй).
+    const qpayInvoiceId = payment.qpayPaymentId ?? paymentId;
+    const verifiedPaid = this.isQPayConfigured()
+      ? (qpayInvoiceId ? await this.verifyPaymentWithQpay(qpayInvoiceId) : false)
+      : false;
+
+    if (verifiedPaid) {
       await this.completePayment(payment.orderId, payment.id, {
-        qpayPaymentId: paymentId,
+        qpayPaymentId: qpayInvoiceId,
         rawPayload: body,
       });
-    } else if (!isPaid && payment.order.status === OrderStatus.PENDING) {
-      const reason = (body.payment_status as string) ?? 'UNKNOWN';
+    } else {
+      // QPay баталгаажуулаагүй — хуурамч webhook эсвэл амжилтгүй төлбөр.
+      this.logger.warn(`Webhook QPay-аар баталгаажсангүй: order ${payment.orderId}`);
+      const reason = (body.payment_status as string) ?? 'NOT_VERIFIED';
       this.emitN8nPaymentFailed(payment.orderId, payment.id, reason).catch(() => null);
     }
 

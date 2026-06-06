@@ -138,6 +138,25 @@ const COMMON_WORDS = new Set([
 // 4) tsvector нь Product талбар + BundleItem/Lesson/File/FAQ-г нэгтгэнэ.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// HTML tag + entity-г цэвэрлэж энгийн текст болгоно (admin rich-editor
+// description-д <p>/<strong> зэрэг tag байдаг — AI хариу/FB чат картанд цэвэр
+// текст харуулахад ашиглана).
+function stripHtml(html: string | null | undefined): string {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*\/?>(?=\s*\S)/gi, ' ')   // <br> → зай
+    .replace(/<\/(p|div|li|h[1-6])>/gi, ' ') // блок төгсгөл → зай
+    .replace(/<[^>]*>/g, '')                  // бусад бүх tag устгах
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')                      // олон зай → нэг
+    .trim();
+}
+
 @Injectable()
 export class AiService {
   constructor(
@@ -394,7 +413,9 @@ export class AiService {
       result.push({
         id: product.id,
         title: product.title,
-        description: product.description,
+        // HTML tag цэвэрлэнэ — admin rich-editor description-д <p>/<strong>
+        // зэрэг tag байдаг тул FB/IG чат карт, AI хариунд цэвэр текст харагдана.
+        description: stripHtml(product.description),
         price: basePrice,
         salePrice,
         imageUrl,
