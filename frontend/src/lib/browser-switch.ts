@@ -25,6 +25,10 @@ function collectState(): Record<string, unknown> {
   const raw = (k: string) => {
     try { return localStorage.getItem(k); } catch { return null; }
   };
+  // Chat history payload-ийг багасгахын тулд сүүлийн 15 мессежээр тайрна.
+  const chatHistory = read('dg-chat-history');
+  const trimmedChat = Array.isArray(chatHistory) ? chatHistory.slice(-15) : chatHistory;
+
   return {
     cart: read('digitalger-cart'),
     wishlist: read('digitalger-wishlist'),
@@ -32,7 +36,7 @@ function collectState(): Record<string, unknown> {
     guest: read('digitalger-guest'),
     // FB браузарт хэрэглэгчийн үүсгэсэн бусад чухал state:
     chatSession: raw('dg-chat-session'),     // AI чатын session ID
-    chatHistory: read('dg-chat-history'),    // AI чатын сүүлийн мессежүүд
+    chatHistory: trimmedChat,                // AI чатын сүүлийн 15 мессеж
     theme: raw('digitalger-theme'),          // сонгосон өнгөний горим
   };
 }
@@ -110,6 +114,20 @@ export async function restoreTransferState(token: string): Promise<boolean> {
     write('dg-chat-history', data.chatHistory);
     writeRaw('dg-chat-session', data.chatSession);
     writeRaw('digitalger-theme', data.theme);
+
+    // Theme-ийг DOM-д ШУУД хэрэглэнэ — ThemeProvider mount-д аль хэдийн уншсан
+    // тул localStorage бичсэн ч эхний рендерт үйлчлэхгүй. <html> class-ийг шууд
+    // шинэчилснээр refresh-гүйгээр зөв горим харагдана.
+    if (typeof data.theme === 'string' && typeof document !== 'undefined') {
+      const root = document.documentElement;
+      const resolved = data.theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : data.theme;
+      if (resolved === 'dark' || resolved === 'light') {
+        root.classList.remove('light', 'dark');
+        root.classList.add(resolved);
+      }
+    }
     return true;
   } catch {
     return false;

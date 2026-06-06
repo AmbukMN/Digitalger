@@ -17,6 +17,7 @@ import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { restoreTransferState } from '@/lib/browser-switch';
+import { BrowserSwitchHost } from '@/components/browser-switch-host';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
 
@@ -93,6 +94,14 @@ function StoreHydration() {
     const token = params.get('t');
     if (token) {
       restoreTransferState(token)
+        .then((ok) => {
+          // Хугацаа дууссан/network алдаа → чимээгүй хоосон болохын оронд
+          // хэрэглэгчид мэдэгдэнэ (сагс дамжина гэснийг тэрүүлэхгүй).
+          if (!ok) {
+            toast.error('Шилжүүлгийн хугацаа дууссан байна. Сагсаа дахин бүрдүүлнэ үү.');
+          }
+          return ok;
+        })
         .catch(() => false)
         .finally(() => {
           rehydrateAll();
@@ -227,6 +236,7 @@ export function Providers({ children, defaultTheme = 'system', navbar }: Provide
           <AuthWatcher />
           <AnalyticsUserSync />
           {children}
+          <BrowserSwitchHost />
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
       </QueryClientProvider>

@@ -299,16 +299,27 @@ export function SiteNavbar() {
   // FB/IG-аас системийн браузар руу нэвтрэх intent-ээр шилжсэн бол URL-д
   // ?showAuth=1 байна. Хэрэглэгч нэвтрэх гэж байсан тул нэвтрэх modal-ийг АВТОМАТ
   // нээнэ — дахин account дарах шаардлагагүй. Нэвтрээгүй үед л (session байхгүй).
+  //
+  // ⚠️ Checkout хуудсан дээр энэ effect-ийг АЛГАСНА — учир нь checkout өөрийн
+  // AuthModal-тай (callbackUrl="/checkout?autopay=1") ба autopay урсгалыг
+  // зохицуулдаг. Энд navbar AuthModal (callbackUrl=нүүр) нээвэл нэвтэрсний дараа
+  // нүүр рүү хаягдаж autopay тасрах байсан. Тиймээс checkout-д navbar showAuth
+  // ажиллуулахгүй — checkout-ийн autopay effect session ирэхэд login modal-аа
+  // өөрөө нээнэ. authShownRef — session resolve бүрд давтан нээхээс сэргийлнэ.
+  const authShownRef = useRef(false);
   useEffect(() => {
+    if (pathname?.startsWith('/checkout')) return;
+    if (authShownRef.current) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('showAuth') === '1') {
+      authShownRef.current = true;
       if (!session) setAuthOpen(true);
       // ?showAuth-г URL-аас цэвэрлэнэ (refresh-д дахин нээхгүй)
       params.delete('showAuth');
       const qs = params.toString();
       window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
     }
-  }, [session]);
+  }, [session, pathname]);
 
   useEffect(() => {
     if (shakeIntervalRef.current) clearInterval(shakeIntervalRef.current);

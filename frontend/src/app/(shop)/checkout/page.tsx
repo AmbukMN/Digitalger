@@ -130,6 +130,20 @@ function CheckoutContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // FB/IG-аас шилжиж ирсэн intent: ?showAuth=1 байвал нэвтрээгүй үед login modal-ийг
+  // АВТОМАТ нээнэ (checkout-ийн өөрийн AuthModal — callbackUrl="/checkout?autopay=1"
+  // тул нэвтэрсний дараа autopay үргэлжилнэ). navbar showAuth-г checkout дээр
+  // алгасдаг тул энд checkout өөрөө зохицуулна.
+  const showAuthHandled = useRef(false);
+  useEffect(() => {
+    if (showAuthHandled.current) return;
+    if (searchParams.get('showAuth') === '1') {
+      showAuthHandled.current = true;
+      if (!session?.accessToken) setAuthOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session?.accessToken]);
+
   // ?autopay=1 param байвал нэвтэрсний дараа шууд QPay эхлүүлнэ
   useEffect(() => {
     if (

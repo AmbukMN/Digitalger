@@ -25,6 +25,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { downloadsApi } from '@/lib/api';
+import { triggerFileDownload } from '@/lib/download-helper';
 import { useProductTypes } from '@/hooks/use-product-types';
 import { Pagination } from '@/components/ui/pagination';
 import { ProductRowItem } from '@/components/ui/product-row-item';
@@ -240,12 +241,9 @@ export default function LibraryPage() {
     setDownloading(fileId);
     try {
       const result = await downloadsApi.signedUrl(token, fileId);
-      const a = document.createElement('a');
-      a.href = result.url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // triggerFileDownload нь FB/IG доторх браузарт татахгүй, browser-switch
+      // modal харуулна (FB-д <a download> "Page not found" болдог).
+      triggerFileDownload(result.url, fileName);
     } catch {
       toast.error('Файл татахад алдаа гарлаа');
     } finally {
@@ -264,14 +262,7 @@ export default function LibraryPage() {
   const setZipState = (key: string, s: ZipState) =>
     setZipStates((prev) => ({ ...prev, [key]: s }));
 
-  const triggerDownload = (url: string, name: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
+  const triggerDownload = (url: string, name: string) => triggerFileDownload(url, name);
 
   const handleDownloadAll = useCallback(async (
     entryKey: string,

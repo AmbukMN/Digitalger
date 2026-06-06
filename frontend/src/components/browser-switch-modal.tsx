@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@digitalger/shared/ui';
 import { ArrowRight, Check, Copy, ExternalLink, MoreHorizontal, ShieldCheck, X } from 'lucide-react';
-import { inAppBrowserName } from '@/lib/download-helper';
+import { inAppBrowserName, isIOS } from '@/lib/download-helper';
 import { buildTransferUrl, switchToSystemBrowser } from '@/lib/browser-switch';
 
 interface Props {
@@ -44,6 +44,16 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
     try {
       const url = await switchToSystemBrowser(targetPath);
       setTransferUrl(url);
+      // iOS x-safari scheme нь олон тохиолдолд блоклогддог тул "товч ажиллаагүй"
+      // мэт харагдана. Тиймээс iOS дээр зэрэг clipboard-д хуулж "хуулагдлаа"
+      // төлөв харуулна — scheme ажиллахгүй бол хэрэглэгч шууд ··· → буулгана.
+      if (isIOS()) {
+        try {
+          await navigator.clipboard.writeText(url);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 4000);
+        } catch { /* clipboard амжилтгүй — заавар хэвээр */ }
+      }
     } finally {
       setSwitching(false);
     }
@@ -98,7 +108,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
 
         {/* ГОЛ ТОВЧ: гадаад браузар руу шилжих */}
         <Button
-          className="mb-4 h-12 w-full gap-2 text-base font-bold"
+          className="mb-2 h-12 w-full gap-2 text-base font-bold"
           disabled={switching}
           onClick={handleSwitch}
         >
@@ -109,6 +119,15 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
             </>
           )}
         </Button>
+
+        {/* iOS дээр scheme ажиллаагүй бол — линк хуулагдсан гэдгийг тод харуулна */}
+        {copied && (
+          <p className="mb-3 flex items-center justify-center gap-1.5 text-center text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <Check className="h-3.5 w-3.5" />
+            Линк хуулагдлаа — нээгдэхгүй бол доорх зааврыг үзнэ үү
+          </p>
+        )}
+        {!copied && <div className="mb-2" />}
 
         {/* FALLBACK: дээрх товч ажиллахгүй бол — FB/IG-д БОДИТ заавар */}
         <div className="rounded-xl bg-muted/40 p-4">
