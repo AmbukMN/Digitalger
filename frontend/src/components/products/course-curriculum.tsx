@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { BookOpen, ChevronDown, Clock, FolderOpen, Lock, Loader2, Play, X } from 'lucide-react';
 import { coursesApi, downloadsApi } from '@/lib/api';
+import { sanitizeHtml } from '@/lib/safe-html';
 import type { CourseLesson } from '@/types/api';
 
 interface CourseModule {
@@ -83,7 +84,7 @@ function VideoModal({
             {lesson.description.startsWith('<') ? (
               <div
                 className="prose prose-sm prose-invert max-w-none text-zinc-300 text-sm"
-                dangerouslySetInnerHTML={{ __html: lesson.description }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.description) }}
               />
             ) : (
               <p className="text-sm text-zinc-300 leading-relaxed">{lesson.description}</p>
@@ -198,7 +199,7 @@ function LessonRow({
           {lesson.description!.startsWith('<') ? (
             <div
               className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: lesson.description! }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.description!) }}
             />
           ) : (
             <p className="text-sm text-muted-foreground leading-relaxed">{lesson.description}</p>

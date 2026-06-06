@@ -106,9 +106,8 @@ export class DownloadsService {
       throw new ForbiddenException('You do not own this product');
     }
 
-    await this.prisma.download.create({
-      data: { userId, fileId: file.id },
-    });
+    // recordDownloads helper ашиглана (бусад татах методтой нэгдсэн, dedup-тай).
+    await this.recordDownloads(userId, [file.id]);
     await this.bumpRealDownload(file.productId);
 
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');

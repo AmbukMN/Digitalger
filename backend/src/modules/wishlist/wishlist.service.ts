@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 
@@ -57,6 +57,14 @@ export class WishlistService {
       await this.prisma.wishlist.delete({ where: { id: existing.id } });
       return { added: false };
     }
+    // productId бодитоор оршдог эсэхийг шалгана — байхгүй id-аар create хийвэл
+    // FK constraint алдаа 500 буцдаг. Оронд нь 404 ойлгомжтой алдаа буцаана.
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Бүтээгдэхүүн олдсонгүй');
+
     await this.prisma.wishlist.create({ data: { userId, productId } });
     return { added: true };
   }

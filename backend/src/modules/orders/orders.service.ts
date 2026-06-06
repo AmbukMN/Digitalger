@@ -193,14 +193,21 @@ export class OrdersService {
       },
     });
 
-    // Increment usedCount for all applied coupons
+    // usedCount-ийг CONDITIONAL increment — зэрэг (concurrent) 2 захиалга
+    // maxUses хязгаараас давахаас сэргийлнэ. updateMany нь where нөхцөл
+    // (usedCount < maxUses) хангагдсан үед Л increment хийнэ (атомик).
     if (appliedCoupons.length > 0) {
       await Promise.all(
         appliedCoupons.map((c) =>
-          this.prisma.coupon.update({
-            where: { id: c.id },
-            data: { usedCount: { increment: 1 } },
-          }),
+          c.maxUses != null
+            ? this.prisma.coupon.updateMany({
+                where: { id: c.id, usedCount: { lt: c.maxUses } },
+                data: { usedCount: { increment: 1 } },
+              })
+            : this.prisma.coupon.update({
+                where: { id: c.id },
+                data: { usedCount: { increment: 1 } },
+              }),
         ),
       );
     }
@@ -229,7 +236,30 @@ export class OrdersService {
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException('Зөвхөн хүлээгдэж буй захиалгыг цуцалж болно');
     }
-    return this.prisma.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } });
+    const cancelled = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.CANCELLED },
+    });
+    // Захиалгад хэрэглэсэн купоны usedCount-ийг буцаана — эс бол цуцалсан
+    // захиалгын купон "хэрэглэгдсэн" хэвээр үлдэж maxUses-д буруу хүрнэ.
+    await this.releaseOrderCoupons(order.couponCode);
+    return cancelled;
+  }
+
+  /** Захиалгын couponCode дотор бичигдсэн купонуудын usedCount-ийг decrement
+   * хийнэ (захиалга цуцлах/устгахад дуудна). 0-ээс доош буурахгүй. */
+  private async releaseOrderCoupons(couponCode: string | null | undefined) {
+    if (!couponCode) return;
+    const codes = couponCode.split(',').map((c) => c.trim()).filter(Boolean);
+    if (!codes.length) return;
+    await Promise.all(
+      codes.map((code) =>
+        this.prisma.coupon.updateMany({
+          where: { code, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        }),
+      ),
+    );
   }
 
   async findById(id: string, userId?: string) {

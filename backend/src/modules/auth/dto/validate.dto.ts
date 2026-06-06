@@ -1,11 +1,12 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
-/** NextAuth credentials provider validation */
+/** NextAuth credentials provider validation. Password ЗААВАЛ (мэдээлэл задрах
+ * нүхээс сэргийлж — нууц үггүйгээр хэрэглэгчийн мэдээлэл буцаахгүй). */
 export class ValidateDto {
   @IsEmail()
   email!: string;
 
-  @IsOptional()
   @IsString()
-  password?: string;
+  @IsNotEmpty()
+  password!: string;
 }

@@ -408,8 +408,12 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  /** NextAuth credentials callback */
+  /** NextAuth credentials callback. ⚠️ Password ЗААВАЛ — өмнө optional байсан
+   * тул нууц үггүйгээр имэйл оруулахад хэрэглэгчийн мэдээлэл (role/email) задрах
+   * нүх байв. Blocked хэрэглэгчийг ч буцаахгүй. */
   async validate(dto: ValidateDto): Promise<AuthUser | null> {
+    if (!dto.password) return null;
+
     const user = await this.prisma.user.findFirst({
       where: {
         OR: [
@@ -419,13 +423,10 @@ export class AuthService {
       },
     });
 
-    if (!user) return null;
+    if (!user || user.blocked || !user.passwordHash) return null;
 
-    if (dto.password) {
-      if (!user.passwordHash) return null;
-      const valid = await bcrypt.compare(dto.password, user.passwordHash);
-      if (!valid) return null;
-    }
+    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!valid) return null;
 
     return this.sanitizeUser(user);
   }

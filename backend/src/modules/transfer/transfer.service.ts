@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // FB/IG доторх браузараас системийн браузар руу шилжихэд хэрэглэгчийн state-ийг
@@ -9,8 +9,17 @@ export class TransferService {
 
   private static readonly TTL_MS = 30 * 60 * 1000; // 30 минут
 
+  // Payload-ийн дээд хэмжээ (DoS-аас сэргийлнэ — хэн нэг том JSON давтан илгээж
+  // DB дүүргэхээс хамгаална). Сагс/wishlist/coupon/chat 100KB-д тав тухтай багтана.
+  private static readonly MAX_PAYLOAD_BYTES = 100 * 1024;
+
   /** State хадгалж token буцаана (системийн браузарт дамжуулна). */
   async save(payload: unknown): Promise<{ token: string }> {
+    // Хэмжээ хязгаар шалгах
+    const size = Buffer.byteLength(JSON.stringify(payload ?? {}), 'utf8');
+    if (size > TransferService.MAX_PAYLOAD_BYTES) {
+      throw new BadRequestException('Шилжүүлэх өгөгдөл хэт том байна');
+    }
     const rec = await this.prisma.transferState.create({
       data: {
         payload: payload as object,
