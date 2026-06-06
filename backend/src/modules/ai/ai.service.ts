@@ -448,6 +448,17 @@ export class AiService {
       });
     }
 
+    // ⚠️ ҮНЭГҮЙ (price=0) бүтээгдэхүүнийг СҮҮЛД эрэмбэлнэ — relevance дараалал
+    // хадгалагдана (JS sort stable). Жишээ "ppt" хайхад төлбөртэй 3000+ PowerPoint
+    // багц ЭХЭНД, үнэгүй загвар ХОЙД талд гарна (free-г түрүүлж харуулбал
+    // борлуулалтад сөрөг). Зөвхөн "үнэгүй" гэж тусгай асуувал listFreeProducts-аар
+    // дамждаг тул энэ нь зөвхөн холимог (free+paid) хайлтад нөлөөлнө.
+    result.sort((a, b) => {
+      const aFree = (Number(a.price) || 0) === 0 ? 1 : 0;
+      const bFree = (Number(b.price) || 0) === 0 ? 1 : 0;
+      return aFree - bFree; // free (1) сүүлд, paid (0) эхэнд
+    });
+
     return result;
   }
 
