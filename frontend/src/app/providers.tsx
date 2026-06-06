@@ -15,7 +15,7 @@ import { useWishlistStore } from '@/store/wishlist';
 import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
-import { setAnalyticsUserId } from '@/lib/analytics';
+import { setAnalyticsUserId, backfillSessionTracking } from '@/lib/analytics';
 import { restoreTransferState } from '@/lib/browser-switch';
 import { BrowserSwitchHost } from '@/components/browser-switch-host';
 
@@ -65,7 +65,13 @@ function AnalyticsUserSync() {
   useEffect(() => {
     const id = (session?.user as { id?: string } | undefined)?.id;
     setAnalyticsUserId(status === 'authenticated' ? id : undefined);
-  }, [status, session?.user]);
+    // Нэвтэрсэн бол тухайн session-ийн зочин үед бичигдсэн tracking-ийг
+    // хэрэглэгчид буцаан холбоно (admin popup "Үзсэн/Дарсан" дүүргэнэ).
+    const token = (session as { accessToken?: string } | null)?.accessToken;
+    if (status === 'authenticated' && token) {
+      backfillSessionTracking(token);
+    }
+  }, [status, session]);
   return null;
 }
 

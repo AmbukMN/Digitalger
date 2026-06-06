@@ -20,6 +20,32 @@ export class AnalyticsService {
     }
   }
 
+  /**
+   * Нэвтрэх агшинд дуудна: тухайн session-ийн userId-гүй (зочин үед бичигдсэн)
+   * бүх ProductEvent/PageView-г энэ хэрэглэгчид буцаан холбоно. Хэрэглэгч ихэвчлэн
+   * нэвтрэхээсээ ӨМНӨ бүтээгдэхүүн үздэг тул эс бол admin popup "Үзсэн/Дарсан"
+   * хоосон харагддаг — энэ нь нэвтрэхээс өмнөх зан төлөвийг хэрэглэгчид холбоно.
+   */
+  async backfillSessionEvents(sessionId: string, userId: string): Promise<void> {
+    if (!sessionId || !userId) return;
+    const safe = await this.safeUserId(userId);
+    if (!safe) return;
+    try {
+      await this.prisma.$transaction([
+        this.prisma.productEvent.updateMany({
+          where: { sessionId, userId: null },
+          data: { userId: safe },
+        }),
+        this.prisma.pageView.updateMany({
+          where: { sessionId, userId: null },
+          data: { userId: safe },
+        }),
+      ]);
+    } catch {
+      // backfill амжилтгүй болсон ч нэвтрэлтэд нөлөөлөхгүй (best-effort).
+    }
+  }
+
   async trackPageView(data: {
     path: string;
     sessionId?: string;

@@ -60,6 +60,22 @@ export class AnalyticsController {
     return { ok: true };
   }
 
+  // Нэвтрэх агшинд frontend дуудна: тухайн session-ийн зочин үед бичигдсэн (userId-
+  // гүй) бүх үзэлт/дарсныг нэвтэрсэн хэрэглэгчид холбоно. userId-ийг token-оос авна
+  // (body-оос биш — өөр хэрэглэгчийн event-ийг булаахаас сэргийлж).
+  @Post('backfill-session')
+  @UseGuards(JwtAuthGuard)
+  async backfillSession(
+    @Body() body: { sessionId: string },
+    @Req() req: Request,
+  ) {
+    const userId = (req.user as { sub?: string } | undefined)?.sub;
+    if (userId && body?.sessionId) {
+      await this.analyticsService.backfillSessionEvents(body.sessionId, userId);
+    }
+    return { ok: true };
+  }
+
   @Post('search')
   async trackSearch(
     @Body() body: { query: string; results: number; sessionId?: string },

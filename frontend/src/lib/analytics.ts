@@ -35,6 +35,29 @@ export function setAnalyticsUserId(userId?: string | null) {
   currentUserId = userId || undefined;
 }
 
+// Нэвтрэх агшинд дуудна: тухайн session-ийн зочин үед бичигдсэн (userId-гүй)
+// бүх үзэлт/дарсныг нэвтэрсэн хэрэглэгчид холбоно (admin popup "Үзсэн/Дарсан"
+// нэвтрэхээс өмнөх зан төлөвийг харуулна). Session тутамд НЭГ Л удаа.
+let backfillDone = false;
+export async function backfillSessionTracking(accessToken: string) {
+  if (typeof window === 'undefined' || backfillDone || !accessToken) return;
+  const sid = getSessionId();
+  if (!sid) return;
+  backfillDone = true;
+  try {
+    await fetch(`${API_BASE}/api/analytics/backfill-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ sessionId: sid }),
+    });
+  } catch {
+    backfillDone = false; // дахин оролдож болохоор
+  }
+}
+
 // Navigation үед keepalive fetch найдваргүй — sendBeacon ашиглана
 // sendBeacon нь GET дэмждэггүй, POST+Blob-той JSON дамжуулна
 function send(endpoint: string, data: Record<string, unknown>) {
