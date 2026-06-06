@@ -296,6 +296,20 @@ export function SiteNavbar() {
     prevCartCount.current = cartCount;
   }, [cartCount]);
 
+  // FB/IG-аас системийн браузар руу нэвтрэх intent-ээр шилжсэн бол URL-д
+  // ?showAuth=1 байна. Хэрэглэгч нэвтрэх гэж байсан тул нэвтрэх modal-ийг АВТОМАТ
+  // нээнэ — дахин account дарах шаардлагагүй. Нэвтрээгүй үед л (session байхгүй).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('showAuth') === '1') {
+      if (!session) setAuthOpen(true);
+      // ?showAuth-г URL-аас цэвэрлэнэ (refresh-д дахин нээхгүй)
+      params.delete('showAuth');
+      const qs = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
+  }, [session]);
+
   useEffect(() => {
     if (shakeIntervalRef.current) clearInterval(shakeIntervalRef.current);
     if (cartCount > 0) {

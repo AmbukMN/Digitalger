@@ -21,11 +21,19 @@ function collectState(): Record<string, unknown> {
       return null;
     }
   };
+  // raw (JSON биш) утгыг шууд унших — theme/chat-session нь энгийн string
+  const raw = (k: string) => {
+    try { return localStorage.getItem(k); } catch { return null; }
+  };
   return {
     cart: read('digitalger-cart'),
     wishlist: read('digitalger-wishlist'),
     coupons: read('digitalger-coupons'),
     guest: read('digitalger-guest'),
+    // FB браузарт хэрэглэгчийн үүсгэсэн бусад чухал state:
+    chatSession: raw('dg-chat-session'),     // AI чатын session ID
+    chatHistory: read('dg-chat-history'),    // AI чатын сүүлийн мессежүүд
+    theme: raw('digitalger-theme'),          // сонгосон өнгөний горим
   };
 }
 
@@ -83,15 +91,25 @@ export async function restoreTransferState(token: string): Promise<boolean> {
     const { payload } = await transferApi.consume(token);
     const data = payload as Record<string, unknown>;
     if (typeof localStorage === 'undefined' || !data) return false;
+    // JSON object key-нүүд (Zustand persist) — JSON.stringify-аар бичнэ
     const write = (k: string, v: unknown) => {
       if (v != null) {
         try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ }
+      }
+    };
+    // raw string key-нүүд (theme/chat-session) — шууд бичнэ
+    const writeRaw = (k: string, v: unknown) => {
+      if (typeof v === 'string' && v) {
+        try { localStorage.setItem(k, v); } catch { /* ignore */ }
       }
     };
     write('digitalger-cart', data.cart);
     write('digitalger-wishlist', data.wishlist);
     write('digitalger-coupons', data.coupons);
     write('digitalger-guest', data.guest);
+    write('dg-chat-history', data.chatHistory);
+    writeRaw('dg-chat-session', data.chatSession);
+    writeRaw('digitalger-theme', data.theme);
     return true;
   } catch {
     return false;

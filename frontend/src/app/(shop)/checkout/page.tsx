@@ -446,11 +446,14 @@ function CheckoutContent() {
         callbackUrl="/checkout?autopay=1"
       />
 
-      {/* FB/IG доторх браузараас системийн браузар руу шилжих (төлбөрийн өмнө) */}
+      {/* FB/IG доторх браузараас системийн браузар руу шилжих (төлбөрийн өмнө).
+          autopay=1: нэвтэрсэн бол шинэ браузарт төлбөр автомат эхэлнэ.
+          showAuth=1: нэвтрээгүй бол эхлээд login modal автомат нээгдэж, нэвтэрсний
+          дараа autopay ажиллана — хэрэглэгчийн "худалдан авах" intent үргэлжилнэ. */}
       <BrowserSwitchModal
         open={switchOpen}
         onClose={() => setSwitchOpen(false)}
-        targetPath="/checkout?autopay=1"
+        targetPath="/checkout?autopay=1&showAuth=1"
       />
 
       {qpayResult && session?.accessToken && (

@@ -527,13 +527,20 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
-  // FB/IG илэрсэн бол нэвтрэх форм биш — шилжүүлэх modal л харуулна
+  // FB/IG илэрсэн бол нэвтрэх форм биш — шилжүүлэх modal л харуулна.
+  // Intent: шинэ браузарт нэвтрэх modal АВТОМАТ нээгдэх ёстой (хэрэглэгч нэвтрэх
+  // гэж байсан). targetPath-д ?showAuth=1 нэмж дамжуулна — providers тэр query-г
+  // уншиж AuthModal-ийг автомат нээнэ. callbackUrl байвал нэвтэрсний дараа тийш
+  // (autopay гэх мэт), эс бол одоо байгаа хуудсанд буцаж нэвтрэх modal нээнэ.
   if (open && switchOpen) {
+    const base = callbackUrl ?? (typeof window !== 'undefined' ? window.location.pathname : '/');
+    const sep = base.includes('?') ? '&' : '?';
+    const switchTarget = `${base}${sep}showAuth=1`;
     return (
       <BrowserSwitchModal
         open
         onClose={() => { setSwitchOpen(false); onClose(); }}
-        targetPath={callbackUrl ?? '/'}
+        targetPath={switchTarget}
       />
     );
   }
