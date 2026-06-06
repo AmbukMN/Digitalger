@@ -201,8 +201,17 @@ export class AiService {
     // буцаана. "үнэгүй ppt" гэх мэт нэмэлт үгтэй бол доорх энгийн хайлтаар (free
     // product-ийн нэр ppt-тэй таарвал) дамжина — энд зөвхөн ЦЭВЭР "үнэгүй" асуултыг
     // (бусад гол үггүй) барина.
-    const freeWords = new Set(['үнэгүй', 'unegui', 'free', 'үнэгй', 'unekhgui']);
-    const nonFreeKey = words.filter((w) => !freeWords.has(w) && !COMMON_WORDS.has(w));
+    const freeWords = new Set(['үнэгүй', 'unegui', 'free', 'үнэгй', 'unekhgui', 'unekhguy']);
+    // "үнэгүй"-тэй хамт ирэх ерөнхий үгс (бүтээгдэхүүн/юм/байна гэх мэт) — эдгээр
+    // нь гол хайх объект БИШ тул free шалгалтад үл тоомсорлоно. Жишээ "үнэгүй
+    // бүтээгдэхүүн байна уу", "unegui buteegdehuun" → бүгд free product буцаана.
+    const freeIgnore = new Set([
+      'бүтээгдэхүүн', 'buteegdehuun', 'buteegdhuun', 'буудэгдэхүүн', 'продукт', 'product',
+      'юм', 'юу', 'зүйл', 'материал', 'загвар', 'багц', 'файл',
+    ]);
+    const nonFreeKey = words.filter(
+      (w) => !freeWords.has(w) && !freeIgnore.has(w) && !COMMON_WORDS.has(w),
+    );
     if (words.some((w) => freeWords.has(w)) && nonFreeKey.length === 0) {
       const freeProducts = await this.listFreeProducts();
       return { products: freeProducts, faqs: [], searchTerms: ['үнэгүй'], message: '' };
