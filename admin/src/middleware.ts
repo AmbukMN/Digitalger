@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
-
-// NEXTAUTH_SECRET ЗААВАЛ env-ээс. Hardcoded fallback байсныг арилгав — эс бол
-// тохиргоогүй орчинд урьдчилан мэдэгдэх secret-ээр admin токен хуурамчлах эрсдэлтэй.
-const SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET ||
-    (() => {
-      throw new Error('NEXTAUTH_SECRET тохируулагдаагүй байна');
-    })(),
-);
+import { getAuthSecret } from '@/lib/secret';
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -21,7 +13,7 @@ export async function middleware(req: NextRequest) {
   let payload: { role?: string } | null = null;
   if (token) {
     try {
-      const { payload: p } = await jwtVerify(token, SECRET);
+      const { payload: p } = await jwtVerify(token, getAuthSecret());
       payload = p as { role?: string };
     } catch {}
   }

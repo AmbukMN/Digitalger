@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
+import { getAuthSecret } from '@/lib/secret';
 
 const API_URL = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET ||
-    (() => {
-      throw new Error('NEXTAUTH_SECRET тохируулагдаагүй байна');
-    })(),
-);
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
@@ -38,7 +33,7 @@ export async function POST(req: Request) {
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('30d')
-    .sign(SECRET);
+    .sign(getAuthSecret());
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set('admin-session', token, {
