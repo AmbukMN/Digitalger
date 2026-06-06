@@ -28,7 +28,6 @@ import { downloadsApi } from '@/lib/api';
 import { useProductTypes } from '@/hooks/use-product-types';
 import { Pagination } from '@/components/ui/pagination';
 import { ProductRowItem } from '@/components/ui/product-row-item';
-import { InAppBrowserNotice } from '@/components/in-app-browser-notice';
 
 const PAGE_SIZE = 6;
 
@@ -432,9 +431,6 @@ export default function LibraryPage() {
           </span>
         )}
       </div>
-
-      {/* FB/IG доторх браузерт орвол татах асуудлыг сэрэмжлүүлнэ */}
-      <InAppBrowserNotice />
 
       {isLoading && <Loading className="mt-8" />}
       {error && (

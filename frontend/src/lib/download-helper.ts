@@ -1,25 +1,16 @@
 'use client';
 
-// ─── Файл татах туслах + In-app browser илрүүлэлт ──────────────────────────
+// ─── Файл татах + In-app browser илрүүлэлт ─────────────────────────────────
 //
-// АСУУДАЛ: Facebook / Instagram / Messenger зэрэг апп доторх браузер (in-app
-// WebView) нь файл татахыг хязгаарладаг:
-//   · `<a download>` attribute-ийг ДЭМДЭГГҮЙ
-//   · шинэ таб / popup нээхийг блоклодог
-//   · presigned URL руу navigate хийхэд "Page not found" болж унадаг
-//
-// ШИЙДЭЛ (in-app browser үед):
-//   iOS  → `x-safari-https://...` scheme-ээр Safari-д шууд нээхийг оролдоно.
-//   Android → `intent://...#Intent;...end` scheme-ээр Chrome-д нээхийг оролдоно.
-//   Хэрэв scheme ажиллахгүй бол (хэрэглэгч хэвээр FB браузерт) → дуудагч тал
-//   modal харуулж "Safari-д нээ" гэж зааварчилна (triggerFileDownload-ийн
-//   буцаах утга false бол modal харуул).
+// Татах нь ердийн <a download>-аар ажиллана. FB/IG доторх браузараас хэрэглэгч
+// login/төлбөрийн өмнө системийн браузар (Safari/Chrome) руу шилжсэн байх тул
+// татах үед үргэлж ердийн браузарт байна — FB WebView-д татах асуудал гарахгүй.
+// (isInAppBrowser зэрэг илрүүлэлтийг browser-switch логик ашигладаг.)
 
 /** Facebook/Instagram/Messenger/TikTok зэрэг апп доторх браузер эсэхийг шалгана. */
 export function isInAppBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
-  // FBAN/FBAV = Facebook, Instagram, Messenger (FB_IAB), Line, TikTok
   return /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|musical_ly|TikTok/i.test(ua);
 }
 
@@ -46,52 +37,18 @@ export function isAndroid(): boolean {
   return /Android/i.test(navigator.userAgent);
 }
 
-// In-app browser үед татах боломжгүй болсныг бүх хуудсанд мэдэгдэх global event.
-// Layout-д суусан InAppBrowserModalHost үүнийг сонсож, заавар modal харуулна.
-export const IN_APP_DOWNLOAD_EVENT = 'dg:inapp-download-blocked';
-
 /**
- * Файл татна.
- *  · Ердийн браузер (desktop/Safari/Chrome) → presigned URL-аас `<a download>`
- *    (хэвийн татна, юу ч өөрчлөгдөхгүй).
- *  · In-app browser (FB/IG/Messenger) → backend "go" redirect линк рүү ШУУД
- *    navigate. FB линкэд &fbclid=... нэмсэн ч, go линк манай домэйн дээр тул
- *    backend цэвэр presigned URL руу 302 redirect хийнэ → signature эвдрэхгүй,
- *    FB браузер дотроо татаж эхэлнэ. Хэрэв goUrl байхгүй бол заавар modal.
- * @param url   presigned R2 URL (ердийн браузерт)
- * @param fileName татах файлын нэр
- * @param goUrl  FB/IG-д зориулсан backend redirect линк (байвал)
- * @returns true = ердийн татах эхэлсэн, false = in-app (go руу шилжсэн)
+ * Presigned URL-аас файл татна — ердийн <a download>. Браузар (desktop/mobile)
+ * өөрөө R2-аас шууд татна тул серверт ачаалал өгөхгүй, том файл ч аюулгүй.
  */
-export function triggerFileDownload(url: string, fileName: string, goUrl?: string): boolean {
-  if (typeof document === 'undefined') return false;
-
-  if (isInAppBrowser()) {
-    // goUrl байхгүй (ховор) → заавар modal.
-    if (!goUrl) {
-      window.dispatchEvent(new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url } }));
-      return false;
-    }
-    // FB/IG доторх браузар: goUrl нь МАНАЙ домэйны proxy линк — backend R2-аас
-    // файлыг өөрөө stream хийдэг (redirect/signed URL/fbclid оролцохгүй) тул
-    // FB WebView stable, файл татагдана.
-    //
-    // FB WebView нь programmatic window.location-ийг event-handler дотроос
-    // блоклодог тул дангаар найдваргүй. Тиймээс modal гаргаж, доторх ЖИНХЭНЭ
-    // <a href={goUrl}> товчийг ХЭРЭГЛЭГЧ ӨӨРӨӨ дарж нээнэ — хэрэглэгчийн шууд
-    // үйлдэл тул WebView блоклодоггүй, proxy stream-ээс файл татагдана.
-    window.dispatchEvent(
-      new CustomEvent(IN_APP_DOWNLOAD_EVENT, { detail: { url, goUrl } }),
-    );
-    return false;
-  }
-
+export function triggerFileDownload(url: string, fileName: string) {
+  if (typeof document === 'undefined') return;
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
+  a.target = '_blank';
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
-  return true;
 }

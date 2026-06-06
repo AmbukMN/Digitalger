@@ -17,6 +17,8 @@ import {
   clearGuestSession,
 } from '@/lib/guest-session';
 import { OtpInput } from './otp-input';
+import { BrowserSwitchModal } from '@/components/browser-switch-modal';
+import { isInAppBrowser } from '@/lib/download-helper';
 
 // "Зочноор нэвтрэх"-ийн үр дүн: амжилттай нэвтэрсэн эсэх.
 //
@@ -497,10 +499,32 @@ function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string })
 export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: AuthModalProps) {
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  // FB/IG доторх браузар нь нэвтрэлт/төлбөрт тохиромжгүй (тусдаа орчин). Нэвтрэх
+  // modal нээгдэхэд FB илэрвэл системийн браузар руу шилжүүлэх modal-руу шилжүүлнэ.
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   useEffect(() => {
-    if (open) { setTab(defaultTab); setShowForgotPassword(false); }
+    if (open) {
+      if (isInAppBrowser()) {
+        // FB/IG → нэвтрэх форм биш, шилжүүлэх modal харуулна
+        setSwitchOpen(true);
+      } else {
+        setTab(defaultTab);
+        setShowForgotPassword(false);
+      }
+    }
   }, [open, defaultTab]);
+
+  // FB/IG илэрсэн бол нэвтрэх форм биш — шилжүүлэх modal л харуулна
+  if (open && switchOpen) {
+    return (
+      <BrowserSwitchModal
+        open
+        onClose={() => { setSwitchOpen(false); onClose(); }}
+        targetPath={callbackUrl ?? '/'}
+      />
+    );
+  }
 
   useEffect(() => {
     if (!open) return;

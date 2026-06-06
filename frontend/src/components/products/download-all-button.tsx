@@ -42,11 +42,7 @@ export function DownloadAllButton({
 
   useEffect(() => () => stopPoll(), []);
 
-  // In-app browser (FB/IG)-т presigned URL fbclid-ээс эвдэрдэг тул backend
-  // "go" redirect линк (goUrl) ашиглана. Ердийн браузерт presigned `<a download>`.
-  const triggerDownload = (url: string, name: string, goUrl?: string) => {
-    triggerFileDownload(url, name, goUrl);
-  };
+  const triggerDownload = (url: string, name: string) => triggerFileDownload(url, name);
 
   const handleClick = useCallback(async () => {
     // Үнэгүй биш горимд нэвтрэх шаардлагатай
@@ -62,10 +58,10 @@ export function DownloadAllButton({
     // Admin uploaded file — шууд presign татна
     if (downloadFileKey) {
       try {
-        const { url, fileName, goUrl } = free
+        const { url, fileName } = free
           ? await downloadsApi.freeProductDownloadFile(productId)
           : await downloadsApi.productDownloadFile(session!.accessToken!, productId);
-        triggerDownload(url, fileName || zipName || `${productId}.zip`, goUrl);
+        triggerDownload(url, fileName || zipName || `${productId}.zip`);
         setState('done');
         setTimeout(() => setState('idle'), 2500);
       } catch {
@@ -98,7 +94,7 @@ export function DownloadAllButton({
             : await downloadsApi.pollZipJob(session!.accessToken!, jobId);
           if (res.status === 'DONE' && res.url) {
             stopPoll();
-            triggerDownload(res.url, zipName || `${productId}.zip`, res.goUrl);
+            triggerDownload(res.url, zipName || `${productId}.zip`);
             setState('done');
             setTimeout(() => setState('idle'), 2500);
           } else if (res.status === 'FAILED') {

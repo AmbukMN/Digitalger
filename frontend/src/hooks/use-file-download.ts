@@ -8,7 +8,6 @@ import { triggerFileDownload } from '@/lib/download-helper';
 
 interface CachedUrl {
   url: string;
-  goUrl?: string;
   generatedAt: number;
   expiresIn: number;
 }
@@ -46,14 +45,13 @@ export function useFileDownload(freeProductId?: string) {
       if (existing) return existing;
 
       const req = freeProductId
-        ? downloadsApi.freeFile(freeProductId, fileId).then((r) => ({ url: r.url, goUrl: r.goUrl, expiresIn: r.expiresIn ?? 300, generatedAt: Date.now() }))
-        : downloadsApi.signedUrl(session!.accessToken!, fileId).then((r) => ({ url: r.url, goUrl: r.goUrl, expiresIn: r.expiresIn ?? 300, generatedAt: r.generatedAt ?? Date.now() }));
+        ? downloadsApi.freeFile(freeProductId, fileId).then((r) => ({ url: r.url, expiresIn: r.expiresIn ?? 300, generatedAt: Date.now() }))
+        : downloadsApi.signedUrl(session!.accessToken!, fileId).then((r) => ({ url: r.url, expiresIn: r.expiresIn ?? 300, generatedAt: r.generatedAt ?? Date.now() }));
 
       const promise = req
         .then((result) => {
           cache.current.set(fileId, {
             url: result.url,
-            goUrl: result.goUrl,
             generatedAt: result.generatedAt,
             expiresIn: result.expiresIn,
           });
@@ -75,11 +73,7 @@ export function useFileDownload(freeProductId?: string) {
         toast.error('Татахад алдаа гарлаа');
         return false;
       }
-      // In-app browser (FB/IG) бол presigned URL fbclid-ээс эвдэрдэг тул backend
-      // "go" redirect линк (cache-д хадгалсан goUrl) ашиглана. Ердийн браузерт
-      // presigned URL-аас шууд татна.
-      const goUrl = cache.current.get(fileId)?.goUrl;
-      triggerFileDownload(url, fileName, goUrl);
+      triggerFileDownload(url, fileName);
       return true;
     },
     [getUrl],

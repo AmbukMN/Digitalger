@@ -644,3 +644,17 @@ model SearchEvent {
   @@index([query, createdAt])
   @@index([createdAt])
 }
+
+// FB/IG доторх браузараас системийн браузар (Safari/Chrome) руу шилжихэд
+// хэрэглэгчийн state (сагс/wishlist/coupon/guest)-ийг түр хадгална. Шинэ
+// браузар богино token-оор сэргээнэ — хэрэглэгч дахин сагслах шаардлагагүй.
+// Нэг удаагийн (used), богино настай (expiresAt ~30мин).
+model TransferState {
+  id        String   @id @default(cuid())
+  payload   Json // { cart, wishlist, coupons, guest } JSON
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

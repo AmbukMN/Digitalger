@@ -33,6 +33,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiModule } from './modules/ai/ai.module';
+import { TransferModule } from './modules/transfer/transfer.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { AiModule } from './modules/ai/ai.module';
     NotificationsModule,
     AnalyticsModule,
     AiModule,
+    TransferModule,
   ],
   controllers: [AppController],
   providers: [

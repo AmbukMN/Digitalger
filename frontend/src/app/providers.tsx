@@ -16,7 +16,7 @@ import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
 import { setAnalyticsUserId } from '@/lib/analytics';
-import { InAppBrowserModalHost } from '@/components/in-app-browser-modal-host';
+import { restoreTransferState } from '@/lib/browser-switch';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
 
@@ -70,11 +70,34 @@ function AnalyticsUserSync() {
 
 // Zustand persist store-уудыг SSR-ийн дараа нэг л удаа rehydrate хийнэ.
 // skipHydration:true тохиргоотой хамт ажиллана — hydration mismatch арилна.
+//
+// FB/IG → системийн браузар шилжсэн бол URL-д ?t=token байна. Эхлээд тэр
+// token-оор state-ийг (сагс/wishlist/coupon/guest) localStorage-д сэргээж,
+// ДАРАА нь rehydrate хийнэ — ингэснээр хэрэглэгчийн дата шинэ браузарт дамжина.
 function StoreHydration() {
   useEffect(() => {
-    useCartStore.persist.rehydrate();
-    useWishlistStore.persist.rehydrate();
-    useCouponStore.persist.rehydrate();
+    const rehydrateAll = () => {
+      useCartStore.persist.rehydrate();
+      useWishlistStore.persist.rehydrate();
+      useCouponStore.persist.rehydrate();
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('t');
+    if (token) {
+      restoreTransferState(token)
+        .catch(() => false)
+        .finally(() => {
+          rehydrateAll();
+          // ?t=token-ийг URL-аас цэвэрлэнэ (refresh-д дахин сэргээхгүй, цэвэр URL)
+          params.delete('t');
+          const qs = params.toString();
+          const clean = window.location.pathname + (qs ? `?${qs}` : '');
+          window.history.replaceState({}, '', clean);
+        });
+    } else {
+      rehydrateAll();
+    }
   }, []);
   return null;
 }
@@ -197,7 +220,6 @@ export function Providers({ children, defaultTheme = 'system', navbar }: Provide
           <AuthWatcher />
           <AnalyticsUserSync />
           {children}
-          <InAppBrowserModalHost />
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
       </QueryClientProvider>

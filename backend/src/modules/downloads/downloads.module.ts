@@ -4,7 +4,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DownloadsController } from './downloads.controller';
 import { PublicDownloadsController } from './public-downloads.controller';
-import { DownloadGoController } from './download-go.controller';
 import { DownloadsService } from './downloads.service';
 import { ZipProcessor, ZIP_QUEUE } from './zip.processor';
 import { ZipCleanupService } from './zip-cleanup.service';
@@ -23,7 +22,7 @@ import { StorageModule } from '../../storage/storage.module';
     }),
     BullModule.registerQueue({ name: ZIP_QUEUE }),
   ],
-  controllers: [DownloadsController, PublicDownloadsController, DownloadGoController],
+  controllers: [DownloadsController, PublicDownloadsController],
   providers: [DownloadsService, ZipProcessor, ZipCleanupService],
 })
 export class DownloadsModule {}

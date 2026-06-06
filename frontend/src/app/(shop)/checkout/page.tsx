@@ -16,6 +16,8 @@ import { MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import { SiteNavbar } from '@/components/layout/site-navbar';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { QPayCheckout } from '@/components/payment/qpay-checkout';
+import { BrowserSwitchModal } from '@/components/browser-switch-modal';
+import { isInAppBrowser } from '@/lib/download-helper';
 import { ProductRowItem } from '@/components/ui/product-row-item';
 import type { PaymentInitiateResult } from '@/types/api';
 
@@ -38,6 +40,8 @@ function CheckoutContent() {
 
   const [paying, setPaying] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  // FB/IG доторх браузар илрэхэд системийн браузар руу шилжүүлэх modal
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [qpayResult, setQpayResult] = useState<PaymentInitiateResult | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const autoPayTriggered = useRef(false);
@@ -144,6 +148,13 @@ function CheckoutContent() {
   }, [session?.accessToken, searchParams]);
 
   const handlePay = async () => {
+    // FB/IG доторх браузар нь төлбөр/татах боломжгүй + тусдаа орчинтой. Тиймээс
+    // төлбөр эхлэхээс ӨМНӨ системийн браузар (Safari/Chrome) руу шилжүүлнэ —
+    // сагс/купон бүгд дамжина. (?t=token-оор шинэ браузарт state сэргэнэ.)
+    if (isInAppBrowser()) {
+      setSwitchOpen(true);
+      return;
+    }
     if (!session?.accessToken) {
       setAuthOpen(true);
       return;
@@ -433,6 +444,13 @@ function CheckoutContent() {
         onClose={() => setAuthOpen(false)}
         defaultTab="login"
         callbackUrl="/checkout?autopay=1"
+      />
+
+      {/* FB/IG доторх браузараас системийн браузар руу шилжих (төлбөрийн өмнө) */}
+      <BrowserSwitchModal
+        open={switchOpen}
+        onClose={() => setSwitchOpen(false)}
+        targetPath="/checkout?autopay=1"
       />
 
       {qpayResult && session?.accessToken && (
