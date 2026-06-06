@@ -17,7 +17,7 @@ function fbqTrack(event: string, params?: Record<string, unknown>) {
   }
 }
 
-function getSessionId(): string {
+export function getSessionId(): string {
   if (typeof window === 'undefined') return '';
   let sid = sessionStorage.getItem('dg_sid');
   if (!sid) {
@@ -39,6 +39,11 @@ export function setAnalyticsUserId(userId?: string | null) {
 // бүх үзэлт/дарсныг нэвтэрсэн хэрэглэгчид холбоно (admin popup "Үзсэн/Дарсан"
 // нэвтрэхээс өмнөх зан төлөвийг харуулна). Session тутамд НЭГ Л удаа.
 let backfillDone = false;
+// sessionId өөрчлөгдвөл (browser-switch restore) backfill дахин ажиллах ёстой —
+// flag-ийг reset хийнэ.
+export function resetBackfillFlag() {
+  backfillDone = false;
+}
 export async function backfillSessionTracking(accessToken: string) {
   if (typeof window === 'undefined' || backfillDone || !accessToken) return;
   const sid = getSessionId();

@@ -2,6 +2,7 @@
 
 import { isIOS, isAndroid } from '@/lib/download-helper';
 import { transferApi } from '@/lib/api';
+import { resetBackfillFlag } from '@/lib/analytics';
 
 // ─── FB/IG → системийн браузар руу state дамжуулж шилжих ────────────────────
 //
@@ -29,6 +30,13 @@ function collectState(): Record<string, unknown> {
   const chatHistory = read('dg-chat-history');
   const trimmedChat = Array.isArray(chatHistory) ? chatHistory.slice(-15) : chatHistory;
 
+  // analytics sessionId (dg_sid) нь sessionStorage-д. Үүнийг дамжуулснаар
+  // системийн браузарт нэвтрэхэд FB-д хийсэн үзэлт/дарсныг (тэр session-аар
+  // бичигдсэн) хэрэглэгчид backfill-аар холбоно — эс бол FB-ийн tracking
+  // алдагдана (шинэ браузарт шинэ sessionId үүснэ).
+  let analyticsSid: string | null = null;
+  try { analyticsSid = sessionStorage.getItem('dg_sid'); } catch { /* ignore */ }
+
   return {
     cart: read('digitalger-cart'),
     wishlist: read('digitalger-wishlist'),
@@ -38,6 +46,7 @@ function collectState(): Record<string, unknown> {
     chatSession: raw('dg-chat-session'),     // AI чатын session ID
     chatHistory: trimmedChat,                // AI чатын сүүлийн 15 мессеж
     theme: raw('digitalger-theme'),          // сонгосон өнгөний горим
+    analyticsSid,                            // FB-ийн analytics sessionId (tracking backfill-д)
   };
 }
 
@@ -115,6 +124,17 @@ export async function restoreTransferState(token: string): Promise<boolean> {
     write('dg-chat-history', data.chatHistory);
     writeRaw('dg-chat-session', data.chatSession);
     writeRaw('digitalger-theme', data.theme);
+
+    // FB-ийн analytics sessionId-ийг системийн браузарт хадгална (sessionStorage).
+    // Ингэснээр энд нэвтрэхэд backfill нь FB-д хийсэн бүх үзэлт/дарсныг (тэр
+    // session-аар бичигдсэн) хэрэглэгчид холбоно. Системд аль хэдийн dg_sid
+    // байсан ч FB-ийнхээр сольно — FB-ийн tracking-ийг алдахгүйн тулд.
+    if (typeof data.analyticsSid === 'string' && data.analyticsSid) {
+      try { sessionStorage.setItem('dg_sid', data.analyticsSid); } catch { /* ignore */ }
+      // sessionId солигдсон тул backfill дахин ажиллахаар flag reset (хэрэв
+      // нэвтэрсэн хэрэглэгч шилжсэн бол хуучин sid-аар хийгдсэн байж магадгүй).
+      resetBackfillFlag();
+    }
 
     // ⚠️ GUEST CONFLICT: Системийн браузарт АЛЬ ХЭДИЙН guest session байгаа бол
     // FB-ийн guest-ийг ДАРЖ БИЧИХГҮЙ. Учир нь системийн браузарт нэвтэрсэн
