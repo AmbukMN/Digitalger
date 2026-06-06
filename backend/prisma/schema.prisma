@@ -62,6 +62,7 @@ model User {
   sessions      Session[]
   productEvents ProductEvent[]
   pageViews     PageView[]
+  searchEvents  SearchEvent[]
   auditLogs     UserAuditLog[]
 }
 
@@ -624,10 +625,10 @@ model UserAuditLog {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  field     String // email | phone | name | password | role | blocked
+  field     String // email | phone | name | password | role | blocked | login | register | guest_login | oauth_login | password_reset
   oldValue  String?
   newValue  String?
-  actor     String // self | admin
+  actor     String // self | admin | system
   actorId   String? // солисон admin-ийн id (admin бол)
   createdAt DateTime @default(now())
 
@@ -639,10 +640,13 @@ model SearchEvent {
   query     String
   results   Int      @default(0)
   sessionId String?
+  userId    String? // нэвтэрсэн бол хэрэглэгчид холбоно (admin popup хайлтын түүх)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   @@index([query, createdAt])
   @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 // FB/IG доторх браузараас системийн браузар (Safari/Chrome) руу шилжихэд

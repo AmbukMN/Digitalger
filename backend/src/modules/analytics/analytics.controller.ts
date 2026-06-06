@@ -78,7 +78,7 @@ export class AnalyticsController {
 
   @Post('search')
   async trackSearch(
-    @Body() body: { query: string; results: number; sessionId?: string },
+    @Body() body: { query: string; results: number; sessionId?: string; userId?: string },
     @Req() req: Request,
   ) {
     const ua = req.headers['user-agent'] ?? '';

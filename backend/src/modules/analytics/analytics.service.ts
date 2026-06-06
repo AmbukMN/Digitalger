@@ -40,6 +40,10 @@ export class AnalyticsService {
           where: { sessionId, userId: null },
           data: { userId: safe },
         }),
+        this.prisma.searchEvent.updateMany({
+          where: { sessionId, userId: null },
+          data: { userId: safe },
+        }),
       ]);
     } catch {
       // backfill амжилтгүй болсон ч нэвтрэлтэд нөлөөлөхгүй (best-effort).
@@ -73,8 +77,10 @@ export class AnalyticsService {
     query: string;
     results: number;
     sessionId?: string;
+    userId?: string;
   }) {
-    return this.prisma.searchEvent.create({ data });
+    const userId = await this.safeUserId(data.userId);
+    return this.prisma.searchEvent.create({ data: { ...data, userId } });
   }
 
   async getDashboardStats(days = 30) {

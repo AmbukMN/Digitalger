@@ -48,6 +48,14 @@ export class AuthService {
     private readonly email: EmailService,
   ) {}
 
+  // Нэвтрэлт/бүртгэлийн үйлдлийг UserAuditLog-д бичнэ (admin popup "Аккаунт түүх"-д
+  // харагдана). Fire-and-forget — нэвтрэлтэд нөлөөлөхгүй (алдвал чимээгүй өнгөрнө).
+  private logAuthEvent(userId: string, field: string) {
+    this.prisma.userAuditLog
+      .create({ data: { userId, field, actor: 'system' } })
+      .catch(() => null);
+  }
+
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findFirst({
       where: {
@@ -75,6 +83,8 @@ export class AuthService {
         passwordHash,
       },
     });
+
+    this.logAuthEvent(user.id, 'register');
 
     // Send verification OTP — don't auto-login
     await this.createAndSendOtp(user.email, user.name, 'verify');
@@ -107,6 +117,7 @@ export class AuthService {
     const tokens = await this.issueTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
+    this.logAuthEvent(user.id, 'login');
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
@@ -131,6 +142,7 @@ export class AuthService {
       });
       const tokens = await this.issueTokens(updated.id, updated.email, updated.role);
       await this.saveRefreshToken(updated.id, tokens.refreshToken);
+      this.logAuthEvent(updated.id, 'oauth_login');
       return { user: this.sanitizeUser(updated), ...tokens };
     }
 
@@ -181,6 +193,7 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
+    this.logAuthEvent(user.id, 'oauth_login');
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
@@ -225,6 +238,7 @@ export class AuthService {
     const tokens = await this.issueTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
+    this.logAuthEvent(user.id, 'guest_login');
     return { user: this.sanitizeUser(user), ...tokens, tempEmail: email, tempPassword };
   }
 
@@ -401,10 +415,11 @@ export class AuthService {
     const normalizedEmail = email.toLowerCase();
     await this.consumeOtp(normalizedEmail, otp, 'reset');
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { email: normalizedEmail },
       data: { passwordHash },
     });
+    this.logAuthEvent(updated.id, 'password_reset');
     return { message: 'Password reset successfully' };
   }
 

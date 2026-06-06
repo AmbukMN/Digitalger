@@ -18,18 +18,22 @@ import {
   Download,
   Eye,
   Gift,
+  Globe,
   History,
   Link2,
+  LogIn,
   Mail,
   MonitorSmartphone,
   MousePointerClick,
   Package,
   Phone,
+  Search,
   ShoppingCart,
   Shield,
   Smartphone,
   Tablet,
   User as UserIcon,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
@@ -72,6 +76,12 @@ const AUDIT_FIELD: Record<string, { label: string; icon: typeof Mail }> = {
   password: { label: 'Нууц үг', icon: Shield },
   role: { label: 'Эрх', icon: Shield },
   blocked: { label: 'Хаалт', icon: Ban },
+  // Нэвтрэлт/бүртгэл (auth event)
+  login: { label: 'Нэвтэрсэн', icon: LogIn },
+  register: { label: 'Бүртгүүлсэн', icon: UserPlus },
+  guest_login: { label: 'Зочноор нэвтэрсэн', icon: LogIn },
+  oauth_login: { label: 'Google-ээр нэвтэрсэн', icon: LogIn },
+  password_reset: { label: 'Нууц үг сэргээсэн', icon: Shield },
 };
 
 function DeviceIcon({ device }: { device: string }) {
@@ -246,6 +256,9 @@ export function UserDetailDialog({ user, onClose }: Props) {
                 <TabsTrigger value="activity" className="data-[state=active]:bg-primary/10">
                   Үзсэн/Дарсан
                 </TabsTrigger>
+                <TabsTrigger value="behavior" className="data-[state=active]:bg-primary/10">
+                  Хайлт/Хандалт
+                </TabsTrigger>
                 <TabsTrigger value="account" className="data-[state=active]:bg-primary/10">Аккаунт түүх</TabsTrigger>
               </TabsList>
             </div>
@@ -381,6 +394,78 @@ export function UserDetailDialog({ user, onClose }: Props) {
                       <div key={e.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
                         <MousePointerClick className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1 truncate">{e.productTitle}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(e.createdAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Сагсалсан бүтээгдэхүүн */}
+              <div>
+                <p className="mb-2.5 flex items-center gap-2 text-sm font-semibold">
+                  <ShoppingCart className="h-4 w-4 text-green-500" />
+                  Сагсалсан ({data.cartedProducts.length})
+                </p>
+                {data.cartedProducts.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Бүртгэл алга</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {data.cartedProducts.slice(0, 50).map((e) => (
+                      <div key={e.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                        <ShoppingCart className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">{e.productTitle}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(e.createdAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* ─── ХАЙЛТ / ХАНДАЛТ ─── */}
+            <TabsContent value="behavior" className="m-0 flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Хайлтын түүх */}
+              <div>
+                <p className="mb-2.5 flex items-center gap-2 text-sm font-semibold">
+                  <Search className="h-4 w-4 text-blue-500" />
+                  Хайлтын түүх ({data.searchHistory.length})
+                </p>
+                {data.searchHistory.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Бүртгэл алга</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {data.searchHistory.slice(0, 50).map((e) => (
+                      <div key={e.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">&ldquo;{e.query}&rdquo;</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{e.results} үр дүн</span>
+                        <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(e.createdAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Хандсан хуудас */}
+              <div>
+                <p className="mb-2.5 flex items-center gap-2 text-sm font-semibold">
+                  <Globe className="h-4 w-4 text-cyan-500" />
+                  Хандсан хуудас ({data.pageViews.length})
+                </p>
+                {data.pageViews.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Бүртгэл алга</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {data.pageViews.slice(0, 80).map((e) => (
+                      <div key={e.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                        <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs">{e.path}</span>
+                        {e.device && (
+                          <span className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground sm:flex">
+                            <DeviceIcon device={e.device} />
+                          </span>
+                        )}
                         <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(e.createdAt)}</span>
                       </div>
                     ))}

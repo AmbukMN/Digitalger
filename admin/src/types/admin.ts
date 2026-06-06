@@ -122,6 +122,19 @@ export interface UserDetailAudit {
   actor: string;
   createdAt: string;
 }
+export interface UserDetailSearch {
+  id: string;
+  query: string;
+  results: number;
+  createdAt: string;
+}
+export interface UserDetailPageView {
+  id: string;
+  path: string;
+  device: string | null;
+  referrer: string | null;
+  createdAt: string;
+}
 export interface AdminUserFullDetail {
   user: {
     id: string;
@@ -142,6 +155,10 @@ export interface AdminUserFullDetail {
   downloads: UserDetailDownload[];
   viewedProducts: UserDetailEvent[];
   clickedLinks: UserDetailEvent[];
+  cartedProducts: UserDetailEvent[];
+  purchasedEvents: UserDetailEvent[];
+  searchHistory: UserDetailSearch[];
+  pageViews: UserDetailPageView[];
   devices: { device: string; count: number }[];
   auditLogs: UserDetailAudit[];
   summary: {
@@ -150,6 +167,9 @@ export interface AdminUserFullDetail {
     downloadsTotal: number;
     viewsTotal: number;
     clicksTotal: number;
+    cartsTotal: number;
+    searchesTotal: number;
+    pageViewsTotal: number;
     paidOrders: number;
     pendingOrders: number;
   };

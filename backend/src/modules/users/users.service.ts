@@ -236,7 +236,7 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const [orders, downloadsRaw, productEvents, auditLogs] = await Promise.all([
+    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw] = await Promise.all([
       // Захиалга бүгд (статусаар) + items + product
       this.prisma.order.findMany({
         where: { userId: id },
@@ -285,7 +285,7 @@ export class UsersService {
         },
         take: 300,
       }),
-      // Аккаунтын өөрчлөлтийн түүх
+      // Аккаунтын өөрчлөлтийн түүх + нэвтрэлт (login/register/guest/oauth)
       this.prisma.userAuditLog.findMany({
         where: { userId: id },
         orderBy: { createdAt: 'desc' },
@@ -297,6 +297,20 @@ export class UsersService {
           actor: true,
           createdAt: true,
         },
+        take: 100,
+      }),
+      // Хайлтын түүх
+      this.prisma.searchEvent.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, query: true, results: true, createdAt: true },
+        take: 100,
+      }),
+      // Хуудас үзэлт (хандсан хуудас)
+      this.prisma.pageView.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, path: true, device: true, referrer: true, createdAt: true },
         take: 100,
       }),
     ]);
@@ -345,6 +359,23 @@ export class UsersService {
     });
     const viewedProducts = productEvents.filter((e) => e.type === 'view').map(mapEvent);
     const clickedLinks = productEvents.filter((e) => e.type === 'click').map(mapEvent);
+    const cartedProducts = productEvents.filter((e) => e.type === 'cart').map(mapEvent);
+    const purchasedEvents = productEvents.filter((e) => e.type === 'purchase').map(mapEvent);
+
+    // Хайлт/хуудас — pageViews/searchEvents-ийг шууд хэлбэржүүлнэ
+    const searchHistory = searchEventsRaw.map((s) => ({
+      id: s.id,
+      query: s.query,
+      results: s.results,
+      createdAt: s.createdAt,
+    }));
+    const pageViews = pageViewsRaw.map((p) => ({
+      id: p.id,
+      path: p.path,
+      device: p.device,
+      referrer: p.referrer,
+      createdAt: p.createdAt,
+    }));
 
     // Төхөөрөмжийн хуваарилалт (ProductEvent.device-аас)
     const deviceCounts: Record<string, number> = {};
@@ -367,6 +398,10 @@ export class UsersService {
       downloads,
       viewedProducts,
       clickedLinks,
+      cartedProducts,
+      purchasedEvents,
+      searchHistory,
+      pageViews,
       devices,
       auditLogs,
       summary: {
@@ -375,6 +410,9 @@ export class UsersService {
         downloadsTotal: downloads.length,
         viewsTotal: viewedProducts.length,
         clicksTotal: clickedLinks.length,
+        cartsTotal: cartedProducts.length,
+        searchesTotal: searchHistory.length,
+        pageViewsTotal: pageViews.length,
         paidOrders: orders.filter((o) => o.status === 'PAID').length,
         pendingOrders: orders.filter((o) => o.status === 'PENDING').length,
       },
