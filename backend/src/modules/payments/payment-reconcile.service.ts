@@ -14,7 +14,10 @@ export class PaymentReconcileService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async reconcile() {
     try {
-      await this.payments.reconcilePendingPayments(72);
+      // Зөвхөн сүүлийн 2 цагийн PENDING — хэрэглэгч 5-30 мин дотор төлдөг тул
+      // 2ц хангалттай. Хуучин (хэзээ ч төлөгдөхгүй) захиалгыг дахин дахин
+      // шалгахгүй. PENDING байхгүй бол QPay-руу хүсэлт явуулахгүй (хоосон ажиллана).
+      await this.payments.reconcilePendingPayments(2);
     } catch (err) {
       this.logger.error('Payment reconcile cron алдаа', err);
     }

@@ -163,7 +163,7 @@ export class PaymentsService {
    * баригдаж бараа авна. Cron-аас дуудагдана.
    * @returns confirm хийсэн захиалгын тоо
    */
-  async reconcilePendingPayments(maxAgeHours = 72): Promise<number> {
+  async reconcilePendingPayments(maxAgeHours = 2): Promise<number> {
     if (!this.isQPayConfigured()) return 0;
     const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
     const pending = await this.prisma.order.findMany({
@@ -174,6 +174,10 @@ export class PaymentsService {
       },
       include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
+
+    // Шалгах PENDING байхгүй бол QPay-руу ОГТ хүсэлт явуулахгүй (хоосон ажиллахгүй,
+    // QPay/системд ачаалал/spam үүсгэхгүй).
+    if (pending.length === 0) return 0;
 
     let confirmed = 0;
     for (const order of pending) {
