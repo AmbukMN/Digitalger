@@ -453,9 +453,14 @@ export class AiService {
     // багц ЭХЭНД, үнэгүй загвар ХОЙД талд гарна (free-г түрүүлж харуулбал
     // борлуулалтад сөрөг). Зөвхөн "үнэгүй" гэж тусгай асуувал listFreeProducts-аар
     // дамждаг тул энэ нь зөвхөн холимог (free+paid) хайлтад нөлөөлнө.
+    // Бодит ТӨЛӨХ үнэ: salePrice байвал тэр (хямдралтай), эс бол price. Үнэгүй
+    // product-д price=basePrice=compareAtPrice (>0) ч salePrice=0 байдаг тул
+    // ЗААВАЛ effective үнээр шалгана (эс бол үнэгүйг таниагүй сүүлд тавихгүй).
+    const effPrice = (p: ProductResult) =>
+      p.salePrice != null ? Number(p.salePrice) || 0 : Number(p.price) || 0;
     result.sort((a, b) => {
-      const aFree = (Number(a.price) || 0) === 0 ? 1 : 0;
-      const bFree = (Number(b.price) || 0) === 0 ? 1 : 0;
+      const aFree = effPrice(a) === 0 ? 1 : 0;
+      const bFree = effPrice(b) === 0 ? 1 : 0;
       return aFree - bFree; // free (1) сүүлд, paid (0) эхэнд
     });
 
