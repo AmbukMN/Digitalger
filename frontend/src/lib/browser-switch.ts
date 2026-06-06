@@ -107,13 +107,25 @@ export async function restoreTransferState(token: string): Promise<boolean> {
         try { localStorage.setItem(k, v); } catch { /* ignore */ }
       }
     };
+    // Сагс/wishlist/coupon: FB-ийх тэргүүлнэ (дарж бичнэ) — хэрэглэгч FB-д
+    // сүүлд сагсалсан тул түүнийг хүссэн гэж үзнэ.
     write('digitalger-cart', data.cart);
     write('digitalger-wishlist', data.wishlist);
     write('digitalger-coupons', data.coupons);
-    write('digitalger-guest', data.guest);
     write('dg-chat-history', data.chatHistory);
     writeRaw('dg-chat-session', data.chatSession);
     writeRaw('digitalger-theme', data.theme);
+
+    // ⚠️ GUEST CONFLICT: Системийн браузарт АЛЬ ХЭДИЙН guest session байгаа бол
+    // FB-ийн guest-ийг ДАРЖ БИЧИХГҮЙ. Учир нь системийн браузарт нэвтэрсэн
+    // хэрэглэгч (эсвэл өөрийн guest) байж магадгүй — түүнийг хадгална, FB зочны
+    // account руу албадан шилжүүлэхгүй. Зөвхөн guest БАЙХГҮЙ (анх удаа) үед FB
+    // guest-ийг авна.
+    let hasLocalGuest = false;
+    try { hasLocalGuest = !!localStorage.getItem('digitalger-guest'); } catch { /* ignore */ }
+    if (!hasLocalGuest) {
+      write('digitalger-guest', data.guest);
+    }
 
     // Theme-ийг DOM-д ШУУД хэрэглэнэ — ThemeProvider mount-д аль хэдийн уншсан
     // тул localStorage бичсэн ч эхний рендерт үйлчлэхгүй. <html> class-ийг шууд
