@@ -156,6 +156,48 @@ export class PaymentsService {
     };
   }
 
+  /**
+   * PENDING захиалгуудыг QPay-аас шалгаж, БОДИТООР төлөгдсөнийг автомат confirm
+   * хийнэ. Webhook найдваргүй (QPay заримдаа илгээдэггүй/timing) тул энэ нь
+   * найдвартай fallback — хэрэглэгч төлсөн ч webhook ирээгүй захиалга энд
+   * баригдаж бараа авна. Cron-аас дуудагдана.
+   * @returns confirm хийсэн захиалгын тоо
+   */
+  async reconcilePendingPayments(maxAgeHours = 72): Promise<number> {
+    if (!this.isQPayConfigured()) return 0;
+    const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+    const pending = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PENDING,
+        createdAt: { gte: since },
+        payments: { some: { qpayPaymentId: { not: null } } },
+      },
+      include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+
+    let confirmed = 0;
+    for (const order of pending) {
+      const payment = order.payments[0];
+      if (!payment?.qpayPaymentId) continue;
+      try {
+        const isPaid = await this.verifyPaymentWithQpay(payment.qpayPaymentId);
+        if (isPaid) {
+          await this.completePayment(order.id, payment.id, {
+            qpayPaymentId: payment.qpayPaymentId,
+          });
+          confirmed++;
+          this.logger.log(`Reconcile: order ${order.id} төлөгдсөн → PAID confirm хийв`);
+        }
+      } catch (err) {
+        this.logger.error(`Reconcile алдаа order ${order.id}`, err);
+      }
+    }
+    if (confirmed > 0) {
+      this.logger.log(`Reconcile: нийт ${confirmed} захиалга confirm хийв`);
+    }
+    return confirmed;
+  }
+
   async checkPayment(orderId: string, userId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
