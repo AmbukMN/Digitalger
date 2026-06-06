@@ -21,17 +21,18 @@ export class TransferService {
     return { token: rec.id };
   }
 
-  /** Token-оор state сэргээнэ (нэг удаагийн — авмагц used болгоно). */
+  /**
+   * Token-оор state сэргээнэ. TTL (30мин) дотор ОЛОН УДАА consume хийж болно —
+   * учир нь хэрэглэгч нэг линкийг Safari/Chrome хоёуланд нээж болно, мөн effect
+   * давхар ажиллаж болзошгүй. Нэг удаагийн used flag тавихгүй (тавьбал хоёр дахь
+   * нээлт "хоосон" болдог). Зөвхөн expiry-р хязгаарлана — TTL дуусахад автомат
+   * хүчингүй.
+   */
   async consume(token: string): Promise<{ payload: unknown }> {
     const rec = await this.prisma.transferState.findUnique({ where: { id: token } });
-    if (!rec || rec.used || rec.expiresAt < new Date()) {
+    if (!rec || rec.expiresAt < new Date()) {
       throw new NotFoundException('Шилжүүлгийн линк хүчингүй эсвэл хугацаа дууссан');
     }
-    // Нэг удаагийн — дахин ашиглахаас сэргийлж used болгоно
-    await this.prisma.transferState.update({
-      where: { id: token },
-      data: { used: true },
-    }).catch(() => {});
     return { payload: rec.payload };
   }
 }

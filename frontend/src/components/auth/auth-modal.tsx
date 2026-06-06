@@ -515,6 +515,18 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
     }
   }, [open, defaultTab]);
 
+  // ⚠️ React hooks дүрэм: БҮХ hook нь ямар ч early return-аас ӨМНӨ дуудагдах
+  // ёстой. Тиймээс Escape listener-ийг доорх switchOpen early return-аас ӨМНӨ
+  // байрлуулна (эс бол FB-д switchOpen=true болоход hook count буурч крэш болно).
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
+
   // FB/IG илэрсэн бол нэвтрэх форм биш — шилжүүлэх modal л харуулна
   if (open && switchOpen) {
     return (
@@ -525,15 +537,6 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
       />
     );
   }
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
 
   return (
     <AnimatePresence>

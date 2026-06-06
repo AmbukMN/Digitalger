@@ -75,7 +75,14 @@ function AnalyticsUserSync() {
 // token-оор state-ийг (сагс/wishlist/coupon/guest) localStorage-д сэргээж,
 // ДАРАА нь rehydrate хийнэ — ингэснээр хэрэглэгчийн дата шинэ браузарт дамжина.
 function StoreHydration() {
+  // StrictMode/давхар mount-д useEffect 2 удаа ажиллахаас сэргийлнэ — эс бол
+  // transfer token хоёр удаа consume хийгдэж болзошгүй (одоо token нэг удаагийн
+  // биш ч давхардлаас хамгаалах нь цэвэр).
+  const ran = useRef(false);
   useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+
     const rehydrateAll = () => {
       useCartStore.persist.rehydrate();
       useWishlistStore.persist.rehydrate();
