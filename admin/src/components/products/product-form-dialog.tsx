@@ -2265,14 +2265,21 @@ export function ProductFormDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       const cap = parseFloat(form.compareAtPrice);
+      // Зөвхөн одоо БОДИТ байгаа ангилалын id (устсаныг шүүнэ)
+      const validCategoryIds = (form.categoryIds.length > 0
+        ? form.categoryIds
+        : form.categoryId ? [form.categoryId] : []
+      ).filter((id) => categories.some((c) => c.id === id));
       const body: Record<string, unknown> = {
         title: form.title,
         description: form.description,
         price: parseFloat(form.price) || 0,
         compareAtPrice: !isNaN(cap) && cap > 0 ? cap : null,
         type: form.types[0] ?? form.type,
-        categoryId: form.categoryIds.length > 0 ? form.categoryIds[0] : (form.categoryId || undefined),
-        categoryIds: form.categoryIds.length > 0 ? form.categoryIds : (form.categoryId ? [form.categoryId] : []),
+        // Устсан ангилалын id явуулахаас сэргийлж зөвхөн БОДИТ байгааг шүүнэ
+        // (backend ч давхар шүүдэг — энэ нь UI түвшний нэмэлт хамгаалалт).
+        categoryId: validCategoryIds[0],
+        categoryIds: validCategoryIds,
         published: form.published,
         featured: form.featured,
         seoTitle: form.seoTitle || undefined,
@@ -2463,21 +2470,24 @@ export function ProductFormDialog({
                   <Label>Төрөл <span className="text-destructive">*</span></Label>
                   <PopoverMultiSelect
                     options={productTypes}
-                    selected={form.types}
+                    // Устсан/идэвхгүй төрлийг шүүнэ — зөвхөн одоо БОДИТ байгаа төрөл
+                    selected={form.types.filter((t) => productTypes.some((pt) => pt.value === t))}
                     placeholder="Төрөл сонгох..."
-                    onChange={(next) => setForm((f) => ({ ...f, types: next, type: next[0] ?? f.type }))}
+                    onChange={(next) => setForm((f) => ({ ...f, types: next, type: next[0] ?? '' }))}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Ангилал</Label>
                   <PopoverMultiSelect
                     options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                    selected={form.categoryIds}
+                    // Устсан ангилалын id-г шүүнэ — зөвхөн одоо БОДИТ байгаа ангилал
+                    // (устсан id хадгалбал backend 500 өгдөг байсан).
+                    selected={form.categoryIds.filter((id) => categories.some((c) => c.id === id))}
                     placeholder={categories.length === 0 ? 'Ангилал байхгүй' : 'Ангилал сонгох...'}
                     onChange={(next) => setForm((f) => ({
                       ...f,
                       categoryIds: next,
-                      categoryId: next[0] ?? f.categoryId,
+                      categoryId: next[0] ?? '',
                     }))}
                   />
                 </div>

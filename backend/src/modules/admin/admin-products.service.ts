@@ -117,13 +117,19 @@ export class AdminProductsService {
       throw new ConflictException('Product slug already exists');
     }
 
-    const { compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, ...rest } = dto;
-    const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dto.categoryId;
+    const { compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, categoryId, ...rest } = dto;
+    const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : categoryId;
+
+    // Устсан/буруу category id үед FK алдаа (500)-аас сэргийлж зөвхөн БОДИТ үлдээнэ.
+    const validIds = await this.filterExistingCategoryIds(
+      categoryIds && categoryIds.length > 0 ? categoryIds : primaryCategoryId ? [primaryCategoryId] : [],
+    );
+
     return this.prisma.product.create({
       data: {
         ...rest,
-        categoryId: primaryCategoryId ?? rest.categoryId,
-        categoryIds: categoryIds ?? (dto.categoryId ? [dto.categoryId] : []),
+        categoryId: validIds[0] ?? null,
+        categoryIds: validIds,
         // price null/undefined бол 0 (үнэгүй бүтээгдэхүүн) — Decimal(null) алдаа гаргадаг
         price: new Prisma.Decimal(dto.price ?? 0),
         ...(compareAtPrice !== undefined && {
@@ -153,15 +159,22 @@ export class AdminProductsService {
       }
     }
 
-    const { price, compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, ...rest } = dto;
-    const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dto.categoryId;
+    const { price, compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, categoryId: dtoCategoryId, ...rest } = dto;
+    const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dtoCategoryId;
+
+    // Устсан/буруу category id үед FK алдаа (500)-аас сэргийлж зөвхөн БОДИТ
+    // байгаа category id-г үлдээнэ (байхгүйг шүүнэ).
+    const validIds = await this.filterExistingCategoryIds(
+      categoryIds !== undefined ? categoryIds : primaryCategoryId ? [primaryCategoryId] : [],
+    );
+    const safePrimaryId = validIds[0] ?? null;
 
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
-        ...(primaryCategoryId !== undefined && { categoryId: primaryCategoryId }),
-        ...(categoryIds !== undefined && { categoryIds }),
+        ...(primaryCategoryId !== undefined && { categoryId: safePrimaryId }),
+        ...(categoryIds !== undefined && { categoryIds: validIds }),
         ...(price !== undefined && { price: new Prisma.Decimal(price) }),
         ...(compareAtPrice !== undefined && {
           compareAtPrice: compareAtPrice === null ? null : new Prisma.Decimal(compareAtPrice),
@@ -433,5 +446,20 @@ export class AdminProductsService {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
     return product;
+  }
+
+  /**
+   * Зөвхөн БОДИТ байгаа category id-г үлдээж (устсаныг шүүж) дарааллыг хадгална.
+   * Устсан категорийн id-г product-д хадгалбал FK constraint алдаа (500) гардаг.
+   */
+  private async filterExistingCategoryIds(ids: (string | undefined | null)[]): Promise<string[]> {
+    const clean = [...new Set(ids.filter((x): x is string => !!x))];
+    if (clean.length === 0) return [];
+    const found = await this.prisma.category.findMany({
+      where: { id: { in: clean } },
+      select: { id: true },
+    });
+    const foundSet = new Set(found.map((c) => c.id));
+    return clean.filter((id) => foundSet.has(id)); // оруулсан дарааллыг хадгална
   }
 }

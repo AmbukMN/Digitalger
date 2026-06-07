@@ -122,7 +122,7 @@ model Product {
   type              String
   categoryId        String?
   categoryIds       String[]             @default([])
-  category          Category?            @relation(fields: [categoryId], references: [id])
+  category          Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   published         Boolean              @default(false)
   featured          Boolean              @default(false)
   rating            Float                @default(0)
