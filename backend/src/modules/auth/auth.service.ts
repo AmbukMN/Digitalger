@@ -58,6 +58,14 @@ export class AuthService {
       .catch(() => null);
   }
 
+  // Амжилттай нэвтрэх бүрд User.lastLoginAt-г шинэчилнэ (маркетингийн идэвх/
+  // re-engagement сегментэд ашиглана). Fire-and-forget — нэвтрэлтэд саад болохгүй.
+  private touchLastLogin(userId: string) {
+    this.prisma.user
+      .update({ where: { id: userId }, data: { lastLoginAt: new Date() } })
+      .catch(() => {});
+  }
+
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findFirst({
       where: {
@@ -120,6 +128,7 @@ export class AuthService {
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     this.logAuthEvent(user.id, 'login');
+    this.touchLastLogin(user.id);
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
@@ -145,6 +154,7 @@ export class AuthService {
       const tokens = await this.issueTokens(updated.id, updated.email, updated.role);
       await this.saveRefreshToken(updated.id, tokens.refreshToken);
       this.logAuthEvent(updated.id, 'oauth_login');
+      this.touchLastLogin(updated.id);
       return { user: this.sanitizeUser(updated), ...tokens };
     }
 
@@ -196,6 +206,7 @@ export class AuthService {
     const tokens = await this.issueTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
     this.logAuthEvent(user.id, 'oauth_login');
+    this.touchLastLogin(user.id);
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
@@ -241,6 +252,7 @@ export class AuthService {
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     this.logAuthEvent(user.id, 'guest_login');
+    this.touchLastLogin(user.id);
     return { user: this.sanitizeUser(user), ...tokens, tempEmail: email, tempPassword };
   }
 
@@ -428,6 +440,7 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) return null;
 
+    this.touchLastLogin(user.id);
     return this.sanitizeUser(user);
   }
 

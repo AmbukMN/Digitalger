@@ -51,6 +51,12 @@ model User {
   isGuest       Boolean        @default(false)
   blocked       Boolean        @default(false)
   refreshToken  String?
+  // Marketing automation
+  lastOrderAt        DateTime? // Сүүлийн PAID захиалгын огноо (inactive илрүүлэх)
+  lastLoginAt        DateTime? // Сүүлийн нэвтрэлт (inactive илрүүлэх)
+  reactivationSentAt DateTime? // Reactivation имэйл явуулсан (давхар явуулахгүй)
+  // Хэрэглэгч unsubscribe дарвал MARKETING имэйл явуулахгүй (transactional хэвээр явна)
+  marketingOptOut    Boolean   @default(false)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   orders        Order[]
@@ -144,6 +150,8 @@ model Product {
   proofText         String?              @db.Text
   proofAuthorName   String?
   proofAuthorRole   String?
+  // New product notification — subscriber-уудад имэйл явуулсан огноо (давхар явуулахгүй)
+  notifiedAt        DateTime?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   files             ProductFile[]
@@ -242,6 +250,9 @@ model Order {
   grantedByAdminId String? // ADMIN_GRANT үед идэвхжүүлсэн админ
   qpayIdentifier   String?     @unique
   couponCode       String?
+  // Marketing automation — давхар имэйл явуулахаас сэргийлэх тэмдэглэгээ
+  reminderSentAt     DateTime? // Cart abandonment (1ц) сануулга явуулсан огноо
+  discountPushSentAt DateTime? // Discount push (24ц) 10% coupon follow-up явуулсан
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   items            OrderItem[]
@@ -588,6 +599,19 @@ model Subscriber {
   @@index([email])
 }
 
+// Имэйл нээлт хянах (tracking pixel) — marketing имэйл бүрд 1×1 зураг суулгаж,
+// хэрэглэгч нээхэд энэ бүртгэгдэнэ. campaign-аар нээлтийн статистик гаргана.
+model EmailOpen {
+  id        String   @id @default(cuid())
+  email     String
+  campaign  String // cart-1h | discount-24h | coupon-expiring | new-product | reactivation | welcome ...
+  refId     String? // order/coupon/product id (холбоотой бол)
+  openedAt  DateTime @default(now())
+
+  @@index([campaign, openedAt])
+  @@index([email, campaign])
+}
+
 enum ZipJobStatus {
   PENDING
   PROCESSING
@@ -625,6 +649,8 @@ model Coupon {
   usedCount Int        @default(0)
   active    Boolean    @default(true)
   expiresAt DateTime?
+  // Expiring coupon reminder (дуусахаас 12ц өмнө) давхар явуулахаас сэргийлэх
+  reminderSentAt DateTime?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }

@@ -214,6 +214,11 @@ export class OrdersService {
 
     // Free order → send confirmation immediately
     if (isFree) {
+      // Үнэгүй захиалга шууд PAID болсон тул User.lastOrderAt-г шинэчилнэ
+      // (маркетингийн сегмент). Fire-and-forget — захиалгад саад болохгүй.
+      this.prisma.user
+        .update({ where: { id: userId }, data: { lastOrderAt: new Date() } })
+        .catch(() => null);
       const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
       if (user?.email) {
         this.email.sendOrderConfirmation({

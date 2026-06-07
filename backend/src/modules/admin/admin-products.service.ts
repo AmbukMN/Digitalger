@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { N8nService } from '../n8n/n8n.service';
+import { EmailService } from '../notifications/email.service';
 import { expandQuery } from '../../common/transliterate';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -17,6 +18,7 @@ export class AdminProductsService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly n8n: N8nService,
+    private readonly email: EmailService,
   ) {}
 
   async findAll(query: { page?: number; pageSize?: number; search?: string }) {
@@ -189,7 +191,7 @@ export class AdminProductsService {
       include: { category: true, images: true },
     });
 
-    // published: false → true болсон үед n8n-д мэдэгдэл
+    // published: false → true болсон үед n8n-д мэдэгдэл (Telegram)
     if (!existing.published && updated.published) {
       this.n8n.emitProductPublished({
         productId: updated.id,
@@ -199,6 +201,13 @@ export class AdminProductsService {
         categoryName: (updated.category as any)?.name ?? null,
         publishedAt: new Date().toISOString(),
       }).catch(() => null);
+
+      // Бүх ACTIVE subscriber-т "шинэ бүтээгдэхүүн" имэйл (зөвхөн НЭГ удаа).
+      // notifiedAt=null үед л явуулна (давхар явуулахгүй).
+      // Fire-and-forget — имэйл алдвал publish-д нөлөөлөхгүй.
+      if (!existing.notifiedAt) {
+        void this.notifySubscribersNewProduct(updated);
+      }
     }
 
     return updated;
@@ -440,6 +449,60 @@ export class AdminProductsService {
     }
 
     return cloned;
+  }
+
+  /**
+   * Шинэ бүтээгдэхүүн нийтлэгдэхэд бүх ACTIVE subscriber-т имэйл явуулна.
+   * - notifiedAt-г одоо болгож тэмдэглэнэ (давхар явуулахгүй).
+   * - Маш олон subscriber байж болзошгүй тул fire-and-forget; EmailService-ийн
+   *   дотоод queue (300ms rate limit) дараалуулж явуулна.
+   * - Аливаа алдаа publish-д нөлөөлөхгүй (бүхэлд нь try/catch).
+   */
+  private async notifySubscribersNewProduct(product: {
+    id: string;
+    title: string;
+    slug: string;
+    price: Prisma.Decimal;
+    images?: { fileKey: string; videoUrl: string | null }[];
+  }) {
+    try {
+      // Давхар явуулахаас сэргийлж нэн даруй тэмдэглэнэ (race-аас хамгаалах).
+      const marked = await this.prisma.product.updateMany({
+        where: { id: product.id, notifiedAt: null },
+        data: { notifiedAt: new Date() },
+      });
+      // Өөр процесс аль хэдийн тэмдэглэсэн бол давтан явуулахгүй.
+      if (marked.count === 0) return;
+
+      const subscribers = await this.prisma.subscriber.findMany({
+        where: { status: 'ACTIVE' },
+        select: { email: true },
+      });
+      if (subscribers.length === 0) return;
+
+      // Primary зураг (видео биш) → R2 public url.
+      const primary = product.images?.find((img) => !img.videoUrl && img.fileKey);
+      const imageUrl = primary ? this.storage.getAssetUrl(primary.fileKey) : null;
+
+      const price = Number(product.price);
+
+      for (const sub of subscribers) {
+        // sendNewProduct дотроо queue-д enqueue хийдэг тул await хийхгүй —
+        // зүгээр enqueue болгож цааш үргэлжилнэ.
+        this.email
+          .sendNewProduct({
+            to: sub.email,
+            productTitle: product.title,
+            productSlug: product.slug,
+            price,
+            salePrice: null,
+            imageUrl,
+          })
+          .catch(() => null);
+      }
+    } catch {
+      // notify алдвал publish-д нөлөөлөхгүй.
+    }
   }
 
   private async ensureProductExists(id: string) {

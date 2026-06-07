@@ -37,6 +37,8 @@ import { AiModule } from './modules/ai/ai.module';
 import { TransferModule } from './modules/transfer/transfer.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
 import { ContactModule } from './modules/contact/contact.module';
+import { EmailEventsModule } from './modules/email-events/email-events.module';
+import { MarketingModule } from './modules/marketing/marketing.module';
 
 @Module({
   imports: [
@@ -96,6 +98,8 @@ import { ContactModule } from './modules/contact/contact.module';
     TransferModule,
     SubscribersModule,
     ContactModule,
+    EmailEventsModule,
+    MarketingModule,
   ],
   controllers: [AppController],
   providers: [

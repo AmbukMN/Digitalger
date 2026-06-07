@@ -79,12 +79,64 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   // ─── private helpers ────────────────────────────────────────────────────────
 
   private emailHeader(): string {
+    // Бодит PNG лого (DG badge биш) — frontend/public/brand/logo-white.png
     return `
   <tr><td style="background:#022179;padding:20px 36px;text-align:center">
     <a href="${this.siteUrl}" style="text-decoration:none">
-      <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;font-family:system-ui,-apple-system,sans-serif">Digital<span style="color:#ffbe00">Ger</span></span>
+      <img src="${this.siteUrl}/brand/logo-white.png" alt="DigitalGer" height="32" style="height:32px;width:auto;display:inline-block;border:0" />
     </a>
   </td></tr>`;
+  }
+
+  // ─── Дундын имэйл layout (бүх marketing/transactional template-д) ─────────────
+  // Гоё, найдвартай (table-based, бүх email client дэмжинэ), лого/footer/pixel.
+  private emailLayout(opts: {
+    heading: string;       // гол гарчиг (body эхэнд)
+    bodyHtml: string;      // дунд хэсэг (HTML)
+    ctaText?: string;      // CTA товчны текст
+    ctaUrl?: string;       // CTA холбоос
+    preheader?: string;    // inbox preview текст
+    campaign?: string;     // tracking pixel campaign нэр
+    email?: string;        // pixel-д хэрэглэгчийн имэйл
+    refId?: string;        // pixel refId (order/coupon/product)
+    showUnsubscribe?: boolean; // marketing имэйлд unsubscribe footer
+  }): string {
+    const cta = opts.ctaText && opts.ctaUrl
+      ? `<tr><td style="padding:8px 36px 28px;text-align:center">
+           <a href="${opts.ctaUrl}" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 36px;border-radius:10px;text-decoration:none">${opts.ctaText}</a>
+         </td></tr>`
+      : '';
+    // Tracking pixel (1×1) — нээлт хянана
+    const pixel = opts.campaign && opts.email
+      ? `<img src="${this.siteUrl.replace('digitalger.mn', 'api.digitalger.mn')}/api/email/open?c=${encodeURIComponent(opts.campaign)}&e=${encodeURIComponent(opts.email)}${opts.refId ? `&r=${encodeURIComponent(opts.refId)}` : ''}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`
+      : '';
+    const unsub = opts.showUnsubscribe && opts.email
+      ? `<p style="margin:8px 0 0;font-size:11px;color:#bbb">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}" style="color:#999;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
+      : '';
+    const pre = opts.preheader
+      ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${opts.preheader}</div>`
+      : '';
+
+    return `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
+${pre}
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
+  ${this.emailHeader()}
+  <tr><td style="padding:34px 36px 4px">
+    <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#022179;line-height:1.3">${opts.heading}</h1>
+    ${opts.bodyHtml}
+  </td></tr>
+  ${cta}
+  <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
+    ${unsub}
+  </td></tr>
+</table>
+</td></tr></table>
+${pixel}
+</body></html>`;
   }
 
   private isGuest(email: string): boolean {
@@ -306,6 +358,137 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     // ШУУД илгээнэ (queue биш) — амжилт буцаана. subscribe урсгал имэйл
     // хүчинтэй эсэхийг (явсан/явсангүй) энэ утгаар шийдэж invalid тэмдэглэнэ.
     return this.send(to, `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`, html);
+  }
+
+  // ═══ MARKETING AUTOMATION TEMPLATES ═════════════════════════════════════════
+  private itemRows(items: { title: string; price: number }[]): string {
+    return items
+      .map(
+        (i) =>
+          `<tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333">${i.title}</td>
+           <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;text-align:right;white-space:nowrap">₮${i.price.toLocaleString()}</td></tr>`,
+      )
+      .join('');
+  }
+
+  /** 1. Cart abandonment (1ц) — худалдан авалт дуусгаагүй сануулга. */
+  async sendCartReminder(opts: { to: string; name: string | null; orderId: string; items: { title: string; price: number }[]; total: number }) {
+    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+    const body = `
+      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таны сонгосон бүтээгдэхүүн сагсанд хүлээж байна 👀 Худалдан авалтаа дуусгаж шууд татаж аваарай.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px">${this.itemRows(opts.items)}</table>
+      <div style="border-top:2px solid #022179;padding-top:12px;margin-top:4px;text-align:right">
+        <span style="font-size:17px;font-weight:800;color:#022179">Нийт: ₮${opts.total.toLocaleString()}</span>
+      </div>`;
+    const html = this.emailLayout({
+      heading: 'Таны сонгосон бүтээгдэхүүн хүлээж байна 👀',
+      bodyHtml: body,
+      ctaText: 'Худалдан авалтаа дуусгах →',
+      ctaUrl: `${this.siteUrl}/checkout`,
+      preheader: 'Сагсанд байгаа бүтээгдэхүүнээ авч амжаарай',
+      campaign: 'cart-1h', email: opts.to, refId: opts.orderId, showUnsubscribe: true,
+    });
+    this.enqueue(() => this.send(opts.to, 'Таны сонгосон бүтээгдэхүүн хүлээж байна 👀', html));
+  }
+
+  /** 2. Discount push (24ц) — аваагүй хэрэглэгчид 10% coupon follow-up. */
+  async sendDiscountPush(opts: { to: string; name: string | null; orderId: string; couponCode: string; discountPercent: number }) {
+    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+    const body = `
+      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таны сонирхсон бүтээгдэхүүн хүлээсээр байна. Танд тусгай бэлэг бэлдлээ 🎁</p>
+      <div style="background:linear-gradient(135deg,#022179,#0a3aa0);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
+        <p style="margin:0 0 6px;font-size:13px;color:#ffbe00;text-transform:uppercase;letter-spacing:1px;font-weight:700">${opts.discountPercent}% ХӨНГӨЛӨЛТ</p>
+        <div style="background:#fff;border-radius:10px;padding:14px;display:inline-block">
+          <span style="font-family:monospace;font-size:24px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
+        </div>
+        <p style="margin:12px 0 0;font-size:12px;color:#cdd8f0">Худалдан авалт хийхдээ энэ кодыг ашиглаарай</p>
+      </div>`;
+    const html = this.emailLayout({
+      heading: 'Танд 10% хөнгөлөлт бэлэглэлээ 🎁',
+      bodyHtml: body,
+      ctaText: 'Хямдралтай авах →',
+      ctaUrl: `${this.siteUrl}/checkout`,
+      preheader: `${opts.discountPercent}% хөнгөлөлтийн код таныг хүлээж байна`,
+      campaign: 'discount-24h', email: opts.to, refId: opts.orderId, showUnsubscribe: true,
+    });
+    this.enqueue(() => this.send(opts.to, '🎁 Танд 10% хөнгөлөлт бэлэглэлээ', html));
+  }
+
+  /** 3. Expiring coupon (12ц өмнө) — coupon удахгүй дуусна сануулга. */
+  async sendExpiringCoupon(opts: { to: string; name: string | null; couponCode: string; discountLabel: string; expiresAt: Date; couponId?: string }) {
+    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+    const exp = new Date(opts.expiresAt).toLocaleString('mn-MN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const body = `
+      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таны <strong>${opts.couponCode}</strong> хөнгөлөлтийн код удахгүй дуусах гэж байна ⏰ Ашиглаж амжаарай!</p>
+      <div style="background:#fffbef;border:1px solid #ffe9a8;border-radius:14px;padding:20px;text-align:center;margin-bottom:8px">
+        <p style="margin:0 0 8px;font-size:13px;color:#a07b00;font-weight:700">${opts.discountLabel}</p>
+        <span style="font-family:monospace;font-size:22px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
+        <p style="margin:12px 0 0;font-size:13px;color:#c0392b;font-weight:600">⏰ Дуусах хугацаа: ${exp}</p>
+      </div>`;
+    const html = this.emailLayout({
+      heading: '⏰ Таны хөнгөлөлт удахгүй дуусна',
+      bodyHtml: body,
+      ctaText: 'Одоо ашиглах →',
+      ctaUrl: `${this.siteUrl}/products`,
+      preheader: 'Хөнгөлөлтийн кодоо ашиглаж амжаарай',
+      campaign: 'coupon-expiring', email: opts.to, refId: opts.couponId, showUnsubscribe: true,
+    });
+    this.enqueue(() => this.send(opts.to, '⏰ Таны хөнгөлөлтийн код удахгүй дуусна', html));
+  }
+
+  /** 4. New product notification — subscriber-уудад шинэ бүтээгдэхүүн. */
+  async sendNewProduct(opts: { to: string; productTitle: string; productSlug: string; price: number; salePrice?: number | null; imageUrl?: string | null }) {
+    const eff = opts.salePrice != null && opts.salePrice >= 0 ? opts.salePrice : opts.price;
+    const priceLabel = eff === 0 ? 'ҮНЭГҮЙ 🎁' : `₮${eff.toLocaleString()}`;
+    const img = opts.imageUrl
+      ? `<tr><td style="padding:0 0 16px"><img src="${opts.imageUrl}" alt="${opts.productTitle}" width="528" style="width:100%;max-width:528px;border-radius:12px;display:block" /></td></tr>`
+      : '';
+    const body = `
+      <p style="margin:0 0 16px;font-size:15px;color:#555">Манайд шинэ бүтээгдэхүүн нэмэгдлээ! Хамгийн түрүүнд танилцаарай 👇</p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${img}
+        <tr><td style="text-align:center">
+          <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#022179">${opts.productTitle}</p>
+          <p style="margin:0;font-size:16px;font-weight:700;color:${eff === 0 ? '#16a34a' : '#022179'}">${priceLabel}</p>
+        </td></tr>
+      </table>`;
+    const html = this.emailLayout({
+      heading: '🆕 Шинэ бүтээгдэхүүн нэмэгдлээ',
+      bodyHtml: body,
+      ctaText: 'Үзэх →',
+      ctaUrl: `${this.siteUrl}/products/${opts.productSlug}`,
+      preheader: opts.productTitle,
+      campaign: 'new-product', email: opts.to, refId: opts.productSlug, showUnsubscribe: true,
+    });
+    this.enqueue(() => this.send(opts.to, `🆕 Шинэ: ${opts.productTitle}`, html));
+  }
+
+  /** 5. Inactive user reactivation (30 хоног) — буцаан татах + coupon. */
+  async sendReactivation(opts: { to: string; name: string | null; couponCode: string; discountLabel: string }) {
+    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+    const body = `
+      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таныг DigitalGer дээр санасаар байна 👋 Эргэн ирэхэд тань зориулж тусгай бэлэг бэлдлээ.</p>
+      <div style="background:linear-gradient(135deg,#022179,#0a3aa0);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
+        <p style="margin:0 0 6px;font-size:13px;color:#ffbe00;text-transform:uppercase;letter-spacing:1px;font-weight:700">${opts.discountLabel}</p>
+        <div style="background:#fff;border-radius:10px;padding:14px;display:inline-block">
+          <span style="font-family:monospace;font-size:24px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
+        </div>
+      </div>`;
+    const html = this.emailLayout({
+      heading: 'Таныг хүлээж байна 👋',
+      bodyHtml: body,
+      ctaText: 'Шинэ бүтээгдэхүүн үзэх →',
+      ctaUrl: `${this.siteUrl}/products`,
+      preheader: 'Эргэн ирэхэд тань зориулсан тусгай хөнгөлөлт',
+      campaign: 'reactivation', email: opts.to, showUnsubscribe: true,
+    });
+    this.enqueue(() => this.send(opts.to, 'Таныг DigitalGer дээр хүлээж байна 👋', html));
+  }
+
+  /** Имэйл нээлт (pixel) бүртгэх. */
+  async recordEmailOpen(campaign: string, email: string, refId?: string) {
+    if (!campaign || !email) return;
+    await this.redis.incr(`email:open:${campaign}`).catch(() => {});
   }
 
   // ─── Холбоо барих (inquiry) → info@digitalger.mn ──────────────────────────────

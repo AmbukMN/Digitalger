@@ -385,6 +385,20 @@ export class PaymentsService {
       data: paymentData,
     });
 
+    // Захиалга PAID болсон тул худалдан авагчийн User.lastOrderAt-г шинэчилнэ
+    // (маркетингийн сегмент/re-engagement). Fire-and-forget — төлбөрт саад болохгүй.
+    this.prisma.order
+      .findUnique({ where: { id: orderId }, select: { userId: true } })
+      .then((o) => {
+        if (o?.userId) {
+          return this.prisma.user.update({
+            where: { id: o.userId },
+            data: { lastOrderAt: new Date() },
+          });
+        }
+      })
+      .catch(() => null);
+
     // n8n-рүү event илгээх (non-blocking). Энэ нь claimed.count>0 (анх удаа
     // confirm) үед Л дуудагдана — давхар Telegram/email явахгүй.
     this.emitN8nPaymentPaid(orderId, paymentId).catch((err) =>
