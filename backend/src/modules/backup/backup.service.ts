@@ -20,6 +20,8 @@ export class BackupService implements OnModuleDestroy {
   private readonly logger = new Logger(BackupService.name);
   private readonly redis: Redis;
   private readonly databaseUrl: string | undefined;
+  // 30 хоног хадгална, хуучныг автомат устгана (R2-д хадгалагдах тул VPS дискэнд
+  // нөлөөгүй; gzip SQL dump жижиг — видео/файл R2-д, DB-д биш).
   private readonly retentionDays = 30;
   private readonly prefix = 'backups/';
 

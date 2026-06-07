@@ -16,6 +16,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# postgresql-client — DB backup cron-д pg_dump хэрэгтэй (өдөр тутмын R2 backup).
+RUN apk add --no-cache postgresql16-client
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
