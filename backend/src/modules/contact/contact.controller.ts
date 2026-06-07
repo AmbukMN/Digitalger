@@ -1,6 +1,26 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { EmailService } from '../notifications/email.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
+// HTML-ийг цэвэр текст болгоно (n8n chatbot context-д уншихад зориулсан).
+function htmlToText(html: string): string {
+  return (html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<li[^>]*>/gi, '\n• ')
+    .replace(/<\/(p|div|h[1-6]|tr)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
 
 interface ContactDto {
   name: string;
@@ -15,7 +35,60 @@ interface ContactDto {
 
 @Controller('contact')
 export class ContactController {
-  constructor(private readonly email: EmailService) {}
+  constructor(
+    private readonly email: EmailService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  // ─── n8n chatbot context (public) ───────────────────────────────────────────
+  // Холбоо барих + Бидний тухай хуудасны бодит DB өгөгдөл + social/email-ийг
+  // нэгтгэж текстээр буцаана. n8n AI agent энэ мэдээллээр "утас?", "хэрхэн холбоо
+  // барих?" зэрэг асуултад БОДИТ өгөгдлөөр хариулна (system message-д статик биш).
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @Get('chatbot-context')
+  async chatbotContext() {
+    const [contactPage, aboutPage, site] = await Promise.all([
+      this.prisma.page.findUnique({ where: { slug: 'contact' } }),
+      this.prisma.page.findUnique({ where: { slug: 'about' } }),
+      this.prisma.siteSetting.findUnique({ where: { id: 'default' } }),
+    ]);
+
+    const socials: Record<string, string | null | undefined> = {
+      Facebook: site?.socialFacebook,
+      Instagram: site?.socialInstagram,
+      Twitter: site?.socialTwitter,
+      Threads: site?.socialThreads,
+      Telegram: site?.socialTelegram,
+      WhatsApp: site?.socialWhatsapp,
+      TikTok: site?.socialTiktok,
+      YouTube: site?.socialYoutube,
+      LinkedIn: site?.socialLinkedin,
+    };
+    const socialLines = Object.entries(socials)
+      .filter(([, v]) => !!v)
+      .map(([k, v]) => `${k}: ${v}`);
+
+    // AI agent-д шууд уншихад бэлэн нэгдсэн текст
+    const lines: string[] = [];
+    lines.push('=== ХОЛБОО БАРИХ (бодит мэдээлэл) ===');
+    if (contactPage?.content) lines.push(htmlToText(contactPage.content).slice(0, 1500));
+    if (site?.supportEmail) lines.push(`Дэмжлэгийн имэйл: ${site.supportEmail}`);
+    if (socialLines.length) lines.push('Социал сүлжээ:\n' + socialLines.join('\n'));
+    lines.push('Холбоо барих хуудас: https://digitalger.mn/contact');
+    if (aboutPage?.content) {
+      lines.push('\n=== БИДНИЙ ТУХАЙ ===');
+      lines.push(htmlToText(aboutPage.content).slice(0, 1500));
+    }
+
+    return {
+      contactText: htmlToText(contactPage?.content ?? '').slice(0, 1500),
+      aboutText: htmlToText(aboutPage?.content ?? '').slice(0, 1500),
+      supportEmail: site?.supportEmail ?? 'info@digitalger.mn',
+      socials: socialLines,
+      // n8n agentInput-д шууд хийхэд бэлэн нэгдсэн текст
+      contextBlock: lines.filter(Boolean).join('\n'),
+    };
+  }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // спам хүсэлтээс сэргийлэх
   @Post()
