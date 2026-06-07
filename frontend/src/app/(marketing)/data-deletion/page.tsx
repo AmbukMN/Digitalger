@@ -1,14 +1,37 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { SITE_URL } from '@/lib/constants';
 import { pagesApi } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
 
-export const metadata: Metadata = {
-  title: 'Мэдээлэл устгах | DigitalGer',
-  description: 'DigitalGer — хэрэглэгчийн мэдээлэл устгах хүсэлт',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  // SEO-г DB-ээс УНШИНА — байхгүй бол hardcode fallback
+  let page: Awaited<ReturnType<typeof pagesApi.bySlug>> = null;
+  try {
+    page = await pagesApi.bySlug('data-deletion');
+  } catch { /* fallback */ }
+  const title = page?.metaTitle || 'Мэдээлэл устгах | DigitalGer';
+  const description = page?.metaDescription || 'DigitalGer — хэрэглэгчийн мэдээлэл устгах хүсэлт';
+  const ogImageUrl = page?.ogImageUrl || null;
+  return {
+    title,
+    description,
+    ...(page?.metaKeywords ? { keywords: page.metaKeywords } : {}),
+    alternates: { canonical: `${SITE_URL}/data-deletion` },
+    openGraph: {
+      title,
+      description,
+      url: `${SITE_URL}/data-deletion`,
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 const DEFAULT_CONTENT = `<h2>Мэдээлэл устгах хүсэлт</h2>
 <p>DigitalGer нь Facebook Login болон бусад OAuth үйлчилгээгээр дамжуулан нэвтрэх боломжийг олгодог. Та бүртгэлээ болон хувийн мэдээллээ бүрэн устгуулахыг хүсвэл доорх заавраар хүсэлт илгээнэ үү.</p>

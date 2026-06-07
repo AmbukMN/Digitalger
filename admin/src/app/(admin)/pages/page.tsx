@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { toast } from 'sonner';
 import { Save } from 'lucide-react';
 import {
@@ -95,6 +95,20 @@ const DATA_DELETION_DEFAULT = `<h2>Мэдээлэл устгах хүсэлт</h
 <h2>Холбоо барих</h2>
 <p>Асуулт байвал <a href="mailto:info@digitalger.mn">info@digitalger.mn</a> хаягаар эсвэл <a href="/privacy-policy">Нууцлалын бодлого</a> хуудсыг үзнэ үү.</p>`;
 
+const CONTACT_DEFAULT = `<h2>Бидэнтэй холбоо барих</h2>
+<p>Асуулт, санал хүсэлт, техникийн дэмжлэг хэрэгтэй бол доорх мэдээллээр бидэнтэй холбогдоорой. Бид ажлын цагаар хариу өгөхийг хичээнэ.</p>
+
+<h2>Холбоо барих мэдээлэл</h2>
+<ul>
+  <li><strong>Имэйл:</strong> <a href="mailto:info@digitalger.mn">info@digitalger.mn</a></li>
+  <li><strong>Утас:</strong> +976 9999-0000</li>
+  <li><strong>Хаяг:</strong> Улаанбаатар хот, Монгол улс</li>
+  <li><strong>Facebook:</strong> <a href="https://facebook.com/digitalger.mn" target="_blank" rel="noopener noreferrer">facebook.com/digitalger.mn</a></li>
+</ul>
+
+<h2>Ажлын цаг</h2>
+<p>Даваа–Баасан: 09:00–18:00<br/>Бямба, Ням: Амралтын өдөр</p>`;
+
 const PAGES = [
   {
     slug: 'about' as const,
@@ -120,7 +134,36 @@ const PAGES = [
     defaultTitle: 'Мэдээлэл устгах',
     defaultContent: DATA_DELETION_DEFAULT,
   },
+  {
+    slug: 'contact' as const,
+    label: 'Холбоо барих',
+    defaultTitle: 'Холбоо барих',
+    defaultContent: CONTACT_DEFAULT,
+  },
 ] as const;
+
+// Native textarea — shared UI-д Textarea байхгүй тул local тодорхойлов (seo page-тэй ижил)
+function Textarea({
+  rows = 3,
+  placeholder,
+  value,
+  onChange,
+}: {
+  rows?: number;
+  placeholder?: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <textarea
+      rows={rows}
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      className="flex min-h-15 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+    />
+  );
+}
 
 type PageSlug = (typeof PAGES)[number]['slug'];
 
@@ -128,6 +171,19 @@ interface PageData {
   slug: string;
   title: string;
   content: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  metaKeywords?: string | null;
+  ogImageUrl?: string | null;
+}
+
+interface PageForm {
+  title: string;
+  content: string;
+  metaTitle: string;
+  metaDescription: string;
+  metaKeywords: string;
+  ogImageUrl: string;
 }
 
 function PageEditor({
@@ -146,18 +202,31 @@ function PageEditor({
     queryFn: () => adminApi.pages.get(slug),
   });
 
-  const [form, setForm] = useState<{ title: string; content: string } | null>(null);
+  const [form, setForm] = useState<PageForm | null>(null);
 
-  const currentData = form ?? {
-    title: (data as PageData | null)?.title ?? defaultTitle,
-    content: (data as PageData | null)?.content ?? defaultContent,
+  const d = data as PageData | null;
+  // form (засагдсан) > DB утга > default
+  const current: PageForm = form ?? {
+    title: d?.title ?? defaultTitle,
+    content: d?.content ?? defaultContent,
+    metaTitle: d?.metaTitle ?? '',
+    metaDescription: d?.metaDescription ?? '',
+    metaKeywords: d?.metaKeywords ?? '',
+    ogImageUrl: d?.ogImageUrl ?? '',
   };
+
+  const patch = (p: Partial<PageForm>) => setForm({ ...current, ...p });
 
   const saveMut = useMutation({
     mutationFn: () =>
       adminApi.pages.update(slug, {
-        title: currentData.title,
-        content: currentData.content,
+        title: current.title,
+        content: current.content,
+        // Хоосон утгыг дамжуулахгүй (DB-д null хадгалагдана)
+        metaTitle: current.metaTitle || undefined,
+        metaDescription: current.metaDescription || undefined,
+        metaKeywords: current.metaKeywords || undefined,
+        ogImageUrl: current.ogImageUrl || undefined,
       }),
     onSuccess: () => {
       toast.success('Хуудас хадгалагдлаа');
@@ -168,16 +237,13 @@ function PageEditor({
 
   if (isLoading) return <Loading label="Ачаалж байна..." />;
 
-  const title = form?.title ?? (data as PageData | null)?.title ?? defaultTitle;
-  const content = form?.content ?? (data as PageData | null)?.content ?? defaultContent;
-
   return (
     <div className="space-y-4 pt-4">
       <div className="space-y-2">
         <Label>Хуудасны гарчиг</Label>
         <Input
-          value={title}
-          onChange={(e) => setForm((f) => ({ title: e.target.value, content: f?.content ?? content }))}
+          value={current.title}
+          onChange={(e) => patch({ title: e.target.value })}
           placeholder={defaultTitle}
         />
       </div>
@@ -185,12 +251,52 @@ function PageEditor({
         <Label>Агуулга</Label>
         <RichEditor
           key={isLoading ? 'loading' : 'loaded'}
-          value={content}
-          onChange={(v) => setForm((f) => ({ title: f?.title ?? title, content: v }))}
+          value={current.content}
+          onChange={(v) => patch({ content: v })}
           placeholder="Хуудасны агуулгыг оруулна уу..."
           minHeight="400px"
         />
       </div>
+
+      {/* —— SEO тохиргоо —— */}
+      <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+        <p className="text-sm font-semibold">SEO тохиргоо (хайлтын систем)</p>
+        <div className="space-y-2">
+          <Label>Meta гарчиг (Title)</Label>
+          <Input
+            value={current.metaTitle}
+            onChange={(e) => patch({ metaTitle: e.target.value })}
+            placeholder={`${current.title || defaultTitle} | DigitalGer`}
+          />
+          <p className="text-xs text-muted-foreground">Хоосон бол хуудасны гарчгийг ашиглана.</p>
+        </div>
+        <div className="space-y-2">
+          <Label>Meta тайлбар (Description)</Label>
+          <Textarea
+            value={current.metaDescription}
+            onChange={(e) => patch({ metaDescription: e.target.value })}
+            placeholder="Хайлтын үр дүнд харагдах товч тайлбар (150-160 тэмдэгт)"
+            rows={3}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Түлхүүр үгс (Keywords)</Label>
+          <Input
+            value={current.metaKeywords}
+            onChange={(e) => patch({ metaKeywords: e.target.value })}
+            placeholder="дижитал, бүтээгдэхүүн, ... (таслалаар тусгаарлана)"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>OG зургийн URL (нийгмийн сүлжээ)</Label>
+          <Input
+            value={current.ogImageUrl}
+            onChange={(e) => patch({ ogImageUrl: e.target.value })}
+            placeholder="https://...   (1200x630)"
+          />
+        </div>
+      </div>
+
       <div className="flex justify-end">
         <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="gap-2">
           <Save className="h-4 w-4" />

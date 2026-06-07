@@ -1,14 +1,37 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { SITE_URL } from '@/lib/constants';
 import { pagesApi } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
 
-export const metadata: Metadata = {
-  title: 'Нууцлалын бодлого | DigitalGer',
-  description: 'DigitalGer нууцлалын бодлого',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  // SEO-г DB-ээс УНШИНА — байхгүй бол hardcode fallback
+  let page: Awaited<ReturnType<typeof pagesApi.bySlug>> = null;
+  try {
+    page = await pagesApi.bySlug('privacy-policy');
+  } catch { /* fallback */ }
+  const title = page?.metaTitle || 'Нууцлалын бодлого | DigitalGer';
+  const description = page?.metaDescription || 'DigitalGer нууцлалын бодлого';
+  const ogImageUrl = page?.ogImageUrl || null;
+  return {
+    title,
+    description,
+    ...(page?.metaKeywords ? { keywords: page.metaKeywords } : {}),
+    alternates: { canonical: `${SITE_URL}/privacy-policy` },
+    openGraph: {
+      title,
+      description,
+      url: `${SITE_URL}/privacy-policy`,
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 const DEFAULT_CONTENT = `<h2>1. Мэдээлэл цуглуулах</h2>
 <p>DigitalGer нь үйлчилгээгээ үзүүлэхийн тулд дараах мэдээллийг цуглуулна: нэр, и-мэйл хаяг, утасны дугаар, төлбөрийн мэдээлэл.</p>

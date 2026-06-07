@@ -18,10 +18,11 @@ import { cn } from '@digitalger/shared';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Link as LinkIcon, Heading1, Heading2, Heading3,
-  Undo, Redo, Quote, Minus, Highlighter,
+  Link as LinkIcon, Heading1, Heading2, Heading3, Pilcrow,
+  Undo, Redo, Quote, Minus, Highlighter, ChevronDown, Check,
   Superscript as SuperscriptIcon, Subscript as SubscriptIcon,
-  Table as TableIcon, ImageIcon, Code, RemoveFormatting, Link2Off, FileCode,
+  Table as TableIcon, ImageIcon, Code, Code2, RemoveFormatting, Link2Off, FileCode,
+  Baseline, PaintBucket, Palette,
 } from 'lucide-react';
 
 // Custom FontSize extension — TextStyle-д fontSize attribute нэмнэ
@@ -79,6 +80,129 @@ const LineHeight = Extension.create({
 });
 
 const LINE_HEIGHTS = ['1', '1.2', '1.4', '1.5', '1.6', '1.8', '2', '2.5'];
+
+// Хурдан сонгох preset өнгөний палитр (брэндийн өнгө + түгээмэл)
+const PRESET_COLORS: { label: string; value: string }[] = [
+  { label: 'Хар', value: '#000000' },
+  { label: 'Бараан саарал', value: '#374151' },
+  { label: 'Саарал', value: '#6b7280' },
+  { label: 'Цагаан', value: '#ffffff' },
+  { label: 'Navy (брэнд)', value: '#022179' },
+  { label: 'Цэнхэр', value: '#2563eb' },
+  { label: 'Тэнгэрийн', value: '#0ea5e9' },
+  { label: 'Gold (брэнд)', value: '#ffbe00' },
+  { label: 'Улбар шар', value: '#f97316' },
+  { label: 'Улаан', value: '#dc2626' },
+  { label: 'Ягаан', value: '#db2777' },
+  { label: 'Ягаан-нил', value: '#7c3aed' },
+  { label: 'Ногоон', value: '#16a34a' },
+  { label: 'Хүрэн-ногоон', value: '#0d9488' },
+];
+
+// Тодруулах (highlight) өнгөний preset — цайвар өнгөнүүд
+const PRESET_HIGHLIGHTS: { label: string; value: string }[] = [
+  { label: 'Шар', value: '#fef08a' },
+  { label: 'Ногоон', value: '#bbf7d0' },
+  { label: 'Цэнхэр', value: '#bfdbfe' },
+  { label: 'Ягаан', value: '#fbcfe8' },
+  { label: 'Улбар', value: '#fed7aa' },
+  { label: 'Ягаан-нил', value: '#ddd6fe' },
+  { label: 'Саарал', value: '#e5e7eb' },
+  { label: 'Gold', value: '#ffe9a8' },
+];
+
+// Preset өнгөний палитр + custom color сонгогч (popover)
+function ColorPickerDropdown({
+  title, icon, presets, currentColor, onPick, onClear, includeCustom = true,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  presets: { label: string; value: string }[];
+  currentColor?: string | null;
+  onPick: (color: string) => void;
+  onClear?: () => void;
+  includeCustom?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        title={title}
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="flex items-center gap-0.5 rounded p-1.5 transition-colors hover:bg-muted"
+      >
+        <span className="flex flex-col items-center leading-none">
+          {icon}
+          <span
+            className="mt-0.5 h-1 w-4 rounded-sm border border-border/40"
+            style={{ backgroundColor: currentColor || 'transparent' }}
+          />
+        </span>
+        <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-0 top-full z-50 mt-1 w-44 rounded-lg border border-border bg-popover p-2 shadow-lg"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="grid grid-cols-7 gap-1">
+            {presets.map((c) => {
+              const isActive = currentColor?.toLowerCase() === c.value.toLowerCase();
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  title={c.label}
+                  onClick={() => { onPick(c.value); setOpen(false); }}
+                  className={cn(
+                    'relative flex h-5 w-5 items-center justify-center rounded border border-border/50 transition-transform hover:scale-110',
+                    isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-popover',
+                  )}
+                  style={{ backgroundColor: c.value }}
+                >
+                  {isActive && (
+                    <Check
+                      className="h-3 w-3"
+                      style={{ color: c.value === '#ffffff' || c.value === '#fef08a' || c.value === '#ffbe00' ? '#000' : '#fff' }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {includeCustom && (
+            <label className="mt-2 flex cursor-pointer items-center gap-2 rounded border border-input bg-background px-2 py-1 text-xs text-foreground hover:bg-muted">
+              <Palette className="h-3.5 w-3.5" />
+              <span>Өөрийн өнгө</span>
+              <input
+                type="color"
+                value={currentColor || '#000000'}
+                onChange={(e) => onPick(e.target.value)}
+                className="ml-auto h-5 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
+              />
+            </label>
+          )}
+
+          {onClear && (
+            <button
+              type="button"
+              onClick={() => { onClear(); setOpen(false); }}
+              className="mt-1 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              <RemoveFormatting className="h-3.5 w-3.5" />
+              Өнгө арилгах
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface RichEditorProps {
   value: string;
@@ -216,6 +340,9 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
         <ToolbarButton title="Гарчиг 3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })}>
           <Heading3 className="h-3.5 w-3.5" />
         </ToolbarButton>
+        <ToolbarButton title="Энгийн текст (paragraph)" onClick={() => editor.chain().focus().setParagraph().run()} active={editor.isActive('paragraph')}>
+          <Pilcrow className="h-3.5 w-3.5" />
+        </ToolbarButton>
 
         <Divider />
 
@@ -286,25 +413,49 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
 
         <Divider />
 
-        {/* Color */}
-        <label title="Үсгийн өнгө" className="relative cursor-pointer rounded p-1.5 hover:bg-muted flex items-center gap-0.5">
-          <span className="text-[11px] font-bold leading-none" style={{ color: editor.getAttributes('textStyle').color ?? 'currentColor' }}>A</span>
-          <input
-            type="color"
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-            value={editor.getAttributes('textStyle').color ?? '#000000'}
-            onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
-          />
-        </label>
-        <label title="Тодруулах өнгө" className="relative cursor-pointer rounded p-1.5 hover:bg-muted">
-          <Highlighter className="h-3.5 w-3.5" />
-          <input
-            type="color"
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-            value={typeof editor.getAttributes('highlight').color === 'string' ? editor.getAttributes('highlight').color : '#ffff00'}
-            onChange={(e) => (editor.chain().focus() as any).toggleHighlight({ color: e.target.value }).run()}
-          />
-        </label>
+        {/* Үсгийн өнгө — preset палитр + custom */}
+        <ColorPickerDropdown
+          title="Үсгийн өнгө"
+          icon={<Baseline className="h-3.5 w-3.5" />}
+          presets={PRESET_COLORS}
+          currentColor={editor.getAttributes('textStyle').color ?? null}
+          onPick={(color) => editor.chain().focus().setColor(color).run()}
+          onClear={() => editor.chain().focus().unsetColor().run()}
+        />
+
+        {/* Тодруулах (background) өнгө — preset палитр + custom */}
+        <ColorPickerDropdown
+          title="Тодруулах өнгө"
+          icon={<Highlighter className="h-3.5 w-3.5" />}
+          presets={PRESET_HIGHLIGHTS}
+          currentColor={typeof editor.getAttributes('highlight').color === 'string' ? editor.getAttributes('highlight').color : null}
+          onPick={(color) => (editor.chain().focus() as any).setHighlight({ color }).run()}
+          onClear={() => (editor.chain().focus() as any).unsetHighlight().run()}
+        />
+
+        {/* Линкийн өнгө — линк дээр сонголтгүй бол идэвхгүй */}
+        <ColorPickerDropdown
+          title="Линкийн өнгө (линк сонгоно уу)"
+          icon={<PaintBucket className="h-3.5 w-3.5" />}
+          presets={PRESET_COLORS}
+          currentColor={editor.isActive('link') ? editor.getAttributes('textStyle').color ?? null : null}
+          onPick={(color) => {
+            // Линк сонгогдсон үед линкийн текстэд өнгө онооно
+            if (editor.isActive('link')) {
+              editor.chain().focus().extendMarkRange('link').setColor(color).run();
+            } else {
+              editor.chain().focus().setColor(color).run();
+            }
+          }}
+          onClear={() => {
+            if (editor.isActive('link')) {
+              editor.chain().focus().extendMarkRange('link').unsetColor().run();
+            } else {
+              editor.chain().focus().unsetColor().run();
+            }
+          }}
+        />
+
         <ToolbarButton title="Формат арилгах" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
           <RemoveFormatting className="h-3.5 w-3.5" />
         </ToolbarButton>
@@ -320,6 +471,9 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
         </ToolbarButton>
         <ToolbarButton title="Иш татах" onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')}>
           <Quote className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton title="Кодын блок" onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')}>
+          <Code2 className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton title="Хэвтээ зураас" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
           <Minus className="h-3.5 w-3.5" />

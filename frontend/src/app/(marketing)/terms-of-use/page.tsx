@@ -1,14 +1,37 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { SITE_URL } from '@/lib/constants';
 import { pagesApi } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
 
-export const metadata: Metadata = {
-  title: 'Үйлчилгээний нөхцөл | DigitalGer',
-  description: 'DigitalGer үйлчилгээний нөхцөл',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  // SEO-г DB-ээс УНШИНА — байхгүй бол hardcode fallback
+  let page: Awaited<ReturnType<typeof pagesApi.bySlug>> = null;
+  try {
+    page = await pagesApi.bySlug('terms-of-use');
+  } catch { /* fallback */ }
+  const title = page?.metaTitle || 'Үйлчилгээний нөхцөл | DigitalGer';
+  const description = page?.metaDescription || 'DigitalGer үйлчилгээний нөхцөл';
+  const ogImageUrl = page?.ogImageUrl || null;
+  return {
+    title,
+    description,
+    ...(page?.metaKeywords ? { keywords: page.metaKeywords } : {}),
+    alternates: { canonical: `${SITE_URL}/terms-of-use` },
+    openGraph: {
+      title,
+      description,
+      url: `${SITE_URL}/terms-of-use`,
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }] } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 const DEFAULT_CONTENT = `<h2>1. Ерөнхий нөхцөл</h2>
 <p>DigitalGer платформыг ашигласнаар та эдгээр үйлчилгээний нөхцөлийг хүлээн зөвшөөрч байна. Нөхцөлийг хүлээн зөвшөөрөхгүй бол платформыг ашиглахгүй байхыг хүсье.</p>

@@ -380,8 +380,18 @@ export const coursesApi = {
 };
 
 // —— Pages ——
+export interface PageData {
+  slug: string;
+  title: string;
+  content: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  metaKeywords?: string | null;
+  ogImageUrl?: string | null;
+}
+
 export const pagesApi = {
-  bySlug: (slug: string) => request<{ slug: string; title: string; content: string } | null>(`/pages/${slug}`),
+  bySlug: (slug: string) => request<PageData | null>(`/pages/${slug}`),
 };
 
 // —— Public Site Settings ——
@@ -405,6 +415,15 @@ export interface PublicSiteSettings {
 
 export const siteSettingsApi = {
   getPublic: () => request<PublicSiteSettings>('/settings/public'),
+};
+
+// —— Subscribers (newsletter) ——
+export const subscribersApi = {
+  subscribe: (body: { email: string; source?: string }) =>
+    request<{ ok: boolean }>('/subscribers/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };
 
 // ─── Navbar SSR prefetch ──────────────────────────────────────────────────

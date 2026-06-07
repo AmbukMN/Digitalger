@@ -22,11 +22,19 @@
    сэргийлнэ. Admin цайвар горимд бараан (navy/хар) өнгөөр тодруулсан текст
    dark горимд харагдахгүй болдог тул эсрэг — ТОД ЦАЙВАР (gold) болгож харуулна.
    Ингэснээр онцолсон/тодруулсан хэсэг dark горимд ч ялгаран харагдана. */
-.dark .prose [style*="color"] { color: oklch(0.9 0.04 90) !important; }
+/* 1) Inline color (color:#xxx) бүхий ямар ч элемент → тод алтан (gold). */
+.dark .prose [style*="color"],
+.dark .prose [style*="color"] * { color: oklch(0.9 0.04 90) !important; }
 .dark .prose [style*="background-color"] { background-color: transparent !important; }
-/* Тод (bold/strong) текст dark горимд цайвар үндсэн өнгөтэй */
+/* 2) Линк (inline color-гүй) + bold+link хослол → цайвар алтан (navy биш). */
+.dark .prose a,
+.dark .prose a strong,
+.dark .prose a b,
+.dark .prose strong a,
+.dark .prose b a { color: oklch(0.85 0.16 86) !important; }
+/* 3) Тод (bold/strong) текст (линк биш) → үндсэн цайвар өнгө. */
 .dark .prose strong,
-.dark .prose b { color: inherit; }
+.dark .prose b { color: oklch(0.955 0.005 247.839); }
 
 /* Media gallery auto-slide progress bar */
 @keyframes slideProgress {

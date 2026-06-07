@@ -7,17 +7,32 @@ import { sanitizeHtml } from '@/lib/safe-html';
 
 export const revalidate = 60;
 
+interface AboutPage {
+  title: string;
+  content: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  metaKeywords?: string | null;
+  ogImageUrl?: string | null;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  let ogImageUrl: string | null = null;
-  try {
-    const s = await siteSettingsApi.getPublic();
-    ogImageUrl = s.ogImageUrl ?? null;
-  } catch { /* fallback */ }
-  const title = 'Бидний тухай | DigitalGer';
-  const description = 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.';
+  const page = await getAboutPage();
+  // OG зургийг page-аас, байхгүй бол site settings-ээс авна
+  let ogImageUrl: string | null = page?.ogImageUrl ?? null;
+  if (!ogImageUrl) {
+    try {
+      const s = await siteSettingsApi.getPublic();
+      ogImageUrl = s.ogImageUrl ?? null;
+    } catch { /* fallback */ }
+  }
+  // SEO-г DB-ээс УНШИНА — байхгүй бол hardcode fallback
+  const title = page?.metaTitle || 'Бидний тухай | DigitalGer';
+  const description = page?.metaDescription || 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.';
   return {
     title,
     description,
+    ...(page?.metaKeywords ? { keywords: page.metaKeywords } : {}),
     alternates: { canonical: `${SITE_URL}/about` },
     openGraph: {
       title,
@@ -32,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-async function getAboutPage() {
+async function getAboutPage(): Promise<AboutPage | null> {
   try {
     const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const res = await fetch(`${apiUrl}/api/pages/about`, {
@@ -42,7 +57,7 @@ async function getAboutPage() {
     if (!res.ok) return null;
     const text = await res.text();
     if (!text) return null;
-    return JSON.parse(text) as { title: string; content: string } | null;
+    return JSON.parse(text) as AboutPage | null;
   } catch {
     return null;
   }

@@ -15,6 +15,7 @@ import { ValidateDto } from './dto/validate.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { EmailService } from '../notifications/email.service';
+import { SubscribersService } from '../subscribers/subscribers.service';
 
 const BCRYPT_ROUNDS = 12;
 const OTP_EXPIRY_MINUTES = 10;
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
+    private readonly subscribers: SubscribersService,
   ) {}
 
   // Нэвтрэлт/бүртгэлийн үйлдлийг UserAuditLog-д бичнэ (admin popup "Аккаунт түүх"-д
@@ -343,6 +345,9 @@ export class AuthService {
       })
       .catch(() => {});
 
+    // Шинэ (баталгаажсан) имэйлийг "Веб-д бүртгүүлсэн" subscriber-д нэмнэ.
+    this.subscribers.ensureWebRegister(pending, userId, updated.name ?? undefined);
+
     return { message: 'Email changed', user: this.sanitizeUser(updated) };
   }
 
@@ -355,6 +360,8 @@ export class AuthService {
       where: { id: user.id },
       data: { emailVerified: new Date() },
     });
+    // Имэйл баталгаажсан тул "Веб-д бүртгүүлсэн" subscriber-д автомат нэмнэ.
+    this.subscribers.ensureWebRegister(user.email, user.id, user.name ?? undefined);
     const tokens = await this.issueTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
     return { user: this.sanitizeUser(user), ...tokens };

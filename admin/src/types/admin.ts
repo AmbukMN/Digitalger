@@ -446,6 +446,35 @@ export interface AdminCoupon {
   updatedAt: string;
 }
 
+// ─── Subscribers (имэйл захиалагч) ───────────────────────────────────────────
+export interface AdminSubscriberCategory {
+  id: string;
+  name: string;
+  description?: string | null;
+  isSystem: boolean;
+  count: number;
+  createdAt: string;
+}
+
+export interface AdminSubscriber {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  age: number | null;
+  sex: 'MALE' | 'FEMALE' | 'OTHER' | null;
+  phone: string | null;
+  status: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
+  source: string | null;
+  tags: string[];
+  isActive: boolean;
+  categoryId: string | null;
+  category?: { id: string; name: string } | null;
+  userId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdminProductFile {
   id: string;
   productId: string;

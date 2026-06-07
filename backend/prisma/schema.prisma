@@ -525,11 +525,67 @@ model BlogPost {
 }
 
 model Page {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  title     String
-  content   String   @db.Text
-  updatedAt DateTime @default(now()) @updatedAt
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  content         String   @db.Text
+  // SEO талбарууд — page бүрд admin-аас тохируулна (generateMetadata уншина)
+  metaTitle       String?
+  metaDescription String?
+  metaKeywords    String?
+  ogImageUrl      String?
+  updatedAt       DateTime @default(now()) @updatedAt
+}
+
+// ─── Имэйл захиалагч (newsletter / marketing) ────────────────────────────────
+enum SubscriberStatus {
+  ACTIVE
+  INACTIVE
+  UNSUBSCRIBED
+}
+
+enum SubscriberSex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model SubscriberCategory {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  // Системийн категори (web-д бүртгүүлсэн г.м.) — устгахаас хамгаална
+  isSystem    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  subscribers Subscriber[]
+}
+
+model Subscriber {
+  id           String              @id @default(cuid())
+  email        String              @unique
+  firstName    String?
+  lastName     String?
+  age          Int?
+  sex          SubscriberSex?
+  phone        String?
+  status       SubscriberStatus    @default(ACTIVE)
+  // source: homepage | free-ppt | checkout | popup | web-register | admin | import
+  source       String?
+  tags         String[]            @default([])
+  isActive     Boolean             @default(true)
+  category     SubscriberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId   String?
+  // Хэрэв нэвтэрсэн хэрэглэгчтэй холбоотой бол (web-register source)
+  userId       String?
+  lastEmailAt  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([categoryId])
+  @@index([source])
+  @@index([email])
 }
 
 enum ZipJobStatus {

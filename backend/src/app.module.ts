@@ -35,6 +35,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiModule } from './modules/ai/ai.module';
 import { TransferModule } from './modules/transfer/transfer.module';
+import { SubscribersModule } from './modules/subscribers/subscribers.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { TransferModule } from './modules/transfer/transfer.module';
     AnalyticsModule,
     AiModule,
     TransferModule,
+    SubscribersModule,
   ],
   controllers: [AppController],
   providers: [

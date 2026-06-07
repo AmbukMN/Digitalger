@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export class UpsertPageDto {
   @IsString() title!: string;
   @IsString() content!: string;
+  // SEO талбарууд — admin-аас тохируулна, generateMetadata уншина
+  @IsOptional() @IsString() metaTitle?: string;
+  @IsOptional() @IsString() metaDescription?: string;
+  @IsOptional() @IsString() metaKeywords?: string;
+  @IsOptional() @IsString() ogImageUrl?: string;
 }
 
 @Injectable()

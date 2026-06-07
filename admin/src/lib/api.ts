@@ -18,6 +18,8 @@ import type {
   AdminProductImage,
   AdminProductTypeConfig,
   AdminProfile,
+  AdminSubscriber,
+  AdminSubscriberCategory,
   AdminTestimonial,
   AdminUser,
   AdminUserDetail,
@@ -417,9 +419,27 @@ export const adminApi = {
   },
 
   pages: {
-    get: (slug: string) => adminFetch<{ slug: string; title: string; content: string } | null>(`/pages/${slug}`).catch(() => null),
-    update: (slug: string, body: { title: string; content: string }) =>
-      adminFetch<any>(`/admin/pages/${slug}`, { method: 'PUT', body: JSON.stringify(body) }),
+    get: (slug: string) =>
+      adminFetch<{
+        slug: string;
+        title: string;
+        content: string;
+        metaTitle?: string | null;
+        metaDescription?: string | null;
+        metaKeywords?: string | null;
+        ogImageUrl?: string | null;
+      } | null>(`/pages/${slug}`).catch(() => null),
+    update: (
+      slug: string,
+      body: {
+        title: string;
+        content: string;
+        metaTitle?: string;
+        metaDescription?: string;
+        metaKeywords?: string;
+        ogImageUrl?: string;
+      },
+    ) => adminFetch<any>(`/admin/pages/${slug}`, { method: 'PUT', body: JSON.stringify(body) }),
   },
 
   blog: {
@@ -521,4 +541,66 @@ export const adminApi = {
       deviceStats: { device: string; count: number }[];
       funnel: { view: number; click: number; cart: number; purchase: number };
     }>(`/analytics/dashboard?days=${days}`),
+
+  subscribers: {
+    list: (params?: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: string;
+      categoryId?: string;
+      source?: string;
+      sex?: string;
+    }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+      if (params?.search) q.set('search', params.search);
+      if (params?.status) q.set('status', params.status);
+      if (params?.categoryId) q.set('categoryId', params.categoryId);
+      if (params?.source) q.set('source', params.source);
+      if (params?.sex) q.set('sex', params.sex);
+      const qs = q.toString();
+      return adminFetch<Paginated<AdminSubscriber>>(`/admin/subscribers${qs ? `?${qs}` : ''}`);
+    },
+    get: (id: string) => adminFetch<AdminSubscriber>(`/admin/subscribers/${id}`),
+    create: (body: Partial<AdminSubscriber>) =>
+      adminFetch<AdminSubscriber>('/admin/subscribers', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<AdminSubscriber>) =>
+      adminFetch<AdminSubscriber>(`/admin/subscribers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      adminFetch<void>(`/admin/subscribers/${id}`, { method: 'DELETE' }),
+    assignCategory: (subscriberIds: string[], categoryId: string | null) =>
+      adminFetch<{ updated: number }>('/admin/subscribers/assign-category', {
+        method: 'POST',
+        body: JSON.stringify({ subscriberIds, categoryId }),
+      }),
+    bulkImport: (file: File, categoryId?: string) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (categoryId) fd.append('categoryId', categoryId);
+      return adminFetch<{ total: number; created: number; skipped: number; failed: number; results: { row: number; status: string; email?: string; error?: string }[] }>(
+        '/admin/subscribers/bulk-import',
+        { method: 'POST', body: fd },
+      );
+    },
+    // Export нь CSV file шууд буцаадаг тул URL-ийг шинэ tab-д нээнэ (доорх page-д)
+    exportUrl: (params?: { status?: string; categoryId?: string; source?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.set('status', params.status);
+      if (params?.categoryId) q.set('categoryId', params.categoryId);
+      if (params?.source) q.set('source', params.source);
+      const qs = q.toString();
+      return `${API_URL}/api/admin/subscribers/export${qs ? `?${qs}` : ''}`;
+    },
+    categories: {
+      list: () => adminFetch<AdminSubscriberCategory[]>('/admin/subscribers/categories'),
+      create: (body: { name: string; description?: string }) =>
+        adminFetch<AdminSubscriberCategory>('/admin/subscribers/categories', { method: 'POST', body: JSON.stringify(body) }),
+      update: (id: string, body: { name?: string; description?: string }) =>
+        adminFetch<AdminSubscriberCategory>(`/admin/subscribers/categories/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      remove: (id: string) =>
+        adminFetch<void>(`/admin/subscribers/categories/${id}`, { method: 'DELETE' }),
+    },
+  },
 };
