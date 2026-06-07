@@ -1,9 +1,36 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
+
+// Имэйл маркетингийн кампанит ажлууд (admin dashboard-д харагдах эрэмбээр).
+// redis email:open:{campaign} тоолуур болон EmailOpen хүснэгтийн campaign-тай тааруулна.
+const EMAIL_CAMPAIGNS: { key: string; label: string }[] = [
+  { key: 'cart-1h', label: 'Сагс сануулга (1ц)' },
+  { key: 'discount-24h', label: 'Хөнгөлөлт (24ц)' },
+  { key: 'coupon-expiring', label: 'Купон дуусах' },
+  { key: 'new-product', label: 'Шинэ бүтээгдэхүүн' },
+  { key: 'reactivation', label: 'Эргэн идэвхжүүлэх' },
+  { key: 'welcome', label: 'Тавтай морил' },
+];
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly redis: Redis;
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {
+    const redisUrl =
+      this.config.get<string>('redisUrl') ??
+      this.config.get<string>('REDIS_URL') ??
+      'redis://localhost:6379';
+    this.redis = new Redis(redisUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 3,
+    });
+  }
 
   // Дамжуулсан userId DB-д бодитоор оршдог эсэхийг шалгана.
   // (Хуучин/устсан/хуурамч id-аас FK алдаа гарахаас сэргийлж, fail-open.)
@@ -268,6 +295,182 @@ export class AnalyticsService {
           ? Math.round(lessonWatchAgg._avg.watchedSeconds)
           : 0,
       },
+    };
+  }
+
+  /**
+   * Хичээлийн аналитик (lesson dropoff / курс дуусгалт).
+   * - Хичээл бүрээр started vs completed тоо (хамгийн их орхиж буй хичээл = dropoff).
+   * - Ерөнхий курс дуусгалтын хувь = completed / started.
+   * - Дундаж үзсэн секунд (completed event-ийн watchedSeconds).
+   * lessonId-д хатуу FK байхгүй тул Lesson.title-ийг тусад нь resolve хийнэ
+   * (устсан хичээлийн id үлдсэн байж болно — байхгүй бол id-ийн товчлол харуулна).
+   */
+  async getLessonAnalytics(days = 30) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const [lessonGroups, lessonEventCounts, lessonWatchAgg] = await Promise.all([
+      // Хичээл бүрээр event төрлийн тоо (started/completed/progress)
+      this.prisma.lessonEvent.groupBy({
+        by: ['lessonId', 'event'],
+        where: { createdAt: { gte: since } },
+        _count: { id: true },
+      }),
+
+      // Ерөнхий event тоо (курс дуусгалтын хувь бодоход)
+      this.prisma.lessonEvent.groupBy({
+        by: ['event'],
+        where: { createdAt: { gte: since } },
+        _count: { id: true },
+      }),
+
+      // Дундаж үзсэн секунд (completed)
+      this.prisma.lessonEvent.aggregate({
+        where: {
+          event: 'lesson_completed',
+          createdAt: { gte: since },
+          watchedSeconds: { not: null },
+        },
+        _avg: { watchedSeconds: true },
+      }),
+    ]);
+
+    // lessonId бүрээр started/completed нэгтгэх
+    const byLesson = new Map<string, { started: number; completed: number }>();
+    for (const g of lessonGroups) {
+      const rec = byLesson.get(g.lessonId) ?? { started: 0, completed: 0 };
+      if (g.event === 'lesson_started') rec.started += g._count.id;
+      else if (g.event === 'lesson_completed') rec.completed += g._count.id;
+      byLesson.set(g.lessonId, rec);
+    }
+
+    // Хичээлийн нэрсийг resolve (зөвхөн илэрсэн id-уудаар)
+    const lessonIds = [...byLesson.keys()];
+    const titles = lessonIds.length
+      ? await this.prisma.lesson.findMany({
+          where: { id: { in: lessonIds } },
+          select: { id: true, title: true },
+        })
+      : [];
+    const titleMap = new Map(titles.map((l) => [l.id, l.title]));
+
+    // dropoff = started > 0 бөгөөд completed < started. dropoffRate-аар эрэмбэлнэ.
+    const lessons = lessonIds
+      .map((id) => {
+        const { started, completed } = byLesson.get(id)!;
+        const dropoff = Math.max(0, started - completed);
+        const dropoffRate = started > 0 ? Math.round((dropoff / started) * 100) : 0;
+        const completionRate =
+          started > 0 ? Math.round((completed / started) * 100) : 0;
+        return {
+          lessonId: id,
+          title: titleMap.get(id) ?? `Хичээл ${id.slice(0, 6)}…`,
+          started,
+          completed,
+          dropoff,
+          dropoffRate,
+          completionRate,
+        };
+      })
+      // Зөвхөн эхлүүлсэн хичээлүүд (хог утга шүүх)
+      .filter((l) => l.started > 0)
+      .sort((a, b) => b.dropoff - a.dropoff || b.started - a.started);
+
+    const totalStarted =
+      lessonEventCounts.find((e) => e.event === 'lesson_started')?._count.id ?? 0;
+    const totalCompleted =
+      lessonEventCounts.find((e) => e.event === 'lesson_completed')?._count.id ?? 0;
+
+    return {
+      // Ерөнхий курс дуусгалтын хувь (completed / started)
+      completionRate:
+        totalStarted > 0
+          ? Math.round((totalCompleted / totalStarted) * 100)
+          : 0,
+      totalStarted,
+      totalCompleted,
+      avgWatchSeconds: lessonWatchAgg._avg.watchedSeconds
+        ? Math.round(lessonWatchAgg._avg.watchedSeconds)
+        : 0,
+      // Топ dropoff (хамгийн их орхиж буй) — графикт эхний 8
+      topDropoff: lessons.slice(0, 8),
+    };
+  }
+
+  /**
+   * Имэйл маркетингийн кампанит ажлуудын нээлтийн статистик.
+   * - openedTotal: redis email:open:{campaign} тоолуур (нийт амьдралын турш).
+   * - openedPeriod / uniqueOpens: EmailOpen хүснэгт (сонгосон хугацаанд, бодит/unique).
+   * EmailOpen хүснэгт нь нээлт бүрт мөр үүсгэдэг тул бодит open rate-д энэ найдвартай.
+   */
+  async getEmailAnalytics(days = 30) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    // EmailOpen хүснэгтээс campaign бүрийн нийт болон unique нээлт (хугацаагаар)
+    const [opensGrouped, uniqueGrouped] = await Promise.all([
+      this.prisma.emailOpen.groupBy({
+        by: ['campaign'],
+        where: { openedAt: { gte: since } },
+        _count: { id: true },
+      }),
+      // Unique = ялгаатай имэйлийн тоо (campaign+email distinct)
+      this.prisma.emailOpen.groupBy({
+        by: ['campaign', 'email'],
+        where: { openedAt: { gte: since } },
+        _count: { id: true },
+      }),
+    ]);
+
+    const openMap = new Map(
+      opensGrouped.map((o) => [o.campaign, o._count.id]),
+    );
+    const uniqueMap = new Map<string, number>();
+    for (const u of uniqueGrouped) {
+      uniqueMap.set(u.campaign, (uniqueMap.get(u.campaign) ?? 0) + 1);
+    }
+
+    // redis нийт тоолуур (best-effort, fail-open)
+    const redisTotals = await Promise.all(
+      EMAIL_CAMPAIGNS.map(async (c) => {
+        try {
+          const v = await this.redis.get(`email:open:${c.key}`);
+          return v ? parseInt(v, 10) : 0;
+        } catch {
+          return 0;
+        }
+      }),
+    );
+
+    // EMAIL_CAMPAIGNS-д байхгүй ч DB-д орсон бусад campaign-ийг нэмж оруулна
+    const known = new Set(EMAIL_CAMPAIGNS.map((c) => c.key));
+    const extraCampaigns = [...openMap.keys()].filter((k) => !known.has(k));
+
+    const campaigns = [
+      ...EMAIL_CAMPAIGNS.map((c, i) => ({
+        key: c.key,
+        label: c.label,
+        openedPeriod: openMap.get(c.key) ?? 0,
+        uniqueOpens: uniqueMap.get(c.key) ?? 0,
+        openedTotal: redisTotals[i],
+      })),
+      ...extraCampaigns.map((k) => ({
+        key: k,
+        label: k,
+        openedPeriod: openMap.get(k) ?? 0,
+        uniqueOpens: uniqueMap.get(k) ?? 0,
+        openedTotal: 0,
+      })),
+    ];
+
+    const totalOpensPeriod = campaigns.reduce((s, c) => s + c.openedPeriod, 0);
+    const totalUnique = campaigns.reduce((s, c) => s + c.uniqueOpens, 0);
+
+    return {
+      campaigns,
+      totalOpensPeriod,
+      totalUnique,
     };
   }
 }

@@ -9,6 +9,10 @@ import type {
   AdminFaq,
   AdminLesson,
   AdminLessonResource,
+  AdminLessonAnswer,
+  AdminLessonQuestion,
+  AdminQuiz,
+  AdminQuizInput,
   AdminCourseModule,
   GrantedProduct,
   AdminMenuItem,
@@ -230,12 +234,49 @@ export const adminApi = {
         reorder: (productId: string, lessonId: string, items: { id: string; sortOrder: number }[]) =>
           adminFetch<{ success: boolean }>(`/admin/products/${productId}/lessons/${lessonId}/resources/reorder`, { method: 'PUT', body: JSON.stringify({ items }) }),
       },
+      // Хичээлийн дараах шалгалт (Quiz). Нэг хичээлд нэг quiz — байхгүй бол null.
+      quiz: {
+        get: (productId: string, lessonId: string) =>
+          adminFetch<AdminQuiz | null>(`/admin/products/${productId}/lessons/${lessonId}/quiz`).catch(() => null),
+        // Байхгүй бол үүсгэнэ, байвал шинэчилнэ (upsert). PUT-ээр бүхэлд нь хадгална.
+        save: (productId: string, lessonId: string, body: AdminQuizInput) =>
+          adminFetch<AdminQuiz>(`/admin/products/${productId}/lessons/${lessonId}/quiz`, { method: 'PUT', body: JSON.stringify(body) }),
+        remove: (productId: string, lessonId: string) =>
+          adminFetch<void>(`/admin/products/${productId}/lessons/${lessonId}/quiz`, { method: 'DELETE' }),
+      },
+      // Нэг хичээлийн Q&A (LessonRow модерац).
+      questions: {
+        list: (productId: string, lessonId: string) =>
+          adminFetch<AdminLessonQuestion[]>(`/admin/products/${productId}/lessons/${lessonId}/questions`),
+      },
       // Cloudflare Stream — хичээлийн видеог direct upload хийх URL авах
       streamUpload: (productId: string, body?: { name?: string; maxDurationSeconds?: number }) =>
         adminFetch<{ uploadURL: string; uid: string }>(`/admin/products/${productId}/lessons/stream-upload`, { method: 'POST', body: JSON.stringify(body ?? {}) }),
       // Stream видеоны боловсруулалтын төлөв шалгах (polling)
       streamStatus: (productId: string, uid: string) =>
         adminFetch<{ status: string; durationSec: number | null; thumbnail: string | null; ready: boolean }>(`/admin/products/${productId}/lessons/stream-status/${uid}`),
+    },
+    // Бүх хичээлийн Q&A — модерацийн нэгдсэн жагсаалт (backend: /admin/lessons/...).
+    questions: {
+      list: (onlyUnanswered?: boolean) =>
+        adminFetch<{ items: AdminLessonQuestion[]; total: number }>(
+          `/admin/lessons/questions${onlyUnanswered ? '?onlyUnanswered=1' : ''}`,
+        ),
+      // Багшийн (admin) хариулт — isInstructor=true backend талд.
+      answer: (questionId: string, answer: string) =>
+        adminFetch<AdminLessonAnswer>(`/admin/lessons/questions/${questionId}/answers`, {
+          method: 'POST',
+          body: JSON.stringify({ answer }),
+        }),
+      pin: (questionId: string, isPinned: boolean) =>
+        adminFetch<void>(`/admin/lessons/questions/${questionId}/pin`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isPinned }),
+        }),
+      remove: (questionId: string) =>
+        adminFetch<void>(`/admin/lessons/questions/${questionId}`, { method: 'DELETE' }),
+      removeAnswer: (answerId: string) =>
+        adminFetch<void>(`/admin/lessons/answers/${answerId}`, { method: 'DELETE' }),
     },
     getFaqIds: (productId: string) =>
       adminFetch<string[]>(`/admin/faqs/product/${productId}`),
@@ -559,6 +600,38 @@ export const adminApi = {
       deviceStats: { device: string; count: number }[];
       funnel: { view: number; click: number; cart: number; purchase: number };
     }>(`/analytics/dashboard?days=${days}`),
+
+  // Хичээлийн аналитик (курс дуусгалт / lesson dropoff)
+  getLessonAnalytics: (days = 30) =>
+    adminFetch<{
+      completionRate: number;
+      totalStarted: number;
+      totalCompleted: number;
+      avgWatchSeconds: number;
+      topDropoff: {
+        lessonId: string;
+        title: string;
+        started: number;
+        completed: number;
+        dropoff: number;
+        dropoffRate: number;
+        completionRate: number;
+      }[];
+    }>(`/analytics/lessons?days=${days}`),
+
+  // Имэйл маркетингийн кампанит ажлуудын нээлтийн статистик
+  getEmailAnalytics: (days = 30) =>
+    adminFetch<{
+      campaigns: {
+        key: string;
+        label: string;
+        openedPeriod: number;
+        uniqueOpens: number;
+        openedTotal: number;
+      }[];
+      totalOpensPeriod: number;
+      totalUnique: number;
+    }>(`/analytics/email?days=${days}`),
 
   subscribers: {
     list: (params?: {

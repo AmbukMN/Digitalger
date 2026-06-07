@@ -72,6 +72,10 @@ model User {
   auditLogs     UserAuditLog[]
   lessonProgress LessonProgress[]
   lessonEvents  LessonEvent[]
+  certificates   Certificate[]
+  lessonQuestions LessonQuestion[]
+  lessonAnswers  LessonAnswer[]
+  quizAttempts   QuizAttempt[]
 }
 
 model Account {
@@ -248,6 +252,8 @@ model Lesson {
   content       String?       @db.Text
   progress      LessonProgress[]
   resources     LessonResource[]
+  questions      LessonQuestion[]
+  quiz           Quiz?
 }
 
 // Хичээлд хавсаргасан татаж авах нөөц (PDF, файл, материал — R2-д хадгалагдана).
@@ -280,6 +286,84 @@ model LessonProgress {
 
   @@unique([userId, lessonId])
   @@index([userId, updatedAt])
+}
+
+// Сертификат — курс 100% дуусгасан хэрэглэгчид олгоно (PDF татах).
+model Certificate {
+  id         String   @id @default(cuid())
+  certNo     String   @unique // нийтийн дугаар (баталгаажуулахад)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId  String // курсын бүтээгдэхүүн
+  courseTitle String
+  userName   String
+  issuedAt   DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+// Хичээлийн Q&A — хэрэглэгч асуулт асууж, admin/багш хариулна.
+model LessonQuestion {
+  id        String           @id @default(cuid())
+  lessonId  String
+  lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question  String           @db.Text
+  isPinned  Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  answers   LessonAnswer[]
+
+  @@index([lessonId, createdAt])
+}
+
+model LessonAnswer {
+  id         String         @id @default(cuid())
+  questionId String
+  question   LessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answer     String         @db.Text
+  isInstructor Boolean      @default(false) // admin/багшийн хариулт онцлох
+  createdAt  DateTime       @default(now())
+
+  @@index([questionId, createdAt])
+}
+
+// Хичээлийн дараах шалгалт (quiz).
+model Quiz {
+  id        String         @id @default(cuid())
+  lessonId  String         @unique // нэг хичээлд нэг quiz
+  lesson    Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title     String
+  passScore Int            @default(60) // тэнцэх хувь
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+  createdAt DateTime       @default(now())
+}
+
+model QuizQuestion {
+  id        String       @id @default(cuid())
+  quizId    String
+  quiz      Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question  String       @db.Text
+  options   String[] // сонголтууд
+  correctIndex Int // зөв хариултын индекс
+  sortOrder Int          @default(0)
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score     Int // авсан хувь
+  passed    Boolean
+  createdAt DateTime @default(now())
+
+  @@index([userId, quizId])
 }
 
 model Order {

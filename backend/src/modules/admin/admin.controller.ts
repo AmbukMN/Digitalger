@@ -44,6 +44,8 @@ import {
 } from './dto/lesson.dto';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
 import { UpdateCategoryDto } from '../categories/dto/update-category.dto';
+import { UpsertQuizDto } from '../courses/dto/quiz.dto';
+import { AddAnswerDto } from '../courses/dto/qa.dto';
 import { UpdateSiteDto, UpdateThemeDto } from './dto/update-settings.dto';
 import { ZIP_QUEUE } from '../downloads/zip.processor';
 
@@ -943,6 +945,94 @@ export class AdminController {
     const res = await this.prisma.productTypeConfig.delete({ where: { id } });
     await this.cache.del(CacheKeys.productTypes);
     return res;
+  }
+
+  // ── Quiz (хичээлийн шалгалт) ─────────────────────────────────────────────
+
+  @Get('products/:id/lessons/:lessonId/quiz')
+  getLessonQuiz(@Param('lessonId') lessonId: string) {
+    return this.adminProducts.getQuiz(lessonId);
+  }
+
+  @Post('products/:id/lessons/:lessonId/quiz')
+  createLessonQuiz(
+    @Param('lessonId') lessonId: string,
+    @Body() body: UpsertQuizDto,
+  ) {
+    return this.adminProducts.createQuiz(lessonId, body);
+  }
+
+  // PUT — upsert (admin UI хадгалах товч). Quiz байгаа бол update, эс бол create.
+  @Put('products/:id/lessons/:lessonId/quiz')
+  async upsertLessonQuiz(
+    @Param('lessonId') lessonId: string,
+    @Body() body: UpsertQuizDto,
+  ) {
+    const existing = await this.adminProducts.getQuiz(lessonId);
+    return existing
+      ? this.adminProducts.updateQuiz(lessonId, body)
+      : this.adminProducts.createQuiz(lessonId, body);
+  }
+
+  @Patch('products/:id/lessons/:lessonId/quiz')
+  updateLessonQuiz(
+    @Param('lessonId') lessonId: string,
+    @Body() body: UpsertQuizDto,
+  ) {
+    return this.adminProducts.updateQuiz(lessonId, body);
+  }
+
+  @Delete('products/:id/lessons/:lessonId/quiz')
+  deleteLessonQuiz(@Param('lessonId') lessonId: string) {
+    return this.adminProducts.deleteQuiz(lessonId);
+  }
+
+  // ── Lesson Q&A модерац ────────────────────────────────────────────────────
+
+  @Get('lessons/questions')
+  listLessonQuestions(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('onlyUnanswered') onlyUnanswered?: string,
+  ) {
+    return this.adminProducts.listAllQuestions({
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      onlyUnanswered: onlyUnanswered === 'true' || onlyUnanswered === '1',
+    });
+  }
+
+  // Нэг хичээлийн асуултууд (LessonRow модерацид)
+  @Get('products/:id/lessons/:lessonId/questions')
+  listOneLessonQuestions(@Param('lessonId') lessonId: string) {
+    return this.adminProducts.listLessonQuestions(lessonId);
+  }
+
+  @Post('lessons/questions/:questionId/answers')
+  answerLessonQuestion(
+    @Param('questionId') questionId: string,
+    @Body() body: AddAnswerDto,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.adminProducts.answerQuestion(questionId, me.sub, body.answer);
+  }
+
+  @Patch('lessons/questions/:questionId/pin')
+  pinLessonQuestion(
+    @Param('questionId') questionId: string,
+    @Body('isPinned') isPinned: boolean,
+  ) {
+    return this.adminProducts.pinQuestion(questionId, isPinned);
+  }
+
+  @Delete('lessons/questions/:questionId')
+  deleteLessonQuestion(@Param('questionId') questionId: string) {
+    return this.adminProducts.deleteQuestion(questionId);
+  }
+
+  @Delete('lessons/answers/:answerId')
+  deleteLessonAnswer(@Param('answerId') answerId: string) {
+    return this.adminProducts.deleteAnswer(answerId);
   }
 
   // ── Queue Monitoring ─────────────────────────────────────────────────────

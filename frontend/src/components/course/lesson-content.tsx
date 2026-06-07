@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
+  ClipboardCheck,
   Download,
   FileArchive,
   FileAudio,
@@ -12,7 +13,7 @@ import {
   FileText,
   FileVideo,
   Loader2,
-  MessageSquare,
+  MessageCircleQuestion,
   NotebookPen,
   Paperclip,
   Save,
@@ -23,6 +24,8 @@ import { coursesApi } from '@/lib/api';
 import type { LessonResource } from '@/lib/api';
 import type { CourseLesson } from '@/types/api';
 import { sanitizeHtml } from '@/lib/safe-html';
+import { LessonQA } from '@/components/course/lesson-qa';
+import { LessonQuiz } from '@/components/course/lesson-quiz';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatBytes(bytes: number | null | undefined): string {
@@ -235,18 +238,25 @@ export function LessonContent({
             )}
           </TabsTrigger>
           <TabsTrigger
+            value="qa"
+            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+          >
+            <MessageCircleQuestion className="h-3.5 w-3.5" />
+            Асуулт хариулт
+          </TabsTrigger>
+          <TabsTrigger
+            value="quiz"
+            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+          >
+            <ClipboardCheck className="h-3.5 w-3.5" />
+            Шалгалт
+          </TabsTrigger>
+          <TabsTrigger
             value="mynotes"
             className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
           >
             <NotebookPen className="h-3.5 w-3.5" />
             Миний тэмдэглэл
-          </TabsTrigger>
-          <TabsTrigger
-            value="comments"
-            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            Сэтгэгдэл
           </TabsTrigger>
         </TabsList>
 
@@ -281,20 +291,19 @@ export function LessonContent({
           )}
         </TabsContent>
 
+        {/* Асуулт хариулт (Q&A) */}
+        <TabsContent value="qa" className="mt-4">
+          <LessonQA productSlug={productSlug} lessonId={lesson.id} token={token} />
+        </TabsContent>
+
+        {/* Шалгалт (quiz) */}
+        <TabsContent value="quiz" className="mt-4">
+          <LessonQuiz productSlug={productSlug} lessonId={lesson.id} token={token} />
+        </TabsContent>
+
         {/* Миний тэмдэглэл (localStorage) */}
         <TabsContent value="mynotes" className="mt-4">
           <PersonalNote noteKey={noteKey} />
-        </TabsContent>
-
-        {/* Сэтгэгдэл (future ready) */}
-        <TabsContent value="comments" className="mt-4">
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-6 py-10 text-center">
-            <MessageSquare className="h-7 w-7 text-white/25" />
-            <p className="text-sm font-medium text-white/50">Сэтгэгдэл удахгүй нэмэгдэнэ</p>
-            <p className="max-w-sm text-xs text-white/30">
-              Тун удахгүй та хичээл бүрт асуулт асууж, бусадтай хэлэлцэх боломжтой болно.
-            </p>
-          </div>
         </TabsContent>
       </Tabs>
     </motion.div>

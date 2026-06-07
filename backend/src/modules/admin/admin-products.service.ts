@@ -633,6 +633,245 @@ export class AdminProductsService {
     }
   }
 
+  // ── Quiz (хичээлийн шалгалт — admin) ─────────────────────────────────────────
+
+  /** Тухайн хичээлийн quiz-ийг бүх асуулт + зөв хариулттай нь буцаана (admin). */
+  async getQuiz(lessonId: string) {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { lessonId },
+      include: { questions: { orderBy: { sortOrder: 'asc' } } },
+    });
+    return quiz; // байхгүй бол null (хараахан үүсгээгүй)
+  }
+
+  /**
+   * Хичээлд quiz үүсгэх (нэг хичээлд нэг quiz). Аль хэдийн байвал алдаа —
+   * засахдаа updateQuiz ашиглана.
+   */
+  async createQuiz(
+    lessonId: string,
+    dto: { title: string; passScore?: number; questions: { question: string; options: string[]; correctIndex: number }[] },
+  ) {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId }, select: { id: true } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const existing = await this.prisma.quiz.findUnique({ where: { lessonId }, select: { id: true } });
+    if (existing) {
+      throw new ConflictException('Энэ хичээлд аль хэдийн шалгалт байна');
+    }
+
+    this.validateQuizQuestions(dto.questions);
+
+    return this.prisma.quiz.create({
+      data: {
+        lessonId,
+        title: dto.title,
+        passScore: dto.passScore ?? 60,
+        questions: {
+          create: dto.questions.map((q, i) => ({
+            question: q.question,
+            options: q.options,
+            correctIndex: q.correctIndex,
+            sortOrder: i,
+          })),
+        },
+      },
+      include: { questions: { orderBy: { sortOrder: 'asc' } } },
+    });
+  }
+
+  /**
+   * Quiz засах — асуултуудыг бүхэлд нь дахин үүсгэнэ (replace).
+   * QuizQuestion-уудыг устгаад шинээр оруулна. attempts хэвээр үлдэнэ.
+   */
+  async updateQuiz(
+    lessonId: string,
+    dto: { title?: string; passScore?: number; questions?: { question: string; options: string[]; correctIndex: number }[] },
+  ) {
+    const quiz = await this.prisma.quiz.findUnique({ where: { lessonId }, select: { id: true } });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    if (dto.questions !== undefined) {
+      this.validateQuizQuestions(dto.questions);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Асуултуудыг шинэчилж байгаа бол хуучныг бүгдийг устгаад дахин үүсгэнэ.
+      if (dto.questions !== undefined) {
+        await tx.quizQuestion.deleteMany({ where: { quizId: quiz.id } });
+        await tx.quizQuestion.createMany({
+          data: dto.questions.map((q, i) => ({
+            quizId: quiz.id,
+            question: q.question,
+            options: q.options,
+            correctIndex: q.correctIndex,
+            sortOrder: i,
+          })),
+        });
+      }
+
+      return tx.quiz.update({
+        where: { id: quiz.id },
+        data: {
+          ...(dto.title !== undefined && { title: dto.title }),
+          ...(dto.passScore !== undefined && { passScore: dto.passScore }),
+        },
+        include: { questions: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+  }
+
+  /** Quiz устгах (асуулт/оролдлого cascade-аар арилна). */
+  async deleteQuiz(lessonId: string) {
+    const quiz = await this.prisma.quiz.findUnique({ where: { lessonId }, select: { id: true } });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+    return this.prisma.quiz.delete({ where: { id: quiz.id } });
+  }
+
+  /** Quiz асуултуудын зөв хариултын индекс хүрээнд байгаа эсэхийг шалгана. */
+  private validateQuizQuestions(
+    questions: { question: string; options: string[]; correctIndex: number }[],
+  ) {
+    if (!questions?.length) {
+      throw new BadRequestException('Шалгалтад дор хаяж нэг асуулт байх ёстой');
+    }
+    for (const [i, q] of questions.entries()) {
+      if (!q.question?.trim()) {
+        throw new BadRequestException(`${i + 1}-р асуултын текст хоосон байна`);
+      }
+      if (!Array.isArray(q.options) || q.options.length < 2) {
+        throw new BadRequestException(`${i + 1}-р асуултад дор хаяж 2 сонголт байх ёстой`);
+      }
+      if (q.correctIndex < 0 || q.correctIndex >= q.options.length) {
+        throw new BadRequestException(`${i + 1}-р асуултын зөв хариултын индекс буруу байна`);
+      }
+    }
+  }
+
+  // ── Lesson Q&A модерац (admin/багш) ──────────────────────────────────────────
+
+  /**
+   * Бүх хичээлийн асуултууд (admin). Хариулаагүйг онцлох (unanswered эхэнд).
+   * @param onlyUnanswered true бол зөвхөн хариулаагүйг буцаана.
+   */
+  // Нэг хичээлийн асуултууд (LessonRow модерацид) — хариулттай нь.
+  async listLessonQuestions(lessonId: string) {
+    return this.prisma.lessonQuestion.findMany({
+      where: { lessonId },
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        user: { select: { id: true, name: true, image: true } },
+        answers: {
+          orderBy: { createdAt: 'asc' },
+          include: { user: { select: { id: true, name: true, image: true } } },
+        },
+      },
+    });
+  }
+
+  async listAllQuestions(query: { page?: number; pageSize?: number; onlyUnanswered?: boolean }) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.LessonQuestionWhereInput = query.onlyUnanswered
+      ? { answers: { none: {} } }
+      : {};
+
+    const [items, total] = await Promise.all([
+      this.prisma.lessonQuestion.findMany({
+        where,
+        skip,
+        take: pageSize,
+        // Хариулаагүй (онцлох) эхэнд → дараа нь шинэ асуулт эхэнд.
+        orderBy: [{ createdAt: 'desc' }],
+        include: {
+          user: { select: { id: true, name: true, email: true, image: true } },
+          lesson: {
+            select: {
+              id: true,
+              title: true,
+              course: { select: { product: { select: { id: true, title: true, slug: true } } } },
+            },
+          },
+          answers: {
+            orderBy: { createdAt: 'asc' },
+            include: { user: { select: { id: true, name: true, image: true } } },
+          },
+        },
+      }),
+      this.prisma.lessonQuestion.count({ where }),
+    ]);
+
+    const mapped = items.map((q) => ({
+      id: q.id,
+      question: q.question,
+      isPinned: q.isPinned,
+      createdAt: q.createdAt,
+      answerCount: q.answers.length,
+      answered: q.answers.length > 0,
+      user: q.user,
+      lesson: {
+        id: q.lesson.id,
+        title: q.lesson.title,
+        product: q.lesson.course.product,
+      },
+      answers: q.answers,
+    }));
+
+    // Хариулаагүйг эхэнд онцолно (онцлох эрэмбэ).
+    mapped.sort((a, b) => Number(a.answered) - Number(b.answered));
+
+    return { items: mapped, total, page, pageSize };
+  }
+
+  /** Admin/багшийн хариулт (isInstructor=true). */
+  async answerQuestion(questionId: string, userId: string, answer: string) {
+    const question = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+      select: { id: true },
+    });
+    if (!question) throw new NotFoundException('Question not found');
+
+    return this.prisma.lessonAnswer.create({
+      data: { questionId, userId, answer: answer.trim(), isInstructor: true },
+      include: { user: { select: { id: true, name: true, image: true } } },
+    });
+  }
+
+  /** Асуултыг онцлох/болиулах (pin). */
+  async pinQuestion(questionId: string, isPinned: boolean) {
+    const question = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+      select: { id: true },
+    });
+    if (!question) throw new NotFoundException('Question not found');
+    return this.prisma.lessonQuestion.update({
+      where: { id: questionId },
+      data: { isPinned },
+    });
+  }
+
+  /** Асуулт устгах (модерац — хариултууд cascade-аар арилна). */
+  async deleteQuestion(questionId: string) {
+    const question = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+      select: { id: true },
+    });
+    if (!question) throw new NotFoundException('Question not found');
+    return this.prisma.lessonQuestion.delete({ where: { id: questionId } });
+  }
+
+  /** Хариулт устгах (модерац). */
+  async deleteAnswer(answerId: string) {
+    const answer = await this.prisma.lessonAnswer.findUnique({
+      where: { id: answerId },
+      select: { id: true },
+    });
+    if (!answer) throw new NotFoundException('Answer not found');
+    return this.prisma.lessonAnswer.delete({ where: { id: answerId } });
+  }
+
   private async ensureProductExists(id: string) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');

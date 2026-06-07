@@ -10,6 +10,7 @@ import {
   Activity, TrendingUp, TrendingDown, Minus,
   Eye, MousePointerClick, ShoppingCart, CreditCard,
   Search, Monitor, Smartphone, Tablet,
+  GraduationCap, PlayCircle, CheckCircle2, Clock, Mail, MailOpen,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 
@@ -29,6 +30,17 @@ const DEVICE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const CHART_COLORS = ['#022179', '#ffbe00', '#0d47a1', '#1565c0', '#1976d2'];
+
+// Секундийг "Xм Yс" / "Xц Yм" болгон уншихад ойлгомжтой болгоно.
+function formatDuration(sec: number): string {
+  if (!sec || sec <= 0) return '0с';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}ц ${m}м`;
+  if (m > 0) return `${m}м ${s}с`;
+  return `${s}с`;
+}
 
 function StatCard({ label, value, sub, icon, trend }: {
   label: string; value: number | string; sub?: string;
@@ -58,6 +70,22 @@ export function AnalyticsSection() {
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'dashboard', days],
     queryFn: () => adminApi.getAnalyticsDashboard(days),
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: lessons, isLoading: lessonsLoading } = useQuery({
+    queryKey: ['analytics', 'lessons', days],
+    queryFn: () => adminApi.getLessonAnalytics(days),
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: email, isLoading: emailLoading } = useQuery({
+    queryKey: ['analytics', 'email', days],
+    queryFn: () => adminApi.getEmailAnalytics(days),
     staleTime: 0,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -287,6 +315,166 @@ export function AnalyticsSection() {
             </div>
           </div>
         </>
+      ) : null}
+
+      {/* ─── Хичээлийн аналитик (курс дуусгалт / dropoff) ─────────────────── */}
+      <div className="flex items-center gap-2 pt-2">
+        <GraduationCap className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-lg font-bold">Хичээлийн аналитик</h2>
+      </div>
+
+      {lessonsLoading ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-44 rounded-xl border border-border bg-card animate-pulse" />
+          ))}
+        </div>
+      ) : lessons ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Курс дуусгалт % — gauge / том тоо */}
+          <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
+            <p className="text-sm font-semibold mb-4">Курс дуусгалт</p>
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <ResponsiveContainer width="100%" height={140}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Дууссан', value: lessons.completionRate },
+                      { name: 'Үлдсэн', value: Math.max(0, 100 - lessons.completionRate) },
+                    ]}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={62}
+                    startAngle={90}
+                    endAngle={-270}
+                    strokeWidth={0}
+                  >
+                    <Cell fill="#022179" />
+                    <Cell fill="currentColor" className="text-muted/40" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="-mt-25 mb-9 text-center pointer-events-none">
+                <p className="text-3xl font-bold tracking-tight tabular-nums text-primary">{lessons.completionRate}%</p>
+                <p className="text-[11px] text-muted-foreground">дуусгалт</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <div className="rounded-lg bg-muted/30 px-3 py-2">
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><PlayCircle className="h-3 w-3" />Эхэлсэн</p>
+                <p className="text-sm font-bold tabular-nums">{lessons.totalStarted.toLocaleString('mn-MN')}</p>
+              </div>
+              <div className="rounded-lg bg-muted/30 px-3 py-2">
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><CheckCircle2 className="h-3 w-3" />Дууссан</p>
+                <p className="text-sm font-bold tabular-nums">{lessons.totalCompleted.toLocaleString('mn-MN')}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Lesson dropoff — started vs completed BarChart */}
+          <div className="lg:col-span-2 rounded-xl border border-border bg-card p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-sm font-semibold">Хичээлийн dropoff (эхэлсэн vs дууссан)</p>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />Дундаж үзэлт: <span className="font-bold text-foreground">{formatDuration(lessons.avgWatchSeconds)}</span>
+              </span>
+            </div>
+            {lessons.topDropoff.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={lessons.topDropoff} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barGap={2}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
+                  <XAxis
+                    dataKey="title"
+                    tick={{ fontSize: 10 }}
+                    interval={0}
+                    tickFormatter={(v: string) => (v.length > 10 ? v.slice(0, 10) + '…' : v)}
+                  />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(v, name) => [Number(v).toLocaleString(), name === 'started' ? 'Эхэлсэн' : 'Дууссан']}
+                    labelFormatter={(l) => `Хичээл: ${l}`}
+                  />
+                  <Bar dataKey="started" fill="#022179" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="completed" fill="#ffbe00" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-55 flex items-center justify-center text-sm text-muted-foreground">Хичээлийн өгөгдөл байхгүй байна</div>
+            )}
+            {lessons.topDropoff.length > 0 && (
+              <div className="mt-3 flex items-center gap-4 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: '#022179' }} />Эхэлсэн</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: '#ffbe00' }} />Дууссан</span>
+                <span className="ml-auto">Хамгийн их орхилт: <span className="font-semibold text-foreground">{lessons.topDropoff[0]?.dropoffRate}%</span></span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* ─── Имэйл маркетинг (campaign open rate) ──────────────────────────── */}
+      <div className="flex items-center gap-2 pt-2">
+        <Mail className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-lg font-bold">Имэйл маркетинг</h2>
+      </div>
+
+      {emailLoading ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-44 rounded-xl border border-border bg-card animate-pulse" />
+          ))}
+        </div>
+      ) : email ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Нийт нээлтийн товч */}
+          <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+            <p className="text-sm font-semibold">Нээлтийн нийлбэр</p>
+            <div className="rounded-lg bg-primary/10 p-3">
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><MailOpen className="h-3.5 w-3.5" />Нийт нээлт ({days} хоног)</p>
+              <p className="text-2xl font-bold tabular-nums text-primary mt-1">{email.totalOpensPeriod.toLocaleString('mn-MN')}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Mail className="h-3.5 w-3.5" />Unique нээгчид</p>
+              <p className="text-xl font-bold tabular-nums mt-1">{email.totalUnique.toLocaleString('mn-MN')}</p>
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 mt-auto">Кампанит ажил тус бүрийн нээлтийг pixel-ээр бүртгэнэ.</p>
+          </div>
+
+          {/* Campaign бүрийн нээлт — BarChart */}
+          <div className="lg:col-span-2 rounded-xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold mb-4">Кампанит ажлын нээлт</p>
+            {email.campaigns.some((c) => c.openedPeriod > 0 || c.openedTotal > 0) ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={email.campaigns} layout="vertical" margin={{ top: 0, right: 36, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    tick={{ fontSize: 10 }}
+                    width={110}
+                    tickFormatter={(v: string) => (v.length > 16 ? v.slice(0, 16) + '…' : v)}
+                  />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(v, name) => [Number(v).toLocaleString(), name === 'openedPeriod' ? 'Нээлт (хугацаа)' : 'Unique']}
+                  />
+                  <Bar dataKey="openedPeriod" fill="#022179" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                  <Bar dataKey="uniqueOpens" fill="#ffbe00" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-55 flex items-center justify-center text-sm text-muted-foreground">Нээлтийн өгөгдөл байхгүй байна</div>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: '#022179' }} />Нийт нээлт</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: '#ffbe00' }} />Unique нээгчид</span>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

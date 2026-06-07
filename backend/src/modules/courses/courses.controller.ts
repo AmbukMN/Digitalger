@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CoursesService } from './courses.service';
 import { LessonProgressDto } from './dto/lesson-progress.dto';
+import { AskQuestionDto, AddAnswerDto } from './dto/qa.dto';
+import { SubmitQuizDto } from './dto/quiz.dto';
 
 @Controller('courses')
 export class CoursesController {
@@ -54,5 +57,99 @@ export class CoursesController {
     @CurrentUser('sub') userId: string,
   ) {
     return this.coursesService.getCourseProgress(productSlug, userId);
+  }
+
+  // ── Certificate (курс 100% дуусахад) ────────────────────────────────────────
+
+  // Курс бүрэн дууссан үед сертификат олгох (upsert). Дуусгаагүй бол алдаа.
+  @Post(':productSlug/certificate')
+  @UseGuards(JwtAuthGuard)
+  issueCertificate(
+    @Param('productSlug') productSlug: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.coursesService.issueCertificate(productSlug, userId);
+  }
+
+  // Хэрэглэгчийн сертификатын meta + явц (eligible эсэх).
+  @Get(':productSlug/certificate')
+  @UseGuards(JwtAuthGuard)
+  getCertificate(
+    @Param('productSlug') productSlug: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.coursesService.getCertificate(productSlug, userId);
+  }
+
+  // Нийтийн баталгаажуулах + хэвлэх — certNo-оор HTML сертификат буцаана.
+  @Get('certificate/:certNo/view')
+  async viewCertificate(
+    @Param('certNo') certNo: string,
+    @Res() res: Response,
+  ) {
+    const html = await this.coursesService.getCertificateHtml(certNo);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
+
+  // ── Lesson Q&A ──────────────────────────────────────────────────────────────
+
+  // Тухайн хичээлийн асуултууд + хариултууд (entitlement шалгана).
+  @Get(':productSlug/lessons/:lessonId/questions')
+  @UseGuards(JwtAuthGuard)
+  listQuestions(
+    @Param('productSlug') productSlug: string,
+    @Param('lessonId') lessonId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.coursesService.listQuestions(productSlug, lessonId, userId);
+  }
+
+  // Хичээлд асуулт асуух.
+  @Post(':productSlug/lessons/:lessonId/questions')
+  @UseGuards(JwtAuthGuard)
+  askQuestion(
+    @Param('productSlug') productSlug: string,
+    @Param('lessonId') lessonId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: AskQuestionDto,
+  ) {
+    return this.coursesService.askQuestion(productSlug, lessonId, userId, body.question);
+  }
+
+  // Асуултад хариулах — хэрэглэгч ч хариулж болно (isInstructor=false).
+  @Post('questions/:questionId/answers')
+  @UseGuards(JwtAuthGuard)
+  addAnswer(
+    @Param('questionId') questionId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: AddAnswerDto,
+  ) {
+    return this.coursesService.addAnswer(questionId, userId, body.answer, false);
+  }
+
+  // ── Quiz (хичээлийн дараах шалгалт) ──────────────────────────────────────────
+
+  // Тухайн хичээлийн quiz (⚠️ correctIndex-гүй — аюулгүй).
+  @Get(':productSlug/lessons/:lessonId/quiz')
+  @UseGuards(JwtAuthGuard)
+  getQuiz(
+    @Param('productSlug') productSlug: string,
+    @Param('lessonId') lessonId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.coursesService.getQuizForLesson(productSlug, lessonId, userId);
+  }
+
+  // Quiz хариулт илгээх — серверт correctIndex-тэй тулгаж дүн тооцоолно.
+  @Post(':productSlug/lessons/:lessonId/quiz/submit')
+  @UseGuards(JwtAuthGuard)
+  submitQuiz(
+    @Param('productSlug') productSlug: string,
+    @Param('lessonId') lessonId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: SubmitQuizDto,
+  ) {
+    return this.coursesService.submitQuiz(productSlug, lessonId, userId, body.answers);
   }
 }

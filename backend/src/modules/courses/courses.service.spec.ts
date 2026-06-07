@@ -27,7 +27,8 @@ describe('CoursesService', () => {
       hlsUrl: jest.fn().mockReturnValue('https://hls'),
       iframeUrl: jest.fn().mockReturnValue('https://iframe'),
     };
-    service = new CoursesService(prisma as any, storage as any, stream as any);
+    const config = { get: jest.fn().mockReturnValue('https://digitalger.mn') };
+    service = new CoursesService(prisma as any, storage as any, stream as any, config as any);
   });
 
   describe('getLessonVideoUrl', () => {

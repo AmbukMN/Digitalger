@@ -129,4 +129,20 @@ export class AnalyticsController {
   async getDashboard(@Query('days') days?: string) {
     return this.analyticsService.getDashboardStats(days ? parseInt(days) : 30);
   }
+
+  // Хичээлийн аналитик (курс дуусгалт / lesson dropoff) — admin only.
+  @Get('lessons')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async getLessons(@Query('days') days?: string) {
+    return this.analyticsService.getLessonAnalytics(days ? parseInt(days) : 30);
+  }
+
+  // Имэйл маркетингийн кампанит ажлуудын нээлтийн статистик — admin only.
+  @Get('email')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async getEmail(@Query('days') days?: string) {
+    return this.analyticsService.getEmailAnalytics(days ? parseInt(days) : 30);
+  }
 }

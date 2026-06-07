@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, Loader2, Lock, Package, Paperclip, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, ListChecks, Loader2, Lock, MessageSquare, Package, Paperclip, Pencil, Play, Plus, Send, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   DndContext,
@@ -43,7 +43,7 @@ import {
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
-import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminLessonResource, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
+import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminLessonResource, AdminLessonQuestion, AdminQuizQuestion, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
 import { RichEditor } from '@/components/ui/rich-editor';
 
 
@@ -1211,6 +1211,457 @@ function VideoUploadInput({
   );
 }
 
+// ── Хичээлийн дараах шалгалт (Quiz) бүтээгч ───────────────────────────────────
+// Quiz байгаа бол засна, байхгүй бол үүсгэнэ. Бүхэлд нь PUT-ээр хадгална.
+function LessonQuizBuilder({ productId, lessonId }: { productId: string; lessonId: string }) {
+  const queryClient = useQueryClient();
+  const queryKey = ['admin', 'products', productId, 'lessons', lessonId, 'quiz'];
+
+  const { data: quiz, isLoading } = useQuery({
+    queryKey,
+    queryFn: () => adminApi.products.lessons.quiz.get(productId, lessonId),
+  });
+
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [passScore, setPassScore] = useState('60');
+  const [questions, setQuestions] = useState<AdminQuizQuestion[]>([]);
+  const [dirty, setDirty] = useState(false);
+
+  // quiz prop-оос локал төлвийг ачаална (засаагүй үед)
+  useEffect(() => {
+    if (dirty) return;
+    if (quiz) {
+      setTitle(quiz.title);
+      setPassScore(String(quiz.passScore));
+      setQuestions(
+        quiz.questions.map((q) => ({
+          question: q.question,
+          options: q.options.length ? [...q.options] : ['', ''],
+          correctIndex: q.correctIndex,
+        })),
+      );
+    } else {
+      setTitle('');
+      setPassScore('60');
+      setQuestions([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quiz]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      adminApi.products.lessons.quiz.save(productId, lessonId, {
+        title: title.trim() || 'Шалгалт',
+        passScore: Math.min(100, Math.max(0, parseInt(passScore, 10) || 0)),
+        questions: questions.map((q, i) => ({
+          question: q.question.trim(),
+          options: q.options.map((o) => o.trim()).filter((o) => o.length > 0),
+          correctIndex: q.correctIndex,
+          sortOrder: i,
+        })),
+      }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKey, saved);
+      setDirty(false);
+      toast.success('Шалгалт хадгалагдлаа');
+    },
+    onError: () => toast.error('Шалгалт хадгалахад алдаа гарлаа'),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: () => adminApi.products.lessons.quiz.remove(productId, lessonId),
+    onSuccess: () => {
+      queryClient.setQueryData(queryKey, null);
+      setDirty(false);
+      setTitle('');
+      setPassScore('60');
+      setQuestions([]);
+      toast.success('Шалгалт устгагдлаа');
+    },
+    onError: () => toast.error('Устгахад алдаа гарлаа'),
+  });
+
+  function updateQuestion(qi: number, patch: Partial<AdminQuizQuestion>) {
+    setDirty(true);
+    setQuestions((prev) => prev.map((q, i) => (i === qi ? { ...q, ...patch } : q)));
+  }
+  function addQuestion() {
+    setDirty(true);
+    setQuestions((prev) => [...prev, { question: '', options: ['', ''], correctIndex: 0 }]);
+    setOpen(true);
+  }
+  function removeQuestion(qi: number) {
+    setDirty(true);
+    setQuestions((prev) => prev.filter((_, i) => i !== qi));
+  }
+  function addOption(qi: number) {
+    setDirty(true);
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === qi && q.options.length < 4 ? { ...q, options: [...q.options, ''] } : q)),
+    );
+  }
+  function removeOption(qi: number, oi: number) {
+    setDirty(true);
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qi || q.options.length <= 2) return q;
+        const options = q.options.filter((_, idx) => idx !== oi);
+        // зөв хариултын индексийг тохируулна
+        let correctIndex = q.correctIndex;
+        if (oi === correctIndex) correctIndex = 0;
+        else if (oi < correctIndex) correctIndex -= 1;
+        return { ...q, options, correctIndex };
+      }),
+    );
+  }
+  function setOption(qi: number, oi: number, val: string) {
+    setDirty(true);
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === qi ? { ...q, options: q.options.map((o, idx) => (idx === oi ? val : o)) } : q)),
+    );
+  }
+
+  // Хадгалахаас өмнө валидаци: асуулт бүр текст + дор хаяж 2 дүүргэсэн сонголттой
+  const valid =
+    questions.length > 0 &&
+    questions.every(
+      (q) => q.question.trim().length > 0 && q.options.filter((o) => o.trim().length > 0).length >= 2,
+    );
+
+  const hasQuiz = !!quiz;
+  const questionCount = quiz?.questions.length ?? 0;
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/10 p-2.5 space-y-2">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <ListChecks className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+        <span className="text-[11px] font-semibold text-muted-foreground flex-1">
+          Шалгалт (Quiz)
+          {hasQuiz && (
+            <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              {questionCount} асуулт · тэнцэх {quiz?.passScore}%
+            </span>
+          )}
+          {!hasQuiz && !isLoading && (
+            <span className="ml-1.5 text-[10px] font-normal text-muted-foreground/70">Үүсгээгүй</span>
+          )}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+
+      {open && (
+        <div className="space-y-3 pt-1">
+          {isLoading ? (
+            <p className="text-[11px] text-muted-foreground">Ачаалж байна...</p>
+          ) : (
+            <>
+              {/* Гарчиг + тэнцэх хувь */}
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground mb-1">Шалгалтын гарчиг</p>
+                  <Input
+                    value={title}
+                    onChange={(e) => { setDirty(true); setTitle(e.target.value); }}
+                    placeholder="Жишээ: Бүлгийн шалгалт"
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="w-24">
+                  <p className="text-[10px] font-semibold text-muted-foreground mb-1">Тэнцэх %</p>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={passScore}
+                    onChange={(e) => { setDirty(true); setPassScore(e.target.value); }}
+                    className="h-7 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Асуултууд */}
+              <div className="space-y-2.5">
+                {questions.map((q, qi) => {
+                  const validOptions = q.options.filter((o) => o.trim().length > 0).length;
+                  return (
+                    <div key={qi} className="rounded-md border border-border bg-background p-2.5 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-1.5 shrink-0 font-mono text-[10px] font-bold text-primary/40">{qi + 1}.</span>
+                        <Input
+                          value={q.question}
+                          onChange={(e) => updateQuestion(qi, { question: e.target.value })}
+                          placeholder="Асуултын текст"
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Button
+                          type="button" size="icon" variant="ghost"
+                          className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                          onClick={() => removeQuestion(qi)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      {/* Сонголтууд — radio-гоор зөв хариултыг сонгоно */}
+                      <div className="ml-5 space-y-1.5">
+                        {q.options.map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <label className="flex shrink-0 cursor-pointer items-center" title="Зөв хариулт">
+                              <input
+                                type="radio"
+                                name={`correct-${lessonId}-${qi}`}
+                                className="h-3.5 w-3.5 accent-green-600"
+                                checked={q.correctIndex === oi}
+                                onChange={() => updateQuestion(qi, { correctIndex: oi })}
+                              />
+                            </label>
+                            <Input
+                              value={opt}
+                              onChange={(e) => setOption(qi, oi, e.target.value)}
+                              placeholder={`Сонголт ${oi + 1}`}
+                              className={`h-7 text-xs flex-1 ${q.correctIndex === oi ? 'border-green-500/50' : ''}`}
+                            />
+                            <Button
+                              type="button" size="icon" variant="ghost"
+                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                              disabled={q.options.length <= 2}
+                              onClick={() => removeOption(qi, oi)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between">
+                          {q.options.length < 4 ? (
+                            <button
+                              type="button"
+                              onClick={() => addOption(qi)}
+                              className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
+                            >
+                              <Plus className="h-2.5 w-2.5" /> Сонголт нэмэх
+                            </button>
+                          ) : <span />}
+                          {validOptions < 2 && (
+                            <span className="text-[10px] text-amber-600">Дор хаяж 2 сонголт</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={addQuestion}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> Асуулт нэмэх
+                </button>
+              </div>
+
+              {/* Үйлдлүүд */}
+              <div className="flex items-center justify-between pt-0.5">
+                {hasQuiz ? (
+                  <Button
+                    type="button" size="sm" variant="ghost"
+                    className="h-7 text-xs px-2 text-destructive hover:text-destructive"
+                    onClick={() => { if (confirm('Энэ хичээлийн шалгалтыг устгах уу?')) removeMut.mutate(); }}
+                    disabled={removeMut.isPending}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" /> Шалгалт устгах
+                  </Button>
+                ) : <span />}
+                <Button
+                  type="button" size="sm" className="h-7 text-xs px-3"
+                  onClick={() => saveMut.mutate()}
+                  disabled={!valid || saveMut.isPending}
+                >
+                  {saveMut.isPending ? '...' : hasQuiz ? 'Шалгалт хадгалах' : 'Шалгалт үүсгэх'}
+                </Button>
+              </div>
+              {!valid && questions.length > 0 && (
+                <p className="text-[10px] text-amber-600">Асуулт бүрд текст болон дор хаяж 2 сонголт оруулна уу.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Хичээлийн Q&A модерац — асуулт харах / хариулах / устгах ──────────────────
+function LessonQuestions({ productId, lessonId }: { productId: string; lessonId: string }) {
+  const queryClient = useQueryClient();
+  const queryKey = ['admin', 'products', productId, 'lessons', lessonId, 'questions'];
+  const [open, setOpen] = useState(false);
+  const [answerInputs, setAnswerInputs] = useState<Record<string, string>>({});
+
+  const { data: questions = [], isLoading } = useQuery({
+    queryKey,
+    queryFn: () => adminApi.products.lessons.questions.list(productId, lessonId),
+    enabled: open,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey });
+
+  const answerMut = useMutation({
+    mutationFn: ({ questionId, answer }: { questionId: string; answer: string }) =>
+      adminApi.products.questions.answer(questionId, answer),
+    onSuccess: (_d, { questionId }) => {
+      setAnswerInputs((p) => ({ ...p, [questionId]: '' }));
+      toast.success('Хариулт нэмэгдлээ');
+      invalidate();
+    },
+    onError: () => toast.error('Хариулахад алдаа гарлаа'),
+  });
+
+  const removeQuestionMut = useMutation({
+    mutationFn: (questionId: string) => adminApi.products.questions.remove(questionId),
+    onSuccess: () => { toast.success('Асуулт устгагдлаа'); invalidate(); },
+    onError: () => toast.error('Устгахад алдаа гарлаа'),
+  });
+
+  const removeAnswerMut = useMutation({
+    mutationFn: (answerId: string) => adminApi.products.questions.removeAnswer(answerId),
+    onSuccess: () => { toast.success('Хариулт устгагдлаа'); invalidate(); },
+    onError: () => toast.error('Устгахад алдаа гарлаа'),
+  });
+
+  // хариулаагүй (ямар ч хариултгүй) асуултын тоо — oncлоход ашиглана
+  const unansweredCount = questions.filter((q) => q.answers.length === 0).length;
+
+  function authorName(u?: { name: string | null; email: string } | null): string {
+    if (!u) return 'Хэрэглэгч';
+    return u.name || u.email || 'Хэрэглэгч';
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/10 p-2.5 space-y-2">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+        <span className="text-[11px] font-semibold text-muted-foreground flex-1">
+          Асуултууд (Q&A)
+          {open && questions.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              {questions.length}
+            </span>
+          )}
+          {open && unansweredCount > 0 && (
+            <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+              {unansweredCount} хариулаагүй
+            </span>
+          )}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+
+      {open && (
+        <div className="space-y-2 pt-1">
+          {isLoading ? (
+            <p className="text-[11px] text-muted-foreground">Ачаалж байна...</p>
+          ) : questions.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground/70">Энэ хичээлд асуулт ирээгүй байна.</p>
+          ) : (
+            questions.map((q: AdminLessonQuestion) => {
+              const isUnanswered = q.answers.length === 0;
+              return (
+                <div
+                  key={q.id}
+                  className={`rounded-md border p-2.5 space-y-2 ${isUnanswered ? 'border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border bg-background'}`}
+                >
+                  {/* Асуулт */}
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-semibold">{authorName(q.user)}</span>
+                        {isUnanswered && (
+                          <span className="rounded-full bg-amber-200 dark:bg-amber-800/40 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-800 dark:text-amber-300">
+                            Хариулаагүй
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(q.createdAt).toLocaleDateString('mn-MN')}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs leading-relaxed whitespace-pre-wrap break-words">{q.question}</p>
+                    </div>
+                    <Button
+                      type="button" size="icon" variant="ghost"
+                      className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => { if (confirm('Асуулт болон бүх хариултыг устгах уу?')) removeQuestionMut.mutate(q.id); }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  {/* Хариултууд */}
+                  {q.answers.length > 0 && (
+                    <div className="ml-3 space-y-1.5 border-l-2 border-border pl-2.5">
+                      {q.answers.map((a) => (
+                        <div key={a.id} className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-semibold">{authorName(a.user)}</span>
+                              {a.isInstructor && (
+                                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
+                                  Багш
+                                </span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(a.createdAt).toLocaleDateString('mn-MN')}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs leading-relaxed whitespace-pre-wrap break-words">{a.answer}</p>
+                          </div>
+                          <Button
+                            type="button" size="icon" variant="ghost"
+                            className="h-5 w-5 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => { if (confirm('Хариулт устгах уу?')) removeAnswerMut.mutate(a.id); }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Багшийн хариулт бичих */}
+                  <div className="ml-3 flex items-start gap-1.5">
+                    <textarea
+                      value={answerInputs[q.id] ?? ''}
+                      onChange={(e) => setAnswerInputs((p) => ({ ...p, [q.id]: e.target.value }))}
+                      placeholder="Багшийн хариулт бичих..."
+                      rows={1}
+                      className="flex-1 resize-y rounded-md border border-input bg-background px-2 py-1.5 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring min-h-[32px]"
+                    />
+                    <Button
+                      type="button" size="sm" className="h-8 text-xs px-2.5 gap-1 shrink-0"
+                      disabled={!(answerInputs[q.id] ?? '').trim() || answerMut.isPending}
+                      onClick={() => answerMut.mutate({ questionId: q.id, answer: (answerInputs[q.id] ?? '').trim() })}
+                    >
+                      <Send className="h-3 w-3" /> Хариулах
+                    </Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LessonRow({
   lesson,
   index,
@@ -1378,6 +1829,10 @@ function LessonRow({
             <div className="rounded-lg border border-border bg-muted/10 p-2.5">
               <LessonResources productId={productId} lessonId={lesson.id} />
             </div>
+            {/* Хичээлийн дараах шалгалт (Quiz) */}
+            <LessonQuizBuilder productId={productId} lessonId={lesson.id} />
+            {/* Хичээлийн Q&A модерац */}
+            <LessonQuestions productId={productId} lessonId={lesson.id} />
             <div className="flex items-center justify-between pt-0.5">
               <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                 <input type="checkbox" className="h-3.5 w-3.5 accent-primary" checked={freePreview} onChange={(e) => setFreePreview(e.target.checked)} />

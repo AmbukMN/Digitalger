@@ -450,6 +450,53 @@ export interface AdminCourseModule {
   lessons: AdminLesson[];
 }
 
+// ─── Quiz (хичээлийн дараах шалгалт) ─────────────────────────────────────────
+export interface AdminQuizQuestion {
+  id?: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  sortOrder?: number;
+}
+
+export interface AdminQuiz {
+  id: string;
+  lessonId: string;
+  title: string;
+  passScore: number;
+  questions: AdminQuizQuestion[];
+  createdAt?: string;
+}
+
+// Quiz хадгалах body (id-гүй — backend upsert хийнэ)
+export interface AdminQuizInput {
+  title: string;
+  passScore: number;
+  questions: AdminQuizQuestion[];
+}
+
+// ─── Хичээлийн Q&A модерац ───────────────────────────────────────────────────
+export interface AdminLessonAnswer {
+  id: string;
+  questionId: string;
+  answer: string;
+  isInstructor: boolean;
+  createdAt: string;
+  user?: { id: string; name: string | null; email: string; image?: string | null } | null;
+}
+
+export interface AdminLessonQuestion {
+  id: string;
+  lessonId: string;
+  question: string;
+  isPinned: boolean;
+  createdAt: string;
+  user?: { id: string; name: string | null; email: string; image?: string | null } | null;
+  answers: AdminLessonAnswer[];
+  // Аль хичээлийнх болохыг танихад туслах (зарим endpoint буцаана)
+  lesson?: { id: string; title: string } | null;
+}
+
 export interface AdminCoupon {
   id: string;
   code: string;

@@ -400,6 +400,57 @@ export interface LessonProgress {
   completed: boolean;
 }
 
+// ── Сертификат ──
+export interface CourseCertificate {
+  certNo: string;
+  courseTitle: string;
+  userName: string;
+  issuedAt: string;
+}
+
+// ── Q&A (асуулт-хариулт) ──
+export interface QuestionUser {
+  id?: string;
+  name?: string | null;
+  image?: string | null;
+}
+
+export interface LessonAnswer {
+  id?: string;
+  answer: string;
+  user: QuestionUser;
+  isInstructor: boolean;
+  createdAt: string;
+}
+
+export interface LessonQuestion {
+  id: string;
+  question: string;
+  user: QuestionUser;
+  createdAt: string;
+  isPinned?: boolean;
+  answers: LessonAnswer[];
+}
+
+// ── Шалгалт (quiz) ──
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface LessonQuiz {
+  id: string;
+  title: string;
+  passScore: number;
+  questions: QuizQuestion[];
+}
+
+export interface QuizSubmitResult {
+  score: number;
+  passed: boolean;
+}
+
 export const coursesApi = {
   getLessonVideoUrl: (token: string, productSlug: string, lessonId: string) =>
     request<LessonVideoResult>(
@@ -428,6 +479,55 @@ export const coursesApi = {
       `/courses/${productSlug}/resources/${resourceId}/download`,
       { method: 'GET', token },
     ),
+
+  // ── Сертификат (курс 100% дуусахад) ──
+  certificate: {
+    // Одоо байгаа сертификат татах (байхгүй бол null)
+    get: (token: string, productSlug: string) =>
+      request<CourseCertificate | null>(`/courses/${productSlug}/certificate`, { token }).catch(() => null),
+    // Сертификат шинээр гаргах (курс 100% дуусчихсан байх ёстой)
+    issue: (token: string, productSlug: string) =>
+      request<CourseCertificate>(`/courses/${productSlug}/certificate`, { method: 'POST', token }),
+    // Public HTML сертификат харах URL (шинэ tab-д нээж хэвлэх/PDF)
+    viewUrl: (certNo: string) => `${API_URL}/api/courses/certificate/${certNo}/view`,
+  },
+
+  // ── Асуулт-хариулт (Q&A) ──
+  questions: {
+    list: (token: string, productSlug: string, lessonId: string) =>
+      request<LessonQuestion[]>(
+        `/courses/${productSlug}/lessons/${lessonId}/questions`,
+        { token },
+      ),
+    ask: (token: string, productSlug: string, lessonId: string, question: string) =>
+      request<LessonQuestion>(`/courses/${productSlug}/lessons/${lessonId}/questions`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ question }),
+      }),
+    answer: (token: string, questionId: string, answer: string) =>
+      request<LessonAnswer>(`/courses/questions/${questionId}/answers`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ answer }),
+      }),
+  },
+
+  // ── Шалгалт (quiz) ──
+  quiz: {
+    // Хичээлийн шалгалт (байхгүй бол null) — correctIndex backend-ээс ирэхгүй
+    get: (token: string, productSlug: string, lessonId: string) =>
+      request<LessonQuiz | null>(
+        `/courses/${productSlug}/lessons/${lessonId}/quiz`,
+        { token },
+      ).catch(() => null),
+    submit: (token: string, productSlug: string, lessonId: string, answers: number[]) =>
+      request<QuizSubmitResult>(`/courses/${productSlug}/lessons/${lessonId}/quiz/submit`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ answers }),
+      }),
+  },
 };
 
 // —— Pages ——

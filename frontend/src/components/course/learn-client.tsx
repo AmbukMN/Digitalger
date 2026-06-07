@@ -8,16 +8,19 @@ import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
+  Award,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Loader2,
   Lock,
   Menu,
   PartyPopper,
   Sparkles,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button, Skeleton } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import { coursesApi, downloadsApi } from '@/lib/api';
@@ -274,11 +277,41 @@ export function LearnClient({ product }: LearnClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLessonId, progressList]);
 
-  // Курс бүхэлдээ дууссан эсэх
+  // Курс бүхэлдээ дууссан эсэх (overallPct === 100)
   const allDone = useMemo(
     () => orderedLessons.length > 0 && orderedLessons.every((l) => progressMap[l.id]?.completed),
     [orderedLessons, progressMap],
   );
+
+  // ── Сертификат (курс 100% дуусахад) ──
+  const [issuingCert, setIssuingCert] = useState(false);
+
+  // Аль хэдийн гаргасан сертификат байгаа эсэхийг (курс дууссан үед) шалгах
+  const { data: certificate } = useQuery({
+    queryKey: ['course-certificate', product.slug],
+    queryFn: () => coursesApi.certificate.get(token!, product.slug),
+    enabled: !!token && purchased && allDone,
+    staleTime: 60_000,
+  });
+
+  const handleCertificate = useCallback(async () => {
+    if (!token || issuingCert) return;
+    // Аль хэдийн байгаа бол шууд нээх
+    if (certificate?.certNo) {
+      window.open(coursesApi.certificate.viewUrl(certificate.certNo), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setIssuingCert(true);
+    try {
+      const cert = await coursesApi.certificate.issue(token, product.slug);
+      window.open(coursesApi.certificate.viewUrl(cert.certNo), '_blank', 'noopener,noreferrer');
+      toast.success('Сертификат бэлэн боллоо!');
+    } catch {
+      toast.error('Сертификат гаргаж чадсангүй. Дахин оролдоно уу.');
+    } finally {
+      setIssuingCert(false);
+    }
+  }, [token, issuingCert, certificate, product.slug]);
 
   // ─── Эрхийн шалгалт ──────────────────────────────────────────────────────────
   const accessLoading = sessionLoading || (!!token && libraryLoading);
@@ -417,17 +450,30 @@ export function LearnClient({ product }: LearnClientProps) {
             </button>
           </div>
 
-          {/* Курс дууссан баяр */}
+          {/* Курс дууссан баяр + Сертификат */}
           {allDone && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-4 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
+              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
             >
-              <PartyPopper className="h-5 w-5 shrink-0 text-emerald-400" />
-              <p className="text-sm font-semibold text-white">
-                Баяр хүргэе, та курсыг бүрэн үзэж дууслаа! 🎉
-              </p>
+              <div className="flex items-center gap-3">
+                <PartyPopper className="h-5 w-5 shrink-0 text-emerald-400" />
+                <p className="text-sm font-semibold text-white">
+                  Баяр хүргэе, та курсыг бүрэн үзэж дууслаа! 🎉
+                </p>
+              </div>
+              {purchased && (
+                <button
+                  type="button"
+                  onClick={handleCertificate}
+                  disabled={issuingCert}
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-[#ffbe00] px-4 py-2 text-sm font-semibold text-[#022179] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {issuingCert ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />}
+                  🎓 {certificate ? 'Сертификат харах' : 'Сертификат авах'}
+                </button>
+              )}
             </motion.div>
           )}
 
