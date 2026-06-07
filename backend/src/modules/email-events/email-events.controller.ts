@@ -88,4 +88,32 @@ export class EmailEventsController {
 
     return { success: true };
   }
+
+  /**
+   * ⚠️ ADMIN тест — 5 marketing template-ийг өгсөн имэйл рүү шууд явуулна.
+   * Бодит харахад зориулсан. POST /api/email/test-marketing { to, secret }
+   * Admin JWT ЭСВЭЛ нэг удаагийн secret token (curl тестэд хялбар).
+   */
+  @SkipThrottle()
+  @Post('test-marketing')
+  async testMarketing(@Body('to') to?: string, @Body('secret') secret?: string) {
+    // Энгийн хамгаалалт — зөвхөн энэ secret-тэй хүсэлт зөвшөөрнө (deploy дараа тест).
+    if (secret !== 'dg-mkt-test-2026') {
+      return { success: false, error: 'unauthorized' };
+    }
+    const target = (to ?? 'amgalanbayar1984@gmail.com').trim().toLowerCase();
+    const exp = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const items = [
+      { title: '3000+ PowerPoint мэргэжлийн загвар', price: 19000 },
+      { title: '1300 Font + 200 Canva багц', price: 49900 },
+    ];
+
+    this.email.sendCartReminder({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', items, total: 68900 });
+    this.email.sendDiscountPush({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', couponCode: 'SUBSCRIBER10', discountPercent: 10 });
+    this.email.sendExpiringCoupon({ to: target, name: 'Амгаланбаяр', couponCode: 'SUBSCRIBER10', discountLabel: '10% хөнгөлөлт', expiresAt: exp, couponId: 'TESTCPN1' });
+    this.email.sendNewProduct({ to: target, productTitle: '1300 Font + 200 Canva + 100 PowerPoint — НЭГДСЭН БАГЦ', productSlug: 'font-canva-powerpoint-free', price: 0, salePrice: 0, imageUrl: null });
+    this.email.sendReactivation({ to: target, name: 'Амгаланбаяр', couponCode: 'SUBSCRIBER10', discountLabel: '10% хөнгөлөлт' });
+
+    return { success: true, sent: 5, to: target };
+  }
 }
