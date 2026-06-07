@@ -20,9 +20,17 @@ export class CoursesService {
           include: {
             modules: {
               orderBy: { sortOrder: 'asc' },
-              include: { lessons: { orderBy: { sortOrder: 'asc' } } },
+              include: {
+                lessons: {
+                  orderBy: { sortOrder: 'asc' },
+                  include: { _count: { select: { resources: true } } },
+                },
+              },
             },
-            lessons: { orderBy: { sortOrder: 'asc' } },
+            lessons: {
+              orderBy: { sortOrder: 'asc' },
+              include: { _count: { select: { resources: true } } },
+            },
           },
         },
       },
@@ -32,6 +40,8 @@ export class CoursesService {
       throw new NotFoundException('Course not found for this product');
     }
 
+    // ⚠️ content нь зөвхөн entitlement (худалдан авсан/preview) шалгасны дараа —
+    // нийтийн жагсаалтад content БҮҮ оруул. Энд зөвхөн meta + хавсралтын тоо.
     const mapLesson = (lesson: any) => ({
       id: lesson.id,
       title: lesson.title,
@@ -41,6 +51,8 @@ export class CoursesService {
       isFreePreview: lesson.isFreePreview,
       moduleId: lesson.moduleId ?? null,
       hasVideo: Boolean(lesson.videoKey || lesson.videoUrl || lesson.videoStreamId),
+      resourceCount: lesson._count?.resources ?? 0,
+      hasResources: (lesson._count?.resources ?? 0) > 0,
     });
 
     // Lessons with no module (ungrouped)
@@ -70,6 +82,7 @@ export class CoursesService {
       },
       include: {
         course: { include: { product: true } },
+        resources: { orderBy: { sortOrder: 'asc' } },
       },
     });
 
@@ -92,6 +105,19 @@ export class CoursesService {
       }
     }
 
+    // Entitlement аль хэдийн шалгасан тул content + resources meta аюулгүй буцаана.
+    // Resource-ийн ТАТАХ signed url-г энд буцаахгүй — frontend тусдаа
+    // GET :productSlug/resources/:resourceId/download endpoint дуудна.
+    const extras = {
+      content: lesson.content ?? null,
+      resources: lesson.resources.map((r) => ({
+        id: r.id,
+        fileName: r.fileName,
+        sizeBytes: r.sizeBytes,
+        mimeType: r.mimeType,
+      })),
+    };
+
     // 1) Cloudflare Stream (ШИНЭ) — signed playback token.
     if (lesson.videoStreamId) {
       if (!this.stream.configured) {
@@ -111,17 +137,18 @@ export class CoursesService {
         hlsUrl: this.stream.hlsUrl(lesson.videoStreamId, token),
         iframeUrl: this.stream.iframeUrl(token),
         expiresIn: ttl,
+        ...extras,
       };
     }
 
     // 2) Гадаад линк (YouTube/Vimeo) — хэвээр.
     if (lesson.videoUrl) {
-      return { lessonId: lesson.id, type: 'external' as const, url: lesson.videoUrl, expiresIn: null };
+      return { lessonId: lesson.id, type: 'external' as const, url: lesson.videoUrl, expiresIn: null, ...extras };
     }
 
     // 3) R2 presigned (хуучин) — хэвээр.
     const url = await this.storage.getPresignedUrl(lesson.videoKey!, 7200, 'get');
-    return { lessonId: lesson.id, type: 'r2' as const, url, expiresIn: 7200 };
+    return { lessonId: lesson.id, type: 'r2' as const, url, expiresIn: 7200, ...extras };
   }
 
   /**
@@ -218,5 +245,42 @@ export class CoursesService {
     });
 
     return progress;
+  }
+
+  /**
+   * Хичээлийн хавсралт файлыг татах signed URL үүсгэнэ.
+   * Entitlement (isFreePreview эсвэл PAID order) шалгасны дараа л url буцаана.
+   * @returns { url, fileName }
+   */
+  async getLessonResourceUrl(productSlug: string, resourceId: string, userId: string) {
+    const resource = await this.prisma.lessonResource.findFirst({
+      where: {
+        id: resourceId,
+        lesson: { course: { product: { slug: productSlug } } },
+      },
+      include: {
+        lesson: { include: { course: true } },
+      },
+    });
+    if (!resource) {
+      throw new NotFoundException('Resource not found');
+    }
+
+    // Entitlement — preview бус хичээлийн хавсралт бол PAID order заавал.
+    if (!resource.lesson.isFreePreview) {
+      const owned = await this.prisma.order.findFirst({
+        where: {
+          userId,
+          status: OrderStatus.PAID,
+          items: { some: { productId: resource.lesson.course.productId } },
+        },
+      });
+      if (!owned) {
+        throw new ForbiddenException('Access denied');
+      }
+    }
+
+    const url = await this.storage.getPresignedUrl(resource.fileKey, 3600, 'get');
+    return { url, fileName: resource.fileName, expiresIn: 3600 };
   }
 }

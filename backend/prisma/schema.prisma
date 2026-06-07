@@ -244,7 +244,25 @@ model Lesson {
   durationSec   Int?
   isFreePreview Boolean       @default(false)
   sortOrder     Int           @default(0)
+  // Хичээлийн доорх дэлгэрэнгүй агуулга (rich text notes — TipTap HTML, код/зураг)
+  content       String?       @db.Text
   progress      LessonProgress[]
+  resources     LessonResource[]
+}
+
+// Хичээлд хавсаргасан татаж авах нөөц (PDF, файл, материал — R2-д хадгалагдана).
+model LessonResource {
+  id        String   @id @default(cuid())
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  fileKey   String // R2 key
+  fileName  String
+  mimeType  String?
+  sizeBytes Int?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([lessonId])
 }
 
 // Хичээл үзэлтийн явц — continue watching + дууссан тэмдэглэгээ.

@@ -371,6 +371,13 @@ export const couponsApi = {
 };
 
 // —— Courses ——
+export interface LessonResource {
+  id: string;
+  fileName: string;
+  sizeBytes?: number | null;
+  mimeType?: string | null;
+}
+
 export interface LessonVideoResult {
   lessonId: string;
   type: 'stream' | 'r2' | 'external';
@@ -379,6 +386,11 @@ export interface LessonVideoResult {
   hlsUrl?: string;
   iframeUrl?: string;
   expiresIn?: number | null;
+  // ── Хичээлийн нэмэлт агуулга (backend шинэ) ──
+  /** Rich HTML тэмдэглэл (sanitizeHtml-аар render) */
+  content?: string | null;
+  /** Татах материалын файлууд */
+  resources?: LessonResource[];
 }
 
 export interface LessonProgress {
@@ -409,6 +421,13 @@ export const coursesApi = {
 
   getProgress: (token: string, productSlug: string) =>
     request<LessonProgress[]>(`/courses/${productSlug}/progress`, { token }),
+
+  // Хичээлийн татах материалын signed url
+  getResourceDownload: (token: string, productSlug: string, resourceId: string) =>
+    request<{ url: string; fileName: string }>(
+      `/courses/${productSlug}/resources/${resourceId}/download`,
+      { method: 'GET', token },
+    ),
 };
 
 // —— Pages ——

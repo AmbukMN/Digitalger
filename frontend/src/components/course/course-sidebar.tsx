@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Clock, Lock, Play, FolderOpen } from 'lucide-react';
 import { cn } from '@digitalger/shared';
 import type { LessonProgress } from '@/lib/api';
@@ -62,9 +62,18 @@ function LessonItem({
 }) {
   const { locked, completed, pct } = computeLessonState(lesson, purchased, progress);
   const dur = formatDuration(lesson.durationSec);
+  const ref = useRef<HTMLButtonElement>(null);
+
+  // Идэвхтэй хичээл → sidebar дотор автоматаар харагдахуйц scroll
+  useEffect(() => {
+    if (isCurrent && ref.current) {
+      ref.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isCurrent]);
 
   return (
     <button
+      ref={ref}
       type="button"
       onClick={() => !locked && onSelect(lesson)}
       disabled={locked}
@@ -150,7 +159,34 @@ function ModuleSection({
 }) {
   // Default: бүх section нээлттэй. Идэвхтэй хичээл доторх section заавал нээлттэй.
   const containsCurrent = mod.lessons.some((l) => l.id === currentLessonId);
+  // localStorage-аас тухайн module-ийн collapse төлвийг сэргээх (anlazy init)
+  const storageKey = `digitalger:course-mod:${mod.id}`;
   const [open, setOpen] = useState(true);
+
+  // Mount дээр localStorage-аас уншиж сэргээх (SSR hydration зөрчилгүйн тулд effect-д)
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(storageKey);
+      if (v === '0') setOpen(false);
+      else if (v === '1') setOpen(true);
+    } catch {
+      /* localStorage боломжгүй */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggle = () => {
+    setOpen((o) => {
+      const next = !o;
+      try {
+        localStorage.setItem(storageKey, next ? '1' : '0');
+      } catch {
+        /* localStorage боломжгүй */
+      }
+      return next;
+    });
+  };
+
   const isOpen = open || containsCurrent;
 
   const totalSec = mod.lessons.reduce((s, l) => s + (l.durationSec ?? 0), 0);
@@ -160,7 +196,7 @@ function ModuleSection({
     <div className="border-b border-white/10 last:border-b-0">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="flex w-full items-center gap-3 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.06]"
       >
         <FolderOpen className="h-4 w-4 shrink-0 text-[#ffbe00]" />

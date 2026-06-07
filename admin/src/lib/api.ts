@@ -8,6 +8,7 @@ import type {
   AdminCoupon,
   AdminFaq,
   AdminLesson,
+  AdminLessonResource,
   AdminCourseModule,
   GrantedProduct,
   AdminMenuItem,
@@ -210,14 +211,25 @@ export const adminApi = {
     },
     lessons: {
       list: (productId: string) => adminFetch<AdminLesson[]>(`/admin/products/${productId}/lessons`),
-      create: (productId: string, body: { title: string; description?: string; videoUrl?: string; videoKey?: string; videoStreamId?: string; streamStatus?: string; durationSec?: number; isFreePreview?: boolean; sortOrder?: number; moduleId?: string }) =>
+      create: (productId: string, body: { title: string; description?: string; content?: string; videoUrl?: string; videoKey?: string; videoStreamId?: string; streamStatus?: string; durationSec?: number; isFreePreview?: boolean; sortOrder?: number; moduleId?: string }) =>
         adminFetch<AdminLesson>(`/admin/products/${productId}/lessons`, { method: 'POST', body: JSON.stringify(body) }),
-      update: (productId: string, lessonId: string, body: Partial<{ title: string; description: string; videoUrl: string; videoKey: string; videoStreamId: string; streamStatus: string; durationSec: number; isFreePreview: boolean; sortOrder: number; moduleId: string | null }>) =>
+      update: (productId: string, lessonId: string, body: Partial<{ title: string; description: string; content: string; videoUrl: string; videoKey: string; videoStreamId: string; streamStatus: string; durationSec: number; isFreePreview: boolean; sortOrder: number; moduleId: string | null }>) =>
         adminFetch<AdminLesson>(`/admin/products/${productId}/lessons/${lessonId}`, { method: 'PATCH', body: JSON.stringify(body) }),
       remove: (productId: string, lessonId: string) =>
         adminFetch<void>(`/admin/products/${productId}/lessons/${lessonId}`, { method: 'DELETE' }),
       reorder: (productId: string, items: { id: string; sortOrder: number }[]) =>
         adminFetch<{ success: boolean }>(`/admin/products/${productId}/lessons/reorder`, { method: 'PUT', body: JSON.stringify({ items }) }),
+      // Хичээлийн хавсралт / татах материал (R2 файл)
+      resources: {
+        list: (productId: string, lessonId: string) =>
+          adminFetch<AdminLessonResource[]>(`/admin/products/${productId}/lessons/${lessonId}/resources`),
+        add: (productId: string, lessonId: string, body: { fileKey: string; fileName: string; mimeType?: string; sizeBytes?: number; sortOrder?: number }) =>
+          adminFetch<AdminLessonResource>(`/admin/products/${productId}/lessons/${lessonId}/resources`, { method: 'POST', body: JSON.stringify(body) }),
+        remove: (productId: string, lessonId: string, resourceId: string) =>
+          adminFetch<void>(`/admin/products/${productId}/lessons/${lessonId}/resources/${resourceId}`, { method: 'DELETE' }),
+        reorder: (productId: string, lessonId: string, items: { id: string; sortOrder: number }[]) =>
+          adminFetch<{ success: boolean }>(`/admin/products/${productId}/lessons/${lessonId}/resources/reorder`, { method: 'PUT', body: JSON.stringify({ items }) }),
+      },
       // Cloudflare Stream — хичээлийн видеог direct upload хийх URL авах
       streamUpload: (productId: string, body?: { name?: string; maxDurationSeconds?: number }) =>
         adminFetch<{ uploadURL: string; uid: string }>(`/admin/products/${productId}/lessons/stream-upload`, { method: 'POST', body: JSON.stringify(body ?? {}) }),

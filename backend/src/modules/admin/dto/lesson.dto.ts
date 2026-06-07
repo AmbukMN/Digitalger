@@ -1,10 +1,12 @@
 import {
+  IsArray,
   IsBoolean,
   IsInt,
   IsOptional,
   IsString,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -23,6 +25,11 @@ export class CreateLessonDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  // Хичээлийн доорх дэлгэрэнгүй агуулга (rich text notes — TipTap HTML).
+  @IsOptional()
+  @IsString()
+  content?: string;
 
   @IsOptional()
   @IsString()
@@ -72,6 +79,11 @@ export class UpdateLessonDto {
   @IsString()
   description?: string;
 
+  // Хичээлийн доорх дэлгэрэнгүй агуулга (rich text notes — TipTap HTML).
+  @IsOptional()
+  @IsString()
+  content?: string;
+
   @IsOptional()
   @IsString()
   videoUrl?: string;
@@ -107,6 +119,53 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsString()
   moduleId?: string | null;
+}
+
+/** Хичээлд хавсралт (нөөц файл) нэмэх DTO. Файлыг урьдчилж R2-д presign-аар upload хийсэн байна. */
+export class CreateLessonResourceDto {
+  @IsString()
+  @MinLength(1)
+  fileKey!: string;
+
+  @IsString()
+  @MinLength(1)
+  fileName!: string;
+
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sizeBytes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+}
+
+/** Хавсралтын эрэмбэ өөрчлөх нэг мөр. */
+export class ReorderLessonResourceItemDto {
+  @IsString()
+  @MinLength(1)
+  id!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder!: number;
+}
+
+/** Хавсралтуудын эрэмбэ өөрчлөх DTO. */
+export class ReorderLessonResourcesDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReorderLessonResourceItemDto)
+  items!: ReorderLessonResourceItemDto[];
 }
 
 /** Stream шууд upload URL хүсэх DTO. */

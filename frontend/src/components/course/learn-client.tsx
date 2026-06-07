@@ -9,7 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
+  Clock,
   Lock,
   Menu,
   PartyPopper,
@@ -23,6 +25,17 @@ import type { LessonProgress, LessonVideoResult } from '@/lib/api';
 import type { CourseLesson, ProductDetail } from '@/types/api';
 import { PremiumVideoPlayer } from '@/components/course/premium-video-player';
 import { CourseSidebar, type CourseSidebarModule, computeLessonState } from '@/components/course/course-sidebar';
+import { LessonContent } from '@/components/course/lesson-content';
+
+// Хичээлийн үргэлжлэх хугацааг "12:30" / "1:02:05" болгох
+function formatLessonDuration(sec: number | null | undefined): string {
+  if (!sec || sec <= 0) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
 const AUTOPLAY_KEY = 'digitalger:course-autoplay-next';
 
@@ -102,6 +115,21 @@ export function LearnClient({ product }: LearnClientProps) {
     [orderedLessons, currentLessonId],
   );
   const nextLesson = currentIndex >= 0 ? orderedLessons[currentIndex + 1] ?? null : null;
+  const prevLesson = currentIndex > 0 ? orderedLessons[currentIndex - 1] ?? null : null;
+
+  // Хувийн тэмдэглэлийн localStorage key prefix (хэрэглэгчээр тусгаарлана)
+  const userKey = session?.user?.id ?? 'guest';
+
+  // ── Курсын ерөнхий явц (progress %) ──
+  const { completedCount, totalLessons, overallPct } = useMemo(() => {
+    const total = orderedLessons.length;
+    const done = orderedLessons.filter((l) => progressMap[l.id]?.completed).length;
+    return {
+      completedCount: done,
+      totalLessons: total,
+      overallPct: total > 0 ? Math.round((done / total) * 100) : 0,
+    };
+  }, [orderedLessons, progressMap]);
 
   // ── Autoplay next toggle (localStorage) ──
   const [autoPlayNext, setAutoPlayNext] = useState(false);
@@ -232,6 +260,10 @@ export function LearnClient({ product }: LearnClientProps) {
     if (nextLesson) goToLesson(nextLesson);
   }, [nextLesson, goToLesson]);
 
+  const handlePrev = useCallback(() => {
+    if (prevLesson) goToLesson(prevLesson);
+  }, [prevLesson, goToLesson]);
+
   // resumeFrom — тухайн хичээлийн өмнө үзсэн секунд
   const resumeFrom = useMemo(() => {
     if (!currentLesson) return 0;
@@ -340,11 +372,24 @@ export function LearnClient({ product }: LearnClientProps) {
               <h1 className="text-base font-semibold text-white sm:text-lg">
                 {currentLesson?.title ?? product.title}
               </h1>
-              {currentLesson?.description && (
-                <p className="mt-1 line-clamp-2 text-sm text-white/50">
-                  {currentLesson.description.replace(/<[^>]*>/g, '').trim()}
-                </p>
-              )}
+              {/* Хичээлийн дугаар + хугацаа + явц */}
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/45">
+                {currentIndex >= 0 && totalLessons > 0 && (
+                  <span className="tabular-nums">
+                    Хичээл {currentIndex + 1} / {totalLessons}
+                  </span>
+                )}
+                {currentLesson?.durationSec ? (
+                  <span className="flex items-center gap-1 tabular-nums">
+                    <Clock className="h-3 w-3" />
+                    {formatLessonDuration(currentLesson.durationSec)}
+                  </span>
+                ) : null}
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-[#ffbe00]" />
+                  Курс {overallPct}% ({completedCount}/{totalLessons})
+                </span>
+              </div>
             </div>
 
             {/* Autoplay toggle */}
@@ -372,41 +417,58 @@ export function LearnClient({ product }: LearnClientProps) {
             </button>
           </div>
 
-          {/* Дараагийн хичээл / Курс дууссан */}
-          <div className="mt-4">
-            <AnimatePresence mode="wait">
-              {allDone ? (
-                <motion.div
-                  key="done"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
+          {/* Курс дууссан баяр */}
+          {allDone && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
+            >
+              <PartyPopper className="h-5 w-5 shrink-0 text-emerald-400" />
+              <p className="text-sm font-semibold text-white">
+                Баяр хүргэе, та курсыг бүрэн үзэж дууслаа! 🎉
+              </p>
+            </motion.div>
+          )}
+
+          {/* ← Өмнөх | Дараагийн → навигаци */}
+          {(prevLesson || nextLesson) && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {/* Өмнөх */}
+              {prevLesson ? (
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
                 >
-                  <PartyPopper className="h-5 w-5 shrink-0 text-emerald-400" />
-                  <p className="text-sm font-semibold text-white">
-                    Баяр хүргэе, та курсыг бүрэн үзэж дууслаа! 🎉
-                  </p>
-                </motion.div>
-              ) : nextLesson ? (
-                <motion.button
-                  key="next"
+                  <ChevronLeft className="h-5 w-5 shrink-0 text-white/60 transition-transform group-hover:-translate-x-0.5" />
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-medium text-white/40">Өмнөх хичээл</span>
+                    <span className="block truncate text-sm font-semibold text-white">{prevLesson.title}</span>
+                  </span>
+                </button>
+              ) : (
+                <span />
+              )}
+
+              {/* Дараагийн */}
+              {nextLesson ? (
+                <button
                   type="button"
                   onClick={handleNext}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="group flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.07] sm:w-auto"
+                  className="group flex items-center justify-end gap-3 rounded-xl border border-[#ffbe00]/30 bg-[#ffbe00]/10 px-4 py-3 text-right transition-colors hover:bg-[#ffbe00]/15"
                 >
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-medium text-white/40">Дараагийн хичээл</span>
+                    <span className="block text-[11px] font-medium text-[#ffbe00]/80">Дараагийн хичээл</span>
                     <span className="block truncate text-sm font-semibold text-white">{nextLesson.title}</span>
                   </span>
                   <ChevronRight className="h-5 w-5 shrink-0 text-[#ffbe00] transition-transform group-hover:translate-x-0.5" />
-                </motion.button>
-              ) : null}
-            </AnimatePresence>
-          </div>
+                </button>
+              ) : (
+                <span />
+              )}
+            </div>
+          )}
 
           {/* Preview-only анхааруулга (худалдаагүй хэрэглэгч) */}
           {!purchased && !accessLoading && (
@@ -423,6 +485,35 @@ export function LearnClient({ product }: LearnClientProps) {
             </div>
           )}
         </div>
+
+        {/* ─── Хичээлийн агуулга (тэмдэглэл / материал / миний тэмдэглэл / сэтгэгдэл) ─── */}
+        {currentLesson && !currentLocked && (
+          <AnimatePresence mode="wait">
+            <LessonContent
+              key={currentLesson.id}
+              lesson={currentLesson}
+              content={video?.content}
+              resources={video?.resources}
+              productSlug={product.slug}
+              token={token}
+              userKey={userKey}
+            />
+          </AnimatePresence>
+        )}
+
+        {/* Mobile sticky "Дараагийн хичээл" товч (доод) */}
+        {nextLesson && (
+          <div className="sticky bottom-0 z-20 border-t border-white/10 bg-[#0b1020]/95 px-4 py-3 backdrop-blur lg:hidden">
+            <button
+              type="button"
+              onClick={handleNext}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffbe00] px-4 py-3 text-sm font-semibold text-[#022179] transition-transform active:scale-[0.98]"
+            >
+              Дараагийн хичээл
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Desktop sidebar ─── */}

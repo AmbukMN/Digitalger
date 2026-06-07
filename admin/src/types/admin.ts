@@ -414,12 +414,24 @@ export interface AdminBundle {
   items: AdminBundleItem[];
 }
 
+export interface AdminLessonResource {
+  id: string;
+  lessonId: string;
+  fileKey: string;
+  fileName: string;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  sortOrder: number;
+  url?: string | null;
+}
+
 export interface AdminLesson {
   id: string;
   courseId: string;
   moduleId?: string | null;
   title: string;
   description?: string | null;
+  content?: string | null;
   videoKey?: string | null;
   videoUrl?: string | null;
   videoStreamId?: string | null;
@@ -427,6 +439,7 @@ export interface AdminLesson {
   durationSec?: number | null;
   isFreePreview: boolean;
   sortOrder: number;
+  resources?: AdminLessonResource[];
 }
 
 export interface AdminCourseModule {

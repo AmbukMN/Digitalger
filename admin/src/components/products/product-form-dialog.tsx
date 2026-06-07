@@ -3,8 +3,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, Loader2, Lock, Package, Paperclip, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Button,
   Dialog,
@@ -27,7 +43,7 @@ import {
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
-import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
+import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminLessonResource, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
 import { RichEditor } from '@/components/ui/rich-editor';
 
 
@@ -536,6 +552,147 @@ function getVideoEmbedUrl(url: string): string | null {
   const vimeo = url.match(/vimeo\.com\/(\d+)/);
   if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
   return null;
+}
+
+function formatFileSize(bytes?: number | null): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Stream видеоны төлвийн badge — uploading/processing/ready/failed
+function StreamStatusBadge({ status }: { status?: string | null }) {
+  const st = (status ?? '').toLowerCase();
+  // Cloudflare-ийн төлвүүд: pendingupload/queued/inprogress/downloading → боловсруулж байна
+  const isReady = st === 'ready';
+  const isError = st === 'error' || st === 'failed';
+  const isProcessing = !isReady && !isError && !!st;
+
+  if (isReady) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:text-green-400">
+        <CheckCircle2 className="h-2.5 w-2.5" /> Бэлэн
+      </span>
+    );
+  }
+  if (isError) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">
+        <AlertTriangle className="h-2.5 w-2.5" /> Алдаа
+      </span>
+    );
+  }
+  if (isProcessing) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+        <Loader2 className="h-2.5 w-2.5 animate-spin" /> Боловсруулж байна
+      </span>
+    );
+  }
+  return null;
+}
+
+// ── Хичээлийн хавсралт / татах материал хэсэг (R2 файл upload) ───────────────
+function LessonResources({ productId, lessonId }: { productId: string; lessonId: string }) {
+  const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const { data: resources = [], isLoading } = useQuery({
+    queryKey: ['admin', 'products', productId, 'lessons', lessonId, 'resources'],
+    queryFn: () => adminApi.products.lessons.resources.list(productId, lessonId),
+  });
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId, 'lessons', lessonId, 'resources'] });
+
+  const removeMut = useMutation({
+    mutationFn: (resourceId: string) => adminApi.products.lessons.resources.remove(productId, lessonId, resourceId),
+    onMutate: async (resourceId: string) => {
+      const key = ['admin', 'products', productId, 'lessons', lessonId, 'resources'];
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<AdminLessonResource[]>(key);
+      queryClient.setQueryData<AdminLessonResource[]>(key, (old) => old?.filter((r) => r.id !== resourceId) ?? old);
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['admin', 'products', productId, 'lessons', lessonId, 'resources'], ctx.prev);
+      toast.error('Устгахад алдаа гарлаа');
+    },
+    onSuccess: () => toast.success('Хавсралт устгагдлаа'),
+    onSettled: () => invalidate(),
+  });
+
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
+    setUploading(true);
+    try {
+      for (const file of picked) {
+        const r = await uploadFileWithToast(file);
+        await adminApi.products.lessons.resources.add(productId, lessonId, {
+          fileKey: r.key,
+          fileName: file.name,
+          mimeType: file.type || undefined,
+          sizeBytes: file.size,
+        });
+      }
+      if (picked.length > 1) toast.success(`${picked.length} хавсралт нэмэгдлээ`);
+      else toast.success('Хавсралт нэмэгдлээ');
+      invalidate();
+    } catch {
+      toast.error('Хавсралт нэмэхэд алдаа гарлаа');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+          <Paperclip className="h-3 w-3" /> Хавсралт / Татах материал
+        </span>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors disabled:opacity-50"
+        >
+          {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+          {uploading ? 'Ачаалж байна...' : 'Файл нэмэх'}
+        </button>
+        <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFiles} disabled={uploading} />
+      </div>
+
+      {isLoading ? (
+        <p className="text-[11px] text-muted-foreground">Ачаалж байна...</p>
+      ) : resources.length > 0 ? (
+        <div className="space-y-1">
+          {resources.map((res) => (
+            <div key={res.id} className="flex items-center gap-2 rounded-md bg-muted/40 border border-border px-2 py-1.5">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+              <span className="text-xs flex-1 truncate font-medium">{res.fileName}</span>
+              {res.sizeBytes ? (
+                <span className="text-[10px] text-muted-foreground shrink-0">{formatFileSize(res.sizeBytes)}</span>
+              ) : null}
+              <Button
+                type="button" size="icon" variant="ghost"
+                className="h-5 w-5 text-destructive hover:text-destructive shrink-0"
+                onClick={() => { if (confirm('Хавсралт устгах уу?')) removeMut.mutate(res.id); }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground/70">Хавсралт байхгүй. PDF, ZIP, дасгал зэрэг материал нэмж болно.</p>
+      )}
+    </div>
+  );
 }
 
 const UPLOAD_PROGRESS_THRESHOLD = 5 * 1024 * 1024;   // 5MB-с дээш → progress toast
@@ -1071,6 +1228,15 @@ function LessonRow({
   onDeleted: () => void;
   onUpdated: (l: AdminLesson) => void;
 }) {
+  // Drag-drop reorder (up/down товчтой зэрэгцэн ажиллана)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
+  const sortableStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 30 : undefined,
+  };
+
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(lesson.title);
   const [videoUrl, setVideoUrl] = useState(lesson.videoUrl ?? '');
@@ -1080,6 +1246,7 @@ function LessonRow({
   const [duration, setDuration] = useState(formatDurationInput(lesson.durationSec));
   const [freePreview, setFreePreview] = useState(lesson.isFreePreview);
   const [description, setDescription] = useState(lesson.description ?? '');
+  const [content, setContent] = useState(lesson.content ?? '');
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -1094,6 +1261,7 @@ function LessonRow({
       setDuration(formatDurationInput(lesson.durationSec));
       setFreePreview(lesson.isFreePreview);
       setDescription(lesson.description ?? '');
+      setContent(lesson.content ?? '');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson]);
@@ -1107,6 +1275,7 @@ function LessonRow({
       const updated = await adminApi.products.lessons.update(productId, lesson.id, {
         title: title.trim(),
         description: description.trim() || undefined,
+        content: stripHtml(content) ? content : '',
         videoStreamId: videoStreamId || undefined,
         streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
         videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
@@ -1133,6 +1302,7 @@ function LessonRow({
     setDuration(formatDurationInput(lesson.durationSec));
     setFreePreview(lesson.isFreePreview);
     setDescription(lesson.description ?? '');
+    setContent(lesson.content ?? '');
     setEditing(false);
   }
 
@@ -1142,9 +1312,23 @@ function LessonRow({
   const videoLabel = hasStream ? 'Stream' : lesson.videoKey ? 'Байршуулсан' : isYoutube ? 'YouTube' : isVimeo ? 'Vimeo' : lesson.videoUrl ? 'Видео' : null;
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/20">
-        <span className="shrink-0 w-6 text-center font-mono text-xs font-bold text-primary/40">{index + 1}</span>
+    <div ref={setNodeRef} style={sortableStyle} className="rounded-lg border border-border overflow-hidden bg-background">
+      <div className="flex items-start gap-2 px-3 py-2.5 bg-muted/20">
+        {/* Drag handle (up/down товчтой зэрэгцэн) */}
+        {!editing ? (
+          <button
+            type="button"
+            className="shrink-0 mt-0.5 cursor-grab touch-none text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+            title="Чирж эрэмбэлэх"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        ) : (
+          <span className="shrink-0 w-4" />
+        )}
+        <span className="shrink-0 w-5 text-center font-mono text-xs font-bold text-primary/40 mt-0.5">{index + 1}</span>
 
         {editing ? (
           <div className="flex-1 space-y-2.5">
@@ -1155,12 +1339,24 @@ function LessonRow({
               className="h-8 text-sm"
               autoFocus
             />
-            <RichEditor
-              value={description}
-              onChange={setDescription}
-              placeholder="Хичээлийн тайлбар — энд хичээлийн агуулгыг товч тайлбарлана уу (заавал биш)"
-              minHeight="80px"
-            />
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground mb-1">Богино тайлбар (жагсаалтад)</p>
+              <RichEditor
+                value={description}
+                onChange={setDescription}
+                placeholder="Хичээлийн товч тайлбар — жагсаалтад харагдана (заавал биш)"
+                minHeight="60px"
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground mb-1">Хичээлийн агуулга (дэлгэрэнгүй тэмдэглэл)</p>
+              <RichEditor
+                value={content}
+                onChange={setContent}
+                placeholder="Дэлгэрэнгүй тэмдэглэл, код, зураг, алхмууд — суралцагчид видеоны доор харагдана (заавал биш)"
+                minHeight="120px"
+              />
+            </div>
             <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
               <VideoUploadInput
                 productId={productId}
@@ -1178,6 +1374,10 @@ function LessonRow({
                 className="h-7 text-xs w-24"
               />
             </div>
+            {/* Хавсралт / татах материал */}
+            <div className="rounded-lg border border-border bg-muted/10 p-2.5">
+              <LessonResources productId={productId} lessonId={lesson.id} />
+            </div>
             <div className="flex items-center justify-between pt-0.5">
               <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                 <input type="checkbox" className="h-3.5 w-3.5 accent-primary" checked={freePreview} onChange={(e) => setFreePreview(e.target.checked)} />
@@ -1194,7 +1394,7 @@ function LessonRow({
         ) : (
           <>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium truncate">{lesson.title}</span>
                 {lesson.isFreePreview && (
                   <span className="shrink-0 rounded-full bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:text-green-400">Preview</span>
@@ -1203,7 +1403,7 @@ function LessonRow({
               {lesson.description && (
                 <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{stripHtml(lesson.description)}</p>
               )}
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {hasStream ? (
                   <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                     <Play className="h-2.5 w-2.5" />Stream
@@ -1213,9 +1413,21 @@ function LessonRow({
                     <Play className="h-2.5 w-2.5" />{videoLabel}
                   </span>
                 ) : null}
+                {/* Stream боловсруулалтын төлөв */}
+                {hasStream && <StreamStatusBadge status={lesson.streamStatus} />}
                 {lesson.durationSec && (
                   <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                     <Clock className="h-2.5 w-2.5" />{formatDurationLabel(lesson.durationSec)}
+                  </span>
+                )}
+                {lesson.content && stripHtml(lesson.content) && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                    <FileText className="h-2.5 w-2.5" />Тэмдэглэлтэй
+                  </span>
+                )}
+                {lesson.resources && lesson.resources.length > 0 && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                    <Paperclip className="h-2.5 w-2.5" />{lesson.resources.length} хавсралт
                   </span>
                 )}
               </div>
@@ -1258,6 +1470,7 @@ function AddLessonForm({
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [videoKey, setVideoKey] = useState('');
   const [videoStreamId, setVideoStreamId] = useState('');
@@ -1270,6 +1483,7 @@ function AddLessonForm({
     mutationFn: () => adminApi.products.lessons.create(productId, {
       title: title.trim(),
       description: description.trim() || undefined,
+      content: stripHtml(content) ? content : undefined,
       videoStreamId: videoStreamId || undefined,
       streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
       videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
@@ -1289,7 +1503,14 @@ function AddLessonForm({
     <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/10">
       <p className="text-xs font-semibold text-muted-foreground">{lessonCount + 1}-р хичээл</p>
       <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Хичээлийн гарчиг *" className="h-8 text-sm" autoFocus />
-      <RichEditor value={description} onChange={setDescription} placeholder="Хичээлийн тайлбар (заавал биш)" minHeight="60px" />
+      <div>
+        <p className="text-[11px] font-semibold text-muted-foreground mb-1">Богино тайлбар (жагсаалтад)</p>
+        <RichEditor value={description} onChange={setDescription} placeholder="Хичээлийн товч тайлбар (заавал биш)" minHeight="60px" />
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold text-muted-foreground mb-1">Хичээлийн агуулга (дэлгэрэнгүй тэмдэглэл)</p>
+        <RichEditor value={content} onChange={setContent} placeholder="Дэлгэрэнгүй тэмдэглэл, код, зураг — суралцагчид видеоны доор харагдана (заавал биш)" minHeight="100px" />
+      </div>
       <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
         <VideoUploadInput
           productId={productId}
@@ -1302,6 +1523,9 @@ function AddLessonForm({
         />
         <Input value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="мм:сс" className="h-7 text-xs w-24" />
       </div>
+      <p className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
+        <Paperclip className="h-2.5 w-2.5 shrink-0" /> Хавсралт / татах материалыг хичээл нэмсний дараа засварлах товчоор оруулна.
+      </p>
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-1.5 cursor-pointer text-xs">
           <input type="checkbox" className="h-3.5 w-3.5 accent-primary" checked={freePreview} onChange={(e) => setFreePreview(e.target.checked)} />
@@ -1315,6 +1539,74 @@ function AddLessonForm({
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Хичээлийн жагсаалт — drag-drop эрэмбэлэлт (up/down товчтой зэрэгцэн) ──────
+function SortableLessonList({
+  lessons,
+  productId,
+  onMoved,
+  onDeleted,
+  onUpdated,
+  onReorder,
+}: {
+  lessons: AdminLesson[];
+  productId: string;
+  onMoved: (lesson: AdminLesson, dir: 'up' | 'down') => void;
+  onDeleted: (lessonId: string) => void;
+  onUpdated: (updated: AdminLesson) => void;
+  onReorder: (ordered: AdminLesson[]) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = lessons.findIndex((l) => l.id === active.id);
+    const newIndex = lessons.findIndex((l) => l.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    // Шинэ дараалал үүсгэх
+    const reordered = [...lessons];
+    const [moved] = reordered.splice(oldIndex, 1);
+    if (!moved) return;
+    reordered.splice(newIndex, 0, moved);
+
+    // Эх sortOrder утгуудыг (өсөх дарааллаар) дахин хуваарилна
+    const sortValues = lessons.map((l) => l.sortOrder).sort((a, b) => a - b);
+    const items = reordered.map((l, i) => ({ id: l.id, sortOrder: sortValues[i] ?? i }));
+
+    // Optimistic: эцэг компонент шууд шинэ дарааллыг харуулна
+    onReorder(reordered.map((l, i) => ({ ...l, sortOrder: sortValues[i] ?? i })));
+
+    adminApi.products.lessons
+      .reorder(productId, items)
+      .catch(() => toast.error('Эрэмбэлэхэд алдаа гарлаа'));
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+        <div className="divide-y divide-border/50">
+          {lessons.map((lesson, i) => (
+            <LessonRow
+              key={lesson.id}
+              lesson={lesson}
+              index={i}
+              total={lessons.length}
+              productId={productId}
+              onMoved={(dir) => onMoved(lesson, dir)}
+              onDeleted={() => onDeleted(lesson.id)}
+              onUpdated={onUpdated}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 
@@ -1416,26 +1708,27 @@ function ModuleSection({
       {/* Lesson list */}
       {open && (
         <div className="divide-y divide-border/50">
-          {lessons.map((lesson, i) => (
-            <LessonRow
-              key={lesson.id}
-              lesson={lesson}
-              index={i}
-              total={lessons.length}
-              productId={productId}
-              onMoved={(dir) => handleMoveLesson(lesson, dir)}
-              onDeleted={() => deleteLessonMut.mutate(lesson.id)}
-              onUpdated={(updated) => {
-                queryClient.setQueryData<AdminCourseModule[]>(
-                  ['admin', 'products', productId, 'modules'],
-                  (old) => old?.map((m) => m.id === mod.id
-                    ? { ...m, lessons: m.lessons.map((l) => l.id === updated.id ? updated : l) }
-                    : m,
-                  ) ?? old,
-                );
-              }}
-            />
-          ))}
+          <SortableLessonList
+            lessons={lessons}
+            productId={productId}
+            onMoved={handleMoveLesson}
+            onDeleted={(lessonId) => deleteLessonMut.mutate(lessonId)}
+            onReorder={(ordered) => {
+              queryClient.setQueryData<AdminCourseModule[]>(
+                ['admin', 'products', productId, 'modules'],
+                (old) => old?.map((m) => m.id === mod.id ? { ...m, lessons: ordered } : m) ?? old,
+              );
+            }}
+            onUpdated={(updated) => {
+              queryClient.setQueryData<AdminCourseModule[]>(
+                ['admin', 'products', productId, 'modules'],
+                (old) => old?.map((m) => m.id === mod.id
+                  ? { ...m, lessons: m.lessons.map((l) => l.id === updated.id ? updated : l) }
+                  : m,
+                ) ?? old,
+              );
+            }}
+          />
 
           {/* Add lesson inside module */}
           <div className="px-3 py-2.5 bg-muted/10">
@@ -1594,23 +1887,29 @@ function CourseTab({ productId }: { productId?: string }) {
             </div>
           )}
           <div className="divide-y divide-border/50">
-            {ungroupedLessons.map((lesson, i) => (
-              <LessonRow
-                key={lesson.id}
-                lesson={lesson}
-                index={i}
-                total={ungroupedLessons.length}
-                productId={productId}
-                onMoved={(dir) => handleMoveUngrouped(lesson, dir)}
-                onDeleted={() => deleteUngroupedMut.mutate(lesson.id)}
-                onUpdated={(updated) => {
-                  queryClient.setQueryData<AdminLesson[]>(
-                    ['admin', 'products', productId, 'lessons'],
-                    (old) => old?.map((l) => l.id === updated.id ? updated : l) ?? old,
-                  );
-                }}
-              />
-            ))}
+            <SortableLessonList
+              lessons={ungroupedLessons}
+              productId={productId}
+              onMoved={handleMoveUngrouped}
+              onDeleted={(lessonId) => deleteUngroupedMut.mutate(lessonId)}
+              onReorder={(ordered) => {
+                // ungrouped хичээлүүдийн шинэ дарааллыг бусад (module-тай) хичээлтэй нэгтгэнэ
+                queryClient.setQueryData<AdminLesson[]>(
+                  ['admin', 'products', productId, 'lessons'],
+                  (old) => {
+                    if (!old) return old;
+                    const others = old.filter((l) => l.moduleId);
+                    return [...ordered, ...others];
+                  },
+                );
+              }}
+              onUpdated={(updated) => {
+                queryClient.setQueryData<AdminLesson[]>(
+                  ['admin', 'products', productId, 'lessons'],
+                  (old) => old?.map((l) => l.id === updated.id ? updated : l) ?? old,
+                );
+              }}
+            />
             <div className="px-3 py-2.5 bg-muted/10">
               {addingLesson ? (
                 <AddLessonForm

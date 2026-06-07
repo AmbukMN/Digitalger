@@ -387,6 +387,7 @@ export class AdminProductsService {
         moduleId: dto.moduleId ?? null,
         title: dto.title,
         description: dto.description,
+        content: dto.content,
         videoStreamId: source.videoStreamId,
         videoKey: source.videoKey,
         videoUrl: source.videoUrl,
@@ -451,6 +452,57 @@ export class AdminProductsService {
   async reorderLessons(items: { id: string; sortOrder: number }[]) {
     await Promise.all(
       items.map((item) => this.prisma.lesson.update({ where: { id: item.id }, data: { sortOrder: item.sortOrder } })),
+    );
+    return { success: true };
+  }
+
+  // ── Lesson Resources (хавсралт файл) ─────────────────────────────────────────
+
+  /** Тухайн хичээлийн хавсралтуудыг эрэмбээр буцаана. */
+  async listLessonResources(lessonId: string) {
+    return this.prisma.lessonResource.findMany({
+      where: { lessonId },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  /**
+   * Хичээлд хавсралт нэмнэ. Файлыг урьдчилж R2-д presign-аар upload хийсэн байх ёстой
+   * (frontend presign аваад upload, дараа нь энэ endpoint-д fileKey/fileName дамжуулна).
+   */
+  async addLessonResource(
+    lessonId: string,
+    dto: { fileKey: string; fileName: string; mimeType?: string; sizeBytes?: number; sortOrder?: number },
+  ) {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId }, select: { id: true } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const count = await this.prisma.lessonResource.count({ where: { lessonId } });
+    return this.prisma.lessonResource.create({
+      data: {
+        lessonId,
+        fileKey: dto.fileKey,
+        fileName: dto.fileName,
+        mimeType: dto.mimeType,
+        sizeBytes: dto.sizeBytes,
+        sortOrder: dto.sortOrder ?? count,
+      },
+    });
+  }
+
+  /** Хавсралт устгана. */
+  async removeLessonResource(resourceId: string) {
+    const resource = await this.prisma.lessonResource.findUnique({ where: { id: resourceId } });
+    if (!resource) throw new NotFoundException('Resource not found');
+    return this.prisma.lessonResource.delete({ where: { id: resourceId } });
+  }
+
+  /** Хавсралтуудын эрэмбэ өөрчилнө. */
+  async reorderLessonResources(items: { id: string; sortOrder: number }[]) {
+    await Promise.all(
+      items.map((item) =>
+        this.prisma.lessonResource.update({ where: { id: item.id }, data: { sortOrder: item.sortOrder } }),
+      ),
     );
     return { success: true };
   }

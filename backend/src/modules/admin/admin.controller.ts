@@ -35,7 +35,13 @@ import { EmailService } from '../notifications/email.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { CreateLessonDto, UpdateLessonDto, StreamUploadDto } from './dto/lesson.dto';
+import {
+  CreateLessonDto,
+  UpdateLessonDto,
+  StreamUploadDto,
+  CreateLessonResourceDto,
+  ReorderLessonResourcesDto,
+} from './dto/lesson.dto';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
 import { UpdateCategoryDto } from '../categories/dto/update-category.dto';
 import { UpdateSiteDto, UpdateThemeDto } from './dto/update-settings.dto';
@@ -524,6 +530,30 @@ export class AdminController {
   @Put('products/:id/lessons/reorder')
   reorderProductLessons(@Body() body: { items: { id: string; sortOrder: number }[] }) {
     return this.adminProducts.reorderLessons(body.items);
+  }
+
+  // Lesson Resources (хичээлийн хавсралт файл — PDF/материал)
+  @Get('products/:id/lessons/:lessonId/resources')
+  listLessonResources(@Param('lessonId') lessonId: string) {
+    return this.adminProducts.listLessonResources(lessonId);
+  }
+
+  @Post('products/:id/lessons/:lessonId/resources')
+  addLessonResource(
+    @Param('lessonId') lessonId: string,
+    @Body() body: CreateLessonResourceDto,
+  ) {
+    return this.adminProducts.addLessonResource(lessonId, body);
+  }
+
+  @Put('products/:id/lessons/:lessonId/resources/reorder')
+  reorderLessonResources(@Body() body: ReorderLessonResourcesDto) {
+    return this.adminProducts.reorderLessonResources(body.items);
+  }
+
+  @Delete('products/:id/lessons/:lessonId/resources/:resourceId')
+  deleteLessonResource(@Param('resourceId') resourceId: string) {
+    return this.adminProducts.removeLessonResource(resourceId);
   }
 
   // Product Files
