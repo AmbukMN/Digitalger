@@ -626,7 +626,7 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Нийт захиалагч</p>
+            <p className="text-xs text-muted-foreground">Нийт Subscriber</p>
           </div>
         </div>
 

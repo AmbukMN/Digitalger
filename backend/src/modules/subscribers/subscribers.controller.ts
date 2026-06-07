@@ -76,6 +76,11 @@ export class AdminSubscribersController {
     return this.subscribers.assignCategory(body.subscriberIds, body.categoryId ?? null);
   }
 
+  @Post('bulk-delete')
+  bulkDelete(@Body() body: { subscriberIds: string[] }) {
+    return this.subscribers.bulkDelete(body.subscriberIds);
+  }
+
   // ── Import / Export ──
   @Post('bulk-import')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))

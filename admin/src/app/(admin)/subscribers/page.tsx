@@ -39,6 +39,7 @@ import {
 import { adminApi } from '@/lib/api';
 import { TagInput } from '@/components/ui/tag-input';
 import { SimpleDropdown, SimpleDropdownItem } from '@/components/ui/simple-dropdown';
+import { Pagination } from '@/components/ui/pagination';
 import type { AdminSubscriber, AdminSubscriberCategory } from '@/types/admin';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -128,7 +129,7 @@ function SubscriberDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{subscriber ? 'Захиалагч засах' : 'Захиалагч нэмэх'}</DialogTitle>
+          <DialogTitle>{subscriber ? 'Subscriber засах' : 'Subscriber нэмэх'}</DialogTitle>
         </DialogHeader>
         <form
           className="space-y-3"
@@ -288,12 +289,14 @@ export default function SubscribersPage() {
   const [categoryId, setCategoryId] = useState('');
   const [source, setSource] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminSubscriber | null>(null);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminSubscriber | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Search debounce
@@ -308,7 +311,7 @@ export default function SubscribersPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'subscribers', { page, debouncedSearch, status, categoryId, source }],
+    queryKey: ['admin', 'subscribers', { page, pageSize, debouncedSearch, status, categoryId, source }],
     queryFn: () =>
       adminApi.subscribers.list({
         page,
@@ -321,6 +324,39 @@ export default function SubscribersPage() {
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
+
+  // Шүүлт/хуудас солиход сонголтыг цэвэрлэнэ (өөр хуудасны id үлдэхээс сэргийлэх)
+  useEffect(() => { setSelectedIds(new Set()); }, [page, pageSize, debouncedSearch, status, categoryId, source]);
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: () => adminApi.subscribers.bulkDelete([...selectedIds]),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['admin', 'subscribers'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'subscriber-categories'] });
+      toast.success(`${res.deleted} захиалагч устгагдлаа`);
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+    },
+    onError: () => toast.error('Устгахад алдаа гарлаа'),
+  });
+
+  const bulkAssignMut = useMutation({
+    mutationFn: (catId: string | null) => adminApi.subscribers.assignCategory([...selectedIds], catId),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['admin', 'subscribers'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'subscriber-categories'] });
+      toast.success(`${res.updated} захиалагчийн категори шинэчлэгдлээ`);
+      setSelectedIds(new Set());
+    },
+    onError: () => toast.error('Алдаа гарлаа'),
+  });
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => adminApi.subscribers.remove(id),
@@ -344,7 +380,6 @@ export default function SubscribersPage() {
   });
 
   const total = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const items = data?.items ?? [];
 
   const sources = ['homepage', 'free-ppt', 'checkout', 'popup', 'web-register', 'admin', 'import'];
@@ -354,7 +389,7 @@ export default function SubscribersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Mail className="h-6 w-6 text-primary" /> Захиалагч
+            <Mail className="h-6 w-6 text-primary" /> Subscriber
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Имэйл захиалагчдыг удирдах ({total})</p>
         </div>
@@ -449,17 +484,47 @@ export default function SubscribersPage() {
       </Card>
 
       {/* Table */}
+      {/* Bulk action bar — сонгосон захиалагч дээр үйлдэл */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <span className="text-sm font-medium">{selectedIds.size} сонгогдсон</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Select value="" onValueChange={(v) => bulkAssignMut.mutate(v === 'none' ? null : v)}>
+              <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Категорид зүүх" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Категори хасах</SelectItem>
+                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Устгах ({selectedIds.size})
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Цуцлах</Button>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="py-12 text-center text-sm text-muted-foreground">Ачаалж байна...</div>
           ) : items.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">Захиалагч олдсонгүй</div>
+            <div className="py-12 text-center text-sm text-muted-foreground">Subscriber олдсонгүй</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-2.5 w-10">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-border cursor-pointer"
+                        checked={items.length > 0 && items.every((s) => selectedIds.has(s.id))}
+                        onChange={(e) =>
+                          setSelectedIds(e.target.checked ? new Set(items.map((s) => s.id)) : new Set())
+                        }
+                      />
+                    </th>
                     <th className="px-4 py-2.5 font-medium">Имэйл</th>
                     <th className="px-4 py-2.5 font-medium">Нэр</th>
                     <th className="px-4 py-2.5 font-medium">Төлөв</th>
@@ -471,7 +536,15 @@ export default function SubscribersPage() {
                 </thead>
                 <tbody>
                   {items.map((s) => (
-                    <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+                    <tr key={s.id} className={`border-b border-border/50 hover:bg-muted/30 ${selectedIds.has(s.id) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-border cursor-pointer"
+                          checked={selectedIds.has(s.id)}
+                          onChange={() => toggleSelect(s.id)}
+                        />
+                      </td>
                       <td className="px-4 py-2.5 font-medium">{s.email}</td>
                       <td className="px-4 py-2.5 text-muted-foreground">
                         {[s.firstName, s.lastName].filter(Boolean).join(' ') || '—'}
@@ -504,21 +577,35 @@ export default function SubscribersPage() {
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Өмнөх</Button>
-          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Дараах</Button>
-        </div>
-      )}
+      {/* Нэгдсэн Pagination (custom pageSize-тэй) */}
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(size) => { setPageSize(size); setPage(1); }}
+      />
 
       <SubscriberDialog open={dialogOpen} subscriber={editing} categories={categories} onClose={() => setDialogOpen(false)} />
       <CategoryDialog open={catDialogOpen} categories={categories} onClose={() => setCatDialogOpen(false)} />
 
+      {/* Bulk delete баталгаажуулах */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => !o && setBulkDeleteOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{selectedIds.size} subscriber устгах уу?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Энэ үйлдлийг буцаах боломжгүй.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Цуцлах</Button>
+            <Button variant="destructive" disabled={bulkDeleteMut.isPending} onClick={() => bulkDeleteMut.mutate()}>
+              {bulkDeleteMut.isPending ? 'Устгаж байна...' : `Устгах (${selectedIds.size})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Захиалагч устгах уу?</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Subscriber устгах уу?</DialogTitle></DialogHeader>
           {deleteTarget && <p className="text-sm text-muted-foreground">{deleteTarget.email}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Цуцлах</Button>

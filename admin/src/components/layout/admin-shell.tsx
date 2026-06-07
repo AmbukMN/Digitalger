@@ -45,7 +45,7 @@ const navItems = [
   { href: '/users', label: 'Хэрэглэгч', icon: Users },
   { href: '/payments', label: 'Төлбөр', icon: CreditCard },
   { href: '/coupons', label: 'Купон', icon: Tag },
-  { href: '/subscribers', label: 'Захиалагч', icon: Mail },
+  { href: '/subscribers', label: 'Subscriber', icon: Mail },
   { href: '/banners', label: 'Баннер', icon: Images },
   { href: '/faqs', label: 'FAQ', icon: HelpCircle },
   { href: '/testimonials', label: 'Сэтгэгдэл', icon: MessageSquare },

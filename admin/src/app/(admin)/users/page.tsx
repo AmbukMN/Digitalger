@@ -31,7 +31,7 @@ import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminUser } from '@/types/admin';
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
 
 function UserAvatar({ user, size = 8 }: { user: AdminUser; size?: number }) {
   const initials = (user.name ?? user.email).charAt(0).toUpperCase();
@@ -73,6 +73,7 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -85,8 +86,8 @@ export default function UsersPage() {
   const [detailTarget, setDetailTarget] = useState<AdminUser | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'users', search, page],
-    queryFn: () => adminApi.users.list({ search: search || undefined, page, pageSize: PAGE_SIZE }),
+    queryKey: ['admin', 'users', search, page, pageSize],
+    queryFn: () => adminApi.users.list({ search: search || undefined, page, pageSize }),
     staleTime: 0,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
@@ -318,8 +319,14 @@ export default function UsersPage() {
         />
       </div>
 
-      <DataTable columns={columns} data={data?.items ?? []} pageSize={PAGE_SIZE} />
-      <Pagination page={page} total={data?.total ?? 0} pageSize={PAGE_SIZE} onPage={setPage} />
+      <DataTable columns={columns} data={data?.items ?? []} pageSize={pageSize} />
+      <Pagination
+        page={page}
+        total={data?.total ?? 0}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(size) => { setPageSize(size); setPage(1); }}
+      />
 
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>

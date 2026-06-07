@@ -28,7 +28,7 @@ import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminOrder } from '@/types/admin';
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 
 const STATUSES: { value: OrderStatus | 'ALL'; label: string; color?: string }[] = [
   { value: 'ALL',       label: 'Бүгд' },
@@ -211,6 +211,7 @@ export default function OrdersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 400);
@@ -220,12 +221,12 @@ export default function OrdersPage() {
   useEffect(() => { setPage(1); }, [statusFilter, search]);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'orders', statusFilter, search, page],
+    queryKey: ['admin', 'orders', statusFilter, search, page, pageSize],
     queryFn: () => adminApi.orders.list({
       status: statusFilter !== 'ALL' ? statusFilter : undefined,
       search: search || undefined,
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
     }),
     staleTime: 0,
     refetchOnWindowFocus: true,
@@ -401,8 +402,14 @@ export default function OrdersPage() {
         })}
       </div>
 
-      <DataTable columns={columns} data={data?.items ?? []} />
-      <Pagination page={page} total={data?.total ?? 0} pageSize={PAGE_SIZE} onPage={setPage} />
+      <DataTable columns={columns} data={data?.items ?? []} pageSize={pageSize} />
+      <Pagination
+        page={page}
+        total={data?.total ?? 0}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(size) => { setPageSize(size); setPage(1); }}
+      />
     </div>
   );
 }

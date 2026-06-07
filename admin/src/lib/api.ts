@@ -575,6 +575,11 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify({ subscriberIds, categoryId }),
       }),
+    bulkDelete: (subscriberIds: string[]) =>
+      adminFetch<{ deleted: number }>('/admin/subscribers/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ subscriberIds }),
+      }),
     bulkImport: (file: File, categoryId?: string) => {
       const fd = new FormData();
       fd.append('file', file);

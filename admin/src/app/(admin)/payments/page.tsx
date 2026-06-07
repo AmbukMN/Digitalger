@@ -26,7 +26,7 @@ import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminPaymentRow } from '@/types/admin';
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 
 type StatusFilter = 'ALL' | 'SUCCESS' | 'PENDING' | 'FAILED';
 
@@ -182,10 +182,11 @@ function PaymentActions({ payment }: { payment: AdminPaymentRow }) {
 export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'payments', statusFilter, page],
-    queryFn: () => adminApi.orders.listPayments({ page, pageSize: PAGE_SIZE, status: statusFilter }),
+    queryKey: ['admin', 'payments', statusFilter, page, pageSize],
+    queryFn: () => adminApi.orders.listPayments({ page, pageSize, status: statusFilter }),
     staleTime: 0,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
@@ -277,8 +278,14 @@ export default function PaymentsPage() {
         })}
       </div>
 
-      <DataTable columns={columns} data={data?.items ?? []} pageSize={PAGE_SIZE} />
-      <Pagination page={page} total={data?.total ?? 0} pageSize={PAGE_SIZE} onPage={setPage} />
+      <DataTable columns={columns} data={data?.items ?? []} pageSize={pageSize} />
+      <Pagination
+        page={page}
+        total={data?.total ?? 0}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(size) => { setPageSize(size); setPage(1); }}
+      />
     </div>
   );
 }

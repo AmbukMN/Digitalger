@@ -319,6 +319,13 @@ export class SubscribersService {
     return { updated: res.count };
   }
 
+  // Олон захиалагчийг устгах (bulk delete)
+  async bulkDelete(subscriberIds: string[]) {
+    if (!subscriberIds?.length) throw new BadRequestException('Захиалагч сонгоогүй байна');
+    const res = await this.prisma.subscriber.deleteMany({ where: { id: { in: subscriberIds } } });
+    return { deleted: res.count };
+  }
+
   // ─── Import (XLSX/CSV) ────────────────────────────────────────────────────
   async bulkImport(file: Express.Multer.File, categoryId?: string) {
     const wb = XLSX.read(file.buffer, { type: 'buffer' });
