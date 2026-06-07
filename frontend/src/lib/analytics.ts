@@ -133,3 +133,47 @@ export function trackSearch(query: string, results: number) {
   send('search', { query, results });
   fbqTrack('Search', { search_string: query });
 }
+
+// ─── Course lesson (хичээлийн видео) analytics ──────────────────────────────
+// Premium player / watch page эдгээрийг дуудна. Бүгд sendBeacon (send) pattern-ээр
+// /analytics/lesson endpoint руу очно. sessionId+userId автоматаар хавсаргана.
+
+// Видео тоглож эхлэх агшинд НЭГ удаа дуудна (хичээл солих бүрд).
+export function trackLessonStarted(lessonId: string, productId?: string) {
+  send('lesson', { event: 'lesson_started', lessonId, productId });
+}
+
+// Видео үзэж дуусгасан үед дуудна (watch_duration шинжилгээ).
+export function trackLessonCompleted(
+  lessonId: string,
+  productId: string | undefined,
+  watchedSeconds: number,
+  durationSec: number,
+) {
+  send('lesson', {
+    event: 'lesson_completed',
+    lessonId,
+    productId,
+    watchedSeconds: Math.round(watchedSeconds),
+    durationSec: Math.round(durationSec),
+  });
+}
+
+// Явцын босго (25/50/75% эсвэл 60сек тутам) дээр дуудна — watch_duration + dropoff.
+// position = одоогийн байрлал (сек), playbackSpeed = тоглуулах хурд (1.0/1.5/2.0...).
+export function trackLessonProgress(
+  lessonId: string,
+  productId: string | undefined,
+  position: number,
+  durationSec: number,
+  playbackSpeed?: number,
+) {
+  send('lesson', {
+    event: 'lesson_progress',
+    lessonId,
+    productId,
+    position: Math.round(position),
+    durationSec: Math.round(durationSec),
+    ...(playbackSpeed != null ? { playbackSpeed } : {}),
+  });
+}

@@ -44,6 +44,10 @@ export class AnalyticsService {
           where: { sessionId, userId: null },
           data: { userId: safe },
         }),
+        this.prisma.lessonEvent.updateMany({
+          where: { sessionId, userId: null },
+          data: { userId: safe },
+        }),
       ]);
     } catch {
       // backfill амжилтгүй болсон ч нэвтрэлтэд нөлөөлөхгүй (best-effort).
@@ -83,6 +87,38 @@ export class AnalyticsService {
     return this.prisma.searchEvent.create({ data: { ...data, userId } });
   }
 
+  // Хичээлийн видео үзэлтийн event (lesson_started/completed/progress).
+  // ProductEvent-тэй ижил хэв маяг: public, fail-open. lessonId/productId-д хатуу
+  // FK байхгүй тул устсан id-аас ч insert унахгүй. userId л safeUserId-аар шалгагдана.
+  async trackLessonEvent(data: {
+    event: string;
+    lessonId: string;
+    productId?: string;
+    sessionId?: string;
+    userId?: string;
+    watchedSeconds?: number;
+    durationSec?: number;
+    playbackSpeed?: number;
+    position?: number;
+    device?: string;
+  }) {
+    const userId = await this.safeUserId(data.userId);
+    return this.prisma.lessonEvent.create({
+      data: {
+        event: data.event,
+        lessonId: data.lessonId,
+        productId: data.productId,
+        sessionId: data.sessionId,
+        userId,
+        watchedSeconds: data.watchedSeconds,
+        durationSec: data.durationSec,
+        playbackSpeed: data.playbackSpeed,
+        position: data.position,
+        device: data.device,
+      },
+    });
+  }
+
   async getDashboardStats(days = 30) {
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -102,6 +138,8 @@ export class AnalyticsService {
       deviceStats,
       dailyViews,
       productFunnel,
+      lessonEventCounts,
+      lessonWatchAgg,
     ] = await Promise.all([
       // Нийт views (days хоног)
       this.prisma.pageView.count({ where: { createdAt: { gte: since } } }),
@@ -163,6 +201,23 @@ export class AnalyticsService {
         where: { createdAt: { gte: since } },
         _count: { id: true },
       }),
+
+      // Хичээлийн event тоо (lesson_started / lesson_completed / lesson_progress)
+      this.prisma.lessonEvent.groupBy({
+        by: ['event'],
+        where: { createdAt: { gte: since } },
+        _count: { id: true },
+      }),
+
+      // Дундаж үзсэн секунд (зөвхөн lesson_completed event-ийн watchedSeconds)
+      this.prisma.lessonEvent.aggregate({
+        where: {
+          event: 'lesson_completed',
+          createdAt: { gte: since },
+          watchedSeconds: { not: null },
+        },
+        _avg: { watchedSeconds: true },
+      }),
     ]);
 
     return {
@@ -198,6 +253,20 @@ export class AnalyticsService {
         click: productFunnel.find((f) => f.type === 'click')?._count.id ?? 0,
         cart: productFunnel.find((f) => f.type === 'cart')?._count.id ?? 0,
         purchase: productFunnel.find((f) => f.type === 'purchase')?._count.id ?? 0,
+      },
+      lessons: {
+        started:
+          lessonEventCounts.find((e) => e.event === 'lesson_started')?._count
+            .id ?? 0,
+        completed:
+          lessonEventCounts.find((e) => e.event === 'lesson_completed')?._count
+            .id ?? 0,
+        progress:
+          lessonEventCounts.find((e) => e.event === 'lesson_progress')?._count
+            .id ?? 0,
+        avgWatchSeconds: lessonWatchAgg._avg.watchedSeconds
+          ? Math.round(lessonWatchAgg._avg.watchedSeconds)
+          : 0,
       },
     };
   }

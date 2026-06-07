@@ -12,6 +12,7 @@ import { ReviewsSection } from '@/components/products/reviews-section';
 import { ProductTestimonialsSection } from '@/components/products/testimonials-section';
 import { MediaGallery } from '@/components/products/media-gallery';
 import { CourseCurriculum } from '@/components/products/course-curriculum';
+import { WatchCourseButton } from '@/components/products/watch-course-button';
 import { BundleList } from '@/components/products/bundle-list';
 import { DownloadAllButton } from '@/components/products/download-all-button';
 import { ProductSwiper } from '@/components/products/product-swiper';
@@ -306,10 +307,18 @@ export default async function ProductDetailPage({ params }: Props) {
             {/* Course curriculum */}
             {hasLessons && (
               <section>
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-primary" />
-                  Хичээлийн хөтөлбөр
-                </h2>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                    Хичээлийн хөтөлбөр
+                  </h2>
+                  <WatchCourseButton
+                    productId={product.id}
+                    productSlug={product.slug}
+                    modules={product.course!.modules ?? []}
+                    lessons={product.course!.lessons ?? []}
+                  />
+                </div>
                 <CourseCurriculum
                   modules={product.course!.modules ?? []}
                   lessons={product.course!.lessons ?? []}

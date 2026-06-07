@@ -71,6 +71,7 @@ model User {
   searchEvents  SearchEvent[]
   auditLogs     UserAuditLog[]
   lessonProgress LessonProgress[]
+  lessonEvents  LessonEvent[]
 }
 
 model Account {
@@ -753,6 +754,36 @@ model SearchEvent {
 
   @@index([query, createdAt])
   @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+// Хичээлийн (course lesson) видео үзэлтийн analytics event.
+// ProductEvent-тэй ижил fail-open хэв маяг: lessonId/productId-д хатуу FK тавихгүй
+// (устсан/хуурамч id-аас sendBeacon insert унахаас сэргийлж). Зөвхөн userId л
+// бодит User-тэй холбогддог (бусад event model-тэй адил, onDelete: SetNull).
+//   event:
+//     lesson_started   — видео тоглож эхлэх агшин
+//     lesson_completed — үзэж дуусгасан (watchedSeconds/durationSec-той)
+//     lesson_progress  — явцын босго (25/50/75% эсвэл 60сек тутам) — watch_duration
+//                        + dropoff (position) шинжилгээнд
+model LessonEvent {
+  id             String   @id @default(cuid())
+  event          String // lesson_started | lesson_completed | lesson_progress
+  lessonId       String
+  productId      String? // тухайн хичээл хамаарах course-ийн productId (байвал)
+  sessionId      String?
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  watchedSeconds Int? // нийт үзсэн секунд (completed/progress)
+  durationSec    Int? // видеоны нийт урт
+  playbackSpeed  Float? // тоглуулах хурд (1.0 / 1.25 / 1.5 / 2.0 ...)
+  position       Int? // явцын байрлал секундээр (dropoff шинжилгээ)
+  device         String? // mobile | desktop | tablet
+  createdAt      DateTime @default(now())
+
+  @@index([lessonId, event])
+  @@index([event, createdAt])
+  @@index([productId, event, createdAt])
   @@index([userId, createdAt])
 }
 

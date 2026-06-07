@@ -64,6 +64,37 @@ export class AnalyticsController {
     return { ok: true };
   }
 
+  // Хичээлийн видео үзэлтийн event (premium player/watch page дуудна).
+  // Public, throttle-той — бот/спам DB дүүргэхээс сэргийлнэ. event утгыг
+  // зөвшөөрөгдсөн жагсаалтаар шалгана (хог утга хадгалахгүй).
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Post('lesson')
+  async trackLesson(
+    @Body()
+    body: {
+      event: string;
+      lessonId: string;
+      productId?: string;
+      sessionId?: string;
+      userId?: string;
+      watchedSeconds?: number;
+      durationSec?: number;
+      playbackSpeed?: number;
+      position?: number;
+    },
+    @Req() req: Request,
+  ) {
+    const ua = req.headers['user-agent'] ?? '';
+    if (isBot(ua)) return { ok: true };
+    const allowed = ['lesson_started', 'lesson_completed', 'lesson_progress'];
+    if (!body?.lessonId || !allowed.includes(body?.event)) {
+      return { ok: true };
+    }
+    const device = detectDevice(ua);
+    await this.analyticsService.trackLessonEvent({ ...body, device });
+    return { ok: true };
+  }
+
   // Нэвтрэх агшинд frontend дуудна: тухайн session-ийн зочин үед бичигдсэн (userId-
   // гүй) бүх үзэлт/дарсныг нэвтэрсэн хэрэглэгчид холбоно. userId-ийг token-оос авна
   // (body-оос биш — өөр хэрэглэгчийн event-ийг булаахаас сэргийлж).
