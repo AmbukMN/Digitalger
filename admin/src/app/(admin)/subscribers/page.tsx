@@ -297,7 +297,33 @@ export default function SubscribersPage() {
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminSubscriber | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Export — token-той server side татах + progress toast (том файлд)
+  async function handleExport(format: 'excel' | 'pdf') {
+    setExporting(true);
+    const toastId = `export-${format}`;
+    toast.loading(`${format === 'excel' ? 'Excel' : 'PDF'} бэлдэж байна...`, { id: toastId, duration: Infinity });
+    try {
+      await adminApi.subscribers.exportDownload(
+        { format, status, categoryId, source },
+        (percent) => {
+          if (percent != null && percent < 100) {
+            toast.loading(`Татаж байна... ${percent}%`, { id: toastId, duration: Infinity });
+          }
+        },
+      );
+      toast.success(
+        format === 'excel' ? 'Excel татагдлаа' : 'Хэвлэх цонх нээгдлээ — "PDF болгож хадгалах"-ыг сонгоно уу',
+        { id: toastId, duration: 3500 },
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export алдаа', { id: toastId, duration: 3000 });
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Search debounce
   useEffect(() => {
@@ -408,30 +434,20 @@ export default function SubscribersPage() {
             <Upload className="mr-1.5 h-4 w-4" /> {importMut.isPending ? 'Уншиж байна...' : 'Import'}
           </Button>
           <SimpleDropdown
-            disabled={total === 0}
+            disabled={total === 0 || exporting}
             trigger={
-              <Button variant="outline" disabled={total === 0}>
-                <Download className="mr-1.5 h-4 w-4" /> Export
+              <Button variant="outline" disabled={total === 0 || exporting}>
+                <Download className="mr-1.5 h-4 w-4" /> {exporting ? 'Бэлдэж байна...' : 'Export'}
                 <ChevronDown className="ml-1.5 h-4 w-4 opacity-60" />
               </Button>
             }
           >
             {(close) => (
               <>
-                <SimpleDropdownItem
-                  onClick={() => {
-                    window.open(adminApi.subscribers.exportUrl({ format: 'excel', status, categoryId, source }), '_blank');
-                    close();
-                  }}
-                >
+                <SimpleDropdownItem onClick={() => { handleExport('excel'); close(); }}>
                   <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Excel татах
                 </SimpleDropdownItem>
-                <SimpleDropdownItem
-                  onClick={() => {
-                    window.open(adminApi.subscribers.exportUrl({ format: 'pdf', status, categoryId, source }), '_blank');
-                    close();
-                  }}
-                >
+                <SimpleDropdownItem onClick={() => { handleExport('pdf'); close(); }}>
                   <FileText className="h-4 w-4 text-red-600" /> PDF (хэвлэх)
                 </SimpleDropdownItem>
               </>

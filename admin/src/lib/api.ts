@@ -590,14 +590,73 @@ export const adminApi = {
       );
     },
     // Export нь файл (excel) эсвэл хэвлэх HTML (pdf) буцаадаг тул URL-ийг шинэ tab-д нээнэ (доорх page-д)
-    exportUrl: (params?: { format?: 'excel' | 'pdf'; status?: string; categoryId?: string; source?: string }) => {
+    // Export — server side бэлдэж, browser-ийн татах хэсэгт buffer татна.
+    // ⚠️ window.open ашиглахгүй (Authorization header дамжихгүй тул 401 өгнө).
+    // adminFetch шиг token-той XHR-ээр blob татаж progress дэмжинэ.
+    exportDownload: async (
+      params: { format: 'excel' | 'pdf'; status?: string; categoryId?: string; source?: string },
+      onProgress?: (percent: number | null) => void,
+    ): Promise<void> => {
+      const token = await getAccessToken();
       const q = new URLSearchParams();
-      if (params?.format) q.set('format', params.format);
-      if (params?.status) q.set('status', params.status);
-      if (params?.categoryId) q.set('categoryId', params.categoryId);
-      if (params?.source) q.set('source', params.source);
-      const qs = q.toString();
-      return `${API_URL}/api/admin/subscribers/export${qs ? `?${qs}` : ''}`;
+      q.set('format', params.format);
+      if (params.status) q.set('status', params.status);
+      if (params.categoryId) q.set('categoryId', params.categoryId);
+      if (params.source) q.set('source', params.source);
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', `${API_URL}/api/admin/subscribers/export?${q.toString()}`);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.responseType = 'blob';
+        xhr.onprogress = (e) => {
+          if (onProgress) onProgress(e.lengthComputable ? Math.round((e.loaded / e.total) * 100) : null);
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Blob);
+          else reject(new ApiError(`Export failed: ${xhr.status}`, xhr.status));
+        };
+        xhr.onerror = () => reject(new ApiError('Network error', 0));
+        xhr.send();
+      });
+
+      const date = new Date().toISOString().slice(0, 10);
+
+      if (params.format === 'pdf') {
+        // PDF — backend кирилл-найрсаг HTML буцаана. Нуугдмал iframe-д ачаалж
+        // browser-ийн "Хэвлэх → PDF болгож хадгалах" харилцах цонхыг нээнэ.
+        // (Серверт кирилл фонт embed хийхгүй — browser фонт бүрэн дэмжинэ.)
+        const url = URL.createObjectURL(blob);
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.src = url;
+        iframe.onload = () => {
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            // print цонх хаагдсаны дараа цэвэрлэнэ
+            setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
+          }, 300);
+        };
+        document.body.appendChild(iframe);
+        return;
+      }
+
+      // Excel — шууд файл татна (browser-ийн татах хэсэгт)
+      const filename = `subscribers_${date}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     },
     categories: {
       list: () => adminFetch<AdminSubscriberCategory[]>('/admin/subscribers/categories'),
