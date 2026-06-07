@@ -21,7 +21,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   private readonly from: string;
   private readonly siteUrl: string;
   private readonly redis: Redis;
-  private readonly queue: Array<() => Promise<void>> = [];
+  private readonly queue: Array<() => Promise<unknown>> = [];
   private draining = false;
 
   constructor(private readonly config: ConfigService) {
@@ -95,7 +95,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) && !this.isGuest(email);
   }
 
-  private enqueue(task: () => Promise<void>): void {
+  private enqueue(task: () => Promise<unknown>): void {
     this.queue.push(task);
     this.redis.set(EMAIL_QUEUE_KEY, this.queue.length).catch(() => {});
     if (!this.draining) void this.drain();
@@ -113,8 +113,10 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.draining = false;
   }
 
-  private async send(to: string, subject: string, html: string, replyTo?: string): Promise<void> {
-    if (!this.isValidEmail(to)) return;
+  // Имэйл амжилттай явсан эсэхийг буцаана (true=амжилттай, false=алдаа/явсангүй).
+  // subscribe урсгал энэ утгаар имэйл хүчинтэй эсэхийг шийднэ.
+  private async send(to: string, subject: string, html: string, replyTo?: string): Promise<boolean> {
+    if (!this.isValidEmail(to)) return false;
 
     this.logger.log(`Имэйл боловсруулж байна (${this.provider}) → ${to} | ${subject}`);
 
@@ -122,7 +124,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     if (this.provider === 'resend') {
       if (!this.resend) {
         this.logger.warn(`Resend тохируулаагүй — имэйл алгассан → ${to}`);
-        return;
+        return false;
       }
       try {
         const { error } = await this.resend.emails.send({
@@ -134,20 +136,21 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         });
         if (error) {
           this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${JSON.stringify(error)}`);
-          return;
+          return false;
         }
         await this.bumpCounter(EMAIL_RESEND_COUNT_KEY);
         this.logger.log(`Resend имэйл амжилттай илгээгдлээ → ${to}`);
+        return true;
       } catch (err) {
         this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${err}`);
+        return false;
       }
-      return;
     }
 
     // ── AWS SES (нөөц провайдер) ──
     if (!this.ses) {
       this.logger.warn(`AWS SES тохируулаагүй — имэйл алгассан → ${to}`);
-      return;
+      return false;
     }
     try {
       await this.ses.send(
@@ -162,8 +165,10 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       );
       await this.bumpCounter(EMAIL_COUNT_KEY);
       this.logger.log(`AWS SES имэйл амжилттай илгээгдлээ → ${to}`);
+      return true;
     } catch (err) {
       this.logger.error(`AWS SES имэйл явуулж чадсангүй → ${to}: ${err}`);
+      return false;
     }
   }
 
@@ -247,7 +252,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ─── Newsletter subscribe → 10% coupon + үнэгүй product welcome имэйл ──────────
-  async sendWelcomeCoupon(opts: { to: string; couponCode: string; discountPercent: number }) {
+  // @returns имэйл амжилттай явсан эсэх (false бол имэйл хүчингүй болж магадгүй).
+  async sendWelcomeCoupon(opts: { to: string; couponCode: string; discountPercent: number }): Promise<boolean> {
     const { to, couponCode, discountPercent } = opts;
     const freeUrl = `${this.siteUrl}/products/font-canva-powerpoint-free`;
 
@@ -296,8 +302,10 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 </td></tr></table>
 </body></html>`;
 
-    this.logger.log(`Welcome coupon имэйл дараалалд → ${to} | ${couponCode}`);
-    this.enqueue(() => this.send(to, `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`, html));
+    this.logger.log(`Welcome coupon имэйл илгээж байна → ${to} | ${couponCode}`);
+    // ШУУД илгээнэ (queue биш) — амжилт буцаана. subscribe урсгал имэйл
+    // хүчинтэй эсэхийг (явсан/явсангүй) энэ утгаар шийдэж invalid тэмдэглэнэ.
+    return this.send(to, `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`, html);
   }
 
   // ─── Холбоо барих (inquiry) → info@digitalger.mn ──────────────────────────────

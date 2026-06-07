@@ -34,6 +34,7 @@ export function ContactForm() {
 
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
     const trimmedMessage = message.trim();
 
     if (!trimmedName) {
@@ -46,6 +47,16 @@ export function ContactForm() {
     }
     if (!EMAIL_RE.test(trimmedEmail)) {
       toast.error('Зөв и-мэйл оруулна уу 📧');
+      return;
+    }
+    if (!trimmedPhone) {
+      toast.error('Утасны дугаараа оруулна уу');
+      return;
+    }
+    // Зөвхөн цифрээр 6-8 орон шалгана
+    const phoneDigits = trimmedPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 6 || phoneDigits.length > 8) {
+      toast.error('Утасны дугаар буруу байна (6-8 орон)');
       return;
     }
     if (!trimmedMessage) {
@@ -65,7 +76,7 @@ export function ContactForm() {
       await contactApi.submit({
         name: trimmedName,
         email: trimmedEmail,
-        phone: phone.trim() || undefined,
+        phone: trimmedPhone,
         message: trimmedMessage,
         captchaA: captcha.a,
         captchaB: captcha.b,
@@ -135,9 +146,11 @@ export function ContactForm() {
           </div>
         </div>
 
-        {/* Утас (заавал биш) */}
+        {/* Утас (заавал) */}
         <div className="space-y-1.5">
-          <Label htmlFor="contact-phone">Утас</Label>
+          <Label htmlFor="contact-phone">
+            Утас <span className="text-destructive">*</span>
+          </Label>
           <div className="relative">
             <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -146,7 +159,7 @@ export function ContactForm() {
               inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="99XXXXXX (заавал биш)"
+              placeholder="99XXXXXX"
               disabled={loading}
               autoComplete="tel"
               className="pl-9"

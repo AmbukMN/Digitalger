@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { SITE_URL, SITE_NAME } from '@/lib/constants';
+import { buildPageMetadata } from '@/lib/page-metadata';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { ContactForm } from '@/components/contact/contact-form';
@@ -52,27 +53,12 @@ async function getContactPage(): Promise<ContactPage | null> {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const page = await getContactPage();
-  // SEO-г DB-ээс УНШИНА — байхгүй бол fallback
-  const title = page?.metaTitle || (page?.title ? `${page.title} | ${SITE_NAME}` : `${DEFAULT_TITLE} | ${SITE_NAME}`);
-  const description = page?.metaDescription || DEFAULT_DESCRIPTION;
-  const ogImageUrl = page?.ogImageUrl || null;
-  return {
-    title,
-    description,
-    ...(page?.metaKeywords ? { keywords: page.metaKeywords } : {}),
-    alternates: { canonical: `${SITE_URL}/contact` },
-    openGraph: {
-      title,
-      description,
-      url: `${SITE_URL}/contact`,
-      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }] } : {}),
-    },
-    twitter: {
-      card: 'summary_large_image',
-      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
-    },
-  };
+  // SEO-г page-аас, дутуу бол SiteSettings-ээс, эцэст нь hardcode fallback
+  return buildPageMetadata(
+    'contact',
+    `${DEFAULT_TITLE} | ${SITE_NAME}`,
+    DEFAULT_DESCRIPTION,
+  );
 }
 
 export default async function ContactPage() {

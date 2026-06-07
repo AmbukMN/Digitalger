@@ -5,7 +5,7 @@ import { EmailService } from '../notifications/email.service';
 interface ContactDto {
   name: string;
   email: string;
-  phone?: string;
+  phone: string;
   message: string;
   // Math captcha: frontend "3+5" асуултын хариу. Сервер дахин шалгана.
   captchaA?: number;
@@ -27,6 +27,8 @@ export class ContactController {
 
     if (!name || name.length > 100) throw new BadRequestException('Нэрээ зөв оруулна уу');
     if (!email.includes('@') || email.length > 254) throw new BadRequestException('И-мэйл буруу байна');
+    // Утас ЗААВАЛ — дор хаяж 6 орон (8 оронтой Монгол дугаар + код хүлээнэ)
+    if (!phone || phone.replace(/\D/g, '').length < 6) throw new BadRequestException('Утасны дугаараа зөв оруулна уу');
     if (!message || message.length < 5) throw new BadRequestException('Мессеж хэт богино байна');
     if (message.length > 5000) throw new BadRequestException('Мессеж хэт урт байна');
 

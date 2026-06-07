@@ -133,6 +133,9 @@ export class SubscribersService {
     if (!email || !email.includes('@') || email.length > 254) {
       throw new BadRequestException('Имэйл хаяг буруу байна');
     }
+    // Homepage-аас бүртгүүлбэл "Нүүр хуудас" категори (home) руу зүүнэ.
+    const categoryId = source === 'homepage' ? await this.getHomeCategoryId() : null;
+
     const existing = await this.prisma.subscriber.findUnique({ where: { email } });
     if (existing) {
       // Хэрэв өмнө unsubscribe хийсэн бол дахин идэвхжүүлнэ
@@ -144,29 +147,52 @@ export class SubscribersService {
       }
       return { success: true, alreadySubscribed: existing.status !== 'UNSUBSCRIBED' };
     }
-    await this.prisma.subscriber.create({
-      data: { email, source: source || 'popup', status: 'ACTIVE', isActive: true },
+    const created = await this.prisma.subscriber.create({
+      data: {
+        email,
+        source: source || 'popup',
+        status: 'ACTIVE',
+        isActive: true,
+        ...(categoryId && { categoryId }),
+      },
     });
-    // Шинэ захиалагчид 10% купон + үнэгүй бүтээгдэхүүний welcome имэйл (fire-and-forget)
-    this.sendWelcomeIfCouponExists(email);
+    // Шинэ захиалагчид welcome имэйл — амжилт буцаана. Имэйл ЯВААГҮЙ бол (Resend
+    // error) тухайн имэйл хүчингүй гэж үзэж INACTIVE + isActive=false тэмдэглэнэ.
+    this.sendWelcomeAndMark(email, created.id);
     return { success: true, alreadySubscribed: false };
   }
 
-  /** SUBSCRIBER10 купон DB-д идэвхтэй байвал welcome имэйл илгээнэ. */
-  private async sendWelcomeIfCouponExists(email: string) {
+  /** "Нүүр хуудас" (home) категорийн id-г олж/үүсгэж буцаана. */
+  private async getHomeCategoryId(): Promise<string> {
+    const cat = await this.prisma.subscriberCategory.upsert({
+      where: { name: 'Нүүр хуудас' },
+      create: { name: 'Нүүр хуудас', isSystem: true, description: 'Нүүр хуудаснаас бүртгүүлсэн' },
+      update: {},
+    });
+    return cat.id;
+  }
+
+  /** Welcome имэйл илгээж, явсангүй бол subscriber-ийг invalid тэмдэглэнэ. */
+  private async sendWelcomeAndMark(email: string, subscriberId: string) {
     try {
       const coupon = await this.prisma.coupon.findFirst({
         where: { code: WELCOME_COUPON_CODE, active: true },
       });
-      // Купон байхгүй ч welcome имэйл явуулна (купонгүй бол зөвхөн үнэгүй product).
       const percent = coupon && coupon.type === 'PERCENT' ? Number(coupon.value) : 10;
-      await this.email.sendWelcomeCoupon({
+      const sent = await this.email.sendWelcomeCoupon({
         to: email,
         couponCode: coupon ? coupon.code : WELCOME_COUPON_CODE,
         discountPercent: percent,
       });
+      if (!sent) {
+        // Имэйл явсангүй → хаяг хүчингүй байж магадгүй. INACTIVE болгож тэмдэглэнэ.
+        await this.prisma.subscriber.update({
+          where: { id: subscriberId },
+          data: { status: 'INACTIVE', isActive: false, tags: { push: 'invalid-email' } },
+        }).catch(() => null);
+      }
     } catch {
-      /* welcome имэйл алдаа гарвал subscribe-д нөлөөлөхгүй */
+      /* алдаа гарвал subscribe-д нөлөөлөхгүй */
     }
   }
 

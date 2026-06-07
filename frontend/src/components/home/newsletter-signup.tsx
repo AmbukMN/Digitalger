@@ -29,7 +29,7 @@ export function NewsletterSignup() {
     setLoading(true);
     try {
       await subscribersApi.subscribe({ email: value, source: 'homepage' });
-      toast.success('Амжилттай бүртгэгдлээ! 10% хөнгөлөлтийн купоныг таны и-мэйл рүү илгээлээ 🎁');
+      toast.success('Амжилттай бүртгэгдлээ! 🎁 Таны мэйл рүү 10% хөнгөлөлтийн купон болон ҮНЭГҮЙ бүтээгдэхүүний татах линк илгээлээ. Мэйлээ шалгаарай!');
       setEmail('');
     } catch {
       toast.error('Алдаа гарлаа, дахин оролдоно уу');

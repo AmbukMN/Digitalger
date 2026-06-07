@@ -39,6 +39,21 @@ import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats, DashboardStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
 
+// ── Захиалагчийн эх сурвалжийн нэрийг Монголоор харуулах ──
+const SUBSCRIBER_SOURCE_LABELS: Record<string, string> = {
+  homepage: 'Нүүр хуудас',
+  'web-register': 'Веб бүртгэл',
+  popup: 'Поп-ап',
+  checkout: 'Худалдан авалт',
+  import: 'Импорт',
+  admin: 'Админ',
+  'free-ppt': 'Үнэгүй PPT',
+};
+
+function subscriberSourceLabel(source: string): string {
+  return SUBSCRIBER_SOURCE_LABELS[source] ?? source;
+}
+
 // ── Тренд badge (өмнөх сартай харьцуулсан өсөлт/бууралт) ──
 function TrendBadge({ value }: { value: number | null }) {
   if (value === null) {
@@ -481,7 +496,7 @@ export default function DashboardPage() {
   if (isError || !data)
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const { stats, trends, recentOrders, monthlyRevenue, emailStats, resendStats, topDownloaded } = data;
+  const { stats, trends, recentOrders, monthlyRevenue, emailStats, resendStats, topDownloaded, subscribersBySource } = data;
 
   const statValues: Record<string, number> = {
     users: stats.users,
@@ -593,6 +608,47 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">48ц+ хүлээгдэж буй захиалга</p>
           </div>
         </Link>
+      </div>
+
+      {/* Захиалагч (subscriber) статистик: нийт + энэ сар + эх сурвалжийн задаргаа */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Нийт захиалагч */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/40 p-2 shrink-0">
+            <Mail className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-xl font-bold tabular-nums">{stats.subscribersTotal.toLocaleString()}</p>
+              {stats.subscribersThisMonth > 0 && (
+                <span className="inline-flex items-center rounded-md bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                  энэ сар +{stats.subscribersThisMonth.toLocaleString()}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Нийт захиалагч</p>
+          </div>
+        </div>
+
+        {/* Эх сурвалжийн задаргаа (хамгийн их нь эхэнд) */}
+        <div className="rounded-xl border border-border bg-card px-4 py-3 lg:col-span-2">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Эх сурвалжаар</p>
+          {subscribersBySource.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Захиалагч байхгүй</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {subscribersBySource.map((s) => (
+                <span
+                  key={s.source}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs"
+                >
+                  <span className="text-muted-foreground">{subscriberSourceLabel(s.source)}</span>
+                  <span className="font-semibold tabular-nums">{s.count.toLocaleString()}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}

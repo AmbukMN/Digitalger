@@ -85,6 +85,9 @@ export class AdminController {
       usersPrevMonth,
       revenueThisMonthAgg,
       revenuePrevMonthAgg,
+      subscribersTotalRaw,
+      subscribersThisMonth,
+      subscribersBySourceRaw,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.product.count(),
@@ -172,7 +175,17 @@ export class AdminController {
         },
         _sum: { total: true },
       }),
+      // ── Subscriber статистик (нийт + энэ сар + эх сурвалжаар) ──
+      this.prisma.subscriber.count(),
+      this.prisma.subscriber.count({ where: { createdAt: { gte: startOfMonth } } }),
+      this.prisma.subscriber.groupBy({ by: ['source'], _count: { _all: true } }),
     ]);
+
+    // Subscriber тоонуудыг задлах (Promise.all-ийн сүүлийн 3 утга)
+    const subscribersTotal = subscribersTotalRaw;
+    const subBySource = subscribersBySourceRaw
+      .map((r) => ({ source: r.source ?? 'бусад', count: r._count._all }))
+      .sort((a, b) => b.count - a.count);
 
     // Өсөлтийн хувь тооцоолох туслах (өмнөх 0 бол: одоо >0 → +100%, тэнцүү → 0)
     const pct = (current: number, prev: number): number | null => {
@@ -238,7 +251,10 @@ export class AdminController {
         pendingExpiredCount,
         totalRealDownloads: totalDownloadsAgg._sum.realDownloadCount ?? 0,
         revenueThisMonth,
+        subscribersTotal,
+        subscribersThisMonth,
       },
+      subscribersBySource: subBySource,
       trends,
       recentOrders: mapOrderImages(recentOrders),
       monthlyRevenue: monthlyRevenueSummary,

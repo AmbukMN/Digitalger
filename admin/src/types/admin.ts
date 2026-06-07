@@ -46,6 +46,8 @@ export interface DashboardStats {
     pendingExpiredCount: number;
     totalRealDownloads: number;
     revenueThisMonth: number;
+    subscribersTotal: number;
+    subscribersThisMonth: number;
   };
   // Өмнөх сартай харьцуулсан өсөлтийн хувь (null = өмнөх өгөгдөлгүй)
   trends: {
@@ -58,6 +60,7 @@ export interface DashboardStats {
   emailStats: EmailStats;
   resendStats?: ResendStats;
   topDownloaded: TopDownloadedProduct[];
+  subscribersBySource: { source: string; count: number }[];
 }
 
 export interface AdminUser {

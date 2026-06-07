@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { SITE_URL } from '@/lib/constants';
-import { siteSettingsApi } from '@/lib/api';
+import { buildPageMetadata } from '@/lib/page-metadata';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
 
@@ -17,34 +16,12 @@ interface AboutPage {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const page = await getAboutPage();
-  // OG зургийг page-аас, байхгүй бол site settings-ээс авна
-  let ogImageUrl: string | null = page?.ogImageUrl ?? null;
-  if (!ogImageUrl) {
-    try {
-      const s = await siteSettingsApi.getPublic();
-      ogImageUrl = s.ogImageUrl ?? null;
-    } catch { /* fallback */ }
-  }
-  // SEO-г DB-ээс УНШИНА — байхгүй бол hardcode fallback
-  const title = page?.metaTitle || 'Бидний тухай | DigitalGer';
-  const description = page?.metaDescription || 'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.';
-  return {
-    title,
-    description,
-    ...(page?.metaKeywords ? { keywords: page.metaKeywords } : {}),
-    alternates: { canonical: `${SITE_URL}/about` },
-    openGraph: {
-      title,
-      description,
-      url: `${SITE_URL}/about`,
-      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }] } : {}),
-    },
-    twitter: {
-      card: 'summary_large_image',
-      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
-    },
-  };
+  // SEO-г page-аас, дутуу бол SiteSettings-ээс, эцэст нь hardcode fallback
+  return buildPageMetadata(
+    'about',
+    'Бидний тухай | DigitalGer',
+    'DigitalGer — Монголын анхны дижитал бүтээгдэхүүний зах зээл. Бизнес загвар, сургалт, бэлэн файл, төсөл — нэг дороос татаж авна.',
+  );
 }
 
 async function getAboutPage(): Promise<AboutPage | null> {
