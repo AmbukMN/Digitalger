@@ -81,8 +81,10 @@ export class BackupService implements OnModuleDestroy {
 
     try {
       // ⚠️ pg_dump backend container-д суусан байх ёстой (postgresql-client).
-      // Байхгүй бол доорх exec алдаа гаргана → catch дотор alert (process унахгүй).
-      const { stdout, stderr } = await execAsync(`pg_dump "${this.databaseUrl}"`, {
+      // ⚠️ Prisma-ийн "?schema=public" query параметрийг pg_dump ойлгодоггүй
+      // ("invalid URI query parameter: schema") тул хасна.
+      const dumpUrl = this.databaseUrl!.replace(/[?&]schema=[^&]*/g, '');
+      const { stdout, stderr } = await execAsync(`pg_dump "${dumpUrl}"`, {
         maxBuffer: 1024 * 1024 * 512, // 512MB хүртэл dump
         windowsHide: true,
       });
