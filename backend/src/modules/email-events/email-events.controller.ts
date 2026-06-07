@@ -112,7 +112,7 @@ export class EmailEventsController {
     this.email.sendDiscountPush({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', couponCode: 'SUBSCRIBER10', discountPercent: 10 });
     this.email.sendExpiringCoupon({ to: target, name: 'Амгаланбаяр', couponCode: 'SUBSCRIBER10', discountLabel: '10% хөнгөлөлт', expiresAt: exp, couponId: 'TESTCPN1' });
     this.email.sendNewProduct({ to: target, productTitle: '1300 Font + 200 Canva + 100 PowerPoint — НЭГДСЭН БАГЦ', productSlug: 'font-canva-powerpoint-free', price: 0, salePrice: 0, imageUrl: null });
-    this.email.sendReactivation({ to: target, name: 'Амгаланбаяр', couponCode: 'SUBSCRIBER10', discountLabel: '10% хөнгөлөлт' });
+    this.email.sendReactivation({ to: target, name: 'Амгаланбаяр', couponCode: 'WELCOMEBACK10', discountLabel: '10% хөнгөлөлт' });
 
     return { success: true, sent: 5, to: target };
   }

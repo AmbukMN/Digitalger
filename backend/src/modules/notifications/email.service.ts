@@ -78,6 +78,15 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
   // ─── private helpers ────────────────────────────────────────────────────────
 
+  // Огноог "6-р сарын 7 өдөр, 21:23" хэлбэрээр (тоогоор сар, кирилл нэр биш).
+  private formatMnDate(d: Date): string {
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${month}-р сарын ${day} өдөр, ${hh}:${mm}`;
+  }
+
   private emailHeader(): string {
     // Бодит PNG лого (DG badge биш) — frontend/public/brand/logo-white.png
     // Лого (height 40) + хажууд "DigitalGer.mn" цагаан title, table-аар голлуулж зэрэгцүүлэв.
@@ -427,13 +436,13 @@ ${pixel}
   /** 3. Expiring coupon (12ц өмнө) — coupon удахгүй дуусна сануулга. */
   async sendExpiringCoupon(opts: { to: string; name: string | null; couponCode: string; discountLabel: string; expiresAt: Date; couponId?: string }) {
     const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
-    const exp = new Date(opts.expiresAt).toLocaleString('mn-MN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const exp = this.formatMnDate(new Date(opts.expiresAt));
     const body = `
       <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Та амжиж ашиглаарай! Таны <strong>${opts.couponCode}</strong> хөнгөлөлтийн код удахгүй дуусах гэж байна.</p>
       <div style="background:#fffbef;border:1px solid #ffe9a8;border-radius:14px;padding:20px;text-align:center;margin-bottom:8px">
         <p style="margin:0 0 8px;font-size:13px;color:#a07b00;font-weight:700">${opts.discountLabel}</p>
         <span style="font-family:monospace;font-size:22px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
-        <p style="margin:12px 0 0;font-size:13px;color:#c0392b;font-weight:600">⏰ Дуусах хугацаа: ${exp}</p>
+        <p style="margin:14px 0 0;font-size:14px;color:#1a1a1a;font-weight:600">⏰ Дуусах хугацаа: <span style="color:#c0392b">${exp}</span></p>
       </div>`;
     const html = this.emailLayout({
       heading: '⏰ Танд бэлэглэсэн хөнгөлөлтийн купон дуусаж байна',
@@ -455,13 +464,15 @@ ${pixel}
       : '';
     const body = `
       <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Манайд шинэ бүтээгдэхүүн нэмэгдлээ! Хамгийн түрүүнд танилцаарай 👇</p>
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${img}
-        <tr><td style="text-align:center">
-          <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#022179">${opts.productTitle}</p>
-          <p style="margin:0;font-size:16px;font-weight:700;color:${eff === 0 ? '#16a34a' : '#022179'}">${priceLabel}</p>
-        </td></tr>
-      </table>`;
+      <div style="background:#f5f8ff;border:1px solid #e3e9fb;border-radius:14px;padding:20px;text-align:center">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${img}
+          <tr><td style="text-align:center">
+            <p style="margin:0 0 6px;font-size:17px;font-weight:800;color:#022179;line-height:1.4">${opts.productTitle}</p>
+            <p style="margin:0;font-size:16px;font-weight:700;color:${eff === 0 ? '#16a34a' : '#022179'}">${priceLabel}</p>
+          </td></tr>
+        </table>
+      </div>`;
     const html = this.emailLayout({
       heading: '🆕 Шинэ бүтээгдэхүүн нэмэгдлээ',
       bodyHtml: body,
