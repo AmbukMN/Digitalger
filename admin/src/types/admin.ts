@@ -422,6 +422,8 @@ export interface AdminLesson {
   description?: string | null;
   videoKey?: string | null;
   videoUrl?: string | null;
+  videoStreamId?: string | null;
+  streamStatus?: string | null;
   durationSec?: number | null;
   isFreePreview: boolean;
   sortOrder: number;

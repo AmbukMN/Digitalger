@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,17 +7,20 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
 import { N8nService } from '../n8n/n8n.service';
 import { EmailService } from '../notifications/email.service';
 import { expandQuery } from '../../common/transliterate';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { CreateLessonDto, UpdateLessonDto } from './dto/lesson.dto';
 
 @Injectable()
 export class AdminProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly stream: CloudflareStreamService,
     private readonly n8n: N8nService,
     private readonly email: EmailService,
   ) {}
@@ -337,20 +341,56 @@ export class AdminProductsService {
     return course?.lessons ?? [];
   }
 
-  async createLesson(
-    productId: string,
-    dto: { title: string; description?: string; videoUrl?: string; videoKey?: string; durationSec?: number; isFreePreview?: boolean; sortOrder?: number; moduleId?: string },
-  ) {
+  /**
+   * Browser→Cloudflare Stream шууд upload хийх нэг удаагийн URL үүсгэнэ.
+   * Admin хичээлийн видео нэмэхэд том файлыг backend-ээр дамжуулахгүй шууд Stream рүү.
+   * @returns { uploadURL, uid } — uid-г дараа нь Lesson.videoStreamId-д хадгална.
+   */
+  async createStreamUpload(opts: { name?: string; maxDurationSeconds?: number }) {
+    if (!this.stream.configured) {
+      throw new BadRequestException('Cloudflare Stream тохируулаагүй байна');
+    }
+    try {
+      return await this.stream.createDirectUpload({
+        name: opts.name,
+        maxDurationSeconds: opts.maxDurationSeconds,
+      });
+    } catch {
+      throw new BadRequestException('Stream upload URL үүсгэж чадсангүй');
+    }
+  }
+
+  /**
+   * Stream видеоны боловсруулалтын төлөв. Upload дууссаны дараа ready болсон эсэхийг шалгана.
+   * @returns { status, durationSec, thumbnail, ready }
+   */
+  async getStreamStatus(uid: string) {
+    if (!this.stream.configured) {
+      throw new BadRequestException('Cloudflare Stream тохируулаагүй байна');
+    }
+    try {
+      return await this.stream.getVideoStatus(uid);
+    } catch {
+      throw new BadRequestException('Stream видеоны төлөв авч чадсангүй');
+    }
+  }
+
+  async createLesson(productId: string, dto: CreateLessonDto) {
     const course = await this.ensureCourse(productId);
     const count = await this.prisma.lesson.count({ where: { courseId: course.id } });
+    // Видео эх сурвалж 3 хувилбар — зэрэг ОРОХГҮЙ (mutually exclusive).
+    // Давуу эрэмбэ: videoStreamId → videoKey → videoUrl.
+    const source = this.resolveVideoSource(dto);
     return this.prisma.lesson.create({
       data: {
         courseId: course.id,
         moduleId: dto.moduleId ?? null,
         title: dto.title,
         description: dto.description,
-        videoUrl: dto.videoKey ? null : (dto.videoUrl ?? null),
-        videoKey: dto.videoKey ?? null,
+        videoStreamId: source.videoStreamId,
+        videoKey: source.videoKey,
+        videoUrl: source.videoUrl,
+        ...(dto.streamStatus !== undefined && { streamStatus: dto.streamStatus }),
         durationSec: dto.durationSec,
         isFreePreview: dto.isFreePreview ?? false,
         sortOrder: dto.sortOrder ?? count,
@@ -358,18 +398,54 @@ export class AdminProductsService {
     });
   }
 
-  async updateLesson(
-    lessonId: string,
-    dto: Partial<{ title: string; description: string; videoUrl: string; videoKey: string; durationSec: number; isFreePreview: boolean; sortOrder: number; moduleId: string | null }>,
-  ) {
+  async updateLesson(lessonId: string, dto: UpdateLessonDto) {
     const data: Record<string, unknown> = { ...dto };
-    if (dto.videoKey) data.videoUrl = null;
-    else if (dto.videoUrl !== undefined) data.videoKey = null;
+    // Видео эх сурвалжийн аль нэг өгөгдсөн бол бусдыг null болгож mutually exclusive байлгана.
+    if (dto.videoStreamId !== undefined && dto.videoStreamId) {
+      data.videoStreamId = dto.videoStreamId;
+      data.videoKey = null;
+      data.videoUrl = null;
+    } else if (dto.videoKey !== undefined && dto.videoKey) {
+      data.videoKey = dto.videoKey;
+      data.videoStreamId = null;
+      data.videoUrl = null;
+    } else if (dto.videoUrl !== undefined && dto.videoUrl) {
+      data.videoUrl = dto.videoUrl;
+      data.videoStreamId = null;
+      data.videoKey = null;
+    }
     return this.prisma.lesson.update({ where: { id: lessonId }, data });
   }
 
   async deleteLesson(lessonId: string) {
-    return this.prisma.lesson.delete({ where: { id: lessonId } });
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { videoStreamId: true },
+    });
+    const deleted = await this.prisma.lesson.delete({ where: { id: lessonId } });
+    // Stream видеотой бол Cloudflare-аас ч устгана (fire-and-forget, алдвал хайхрахгүй).
+    if (lesson?.videoStreamId) {
+      void this.stream.deleteVideo(lesson.videoStreamId).catch(() => null);
+    }
+    return deleted;
+  }
+
+  /**
+   * Видео эх сурвалжийн 3 хувилбараас зөвхөн НЭГийг сонгож бусдыг null болгоно.
+   * Давуу эрэмбэ: videoStreamId → videoKey → videoUrl.
+   */
+  private resolveVideoSource(dto: { videoStreamId?: string; videoKey?: string; videoUrl?: string }): {
+    videoStreamId: string | null;
+    videoKey: string | null;
+    videoUrl: string | null;
+  } {
+    if (dto.videoStreamId) {
+      return { videoStreamId: dto.videoStreamId, videoKey: null, videoUrl: null };
+    }
+    if (dto.videoKey) {
+      return { videoStreamId: null, videoKey: dto.videoKey, videoUrl: null };
+    }
+    return { videoStreamId: null, videoKey: null, videoUrl: dto.videoUrl ?? null };
   }
 
   async reorderLessons(items: { id: string; sortOrder: number }[]) {

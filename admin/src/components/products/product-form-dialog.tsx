@@ -619,27 +619,99 @@ async function uploadFileWithToast(file: File): Promise<Awaited<ReturnType<typeo
   }
 }
 
+/**
+ * Browser→Cloudflare Stream шууд upload (direct upload URL руу).
+ * Cloudflare direct_upload URL нь энгийн POST (multipart/form-data, field name="file") дэмждэг.
+ * Progress: XMLHttpRequest upload.onprogress.
+ */
+async function streamDirectUpload(
+  uploadURL: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const form = new FormData();
+    form.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', uploadURL);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Stream upload failed: ${xhr.status}`)));
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.send(form);
+  });
+}
+
+/**
+ * Stream видеоны боловсруулалт дуустал (status === 'ready') polling хийнэ.
+ * 3 секунд тутамд шалгаж, дээд тал нь ~10 минут хүлээнэ.
+ */
+async function pollStreamReady(
+  productId: string,
+  uid: string,
+  onTick?: (st: { status: string; durationSec: number | null; thumbnail: string | null; ready: boolean }) => void,
+): Promise<{ status: string; durationSec: number | null; thumbnail: string | null; ready: boolean }> {
+  const maxAttempts = 200; // 200 * 3s ≈ 10 минут
+  let last = { status: 'queued', durationSec: null as number | null, thumbnail: null as string | null, ready: false };
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const st = await adminApi.products.lessons.streamStatus(productId, uid);
+      last = st;
+      onTick?.(st);
+      if (st.ready || st.status === 'ready') return st;
+      if (st.status === 'error') return st;
+    } catch {
+      // түр алдаа — дахин оролдоно
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return last;
+}
+
 function VideoUploadInput({
+  productId,
   videoUrl, setVideoUrl,
   videoKey, setVideoKey,
+  videoStreamId, setVideoStreamId,
+  setStreamStatus,
   duration, setDuration,
   onUploadingChange,
 }: {
+  productId: string;
   videoUrl: string; setVideoUrl: (v: string) => void;
   videoKey: string; setVideoKey: (v: string) => void;
+  videoStreamId: string; setVideoStreamId: (v: string) => void;
+  setStreamStatus: (v: string) => void;
   duration: string; setDuration: (v: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
 }) {
+  // Идэвхтэй эх сурвалжаар tab сонгох: байгаа утгаас автоматаар тодорхойлно
+  const initialMode: 'stream' | 'url' = videoUrl && !videoStreamId ? 'url' : 'stream';
+  const [mode, setMode] = useState<'stream' | 'url'>(initialMode);
+
+  // R2 upload (хуучин видеотой лессонд хадгалагдсан байж болзошгүй — устгах боломжтой үлдээв)
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedName, setUploadedName] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Stream upload төлөв
+  const [streamUploading, setStreamUploading] = useState(false);
+  const [streamProgress, setStreamProgress] = useState(0);
+  const [streamPhase, setStreamPhase] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'error'>(
+    videoStreamId ? 'ready' : 'idle',
+  );
+  const [streamFileName, setStreamFileName] = useState('');
+  const streamFileRef = useRef<HTMLInputElement>(null);
+
   const isYoutube = videoUrl && (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be'));
   const isVimeo = videoUrl && videoUrl.includes('vimeo.com');
   const videoLabel = videoKey ? 'Байршуулсан' : isYoutube ? 'YouTube' : isVimeo ? 'Vimeo' : videoUrl ? 'Видео' : null;
   const embedUrl = videoUrl ? getVideoEmbedUrl(videoUrl) : null;
+
+  const busy = uploading || streamUploading;
 
   // Auto-detect duration from YouTube / Vimeo URLs
   useEffect(() => {
@@ -678,6 +750,81 @@ function VideoUploadInput({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoUrl]);
 
+  // ── Cloudflare Stream upload урсгал ──────────────────────────────────────────
+  async function handleStreamFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    // Локал metadata-аас хугацаа автоматаар тодорхойлно (fallback)
+    const objUrl = URL.createObjectURL(file);
+    const vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.src = objUrl;
+    vid.onloadedmetadata = () => {
+      const sec = Math.round(vid.duration);
+      if (sec > 0 && !duration) setDuration(formatDurationInput(sec));
+      URL.revokeObjectURL(objUrl);
+    };
+
+    const toastId = `stream-${Date.now()}`;
+    setStreamFileName(file.name);
+    setStreamUploading(true);
+    onUploadingChange?.(true);
+    setStreamProgress(0);
+    setStreamPhase('uploading');
+
+    try {
+      // 1. Direct upload URL авах
+      const { uploadURL, uid } = await adminApi.products.lessons.streamUpload(productId, { name: file.name });
+
+      // 2. Browser → Cloudflare шууд upload (progress-той)
+      toast.loading(`Stream-д байршуулж байна... (0%)`, { id: toastId, duration: Infinity });
+      await streamDirectUpload(uploadURL, file, (pct) => {
+        setStreamProgress(pct);
+        if (pct < 100) toast.loading(`Stream-д байршуулж байна... (${pct}%)`, { id: toastId, duration: Infinity });
+      });
+
+      // 3. Боловсруулалт дуустал polling (status === 'ready')
+      setStreamPhase('processing');
+      toast.loading('Видео боловсруулж байна...', { id: toastId, duration: Infinity });
+
+      const ready = await pollStreamReady(productId, uid, (st) => {
+        if (st.status === 'inprogress' || st.status === 'queued' || st.status === 'downloading') {
+          toast.loading('Видео боловсруулж байна...', { id: toastId, duration: Infinity });
+        }
+      });
+
+      if (!ready.ready) throw new Error('processing timeout');
+
+      // 4. Лессонд хадгалах утгуудыг тавина (Stream = гол; R2/URL цэвэрлэнэ)
+      setVideoStreamId(uid);
+      setStreamStatus('ready');
+      setVideoKey('');
+      setVideoUrl('');
+      setUploadedName('');
+      if (ready.durationSec && ready.durationSec > 0) setDuration(formatDurationInput(ready.durationSec));
+      setStreamPhase('ready');
+      toast.success('Видео бэлэн боллоо', { id: toastId, duration: 2500 });
+    } catch (err) {
+      setStreamPhase('error');
+      toast.error('Stream-д байршуулахад алдаа гарлаа', { id: toastId, duration: 3500 });
+      void err;
+    } finally {
+      setStreamUploading(false);
+      onUploadingChange?.(false);
+    }
+  }
+
+  function clearStream() {
+    setVideoStreamId('');
+    setStreamStatus('');
+    setStreamFileName('');
+    setStreamPhase('idle');
+    setStreamProgress(0);
+  }
+
+  // ── R2 upload урсгал (хуучин — устгах/солих боломжтой үлдээв) ─────────────────
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -715,103 +862,194 @@ function VideoUploadInput({
 
   return (
     <div className="space-y-2">
-      {/* URL input + File upload button */}
-      <div className="flex gap-1.5">
-        <div className="relative flex-1">
-          <Input
-            value={videoKey ? '' : videoUrl}
-            onChange={(e) => { setVideoUrl(e.target.value); setVideoKey(''); setUploadedName(''); setShowPreview(false); }}
-            placeholder={videoKey ? (uploadedName || 'Файл байршуулагдсан') : 'YouTube / Vimeo URL...'}
-            className="h-7 text-xs pr-20"
-            disabled={!!videoKey || uploading}
+      {/* Видео эх сурвалжийн tab: Stream (зөвлөмж) | Гадаад линк */}
+      <Tabs value={mode} onValueChange={(v) => setMode(v as 'stream' | 'url')}>
+        <TabsList className="h-7 p-0.5">
+          <TabsTrigger value="stream" className="h-6 text-[11px] px-2 gap-1">
+            <Upload className="h-3 w-3" />Видео байршуулах
+          </TabsTrigger>
+          <TabsTrigger value="url" className="h-6 text-[11px] px-2 gap-1">
+            <Play className="h-3 w-3" />Гадаад линк
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Stream upload tab (ҮНДСЭН арга) ── */}
+        <TabsContent value="stream" className="mt-2 space-y-2">
+          <input
+            ref={streamFileRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={handleStreamFile}
+            disabled={busy}
           />
-          {videoLabel && !videoKey && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-primary/70">{videoLabel}</span>
+
+          {/* Idle: drag/file picker */}
+          {streamPhase !== 'ready' && !streamUploading && (
+            <button
+              type="button"
+              onClick={() => streamFileRef.current?.click()}
+              className="flex w-full flex-col items-center gap-1 rounded-lg border-2 border-dashed border-border bg-muted/10 px-3 py-4 text-center transition hover:border-primary/50 hover:bg-muted/20"
+            >
+              <Upload className="h-5 w-5 text-primary/60" />
+              <span className="text-xs font-medium">Видео файл сонгох (Cloudflare Stream)</span>
+              <span className="text-[10px] text-muted-foreground">Том файлыг найдвартай байршуулж, автоматаар боловсруулна</span>
+            </button>
           )}
-        </div>
-        <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={handleFile} disabled={uploading} />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs px-2 gap-1 shrink-0"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-        >
-          <Upload className="h-3 w-3" />
-          Файл
-        </Button>
-      </div>
 
-      {/* YouTube: manual duration hint */}
-      {isYoutube && !uploading && (
-        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-          <Clock className="h-2.5 w-2.5 shrink-0" />
-          YouTube-ийн хугацааг гараар оруулна уу (мм:сс)
-        </p>
-      )}
+          {/* Uploading / processing */}
+          {streamUploading && (
+            <div className="space-y-1.5 rounded-lg border border-border bg-muted/10 px-3 py-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground truncate">
+                  <span className="inline-block h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+                  {streamPhase === 'processing' ? 'Боловсруулж байна...' : 'Байршуулж байна...'}
+                  {streamFileName && <span className="truncate text-[10px] opacity-70">— {streamFileName}</span>}
+                </span>
+                {streamPhase === 'uploading' && <span className="font-semibold text-primary shrink-0">{streamProgress}%</span>}
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-150 ${streamPhase === 'processing' ? 'bg-amber-500 animate-pulse w-full' : 'bg-primary'}`}
+                  style={streamPhase === 'uploading' ? { width: `${streamProgress}%` } : undefined}
+                />
+              </div>
+            </div>
+          )}
 
-      {/* Upload progress bar */}
-      {uploading && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="inline-block h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-              Байршуулж байна...
-            </span>
-            <span className="font-semibold text-primary">{uploadProgress}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-150"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          </div>
-        </div>
-      )}
+          {/* Ready */}
+          {streamPhase === 'ready' && videoStreamId && !streamUploading && (
+            <div className="flex items-center gap-1.5 rounded-md bg-green-50 dark:bg-green-900/20 px-2 py-1.5 text-xs text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate font-medium">{streamFileName || 'Stream видео бэлэн'}</span>
+              <span className="shrink-0 rounded-full bg-green-100 dark:bg-green-800/40 px-1.5 py-0.5 text-[10px] font-semibold">Stream</span>
+              <button type="button" onClick={clearStream} className="hover:text-destructive ml-1">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
 
-      {/* Uploaded file success indicator */}
-      {videoKey && !uploading && (
-        <div className="flex items-center gap-1.5 rounded-md bg-green-50 dark:bg-green-900/20 px-2 py-1.5 text-xs text-green-700 dark:text-green-400">
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1 truncate font-medium">{uploadedName || 'Видео байршуулагдлаа'}</span>
-          <button type="button" onClick={() => { setVideoKey(''); setUploadedName(''); setShowPreview(false); }} className="hover:text-destructive ml-1">
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      )}
+          {/* Error */}
+          {streamPhase === 'error' && !streamUploading && (
+            <p className="text-[10px] text-destructive flex items-center gap-1">
+              <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+              Байршуулалт амжилтгүй. Дахин оролдоно уу.
+            </p>
+          )}
 
-      {/* Preview toggle */}
-      {(embedUrl || videoKey) && !uploading && (
-        <button
-          type="button"
-          onClick={() => setShowPreview((p) => !p)}
-          className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-        >
-          <Play className="h-3 w-3" />
-          {showPreview ? 'Preview хаах' : 'Preview харах'}
-        </button>
-      )}
+          {/* R2-д хадгалагдсан хуучин видео (Stream руу шилжээгүй) */}
+          {videoKey && !videoStreamId && (
+            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 text-xs text-blue-700 dark:text-blue-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate font-medium">{uploadedName || 'R2-д хадгалагдсан видео'}</span>
+              <span className="shrink-0 rounded-full bg-blue-100 dark:bg-blue-800/40 px-1.5 py-0.5 text-[10px] font-semibold">R2</span>
+              <button type="button" onClick={() => { setVideoKey(''); setUploadedName(''); }} className="hover:text-destructive ml-1">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </TabsContent>
 
-      {/* Preview iframe / placeholder */}
-      {showPreview && !uploading && (
-        <div className="rounded-lg overflow-hidden bg-black">
-          {embedUrl ? (
-            <div className="relative aspect-video">
-              <iframe
-                src={embedUrl}
-                className="absolute inset-0 w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
+        {/* ── Гадаад линк tab (YouTube/Vimeo, хэвээр) ── */}
+        <TabsContent value="url" className="mt-2 space-y-2">
+          <div className="flex gap-1.5">
+            <div className="relative flex-1">
+              <Input
+                value={videoKey ? '' : videoUrl}
+                onChange={(e) => { setVideoUrl(e.target.value); setVideoKey(''); setUploadedName(''); setShowPreview(false); }}
+                placeholder={videoKey ? (uploadedName || 'Файл байршуулагдсан') : 'YouTube / Vimeo URL...'}
+                className="h-7 text-xs pr-20"
+                disabled={!!videoKey || busy}
               />
+              {videoLabel && !videoKey && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-primary/70">{videoLabel}</span>
+              )}
             </div>
-          ) : videoKey ? (
-            <div className="aspect-video flex items-center justify-center text-white/40 text-xs">
-              Хадгалсны дараа preview харах боломжтой
+            <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={handleFile} disabled={busy} />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2 gap-1 shrink-0"
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="h-3 w-3" />
+              R2
+            </Button>
+          </div>
+
+          {/* YouTube: manual duration hint */}
+          {isYoutube && !busy && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <Clock className="h-2.5 w-2.5 shrink-0" />
+              YouTube-ийн хугацааг гараар оруулна уу (мм:сс)
+            </p>
+          )}
+
+          {/* R2 Upload progress bar */}
+          {uploading && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="inline-block h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  Байршуулж байна...
+                </span>
+                <span className="font-semibold text-primary">{uploadProgress}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-150"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
             </div>
-          ) : null}
-        </div>
-      )}
+          )}
+
+          {/* Uploaded R2 file success indicator */}
+          {videoKey && !uploading && (
+            <div className="flex items-center gap-1.5 rounded-md bg-green-50 dark:bg-green-900/20 px-2 py-1.5 text-xs text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate font-medium">{uploadedName || 'Видео байршуулагдлаа'}</span>
+              <button type="button" onClick={() => { setVideoKey(''); setUploadedName(''); setShowPreview(false); }} className="hover:text-destructive ml-1">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
+          {/* Preview toggle */}
+          {(embedUrl || videoKey) && !busy && (
+            <button
+              type="button"
+              onClick={() => setShowPreview((p) => !p)}
+              className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              <Play className="h-3 w-3" />
+              {showPreview ? 'Preview хаах' : 'Preview харах'}
+            </button>
+          )}
+
+          {/* Preview iframe / placeholder */}
+          {showPreview && !busy && (
+            <div className="rounded-lg overflow-hidden bg-black">
+              {embedUrl ? (
+                <div className="relative aspect-video">
+                  <iframe
+                    src={embedUrl}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ) : videoKey ? (
+                <div className="aspect-video flex items-center justify-center text-white/40 text-xs">
+                  Хадгалсны дараа preview харах боломжтой
+                </div>
+              ) : null}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -837,6 +1075,8 @@ function LessonRow({
   const [title, setTitle] = useState(lesson.title);
   const [videoUrl, setVideoUrl] = useState(lesson.videoUrl ?? '');
   const [videoKey, setVideoKey] = useState(lesson.videoKey ?? '');
+  const [videoStreamId, setVideoStreamId] = useState(lesson.videoStreamId ?? '');
+  const [streamStatus, setStreamStatus] = useState(lesson.streamStatus ?? '');
   const [duration, setDuration] = useState(formatDurationInput(lesson.durationSec));
   const [freePreview, setFreePreview] = useState(lesson.isFreePreview);
   const [description, setDescription] = useState(lesson.description ?? '');
@@ -849,6 +1089,8 @@ function LessonRow({
       setTitle(lesson.title);
       setVideoUrl(lesson.videoUrl ?? '');
       setVideoKey(lesson.videoKey ?? '');
+      setVideoStreamId(lesson.videoStreamId ?? '');
+      setStreamStatus(lesson.streamStatus ?? '');
       setDuration(formatDurationInput(lesson.durationSec));
       setFreePreview(lesson.isFreePreview);
       setDescription(lesson.description ?? '');
@@ -861,11 +1103,14 @@ function LessonRow({
     setSaving(true);
     try {
       const durationSec = parseDurationToSec(duration);
+      // Stream видео байвал гол → videoKey/videoUrl хоосон (backend mutually exclusive)
       const updated = await adminApi.products.lessons.update(productId, lesson.id, {
         title: title.trim(),
         description: description.trim() || undefined,
-        videoUrl: videoKey ? undefined : (videoUrl.trim() || undefined),
-        videoKey: videoKey || undefined,
+        videoStreamId: videoStreamId || undefined,
+        streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
+        videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
+        videoKey: videoStreamId ? undefined : (videoKey || undefined),
         durationSec,
         isFreePreview: freePreview,
       });
@@ -883,16 +1128,18 @@ function LessonRow({
     setTitle(lesson.title);
     setVideoUrl(lesson.videoUrl ?? '');
     setVideoKey(lesson.videoKey ?? '');
+    setVideoStreamId(lesson.videoStreamId ?? '');
+    setStreamStatus(lesson.streamStatus ?? '');
     setDuration(formatDurationInput(lesson.durationSec));
     setFreePreview(lesson.isFreePreview);
     setDescription(lesson.description ?? '');
     setEditing(false);
   }
 
-  const hasVideo = videoKey || videoUrl;
-  const isYoutube = videoUrl && (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be'));
-  const isVimeo = videoUrl && videoUrl.includes('vimeo.com');
-  const videoLabel = videoKey ? 'Байршуулсан' : isYoutube ? 'YouTube' : isVimeo ? 'Vimeo' : videoUrl ? 'Видео' : null;
+  const hasStream = !!lesson.videoStreamId;
+  const isYoutube = lesson.videoUrl && (lesson.videoUrl.includes('youtube.com') || lesson.videoUrl.includes('youtu.be'));
+  const isVimeo = lesson.videoUrl && lesson.videoUrl.includes('vimeo.com');
+  const videoLabel = hasStream ? 'Stream' : lesson.videoKey ? 'Байршуулсан' : isYoutube ? 'YouTube' : isVimeo ? 'Vimeo' : lesson.videoUrl ? 'Видео' : null;
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
@@ -916,8 +1163,11 @@ function LessonRow({
             />
             <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
               <VideoUploadInput
+                productId={productId}
                 videoUrl={videoUrl} setVideoUrl={setVideoUrl}
                 videoKey={videoKey} setVideoKey={setVideoKey}
+                videoStreamId={videoStreamId} setVideoStreamId={setVideoStreamId}
+                setStreamStatus={setStreamStatus}
                 duration={duration} setDuration={setDuration}
                 onUploadingChange={setIsUploading}
               />
@@ -954,11 +1204,15 @@ function LessonRow({
                 <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{stripHtml(lesson.description)}</p>
               )}
               <div className="flex items-center gap-2 mt-0.5">
-                {videoLabel && (
+                {hasStream ? (
+                  <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    <Play className="h-2.5 w-2.5" />Stream
+                  </span>
+                ) : videoLabel ? (
                   <span className="flex items-center gap-0.5 text-[10px] text-primary/70">
                     <Play className="h-2.5 w-2.5" />{videoLabel}
                   </span>
-                )}
+                ) : null}
                 {lesson.durationSec && (
                   <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                     <Clock className="h-2.5 w-2.5" />{formatDurationLabel(lesson.durationSec)}
@@ -1006,6 +1260,8 @@ function AddLessonForm({
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [videoKey, setVideoKey] = useState('');
+  const [videoStreamId, setVideoStreamId] = useState('');
+  const [streamStatus, setStreamStatus] = useState('');
   const [duration, setDuration] = useState('');
   const [freePreview, setFreePreview] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -1014,8 +1270,10 @@ function AddLessonForm({
     mutationFn: () => adminApi.products.lessons.create(productId, {
       title: title.trim(),
       description: description.trim() || undefined,
-      videoUrl: videoKey ? undefined : (videoUrl.trim() || undefined),
-      videoKey: videoKey || undefined,
+      videoStreamId: videoStreamId || undefined,
+      streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
+      videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
+      videoKey: videoStreamId ? undefined : (videoKey || undefined),
       durationSec: parseDurationToSec(duration),
       isFreePreview: freePreview,
       moduleId: moduleId,
@@ -1034,8 +1292,11 @@ function AddLessonForm({
       <RichEditor value={description} onChange={setDescription} placeholder="Хичээлийн тайлбар (заавал биш)" minHeight="60px" />
       <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
         <VideoUploadInput
+          productId={productId}
           videoUrl={videoUrl} setVideoUrl={setVideoUrl}
           videoKey={videoKey} setVideoKey={setVideoKey}
+          videoStreamId={videoStreamId} setVideoStreamId={setVideoStreamId}
+          setStreamStatus={setStreamStatus}
           duration={duration} setDuration={setDuration}
           onUploadingChange={setUploading}
         />

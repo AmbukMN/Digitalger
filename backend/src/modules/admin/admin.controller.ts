@@ -35,6 +35,7 @@ import { EmailService } from '../notifications/email.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { CreateLessonDto, UpdateLessonDto, StreamUploadDto } from './dto/lesson.dto';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
 import { UpdateCategoryDto } from '../categories/dto/update-category.dto';
 import { UpdateSiteDto, UpdateThemeDto } from './dto/update-settings.dto';
@@ -487,7 +488,7 @@ export class AdminController {
   @Post('products/:id/lessons')
   createProductLesson(
     @Param('id') id: string,
-    @Body() body: { title: string; description?: string; videoUrl?: string; videoKey?: string; durationSec?: number; isFreePreview?: boolean; sortOrder?: number; moduleId?: string },
+    @Body() body: CreateLessonDto,
   ) {
     return this.adminProducts.createLesson(id, body);
   }
@@ -495,9 +496,24 @@ export class AdminController {
   @Patch('products/:id/lessons/:lessonId')
   updateProductLesson(
     @Param('lessonId') lessonId: string,
-    @Body() body: Partial<{ title: string; description: string; videoUrl: string; videoKey: string; durationSec: number; isFreePreview: boolean; sortOrder: number; moduleId: string | null }>,
+    @Body() body: UpdateLessonDto,
   ) {
     return this.adminProducts.updateLesson(lessonId, body);
+  }
+
+  // Cloudflare Stream — хичээлийн видео шууд upload (browser→Stream).
+  @Post('products/:id/lessons/stream-upload')
+  createLessonStreamUpload(@Body() body: StreamUploadDto) {
+    return this.adminProducts.createStreamUpload({
+      name: body.name,
+      maxDurationSeconds: body.maxDurationSeconds,
+    });
+  }
+
+  // Upload дууссаны дараа боловсруулалтын төлөв шалгах.
+  @Get('products/:id/lessons/stream-status/:uid')
+  getLessonStreamStatus(@Param('uid') uid: string) {
+    return this.adminProducts.getStreamStatus(uid);
   }
 
   @Delete('products/:id/lessons/:lessonId')

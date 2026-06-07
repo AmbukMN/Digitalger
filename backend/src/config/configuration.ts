@@ -22,6 +22,12 @@ export default () => ({
     publicUrl: process.env.R2_PUBLIC_URL,
     endpoint: process.env.R2_ENDPOINT,
   },
+  // Cloudflare Stream — ЗӨВХӨН төлбөртэй хичээлийн (course lesson) видеонд.
+  // R2-аас ТУСДАА систем. accountId нь R2-тэйгээ ижил байж болно.
+  stream: {
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? process.env.R2_ACCOUNT_ID,
+    token: process.env.CLOUDFLARE_STREAM_TOKEN,
+  },
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   qpay: {
     username: process.env.QPAY_USERNAME,

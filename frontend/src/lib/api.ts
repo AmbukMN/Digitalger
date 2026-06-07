@@ -371,12 +371,44 @@ export const couponsApi = {
 };
 
 // —— Courses ——
+export interface LessonVideoResult {
+  lessonId: string;
+  type: 'stream' | 'r2' | 'external';
+  url?: string;
+  streamToken?: string;
+  hlsUrl?: string;
+  iframeUrl?: string;
+  expiresIn?: number | null;
+}
+
+export interface LessonProgress {
+  lessonId: string;
+  watchedSeconds: number;
+  durationSec: number | null;
+  completed: boolean;
+}
+
 export const coursesApi = {
   getLessonVideoUrl: (token: string, productSlug: string, lessonId: string) =>
-    request<{ lessonId: string; url: string; expiresIn: number | null }>(
+    request<LessonVideoResult>(
       `/courses/${productSlug}/lessons/${lessonId}/video`,
       { token },
     ),
+
+  saveProgress: (
+    token: string,
+    productSlug: string,
+    lessonId: string,
+    body: { watchedSeconds: number; durationSec?: number; completed?: boolean },
+  ) =>
+    request<void>(`/courses/${productSlug}/lessons/${lessonId}/progress`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  getProgress: (token: string, productSlug: string) =>
+    request<LessonProgress[]>(`/courses/${productSlug}/progress`, { token }),
 };
 
 // —— Pages ——

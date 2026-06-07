@@ -70,6 +70,7 @@ model User {
   pageViews     PageView[]
   searchEvents  SearchEvent[]
   auditLogs     UserAuditLog[]
+  lessonProgress LessonProgress[]
 }
 
 model Account {
@@ -231,11 +232,35 @@ model Lesson {
   module        CourseModule? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
   title         String
   description   String?
+  // Видео эх сурвалж — 3 хувилбар (зэрэг дэмжинэ, аль нэг нь):
+  //   videoStreamId → Cloudflare Stream (ШИНЭ хичээлийн видео, signed playback)
+  //   videoKey      → R2 (хуучин хичээлийн видео, presigned)
+  //   videoUrl      → гадаад линк (YouTube/Vimeo)
   videoKey      String?
   videoUrl      String?
+  videoStreamId String?       // Cloudflare Stream UID
+  streamStatus  String?       // pending | ready | error (Stream боловсруулалтын төлөв)
   durationSec   Int?
   isFreePreview Boolean       @default(false)
   sortOrder     Int           @default(0)
+  progress      LessonProgress[]
+}
+
+// Хичээл үзэлтийн явц — continue watching + дууссан тэмдэглэгээ.
+model LessonProgress {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  watchedSeconds Int      @default(0) // сүүлд зогссон байрлал (continue watching)
+  durationSec    Int? // тухайн видеоны нийт урт
+  completed      Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId, updatedAt])
 }
 
 model Order {
