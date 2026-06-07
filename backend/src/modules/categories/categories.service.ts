@@ -17,25 +17,43 @@ export class CategoriesService {
 
   // Ангилал жагсаалт navbar/products/footer-д байнга уншигддаг — 10 мин cache.
   findAll() {
-    return this.cache.getOrSet(CacheKeys.categories, 10 * 60_000, () =>
-      this.prisma.category.findMany({
+    return this.cache.getOrSet(CacheKeys.categories, 10 * 60_000, async () => {
+      const categories = await this.prisma.category.findMany({
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        include: { _count: { select: { products: true } } },
-      }),
-    );
+      });
+      // ⚠️ _count.products нь зөвхөн categoryId (single) relation тоолдог тул
+      // categoryIds (олон категори array)-д байгаа product-уудыг алгасдаг. Product
+      // тухайн категорид categoryId ЭСВЭЛ categoryIds-ийн алинд нь байвал тооцно.
+      const counts = await Promise.all(
+        categories.map((c) =>
+          this.prisma.product.count({
+            where: {
+              published: true,
+              OR: [{ categoryId: c.id }, { categoryIds: { has: c.id } }],
+            },
+          }),
+        ),
+      );
+      return categories.map((c, i) => ({ ...c, _count: { products: counts[i] } }));
+    });
   }
 
   async findBySlug(slug: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { slug },
-      include: { _count: { select: { products: true } } },
-    });
+    const category = await this.prisma.category.findUnique({ where: { slug } });
 
     if (!category) {
       throw new NotFoundException('Category not found');
     }
 
-    return category;
+    // categoryId ЭСВЭЛ categoryIds-д байгаа published product-ийг тоолно.
+    const products = await this.prisma.product.count({
+      where: {
+        published: true,
+        OR: [{ categoryId: category.id }, { categoryIds: { has: category.id } }],
+      },
+    });
+
+    return { ...category, _count: { products } };
   }
 
   async create(dto: CreateCategoryDto) {

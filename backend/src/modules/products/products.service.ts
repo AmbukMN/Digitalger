@@ -71,10 +71,24 @@ export class ProductsService {
     const pageSize = Math.min(48, Math.max(1, query.pageSize ?? 12));
     const skip = (page - 1) * pageSize;
 
+    // Категори шүүлт: product тухайн категорид categoryId (primary) ЭСВЭЛ
+    // categoryIds (олон категори array)-ийн алинд нь байвал гаргана. Зөвхөн
+    // category relation (categoryId)-аар шүүвэл олон категоритой product алга болдог.
+    let categoryFilter: Prisma.ProductWhereInput | undefined;
+    if (query.categorySlug) {
+      const cat = await this.prisma.category.findUnique({
+        where: { slug: query.categorySlug },
+        select: { id: true },
+      });
+      // Олдохгүй слаг → үр дүн хоосон (буруу id-аар шүүж 0 буцаана)
+      const catId = cat?.id ?? '__none__';
+      categoryFilter = { OR: [{ categoryId: catId }, { categoryIds: { has: catId } }] };
+    }
+
     const where: Prisma.ProductWhereInput = {
       published: true,
       ...(query.featured !== undefined && { featured: query.featured }),
-      ...(query.categorySlug && { category: { slug: query.categorySlug } }),
+      ...(categoryFilter ?? {}),
       ...(query.types && query.types.length > 0 && { type: { in: query.types as any[] } }),
       ...(query.onSale && { compareAtPrice: { not: null } }),
     };
