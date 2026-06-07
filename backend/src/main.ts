@@ -7,7 +7,43 @@ import helmet from 'helmet';
 import express from 'express';
 import { AppModule } from './app.module';
 
+/**
+ * Sentry init placeholder — DSN тохируулсан, БА @sentry/node суулгасан үед л
+ * ажиллана. Багц суулгаагүй бол энэ нь чимээгүй no-op (try/catch).
+ * Дараа Sentry бүрэн нэмэхэд зөвхөн `npm i @sentry/node` + SENTRY_DSN env
+ * хангалттай — энд кодын өөрчлөлт шаардахгүй.
+ */
+async function initSentry(): Promise<void> {
+  const dsn = process.env.SENTRY_DSN?.trim();
+  if (!dsn) return;
+  try {
+    // Динамик import — багц байхгүй бол энд алдаа гарч catch-д орно.
+    // Specifier-ийг хувьсагчид хийснээр TS статик resolve хийхгүй (багц
+    // суулгаагүй ч compile хийгдэнэ).
+    const sentryPkg = '@sentry/node';
+    const Sentry = (await import(sentryPkg).catch(() => null)) as {
+      init?: (opts: Record<string, unknown>) => void;
+    } | null;
+    if (!Sentry || typeof Sentry.init !== 'function') {
+      console.warn(
+        '[Sentry] SENTRY_DSN тохирсон ч @sentry/node суулгаагүй байна — алгаслаа.',
+      );
+      return;
+    }
+    Sentry.init({
+      dsn,
+      environment: process.env.NODE_ENV ?? 'development',
+      tracesSampleRate: 0.1,
+    });
+    console.log('[Sentry] идэвхжлээ.');
+  } catch (e) {
+    console.warn('[Sentry] init амжилтгүй:', (e as Error)?.message);
+  }
+}
+
 async function bootstrap() {
+  await initSentry();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     bodyParser: false, // express.json/urlencoded-г доор өөрсдөө тохируулна

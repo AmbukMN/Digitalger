@@ -39,6 +39,7 @@ import { SubscribersModule } from './modules/subscribers/subscribers.module';
 import { ContactModule } from './modules/contact/contact.module';
 import { EmailEventsModule } from './modules/email-events/email-events.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 @Module({
   imports: [
@@ -100,6 +101,7 @@ import { MarketingModule } from './modules/marketing/marketing.module';
     ContactModule,
     EmailEventsModule,
     MarketingModule,
+    BackupModule,
   ],
   controllers: [AppController],
   providers: [

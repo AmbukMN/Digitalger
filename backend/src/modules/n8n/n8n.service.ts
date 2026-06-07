@@ -40,6 +40,14 @@ export interface DailyReportEvent {
   topProducts: { title: string; count: number; revenue: number }[];
 }
 
+// Системийн анхааруулга — /webhook/alert n8n workflow руу → Telegram (admin)
+export interface AlertEvent {
+  level: 'warning' | 'critical';
+  title: string;
+  message: string;
+  source?: string;
+}
+
 @Injectable()
 export class N8nService {
   private readonly logger = new Logger(N8nService.name);
@@ -71,6 +79,17 @@ export class N8nService {
 
   async emitDailyReport(event: DailyReportEvent): Promise<void> {
     await this.post('/webhook/daily-report', { event: 'daily.report', ...event });
+  }
+
+  // Системийн анхааруулга — backup алдаа, health degraded гэх мэт.
+  // ⚠️ /webhook/alert n8n workflow хэрэглэгч тал дээр идэвхжүүлэх шаардлагатай
+  // (n8n/workflows/monitoring/system-alert.json → import + active болгох).
+  async emitAlert(event: AlertEvent): Promise<void> {
+    await this.post('/webhook/alert', {
+      event: 'system.alert',
+      ...event,
+      emittedAt: new Date().toISOString(),
+    });
   }
 
   // ─── internal ───────────────────────────────────────────────────────────────

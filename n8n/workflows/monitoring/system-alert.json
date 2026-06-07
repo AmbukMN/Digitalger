@@ -1,0 +1,95 @@
+{
+  "id": "d4e5f6a7-0004-0004-0004-000000000001",
+  "name": "System Alert → Telegram (Admin)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000010",
+      "name": "Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "d4e5f6a7-0004-0004-0004-000000000099"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "d4e5f6a7-0004-0004-0004-000000000020",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "system.alert",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000030",
+      "name": "Filter system.alert",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body;\n\nconst level = (body.level || 'warning').toLowerCase();\nconst icon = level === 'critical' ? '\\uD83D\\uDD34' : '\\uD83D\\uDFE1';\nconst title = body.title || 'Системийн анхааруулга';\nconst message = body.message || '';\nconst source = body.source ? `\\n\\u0413\\u0430\\u0440\\u0430\\u043b: ${body.source}` : '';\nconst at = body.emittedAt\n  ? new Date(body.emittedAt).toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' })\n  : new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' });\n\nreturn [{\n  json: {\n    message: `${icon} ${title}\\n\\n${message}${source}\\n\\u0426\\u0430\\u0433: ${at}`\n  }\n}];"
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000040",
+      "name": "Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "1587161751",
+        "text": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000050",
+      "name": "Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"received\": true }",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-0004-0004-000000000060",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 480]
+    }
+  ],
+  "connections": {
+    "Alert Webhook": {
+      "main": [[
+        { "node": "Filter system.alert", "type": "main", "index": 0 },
+        { "node": "Respond 200", "type": "main", "index": 0 }
+      ]]
+    },
+    "Filter system.alert": {
+      "main": [[{ "node": "Build Message", "type": "main", "index": 0 }]]
+    },
+    "Build Message": {
+      "main": [[{ "node": "Telegram Alert", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "d4e5f6a7-0004-0004-0004-000000000100",
+  "meta": { "templateCredsSetupCompleted": true, "instanceId": "digitalger-n8n" },
+  "tags": []
+}
