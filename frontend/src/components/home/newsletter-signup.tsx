@@ -1,40 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Input } from '@digitalger/shared/ui';
 import { subscribersApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { Loader2, Mail, Send } from 'lucide-react';
+import { CheckCircle2, Loader2, Mail, Send } from 'lucide-react';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function NewsletterSignup() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false); // амжилттай бүртгэлийн дараа товч "✓"
+  const submitting = useRef(false);         // товч 2 удаа дарах/спам давхар submit-аас сэргийлэх
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || submitting.current) return;
 
-    const value = email.trim();
-    if (!value) {
-      toast.error('Зөв и-мэйл оруулна уу');
-      return;
-    }
+    // trim + lowercase — давхардал/буруу хэлбэрээс сэргийлэх
+    const value = email.trim().toLowerCase();
     if (!EMAIL_RE.test(value)) {
       toast.error('Зөв и-мэйл оруулна уу');
       return;
     }
 
+    submitting.current = true;
     setLoading(true);
     try {
       await subscribersApi.subscribe({ email: value, source: 'homepage' });
       toast.success('Амжилттай бүртгэгдлээ! 🎁 Таны мэйл рүү 10% хөнгөлөлтийн купон болон ҮНЭГҮЙ бүтээгдэхүүний татах линк илгээлээ. Мэйлээ шалгаарай!');
       setEmail('');
+      setDone(true);
+      setTimeout(() => setDone(false), 4000); // 4 сек дараа дахин бүртгэх боломжтой
     } catch {
       toast.error('Алдаа гарлаа, дахин оролдоно уу');
     } finally {
       setLoading(false);
+      submitting.current = false;
     }
   };
 
@@ -55,12 +58,14 @@ export function NewsletterSignup() {
         />
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || done}
           aria-label="Бүртгүүлэх"
           className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md bg-[#ffbe00] text-[#022179] transition-colors hover:bg-[#ffd84d] disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
+          ) : done ? (
+            <CheckCircle2 className="h-4 w-4" />
           ) : (
             <Send className="h-4 w-4" />
           )}

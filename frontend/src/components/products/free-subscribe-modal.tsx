@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { Gift, Loader2, Mail, Send, X } from 'lucide-react';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const STORE_KEY = 'dg-free-popup';
+const STORE_KEY = 'dg-free-popup-v1'; // version-той — ирээдүйд лог арилгахад хялбар
 const SHOW_DELAY = 2000;            // 2 сек дараа нээгдэнэ
 const DISMISS_COOLDOWN = 7 * 24 * 60 * 60 * 1000; // X дарвал 7 хоног амарна
 
@@ -35,11 +35,12 @@ function writeStore(v: Stored) {
  * Давтамж: имэйл бүртгүүлсэн → хэзээ ч дахихгүй | X дарж хаасан → 7 хоног амарна.
  * Зөвхөн isFree=true (үнэгүй) бүтээгдэхүүн дээр ашиглана.
  */
-export function FreeSubscribeModal() {
+export function FreeSubscribeModal({ slug }: { slug?: string }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const ran = useRef(false); // StrictMode давхар mount-аас сэргийлэх
+  const ran = useRef(false);        // StrictMode давхар mount-аас сэргийлэх
+  const submitting = useRef(false); // товч 2 удаа дарах/спам-аас сэргийлэх (loading-аас давхар)
 
   useEffect(() => {
     if (ran.current) return;
@@ -64,15 +65,20 @@ export function FreeSubscribeModal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
-    const value = email.trim();
+    // Товч 2 удаа дарах/спам давхар submit-аас сэргийлэх (loading + ref давхар хамгаалалт)
+    if (loading || submitting.current) return;
+    // trim + lowercase — "Email@X.MN " гэх зэргийг цэвэрлэнэ (давхардал гарахаас сэргийлэх)
+    const value = email.trim().toLowerCase();
     if (!EMAIL_RE.test(value)) {
       toast.error('Зөв и-мэйл оруулна уу');
       return;
     }
+    submitting.current = true;
     setLoading(true);
     try {
-      await subscribersApi.subscribe({ email: value, source: 'free-ppt' });
+      // Dynamic source — ирээдүйд олон free product analytics-д ялгаатай харагдана
+      const source = slug ? `free-product-${slug}` : 'free-ppt';
+      await subscribersApi.subscribe({ email: value, source });
       toast.success('Амжилттай бүртгэгдлээ! 🎁 Таны мэйл рүү 10% хөнгөлөлтийн купон болон ҮНЭГҮЙ бүтээгдэхүүний мэдээлэл илгээлээ. Мэйлээ шалгаарай!');
       writeStore({ subscribed: true }); // дахин ХЭЗЭЭ Ч харуулахгүй
       setOpen(false);
@@ -80,6 +86,7 @@ export function FreeSubscribeModal() {
       toast.error('Алдаа гарлаа, дахин оролдоно уу');
     } finally {
       setLoading(false);
+      submitting.current = false;
     }
   };
 
@@ -103,7 +110,7 @@ export function FreeSubscribeModal() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 12 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed left-1/2 top-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            className="fixed left-1/2 top-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl"
             role="dialog"
             aria-modal
           >

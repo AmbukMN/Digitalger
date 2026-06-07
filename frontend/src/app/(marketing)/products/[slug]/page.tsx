@@ -175,7 +175,7 @@ export default async function ProductDetailPage({ params }: Props) {
     <>
       <ProductTracker productId={product.id} productSlug={product.slug} price={Number(product.price) || 0} />
       {/* Үнэгүй бүтээгдэхүүн дээр 2 сек дараа имэйл subscribe popup (7 хоногт 1 удаа) */}
-      {isFree && <FreeSubscribeModal />}
+      {isFree && <FreeSubscribeModal slug={product.slug} />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
