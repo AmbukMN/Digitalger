@@ -96,7 +96,7 @@ export class EmailEventsController {
    */
   @SkipThrottle()
   @Post('test-marketing')
-  async testMarketing(@Body('to') to?: string, @Body('secret') secret?: string) {
+  async testMarketing(@Body('to') to?: string, @Body('secret') secret?: string, @Body('only') only?: string[]) {
     // Энгийн хамгаалалт — зөвхөн энэ secret-тэй хүсэлт зөвшөөрнө (deploy дараа тест).
     if (secret !== 'dg-mkt-test-2026') {
       return { success: false, error: 'unauthorized' };
@@ -107,13 +107,17 @@ export class EmailEventsController {
       { title: '3000+ PowerPoint мэргэжлийн загвар', price: 19000 },
       { title: '1300 Font + 200 Canva багц', price: 49900 },
     ];
+    // only массив өгвөл зөвхөн тэдгээрийг л явуулна (бүгдийг биш). Жишээ:
+    // { only: ['reactivation','expiring','new-product'] }
+    const want = (k: string) => !only || only.length === 0 || only.includes(k);
+    let sent = 0;
 
-    this.email.sendCartReminder({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', items, total: 68900 });
-    this.email.sendDiscountPush({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', couponCode: 'SUBSCRIBER10', discountPercent: 10 });
-    this.email.sendExpiringCoupon({ to: target, name: 'Амгаланбаяр', couponCode: 'SUBSCRIBER10', discountLabel: '10% хөнгөлөлт', expiresAt: exp, couponId: 'TESTCPN1' });
-    this.email.sendNewProduct({ to: target, productTitle: '1300 Font + 200 Canva + 100 PowerPoint — НЭГДСЭН БАГЦ', productSlug: 'font-canva-powerpoint-free', price: 0, salePrice: 0, imageUrl: null });
-    this.email.sendReactivation({ to: target, name: 'Амгаланбаяр', couponCode: 'WELCOMEBACK10', discountLabel: '10% хөнгөлөлт' });
+    if (want('cart')) { this.email.sendCartReminder({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', items, total: 68900 }); sent++; }
+    if (want('discount')) { this.email.sendDiscountPush({ to: target, name: 'Амгаланбаяр', orderId: 'TESTORDER1', couponCode: 'SUBSCRIBER10', discountPercent: 10 }); sent++; }
+    if (want('expiring')) { this.email.sendExpiringCoupon({ to: target, name: 'Амгаланбаяр', couponCode: 'SUBSCRIBER10', discountLabel: '10% хөнгөлөлт', expiresAt: exp, couponId: 'TESTCPN1' }); sent++; }
+    if (want('new-product')) { this.email.sendNewProduct({ to: target, productTitle: '1300 Font + 200 Canva + 100 PowerPoint — НЭГДСЭН БАГЦ', productSlug: 'font-canva-powerpoint-free', price: 0, salePrice: 0, imageUrl: null }); sent++; }
+    if (want('reactivation')) { this.email.sendReactivation({ to: target, name: 'Амгаланбаяр', couponCode: 'WELCOMEBACK10', discountLabel: '10% хөнгөлөлт' }); sent++; }
 
-    return { success: true, sent: 5, to: target };
+    return { success: true, sent, to: target };
   }
 }
