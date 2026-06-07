@@ -28,6 +28,7 @@ import {
 import { formatPrice } from '@digitalger/shared';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { ProductTracker } from '@/components/products/product-tracker';
+import { FreeSubscribeModal } from '@/components/products/free-subscribe-modal';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -168,9 +169,13 @@ export default async function ProductDetailPage({ params }: Props) {
     })),
   } : null;
 
+  const isFree = product.price == null || Number(product.price) === 0;
+
   return (
     <>
       <ProductTracker productId={product.id} productSlug={product.slug} price={Number(product.price) || 0} />
+      {/* Үнэгүй бүтээгдэхүүн дээр 2 сек дараа имэйл subscribe popup (7 хоногт 1 удаа) */}
+      {isFree && <FreeSubscribeModal />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
