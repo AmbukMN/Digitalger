@@ -139,12 +139,12 @@ export class OrdersService {
         continue;
       }
 
-      // Per-user-per-product: skip if this user already used this coupon on any of these products
+      // ⚠️ Нэг хэрэглэгч нэг купоныг ЗӨВХӨН НЭГ УДАА (бүх бүтээгдэхүүн дээр).
+      // Зөвхөн PAID захиалгыг тооцно (PENDING нь төлөгдөөгүй тул хязгаарлахгүй).
       const alreadyUsed = await this.prisma.order.findFirst({
         where: {
           userId,
-          status: { in: [OrderStatus.PAID, OrderStatus.PENDING] },
-          items: { some: { productId: { in: productIds } } },
+          status: OrderStatus.PAID,
           OR: [
             { couponCode: { equals: code } },
             { couponCode: { startsWith: `${code},` } },

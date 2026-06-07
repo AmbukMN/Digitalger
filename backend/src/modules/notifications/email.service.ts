@@ -80,10 +80,18 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
   private emailHeader(): string {
     // Бодит PNG лого (DG badge биш) — frontend/public/brand/logo-white.png
+    // Лого (height 40) + хажууд "DigitalGer.mn" цагаан title, table-аар голлуулж зэрэгцүүлэв.
     return `
   <tr><td style="background:#022179;padding:20px 36px;text-align:center">
-    <a href="${this.siteUrl}" style="text-decoration:none">
-      <img src="${this.siteUrl}/brand/logo-white.png" alt="DigitalGer" height="32" style="height:32px;width:auto;display:inline-block;border:0" />
+    <a href="${this.siteUrl}" style="text-decoration:none;display:inline-block">
+      <table cellpadding="0" cellspacing="0" style="margin:0 auto"><tr>
+        <td style="vertical-align:middle;padding-right:12px">
+          <img src="${this.siteUrl}/brand/logo-white.png" alt="DigitalGer" height="40" style="height:40px;width:auto;display:block;border:0" />
+        </td>
+        <td style="vertical-align:middle">
+          <span style="font-size:20px;font-weight:800;color:#ffffff;vertical-align:middle;font-family:Roboto,'Helvetica Neue',Arial,system-ui,sans-serif">DigitalGer.mn</span>
+        </td>
+      </tr></table>
     </a>
   </td></tr>`;
   }
@@ -118,7 +126,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       : '';
 
     return `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Roboto,'Helvetica Neue',Arial,system-ui,sans-serif">
 ${pre}
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
 <tr><td align="center">
@@ -362,11 +370,13 @@ ${pixel}
 
   // ═══ MARKETING AUTOMATION TEMPLATES ═════════════════════════════════════════
   private itemRows(items: { title: string; price: number }[]): string {
+    // Cart reminder-ийн бүтээгдэхүүний мөр — тод background, нэр bold, текст хар.
     return items
       .map(
         (i) =>
-          `<tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333">${i.title}</td>
-           <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;text-align:right;white-space:nowrap">₮${i.price.toLocaleString()}</td></tr>`,
+          `<tr><td style="padding:12px 16px;background:#f8f9fb;border:1px solid #e6e9f0;border-right:0;border-radius:8px 0 0 8px;font-size:14px;font-weight:600;color:#1a1a1a">${i.title}</td>
+           <td style="padding:12px 16px;background:#f8f9fb;border:1px solid #e6e9f0;border-left:0;border-radius:0 8px 8px 0;font-size:14px;font-weight:700;color:#1a1a1a;text-align:right;white-space:nowrap">₮${i.price.toLocaleString()}</td></tr>
+           <tr><td colspan="2" style="height:8px;line-height:8px;font-size:0">&nbsp;</td></tr>`,
       )
       .join('');
   }
@@ -375,43 +385,43 @@ ${pixel}
   async sendCartReminder(opts: { to: string; name: string | null; orderId: string; items: { title: string; price: number }[]; total: number }) {
     const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
     const body = `
-      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таны сонгосон бүтээгдэхүүн сагсанд хүлээж байна 👀 Худалдан авалтаа дуусгаж шууд татаж аваарай.</p>
+      <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таны сонгосон бүтээгдэхүүн сагсанд хүлээж байна 👀 Худалдан авалтаа дуусгаж шууд татаж аваарай.</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px">${this.itemRows(opts.items)}</table>
       <div style="border-top:2px solid #022179;padding-top:12px;margin-top:4px;text-align:right">
         <span style="font-size:17px;font-weight:800;color:#022179">Нийт: ₮${opts.total.toLocaleString()}</span>
       </div>`;
     const html = this.emailLayout({
-      heading: 'Таны сонгосон бүтээгдэхүүн хүлээж байна 👀',
+      heading: 'Таны сонгосон бүтээгдэхүүн таныг хүлээж байна 👀',
       bodyHtml: body,
       ctaText: 'Худалдан авалтаа дуусгах →',
       ctaUrl: `${this.siteUrl}/checkout`,
       preheader: 'Сагсанд байгаа бүтээгдэхүүнээ авч амжаарай',
       campaign: 'cart-1h', email: opts.to, refId: opts.orderId, showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, 'Таны сонгосон бүтээгдэхүүн хүлээж байна 👀', html));
+    this.enqueue(() => this.send(opts.to, 'Таны сонгосон бүтээгдэхүүн таныг хүлээж байна 👀', html));
   }
 
   /** 2. Discount push (24ц) — аваагүй хэрэглэгчид 10% coupon follow-up. */
   async sendDiscountPush(opts: { to: string; name: string | null; orderId: string; couponCode: string; discountPercent: number }) {
     const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
     const body = `
-      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таны сонирхсон бүтээгдэхүүн хүлээсээр байна. Танд тусгай бэлэг бэлдлээ 🎁</p>
-      <div style="background:linear-gradient(135deg,#022179,#0a3aa0);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
+      <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таны сонирхсон бүтээгдэхүүн хүлээсээр байна. Танд тусгай бэлэг бэлдлээ 🎁</p>
+      <div style="background:linear-gradient(135deg,#1e40af,#3b5bdb);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
         <p style="margin:0 0 6px;font-size:13px;color:#ffbe00;text-transform:uppercase;letter-spacing:1px;font-weight:700">${opts.discountPercent}% ХӨНГӨЛӨЛТ</p>
         <div style="background:#fff;border-radius:10px;padding:14px;display:inline-block">
           <span style="font-family:monospace;font-size:24px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
         </div>
-        <p style="margin:12px 0 0;font-size:12px;color:#cdd8f0">Худалдан авалт хийхдээ энэ кодыг ашиглаарай</p>
+        <p style="margin:12px 0 0;font-size:12px;color:#e3e9fb">Худалдан авалт хийхдээ энэ купоныг хуулж купон оруулах хэсэгт оруулж идэвхжүүлээрэй!</p>
       </div>`;
     const html = this.emailLayout({
-      heading: 'Танд 10% хөнгөлөлт бэлэглэлээ 🎁',
+      heading: 'Танд 10% хөнгөлөлт бэлэглэж байна 🎁',
       bodyHtml: body,
       ctaText: 'Хямдралтай авах →',
       ctaUrl: `${this.siteUrl}/checkout`,
       preheader: `${opts.discountPercent}% хөнгөлөлтийн код таныг хүлээж байна`,
       campaign: 'discount-24h', email: opts.to, refId: opts.orderId, showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, '🎁 Танд 10% хөнгөлөлт бэлэглэлээ', html));
+    this.enqueue(() => this.send(opts.to, '🎁 Танд 10% хөнгөлөлт бэлэглэж байна', html));
   }
 
   /** 3. Expiring coupon (12ц өмнө) — coupon удахгүй дуусна сануулга. */
@@ -419,21 +429,21 @@ ${pixel}
     const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
     const exp = new Date(opts.expiresAt).toLocaleString('mn-MN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const body = `
-      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таны <strong>${opts.couponCode}</strong> хөнгөлөлтийн код удахгүй дуусах гэж байна ⏰ Ашиглаж амжаарай!</p>
+      <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Та амжиж ашиглаарай! Таны <strong>${opts.couponCode}</strong> хөнгөлөлтийн код удахгүй дуусах гэж байна.</p>
       <div style="background:#fffbef;border:1px solid #ffe9a8;border-radius:14px;padding:20px;text-align:center;margin-bottom:8px">
         <p style="margin:0 0 8px;font-size:13px;color:#a07b00;font-weight:700">${opts.discountLabel}</p>
         <span style="font-family:monospace;font-size:22px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
         <p style="margin:12px 0 0;font-size:13px;color:#c0392b;font-weight:600">⏰ Дуусах хугацаа: ${exp}</p>
       </div>`;
     const html = this.emailLayout({
-      heading: '⏰ Таны хөнгөлөлт удахгүй дуусна',
+      heading: '⏰ Танд бэлэглэсэн хөнгөлөлтийн купон дуусаж байна',
       bodyHtml: body,
       ctaText: 'Одоо ашиглах →',
       ctaUrl: `${this.siteUrl}/products`,
       preheader: 'Хөнгөлөлтийн кодоо ашиглаж амжаарай',
       campaign: 'coupon-expiring', email: opts.to, refId: opts.couponId, showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, '⏰ Таны хөнгөлөлтийн код удахгүй дуусна', html));
+    this.enqueue(() => this.send(opts.to, '⏰ Танд бэлэглэсэн хөнгөлөлтийн купон дуусаж байна', html));
   }
 
   /** 4. New product notification — subscriber-уудад шинэ бүтээгдэхүүн. */
@@ -444,7 +454,7 @@ ${pixel}
       ? `<tr><td style="padding:0 0 16px"><img src="${opts.imageUrl}" alt="${opts.productTitle}" width="528" style="width:100%;max-width:528px;border-radius:12px;display:block" /></td></tr>`
       : '';
     const body = `
-      <p style="margin:0 0 16px;font-size:15px;color:#555">Манайд шинэ бүтээгдэхүүн нэмэгдлээ! Хамгийн түрүүнд танилцаарай 👇</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Манайд шинэ бүтээгдэхүүн нэмэгдлээ! Хамгийн түрүүнд танилцаарай 👇</p>
       <table width="100%" cellpadding="0" cellspacing="0">
         ${img}
         <tr><td style="text-align:center">
@@ -467,22 +477,22 @@ ${pixel}
   async sendReactivation(opts: { to: string; name: string | null; couponCode: string; discountLabel: string }) {
     const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
     const body = `
-      <p style="margin:0 0 20px;font-size:15px;color:#555">${greeting}<br>Таныг DigitalGer дээр санасаар байна 👋 Эргэн ирэхэд тань зориулж тусгай бэлэг бэлдлээ.</p>
-      <div style="background:linear-gradient(135deg,#022179,#0a3aa0);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
+      <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таныг DigitalGer.mn дээр эргэн ирэхэд тань зориулж тусгай хөнгөлөлтийн бэлэг илгээж байна.</p>
+      <div style="background:linear-gradient(135deg,#1e40af,#3b5bdb);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
         <p style="margin:0 0 6px;font-size:13px;color:#ffbe00;text-transform:uppercase;letter-spacing:1px;font-weight:700">${opts.discountLabel}</p>
         <div style="background:#fff;border-radius:10px;padding:14px;display:inline-block">
           <span style="font-family:monospace;font-size:24px;font-weight:800;color:#022179;letter-spacing:2px">${opts.couponCode}</span>
         </div>
       </div>`;
     const html = this.emailLayout({
-      heading: 'Таныг хүлээж байна 👋',
+      heading: 'Таныг бид хүлээсээр байна 👋',
       bodyHtml: body,
       ctaText: 'Шинэ бүтээгдэхүүн үзэх →',
       ctaUrl: `${this.siteUrl}/products`,
       preheader: 'Эргэн ирэхэд тань зориулсан тусгай хөнгөлөлт',
       campaign: 'reactivation', email: opts.to, showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, 'Таныг DigitalGer дээр хүлээж байна 👋', html));
+    this.enqueue(() => this.send(opts.to, 'Таныг бид хүлээсээр байна 👋', html));
   }
 
   /** Имэйл нээлт (pixel) бүртгэх. */

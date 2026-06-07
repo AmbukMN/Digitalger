@@ -133,13 +133,14 @@ export class CouponsService {
       };
     }
 
-    // Per-user-per-product check: one specific coupon per user per product
-    if (userId && productIds && productIds.length > 0) {
+    // ⚠️ Нэг хэрэглэгч нэг купоныг ЗӨВХӨН НЭГ УДАА ашиглана (бүх бүтээгдэхүүн дээр).
+    // Зөвхөн PAID (бодитоор худалдсан) захиалгыг тооцно — PENDING нь хараахан
+    // төлөгдөөгүй тул хязгаарлахгүй (хэрэглэгч сагсаа өөрчилж болно).
+    if (userId) {
       const alreadyUsed = await this.prisma.order.findFirst({
         where: {
           userId,
-          status: { in: [OrderStatus.PAID, OrderStatus.PENDING] },
-          items: { some: { productId: { in: productIds } } },
+          status: OrderStatus.PAID,
           OR: [
             { couponCode: { equals: normalizedCode } },
             { couponCode: { startsWith: `${normalizedCode},` } },

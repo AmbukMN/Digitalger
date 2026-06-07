@@ -11,6 +11,10 @@ const DAY = 24 * HOUR;
 const PUBLIC_COUPON_CODE = 'SUBSCRIBER10';
 const PUBLIC_COUPON_PERCENT = 10;
 const PUBLIC_COUPON_LABEL = '10% хөнгөлөлт';
+// Reactivation (30 хоног идэвхгүй) — ТУСДАА coupon. Хэрэглэгч SUBSCRIBER10-ийг
+// аль хэдийн ашигласан байж болзошгүй тул шинэ кодоор буцаан татна.
+const REACTIVATION_COUPON_CODE = 'WELCOMEBACK10';
+const REACTIVATION_COUPON_LABEL = '10% хөнгөлөлт';
 
 // Reactivation нэг өдөрт хэдэн хэрэглэгчид явуулах хязгаар
 const REACTIVATION_BATCH = 200;
@@ -54,6 +58,24 @@ export class MarketingService {
     if (user.marketingOptOut) return false;
     if (!EMAIL_RE.test(email)) return false;
     return true;
+  }
+
+  /** Хэрэглэгч тухайн coupon-ийг PAID захиалгад аль хэдийн ашигласан эсэх. */
+  private async userUsedCoupon(userId: string, code: string): Promise<boolean> {
+    const found = await this.prisma.order.findFirst({
+      where: {
+        userId,
+        status: OrderStatus.PAID,
+        OR: [
+          { couponCode: { equals: code } },
+          { couponCode: { startsWith: `${code},` } },
+          { couponCode: { endsWith: `,${code}` } },
+          { couponCode: { contains: `,${code},` } },
+        ],
+      },
+      select: { id: true },
+    });
+    return !!found;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -139,7 +161,7 @@ export class MarketingService {
       },
       include: {
         user: {
-          select: { email: true, name: true, isGuest: true, blocked: true, marketingOptOut: true },
+          select: { id: true, email: true, name: true, isGuest: true, blocked: true, marketingOptOut: true },
         },
       },
     });
@@ -147,7 +169,10 @@ export class MarketingService {
     let sent = 0;
     for (const order of orders) {
       try {
-        if (this.canSendMarketing(order.user)) {
+        // ⚠️ Хэрэглэгч энэ coupon-ийг аль хэдийн ашигласан (PAID) бол дахин coupon
+        // явуулахгүй (өмнө аваад худалдсан хэрэглэгчид давхар бэлэглэхгүй).
+        const usedCoupon = await this.userUsedCoupon(order.user.id, PUBLIC_COUPON_CODE);
+        if (this.canSendMarketing(order.user) && !usedCoupon) {
           this.email.sendDiscountPush({
             to: order.user.email as string,
             name: order.user.name ?? null,
@@ -293,11 +318,13 @@ export class MarketingService {
       for (const user of users) {
         try {
           if (this.canSendMarketing(user)) {
+            // ТУСДАА coupon (WELCOMEBACK10) — SUBSCRIBER10-ийг өмнө ашигласан байж
+            // болзошгүй тул дахин ашиглаж болохуйц шинэ кодоор буцаан татна.
             this.email.sendReactivation({
               to: user.email,
               name: user.name ?? null,
-              couponCode: PUBLIC_COUPON_CODE,
-              discountLabel: PUBLIC_COUPON_LABEL,
+              couponCode: REACTIVATION_COUPON_CODE,
+              discountLabel: REACTIVATION_COUPON_LABEL,
             });
             sent++;
           }
