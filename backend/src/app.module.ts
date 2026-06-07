@@ -36,6 +36,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiModule } from './modules/ai/ai.module';
 import { TransferModule } from './modules/transfer/transfer.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
+import { ContactModule } from './modules/contact/contact.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { SubscribersModule } from './modules/subscribers/subscribers.module';
     AiModule,
     TransferModule,
     SubscribersModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [

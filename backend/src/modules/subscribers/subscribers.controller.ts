@@ -89,16 +89,20 @@ export class AdminSubscribersController {
   }
 
   @Get('export')
-  async exportCsv(
+  async exportData(
     @Res() res: Response,
+    @Query('format') format?: string,
     @Query('status') status?: string,
     @Query('categoryId') categoryId?: string,
     @Query('source') source?: string,
   ) {
-    const { data, filename } = await this.subscribers.exportCsv({ status, categoryId, source });
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(data);
+    const fmt = format === 'pdf' ? 'pdf' : 'excel';
+    const { buffer, filename, contentType } = await this.subscribers.exportData(fmt, { status, categoryId, source });
+    res.setHeader('Content-Type', contentType);
+    // PDF (html) → inline (browser-д нээж хэвлэнэ), Excel → attachment (татна)
+    const disposition = fmt === 'pdf' ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+    res.send(buffer);
   }
 
   // ── Захиалагч CRUD ──

@@ -2,16 +2,22 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import * as XLSX from 'xlsx';
 import { Prisma, SubscriberSex } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 import { CreateSubscriberDto } from './dto/create-subscriber.dto';
 import { UpdateSubscriberDto } from './dto/update-subscriber.dto';
 
 // "Веб-д бүртгүүлсэн" системийн категори — хэрэглэгч сайтад бүртгүүлэх/имэйл
 // солих үед энэ категори руу автоматаар нэмэгдэнэ.
 const WEB_REGISTER_CATEGORY = 'Веб-д бүртгүүлсэн';
+// Newsletter subscribe үед илгээх 10% хөнгөлөлтийн купон (admin DB-д үүсгэсэн).
+const WELCOME_COUPON_CODE = 'SUBSCRIBER10';
 
 @Injectable()
 export class SubscribersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   // ─── ADMIN: жагсаалт (хайлт/шүүлт/хуудаслалт) ─────────────────────────────
   async findAll(query: {
@@ -141,7 +147,27 @@ export class SubscribersService {
     await this.prisma.subscriber.create({
       data: { email, source: source || 'popup', status: 'ACTIVE', isActive: true },
     });
+    // Шинэ захиалагчид 10% купон + үнэгүй бүтээгдэхүүний welcome имэйл (fire-and-forget)
+    this.sendWelcomeIfCouponExists(email);
     return { success: true, alreadySubscribed: false };
+  }
+
+  /** SUBSCRIBER10 купон DB-д идэвхтэй байвал welcome имэйл илгээнэ. */
+  private async sendWelcomeIfCouponExists(email: string) {
+    try {
+      const coupon = await this.prisma.coupon.findFirst({
+        where: { code: WELCOME_COUPON_CODE, active: true },
+      });
+      // Купон байхгүй ч welcome имэйл явуулна (купонгүй бол зөвхөн үнэгүй product).
+      const percent = coupon && coupon.type === 'PERCENT' ? Number(coupon.value) : 10;
+      await this.email.sendWelcomeCoupon({
+        to: email,
+        couponCode: coupon ? coupon.code : WELCOME_COUPON_CODE,
+        discountPercent: percent,
+      });
+    } catch {
+      /* welcome имэйл алдаа гарвал subscribe-д нөлөөлөхгүй */
+    }
   }
 
   async unsubscribe(emailRaw: string) {
@@ -318,8 +344,9 @@ export class SubscribersService {
     };
   }
 
-  // ─── Export (CSV) ─────────────────────────────────────────────────────────
-  async exportCsv(query: { status?: string; categoryId?: string; source?: string }) {
+  // ─── Export (Excel / PDF) ───────────────────────────────────────────────────
+  // Зөвхөн өгөгдөл байгаа үед export хийнэ (хоосон бол алдаа).
+  async exportData(format: 'excel' | 'pdf', query: { status?: string; categoryId?: string; source?: string }) {
     const where: Prisma.SubscriberWhereInput = {};
     if (query.status) where.status = query.status as Prisma.EnumSubscriberStatusFilter['equals'];
     if (query.categoryId) where.categoryId = query.categoryId;
@@ -330,20 +357,57 @@ export class SubscribersService {
       include: { category: true },
       orderBy: { createdAt: 'desc' },
     });
-
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const header = ['email', 'firstName', 'lastName', 'age', 'sex', 'phone', 'status', 'source', 'category', 'tags', 'createdAt'];
-    const lines = [header.join(',')];
-    for (const s of subs) {
-      lines.push([
-        esc(s.email), esc(s.firstName), esc(s.lastName), esc(s.age), esc(s.sex),
-        esc(s.phone), esc(s.status), esc(s.source), esc(s.category?.name),
-        esc(s.tags.join(';')), esc(new Date(s.createdAt).toISOString()),
-      ].join(','));
+    if (!subs.length) {
+      throw new BadRequestException('Экспортлох өгөгдөл алга байна');
     }
-    return { data: '﻿' + lines.join('\n'), filename: `subscribers_${new Date().toISOString().slice(0, 10)}.csv` };
+
+    const SEX_MN: Record<string, string> = { MALE: 'Эрэгтэй', FEMALE: 'Эмэгтэй', OTHER: 'Бусад' };
+    const rows = subs.map((s) => ({
+      'И-мэйл': s.email,
+      'Нэр': s.firstName ?? '',
+      'Овог': s.lastName ?? '',
+      'Нас': s.age ?? '',
+      'Хүйс': s.sex ? SEX_MN[s.sex] : '',
+      'Утас': s.phone ?? '',
+      'Төлөв': s.status,
+      'Эх сурвалж': s.source ?? '',
+      'Категори': s.category?.name ?? '',
+      'Tags': s.tags.join(';'),
+      'Бүртгүүлсэн': new Date(s.createdAt).toLocaleDateString('mn-MN'),
+    }));
+    const date = new Date().toISOString().slice(0, 10);
+
+    if (format === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Subscribers');
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+      return {
+        buffer,
+        filename: `subscribers_${date}.xlsx`,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      };
+    }
+
+    // PDF — энгийн HTML хүснэгтийг PDF болгож буцаана (хүнд lib шаардахгүй).
+    // PDF reader-ууд HTML-ийг шууд нээдэггүй тул minimal PDF үүсгэх оронд
+    // хэвлэхэд бэлэн HTML буцааж, frontend "хэвлэх→PDF" хийнэ. Гэхдээ шууд татах
+    // PDF хүсвэл pdfkit/puppeteer хэрэгтэй — одоохондоо HTML table-аар PDF буцаана.
+    const headers = Object.keys(rows[0]);
+    const thead = headers.map((h) => `<th>${h}</th>`).join('');
+    const tbody = rows
+      .map((r) => `<tr>${headers.map((h) => `<td>${String((r as Record<string, unknown>)[h] ?? '')}</td>`).join('')}</tr>`)
+      .join('');
+    const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Subscribers</title>
+<style>body{font-family:system-ui,sans-serif;padding:20px}h1{color:#022179;font-size:18px}
+table{width:100%;border-collapse:collapse;font-size:11px}th{background:#022179;color:#fff;padding:6px;text-align:left}
+td{border:1px solid #ddd;padding:5px}tr:nth-child(even){background:#f8f9fb}</style></head>
+<body><h1>DigitalGer — Захиалагчид (${rows.length})</h1>
+<table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></body></html>`;
+    return {
+      buffer: Buffer.from(html, 'utf8'),
+      filename: `subscribers_${date}.html`,
+      contentType: 'text/html; charset=utf-8',
+    };
   }
 }

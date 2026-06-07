@@ -51,11 +51,9 @@ export async function SiteFooter() {
   const social = await getSocialLinks();
   const activeSocials = SOCIAL_ITEMS.filter(({ key }) => !!social[key]);
 
+  // Mobile: 2x2 grid (Нууцлал → Үйлчилгээ → Мэдээлэл устгах → Холбоо барих)
   const links = (
-    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
-      <Link href="/contact" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-        Холбоо барих
-      </Link>
+    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-center">
       <Link href="/privacy-policy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
         Нууцлалын бодлого
       </Link>
@@ -64,6 +62,9 @@ export async function SiteFooter() {
       </Link>
       <Link href="/data-deletion" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
         Мэдээлэл устгах
+      </Link>
+      <Link href="/contact" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+        Холбоо барих
       </Link>
     </div>
   );
@@ -104,9 +105,6 @@ export async function SiteFooter() {
             © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
           <div className="flex items-center gap-4 shrink-0">
-            <Link href="/contact" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Холбоо барих
-            </Link>
             <Link href="/privacy-policy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Нууцлалын бодлого
             </Link>
@@ -115,6 +113,9 @@ export async function SiteFooter() {
             </Link>
             <Link href="/data-deletion" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Мэдээлэл устгах
+            </Link>
+            <Link href="/contact" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Холбоо барих
             </Link>
             {activeSocials.length > 0 && (
               <>

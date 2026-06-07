@@ -1,9 +1,10 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
+import Image from 'next/image';
 import { toast } from 'sonner';
-import { Save } from 'lucide-react';
+import { Save, Upload, X, ImageIcon } from 'lucide-react';
 import {
   Button,
   Card,
@@ -17,7 +18,9 @@ import {
   TabsTrigger,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import { RichEditor } from '@/components/ui/rich-editor';
+import { TagInput } from '@/components/ui/tag-input';
 
 const PRIVACY_DEFAULT = `<h2>1. Мэдээлэл цуглуулах</h2>
 <p>DigitalGer нь үйлчилгээгээ үзүүлэхийн тулд дараах мэдээллийг цуглуулна: нэр, и-мэйл хаяг, утасны дугаар, төлбөрийн мэдээлэл.</p>
@@ -203,6 +206,8 @@ function PageEditor({
   });
 
   const [form, setForm] = useState<PageForm | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const ogFileRef = useRef<HTMLInputElement>(null);
 
   const d = data as PageData | null;
   // form (засагдсан) > DB утга > default
@@ -216,6 +221,27 @@ function PageEditor({
   };
 
   const patch = (p: Partial<PageForm>) => setForm({ ...current, ...p });
+
+  const handleOgUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Зөвхөн зураг оруулна уу');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Зургийн хэмжээ 5MB-аас бага байх ёстой');
+      return;
+    }
+    setUploading(true);
+    try {
+      const result = await uploadWithProgress(file, 'pages');
+      patch({ ogImageUrl: result.url });
+      toast.success('Зураг байршлаа');
+    } catch {
+      toast.error('Зураг байршуулахад алдаа гарлаа');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -281,19 +307,79 @@ function PageEditor({
         </div>
         <div className="space-y-2">
           <Label>Түлхүүр үгс (Keywords)</Label>
-          <Input
-            value={current.metaKeywords}
-            onChange={(e) => patch({ metaKeywords: e.target.value })}
-            placeholder="дижитал, бүтээгдэхүүн, ... (таслалаар тусгаарлана)"
+          <TagInput
+            value={current.metaKeywords ? current.metaKeywords.split(',').map((k) => k.trim()).filter(Boolean) : []}
+            onChange={(tags) => patch({ metaKeywords: tags.join(', ') })}
+            placeholder="дижитал, бүтээгдэхүүн... (Enter дарна уу)"
           />
         </div>
         <div className="space-y-2">
-          <Label>OG зургийн URL (нийгмийн сүлжээ)</Label>
-          <Input
-            value={current.ogImageUrl}
-            onChange={(e) => patch({ ogImageUrl: e.target.value })}
-            placeholder="https://...   (1200x630)"
+          <Label>OG зураг (нийгмийн сүлжээ — 1200x630)</Label>
+          <input
+            ref={ogFileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleOgUpload(file);
+              e.target.value = '';
+            }}
           />
+          {current.ogImageUrl ? (
+            <div className="flex items-start gap-4">
+              <div className="relative h-32 w-60 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                <Image
+                  src={current.ogImageUrl}
+                  alt="OG зураг"
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => ogFileRef.current?.click()}
+                  className="gap-1.5"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploading ? 'Байршуулж байна...' : 'Солих'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => patch({ ogImageUrl: '' })}
+                  className="gap-1.5 text-destructive hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" /> Устгах
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => ogFileRef.current?.click()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleOgUpload(file);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              disabled={uploading}
+              className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/30 p-6 text-center transition-colors hover:border-primary/50 hover:bg-muted/50 disabled:opacity-60"
+            >
+              <ImageIcon className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">
+                {uploading ? 'Байршуулж байна...' : 'Зураг чирж тавих эсвэл сонгох'}
+              </p>
+              <p className="text-xs text-muted-foreground">PNG, JPG, WEBP — дээд тал 5MB</p>
+            </button>
+          )}
         </div>
       </div>
 

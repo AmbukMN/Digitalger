@@ -113,7 +113,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.draining = false;
   }
 
-  private async send(to: string, subject: string, html: string): Promise<void> {
+  private async send(to: string, subject: string, html: string, replyTo?: string): Promise<void> {
     if (!this.isValidEmail(to)) return;
 
     this.logger.log(`Имэйл боловсруулж байна (${this.provider}) → ${to} | ${subject}`);
@@ -130,6 +130,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           to: [to],
           subject,
           html,
+          ...(replyTo ? { replyTo } : {}),
         });
         if (error) {
           this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${JSON.stringify(error)}`);
@@ -243,6 +244,97 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(`Захиалгын имэйл дараалалд оруулав → ${to} | #${orderId.slice(-8).toUpperCase()}`);
     this.enqueue(() => this.send(to, `Захиалга баталгаажлаа — #${orderId.slice(-8).toUpperCase()}`, html));
+  }
+
+  // ─── Newsletter subscribe → 10% coupon + үнэгүй product welcome имэйл ──────────
+  async sendWelcomeCoupon(opts: { to: string; couponCode: string; discountPercent: number }) {
+    const { to, couponCode, discountPercent } = opts;
+    const freeUrl = `${this.siteUrl}/products/font-canva-powerpoint-free`;
+
+    const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
+  ${this.emailHeader()}
+  <!-- Welcome -->
+  <tr><td style="padding:36px 36px 0;text-align:center">
+    <p style="font-size:40px;margin:0 0 8px">🎁</p>
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#022179">Тавтай морилно уу!</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#555">Манай мэдээллийн жагсаалтад бүртгүүлсэнд баярлалаа. Танд бэлэг байна 👇</p>
+  </td></tr>
+  <!-- 1) Coupon хэсэг -->
+  <tr><td style="padding:0 36px 8px">
+    <div style="background:linear-gradient(135deg,#022179,#0a3aa0);border-radius:14px;padding:24px;text-align:center">
+      <p style="margin:0 0 6px;font-size:13px;color:#ffbe00;text-transform:uppercase;letter-spacing:1px;font-weight:700">${discountPercent}% ХӨНГӨЛӨЛТ</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#cdd8f0">Эхний худалдан авалтдаа ашиглаарай</p>
+      <div style="background:#ffffff;border-radius:10px;padding:14px;display:inline-block">
+        <span style="font-family:monospace;font-size:24px;font-weight:800;color:#022179;letter-spacing:2px">${couponCode}</span>
+      </div>
+    </div>
+  </td></tr>
+  <!-- 2) Үнэгүй бүтээгдэхүүн хэсэг -->
+  <tr><td style="padding:20px 36px 0">
+    <div style="border:1px solid #ffe9a8;background:#fffbef;border-radius:14px;padding:20px">
+      <p style="margin:0 0 4px;font-size:12px;color:#a07b00;text-transform:uppercase;letter-spacing:0.5px;font-weight:700">🎉 Үнэгүй бэлэг</p>
+      <h2 style="margin:0 0 6px;font-size:17px;font-weight:800;color:#022179">1300 Font + 200 Canva + 100 PowerPoint</h2>
+      <p style="margin:0 0 14px;font-size:14px;color:#666">Дизайн, бизнес танилцуулга, сошиал медиад хэрэгтэй 1600+ материалыг бүртгэлгүйгээр ҮНЭГҮЙ татаж аваарай.</p>
+      <a href="${freeUrl}" style="display:inline-block;background:#ffbe00;color:#022179;font-weight:800;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
+        Үнэгүй татах →
+      </a>
+    </div>
+  </td></tr>
+  <tr><td style="padding:24px 36px;text-align:center">
+    <a href="${this.siteUrl}/products" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
+      Бүх бүтээгдэхүүн үзэх →
+    </a>
+  </td></tr>
+  <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    this.logger.log(`Welcome coupon имэйл дараалалд → ${to} | ${couponCode}`);
+    this.enqueue(() => this.send(to, `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`, html));
+  }
+
+  // ─── Холбоо барих (inquiry) → info@digitalger.mn ──────────────────────────────
+  async sendContactInquiry(opts: { name: string; email: string; phone?: string; message: string }) {
+    const { name, email, phone, message } = opts;
+    const to = 'info@digitalger.mn';
+    const safe = (s: string) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
+  ${this.emailHeader()}
+  <tr><td style="padding:36px 36px 0">
+    <h1 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#022179">📩 Шинэ холбоо барих хүсэлт</h1>
+    <p style="margin:0 0 20px;font-size:14px;color:#777">Вэбсайтаас ирсэн мессеж:</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
+      <tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;color:#888;width:90px">Нэр</td><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#222;font-weight:600">${safe(name)}</td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;color:#888">И-мэйл</td><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#222"><a href="mailto:${safe(email)}" style="color:#022179">${safe(email)}</a></td></tr>
+      ${phone ? `<tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;color:#888">Утас</td><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#222">${safe(phone)}</td></tr>` : ''}
+    </table>
+    <div style="background:#f8f9fb;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+      <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px">Мессеж</p>
+      <p style="margin:0;font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap">${safe(message)}</p>
+    </div>
+  </td></tr>
+  <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
+    <p style="margin:0;font-size:12px;color:#aaa">DigitalGer холбоо барих маягт</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    this.logger.log(`Contact inquiry имэйл дараалалд → ${to} | from ${email}`);
+    // replyTo тавьж хариу шууд илгээгчид очдог болгоно (Resend дэмждэг)
+    this.enqueue(() => this.send(to, `📩 Холбоо барих — ${name}`, html, email));
   }
 
   async sendEmailOtp(opts: {

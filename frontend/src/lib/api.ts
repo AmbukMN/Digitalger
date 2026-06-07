@@ -426,6 +426,23 @@ export const subscribersApi = {
     }),
 };
 
+// —— Contact (холбоо барих хүсэлт) ——
+export const contactApi = {
+  submit: (body: {
+    name: string;
+    email: string;
+    phone?: string;
+    message: string;
+    captchaA: number;
+    captchaB: number;
+    captchaAnswer: number;
+  }) =>
+    request<{ ok: boolean }>('/contact', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+};
+
 // ─── Navbar SSR prefetch ──────────────────────────────────────────────────
 // Server дээр меню + public settings-ийг урьдчилан татаж navbar-ийн анхны HTML-д
 // бодит утгаар суулгана → cache-гүй ачаалал дээр flash/үсрэлт ОГТ гарахгүй.

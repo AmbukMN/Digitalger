@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import { SITE_URL, SITE_NAME } from '@/lib/constants';
 import { PageHeader } from '@/components/ui/page-header';
 import { sanitizeHtml } from '@/lib/safe-html';
+import { ContactForm } from '@/components/contact/contact-form';
 
 export const revalidate = 60;
 
@@ -105,14 +106,20 @@ export default async function ContactPage() {
 
       <PageHeader title={title} />
 
-      <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
-        <div
-          className="prose prose-base max-w-none font-sans text-muted-foreground
-            prose-headings:font-sans prose-headings:text-foreground prose-headings:font-semibold
-            prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-            prose-li:marker:text-muted-foreground"
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
-        />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        {/* Зүүн тал: DB-ээс ирэх холбоо барих мэдээлэл/HTML */}
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+          <div
+            className="prose prose-base max-w-none font-sans text-muted-foreground
+              prose-headings:font-sans prose-headings:text-foreground prose-headings:font-semibold
+              prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+              prose-li:marker:text-muted-foreground"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
+          />
+        </div>
+
+        {/* Баруун тал: хүсэлт илгээх маягт */}
+        <ContactForm />
       </div>
     </div>
   );

@@ -584,9 +584,10 @@ export const adminApi = {
         { method: 'POST', body: fd },
       );
     },
-    // Export нь CSV file шууд буцаадаг тул URL-ийг шинэ tab-д нээнэ (доорх page-д)
-    exportUrl: (params?: { status?: string; categoryId?: string; source?: string }) => {
+    // Export нь файл (excel) эсвэл хэвлэх HTML (pdf) буцаадаг тул URL-ийг шинэ tab-д нээнэ (доорх page-д)
+    exportUrl: (params?: { format?: 'excel' | 'pdf'; status?: string; categoryId?: string; source?: string }) => {
       const q = new URLSearchParams();
+      if (params?.format) q.set('format', params.format);
       if (params?.status) q.set('status', params.status);
       if (params?.categoryId) q.set('categoryId', params.categoryId);
       if (params?.source) q.set('source', params.source);
