@@ -58,10 +58,10 @@ function PurchasedCard({
   );
   const files = [...standaloneFiles, ...bundleFiles];
   const hasFiles = files.length > 0;
-  // "Бүх файлыг татах" товч — файлын жагсаалт байгаа ЭСВЭЛ бэлэн zip (downloadFileKey)
-  // байгаа бол гарна. Зарим bundle нь файлуудаа нэг нэгээр upload хийгээгүй ч бэлэн
-  // zip линктэй байдаг — энэ үед жагсаалт хоосон ч zip-ийг шууд татна.
-  const canDownloadAll = hasFiles || !!purchase.product.downloadFileKey;
+  // "Бүх файлыг татах" товч — ЗӨВХӨН admin бэлэн zip (downloadFileKey) оруулсан үед.
+  // Auto-zip болиулсан тул бэлэн zip байхгүй бол товч гарахгүй (зүйл бүрийг
+  // жагсаалтаас нэг нэгээр татна).
+  const canDownloadAll = !!purchase.product.downloadFileKey;
   const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
   const purchaseDate = new Date(purchase.purchasedAt).toLocaleDateString('mn-MN', {
     year: 'numeric',
@@ -180,7 +180,8 @@ function FreeCard({ product }: { product: ProductDetail }) {
   const hasFiles = files.length > 0;
   const hasBundles = (product.bundles?.length ?? 0) > 0;
   const hasZip = !!product.downloadFileKey;
-  const canDownloadAll = hasFiles || hasBundles || hasZip;
+  // "Бүх файлыг татах" — ЗӨВХӨН admin бэлэн zip (auto-zip болиулсан)
+  const canDownloadAll = hasZip;
   const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
 
   async function handleDownloadOne(fileId: string, fileName: string) {
@@ -784,8 +785,8 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
     );
     const files = [...standaloneM, ...bundleFilesM];
     const hasFiles = files.length > 0;
-    // Файлын жагсаалт байгаа ЭСВЭЛ бэлэн zip (downloadFileKey) байвал татах товч гарна
-    const canDownloadAll = hasFiles || !!purchase.product.downloadFileKey;
+    // "Бүх файлыг татах" — ЗӨВХӨН admin бэлэн zip (auto-zip болиулсан)
+    const canDownloadAll = !!purchase.product.downloadFileKey;
     const hasLessons = product.course?.lessons && product.course.lessons.length > 0;
 
     return (

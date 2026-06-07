@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, Lock, Package, Pencil, Play, Plus, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Button,
@@ -1655,15 +1655,20 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      type="button" size="sm" variant="outline"
-                      className="h-6 text-xs px-2 gap-1"
-                      onClick={() => bundleDownloadFileRefs.current[bundle.id]?.click()}
-                      disabled={bundleDownloadUploading[bundle.id]}
-                    >
-                      <Upload className="h-3 w-3" />
-                      {bundleDownloadUploading[bundle.id] ? 'Ачаалж байна...' : 'Татах файл'}
-                    </Button>
+                    <>
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1" title="Бүлгийн ZIP файл оруулаагүй бол сайтад 'Бүлгээр татах' товч ХАРАГДАХГҮЙ">
+                        <AlertTriangle className="h-3 w-3" /> ZIP заавал
+                      </span>
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        className="h-6 text-xs px-2 gap-1"
+                        onClick={() => bundleDownloadFileRefs.current[bundle.id]?.click()}
+                        disabled={bundleDownloadUploading[bundle.id]}
+                      >
+                        <Upload className="h-3 w-3" />
+                        {bundleDownloadUploading[bundle.id] ? 'Ачаалж байна...' : 'Татах файл'}
+                      </Button>
+                    </>
                   )}
                   <input
                     type="file"

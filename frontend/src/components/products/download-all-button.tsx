@@ -55,56 +55,16 @@ export function DownloadAllButton({
     // гадаад браузераар нээх шаардлагатайг мэдэх болно.
     setState('loading');
 
-    // Admin uploaded file — шууд presign татна
-    if (downloadFileKey) {
-      try {
-        const { url, fileName } = free
-          ? await downloadsApi.freeProductDownloadFile(productId)
-          : await downloadsApi.productDownloadFile(session!.accessToken!, productId);
-        triggerDownload(url, fileName || zipName || `${productId}.zip`);
-        setState('done');
-        setTimeout(() => setState('idle'), 2500);
-      } catch {
-        setState('failed');
-        toast.error('Татахад алдаа гарлаа');
-        setTimeout(() => setState('idle'), 2500);
-      }
-      return;
-    }
-
-    // Admin file байхгүй — async ZIP queue ашиглана
+    // ⚠️ Auto-zip болиулсан — товч зөвхөн admin бэлэн ZIP (downloadFileKey)-тэй
+    // үед харагддаг болсон. Бэлэн файлыг шууд presign татна (queue/polling байхгүй).
+    if (!downloadFileKey) { setState('idle'); return; }
     try {
-      const { jobId } = free
-        ? await downloadsApi.enqueueFreeZip(productId)
-        : await downloadsApi.enqueueProductZip(session!.accessToken!, productId);
-      setState('queued');
-      startedAt.current = Date.now();
-
-      pollRef.current = setInterval(async () => {
-        if (Date.now() - startedAt.current > POLL_TIMEOUT) {
-          stopPoll();
-          setState('failed');
-          toast.error('Хугацаа дууслаа, дахин оролдоно уу');
-          setTimeout(() => setState('idle'), 3000);
-          return;
-        }
-        try {
-          const res = free
-            ? await downloadsApi.pollFreeZipJob(jobId)
-            : await downloadsApi.pollZipJob(session!.accessToken!, jobId);
-          if (res.status === 'DONE' && res.url) {
-            stopPoll();
-            triggerDownload(res.url, zipName || `${productId}.zip`);
-            setState('done');
-            setTimeout(() => setState('idle'), 2500);
-          } else if (res.status === 'FAILED') {
-            stopPoll();
-            setState('failed');
-            toast.error('ZIP үүсгэхэд алдаа гарлаа');
-            setTimeout(() => setState('idle'), 3000);
-          }
-        } catch { /* poll retry */ }
-      }, POLL_INTERVAL);
+      const { url, fileName } = free
+        ? await downloadsApi.freeProductDownloadFile(productId)
+        : await downloadsApi.productDownloadFile(session!.accessToken!, productId);
+      triggerDownload(url, fileName || zipName || `${productId}.zip`);
+      setState('done');
+      setTimeout(() => setState('idle'), 2500);
     } catch {
       setState('failed');
       toast.error('Татахад алдаа гарлаа');

@@ -105,53 +105,18 @@ function BundleDownloadButton({
   // "Бүлгээр татах" FB WebView-д page not found гардаг).
   const triggerDownload = (url: string, name: string) => triggerFileDownload(url, name);
 
+  // ⚠️ Auto-zip болиулсан — товч зөвхөн admin бэлэн ZIP (downloadFileKey)-тэй үед
+  // харагддаг болсон тул шууд бэлэн файлыг татна (queue/polling байхгүй).
   async function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    if (state === 'loading' || state === 'queued') return;
+    if (state === 'loading') return;
+    if (!downloadFileKey) return; // ZIP байхгүй бол юу ч хийхгүй (товч ч харагдахгүй)
     setState('loading');
-
-    if (downloadFileKey) {
-      try {
-        const { url, fileName } = await downloadsApi.bundleDownloadFile(token, bundleId);
-        triggerDownload(url, fileName || `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
-        setState('done');
-        setTimeout(() => setState('idle'), 2500);
-      } catch {
-        setState('failed');
-        toast.error('Татахад алдаа гарлаа');
-        setTimeout(() => setState('idle'), 2500);
-      }
-      return;
-    }
-
     try {
-      const { jobId } = await downloadsApi.enqueueBundleZip(token, productId, bundleId);
-      setState('queued');
-      startedAt.current = Date.now();
-
-      pollRef.current = setInterval(async () => {
-        if (Date.now() - startedAt.current > POLL_TIMEOUT) {
-          clearInterval(pollRef.current!); pollRef.current = null;
-          setState('failed');
-          toast.error('Хугацаа дууслаа');
-          setTimeout(() => setState('idle'), 3000);
-          return;
-        }
-        try {
-          const res = await downloadsApi.pollZipJob(token, jobId);
-          if (res.status === 'DONE' && res.url) {
-            clearInterval(pollRef.current!); pollRef.current = null;
-            triggerDownload(res.url, `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
-            setState('done');
-            setTimeout(() => setState('idle'), 2500);
-          } else if (res.status === 'FAILED') {
-            clearInterval(pollRef.current!); pollRef.current = null;
-            setState('failed');
-            toast.error('ZIP үүсгэхэд алдаа гарлаа');
-            setTimeout(() => setState('idle'), 3000);
-          }
-        } catch { /* poll retry */ }
-      }, POLL_INTERVAL);
+      const { url, fileName } = await downloadsApi.bundleDownloadFile(token, bundleId);
+      triggerDownload(url, fileName || `${bundleTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+      setState('done');
+      setTimeout(() => setState('idle'), 2500);
     } catch {
       setState('failed');
       toast.error('Татахад алдаа гарлаа');
@@ -159,10 +124,9 @@ function BundleDownloadButton({
     }
   }
 
-  const busy = state === 'loading' || state === 'queued';
+  const busy = state === 'loading';
   const btnLabel =
     state === 'loading' ? 'Бэлдэж байна...' :
-    state === 'queued'  ? 'ZIP үүсгэж байна...' :
     state === 'done'    ? 'Татагдлаа' :
     state === 'failed'  ? 'Алдаа' :
     'Бүлгээр татах';
@@ -243,9 +207,6 @@ export function BundleList({
       </h2>
       <div className="space-y-3">
         {bundles.map((bundle, bi) => {
-          const hasBundleFiles = bundle.items.some((item) =>
-            (item.fileIds && item.fileIds.length > 0) || item.fileId,
-          );
           const hasDownloadFile = !!bundle.downloadFileKey;
           const limit = visibleCount[bundle.id] ?? BUNDLE_PAGE_SIZE;
           const visibleItems = bundle.items.slice(0, limit);
@@ -274,7 +235,9 @@ export function BundleList({
                   {bundle.items.length} зүйл
                 </span>
 
-                {purchased && session?.accessToken && (hasBundleFiles || hasDownloadFile) && (
+                {/* "Бүлгээр татах" — ЗӨВХӨН admin бэлэн ZIP (downloadFileKey)
+                    оруулсан үед. Auto-zip болиулсан тул ZIP байхгүй бол товч нуух. */}
+                {purchased && session?.accessToken && hasDownloadFile && (
                   <BundleDownloadButton
                     bundleId={bundle.id}
                     productId={productId}
@@ -283,7 +246,7 @@ export function BundleList({
                     token={session.accessToken}
                   />
                 )}
-                {!purchased && (hasBundleFiles || hasDownloadFile) && (
+                {!purchased && hasDownloadFile && (
                   <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
 
