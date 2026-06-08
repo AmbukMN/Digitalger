@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, Check, ChevronDown, Clock, FolderOpen, Lock, Loader2, Play, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { BookOpen, Check, ChevronDown, Clock, Layers, Lock, Loader2, Play, X } from 'lucide-react';
 import { coursesApi, downloadsApi } from '@/lib/api';
 import type { LessonProgress, LessonVideoResult } from '@/lib/api';
 import { sanitizeHtml } from '@/lib/safe-html';
@@ -239,83 +240,104 @@ function LessonRow({
   const inProgress = pct > 0;
 
   return (
-    <div>
+    <div className="group/lesson">
       <div
-        className={`flex items-center gap-3 px-4 py-3 transition-colors
-          ${hasDesc ? 'cursor-pointer hover:bg-muted/40' : ''}
-          ${isExpanded ? 'bg-muted/30' : ''}`}
+        className={`relative flex items-center gap-3 py-2.5 pl-12 pr-3 transition-colors sm:pl-14 sm:pr-4
+          ${hasDesc ? 'cursor-pointer' : ''}
+          ${isExpanded ? 'bg-primary/4' : 'hover:bg-muted/50'}`}
         onClick={() => hasDesc && onRowClick(lesson)}
       >
-        {/* Play / lock / completed icon */}
+        {/* Зүүн status icon — lock / preview play / play / completed ТОД ЯЛГАНА */}
         <div
-          className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full border
-            ${completed ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'}`}
+          className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors
+            ${
+              completed
+                ? 'bg-emerald-500 text-white'
+                : locked
+                  ? 'bg-muted text-muted-foreground/70'
+                  : lesson.isFreePreview
+                    ? 'bg-secondary/20 text-primary ring-1 ring-secondary/50'
+                    : 'bg-primary/10 text-primary'
+            }`}
         >
           {completed ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-3.5 w-3.5" strokeWidth={3} />
           ) : locked ? (
-            <Lock className="h-3 w-3 text-muted-foreground" />
+            <Lock className="h-3 w-3" />
           ) : (
-            <Play className="h-3 w-3 text-muted-foreground fill-muted-foreground" />
+            <Play className="h-3 w-3 fill-current" />
           )}
         </div>
 
-        {/* Title + progress bar */}
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium leading-snug ${locked ? 'text-muted-foreground' : 'text-foreground'}`}>
-            {lesson.title}
-          </p>
+        {/* Title + preview badge + progress bar */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p
+              className={`truncate text-sm font-medium leading-snug ${
+                locked ? 'text-muted-foreground' : 'text-foreground'
+              }`}
+            >
+              {lesson.title}
+            </p>
+            {/* Үнэгүй preview badge — gold accent, ТОД ялгарна */}
+            {lesson.isFreePreview && hasVideo && (
+              <span className="shrink-0 rounded-full bg-secondary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-primary">
+                Preview
+              </span>
+            )}
+          </div>
           {inProgress && (
             <div className="mt-1.5 flex items-center gap-2">
-              <div className="h-1 flex-1 max-w-40 rounded-full bg-muted overflow-hidden">
+              <div className="h-1 max-w-40 flex-1 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
               </div>
-              <span className="text-[10px] font-medium text-muted-foreground tabular-nums">{pct}%</span>
+              <span className="text-[10px] font-medium tabular-nums text-muted-foreground">{pct}%</span>
             </div>
           )}
         </div>
 
         {/* Right: action → duration → chevron */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {lesson.isFreePreview && hasVideo ? (
-            // Үнэгүй preview + видео БАЙГАА (3 эх сурвалжийн аль нэг) → идэвхтэй Preview товч.
+            // Үнэгүй preview + видео БАЙГАА → идэвхтэй Preview play товч (gold accent)
             <button
               type="button"
               onClick={(e) => onPlayClick(e, lesson)}
               disabled={isLoadingThis}
-              className="flex items-center gap-1 rounded border border-primary/40 bg-primary/5 hover:bg-primary/15 disabled:opacity-60 px-2 py-0.5 text-xs font-semibold text-primary transition-colors"
+              className="flex items-center gap-1 rounded-md border border-secondary/50 bg-secondary/10 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-secondary/25 disabled:opacity-60"
             >
               {isLoadingThis ? (
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Play className="h-2.5 w-2.5 fill-primary" />
-              )}
-              Preview
-            </button>
-          ) : lesson.isFreePreview && !hasVideo ? (
-            // Үнэгүй preview ГЭХДЭЭ видео БАЙХГҮЙ → товч ХАРУУЛАХГҮЙ (зүгээр зай).
-            null
-          ) : purchased && hasVideo ? (
-            // Худалдаж авсан + видео БАЙГАА → үзэх товч (видео байхгүй хичээлд харуулахгүй).
-            <button
-              type="button"
-              onClick={(e) => onPlayClick(e, lesson)}
-              disabled={isLoadingThis}
-              className="flex items-center gap-1 rounded bg-primary/10 hover:bg-primary/20 disabled:opacity-60 px-2 py-0.5 text-xs font-semibold text-primary transition-colors"
-            >
-              {isLoadingThis ? (
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />
-              ) : (
-                <Play className="h-2.5 w-2.5 fill-primary" />
+                <Play className="h-2.5 w-2.5 fill-current" />
               )}
               Үзэх
             </button>
-          ) : locked ? (
-            <span className="flex h-6 w-6 items-center justify-center text-muted-foreground/60">
-              <Lock className="h-3 w-3" />
-            </span>
+          ) : lesson.isFreePreview && !hasVideo ? (
+            // Үнэгүй preview ГЭХДЭЭ видео БАЙХГҮЙ → товч ХАРУУЛАХГҮЙ.
+            null
+          ) : purchased && hasVideo ? (
+            // Худалдаж авсан + видео БАЙГАА → navy play товч
+            <button
+              type="button"
+              onClick={(e) => onPlayClick(e, lesson)}
+              disabled={isLoadingThis}
+              className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+            >
+              {isLoadingThis ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Play className="h-2.5 w-2.5 fill-current" />
+              )}
+              Үзэх
+            </button>
           ) : null}
-          {dur && <span className="text-xs text-muted-foreground tabular-nums">{dur}</span>}
+          {dur && (
+            <span className="hidden items-center gap-1 text-xs tabular-nums text-muted-foreground sm:flex">
+              <Clock className="h-3 w-3" />
+              {dur}
+            </span>
+          )}
           {hasDesc ? (
             <ChevronDown
               className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -326,19 +348,30 @@ function LessonRow({
         </div>
       </div>
 
-      {/* Expandable description */}
-      {isExpanded && hasDesc && (
-        <div className="px-4 pb-4 pt-2 bg-muted/20 border-t border-border/50 pl-16">
-          {lesson.description!.startsWith('<') ? (
-            <div
-              className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.description!) }}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground leading-relaxed">{lesson.description}</p>
-          )}
-        </div>
-      )}
+      {/* Expandable description — smooth animation */}
+      <AnimatePresence initial={false}>
+        {isExpanded && hasDesc && (
+          <motion.div
+            key="desc"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="bg-muted/30 px-3 pb-4 pl-12 pt-1 sm:pl-14">
+              {lesson.description!.startsWith('<') ? (
+                <div
+                  className="prose prose-sm max-w-none leading-relaxed text-muted-foreground"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.description!) }}
+                />
+              ) : (
+                <p className="text-sm leading-relaxed text-muted-foreground">{lesson.description}</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -346,6 +379,7 @@ function LessonRow({
 // ─── Module accordion section ─────────────────────────────────────────────────
 function ModuleSection({
   mod,
+  moduleNumber,
   lessonOffset,
   isOpen,
   onToggle,
@@ -358,6 +392,7 @@ function ModuleSection({
   onPlayClick,
 }: {
   mod: CourseModule;
+  moduleNumber: number;
   lessonOffset: number;
   isOpen: boolean;
   onToggle: () => void;
@@ -371,48 +406,100 @@ function ModuleSection({
 }) {
   const totalSec = mod.lessons.reduce((s, l) => s + (l.durationSec ?? 0), 0);
   const previewCount = mod.lessons.filter((l) => l.isFreePreview).length;
+  const completedCount = mod.lessons.filter((l) => progressMap[l.id]?.completed).length;
 
   return (
-    <div className="border-b border-border last:border-b-0">
-      {/* Module header */}
+    <div
+      className={`overflow-hidden rounded-xl border bg-card transition-colors ${
+        isOpen ? 'border-primary/30 shadow-sm' : 'border-border hover:border-primary/20'
+      }`}
+    >
+      {/* Module header — навигац дугаар + нэр + мета. Нээлттэй үед navy зүүн accent. */}
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+        className={`relative flex w-full items-center gap-3 px-3 py-3.5 text-left transition-colors sm:px-4 ${
+          isOpen ? 'bg-primary/6' : 'hover:bg-muted/50'
+        }`}
       >
-        <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground">{mod.title}</p>
-          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-            <span>{mod.lessons.length} хичээл</span>
-            {totalSec > 0 && <span>· {formatTotalDuration(totalSec)}</span>}
-            {previewCount > 0 && <span>· {previewCount} үнэгүй preview</span>}
+        {/* Зүүн navy accent зураас — нээлттэй модулийг ТОД ялгана */}
+        {isOpen && <span className="absolute inset-y-0 left-0 w-1 bg-primary" />}
+
+        {/* Модулийн дугаар badge */}
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold tabular-nums transition-colors ${
+            isOpen ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+          }`}
+        >
+          {String(moduleNumber).padStart(2, '0')}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+            Бүлэг {moduleNumber}
           </p>
+          <p className="mt-0.5 truncate text-sm font-bold text-foreground sm:text-[15px]">{mod.title}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <BookOpen className="h-3 w-3" />
+              {mod.lessons.length} хичээл
+            </span>
+            {totalSec > 0 && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {formatTotalDuration(totalSec)}
+              </span>
+            )}
+            {purchased && completedCount > 0 ? (
+              <span className="flex items-center gap-1 font-medium text-emerald-600">
+                <Check className="h-3 w-3" strokeWidth={3} />
+                {completedCount}/{mod.lessons.length}
+              </span>
+            ) : (
+              previewCount > 0 && (
+                <span className="rounded-full bg-secondary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-primary">
+                  {previewCount} preview
+                </span>
+              )
+            )}
+          </div>
         </div>
+
         <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180 text-primary' : ''}`}
         />
       </button>
 
-      {/* Lessons inside module */}
-      {isOpen && (
-        <div className="divide-y divide-border/60 bg-background">
-          {mod.lessons.map((lesson, i) => (
-            <LessonRow
-              key={lesson.id}
-              lesson={lesson}
-              index={lessonOffset + i}
-              purchased={purchased}
-              sessionLoading={sessionLoading}
-              loadingLessonId={loadingLessonId}
-              expandedId={expandedId}
-              progress={progressMap[lesson.id]}
-              onRowClick={onRowClick}
-              onPlayClick={onPlayClick}
-            />
-          ))}
-        </div>
-      )}
+      {/* Lessons inside module — smooth accordion */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            key="lessons"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="divide-y divide-border/60 border-t border-border">
+              {mod.lessons.map((lesson, i) => (
+                <LessonRow
+                  key={lesson.id}
+                  lesson={lesson}
+                  index={lessonOffset + i}
+                  purchased={purchased}
+                  sessionLoading={sessionLoading}
+                  loadingLessonId={loadingLessonId}
+                  expandedId={expandedId}
+                  progress={progressMap[lesson.id]}
+                  onRowClick={onRowClick}
+                  onPlayClick={onPlayClick}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -563,43 +650,54 @@ export function CourseCurriculum({
 
   return (
     <>
-      {/* Stats bar */}
-      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 mb-4">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <BookOpen className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-foreground">{allLessons.length}</span> хичээл
-          </span>
+      {/* Stat bar — цэвэр icon + текст. Худалдсан бол нийт progress зураас. */}
+      <div className="mb-4 rounded-xl border border-border bg-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground sm:gap-x-5">
+            <span className="flex items-center gap-1.5">
+              <BookOpen className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-foreground">{allLessons.length}</span> хичээл
+            </span>
+            {totalModules > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Layers className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground">{totalModules}</span> бүлэг
+              </span>
+            )}
+            {totalSec > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground">{formatTotalDuration(totalSec)}</span>
+              </span>
+            )}
+          </div>
           {totalModules > 0 && (
-            <span className="flex items-center gap-1.5">
-              <FolderOpen className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-foreground">{totalModules}</span> бүлэг
-            </span>
-          )}
-          {totalSec > 0 && (
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-foreground">{formatTotalDuration(totalSec)}</span> нийт
-            </span>
-          )}
-          {purchased && completedCount > 0 && (
-            <span className="flex items-center gap-1.5">
-              <Check className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-foreground">
-                {completedCount}/{allLessons.length}
-              </span>{' '}
-              үзсэн
-            </span>
+            <button
+              type="button"
+              onClick={allOpen ? collapseAll : expandAll}
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              {allOpen ? 'Бүгдийг хаах' : 'Бүгдийг нээх'}
+            </button>
           )}
         </div>
-        {totalModules > 0 && (
-          <button
-            type="button"
-            onClick={allOpen ? collapseAll : expandAll}
-            className="text-xs font-medium text-primary hover:underline shrink-0"
-          >
-            {allOpen ? 'Бүгдийг хаах' : 'Бүгдийг нээх'}
-          </button>
+
+        {/* Нийт ахиц — зөвхөн худалдаж авсан хэрэглэгчид */}
+        {purchased && allLessons.length > 0 && (
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground">Таны ахиц</span>
+              <span className="font-semibold tabular-nums text-primary">
+                {completedCount}/{allLessons.length} үзсэн
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${Math.round((completedCount / allLessons.length) * 100)}%` }}
+              />
+            </div>
+          </div>
         )}
       </div>
 
@@ -625,14 +723,15 @@ export function CourseCurriculum({
         </button>
       )}
 
-      <div className="rounded-xl border border-border overflow-hidden">
-        {/* Modules (accordion) */}
+      <div className="space-y-2.5">
+        {/* Modules (accordion) — модул бүр тусдаа карт, хоорондоо ТОД зайтай */}
         {modules.map((mod, mi) => {
           const offset = modules.slice(0, mi).reduce((s, m) => s + m.lessons.length, 0);
           return (
             <ModuleSection
               key={mod.id}
               mod={mod}
+              moduleNumber={mi + 1}
               lessonOffset={offset}
               isOpen={openModules.has(mod.id)}
               onToggle={() => toggleModule(mod.id)}
@@ -641,9 +740,9 @@ export function CourseCurriculum({
           );
         })}
 
-        {/* Ungrouped lessons (flat list, after modules) */}
+        {/* Ungrouped lessons (flat list, after modules) — тусдаа карт */}
         {lessons.length > 0 && (
-          <div className={`divide-y divide-border/60 ${modules.length > 0 ? 'border-t border-border' : ''}`}>
+          <div className="overflow-hidden rounded-xl border border-border bg-card divide-y divide-border/60">
             {lessons.map((lesson, i) => {
               const { progressMap: pm, ...rowProps } = sharedProps;
               return (
