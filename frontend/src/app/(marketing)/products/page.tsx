@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { ProductGrid } from '@/components/products/product-grid';
 import { ProductsFilter } from '@/components/products/products-filter';
 import { productsApi, productTypesApi, categoriesApi, siteSettingsApi } from '@/lib/api';
+import { applySeoOverride } from '@/lib/page-metadata';
 import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
 import type { ProductSummary } from '@/types/api';
@@ -17,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const s = await siteSettingsApi.getPublic();
     ogImageUrl = s.ogImageUrl ?? null;
   } catch { /* fallback */ }
-  return {
+  const defaultMeta: Metadata = {
     title: 'Бүтээгдэхүүн',
     description: 'Бүх дижитал бүтээгдэхүүн — файл, загвар, хичээл.',
     alternates: { canonical: `${SITE_URL}/products` },
@@ -32,6 +33,8 @@ export async function generateMetadata(): Promise<Metadata> {
       ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
     },
   };
+  // Admin override байвал дарж бичнэ, байхгүй бол default хэвээр
+  return applySeoOverride('/products', defaultMeta);
 }
 
 type SearchParams = {

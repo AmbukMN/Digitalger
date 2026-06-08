@@ -3,6 +3,7 @@ export const revalidate = 300;
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { categoriesApi, siteSettingsApi } from '@/lib/api';
+import { applySeoOverride } from '@/lib/page-metadata';
 import { DynamicLucideIcon } from '@/components/ui/lucide-icon';
 import { PageHeader } from '@/components/ui/page-header';
 import { SITE_URL } from '@/lib/constants';
@@ -16,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const s = await siteSettingsApi.getPublic();
     ogImageUrl = s.ogImageUrl ?? null;
   } catch { /* fallback */ }
-  return {
+  const defaultMeta: Metadata = {
     title: 'Бүх Ангилал',
     description: META_DESC,
     alternates: { canonical: `${SITE_URL}/categories` },
@@ -34,6 +35,8 @@ export async function generateMetadata(): Promise<Metadata> {
       ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
     },
   };
+  // Admin override байвал дарж бичнэ, байхгүй бол default хэвээр
+  return applySeoOverride('/categories', defaultMeta);
 }
 
 const COLORS = [

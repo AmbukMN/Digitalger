@@ -1,6 +1,57 @@
 import type { Metadata } from 'next';
 import { SITE_URL } from './constants';
-import { pagesApi, siteSettingsApi, type PageData, type PublicSiteSettings } from './api';
+import { pagesApi, seoApi, siteSettingsApi, type PageData, type PublicSiteSettings } from './api';
+
+/**
+ * Тогтмол хуудсуудын (/, /products, /categories, /blog, /search) generateMetadata-д
+ * admin-аас тохируулсан custom OG override-ийг дарж бичих helper.
+ *
+ * - Override байвал title/description/openGraph(images)/twitter(images)-ийг дарж бичнэ.
+ * - Override байхгүй (null) бол defaultMeta ХЭВЭЭР буцна (анхдагч meta эвдрэхгүй).
+ * - Override-д зөвхөн бөглөсөн талбарууд (title || description || ogImageUrl) дарж бичнэ.
+ *
+ * path нь backend ALLOWED_PATHS-тэй ижил байх ёстой: '/', '/products', '/categories',
+ * '/blog', '/search'.
+ */
+export async function applySeoOverride(
+  path: string,
+  defaultMeta: Metadata,
+): Promise<Metadata> {
+  let override: Awaited<ReturnType<typeof seoApi.getOverride>> = null;
+  try {
+    override = await seoApi.getOverride(path);
+  } catch {
+    /* fallback — override уншиж чадсангүй, default хэвээр */
+  }
+  if (!override) return defaultMeta;
+
+  const title = override.title || (defaultMeta.title as string | undefined);
+  const description = override.description || defaultMeta.description || undefined;
+  const ogImageUrl = override.ogImageUrl || null;
+
+  const prevOg = defaultMeta.openGraph ?? {};
+  const prevTwitter = defaultMeta.twitter ?? {};
+
+  return {
+    ...defaultMeta,
+    title,
+    description,
+    openGraph: {
+      ...prevOg,
+      ...(override.title ? { title } : {}),
+      ...(override.description ? { description } : {}),
+      ...(ogImageUrl
+        ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: typeof title === 'string' ? title : 'DigitalGer' }] }
+        : {}),
+    },
+    twitter: {
+      ...prevTwitter,
+      ...(override.title ? { title } : {}),
+      ...(override.description ? { description } : {}),
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
+  };
+}
 
 /**
  * Marketing page-уудын generateMetadata-д ашиглах нийтлэг helper.

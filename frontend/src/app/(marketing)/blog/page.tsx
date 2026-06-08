@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import { Tag } from 'lucide-react';
 import { blogApi, siteSettingsApi } from '@/lib/api';
+import { applySeoOverride } from '@/lib/page-metadata';
 import type { BlogPost } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
 import { BlogInfiniteList } from '@/components/blog/blog-infinite-list';
@@ -14,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const s = await siteSettingsApi.getPublic();
     ogImageUrl = s.ogImageUrl ?? null;
   } catch { /* fallback */ }
-  return {
+  const defaultMeta: Metadata = {
     title: 'Нийтлэл',
     description: 'Дижитал бизнес, загвар хэрэглээ, мэргэжлийн зөвлөгөө',
     alternates: { canonical: `${SITE_URL}/blog` },
@@ -25,6 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
       ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630, alt: 'DigitalGer Blog' }] } : {}),
     },
   };
+  // Admin override байвал дарж бичнэ, байхгүй бол default хэвээр
+  return applySeoOverride('/blog', defaultMeta);
 }
 
 const PAGE_SIZE = 9;

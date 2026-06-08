@@ -30,6 +30,7 @@ import { TestimonialsModule } from './modules/testimonials/testimonials.module';
 import { BundlesModule } from './modules/bundles/bundles.module';
 import { BlogModule } from './modules/blog/blog.module';
 import { PagesModule } from './modules/pages/pages.module';
+import { SeoModule } from './modules/seo/seo.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -93,6 +94,7 @@ import { ChatModule } from './modules/chat/chat.module';
     BundlesModule,
     BlogModule,
     PagesModule,
+    SeoModule,
     CouponsModule,
     NotificationsModule,
     AnalyticsModule,

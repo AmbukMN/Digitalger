@@ -31,6 +31,8 @@ import type {
   AdminUserFullDetail,
   DashboardStats,
   QueueStatus,
+  SeoOverride,
+  SeoOverrideInput,
   SiteSettings,
   ThemeSettings,
   UploadResult,
@@ -410,6 +412,20 @@ export const adminApi = {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
+  },
+
+  // —— SEO override (тогтмол хуудсуудын custom OG meta) ——
+  seo: {
+    list: () => adminFetch<SeoOverride[]>('/admin/seo'),
+    allowedPaths: () => adminFetch<string[]>('/admin/seo/allowed-paths'),
+    upsert: (body: SeoOverrideInput) => {
+      // id байвал PUT (засах), үгүй бол POST (шинээр нэмэх)
+      if (body.id) {
+        return adminFetch<SeoOverride>('/admin/seo', { method: 'PUT', body: JSON.stringify(body) });
+      }
+      return adminFetch<SeoOverride>('/admin/seo', { method: 'POST', body: JSON.stringify(body) });
+    },
+    remove: (id: string) => adminFetch<void>(`/admin/seo/${id}`, { method: 'DELETE' }),
   },
 
   banners: {

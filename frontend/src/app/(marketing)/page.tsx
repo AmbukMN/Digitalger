@@ -8,6 +8,7 @@ import { TestimonialsSection } from '@/components/home/testimonials-section';
 import { BlogSection } from '@/components/home/blog-section';
 import { HomeCta } from '@/components/home/home-cta';
 import { bannersApi, blogApi, testimonialsApi, siteSettingsApi } from '@/lib/api';
+import { applySeoOverride } from '@/lib/page-metadata';
 import type { Banner, BlogPost, Testimonial } from '@/types/api';
 import { Shield, Zap, Download, Star } from 'lucide-react';
 import { CategoryStrip } from '@/components/home/category-strip';
@@ -39,13 +40,14 @@ function ProductSectionSkeleton() {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
+  let defaultMeta: Metadata;
   try {
     const s = await siteSettingsApi.getPublic();
     const title = s.metaTitle || `${s.siteName} — Дижитал бүтээгдэхүүний marketplace`;
     const description = s.metaDescription || 'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
     const ogTitle = s.ogTitle || title;
     const ogDesc = s.ogDescription || description;
-    return {
+    defaultMeta = {
       title,
       description,
       alternates: { canonical: SITE_URL },
@@ -64,12 +66,14 @@ export async function generateMetadata(): Promise<Metadata> {
       },
     };
   } catch {
-    return {
+    defaultMeta = {
       title: `${SITE_NAME} — Дижитал бүтээгдэхүүний marketplace`,
       description: 'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.',
       alternates: { canonical: SITE_URL },
     };
   }
+  // Admin override байвал дарж бичнэ, байхгүй бол default хэвээр
+  return applySeoOverride('/', defaultMeta);
 }
 
 async function getBanners(): Promise<Banner[]> {

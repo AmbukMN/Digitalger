@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Search, FileText, Tag } from 'lucide-react';
 import { productsApi, blogApi } from '@/lib/api';
+import { applySeoOverride } from '@/lib/page-metadata';
 import { ProductCard } from '@/components/products/product-card';
 import { formatPrice } from '@digitalger/shared';
 import { Badge } from '@digitalger/shared/ui';
@@ -15,9 +16,13 @@ import { SearchTracker } from '@/components/search-tracker';
 
 const SEARCH_PAGE_SIZE = 12;
 
-export const metadata: Metadata = {
-  title: 'Хайлт',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const defaultMeta: Metadata = {
+    title: 'Хайлт',
+  };
+  // Admin override байвал дарж бичнэ, байхгүй бол default хэвээр
+  return applySeoOverride('/search', defaultMeta);
+}
 
 function BlogResultCard({ post }: { post: BlogPost }) {
   function formatDate(dateStr: string | null | undefined) {

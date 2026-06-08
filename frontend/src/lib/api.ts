@@ -575,6 +575,22 @@ export const siteSettingsApi = {
   getPublic: () => request<PublicSiteSettings>('/settings/public'),
 };
 
+// —— SEO override (тогтмол хуудсуудын custom OG meta) ——
+export type SeoOverride = {
+  title?: string | null;
+  description?: string | null;
+  ogImageUrl?: string | null;
+};
+
+export const seoApi = {
+  /**
+   * GET /seo/override?path=/products — public.
+   * Override байвал {title?,description?,ogImageUrl?}, байхгүй бол null.
+   */
+  getOverride: (path: string) =>
+    request<SeoOverride | null>(`/seo/override${qs({ path })}`),
+};
+
 // —— Subscribers (newsletter) ——
 export const subscribersApi = {
   subscribe: (body: { email: string; source?: string }) =>

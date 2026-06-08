@@ -690,6 +690,20 @@ model Page {
   updatedAt       DateTime @default(now()) @updatedAt
 }
 
+// Тодорхой URL (тогтмол хуудас)-д custom OG meta — admin-аас add/edit/delete.
+// path нь зөвхөн БОДИТ route байх ёстой (backend allow-list шалгана, 404 биш).
+// Жишээ: /products, /categories, /blog, /, /search. generateMetadata энэ override-ийг
+// уншиж тухайн хуудсанд og:image/title/description тавина.
+model SeoOverride {
+  id              String   @id @default(cuid())
+  path            String   @unique // /products гэх мэт (эхэндээ / -тай)
+  title           String?
+  description     String?
+  ogImageUrl      String?
+  updatedAt       DateTime @default(now()) @updatedAt
+  createdAt       DateTime @default(now())
+}
+
 // ─── Имэйл захиалагч (newsletter / marketing) ────────────────────────────────
 enum SubscriberStatus {
   ACTIVE

@@ -606,6 +606,25 @@ export interface UploadVariantInfo {
   bytes: number;
 }
 
+// —— SEO override (тогтмол хуудсуудын custom OG meta) ——
+export interface SeoOverride {
+  id: string;
+  path: string;
+  title?: string | null;
+  description?: string | null;
+  ogImageUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SeoOverrideInput {
+  id?: string;
+  path: string;
+  title?: string | null;
+  description?: string | null;
+  ogImageUrl?: string | null;
+}
+
 export interface UploadResult {
   key: string;
   url: string;

@@ -32,6 +32,7 @@ import {
 import { cn } from '@digitalger/shared';
 import { adminApi } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
+import { SeoOverrideManager } from '@/components/seo/seo-override-manager';
 import type { SiteSettings } from '@/types/admin';
 
 function Textarea({
@@ -272,8 +273,9 @@ export default function SeoPage() {
   if (isError) return <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />;
 
   return (
+    <div className="space-y-5 max-w-2xl">
     <form
-      className="space-y-5 max-w-2xl"
+      className="space-y-5"
       onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}
     >
       {/* Header */}
@@ -549,11 +551,17 @@ export default function SeoPage() {
         </Card>
       )}
 
-      <div className="flex justify-end pb-6">
+      <div className="flex justify-end">
         <Button type="submit" disabled={mutation.isPending} size="lg">
           {mutation.isPending ? 'Хадгалж байна...' : 'Тохиргоо хадгалах'}
         </Button>
       </div>
     </form>
+
+    {/* Хуудас тус бүрийн custom OG meta override (settings form-аас тусдаа) */}
+    <div className="pb-6">
+      <SeoOverrideManager />
+    </div>
+    </div>
   );
 }
