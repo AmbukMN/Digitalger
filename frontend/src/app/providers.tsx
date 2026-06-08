@@ -243,7 +243,7 @@ export function Providers({ children, defaultTheme = 'system', navbar }: Provide
           <AnalyticsUserSync />
           {children}
           <BrowserSwitchHost />
-          <Toaster position="top-center" richColors closeButton duration={2500} />
+          <Toaster position="top-center" richColors closeButton duration={4000} />
         </ThemeProvider>
       </QueryClientProvider>
     </SessionProvider>
