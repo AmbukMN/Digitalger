@@ -620,8 +620,12 @@ export class AdminProductsService {
     title: string;
     slug: string;
     price: Prisma.Decimal;
+    adminOnly?: boolean;
     images?: { fileKey: string; videoUrl: string | null }[];
   }) {
+    // ⚠️ adminOnly (зөвхөн админд харагдах туршилт) бүтээгдэхүүнд marketing имэйл
+    // ЯВУУЛАХГҮЙ — хэрэглэгчид харагдахгүй бүтээгдэхүүнийг сурталчлахгүй.
+    if (product.adminOnly) return;
     try {
       // Давхар явуулахаас сэргийлж нэн даруй тэмдэглэнэ (race-аас хамгаалах).
       const marked = await this.prisma.product.updateMany({

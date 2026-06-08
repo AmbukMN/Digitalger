@@ -592,8 +592,12 @@ export function ReviewsSection({
         </div>
       )}
 
-      {/* Нэвтрэх modal */}
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      {/* Нэвтрэх modal — нэвтэрсний дараа тухайн хуудсандаа л буцна (home биш) */}
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        callbackUrl={typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined}
+      />
     </section>
   );
 }

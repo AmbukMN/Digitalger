@@ -199,7 +199,7 @@ export class ProductsService {
           },
         },
         reviews: {
-          take: 20,
+          take: 10, // эхний хуудас 10 (frontend pagination 10/хуудас)
           orderBy: { createdAt: 'desc' },
           include: { user: { select: { id: true, name: true, image: true } } },
         },
