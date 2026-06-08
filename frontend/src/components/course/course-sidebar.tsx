@@ -263,7 +263,7 @@ export function CourseSidebar({
       {/* Дээд: курсын ерөнхий progress */}
       <div className="shrink-0 border-b border-white/10 px-4 py-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-white">Курсын явц</span>
+          <span className="text-sm font-semibold text-white">Сургалтын явц</span>
           <span className="text-sm font-bold text-[#ffbe00] tabular-nums">{pct}%</span>
         </div>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">

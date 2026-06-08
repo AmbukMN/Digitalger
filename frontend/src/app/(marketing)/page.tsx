@@ -44,7 +44,7 @@ export async function generateMetadata(): Promise<Metadata> {
   try {
     const s = await siteSettingsApi.getPublic();
     const title = s.metaTitle || `${s.siteName} — Дижитал бүтээгдэхүүний marketplace`;
-    const description = s.metaDescription || 'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
+    const description = s.metaDescription || 'Файл, загвар, баримт, видео, сургалт зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
     const ogTitle = s.ogTitle || title;
     const ogDesc = s.ogDescription || description;
     defaultMeta = {
@@ -68,7 +68,7 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     defaultMeta = {
       title: `${SITE_NAME} — Дижитал бүтээгдэхүүний marketplace`,
-      description: 'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.',
+      description: 'Файл, загвар, баримт, видео, сургалт зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.',
       alternates: { canonical: SITE_URL },
     };
   }

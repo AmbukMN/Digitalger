@@ -100,7 +100,7 @@ export default async function Image() {
   const hasImage = !!banner?.imageUrl;
   const headline = banner?.title ?? 'Дижитал бүтээгдэхүүний платформ';
   const subtitle =
-    banner?.subtitle ?? 'Файл • Загвар • Курс • Дижитал бүтээгдэхүүн';
+    banner?.subtitle ?? 'Файл • Загвар • Сургалт • Дижитал бүтээгдэхүүн';
 
   return new ImageResponse(
     (

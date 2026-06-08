@@ -59,7 +59,7 @@ export function CourseOverview({
     <section className="rounded-2xl border border-primary/15 bg-linear-to-br from-primary/5 via-card to-primary/3 p-5 shadow-sm sm:p-6">
       <div className="mb-5 flex items-center gap-2">
         <GraduationCap className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-bold">Энэ курсын тухай</h2>
+        <h2 className="text-lg font-bold">Энэ сургалтын тухай</h2>
       </div>
 
       {/* Stats grid */}
@@ -81,7 +81,7 @@ export function CourseOverview({
         <div className="mt-6">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold">
             <BookOpen className="h-4 w-4 text-primary" />
-            {totalModules > 0 ? 'Курсын бүлгүүд' : 'Энэ курст юу үзэх вэ?'}
+            {totalModules > 0 ? 'Сургалтын бүлгүүд' : 'Энэ сургалтаас юу үзэх вэ?'}
           </h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {learnItems.map((item, i) => (

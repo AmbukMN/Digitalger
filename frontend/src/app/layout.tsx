@@ -34,7 +34,7 @@ export const viewport: Viewport = {
 
 const DEFAULT_TITLE = `${SITE_NAME} — Дижитал бүтээгдэхүүний marketplace`;
 const DEFAULT_DESC =
-  'Файл, загвар, баримт, видео, курс зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
+  'Файл, загвар, баримт, видео, сургалт зэрэг дижитал бүтээгдэхүүн худалдаж авах Монголын marketplace.';
 
 export async function generateMetadata(): Promise<Metadata> {
   let ogImageUrl: string | null = null;
@@ -57,7 +57,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: DEFAULT_DESC,
     keywords: [
-      'дижитал бүтээгдэхүүн', 'файл татах', 'загвар', 'курс', 'монгол marketplace',
+      'дижитал бүтээгдэхүүн', 'файл татах', 'загвар', 'сургалт', 'монгол marketplace',
       'digital product', 'template', 'online course', 'Mongolia',
     ],
     authors: [{ name: SITE_NAME, url: SITE_URL }],

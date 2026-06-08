@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SITE_URL } from '@/lib/constants';
 
 const META_TITLE = 'Бүх Ангилал — DigitalGer';
-const META_DESC = 'Файл, загвар, курс, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.';
+const META_DESC = 'Файл, загвар, сургалт, баримт зэрэг дижитал бүтээгдэхүүний ангиллуудыг харж, өөрт тохирохыг олоорой.';
 
 export async function generateMetadata(): Promise<Metadata> {
   let ogImageUrl: string | null = null;

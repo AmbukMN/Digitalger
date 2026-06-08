@@ -338,7 +338,7 @@ export function LearnClient({ product }: LearnClientProps) {
           </div>
           <div>
             <p className="text-lg font-semibold text-white">Энэ хичээл түгжээтэй байна</p>
-            <p className="mt-1 text-sm text-white/60">Курсыг худалдан авч бүх хичээлийг үзээрэй.</p>
+            <p className="mt-1 text-sm text-white/60">Сургалтыг худалдан авч бүх хичээлийг үзээрэй.</p>
           </div>
           <Button asChild className="bg-[#ffbe00] text-[#022179] hover:bg-[#ffbe00]/90">
             <Link href={`/products/${product.slug}`}>Худалдан авах</Link>
@@ -420,7 +420,7 @@ export function LearnClient({ product }: LearnClientProps) {
                 ) : null}
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3 text-[#ffbe00]" />
-                  Курс {overallPct}% ({completedCount}/{totalLessons})
+                  Сургалт {overallPct}% ({completedCount}/{totalLessons})
                 </span>
               </div>
             </div>
@@ -460,7 +460,7 @@ export function LearnClient({ product }: LearnClientProps) {
               <div className="flex items-center gap-3">
                 <PartyPopper className="h-5 w-5 shrink-0 text-emerald-400" />
                 <p className="text-sm font-semibold text-white">
-                  Баяр хүргэе, та курсыг бүрэн үзэж дууслаа! 🎉
+                  Баяр хүргэе, та сургалтыг бүрэн үзэж дууслаа! 🎉
                 </p>
               </div>
               {purchased && (
@@ -636,7 +636,7 @@ function NoAccess({ product }: { product: ProductDetail }) {
         <Lock className="h-7 w-7 text-white/70" />
       </div>
       <div>
-        <h1 className="text-xl font-bold text-white">Энэ курсыг үзэх эрх танд алга</h1>
+        <h1 className="text-xl font-bold text-white">Энэ хичээлийг үзэх эрх танд алга</h1>
         <p className="mt-2 max-w-md text-sm text-white/60">
           Энэ хичээлийг үзэхийн тулд эхлээд худалдан авна уу. Худалдаж авсны дараа бүх хичээл нээгдэнэ.
         </p>

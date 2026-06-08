@@ -153,7 +153,7 @@ export default function CertificatesPage() {
         <div>
           <h1 className="text-2xl font-bold">Миний сертификат</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Курс амжилттай дуусгаж авсан бүх сертификат
+            Сургалт амжилттай дуусгаж авсан бүх сертификат
           </p>
         </div>
         {certs.length > 0 && (
@@ -168,12 +168,12 @@ export default function CertificatesPage() {
       {/* Backend бэлэн биш / алдаа гарвал — empty state-тэй адил эелдэг харагдац */}
       {error && (
         <EmptyState
-          title="Сертификат авалгүй байна"
-          description="Курс дуусгаад сертификат аваарай. Сертификат олдмогц энд харагдана."
+          title="Сертификат аваагүй байна"
+          description="Сургалт амжилттай дуусгаад сертификат аваарай. Сертификат олдмогц энд харагдана."
           className="mt-8"
           action={
             <Button asChild>
-              <Link href="/products?type=course">Курс үзэх</Link>
+              <Link href="/categories/lesson">Хичээл үзэх</Link>
             </Button>
           }
         />
@@ -181,12 +181,12 @@ export default function CertificatesPage() {
 
       {!isLoading && !error && certs.length === 0 && (
         <EmptyState
-          title="Сертификат авалгүй байна"
-          description="Курс дуусгаад сертификат аваарай. Хичээлээ 100% үзэж дуусгахад сертификат олгогдоно."
+          title="Сертификат аваагүй байна"
+          description="Сургалт амжилттай дуусгаад сертификат аваарай. Хичээлээ 100% үзэж дуусгахад сертификат олгогдоно."
           className="mt-8"
           action={
             <Button asChild>
-              <Link href="/products?type=course">Курс үзэх</Link>
+              <Link href="/categories/lesson">Хичээл үзэх</Link>
             </Button>
           }
         />
