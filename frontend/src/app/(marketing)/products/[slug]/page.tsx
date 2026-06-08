@@ -112,7 +112,6 @@ export default async function ProductDetailPage({ params }: Props) {
   const hasLessons = allLessons.length > 0;
   const coursePreviewCount = allLessons.filter((l) => l.isFreePreview).length;
   const hasFaqs = product.faqs && product.faqs.length > 0;
-  const hasReviews = product.reviews && product.reviews.length > 0;
   const hasTestimonials = product.testimonials && product.testimonials.length > 0;
   const hasProof = Boolean(product.proofQuote || product.proofImageUrl);
   const galleryItems = (product.images ?? []).map((img) => ({
@@ -475,12 +474,15 @@ export default async function ProductDetailPage({ params }: Props) {
               </section>
             )}
 
-            {/* Reviews */}
-            {hasReviews && (
-              <div id="reviews">
-                <ReviewsSection reviews={product.reviews!} rating={product.rating} ratingCount={product.ratingCount} />
-              </div>
-            )}
+            {/* Reviews — нэвтэрсэн хэрэглэгч эхний сэтгэгдэл үлдээж болохоор үргэлж харуулна */}
+            <div id="reviews">
+              <ReviewsSection
+                slug={slug}
+                initialReviews={product.reviews ?? []}
+                rating={product.rating}
+                ratingCount={product.ratingCount}
+              />
+            </div>
           </div>
 
           {/* Right sidebar — md+ */}

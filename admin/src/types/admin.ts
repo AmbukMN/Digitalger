@@ -543,6 +543,17 @@ export interface AdminLessonQuestion {
   lesson?: { id: string; title: string } | null;
 }
 
+// ─── Review / Сэтгэгдэл (бүтээгдэхүүний үнэлгээ) ─────────────────────────────
+export interface AdminReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  authorName: string | null;
+  createdAt: string;
+  product: { id?: string; title: string; slug: string } | null;
+  user: { id?: string; name: string | null; email: string; image?: string | null } | null;
+}
+
 export interface AdminCoupon {
   id: string;
   code: string;

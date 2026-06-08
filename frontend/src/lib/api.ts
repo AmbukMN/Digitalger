@@ -613,6 +613,69 @@ export const chatApi = {
     }),
 };
 
+// —— Reviews (бүтээгдэхүүний сэтгэгдэл/үнэлгээ) ——
+export interface ReviewItem {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt?: string;
+  user: { id: string; name: string | null; image: string | null };
+}
+
+export interface ReviewBreakdown {
+  // { '5': 10, '4': 3, ... } — од бүрийн тоо
+  [stars: string]: number;
+}
+
+export interface ReviewsPage {
+  items: ReviewItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  breakdown?: ReviewBreakdown;
+}
+
+export const reviewsApi = {
+  // Жагсаалт (pagination, breakdown) — public
+  list: (slug: string, page = 1, pageSize = 10) =>
+    request<ReviewsPage>(`/reviews/${slug}${qs({ page, pageSize })}`),
+
+  // Шинээр үлдээх (JwtAuthGuard + math captcha)
+  create: (
+    token: string,
+    slug: string,
+    body: {
+      rating: number;
+      comment: string;
+      authorName?: string;
+      captchaA: number;
+      captchaB: number;
+      captchaAnswer: number;
+    },
+  ) =>
+    request<ReviewItem>(`/reviews/${slug}`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  // Өөрийн сэтгэгдэл засах
+  update: (token: string, reviewId: string, body: { rating: number; comment: string }) =>
+    request<ReviewItem>(`/reviews/${reviewId}`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  // Өөрийн сэтгэгдэл устгах
+  remove: (token: string, reviewId: string) =>
+    request<void>(`/reviews/${reviewId}`, { method: 'DELETE', token }),
+
+  // Тухайн product дээрх ӨӨРИЙН сэтгэгдэл (байхгүй бол null)
+  mine: (token: string, slug: string) =>
+    request<ReviewItem | null>(`/reviews/${slug}/mine`, { token }).catch(() => null),
+};
+
 // —— Contact (холбоо барих хүсэлт) ——
 export const contactApi = {
   submit: (body: {

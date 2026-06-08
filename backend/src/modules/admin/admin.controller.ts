@@ -18,7 +18,7 @@ import { memoryStorage } from 'multer';
 import * as XLSX from 'xlsx';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
-import { OrderStatus, Role } from '@prisma/client';
+import { OrderStatus, Prisma, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -26,6 +26,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
+import { ReviewsService } from '../reviews/reviews.service';
 import { CategoriesService } from '../categories/categories.service';
 import { OrdersService } from '../orders/orders.service';
 import { UsersService } from '../users/users.service';
@@ -64,6 +65,7 @@ export class AdminController {
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue,
     private readonly emailService: EmailService,
     private readonly cache: AppCacheService,
+    private readonly reviews: ReviewsService,
   ) {}
 
   @Get('dashboard')
@@ -1112,5 +1114,135 @@ export class AdminController {
       this.zipQueue.clean(0, 'failed'),
     ]);
     return { success: true };
+  }
+
+  // ─── Reviews (сэтгэгдэл) удирдлага ────────────────────────────────────────────
+
+  // GET /admin/reviews — бүх review pagination (product нэр, user нэр/имэйл).
+  @Get('reviews')
+  async listReviews(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('productId') productId?: string,
+    @Query('rating') rating?: string,
+  ) {
+    const p = Math.max(1, page ? parseInt(page, 10) : 1);
+    const ps = Math.min(100, Math.max(1, pageSize ? parseInt(pageSize, 10) : 20));
+    const skip = (p - 1) * ps;
+
+    const term = (search ?? '').trim();
+    const ratingNum = rating ? parseInt(rating, 10) : undefined;
+
+    const where: Prisma.ReviewWhereInput = {
+      ...(productId ? { productId } : {}),
+      ...(ratingNum && ratingNum >= 1 && ratingNum <= 5 ? { rating: ratingNum } : {}),
+      ...(term
+        ? {
+            OR: [
+              { comment: { contains: term, mode: 'insensitive' } },
+              { authorName: { contains: term, mode: 'insensitive' } },
+              { user: { name: { contains: term, mode: 'insensitive' } } },
+              { user: { email: { contains: term, mode: 'insensitive' } } },
+              { product: { title: { contains: term, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.review.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: ps,
+        include: {
+          user: { select: { id: true, name: true, email: true, image: true } },
+          product: { select: { id: true, title: true, slug: true } },
+        },
+      }),
+      this.prisma.review.count({ where }),
+    ]);
+
+    return { items, total, page: p, pageSize: ps };
+  }
+
+  // PATCH /admin/reviews/:id — comment/rating/authorName засах → recalc.
+  @Patch('reviews/:id')
+  async updateReview(
+    @Param('id') id: string,
+    @Body() body: { rating?: number; comment?: string; authorName?: string },
+  ) {
+    const existing = await this.prisma.review.findUnique({
+      where: { id },
+      select: { productId: true },
+    });
+    if (!existing) throw new BadRequestException('Сэтгэгдэл олдсонгүй');
+
+    const data: Prisma.ReviewUpdateInput = {};
+    if (body.rating !== undefined) {
+      const r = Number(body.rating);
+      if (!Number.isInteger(r) || r < 1 || r > 5) {
+        throw new BadRequestException('Үнэлгээ 1-ээс 5 хооронд байх ёстой');
+      }
+      data.rating = r;
+    }
+    if (body.comment !== undefined) {
+      const c = (body.comment ?? '').trim();
+      if (c.length > 2000) throw new BadRequestException('Сэтгэгдэл хэт урт байна');
+      data.comment = c || null;
+    }
+    if (body.authorName !== undefined) {
+      const n = (body.authorName ?? '').trim();
+      if (n.length > 100) throw new BadRequestException('Нэр хэт урт байна');
+      data.authorName = n || null;
+    }
+
+    const review = await this.prisma.review.update({
+      where: { id },
+      data,
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        product: { select: { id: true, title: true, slug: true } },
+      },
+    });
+
+    await this.reviews.recalcProductRating(existing.productId);
+    return review;
+  }
+
+  // DELETE /admin/reviews/:id → recalc.
+  @Delete('reviews/:id')
+  async deleteReview(@Param('id') id: string) {
+    const existing = await this.prisma.review.findUnique({
+      where: { id },
+      select: { productId: true },
+    });
+    if (!existing) throw new BadRequestException('Сэтгэгдэл олдсонгүй');
+
+    await this.prisma.review.delete({ where: { id } });
+    await this.reviews.recalcProductRating(existing.productId);
+    return { success: true };
+  }
+
+  // POST /admin/reviews/bulk-delete — олон устгах + нөлөөлсөн product бүрийг recalc.
+  @Post('reviews/bulk-delete')
+  async bulkDeleteReviews(@Body() body: { ids?: string[] }) {
+    const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
+    if (!ids.length) throw new BadRequestException('Устгах сэтгэгдэл сонгоогүй байна');
+
+    // нөлөөлсөн product-уудыг урьдчилж олж авна (устгасны дараа recalc хийхэд)
+    const affected = await this.prisma.review.findMany({
+      where: { id: { in: ids } },
+      select: { productId: true },
+    });
+    const productIds = [...new Set(affected.map((r) => r.productId))];
+
+    const result = await this.prisma.review.deleteMany({ where: { id: { in: ids } } });
+
+    // нөлөөлсөн product бүрийн rating/ratingCount-ийг дахин тооцно
+    await Promise.all(productIds.map((pid) => this.reviews.recalcProductRating(pid)));
+
+    return { success: true, deleted: result.count, productsRecalculated: productIds.length };
   }
 }

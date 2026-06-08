@@ -23,6 +23,7 @@ import type {
   AdminProductImage,
   AdminProductTypeConfig,
   AdminProfile,
+  AdminReview,
   AdminSubscriber,
   AdminSubscriberCategory,
   AdminTestimonial,
@@ -447,6 +448,31 @@ export const adminApi = {
       adminFetch<AdminFaq>(`/admin/faqs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) => adminFetch<void>(`/admin/faqs/${id}`, { method: 'DELETE' }),
     getProductIds: (faqId: string) => adminFetch<string[]>(`/admin/faqs/${faqId}/product-ids`),
+  },
+
+  // ─── Review / Сэтгэгдэл (бүтээгдэхүүний үнэлгээ) ──────────────────────────
+  reviews: {
+    list: (params?: { page?: number; pageSize?: number; search?: string; productId?: string; rating?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+      if (params?.search) q.set('search', params.search);
+      if (params?.productId) q.set('productId', params.productId);
+      if (params?.rating) q.set('rating', String(params.rating));
+      const qs = q.toString();
+      return adminFetch<{ items: AdminReview[]; total: number; page: number; pageSize: number }>(
+        `/admin/reviews${qs ? `?${qs}` : ''}`,
+      );
+    },
+    update: (id: string, body: { comment?: string | null; rating?: number; authorName?: string | null }) =>
+      adminFetch<AdminReview>(`/admin/reviews/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      adminFetch<void>(`/admin/reviews/${id}`, { method: 'DELETE' }),
+    bulkDelete: (ids: string[]) =>
+      adminFetch<{ deleted: number }>('/admin/reviews/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      }),
   },
 
   testimonials: {

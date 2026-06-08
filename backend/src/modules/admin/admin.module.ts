@@ -7,6 +7,7 @@ import { UsersModule } from '../users/users.module';
 import { ProductsModule } from '../products/products.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { N8nModule } from '../n8n/n8n.module';
+import { ReviewsModule } from '../reviews/reviews.module';
 import { AdminController } from './admin.controller';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
@@ -20,6 +21,7 @@ import { ZIP_QUEUE } from '../downloads/zip.processor';
     ProductsModule,
     NotificationsModule,
     N8nModule,
+    ReviewsModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
