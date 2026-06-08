@@ -25,7 +25,9 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const token = session?.accessToken;
 
   const add = useCartStore((s) => s.add);
-  const has = useCartStore((s) => s.has);
+  // ⚠️ items-ийг ШУУД subscribe — has() функц reference өөрчлөгддөггүй тул сагсанд
+  // нэмэхэд re-render болохгүй байсан. items-ээс тооцвол realtime шинэчлэгдэнэ.
+  const cartItems = useCartStore((s) => s.items);
   const toggleWishlistLocal = useWishlistStore((s) => s.toggle);
   const inWishlistRaw = useWishlistStore((s) => s.has(product.id));
   const [mounted, setMounted] = useState(false);
@@ -45,7 +47,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const isPurchased =
     mounted && !!purchased?.some((p) => p.product.id === product.id && p.isExpired !== true);
   const inWishlist = mounted && inWishlistRaw;
-  const inCart = mounted && has(product.id);
+  const inCart = mounted && cartItems.some((i) => i.productId === product.id);
 
   const handleAddToCart = () => {
     if (isPurchased) return;
