@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- DigitalGer LLC албан ёсны дугуй тамга (олон улсын маягийн) -->
+  <defs>
+    <path id="topArc" d="M 100,100 m -76,0 a 76,76 0 1 1 152,0" />
+    <path id="botArc" d="M 100,100 m 72,0 a 72,72 0 0 1 -144,0" />
+  </defs>
+
+  <!-- Гадна давхар цагираг -->
+  <circle cx="100" cy="100" r="94" fill="none" stroke="#022179" stroke-width="3"/>
+  <circle cx="100" cy="100" r="88" fill="none" stroke="#022179" stroke-width="1.4"/>
+  <!-- Цэгэн чимэглэлийн цагираг -->
+  <circle cx="100" cy="100" r="91" fill="none" stroke="#022179" stroke-width="2" stroke-dasharray="1.5 4"/>
+  <!-- Дотор цагираг -->
+  <circle cx="100" cy="100" r="58" fill="none" stroke="#022179" stroke-width="2"/>
+
+  <!-- Дээд нумаар текст -->
+  <text font-family="Georgia, 'Times New Roman', serif" font-size="13.5" font-weight="700" letter-spacing="2.6" fill="#022179">
+    <textPath href="#topArc" startOffset="50%" text-anchor="middle">DIGITALGER LLC</textPath>
+  </text>
+  <!-- Доод нумаар текст -->
+  <text font-family="Georgia, 'Times New Roman', serif" font-size="11.5" font-weight="600" letter-spacing="3" fill="#022179">
+    <textPath href="#botArc" startOffset="50%" text-anchor="middle">★ MONGOLIA ★ OFFICIAL ★</textPath>
+  </text>
+
+  <!-- Хажуугийн жижиг одод (дээд/доод текстийн зааг) -->
+  <g fill="#022179">
+    <path d="M24 100 l3 -5 3 5 -6 0 z" opacity="0.9"/>
+    <path d="M170 100 l3 -5 3 5 -6 0 z" opacity="0.9"/>
+  </g>
+
+  <!-- Төв тэмдэг — DigitalGer од + DG -->
+  <g transform="translate(100,100)">
+    <!-- Том од -->
+    <path d="M0 -34 L9.8 -10.5 L34 -10.5 L14.6 4 L22 27.5 L0 13 L-22 27.5 L-14.6 4 L-34 -10.5 L-9.8 -10.5 Z"
+          fill="#ffbe00" stroke="#022179" stroke-width="1.6"/>
+    <!-- DG -->
+    <text x="0" y="6" font-family="Georgia, serif" font-size="16" font-weight="900" fill="#022179" text-anchor="middle">DG</text>
+  </g>
+
+  <!-- Доод жижиг "EST. 2024" -->
+  <text x="100" y="156" font-family="Georgia, serif" font-size="8.5" font-weight="600" letter-spacing="2" fill="#022179" text-anchor="middle">EST. 2024</text>
+</svg>

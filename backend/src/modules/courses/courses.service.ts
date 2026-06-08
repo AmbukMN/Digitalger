@@ -304,6 +304,15 @@ export class CoursesService {
   }
 
   /**
+   * Сертификатын дугаарыг ХАРУУЛАХ формат — '#' угтвартай (#DG-XXXXXX).
+   * ⚠️ DB-д хадгалах утга хэвээр (DG-XXXXXX), зөвхөн HTML-д # угтвар нэмнэ.
+   * Аль хэдийн '#' байвал давхар нэмэхгүй.
+   */
+  private formatCertNoDisplay(certNo: string): string {
+    return certNo.startsWith('#') ? certNo : `#${certNo}`;
+  }
+
+  /**
    * Курсын бүх хичээл дууссан эсэхийг шалгаад сертификат олгоно (upsert).
    * Аль хэдийн байвал тухайн сертификатыг буцаана. 100% дуусаагүй бол алдаа.
    */
@@ -422,6 +431,64 @@ export class CoursesService {
   }
 
   /**
+   * Хэрэглэгчийн БҮХ авсан сертификатыг жагсаана ("Миний сертификат").
+   * ⚠️ Олон курс дуусгасан бол курс тус бүрд тусдаа сертификат (өөр certNo/
+   * courseTitle/issuedAt). issuedAt буурахаар (шинэ нь эхэнд) эрэмбэлнэ.
+   * Тус бүрд хэвлэх/харах viewUrl (нийтийн /view линк) дагалдана.
+   */
+  async listMyCertificates(userId: string) {
+    const certs = await this.prisma.certificate.findMany({
+      where: { userId },
+      orderBy: { issuedAt: 'desc' },
+    });
+
+    // ⚠️ Certificate model-д product relation БАЙХГҮЙ (зөвхөн productId scalar).
+    // Тиймээс холбоотой product-уудыг тусад нь нэг query-ээр татаж map болгоно.
+    const productIds = [...new Set(certs.map((c) => c.productId))];
+    const products = productIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            previewUrl: true,
+            // primary зураг + thumbnail variant-аас thumbnail url resolve хийнэ.
+            images: {
+              orderBy: { sortOrder: 'asc' },
+              include: { variants: { select: { size: true, fileKey: true } } },
+            },
+          },
+        })
+      : [];
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    return certs.map((c) => {
+      const product = productById.get(c.productId);
+      // products.service-тэй ИЖИЛ логик: primary (видео биш) зураг → thumbnail variant.
+      const images = product?.images ?? [];
+      const primary =
+        images.find((i) => i.isPrimary && !i.videoUrl) ??
+        images.filter((i) => !i.videoUrl).sort((a, b) => a.sortOrder - b.sortOrder)[0];
+      const thumbVariant = primary?.variants?.find((v) => v.size === 'thumbnail');
+      const productThumbnail = primary
+        ? this.storage.getAssetUrl(thumbVariant?.fileKey ?? primary.fileKey)
+        : (product?.previewUrl ?? null);
+
+      return {
+        certNo: c.certNo,
+        courseTitle: c.courseTitle,
+        userName: c.userName,
+        issuedAt: c.issuedAt,
+        productSlug: product?.slug ?? null,
+        productTitle: product?.title ?? c.courseTitle,
+        productThumbnail,
+        viewUrl: `${this.siteUrl}/courses/certificate/${encodeURIComponent(c.certNo)}/view`,
+      };
+    });
+  }
+
+  /**
    * Нийтийн баталгаажуулах — certNo-оор сертификат олж сайхан HTML буцаана.
    * ⚠️ PDF биш HTML (кирилл найдвартай); frontend хэвлэх/PDF болгоно.
    * Landscape дизайн (хүрээ, лого, гарын үсэг хэсэг).
@@ -467,7 +534,7 @@ export class CoursesService {
     const rawSig = setting?.certSignatureUrl?.trim();
     return {
       signatureUrl: rawSig ? this.storage.getAssetUrl(rawSig) : undefined,
-      signerName: setting?.certSignerName?.trim() || 'Б. Амгаланбаяр',
+      signerName: setting?.certSignerName?.trim() || 'Г. Амгаланбаяр',
       signerTitle: setting?.certSignerTitle?.trim() || 'Гүйцэтгэх захирал',
     };
   }
@@ -524,7 +591,17 @@ export class CoursesService {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 
-    const logoUrl = `${this.siteUrl}/brand/logo-white.png`;
+    // ⚠️ ЗӨВ лого — 'DigitalGer white logo.png' (space-тай тул URL encode).
+    const logoUrl = `${this.siteUrl}/brand/DigitalGer%20white%20logo.png`;
+
+    // ── Default тамга/гарын үсэг SVG (public/brand) ──
+    // Гарын үсэг: admin upload (certSignatureUrl) байвал тэр, байхгүй бол бодит SVG.
+    const signatureSrc =
+      opts.signatureUrl || `${this.siteUrl}/brand/signature-amgalanbayar.svg`;
+    // DigitalGer LLC албан ёсны дугуй тамга (баруун footer — олон улсын маяг).
+    const llcSealUrl = `${this.siteUrl}/brand/seal-digitalger-llc.svg`;
+    // Харуулах certNo (# угтвартай).
+    const certNoDisplay = this.formatCertNoDisplay(opts.certNo);
 
     // ── QR код (verifyUrl) — скан хийж баталгаажуулна (enterprise стандарт) ──
     // Алдаа гарвал (offline орчин г.м) QR-гүй үргэлжилнэ.
@@ -545,10 +622,8 @@ export class CoursesService {
     const courseLen = opts.courseTitle.length;
     const courseFontPx = courseLen > 78 ? 18 : courseLen > 52 ? 21 : courseLen > 32 ? 25 : 29;
 
-    // ── Footer зүүн багана: гарын үсэг зураг ЭСВЭЛ placeholder зураас ──
-    const signatureBlock = opts.signatureUrl
-      ? `<img class="sig-img" src="${esc(opts.signatureUrl)}" alt="Гарын үсэг" />`
-      : `<div class="sig-placeholder"></div>`;
+    // ── Footer зүүн багана: гарын үсэг зураг (admin upload эсвэл default SVG) ──
+    const signatureBlock = `<img class="sig-img" src="${esc(signatureSrc)}" alt="Г.Амгаланбаяр гарын үсэг" />`;
 
     // ── QR block (байвал) ──
     const qrBlock = qrDataUrl
@@ -659,17 +734,23 @@ export class CoursesService {
     justify-content: center;
   }
   .ribbon .badge {
-    margin-top: 16px;
-    width: 46px;
-    height: 46px;
+    margin-top: 14px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     background: var(--navy);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--gold);
-    font-size: 24px;
-    line-height: 1;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 2px var(--gold);
+  }
+  /* Ribbon badge доторх жижиг лого (★ оронд бодит брэнд лого) */
+  .ribbon .badge img {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    display: block;
   }
 
   /* ── Гол агуулга ── */
@@ -780,14 +861,14 @@ export class CoursesService {
   .col { text-align: center; flex: 1; min-width: 0; }
   /* Гарын үсгийн зураг / нэр — зураасны ДЭЭР */
   .col .sig-img {
-    height: 46px;
+    height: 64px;
     width: auto;
-    max-width: 200px;
+    max-width: 230px;
     display: block;
-    margin: 0 auto 4px;
+    margin: 0 auto 2px;
     object-fit: contain;
   }
-  .col .sig-placeholder { height: 46px; }
+  .col .sig-placeholder { height: 64px; }
   .col .val {
     font-size: 16px;
     font-weight: 700;
@@ -809,35 +890,74 @@ export class CoursesService {
     font-weight: 600;
   }
 
-  /* ── Төв SEAL (gold албан ёсны тамга) ── */
+  /* ── Төв: PREMIUM 'VERIFIED' gold seal (embossed, enterprise) ── */
   .seal {
     flex: 0 0 auto;
-    width: 96px;
-    height: 96px;
+    width: 104px;
+    height: 104px;
     border-radius: 50%;
+    position: relative;
+    /* Олон давхар gold gradient — metallic/embossed мэдрэмж */
     background:
-      radial-gradient(circle at 50% 35%, #ffd34d 0%, var(--gold) 55%, #e3a600 100%);
-    border: 3px solid var(--navy);
-    box-shadow: 0 6px 16px rgba(2,33,121,0.28), inset 0 0 0 4px rgba(255,255,255,0.45);
+      radial-gradient(circle at 50% 30%, #fff1bf 0%, #ffd34d 28%, var(--gold) 58%, #d99a00 100%);
+    box-shadow:
+      0 8px 20px rgba(2,33,121,0.30),
+      0 2px 4px rgba(0,0,0,0.18),
+      inset 0 2px 5px rgba(255,255,255,0.75),
+      inset 0 -3px 6px rgba(160,110,0,0.45);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     color: var(--navy);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
-  .seal .seal-star { font-size: 22px; line-height: 1; }
+  /* Гадна navy цагираг + дотор нимгэн цагаан зураас (medallion) */
+  .seal::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 3px solid var(--navy);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.55);
+  }
+  .seal::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1.5px dashed rgba(2,33,121,0.45);
+  }
+  .seal .seal-star {
+    font-size: 20px;
+    line-height: 1;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+  }
   .seal .seal-txt {
-    font-size: 8px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 900;
     letter-spacing: 1.5px;
-    margin-top: 2px;
+    margin-top: 1px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.55);
   }
   .seal .seal-sub {
-    font-size: 6px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    margin-top: 1px;
+    font-size: 6.5px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    margin-top: 2px;
+    color: rgba(2,33,121,0.78);
+    text-transform: uppercase;
+  }
+
+  /* ── Footer баруун: DigitalGer LLC албан ёсны дугуй тамга (SVG) ── */
+  .col .llc-seal {
+    width: 92px;
+    height: 92px;
+    display: block;
+    margin: 0 auto 4px;
+    object-fit: contain;
+    /* нимгэн сүүдэр — баримтан дээр товойлгох */
+    filter: drop-shadow(0 3px 6px rgba(2,33,121,0.22));
   }
 
   /* ── Доод: certNo (тод monospace) + QR + verify ── */
@@ -913,9 +1033,9 @@ export class CoursesService {
     <!-- Gold inner border -->
     <div class="frame"></div>
 
-    <!-- Зүүн дээд ribbon badge -->
+    <!-- Зүүн дээд ribbon badge — доторх ★ оронд брэнд лого -->
     <div class="ribbon">
-      <div class="flag"><div class="badge">&#9733;</div></div>
+      <div class="flag"><div class="badge"><img src="${logoUrl}" alt="DigitalGer" /></div></div>
     </div>
 
     <div class="inner">
@@ -933,6 +1053,7 @@ export class CoursesService {
       <div class="course" style="font-size:${courseFontPx}px">&laquo;${esc(opts.courseTitle)}&raquo;</div>
 
       <div class="footer">
+        <!-- Зүүн: Г.Амгаланбаяр бодит гарын үсэг + нэр + тушаал -->
         <div class="col">
           ${signatureBlock}
           <div class="val">${esc(opts.signerName)}</div>
@@ -940,14 +1061,16 @@ export class CoursesService {
           <div class="label">${esc(opts.signerTitle)}</div>
         </div>
 
+        <!-- Төв: PREMIUM gold 'VERIFIED' medallion -->
         <div class="seal">
           <div class="seal-star">&#9733;</div>
-          <div class="seal-txt">DIGITALGER</div>
-          <div class="seal-sub">VERIFIED</div>
+          <div class="seal-txt">VERIFIED</div>
+          <div class="seal-sub">DigitalGer</div>
         </div>
 
+        <!-- Баруун: DigitalGer LLC албан ёсны дугуй тамга + огноо -->
         <div class="col">
-          <div class="sig-placeholder"></div>
+          <img class="llc-seal" src="${esc(llcSealUrl)}" alt="DigitalGer LLC тамга" />
           <div class="val">${esc(opts.dateStr)}</div>
           <div class="rule"></div>
           <div class="label">Олгосон огноо</div>
@@ -958,7 +1081,7 @@ export class CoursesService {
     <div class="meta">
       <div class="meta-left">
         <div class="certno-lbl">Сертификатын дугаар</div>
-        <div class="certno">${esc(opts.certNo)}</div>
+        <div class="certno">${esc(certNoDisplay)}</div>
         <div class="verify">Баталгаажуулах: ${esc(opts.verifyUrl)}</div>
       </div>
       ${qrBlock}

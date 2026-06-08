@@ -415,6 +415,19 @@ export interface CourseCertificate {
   issuedAt: string;
 }
 
+// Хэрэглэгчийн авсан БҮХ сертификатын жагсаалтын мөр
+// (нэг хэрэглэгч олон курс → олон сертификат)
+export interface MyCertificate {
+  certNo: string;
+  courseTitle: string;
+  userName: string;
+  issuedAt: string;
+  productSlug: string;
+  productTitle: string;
+  productThumbnail?: string | null;
+  viewUrl: string;
+}
+
 // ── Q&A (асуулт-хариулт) ──
 export interface QuestionUser {
   id?: string;
@@ -497,6 +510,9 @@ export const coursesApi = {
       request<CourseCertificate>(`/courses/${productSlug}/certificate`, { method: 'POST', token }),
     // Public HTML сертификат харах URL (шинэ tab-д нээж хэвлэх/PDF)
     viewUrl: (certNo: string) => `${API_URL}/api/courses/certificate/${certNo}/view`,
+    // Хэрэглэгчийн авсан БҮХ сертификат (dashboard "Миний сертификат")
+    listMine: (token: string) =>
+      request<MyCertificate[]>(`/courses/my/certificates`, { token }),
   },
 
   // ── Асуулт-хариулт (Q&A) ──

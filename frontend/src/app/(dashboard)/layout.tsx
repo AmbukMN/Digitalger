@@ -6,16 +6,17 @@ import { useSession } from 'next-auth/react';
 import { SiteNavbar } from '@/components/layout/site-navbar';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { cn } from '@digitalger/shared';
-import { Bookmark, ClipboardList, Package, User } from 'lucide-react';
+import { Award, Bookmark, ClipboardList, Package, User } from 'lucide-react';
 
 const DASH_LINKS = [
   { href: '/library', label: 'Миний сан', icon: Package },
+  { href: '/certificates', label: 'Сертификат', icon: Award },
   { href: '/orders', label: 'Захиалга', icon: ClipboardList },
   { href: '/wishlist', label: 'Хадгалсан', icon: Bookmark },
   { href: '/profile', label: 'Профайл', icon: User },
 ];
 
-const PROTECTED_PATHS = ['/library', '/orders', '/profile'];
+const PROTECTED_PATHS = ['/library', '/certificates', '/orders', '/profile'];
 
 export default function DashboardLayout({
   children,

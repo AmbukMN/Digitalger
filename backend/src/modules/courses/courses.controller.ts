@@ -11,6 +11,16 @@ import { SubmitQuizDto } from './dto/quiz.dto';
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
+  // ⚠️ 'my/certificates' нь :productSlug dynamic route-ООС ӨМНӨ зарлагдсан тул
+  // route дараалал: статик 'my' эхэнд тулгарч, :productSlug-аар барьцаалагдахгүй.
+  // Хэрэглэгчийн БҮХ авсан сертификат жагсаах ("Миний сертификат").
+  @Get('my/certificates')
+  @UseGuards(JwtAuthGuard)
+  myCertificates(@CurrentUser('sub') userId: string) {
+    return this.coursesService.listMyCertificates(userId);
+  }
+
+
   @Get(':productSlug/lessons')
   lessons(@Param('productSlug') productSlug: string) {
     return this.coursesService.getLessonsByProductSlug(productSlug);
