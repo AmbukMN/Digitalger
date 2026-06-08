@@ -15,6 +15,7 @@ const API_BASE =
 
 // ── Brand ────────────────────────────────────────────────────────────────────
 const NAVY = '#022179';
+const NAVY_DARK = '#011660';
 const GOLD = '#ffbe00';
 const GOLD_LIGHT = '#ffd84d';
 
@@ -105,12 +106,15 @@ export default async function Image({ params }: Props) {
   }
 
   const title = post?.title ?? 'DigitalGer блог';
-  const excerpt = post?.excerpt ? clamp(post.excerpt, 130) : '';
+  const excerpt = post?.excerpt ? clamp(post.excerpt, 150) : '';
   const author = post?.authorName ?? 'DigitalGer';
   const date = formatDate(post?.publishedAt ?? post?.createdAt);
-  const cover = null;
   const tags = (post?.tags ?? []).slice(0, 3);
-  const hasImage = false;
+
+  // Hero гарчгийн хэмжээ — урт бол багасгана (2-3 мөр truncate)
+  const titleLen = title.length;
+  const titleSize =
+    titleLen > 72 ? 48 : titleLen > 50 ? 58 : titleLen > 32 ? 68 : 78;
 
   return new ImageResponse(
     (
@@ -122,46 +126,90 @@ export default async function Image({ params }: Props) {
           display: 'flex',
           overflow: 'hidden',
           fontFamily: OG_FONT_FAMILY,
-          background: NAVY,
+          background: NAVY_DARK,
         }}
       >
-        {/* ── Cover image (full bleed background) ──────────────────────── */}
-        {hasImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={cover!}
-            alt=""
-            width={1200}
-            height={630}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              objectPosition: 'center top',
-            }}
-          />
-        )}
-
-        {/* ── Gradient overlays ─────────────────────────────────────────── */}
-        {/* Dark base layer */}
+        {/* ── Abstract background ───────────────────────────────────────── */}
+        {/* Base mesh gradient */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: hasImage
-              ? 'rgba(2,33,121,0.72)'
-              : `linear-gradient(160deg, #011660 0%, ${NAVY} 50%, #0b2d8a 100%)`,
+            background: `linear-gradient(150deg, #010f44 0%, ${NAVY_DARK} 44%, ${NAVY} 80%, #0a3199 100%)`,
             display: 'flex',
           }}
         />
-        {/* Bottom-up gradient so text is always readable */}
+        {/* Gold mesh blob — top right */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-260px',
+            right: '-160px',
+            width: '720px',
+            height: '720px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,190,0,0.20) 0%, rgba(255,190,0,0.04) 44%, transparent 70%)',
+            display: 'flex',
+          }}
+        />
+        {/* Blue mesh blob — bottom left */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-240px',
+            left: '-160px',
+            width: '640px',
+            height: '640px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(40,110,235,0.38) 0%, rgba(40,110,235,0.07) 46%, transparent 72%)',
+            display: 'flex',
+          }}
+        />
+        {/* Dot grid texture */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(to top, rgba(1,22,96,0.97) 0%, rgba(2,33,121,0.6) 45%, rgba(2,33,121,0.2) 100%)',
+            display: 'flex',
+            opacity: 0.45,
+            backgroundImage:
+              "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44'><circle cx='2' cy='2' r='1.4' fill='white' fill-opacity='0.10'/></svg>\")",
+            backgroundRepeat: 'repeat',
+          }}
+        />
+        {/* Concentric outlined rings — top right */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-150px',
+            right: '90px',
+            width: '420px',
+            height: '420px',
+            borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.06)',
+            display: 'flex',
+          }}
+        />
+        {/* Tilted rounded square — bottom right */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-90px',
+            right: '-60px',
+            width: '300px',
+            height: '300px',
+            borderRadius: '56px',
+            border: '2px solid rgba(255,190,0,0.08)',
+            transform: 'rotate(24deg)',
+            display: 'flex',
+          }}
+        />
+        {/* Bottom-up readability gradient */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(1,15,68,0.82) 0%, rgba(2,33,121,0.25) 50%, transparent 100%)',
             display: 'flex',
           }}
         />
@@ -173,8 +221,8 @@ export default async function Image({ params }: Props) {
             top: 0,
             left: 0,
             right: 0,
-            height: '5px',
-            background: `linear-gradient(90deg, ${GOLD} 0%, ${GOLD_LIGHT} 100%)`,
+            height: '8px',
+            background: `linear-gradient(90deg, ${GOLD} 0%, ${GOLD_LIGHT} 55%, ${GOLD} 100%)`,
             display: 'flex',
           }}
         />
@@ -183,9 +231,9 @@ export default async function Image({ params }: Props) {
         <div
           style={{
             position: 'absolute',
-            top: '44px',
-            left: '60px',
-            right: '60px',
+            top: '52px',
+            left: '64px',
+            right: '64px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -197,102 +245,111 @@ export default async function Image({ params }: Props) {
                 display: 'flex',
                 alignItems: 'center',
                 background: '#ffffff',
-                borderRadius: '12px',
-                padding: '10px 18px',
-                boxShadow: '0 6px 22px rgba(0,0,0,0.28)',
+                borderRadius: '14px',
+                padding: '12px 20px',
+                boxShadow: '0 8px 28px rgba(0,0,0,0.32)',
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logo} alt="DigitalGer" height={40} style={{ height: '40px' }} />
+              <img src={logo} alt="DigitalGer" height={42} style={{ height: '42px' }} />
             </div>
           ) : (
             <span style={{ fontSize: '28px', fontWeight: 900, color: '#fff' }}>DigitalGer</span>
           )}
 
-          {/* "Блог" label */}
+          {/* "Нийтлэл" label */}
           <div
             style={{
-              padding: '6px 18px',
-              borderRadius: '100px',
-              background: 'rgba(255,190,0,0.18)',
-              border: `1px solid rgba(255,190,0,0.45)`,
-              color: GOLD,
-              fontSize: '14px',
-              fontWeight: '700',
               display: 'flex',
-              letterSpacing: '0.5px',
+              alignItems: 'center',
+              gap: '9px',
+              padding: '10px 20px',
+              borderRadius: '100px',
+              background: 'rgba(255,190,0,0.14)',
+              border: `1px solid rgba(255,190,0,0.45)`,
+              boxShadow: '0 4px 20px rgba(255,190,0,0.12)',
+              color: GOLD,
+              fontSize: '15px',
+              fontWeight: '800',
+              letterSpacing: '2px',
             }}
           >
-            БЛОГ
+            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: GOLD, display: 'flex' }} />
+            НИЙТЛЭЛ
           </div>
         </div>
-
-        {/* ── Center: Tags (optional) ───────────────────────────────────── */}
-        {tags.length > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '60px',
-              transform: 'translateY(-170px)',
-              display: 'flex',
-              gap: '8px',
-            }}
-          >
-            {tags.map((tag) => (
-              <div
-                key={tag}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: '100px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  color: 'rgba(255,255,255,0.75)',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  display: 'flex',
-                }}
-              >
-                #{tag}
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* ── Bottom: Article content ───────────────────────────────────── */}
         <div
           style={{
             position: 'absolute',
-            bottom: '52px',
-            left: '60px',
-            right: '60px',
+            bottom: '56px',
+            left: '64px',
+            right: '64px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
+            gap: '22px',
           }}
         >
-          {/* Title */}
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {tags.map((tag) => (
+                <div
+                  key={tag}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: '100px',
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: 'rgba(255,255,255,0.8)',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    display: 'flex',
+                  }}
+                >
+                  #{tag}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Gold eyebrow accent line */}
           <div
             style={{
-              fontSize: title.length > 60 ? '36px' : title.length > 40 ? '42px' : '48px',
+              width: '72px',
+              height: '6px',
+              borderRadius: '100px',
+              background: `linear-gradient(90deg, ${GOLD}, ${GOLD_LIGHT})`,
+              display: 'flex',
+            }}
+          />
+
+          {/* Title — HERO */}
+          <div
+            style={{
+              fontSize: `${titleSize}px`,
               fontWeight: '900',
               color: '#ffffff',
-              lineHeight: 1.15,
-              letterSpacing: '-1px',
-              maxWidth: '900px',
+              lineHeight: 1.08,
+              letterSpacing: '-1.8px',
+              maxWidth: '1020px',
+              textShadow: '0 6px 40px rgba(0,0,0,0.45)',
+              display: 'flex',
             }}
           >
-            {clamp(title, 80)}
+            {clamp(title, 96)}
           </div>
 
           {/* Excerpt */}
           {excerpt && (
             <div
               style={{
-                fontSize: '17px',
-                color: 'rgba(255,255,255,0.62)',
-                lineHeight: 1.5,
-                maxWidth: '820px',
+                fontSize: '22px',
+                color: 'rgba(255,255,255,0.66)',
+                lineHeight: 1.45,
+                maxWidth: '900px',
+                display: 'flex',
               }}
             >
               {excerpt}
@@ -311,27 +368,28 @@ export default async function Image({ params }: Props) {
             {/* Author avatar circle */}
             <div
               style={{
-                width: '38px',
-                height: '38px',
+                width: '44px',
+                height: '44px',
                 borderRadius: '50%',
                 background: `linear-gradient(135deg, ${GOLD}, ${GOLD_LIGHT})`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '16px',
-                fontWeight: '800',
+                fontSize: '19px',
+                fontWeight: '900',
                 color: NAVY,
                 flexShrink: 0,
+                boxShadow: '0 4px 16px rgba(255,190,0,0.3)',
               }}
             >
               {author.charAt(0).toUpperCase()}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              <span style={{ fontSize: '15px', fontWeight: '700', color: '#fff' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '18px', fontWeight: '700', color: '#fff' }}>
                 {author}
               </span>
               {date && (
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>
+                <span style={{ fontSize: '15px', color: 'rgba(255,255,255,0.5)' }}>
                   {date}
                 </span>
               )}
@@ -340,13 +398,13 @@ export default async function Image({ params }: Props) {
             <div
               style={{
                 width: '1px',
-                height: '32px',
+                height: '36px',
                 background: 'rgba(255,255,255,0.18)',
                 display: 'flex',
-                marginLeft: '4px',
+                marginLeft: '6px',
               }}
             />
-            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.3px' }}>
+            <span style={{ fontSize: '16px', color: 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: '0.3px' }}>
               digitalger.mn
             </span>
           </div>

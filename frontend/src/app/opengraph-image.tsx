@@ -54,6 +54,7 @@ async function getHeroBanner(): Promise<Banner | null> {
 
 // ── Brand constants ──────────────────────────────────────────────────────────
 const NAVY = '#022179';
+const NAVY_DARK = '#011660';
 const GOLD = '#ffbe00';
 const GOLD_LIGHT = '#ffd84d';
 
@@ -97,6 +98,9 @@ export default async function Image() {
   }
 
   const hasImage = !!banner?.imageUrl;
+  const headline = banner?.title ?? 'Дижитал бүтээгдэхүүний платформ';
+  const subtitle =
+    banner?.subtitle ?? 'Файл • Загвар • Курс • Дижитал бүтээгдэхүүн';
 
   return new ImageResponse(
     (
@@ -108,7 +112,7 @@ export default async function Image() {
           display: 'flex',
           overflow: 'hidden',
           fontFamily: OG_FONT_FAMILY,
-          background: NAVY,
+          background: NAVY_DARK,
         }}
       >
         {/* ── Hero background image ─────────────────────────────────────── */}
@@ -130,31 +134,100 @@ export default async function Image() {
           />
         )}
 
-        {/* ── Dark gradient overlay for readability ────────────────────── */}
+        {/* ── Abstract background (when no banner image) ────────────────── */}
+        {/* Base mesh gradient / dark overlay over banner image */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
             background: hasImage
               ? 'linear-gradient(105deg, rgba(2,33,121,0.93) 0%, rgba(2,33,121,0.82) 45%, rgba(2,33,121,0.55) 100%)'
-              : `linear-gradient(145deg, ${NAVY} 0%, #0d2d8a 50%, #1040a0 100%)`,
+              : `linear-gradient(135deg, #010f44 0%, ${NAVY_DARK} 42%, ${NAVY} 80%, #0a3199 100%)`,
             display: 'flex',
           }}
         />
 
-        {/* ── Subtle radial light at top-right ─────────────────────────── */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '-200px',
-            right: '-100px',
-            width: '600px',
-            height: '600px',
-            borderRadius: '50%',
-            background: `radial-gradient(circle, rgba(255,190,0,0.08) 0%, transparent 70%)`,
-            display: 'flex',
-          }}
-        />
+        {!hasImage && (
+          <>
+            {/* Gold mesh blob — top right */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '-300px',
+                right: '-180px',
+                width: '800px',
+                height: '800px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,190,0,0.22) 0%, rgba(255,190,0,0.05) 42%, transparent 70%)',
+                display: 'flex',
+              }}
+            />
+            {/* Blue mesh blob — bottom left */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '-280px',
+                left: '-200px',
+                width: '720px',
+                height: '720px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(40,110,235,0.42) 0%, rgba(40,110,235,0.08) 46%, transparent 72%)',
+                display: 'flex',
+              }}
+            />
+            {/* Dot grid texture */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                opacity: 0.5,
+                backgroundImage:
+                  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44'><circle cx='2' cy='2' r='1.4' fill='white' fill-opacity='0.10'/></svg>\")",
+                backgroundRepeat: 'repeat',
+              }}
+            />
+            {/* Concentric outlined rings — top right */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '-180px',
+                right: '60px',
+                width: '480px',
+                height: '480px',
+                borderRadius: '50%',
+                border: '2px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: '-80px',
+                right: '180px',
+                width: '280px',
+                height: '280px',
+                borderRadius: '50%',
+                border: '2px solid rgba(255,190,0,0.10)',
+                display: 'flex',
+              }}
+            />
+            {/* Tilted rounded square — bottom right */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '-110px',
+                right: '-60px',
+                width: '340px',
+                height: '340px',
+                borderRadius: '64px',
+                border: '2px solid rgba(255,255,255,0.05)',
+                transform: 'rotate(26deg)',
+                display: 'flex',
+              }}
+            />
+          </>
+        )}
 
         {/* ── Gold top accent bar ───────────────────────────────────────── */}
         <div
@@ -163,8 +236,8 @@ export default async function Image() {
             top: 0,
             left: 0,
             right: 0,
-            height: '6px',
-            background: `linear-gradient(90deg, ${GOLD} 0%, ${GOLD_LIGHT} 100%)`,
+            height: '8px',
+            background: `linear-gradient(90deg, ${GOLD} 0%, ${GOLD_LIGHT} 55%, ${GOLD} 100%)`,
             display: 'flex',
           }}
         />
@@ -176,7 +249,7 @@ export default async function Image() {
             left: '72px',
             right: '72px',
             top: '60px',
-            bottom: '60px',
+            bottom: '58px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -189,50 +262,62 @@ export default async function Image() {
                 display: 'flex',
                 alignItems: 'center',
                 background: '#ffffff',
-                borderRadius: '16px',
-                padding: '14px 24px',
+                borderRadius: '18px',
+                padding: '16px 28px',
                 alignSelf: 'flex-start',
-                boxShadow: '0 8px 28px rgba(0,0,0,0.28)',
+                boxShadow: '0 10px 34px rgba(0,0,0,0.35)',
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logo} alt="DigitalGer" height={52} style={{ height: '52px' }} />
+              <img src={logo} alt="DigitalGer" height={58} style={{ height: '58px' }} />
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '34px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+              <span style={{ fontSize: '38px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
                 DigitalGer
               </span>
-              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginTop: '4px' }}>
+              <span style={{ fontSize: '15px', color: 'rgba(255,255,255,0.55)', marginTop: '4px' }}>
                 digitalger.mn
               </span>
             </div>
           )}
 
-          {/* Main headline */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {/* Main headline — HERO */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {/* Gold eyebrow accent line */}
             <div
               style={{
-                fontSize:
-                  banner?.title && banner.title.length > 40 ? '48px' : '56px',
+                width: '80px',
+                height: '6px',
+                borderRadius: '100px',
+                background: `linear-gradient(90deg, ${GOLD}, ${GOLD_LIGHT})`,
+                display: 'flex',
+              }}
+            />
+            <div
+              style={{
+                fontSize: headline.length > 40 ? '64px' : headline.length > 28 ? '76px' : '88px',
                 fontWeight: '900',
                 color: '#ffffff',
-                lineHeight: 1.1,
-                letterSpacing: '-1.5px',
-                maxWidth: '860px',
+                lineHeight: 1.02,
+                letterSpacing: '-2.5px',
+                maxWidth: '960px',
+                textShadow: '0 6px 40px rgba(0,0,0,0.45)',
+                display: 'flex',
               }}
             >
-              {banner?.title ?? 'Монголын дижитал бүтээгдэхүүний marketplace'}
+              {headline}
             </div>
             <div
               style={{
-                fontSize: '22px',
-                color: 'rgba(255,255,255,0.72)',
+                fontSize: '26px',
+                color: 'rgba(255,255,255,0.74)',
                 lineHeight: 1.4,
-                maxWidth: '720px',
+                maxWidth: '760px',
+                display: 'flex',
               }}
             >
-              {banner?.subtitle ?? 'Файл • Загвар • Курс • Дижитал бүтээгдэхүүн'}
+              {subtitle}
             </div>
           </div>
 
@@ -247,13 +332,13 @@ export default async function Image() {
               <div
                 key={label}
                 style={{
-                  padding: '9px 22px',
+                  padding: '11px 24px',
                   borderRadius: '100px',
                   background: 'rgba(255,190,0,0.15)',
                   border: '1px solid rgba(255,190,0,0.45)',
                   color: GOLD,
-                  fontSize: '15px',
-                  fontWeight: '600',
+                  fontSize: '16px',
+                  fontWeight: '700',
                   display: 'flex',
                   whiteSpace: 'nowrap',
                 }}
@@ -271,7 +356,7 @@ export default async function Image() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: '4px',
+            height: '5px',
             background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
             display: 'flex',
           }}
