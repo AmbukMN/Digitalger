@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Badge,
   Button,
@@ -13,16 +15,22 @@ import {
 } from '@digitalger/shared/ui';
 import {
   Ban,
+  Bot,
   CheckCircle2,
+  ChevronDown,
   Clock,
+  CreditCard,
   Download,
   Eye,
   Gift,
   Globe,
+  Heart,
   History,
   Link2,
   LogIn,
   Mail,
+  MessageCircle,
+  MessagesSquare,
   MonitorSmartphone,
   MousePointerClick,
   Package,
@@ -31,15 +39,19 @@ import {
   ShoppingCart,
   Shield,
   Smartphone,
+  Sparkles,
   Tablet,
+  TrendingUp,
   User as UserIcon,
   UserPlus,
+  Wallet,
   X,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import type {
   AdminUser,
   AdminUserFullDetail,
+  UserDetailChatConversation,
   UserDetailOrder,
 } from '@/types/admin';
 
@@ -57,6 +69,12 @@ function fmtDateTime(iso: string | null | undefined): string {
 function fmtPrice(v: string | number): string {
   const n = typeof v === 'string' ? parseFloat(v) : v;
   return `${(n ?? 0).toLocaleString('mn-MN')}₮`;
+}
+// Зөвхөн цаг:минут (chat bubble-д)
+function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
 }
 
 // Захиалгын статус → Badge өнгө + Монгол нэр
@@ -162,6 +180,101 @@ function OrderRow({ order }: { order: UserDetailOrder }) {
   );
 }
 
+// ─── Чат яриа карт (messenger маягийн bubble) ────────────────────────────────
+function ChatConversationCard({ conv }: { conv: UserDetailChatConversation }) {
+  const [open, setOpen] = useState(false);
+  const isFb = conv.channel === 'facebook';
+  const lastMsg = conv.messages[conv.messages.length - 1];
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      {/* Толгой — дарвал нээх/хаах */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
+      >
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+            isFb
+              ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400'
+              : 'bg-primary/10 text-primary'
+          }`}
+        >
+          {isFb ? <MessagesSquare className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={isFb ? 'info' : 'secondary'} className="capitalize">
+              {isFb ? 'Facebook' : 'Веб'}
+            </Badge>
+            {conv.userName && <span className="truncate text-sm font-medium">{conv.userName}</span>}
+            <span className="text-xs text-muted-foreground">{conv.messages.length} мессеж</span>
+          </div>
+          {lastMsg && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {lastMsg.role === 'assistant' ? 'Бот: ' : ''}
+              {lastMsg.text}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap">{fmtDateTime(conv.lastMessageAt)}</span>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {/* Мессеж урсгал */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="max-h-80 space-y-3 overflow-y-auto border-t border-border bg-muted/30 p-4">
+              {conv.messages.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Мессеж алга</p>
+              ) : (
+                conv.messages.map((m, i) => {
+                  const isUser = m.role === 'user';
+                  return (
+                    <div key={i} className={`flex items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      {!isUser && (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <Bot className="h-3.5 w-3.5" />
+                        </div>
+                      )}
+                      <div className={`flex max-w-[78%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                        <div
+                          className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap wrap-break-word ${
+                            isUser
+                              ? 'rounded-br-sm bg-[#ffbe00] text-[#022179]'
+                              : 'rounded-bl-sm bg-card text-foreground ring-1 ring-border'
+                          }`}
+                        >
+                          {m.text}
+                        </div>
+                        <span className="mt-1 px-1 text-[10px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
+                      </div>
+                      {isUser && (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#022179] text-white">
+                          <UserIcon className="h-3.5 w-3.5" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 interface Props {
   user: AdminUser | null;
   onClose: () => void;
@@ -177,6 +290,10 @@ export function UserDetailDialog({ user, onClose }: Props) {
 
   const u = data?.user;
   const s = data?.summary;
+  const chats = data?.chatConversations ?? [];
+  const ltv = data?.ltv;
+  const interests = data?.interests;
+  const conversion = data?.chatConversion;
 
   return (
     <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
@@ -253,6 +370,9 @@ export function UserDetailDialog({ user, onClose }: Props) {
                 <TabsTrigger value="downloads" className="data-[state=active]:bg-primary/10">
                   Татсан {s ? `(${s.downloadsTotal})` : ''}
                 </TabsTrigger>
+                <TabsTrigger value="chat" className="data-[state=active]:bg-primary/10">
+                  💬 Чат {chats.length > 0 ? `(${chats.length})` : ''}
+                </TabsTrigger>
                 <TabsTrigger value="activity" className="data-[state=active]:bg-primary/10">
                   Үзсэн/Дарсан
                 </TabsTrigger>
@@ -265,6 +385,109 @@ export function UserDetailDialog({ user, onClose }: Props) {
 
             {/* ─── ТОЙМ ─── */}
             <TabsContent value="overview" className="m-0 flex-1 overflow-y-auto p-5 space-y-4">
+              {/* ─── LTV / Худалдан авалтын үнэ цэнэ ─── */}
+              {(ltv || conversion) && (
+                <div className="overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/8 via-card to-card p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <Wallet className="h-4 w-4 text-primary" />
+                      Худалдан авагчийн үнэ цэнэ (LTV)
+                    </p>
+                    {conversion && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {conversion.chatted && (
+                          <Badge variant="info"><MessageCircle className="mr-1 h-3 w-3" />Чатласан</Badge>
+                        )}
+                        {conversion.purchasedAfterChat && (
+                          <Badge variant="success"><Sparkles className="mr-1 h-3 w-3" />Чатын дараа худалдсан</Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {ltv ? (
+                    <>
+                      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Нийт зарцуулсан</p>
+                          <p className="text-2xl font-bold tabular-nums text-primary">{fmtPrice(ltv.totalSpent)}</p>
+                        </div>
+                        <div className="flex items-center gap-4 pb-0.5">
+                          <div className="flex items-center gap-2">
+                            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-bold tabular-nums">{ltv.orderCount}</p>
+                              <p className="text-[11px] text-muted-foreground">захиалга</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-bold tabular-nums">{fmtPrice(ltv.avgOrder)}</p>
+                              <p className="text-[11px] text-muted-foreground">дундаж</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {(ltv.firstPurchase || ltv.lastPurchase) && (
+                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-border/60 pt-2.5 text-xs text-muted-foreground">
+                          {ltv.firstPurchase && (
+                            <span className="flex items-center gap-1.5">
+                              <CreditCard className="h-3.5 w-3.5" />
+                              Эхний худалдалт: <span className="font-medium text-foreground">{fmtDate(ltv.firstPurchase)}</span>
+                            </span>
+                          )}
+                          {ltv.lastPurchase && (
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5" />
+                              Сүүлийн: <span className="font-medium text-foreground">{fmtDate(ltv.lastPurchase)}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Худалдан авалт хараахан алга</p>
+                  )}
+                </div>
+              )}
+
+              {/* ─── Сонирхол (top ангилал / бүтээгдэхүүн) ─── */}
+              {interests && (interests.topCategories.length > 0 || interests.topProducts.length > 0) && (
+                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <Heart className="h-4 w-4 text-rose-500" />
+                    Сонирхол
+                  </p>
+                  {interests.topCategories.length > 0 && (
+                    <div>
+                      <p className="mb-1.5 text-xs text-muted-foreground">Хамгийн их сонирхсон ангилал</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {interests.topCategories.map((c) => (
+                          <Badge key={c.name} variant="secondary">
+                            {c.name}
+                            <span className="ml-1 text-muted-foreground">×{c.count}</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {interests.topProducts.length > 0 && (
+                    <div>
+                      <p className="mb-1.5 text-xs text-muted-foreground">Хамгийн их үзсэн бүтээгдэхүүн</p>
+                      <div className="space-y-1.5">
+                        {interests.topProducts.map((p) => (
+                          <div key={p.slug} className="flex items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                            <Eye className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                            <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{p.views} үзэлт</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <StatCard icon={ShoppingCart} label="Нийт захиалга" value={s?.ordersTotal ?? 0} tone="bg-primary/10 text-primary" />
                 <StatCard icon={CheckCircle2} label="Төлсөн" value={s?.paidOrders ?? 0} tone="bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400" />
@@ -348,6 +571,27 @@ export function UserDetailDialog({ user, onClose }: Props) {
                       <p className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(d.createdAt)}</p>
                     </div>
                   ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ─── ЧАТ ─── */}
+            <TabsContent value="chat" className="m-0 flex-1 overflow-y-auto p-5">
+              {chats.length === 0 ? (
+                <Empty icon={MessageCircle} text="Чатын яриа алга" />
+              ) : (
+                <div className="space-y-3">
+                  {conversion && (conversion.chatted || conversion.purchasedAfterChat) && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {conversion.chatted && (
+                        <Badge variant="info"><MessageCircle className="mr-1 h-3 w-3" />Чатласан</Badge>
+                      )}
+                      {conversion.purchasedAfterChat && (
+                        <Badge variant="success"><Sparkles className="mr-1 h-3 w-3" />Чатын дараа худалдсан</Badge>
+                      )}
+                    </div>
+                  )}
+                  {chats.map((conv) => <ChatConversationCard key={conv.id} conv={conv} />)}
                 </div>
               )}
             </TabsContent>

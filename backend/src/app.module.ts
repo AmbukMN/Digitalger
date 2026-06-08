@@ -40,6 +40,7 @@ import { ContactModule } from './modules/contact/contact.module';
 import { EmailEventsModule } from './modules/email-events/email-events.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { BackupModule } from './modules/backup/backup.module';
     EmailEventsModule,
     MarketingModule,
     BackupModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [

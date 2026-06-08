@@ -236,7 +236,7 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw] = await Promise.all([
+    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw] = await Promise.all([
       // Захиалга бүгд (статусаар) + items + product
       this.prisma.order.findMany({
         where: { userId: id },
@@ -312,6 +312,26 @@ export class UsersService {
         orderBy: { createdAt: 'desc' },
         select: { id: true, path: true, device: true, referrer: true, createdAt: true },
         take: 100,
+      }),
+      // Чатбот харилцаа (web/FB/IG) — userId-аар холбогдсон (backfill хийгдсэн) —
+      // сүүлийн N мессеж бүр харилцаанд. admin popup-д харах.
+      this.prisma.chatConversation.findMany({
+        where: { userId: id },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          channel: true,
+          sessionId: true,
+          userName: true,
+          lastMessageAt: true,
+          createdAt: true,
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            select: { id: true, role: true, text: true, createdAt: true },
+          },
+        },
       }),
     ]);
 
@@ -392,6 +412,145 @@ export class UsersService {
       return acc;
     }, {});
 
+    // ─── Чатбот харилцаа (admin popup-д харах) ──────────────────────────────
+    const chatConversations = chatConvsRaw.map((c) => ({
+      id: c.id,
+      channel: c.channel,
+      sessionId: c.sessionId,
+      userName: c.userName,
+      lastMessageAt: c.lastMessageAt,
+      createdAt: c.createdAt,
+      // Мессежийг хуучин→шинэ дараалалд буцаана (харилцаа уншихад тохиромжтой)
+      messages: [...c.messages].reverse().map((m) => ({
+        id: m.id,
+        role: m.role,
+        text: m.text,
+        createdAt: m.createdAt,
+      })),
+    }));
+    const chatMessagesTotal = chatConversations.reduce((s, c) => s + c.messages.length, 0);
+
+    // ─── LTV (Lifetime Value) — зөвхөн PAID захиалгаар тооцно ────────────────
+    const paidOrdersList = orders.filter((o) => o.status === 'PAID');
+    const ltvTotal = paidOrdersList.reduce((s, o) => s + Number(o.total), 0);
+    const paidCount = paidOrdersList.length;
+    const avgOrderValue = paidCount ? ltvTotal / paidCount : 0;
+    // PAID захиалгууд createdAt буурахаар эрэмбэлэгдсэн (дээд findMany orderBy) —
+    // эхний/сүүлийн худалдан авалт.
+    const firstPurchaseAt = paidCount ? paidOrdersList[paidCount - 1].createdAt : null;
+    const lastPurchaseAt = paidCount ? paidOrdersList[0].createdAt : null;
+    const ltv = {
+      total: ltvTotal, // нийт зарцуулсан (MNT)
+      paidOrders: paidCount,
+      avgOrderValue, // дундаж захиалгын дүн
+      firstPurchaseAt,
+      lastPurchaseAt,
+    };
+
+    // ─── Сонирхлын profile — top categories / top viewed products ──────────
+    // Хэрэглэгчийн үзсэн (ProductEvent view) + авсан (PAID OrderItem) бүтээгдэхүүний
+    // КАТЕГОРИ-оор эрэмбэлж, хамгийн их сонирхдог чиглэлийг гаргана.
+    const purchasedProductIds = new Set(
+      paidOrdersList.flatMap((o) => o.items.map((it) => it.product.id)),
+    );
+    // Сонирхол тооцоход хамаарах бүх productId (үзсэн + авсан).
+    const interestProductIds = [
+      ...new Set([
+        ...productEvents.map((e) => e.productId),
+        ...purchasedProductIds,
+      ]),
+    ];
+
+    // Бүтээгдэхүүн → категори (categoryId + categoryIds) resolve.
+    const interestProducts = interestProductIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: interestProductIds } },
+          select: { id: true, title: true, slug: true, categoryId: true, categoryIds: true },
+        })
+      : [];
+    const ipMap = new Map(interestProducts.map((p) => [p.id, p]));
+
+    // Тухайн productId-ийн бүх категори (categoryId + categoryIds давхцалгүй).
+    const categoriesOf = (pid: string): string[] => {
+      const p = ipMap.get(pid);
+      if (!p) return [];
+      const set = new Set<string>();
+      if (p.categoryId) set.add(p.categoryId);
+      for (const cid of p.categoryIds ?? []) set.add(cid);
+      return [...set];
+    };
+
+    // Категори бүрд жин: үзэлт=1, худалдан авалт=3 (авсан нь илүү хүчтэй дохио).
+    const catScore: Record<string, number> = {};
+    const viewedProductIds = productEvents.filter((e) => e.type === 'view').map((e) => e.productId);
+    for (const pid of viewedProductIds) {
+      for (const cid of categoriesOf(pid)) catScore[cid] = (catScore[cid] ?? 0) + 1;
+    }
+    for (const pid of purchasedProductIds) {
+      for (const cid of categoriesOf(pid)) catScore[cid] = (catScore[cid] ?? 0) + 3;
+    }
+    const catIds = Object.keys(catScore);
+    const cats = catIds.length
+      ? await this.prisma.category.findMany({
+          where: { id: { in: catIds } },
+          select: { id: true, name: true, slug: true },
+        })
+      : [];
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+    const topCategories = catIds
+      .map((cid) => ({
+        id: cid,
+        name: catMap.get(cid)?.name ?? '(устсан ангилал)',
+        slug: catMap.get(cid)?.slug ?? null,
+        score: catScore[cid],
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
+    // Top viewed products — үзэлтийн тоогоор эрэмбэлсэн (хамгийн их сонирхсон).
+    const viewCountByProduct: Record<string, number> = {};
+    for (const pid of viewedProductIds) {
+      viewCountByProduct[pid] = (viewCountByProduct[pid] ?? 0) + 1;
+    }
+    const topViewedProducts = Object.entries(viewCountByProduct)
+      .map(([pid, views]) => ({
+        productId: pid,
+        title: ipMap.get(pid)?.title ?? prodMap.get(pid)?.title ?? pid,
+        slug: ipMap.get(pid)?.slug ?? prodMap.get(pid)?.slug ?? null,
+        views,
+        purchased: purchasedProductIds.has(pid),
+      }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10);
+
+    const interest = { topCategories, topViewedProducts };
+
+    // ─── Chat → conversion ─────────────────────────────────────────────────
+    // Хэрэглэгч чат хийсэн БА худалдан авсан эсэх. chatedAfter — чат харилцааны
+    // дараа худалдан авалт хийсэн эсэх (хамгийн эртний чатаас хойш PAID байгаа эсэх).
+    const hasChatted = chatConversations.length > 0;
+    const hasPurchased = paidCount > 0;
+    const earliestChatAt = hasChatted
+      ? chatConversations.reduce<Date>(
+          (min, c) => (c.createdAt < min ? c.createdAt : min),
+          chatConversations[0].createdAt,
+        )
+      : null;
+    const purchasedAfterChat =
+      hasChatted && earliestChatAt
+        ? paidOrdersList.some((o) => o.createdAt >= earliestChatAt)
+        : false;
+    const chatConversion = {
+      hasChatted,
+      hasPurchased,
+      // Чат хийсэн хэрэглэгч худалдан авсан эсэх (энгийн conversion флаг)
+      converted: hasChatted && hasPurchased,
+      // Чат эхэлсний дараа худалдан авсан эсэх (чат нөлөөлсөн байж болзошгүй)
+      purchasedAfterChat,
+      conversations: chatConversations.length,
+      messages: chatMessagesTotal,
+    };
+
     return {
       user,
       orders,
@@ -404,6 +563,10 @@ export class UsersService {
       pageViews,
       devices,
       auditLogs,
+      chatConversations,
+      ltv,
+      interest,
+      chatConversion,
       summary: {
         ordersTotal: orders.length,
         statusSummary,
@@ -413,8 +576,11 @@ export class UsersService {
         cartsTotal: cartedProducts.length,
         searchesTotal: searchHistory.length,
         pageViewsTotal: pageViews.length,
-        paidOrders: orders.filter((o) => o.status === 'PAID').length,
+        paidOrders: paidCount,
         pendingOrders: orders.filter((o) => o.status === 'PENDING').length,
+        chatConversationsTotal: chatConversations.length,
+        chatMessagesTotal,
+        ltvTotal,
       },
     };
   }

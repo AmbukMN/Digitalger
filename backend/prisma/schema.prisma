@@ -76,6 +76,7 @@ model User {
   lessonQuestions LessonQuestion[]
   lessonAnswers  LessonAnswer[]
   quizAttempts   QuizAttempt[]
+  chatConversations ChatConversation[]
 }
 
 model Account {
@@ -738,6 +739,35 @@ model EmailOpen {
 
   @@index([campaign, openedAt])
   @@index([email, campaign])
+}
+
+// Чатбот харилцаа (web chat / FB / IG) — admin хэрэглэгчийн дэлгэрэнгүйд харах.
+// n8n workflow-аас мессеж бүрийг backend-д хадгална. Нэвтрээгүй (зочин) үеийн
+// chat-ийг sessionId-аар хадгалж, хэрэглэгч нэвтрэхэд userId-д холбоно (backfill).
+model ChatConversation {
+  id        String        @id @default(cuid())
+  channel   String // web | facebook | instagram
+  sessionId String        @unique // web_xxx | psid (FB) | ig id
+  userId    String? // нэвтэрсэн хэрэглэгчтэй холбогдвол (backfill)
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String? // FB/IG-ийн нэр (n8n profile-аас)
+  lastMessageAt DateTime  @default(now())
+  createdAt DateTime      @default(now())
+  messages  ChatMessage[]
+
+  @@index([userId, lastMessageAt])
+  @@index([channel, lastMessageAt])
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // user | assistant
+  text           String           @db.Text
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 enum ZipJobStatus {

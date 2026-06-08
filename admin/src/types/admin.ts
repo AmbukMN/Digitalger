@@ -138,6 +138,41 @@ export interface UserDetailPageView {
   referrer: string | null;
   createdAt: string;
 }
+// ─── Чат (web/facebook AI чатбот) ────────────────────────────────────────────
+export interface UserDetailChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  createdAt: string;
+}
+export interface UserDetailChatConversation {
+  id: string;
+  channel: 'web' | 'facebook';
+  userName?: string | null;
+  lastMessageAt: string;
+  messages: UserDetailChatMessage[];
+}
+
+// Хэрэглэгчийн LTV (нийт зарцуулсан / худалдан авалт)
+export interface UserDetailLtv {
+  totalSpent: number | string;
+  orderCount: number;
+  avgOrder: number | string;
+  firstPurchase?: string | null;
+  lastPurchase?: string | null;
+}
+
+// Сонирхол (хамгийн их үзсэн ангилал / бүтээгдэхүүн)
+export interface UserDetailInterests {
+  topCategories: { name: string; count: number }[];
+  topProducts: { title: string; slug: string; views: number }[];
+}
+
+// Чатын conversion (чатласан → дараа нь худалдсан эсэх)
+export interface UserDetailChatConversion {
+  chatted: boolean;
+  purchasedAfterChat: boolean;
+}
+
 export interface AdminUserFullDetail {
   user: {
     id: string;
@@ -176,6 +211,11 @@ export interface AdminUserFullDetail {
     paidOrders: number;
     pendingOrders: number;
   };
+  // ─── ШИНЭ (backend бэлэн биш бол optional) ─────────────────────────────────
+  chatConversations?: UserDetailChatConversation[];
+  ltv?: UserDetailLtv;
+  interests?: UserDetailInterests;
+  chatConversion?: UserDetailChatConversion;
 }
 
 export interface AdminCategory {

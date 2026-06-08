@@ -577,6 +577,19 @@ export const subscribersApi = {
     }),
 };
 
+// —— Chat (AI туслах) ——
+export const chatApi = {
+  // Зочны chat session-ийг нэвтэрсэн хэрэглэгчид холбох (backfill).
+  // Backend POST /api/chat/link-session { sessionId } (JwtAuthGuard).
+  // sessionId хэвээр үлдэнэ — зөвхөн userId-г backend дээр холбоно (яриа алдагдахгүй).
+  linkSession: (token: string, sessionId: string) =>
+    request<{ ok: boolean } | void>('/chat/link-session', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ sessionId }),
+    }),
+};
+
 // —— Contact (холбоо барих хүсэлт) ——
 export const contactApi = {
   submit: (body: {

@@ -2,12 +2,14 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Send, Bot, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import type { DotLottie } from '@lottiefiles/dotlottie-react';
 import { cn } from '@digitalger/shared';
+import { chatApi } from '@/lib/api';
 import { CHAT_WEBHOOK_URL } from '@/lib/constants';
 
 // ── Төрлүүд ──
@@ -195,6 +197,7 @@ const WELCOME: ChatMessage = {
 
 export function ChatWidget() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   // Зөвхөн product details (/products/<slug>) хуудсанд mobile sticky "худалдан авах"
   // bar + discount байдаг. Тэр үед mobile-д чат дүрсийг ДЭЭШ зөөнө (давхцахгүйн тулд).
   // Бусад хуудас / desktop → ердийн доод байрлал. /products (жагсаалт) ОРОХГҮЙ.
@@ -227,6 +230,22 @@ export function ChatWidget() {
     const id = setInterval(playBot, 6000);
     return () => clearInterval(id);
   }, [open]);
+
+  // Нэвтэрсэн хэрэглэгчийн зочны chat session-ийг userId-д холбох (backfill).
+  // sessionId хэвээр (зочны яриа алдагдахгүй), зөвхөн backend дээр userId холбоно.
+  // Token бүрд НЭГ удаа (давхар дуудлагаас сэргийлж linked ref ашиглана).
+  const linkedTokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    if (linkedTokenRef.current === token) return; // энэ token-оор аль хэдийн холбосон
+    linkedTokenRef.current = token;
+    const sessionId = getSessionId();
+    chatApi.linkSession(token, sessionId).catch(() => {
+      // алдаа гарвал дараагийн render-д дахин оролдохын тулд тэмдгийг арилгана
+      linkedTokenRef.current = null;
+    });
+  }, [session?.accessToken]);
 
   // Яриаг localStorage-аас сэргээх
   useEffect(() => {
