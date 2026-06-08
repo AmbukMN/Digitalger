@@ -997,12 +997,12 @@ export class AdminController {
   // Demo дата-аар сертификатын дизайныг HTML-ээр харах (admin шинэ tab нээнэ).
   // Параметргүй бол default demo. RolesGuard класс түвшинд (ADMIN).
   @Get('certificate/preview')
-  certificatePreview(
+  async certificatePreview(
     @Res() res: Response,
     @Query('userName') userName?: string,
     @Query('courseTitle') courseTitle?: string,
   ) {
-    const html = this.courses.getCertificatePreviewHtml({ userName, courseTitle });
+    const html = await this.courses.getCertificatePreviewHtml({ userName, courseTitle });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   }

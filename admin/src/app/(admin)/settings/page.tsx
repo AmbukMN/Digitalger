@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon, Share2 } from 'lucide-react';
+import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon, Share2, GraduationCap, PenLine } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -583,6 +583,193 @@ function SocialTab({
   );
 }
 
+// ——— Certificate tab —————————————————————————————————————————
+function CertificateTab({
+  site,
+  onSave,
+  isSaving,
+}: {
+  site: SiteSettings | null;
+  onSave: (data: Partial<SiteSettings>) => void;
+  isSaving: boolean;
+}) {
+  const [form, setForm] = useState({
+    certSignerName: site?.certSignerName ?? '',
+    certSignerTitle: site?.certSignerTitle ?? '',
+    certSignatureUrl: site?.certSignatureUrl ?? '',
+  });
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(
+    site?.certSignatureUrl ?? null,
+  );
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (site) {
+      setForm({
+        certSignerName: site.certSignerName ?? '',
+        certSignerTitle: site.certSignerTitle ?? '',
+        certSignatureUrl: site.certSignatureUrl ?? '',
+      });
+      setSignaturePreview(site.certSignatureUrl ?? null);
+    }
+  }, [site]);
+
+  const handleSignatureUpload = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Зөвхөн зураг оруулна уу');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Зургийн хэмжээ 5MB-аас бага байх ёстой');
+      return;
+    }
+    setUploading(true);
+    try {
+      const result = await uploadWithProgress(file);
+      setSignaturePreview(result.url);
+      setForm((prev) => ({ ...prev, certSignatureUrl: result.url }));
+      toast.success('Гарын үсэг амжилттай байршлаа');
+    } catch {
+      toast.error('Гарын үсэг байршуулахад алдаа гарлаа');
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file) handleSignatureUpload(file);
+    },
+    [handleSignatureUpload],
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      certSignatureUrl: form.certSignatureUrl || null,
+      certSignerName: form.certSignerName || null,
+      certSignerTitle: form.certSignerTitle || null,
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <GraduationCap className="h-5 w-5" />
+          Сертификат
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Энэ гарын үсэг болон нэр/тушаал нь бүх олгогдох сертификат дээр харагдана.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Гарын үсэг зураг upload */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <PenLine className="h-4 w-4 text-muted-foreground" />
+              Гарын үсэг (зураг)
+            </Label>
+            <div className="flex items-start gap-6">
+              {/* Preview — цайвар background дээр гарын үсэг тод харагдана */}
+              <div className="shrink-0">
+                <div className="relative flex h-24 w-40 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-border bg-white">
+                  {signaturePreview ? (
+                    <>
+                      <Image
+                        src={signaturePreview}
+                        alt="Гарын үсэг"
+                        fill
+                        className="object-contain p-2"
+                        unoptimized
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSignaturePreview(null);
+                          setForm((prev) => ({ ...prev, certSignatureUrl: '' }));
+                        }}
+                        className="absolute right-1 top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground hover:opacity-90"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
+                  ) : (
+                    <PenLine className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+
+              {/* Drop zone */}
+              <div
+                className="flex-1 cursor-pointer rounded-xl border-2 border-dashed border-border bg-muted/30 p-6 text-center transition-colors hover:border-primary/50 hover:bg-muted/50"
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                onClick={() => fileRef.current?.click()}
+              >
+                <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">
+                  {uploading ? 'Байршуулж байна...' : 'Зураг чирж тавих эсвэл сонгох'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Зөвлөмж: ил тод дэвсгэртэй (transparent) PNG — дээд тал 5MB
+                </p>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleSignatureUpload(file);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Гарын үсэг зурах хүний нэр */}
+          <div className="space-y-2">
+            <Label htmlFor="certSignerName">Гарын үсэг зурах хүний нэр</Label>
+            <Input
+              id="certSignerName"
+              value={form.certSignerName}
+              onChange={(e) => setForm({ ...form, certSignerName: e.target.value })}
+              placeholder="Б. Амгаланбаяр"
+            />
+          </div>
+
+          {/* Албан тушаал */}
+          <div className="space-y-2">
+            <Label htmlFor="certSignerTitle">Албан тушаал</Label>
+            <Input
+              id="certSignerTitle"
+              value={form.certSignerTitle}
+              onChange={(e) => setForm({ ...form, certSignerTitle: e.target.value })}
+              placeholder="Гүйцэтгэх захирал"
+            />
+          </div>
+
+          <Button type="submit" disabled={isSaving || uploading} className="w-full">
+            {isSaving ? (
+              'Хадгалж байна...'
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Сертификат хадгалах
+              </>
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ——— Main page ———————————————————————————————————————————————
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -635,6 +822,10 @@ export default function SettingsPage() {
             <Share2 className="mr-2 h-4 w-4" />
             Нийгмийн сүлжээ
           </TabsTrigger>
+          <TabsTrigger value="certificate" className="flex-1">
+            <GraduationCap className="mr-2 h-4 w-4" />
+            Сертификат
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-6">
@@ -655,6 +846,14 @@ export default function SettingsPage() {
 
         <TabsContent value="social" className="mt-6">
           <SocialTab
+            site={data?.site ?? null}
+            onSave={(body) => siteMutation.mutate(body)}
+            isSaving={siteMutation.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value="certificate" className="mt-6">
+          <CertificateTab
             site={data?.site ?? null}
             onSave={(body) => siteMutation.mutate(body)}
             isSaving={siteMutation.isPending}

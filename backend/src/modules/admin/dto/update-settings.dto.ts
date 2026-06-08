@@ -143,4 +143,17 @@ export class UpdateSiteDto {
   @IsOptional()
   @IsString()
   socialLinkedin?: string;
+
+  // Сертификатын гарын үсэг — admin upload (гарын үсэг зураг + хүн/тушаал)
+  @IsOptional()
+  @IsString()
+  certSignatureUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  certSignerName?: string;
+
+  @IsOptional()
+  @IsString()
+  certSignerTitle?: string;
 }

@@ -527,6 +527,11 @@ model SiteSetting {
   socialYoutube   String?
   socialLinkedin  String?
 
+  // Сертификатын тохиргоо — admin-аас upload (гарын үсэг зураг + гарын үсэг зурах хүн)
+  certSignatureUrl  String? // гарын үсгийн зураг (R2 key/url) — admin upload
+  certSignerName    String? @default("Б. Амгаланбаяр") // гарын үсэг зурах хүний нэр
+  certSignerTitle   String? @default("Гүйцэтгэх захирал") // албан тушаал
+
   updatedAt DateTime @updatedAt
 }
 

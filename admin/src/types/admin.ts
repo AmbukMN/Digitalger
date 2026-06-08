@@ -368,6 +368,11 @@ export interface SiteSettings {
   socialTiktok: string | null;
   socialYoutube: string | null;
   socialLinkedin: string | null;
+
+  // Сертификатын гарын үсэг (бүх сертификат дээр харагдана)
+  certSignatureUrl: string | null;
+  certSignerName: string | null;
+  certSignerTitle: string | null;
 }
 
 export interface AdminProductTypeConfig {

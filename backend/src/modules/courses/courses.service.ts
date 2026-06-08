@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
@@ -437,13 +438,38 @@ export class CoursesService {
     const dateStr = `${issued.getFullYear()} оны ${String(issued.getMonth() + 1).padStart(2, '0')} сарын ${String(issued.getDate()).padStart(2, '0')}`;
     const verifyUrl = `${this.siteUrl}/courses/certificate/${encodeURIComponent(cert.certNo)}/view`;
 
+    const sig = await this.getCertSignature();
+
     return this.buildCertificateHtml({
       userName: cert.userName,
       courseTitle: cert.courseTitle,
       certNo: cert.certNo,
       dateStr,
       verifyUrl,
+      ...sig,
     });
+  }
+
+  /**
+   * Сертификатын гарын үсэг тохиргоо (SiteSetting) → footer-т ашиглах.
+   * certSignatureUrl байвал R2 public url болгож буцаана.
+   */
+  private async getCertSignature(): Promise<{
+    signatureUrl?: string;
+    signerName: string;
+    signerTitle: string;
+  }> {
+    const setting = await this.prisma.siteSetting.findUnique({
+      where: { id: 'default' },
+      select: { certSignatureUrl: true, certSignerName: true, certSignerTitle: true },
+    });
+
+    const rawSig = setting?.certSignatureUrl?.trim();
+    return {
+      signatureUrl: rawSig ? this.storage.getAssetUrl(rawSig) : undefined,
+      signerName: setting?.certSignerName?.trim() || 'Б. Амгаланбаяр',
+      signerTitle: setting?.certSignerTitle?.trim() || 'Гүйцэтгэх захирал',
+    };
   }
 
   /**
@@ -452,26 +478,45 @@ export class CoursesService {
    * @param opts.userName demo хэрэглэгчийн нэр (default "Бат-Эрдэнэ")
    * @param opts.courseTitle demo курсын нэр (default жишээ нэр)
    */
-  getCertificatePreviewHtml(opts?: { userName?: string; courseTitle?: string }): string {
+  async getCertificatePreviewHtml(opts?: {
+    userName?: string;
+    courseTitle?: string;
+  }): Promise<string> {
     const userName = opts?.userName?.trim() || 'Бат-Эрдэнэ';
     const courseTitle = opts?.courseTitle?.trim() || 'Дижитал маркетингийн суурь курс';
 
+    // Preview дээр ӨНӨӨДРИЙН огноо.
     const now = new Date();
     const dateStr = `${now.getFullYear()} оны ${String(now.getMonth() + 1).padStart(2, '0')} сарын ${String(now.getDate()).padStart(2, '0')}`;
     const certNo = 'DG-DEMO';
     const verifyUrl = `${this.siteUrl}/courses/certificate/${encodeURIComponent(certNo)}/view`;
 
-    return this.buildCertificateHtml({ userName, courseTitle, certNo, dateStr, verifyUrl });
+    const sig = await this.getCertSignature();
+
+    return this.buildCertificateHtml({
+      userName,
+      courseTitle,
+      certNo,
+      dateStr,
+      verifyUrl,
+      ...sig,
+    });
   }
 
-  /** Landscape сертификатын HTML дизайн (хэвлэх/баталгаажуулах). */
-  private buildCertificateHtml(opts: {
+  /**
+   * Landscape ENTERPRISE сертификатын HTML дизайн (хэвлэх/баталгаажуулах).
+   * QR код (verifyUrl) async тул метод async — дуудагч await хийнэ.
+   */
+  private async buildCertificateHtml(opts: {
     userName: string;
     courseTitle: string;
     certNo: string;
     dateStr: string;
     verifyUrl: string;
-  }): string {
+    signatureUrl?: string;
+    signerName: string;
+    signerTitle: string;
+  }): Promise<string> {
     const esc = (s: string) =>
       s
         .replace(/&/g, '&amp;')
@@ -480,6 +525,38 @@ export class CoursesService {
         .replace(/"/g, '&quot;');
 
     const logoUrl = `${this.siteUrl}/brand/logo-white.png`;
+
+    // ── QR код (verifyUrl) — скан хийж баталгаажуулна (enterprise стандарт) ──
+    // Алдаа гарвал (offline орчин г.м) QR-гүй үргэлжилнэ.
+    let qrDataUrl = '';
+    try {
+      qrDataUrl = await QRCode.toDataURL(opts.verifyUrl, {
+        width: 132,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#022179', light: '#ffffff' },
+      });
+    } catch {
+      qrDataUrl = '';
+    }
+
+    // ── Курс нэрний font-size автомат тааруулах (overflow засах) ──
+    // Урт нэр → жижиг font + 2 мөр зөвшөөрнө; богино → том. Нэг логик.
+    const courseLen = opts.courseTitle.length;
+    const courseFontPx = courseLen > 78 ? 18 : courseLen > 52 ? 21 : courseLen > 32 ? 25 : 29;
+
+    // ── Footer зүүн багана: гарын үсэг зураг ЭСВЭЛ placeholder зураас ──
+    const signatureBlock = opts.signatureUrl
+      ? `<img class="sig-img" src="${esc(opts.signatureUrl)}" alt="Гарын үсэг" />`
+      : `<div class="sig-placeholder"></div>`;
+
+    // ── QR block (байвал) ──
+    const qrBlock = qrDataUrl
+      ? `<div class="qr">
+           <img src="${qrDataUrl}" alt="Баталгаажуулах QR" />
+           <div class="qr-cap">Скан&nbsp;хийж<br/>баталгаажуулна</div>
+         </div>`
+      : '';
 
     return `<!DOCTYPE html>
 <html lang="mn">
@@ -599,7 +676,8 @@ export class CoursesService {
   .inner {
     position: absolute;
     inset: 0;
-    padding: 64px 96px 56px;
+    /* доод tald QR/certNo мөр зайтай (давхцахгүй) */
+    padding: 56px 84px 112px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -607,14 +685,16 @@ export class CoursesService {
     z-index: 4;
   }
   .logo-bar {
-    margin-top: 18px;
+    margin-top: 16px;
     background: var(--navy);
-    border-radius: 12px;
-    padding: 11px 26px;
+    border-radius: 14px;
+    padding: 13px 32px;
     display: inline-flex;
-    box-shadow: 0 8px 20px rgba(2,33,121,0.22);
+    align-items: center;
+    box-shadow: 0 10px 24px rgba(2,33,121,0.24);
   }
-  .logo-bar img { height: 34px; width: auto; display: block; border: 0; }
+  /* Тод цэвэр white лого (badge доторх жижиг биш) */
+  .logo-bar img { height: 40px; width: auto; display: block; border: 0; }
 
   .hero {
     margin-top: 26px;
@@ -642,18 +722,10 @@ export class CoursesService {
     font-weight: 700;
   }
 
-  .lead {
-    margin-top: 30px;
-    font-size: 13px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 600;
-  }
   .name {
-    margin-top: 10px;
+    margin-top: 24px;
     font-family: 'Georgia', 'Times New Roman', 'Noto Serif', serif;
-    font-size: 50px;
+    font-size: 46px;
     font-weight: 700;
     font-style: italic;
     color: var(--navy);
@@ -675,30 +747,47 @@ export class CoursesService {
   }
 
   .for {
-    margin-top: 22px;
-    font-size: 14px;
+    margin-top: 18px;
+    font-size: 13px;
     color: var(--muted);
   }
+  /* Курс нэр — нэг/2 мөрөнд цэвэр багтана (overflow засах).
+     font-size нь нэрний уртаас хамаарч инлайнаар (давхцал арилгана). */
   .course {
-    margin-top: 6px;
-    font-size: 22px;
-    font-weight: 700;
+    margin-top: 8px;
+    font-weight: 800;
     color: var(--navy);
-    max-width: 720px;
+    line-height: 1.25;
+    max-width: 780px;
+    /* 2 мөрөөс хэтэрвэл таслана (...) — давхцал болохгүй */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
-  .course .gold { color: var(--gold); }
+  .course .quote { color: var(--gold); font-weight: 800; }
 
-  /* ── Footer: 2 баганат гарын үсэг + gold зураас ── */
+  /* ── Footer: зүүн гарын үсэг | төв SEAL | баруун огноо ── */
   .footer {
     margin-top: auto;
     width: 100%;
-    max-width: 760px;
+    max-width: 820px;
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 40px;
+    gap: 28px;
   }
   .col { text-align: center; flex: 1; min-width: 0; }
+  /* Гарын үсгийн зураг / нэр — зураасны ДЭЭР */
+  .col .sig-img {
+    height: 46px;
+    width: auto;
+    max-width: 200px;
+    display: block;
+    margin: 0 auto 4px;
+    object-fit: contain;
+  }
+  .col .sig-placeholder { height: 46px; }
   .col .val {
     font-size: 16px;
     font-weight: 700;
@@ -720,24 +809,90 @@ export class CoursesService {
     font-weight: 600;
   }
 
-  /* ── Доод: certNo + verify ── */
+  /* ── Төв SEAL (gold албан ёсны тамга) ── */
+  .seal {
+    flex: 0 0 auto;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 35%, #ffd34d 0%, var(--gold) 55%, #e3a600 100%);
+    border: 3px solid var(--navy);
+    box-shadow: 0 6px 16px rgba(2,33,121,0.28), inset 0 0 0 4px rgba(255,255,255,0.45);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+  .seal .seal-star { font-size: 22px; line-height: 1; }
+  .seal .seal-txt {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    margin-top: 2px;
+  }
+  .seal .seal-sub {
+    font-size: 6px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-top: 1px;
+  }
+
+  /* ── Доод: certNo (тод monospace) + QR + verify ── */
   .meta {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 30px;
-    text-align: center;
+    left: 44px;
+    right: 44px;
+    bottom: 26px;
     z-index: 4;
-    font-size: 10px;
-    color: var(--muted);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
   }
+  .meta .meta-left { text-align: left; }
   .meta .certno {
-    font-family: 'Courier New', monospace;
+    font-family: 'Courier New', 'Consolas', monospace;
     font-weight: 800;
     letter-spacing: 1px;
     color: var(--navy);
+    font-size: 12px;
   }
-  .meta .verify { color: var(--muted); }
+  .meta .certno-lbl {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .meta .verify {
+    margin-top: 3px;
+    font-size: 9px;
+    color: var(--muted);
+    max-width: 520px;
+    word-break: break-all;
+  }
+  /* QR — доод баруун булан */
+  .qr { text-align: center; }
+  .qr img {
+    width: 78px;
+    height: 78px;
+    display: block;
+    border: 2px solid var(--gold);
+    border-radius: 6px;
+    background: #fff;
+  }
+  .qr-cap {
+    margin-top: 3px;
+    font-size: 7px;
+    line-height: 1.2;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+  }
 
   @media print {
     body { background: #fff; padding: 0; min-height: auto; }
@@ -772,19 +927,27 @@ export class CoursesService {
       <div class="hero-sub">Гүйцэтгэлийн гэрчилгээ</div>
       <div class="hero-en">Certificate of Completion</div>
 
-      <div class="lead">Олгов:</div>
       <div class="name">${esc(opts.userName)}</div>
 
       <div class="for">дараах курсыг амжилттай төгссөн тул энэхүү гэрчилгээг гардуулав:</div>
-      <div class="course">&laquo;${esc(opts.courseTitle)}&raquo;</div>
+      <div class="course" style="font-size:${courseFontPx}px">&laquo;${esc(opts.courseTitle)}&raquo;</div>
 
       <div class="footer">
         <div class="col">
-          <div class="val">DigitalGer</div>
+          ${signatureBlock}
+          <div class="val">${esc(opts.signerName)}</div>
           <div class="rule"></div>
-          <div class="label">Гүйцэтгэх захирал</div>
+          <div class="label">${esc(opts.signerTitle)}</div>
         </div>
+
+        <div class="seal">
+          <div class="seal-star">&#9733;</div>
+          <div class="seal-txt">DIGITALGER</div>
+          <div class="seal-sub">VERIFIED</div>
+        </div>
+
         <div class="col">
+          <div class="sig-placeholder"></div>
           <div class="val">${esc(opts.dateStr)}</div>
           <div class="rule"></div>
           <div class="label">Олгосон огноо</div>
@@ -793,9 +956,12 @@ export class CoursesService {
     </div>
 
     <div class="meta">
-      <span class="certno">${esc(opts.certNo)}</span>
-      &nbsp;&middot;&nbsp;
-      <span class="verify">Баталгаажуулах: ${esc(opts.verifyUrl)}</span>
+      <div class="meta-left">
+        <div class="certno-lbl">Сертификатын дугаар</div>
+        <div class="certno">${esc(opts.certNo)}</div>
+        <div class="verify">Баталгаажуулах: ${esc(opts.verifyUrl)}</div>
+      </div>
+      ${qrBlock}
     </div>
   </div>
 </body>
