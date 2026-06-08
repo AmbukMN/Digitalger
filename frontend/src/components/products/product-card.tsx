@@ -127,30 +127,55 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       </Link>
 
       <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
-        {/* Төрөл + үнэлгээ/татсан НЭГ мөрөнд (категори арилгасан) */}
-        <div className="mb-1.5 flex items-center gap-1.5 flex-nowrap overflow-hidden">
-          <Badge variant={productTypeBadgeVariant(product.type)} className="text-[10px] sm:text-xs px-1.5 py-0 gap-1 shrink-0">
-            {mounted && <DynamicLucideIcon name={typeIcon} className="h-2.5 w-2.5" />}
-            {typeLabel}
-          </Badge>
-          {product.ratingCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-muted-foreground shrink-0">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-              <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
-              <span>({product.ratingCount})</span>
-            </span>
-          )}
-          {product.downloadCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-medium shrink-0">
-              <Flame className="h-3 w-3" />
-              {product.downloadCount} татсан
-            </span>
-          )}
-          {product.lessonCount != null && product.lessonCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-primary font-medium shrink-0">
-              <BookOpen className="h-3 w-3" />
-              {product.lessonCount}
-            </span>
+        {/* Категори арилгасан. Desktop: төрөл зүүн (0), үнэлгээ/татсан баруун (0)
+            нэг мөрөнд тэлнэ. Mobile: багтахгүй тул үнэлгээ/татсан төрлийн ДООД мөрөнд. */}
+        <div className="mb-1.5">
+          {/* 1-р мөр: төрөл (зүүн) + үнэлгээ/татсан (desktop баруун, mobile нуугдана) */}
+          <div className="flex items-center gap-1.5">
+            <Badge variant={productTypeBadgeVariant(product.type)} className="text-[10px] sm:text-xs px-1.5 py-0 gap-1 shrink-0">
+              {mounted && <DynamicLucideIcon name={typeIcon} className="h-2.5 w-2.5" />}
+              {typeLabel}
+            </Badge>
+            {product.lessonCount != null && product.lessonCount > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-primary font-medium shrink-0">
+                <BookOpen className="h-3 w-3" />
+                {product.lessonCount}
+              </span>
+            )}
+            {/* Desktop: баруун 0-д — sm-ээс дээш л харагдана */}
+            <div className="ml-auto hidden sm:flex items-center gap-2.5 shrink-0">
+              {product.ratingCount > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                  <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+                  <span>({product.ratingCount})</span>
+                </span>
+              )}
+              {product.downloadCount > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  <Flame className="h-3 w-3" />
+                  {product.downloadCount} татсан
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Mobile: 2-р мөрөнд бүтэн — sm-ээс доош л харагдана */}
+          {(product.ratingCount > 0 || product.downloadCount > 0) && (
+            <div className="mt-1 flex sm:hidden items-center gap-2.5 text-[10px] text-muted-foreground">
+              {product.ratingCount > 0 && (
+                <span className="flex items-center gap-0.5">
+                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                  <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+                  <span>({product.ratingCount})</span>
+                </span>
+              )}
+              {product.downloadCount > 0 && (
+                <span className="flex items-center gap-0.5 text-orange-600 dark:text-orange-400 font-medium">
+                  <Flame className="h-3 w-3" />
+                  {product.downloadCount} татсан
+                </span>
+              )}
+            </div>
           )}
         </div>
 
