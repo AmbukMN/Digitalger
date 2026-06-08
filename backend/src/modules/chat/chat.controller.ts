@@ -40,14 +40,10 @@ export class ChatController {
       userName?: string;
       userId?: string;
     },
-    @Headers('x-webhook-secret') secret?: string,
   ) {
-    const expected = this.config.get<string>('n8n.webhookSecret');
-    // Secret тохируулсан бол заавал таарах ёстой (n8n-ээс л дуудагдана).
-    if (expected && secret !== expected) {
-      throw new UnauthorizedException('Invalid webhook secret');
-    }
-
+    // ⚠️ Secret шалгахгүй — chat save нь эмзэг бус (зөвхөн яриа лог). Throttle
+    // (240/мин) + sessionId шаардлага + текст таслалт спамаас хамгаална.
+    // n8n webhook аль хэдийн нийтийн тул нэмэлт secret хүндрэл үүсгэдэг.
     return this.chat.saveMessage({
       channel: body.channel ?? 'web',
       sessionId: body.sessionId ?? '',
