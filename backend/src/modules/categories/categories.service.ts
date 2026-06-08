@@ -32,11 +32,11 @@ export class CategoriesService {
         FROM (
           SELECT "id" AS "productId", "categoryId"
           FROM "Product"
-          WHERE "published" = true AND "categoryId" IS NOT NULL
+          WHERE "published" = true AND "adminOnly" = false AND "categoryId" IS NOT NULL
           UNION ALL
           SELECT "id" AS "productId", UNNEST("categoryIds") AS "categoryId"
           FROM "Product"
-          WHERE "published" = true
+          WHERE "published" = true AND "adminOnly" = false
         ) AS t
         GROUP BY "categoryId"
       `;
@@ -60,6 +60,7 @@ export class CategoriesService {
     const products = await this.prisma.product.count({
       where: {
         published: true,
+        adminOnly: false,
         OR: [{ categoryId: category.id }, { categoryIds: { has: category.id } }],
       },
     });

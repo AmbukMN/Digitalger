@@ -86,6 +86,8 @@ const emptyForm = {
   categoryIds: [] as string[],
   published: false,
   featured: false,
+  // Зөвхөн админд харуулах (туршилт) — default унтраалттай
+  adminOnly: false,
   // Хандалтын хугацаа — default насан туршийн (хуучин бүх бүтээгдэхүүн LIFETIME)
   accessType: 'LIFETIME' as 'LIFETIME' | 'DAYS',
   accessDays: '' as string,
@@ -3150,6 +3152,7 @@ export function ProductFormDialog({
       categoryIds: effectiveCategoryIds,
       published: p.published,
       featured: p.featured,
+      adminOnly: p.adminOnly ?? false,
       accessType: (p.accessType === 'DAYS' ? 'DAYS' : 'LIFETIME') as 'LIFETIME' | 'DAYS',
       accessDays: p.accessType === 'DAYS' && p.accessDays ? String(p.accessDays) : '',
       seoTitle: p.seoTitle ?? '',
@@ -3307,6 +3310,7 @@ export function ProductFormDialog({
         categoryIds: validCategoryIds,
         published: form.published,
         featured: form.featured,
+        adminOnly: form.adminOnly,
         // Хандалтын хугацаа — DAYS бол хоног, LIFETIME бол accessDays=null
         accessType: form.accessType,
         accessDays:
@@ -3619,7 +3623,16 @@ export function ProductFormDialog({
                   <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={form.featured} onChange={(e) => set('featured', e.target.checked)} />
                   <span className="font-medium">Онцлох</span>
                 </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" className="h-4 w-4 rounded border-input accent-amber-500" checked={form.adminOnly} onChange={(e) => set('adminOnly', e.target.checked)} />
+                  <span className="font-medium">🔒 Зөвхөн админд харуулах (туршилт)</span>
+                </label>
               </div>
+              {form.adminOnly && (
+                <p className="-mt-1 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  Чеклэвэл зөвхөн та (админ) л харна, хэрэглэгчдэд харагдахгүй — туршихад.
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="rating">Үнэлгээ (0–5)</Label>

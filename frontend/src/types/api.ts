@@ -71,6 +71,8 @@ export interface ProductSummary {
   accessType?: 'LIFETIME' | 'DAYS' | null;
   /** accessType=DAYS үед хандалтын хоногийн тоо (жишээ: 90, 180, 365) */
   accessDays?: number | null;
+  /** Зөвхөн админд харагдах (туршилт) — нэвтэрсэн ADMIN л харна, хэрэглэгчдэд нуугдана */
+  adminOnly?: boolean;
   category?: { id: string; name: string; slug: string };
 }
 

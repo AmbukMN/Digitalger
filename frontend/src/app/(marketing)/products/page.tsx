@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { ProductGrid } from '@/components/products/product-grid';
 import { ProductsFilter } from '@/components/products/products-filter';
 import { productsApi, productTypesApi, categoriesApi, siteSettingsApi } from '@/lib/api';
+import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
 import type { ProductSummary } from '@/types/api';
 import { PageHeader } from '@/components/ui/page-header';
@@ -51,6 +52,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const onSale = params.onSale === 'true' ? true : undefined;
   const featured = params.featured === 'true' ? true : undefined;
 
+  // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүн ч жагсаалтад харагдана
+  const adminToken = await getAdminAccessToken();
+
   const [productsData, productTypeConfigs, categories] = await Promise.all([
     productsApi.list({
       page,
@@ -61,7 +65,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       type: params.type,
       sortBy,
       onSale,
-    }).catch(() => ({ items: [] as ProductSummary[], total: 0, page: 1, pageSize: 24 })),
+    }, adminToken).catch(() => ({ items: [] as ProductSummary[], total: 0, page: 1, pageSize: 24 })),
     productTypesApi.list().catch(() => []),
     categoriesApi.list().catch(() => []),
   ]);

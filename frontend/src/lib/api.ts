@@ -62,16 +62,21 @@ function qs(params: Record<string, string | number | boolean | undefined>) {
 
 // —— Products ——
 export const productsApi = {
-  list: (params?: {
-    page?: number;
-    pageSize?: number;
-    category?: string;
-    featured?: boolean;
-    type?: string;
-    types?: string;
-    sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
-    onSale?: boolean;
-  }) => {
+  // ⚠️ token (optional) — ADMIN нэвтэрсэн үед дамжуулбал backend optional auth-аар
+  // adminOnly (зөвхөн админд) бүтээгдэхүүнийг ч буцаана. Token-гүй бол public (нуугдсан).
+  list: (
+    params?: {
+      page?: number;
+      pageSize?: number;
+      category?: string;
+      featured?: boolean;
+      type?: string;
+      types?: string;
+      sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
+      onSale?: boolean;
+    },
+    token?: string,
+  ) => {
     const query = qs({
       page: params?.page,
       pageSize: params?.pageSize,
@@ -81,7 +86,7 @@ export const productsApi = {
       onSale: params?.onSale,
       ...(params?.types ? { types: params.types } : { type: params?.type }),
     });
-    return request<PaginatedProducts>(`/products${query}`);
+    return request<PaginatedProducts>(`/products${query}`, { token });
   },
 
   search: (q: string, page = 1, pageSize = 12) =>
@@ -89,10 +94,12 @@ export const productsApi = {
       `/products/search${qs({ q, page, pageSize })}`,
     ),
 
-  bySlug: (slug: string) => request<ProductDetail>(`/products/${slug}`),
+  // token (optional) — ADMIN бол adminOnly бүтээгдэхүүний detail-ийг харна
+  bySlug: (slug: string, token?: string) => request<ProductDetail>(`/products/${slug}`, { token }),
   incrementView: (slug: string) =>
     request<{ ok: boolean }>(`/products/${slug}/view`, { method: 'POST' }).catch(() => null),
-  suggested: (slug: string, count = 4) => request<ProductSummary[]>(`/products/${slug}/suggested?count=${count}`),
+  suggested: (slug: string, count = 4, token?: string) =>
+    request<ProductSummary[]>(`/products/${slug}/suggested?count=${count}`, { token }),
 };
 
 // —— Categories ——

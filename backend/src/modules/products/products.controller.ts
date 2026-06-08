@@ -1,6 +1,11 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+
+// Нэвтэрсэн хэрэглэгч ADMIN role-той эсэх (adminOnly бүтээгдэхүүн харах эрх).
+const isAdminUser = (user?: JwtPayload | null) => user?.role === 'ADMIN';
 
 @Controller('products')
 export class ProductsController {
@@ -8,15 +13,19 @@ export class ProductsController {
 
   // Үзэлт +1 (public). Throttle тавьсан — @SkipThrottle байсныг арилгав
   // (нэг IP-ээс view тоог хийсвэрээр томруулах спамаас сэргийлнэ).
+  // Optional auth — admin adminOnly product-ийн үзэлтийг ч нэмж чадна.
   @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @UseGuards(OptionalJwtAuthGuard)
   @Post(':slug/view')
   @HttpCode(HttpStatus.OK)
-  incrementView(@Param('slug') slug: string) {
-    return this.productsService.incrementView(slug);
+  incrementView(@Param('slug') slug: string, @CurrentUser() user?: JwtPayload) {
+    return this.productsService.incrementView(slug, isAdminUser(user));
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   list(
+    @CurrentUser() user?: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('category') categorySlug?: string,
@@ -31,20 +40,25 @@ export class ProductsController {
       : type
       ? [type]
       : undefined;
-    return this.productsService.findPublished({
-      page: page ? parseInt(page, 10) : undefined,
-      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
-      categorySlug,
-      featured: featured === 'true' ? true : featured === 'false' ? false : undefined,
-      types: typeFilter,
-      sortBy: (sortBy as any) ?? undefined,
-      onSale: onSale === 'true' ? true : undefined,
-    });
+    return this.productsService.findPublished(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+        categorySlug,
+        featured: featured === 'true' ? true : featured === 'false' ? false : undefined,
+        types: typeFilter,
+        sortBy: (sortBy as any) ?? undefined,
+        onSale: onSale === 'true' ? true : undefined,
+      },
+      isAdminUser(user),
+    );
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('search')
   search(
-    @Query('q') q: string,
+    @CurrentUser() user?: JwtPayload,
+    @Query('q') q?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -52,16 +66,27 @@ export class ProductsController {
       q ?? '',
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 12,
+      isAdminUser(user),
     );
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':slug/suggested')
-  suggested(@Param('slug') slug: string, @Query('count') count?: string) {
-    return this.productsService.findSuggested(slug, count ? parseInt(count, 10) : 8);
+  suggested(
+    @Param('slug') slug: string,
+    @CurrentUser() user?: JwtPayload,
+    @Query('count') count?: string,
+  ) {
+    return this.productsService.findSuggested(
+      slug,
+      count ? parseInt(count, 10) : 8,
+      isAdminUser(user),
+    );
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':slug')
-  bySlug(@Param('slug') slug: string) {
-    return this.productsService.findBySlug(slug);
+  bySlug(@Param('slug') slug: string, @CurrentUser() user?: JwtPayload) {
+    return this.productsService.findBySlug(slug, isAdminUser(user));
   }
 }

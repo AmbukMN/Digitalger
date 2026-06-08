@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { productsApi } from '@/lib/api';
+import { getAdminAccessToken } from '@/lib/auth';
 import { LearnClient } from '@/components/course/learn-client';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -8,7 +9,8 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {
-    const product = await productsApi.bySlug(slug);
+    const adminToken = await getAdminAccessToken();
+    const product = await productsApi.bySlug(slug, adminToken);
     return {
       title: `${product.title} — Хичээл үзэх`,
       // Сургалтын хуудсыг хайлтын системд индексжүүлэхгүй
@@ -22,9 +24,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function LearnPage({ params }: Props) {
   const { slug } = await params;
 
+  const adminToken = await getAdminAccessToken();
   let product: Awaited<ReturnType<typeof productsApi.bySlug>>;
   try {
-    product = await productsApi.bySlug(slug);
+    product = await productsApi.bySlug(slug, adminToken);
   } catch {
     notFound();
   }

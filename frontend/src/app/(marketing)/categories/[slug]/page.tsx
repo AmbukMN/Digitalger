@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ProductGrid } from '@/components/products/product-grid';
 import { categoriesApi, productsApi } from '@/lib/api';
+import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -44,9 +45,12 @@ export default async function CategoryPage({ params }: Props) {
     notFound();
   }
 
+  // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүн ангилалд харагдана
+  const adminToken = await getAdminAccessToken();
+
   let products: Awaited<ReturnType<typeof productsApi.list>>['items'] = [];
   try {
-    const data = await productsApi.list({ category: slug, pageSize: 24 });
+    const data = await productsApi.list({ category: slug, pageSize: 24 }, adminToken);
     products = data.items;
   } catch {
     products = [];

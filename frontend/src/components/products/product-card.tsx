@@ -2,7 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardFooter, productTypeBadgeVariant } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
-import { BookOpen, CheckCircle, Download, Flame, Heart, ShoppingCart, Star } from 'lucide-react';
+import { BookOpen, CheckCircle, Download, Flame, Heart, Lock, ShoppingCart, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -23,6 +23,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const { data: session } = useSession();
   const router = useRouter();
   const token = session?.accessToken;
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   const add = useCartStore((s) => s.add);
   // ⚠️ items-ийг ШУУД subscribe — has() функц reference өөрчлөгддөггүй тул сагсанд
@@ -117,6 +118,16 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
               Зураггүй
+            </div>
+          )}
+
+          {/* Зөвхөн админд (туршилт) — adminOnly бүтээгдэхүүн зөвхөн ADMIN-д харагдана.
+              Энэ badge нь та (админ) ялгаж мэдэхэд тусална — энгийн хэрэглэгчид энэ
+              бүтээгдэхүүн ОГТ ирэхгүй (backend нууна). */}
+          {mounted && isAdmin && product.adminOnly && (
+            <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-black shadow-sm">
+              <Lock className="h-2.5 w-2.5" />
+              Зөвхөн админд
             </div>
           )}
 

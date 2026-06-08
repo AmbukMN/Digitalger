@@ -57,23 +57,29 @@ export class ProductsService {
     };
   }
 
-  async findPublished(query: {
-    page?: number;
-    pageSize?: number;
-    categorySlug?: string;
-    featured?: boolean;
-    type?: string;
-    types?: string[];
-    sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
-    onSale?: boolean;
-  }) {
+  async findPublished(
+    query: {
+      page?: number;
+      pageSize?: number;
+      categorySlug?: string;
+      featured?: boolean;
+      type?: string;
+      types?: string[];
+      sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
+      onSale?: boolean;
+    },
+    isAdmin?: boolean,
+  ) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(48, Math.max(1, query.pageSize ?? 12));
 
     // Homepage / жагсаалтын эхний 2 хуудсыг 5 мин cache (хамгийн их хандалттай).
     // 3+ дахь хуудас, ховор тохиолдлуудыг шууд DB-ээс уншина (cache key тэсрэхээс
     // сэргийлж). Admin product өөрчлөгдөхөд бүх products:list:* invalidate болно.
-    if (page <= 2) {
+    // ⚠️ Admin (isAdmin=true) бол adminOnly product-уудыг ч хардаг тул public
+    // cache-тэй холилдохгүйн тулд cache БҮРЭН алгасаж шууд DB-ээс уншина
+    // (admin цөөн хүсэлттэй — ачаалал үл нэмэгдэнэ).
+    if (page <= 2 && isAdmin !== true) {
       const key =
         CacheKeys.productListPrefix +
         JSON.stringify({
@@ -86,11 +92,11 @@ export class ProductsService {
           o: query.onSale ?? false,
         });
       return this.cache.getOrSet(key, 5 * 60_000, () =>
-        this.computeFindPublished(query, page, pageSize),
+        this.computeFindPublished(query, page, pageSize, isAdmin),
       );
     }
 
-    return this.computeFindPublished(query, page, pageSize);
+    return this.computeFindPublished(query, page, pageSize, isAdmin);
   }
 
   private async computeFindPublished(
@@ -103,6 +109,7 @@ export class ProductsService {
     },
     page: number,
     pageSize: number,
+    isAdmin?: boolean,
   ) {
     const skip = (page - 1) * pageSize;
 
@@ -122,6 +129,9 @@ export class ProductsService {
 
     const where: Prisma.ProductWhereInput = {
       published: true,
+      // ⚠️ Admin биш бол adminOnly бүтээгдэхүүн нуугдана. Admin (isAdmin=true)
+      // бол бүгд (adminOnly=true ч) харагдана.
+      ...(isAdmin !== true && { adminOnly: false }),
       ...(query.featured !== undefined && { featured: query.featured }),
       ...(categoryFilter ?? {}),
       ...(query.types && query.types.length > 0 && { type: { in: query.types as any[] } }),
@@ -159,16 +169,19 @@ export class ProductsService {
 
   // Үзэлт +1 — frontend client-side (нэг л удаа) дуудна. Fire-and-forget,
   // унавал чимээгүй (хариу буцаахад нөлөөлөхгүй).
-  async incrementView(slug: string) {
+  async incrementView(slug: string, isAdmin?: boolean) {
     await this.prisma.product
-      .updateMany({ where: { slug, published: true }, data: { viewCount: { increment: 1 } } })
+      .updateMany({
+        where: { slug, published: true, ...(isAdmin !== true && { adminOnly: false }) },
+        data: { viewCount: { increment: 1 } },
+      })
       .catch(() => {});
     return { ok: true };
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, isAdmin?: boolean) {
     const product = await this.prisma.product.findFirst({
-      where: { slug, published: true },
+      where: { slug, published: true, ...(isAdmin !== true && { adminOnly: false }) },
       include: {
         category: true,
         images: { orderBy: { sortOrder: 'asc' } },
@@ -253,7 +266,7 @@ export class ProductsService {
     };
   }
 
-  async search(q: string, page = 1, pageSize = 12) {
+  async search(q: string, page = 1, pageSize = 12, isAdmin?: boolean) {
     const skip = (Math.max(1, page) - 1) * Math.min(48, pageSize);
 
     // Build expanded terms: original + cross-script transliteration
@@ -295,6 +308,8 @@ export class ProductsService {
 
     const where: Prisma.ProductWhereInput = {
       published: true,
+      // Admin биш бол adminOnly бүтээгдэхүүн хайлтаас нуугдана.
+      ...(isAdmin !== true && { adminOnly: false }),
       OR: terms.flatMap(termClauses),
     };
 
@@ -321,17 +336,24 @@ export class ProductsService {
     };
   }
 
-  async findSuggested(slug: string, count = 8) {
+  async findSuggested(slug: string, count = 8, isAdmin?: boolean) {
     // Suggested products ховор өөрчлөгддөг ч product detail бүрд уншигддаг,
     // муу тохиолдолд 4 дараалсан query ажилладаг. 10 мин cache → DB ачаалал бараг тэг.
+    // ⚠️ Admin (isAdmin=true) adminOnly product-уудыг ч хардаг тул public cache-тэй
+    // холилдохгүйн тулд cache БҮРЭН алгасаж шууд тооцоолно (admin цөөн хүсэлттэй).
+    if (isAdmin === true) {
+      return this.computeSuggested(slug, count, isAdmin);
+    }
     return this.cache.getOrSet(`suggested:${slug}:${count}`, 10 * 60_000, () =>
-      this.computeSuggested(slug, count),
+      this.computeSuggested(slug, count, isAdmin),
     );
   }
 
-  private async computeSuggested(slug: string, count: number) {
+  private async computeSuggested(slug: string, count: number, isAdmin?: boolean) {
+    // Admin биш бол adminOnly бүтээгдэхүүн санал болгох жагсаалтаас нуугдана.
+    const adminOnlyFilter = isAdmin !== true ? { adminOnly: false } : {};
     const product = await this.prisma.product.findFirst({
-      where: { slug, published: true },
+      where: { slug, published: true, ...adminOnlyFilter },
       select: { id: true, categoryId: true, type: true },
     });
     if (!product) return [];
@@ -344,7 +366,7 @@ export class ProductsService {
 
     // 1st priority: same category + same type
     let items = await this.prisma.product.findMany({
-      where: { published: true, id: { not: product.id }, categoryId: product.categoryId ?? undefined, type: product.type },
+      where: { published: true, ...adminOnlyFilter, id: { not: product.id }, categoryId: product.categoryId ?? undefined, type: product.type },
       take: count,
       orderBy: { rating: 'desc' },
       include,
@@ -354,7 +376,7 @@ export class ProductsService {
     if (items.length < count && product.categoryId) {
       const existingIds = new Set([product.id, ...items.map((i) => i.id)]);
       const extra = await this.prisma.product.findMany({
-        where: { published: true, id: { notIn: [...existingIds] }, categoryId: product.categoryId },
+        where: { published: true, ...adminOnlyFilter, id: { notIn: [...existingIds] }, categoryId: product.categoryId },
         take: count - items.length,
         orderBy: { rating: 'desc' },
         include,
@@ -366,7 +388,7 @@ export class ProductsService {
     if (items.length < count) {
       const existingIds = new Set([product.id, ...items.map((i) => i.id)]);
       const extra = await this.prisma.product.findMany({
-        where: { published: true, id: { notIn: [...existingIds] }, type: product.type },
+        where: { published: true, ...adminOnlyFilter, id: { notIn: [...existingIds] }, type: product.type },
         take: count - items.length,
         orderBy: { rating: 'desc' },
         include,
@@ -378,7 +400,7 @@ export class ProductsService {
     if (items.length < count) {
       const existingIds = new Set([product.id, ...items.map((i) => i.id)]);
       const extra = await this.prisma.product.findMany({
-        where: { published: true, id: { notIn: [...existingIds] } },
+        where: { published: true, ...adminOnlyFilter, id: { notIn: [...existingIds] } },
         take: count - items.length,
         orderBy: { rating: 'desc' },
         include,

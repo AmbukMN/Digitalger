@@ -351,7 +351,7 @@ export class AiService {
           (${keyHitsSql})::int AS key_hits,
           ${matchedSql} AS matched
         FROM "Product" p
-        WHERE p.published = true
+        WHERE p.published = true AND p."adminOnly" = false
       )
       SELECT product_id, score, key_hits, matched
       FROM scored
@@ -380,7 +380,7 @@ export class AiService {
 
     const [products, typeConfigs] = await Promise.all([
       this.prisma.product.findMany({
-        where: { id: { in: productIds }, published: true },
+        where: { id: { in: productIds }, published: true, adminOnly: false },
         select: {
           id: true,
           title: true,
@@ -473,7 +473,7 @@ export class AiService {
   private async listFreeProducts(): Promise<ProductResult[]> {
     const [products, typeConfigs] = await Promise.all([
       this.prisma.product.findMany({
-        where: { published: true, price: 0 },
+        where: { published: true, price: 0, adminOnly: false },
         orderBy: { createdAt: 'desc' },
         take: 10,
         select: {

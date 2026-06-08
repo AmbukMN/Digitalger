@@ -258,6 +258,9 @@ export interface AdminProduct {
   category?: AdminCategory;
   published: boolean;
   featured: boolean;
+  // Зөвхөн админд харагдах (туршилт) — чеклэвэл зөвхөн нэвтэрсэн ADMIN л харна,
+  // энгийн хэрэглэгч/зочинд бүтээгдэхүүн нуугдана
+  adminOnly?: boolean;
   // Хандалтын хугацаа: LIFETIME = насан туршийн, DAYS = тодорхой хоногийн дараа эрх дуусна
   accessType?: 'LIFETIME' | 'DAYS';
   accessDays?: number | null;

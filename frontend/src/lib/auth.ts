@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from 'next-auth';
+import { getServerSession } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import FacebookProvider from 'next-auth/providers/facebook';
@@ -149,3 +150,21 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+/**
+ * Server component-д ADMIN-ийн accessToken-ийг авах туслах.
+ * ⚠️ Зөвхөн ADMIN role-той хэрэглэгчид token буцаана — энгийн хэрэглэгч/зочинд
+ * undefined буцаана. Ингэснээр productsApi-д дамжуулахад зөвхөн админд adminOnly
+ * бүтээгдэхүүн харагдана (энгийн SSR хэвээр public/нуугдсан).
+ */
+export async function getAdminAccessToken(): Promise<string | undefined> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role === 'ADMIN' && session.accessToken) {
+      return session.accessToken;
+    }
+  } catch {
+    /* SSR session авч чадаагүй — public fetch үлдэнэ */
+  }
+  return undefined;
+}

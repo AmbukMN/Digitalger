@@ -137,6 +137,9 @@ model Product {
   categoryIds       String[]             @default([])
   category          Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   published         Boolean              @default(false)
+  // Зөвхөн админд харагдах (туршилт) — true бол зочин/энгийн хэрэглэгчид бүх газар
+  // (нүүр/жагсаалт/хайлт/detail/sitemap) нуугдана, зөвхөн admin role нэвтэрсэн үед харагдана.
+  adminOnly         Boolean              @default(false)
   featured          Boolean              @default(false)
   rating            Float                @default(0)
   ratingCount       Int                  @default(0)

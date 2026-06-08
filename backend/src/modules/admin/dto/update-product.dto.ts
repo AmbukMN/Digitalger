@@ -60,6 +60,12 @@ export class UpdateProductDto {
   @IsBoolean()
   featured?: boolean;
 
+  // adminOnly=true бол зөвхөн admin role нэвтэрсэн хэрэглэгчид харагдана,
+  // public хэрэглэгчдээс бүрэн нуугдана (туршилтын бүтээгдэхүүн).
+  @IsOptional()
+  @IsBoolean()
+  adminOnly?: boolean;
+
   @IsOptional()
   @IsString()
   previewUrl?: string;

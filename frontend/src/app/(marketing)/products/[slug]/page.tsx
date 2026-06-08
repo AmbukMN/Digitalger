@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge } from '@digitalger/shared/ui';
 import { productsApi } from '@/lib/api';
+import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
 import { PurchaseCard, MobileBuyBar } from '@/components/products/purchase-card';
 import { ProductTitleActions } from '@/components/products/product-title-actions';
@@ -31,6 +32,7 @@ import { formatPrice } from '@digitalger/shared';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { ProductTracker } from '@/components/products/product-tracker';
 import { FreeSubscribeModal } from '@/components/products/free-subscribe-modal';
+import { AdminOnlyBadge } from '@/components/products/admin-only-badge';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -41,7 +43,9 @@ function stripHtmlForMeta(html: string): string {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {
-    const product = await productsApi.bySlug(slug);
+    // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүний metadata-г ч авна
+    const adminToken = await getAdminAccessToken();
+    const product = await productsApi.bySlug(slug, adminToken);
     const seo = product as { seoTitle?: string; seoDescription?: string };
     const title = seo.seoTitle ?? product.title;
     const rawDesc = seo.seoDescription ?? product.description;
@@ -86,15 +90,18 @@ function hasRealContent(html: string | null | undefined): boolean {
 
 export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params;
+  // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүний detail/suggested-ийг харна
+  // (энгийн хэрэглэгч/зочинд adminOnly бол backend 404 → notFound)
+  const adminToken = await getAdminAccessToken();
   let product: Awaited<ReturnType<typeof productsApi.bySlug>>;
   try {
-    product = await productsApi.bySlug(slug);
+    product = await productsApi.bySlug(slug, adminToken);
   } catch {
     notFound();
   }
 
   const [suggestedProducts] = await Promise.all([
-    productsApi.suggested(slug, 8).catch(() => []),
+    productsApi.suggested(slug, 8, adminToken).catch(() => []),
   ]);
 
   const hasFiles = product.files && product.files.length > 0;
@@ -218,6 +225,12 @@ export default async function ProductDetailPage({ params }: Props) {
 
             {/* Title + meta */}
             <div>
+              {/* adminOnly бол ADMIN-д "Зөвхөн админд" badge (туршилтад ялгаж мэдэх) */}
+              {product.adminOnly && (
+                <div className="mb-2">
+                  <AdminOnlyBadge adminOnly={product.adminOnly} />
+                </div>
+              )}
               <div className="flex items-start justify-between gap-3">
                 <h1 className="text-2xl font-bold leading-snug sm:text-3xl flex-1">{product.title}</h1>
                 <ProductTitleActions product={product} />
