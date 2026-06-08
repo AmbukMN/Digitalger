@@ -237,7 +237,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
             onClick={handleAddToCart}
           >
             <ShoppingCart className="mr-1 h-3.5 w-3.5" />
-            {inCart ? 'Сагслагдсан' : 'Сагсанд'}
+            {inCart ? 'Сагслагдсан' : 'Сагслах'}
           </Button>
         )}
         <Button
