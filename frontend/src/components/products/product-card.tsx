@@ -52,7 +52,11 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const handleAddToCart = () => {
     if (isPurchased) return;
     if (inCart) {
+      // ижил id + duration → олон дарахад давхардахгүй, нэг toast шинэчлэгдэж
+      // 2.5 сек дараа автомат хаагдана.
       toast.info('Энэ бүтээгдэхүүн сагсанд байна', {
+        id: `cart-${product.id}`,
+        duration: 2500,
         description: product.title,
         action: { label: 'Сагс харах', onClick: () => window.location.href = '/checkout' },
       });
@@ -60,7 +64,11 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     }
     add(product);
     trackAddToCart(product.id, product.slug, Number(product.price) || 0);
-    toast.success('Сагсанд нэмэгдлээ', { description: product.title });
+    toast.success('Сагсанд нэмэгдлээ', {
+      id: `cart-${product.id}`,
+      duration: 2500,
+      description: product.title,
+    });
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -80,9 +88,9 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     }
     if (!inWishlist) {
       trackAddToWishlist(product.id, Number(product.price) || 0);
-      toast.success('Хадгалсанд нэмэгдлээ', { description: product.title });
+      toast.success('Хадгалсанд нэмэгдлээ', { id: `wish-${product.id}`, duration: 2500, description: product.title });
     } else {
-      toast.info('Хадгалсанаас хасагдлаа', { description: product.title });
+      toast.info('Хадгалсанаас хасагдлаа', { id: `wish-${product.id}`, duration: 2500, description: product.title });
     }
   };
 
