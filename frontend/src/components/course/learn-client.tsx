@@ -27,7 +27,12 @@ import { coursesApi, downloadsApi } from '@/lib/api';
 import type { LessonProgress, LessonVideoResult } from '@/lib/api';
 import type { CourseLesson, ProductDetail } from '@/types/api';
 import { PremiumVideoPlayer } from '@/components/course/premium-video-player';
-import { CourseSidebar, type CourseSidebarModule, computeLessonState } from '@/components/course/course-sidebar';
+import {
+  CourseSidebar,
+  type CourseSidebarModule,
+  computeLessonState,
+  computeCourseProgress,
+} from '@/components/course/course-sidebar';
 import { LessonContent } from '@/components/course/lesson-content';
 
 // Хичээлийн үргэлжлэх хугацааг "12:30" / "1:02:05" болгох
@@ -123,15 +128,10 @@ export function LearnClient({ product }: LearnClientProps) {
   // Хувийн тэмдэглэлийн localStorage key prefix (хэрэглэгчээр тусгаарлана)
   const userKey = session?.user?.id ?? 'guest';
 
-  // ── Курсын ерөнхий явц (progress %) ──
-  const { completedCount, totalLessons, overallPct } = useMemo(() => {
-    const total = orderedLessons.length;
-    const done = orderedLessons.filter((l) => progressMap[l.id]?.completed).length;
-    return {
-      completedCount: done,
-      totalLessons: total,
-      overallPct: total > 0 ? Math.round((done / total) * 100) : 0,
-    };
+  // ── Курсын ерөнхий явц — БОДИТ үзсэн хувь (хугацаагаар) + дууссан хичээл ──
+  const { completedCount, totalLessons, watchedPct } = useMemo(() => {
+    const p = computeCourseProgress(orderedLessons, progressMap);
+    return { completedCount: p.completedCount, totalLessons: p.total, watchedPct: p.watchedPct };
   }, [orderedLessons, progressMap]);
 
   // ── Autoplay next toggle (localStorage) ──
@@ -420,7 +420,7 @@ export function LearnClient({ product }: LearnClientProps) {
                 ) : null}
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3 text-[#ffbe00]" />
-                  Сургалт {overallPct}% ({completedCount}/{totalLessons})
+                  Үзсэн {watchedPct}% · {completedCount}/{totalLessons} дууссан
                 </span>
               </div>
             </div>
@@ -532,8 +532,10 @@ export function LearnClient({ product }: LearnClientProps) {
           )}
         </div>
 
-        {/* ─── Хичээлийн агуулга (тэмдэглэл / материал / миний тэмдэглэл / сэтгэгдэл) ─── */}
-        {currentLesson && !currentLocked && (
+        {/* ─── Хичээлийн агуулга (тэмдэглэл / материал / Q&A / шалгалт / миний тэмдэглэл) ───
+            YouTube шиг: түгжээтэй хичээлд ч БҮТЭЦ харагдана (tab-ууд), контентийн оронд
+            upsell. Preview/худалдсан үед бүрэн харагдана. */}
+        {currentLesson && (
           <AnimatePresence mode="wait">
             <LessonContent
               key={currentLesson.id}
@@ -543,6 +545,7 @@ export function LearnClient({ product }: LearnClientProps) {
               productSlug={product.slug}
               token={token}
               userKey={userKey}
+              locked={currentLocked}
             />
           </AnimatePresence>
         )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   ClipboardCheck,
@@ -13,13 +14,14 @@ import {
   FileText,
   FileVideo,
   Loader2,
+  Lock,
   MessageCircleQuestion,
   NotebookPen,
   Paperclip,
   Save,
   StickyNote,
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@digitalger/shared/ui';
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@digitalger/shared/ui';
 import { coursesApi } from '@/lib/api';
 import type { LessonResource } from '@/lib/api';
 import type { CourseLesson } from '@/types/api';
@@ -179,6 +181,38 @@ function EmptyTab({ icon: Icon, text }: { icon: typeof FileText; text: string })
   );
 }
 
+// ─── Түгжээтэй контентын upsell (YouTube шиг — байгааг мэдэгдээд худалдаж аваарай) ──
+function LockedUpsell({
+  icon: Icon,
+  title,
+  hint,
+  productSlug,
+}: {
+  icon: typeof FileText;
+  title: string;
+  hint?: string;
+  productSlug: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[#ffbe00]/25 bg-[#ffbe00]/5 px-6 py-10 text-center">
+      <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#ffbe00]/15 text-[#ffbe00]">
+        <Icon className="h-5 w-5" />
+        <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0b1020] ring-2 ring-[#ffbe00]/30">
+          <Lock className="h-3 w-3 text-[#ffbe00]" />
+        </span>
+      </span>
+      <div>
+        <p className="text-sm font-semibold text-white">{title}</p>
+        {hint && <p className="mt-1 text-xs text-white/50">{hint}</p>}
+        <p className="mt-1 text-xs text-white/50">Энэ хэсгийг үзэхийн тулд сургалтыг худалдаж аваарай.</p>
+      </div>
+      <Button asChild size="sm" className="bg-[#ffbe00] text-[#022179] hover:bg-[#ffbe00]/90">
+        <Link href={`/products/${productSlug}`}>Худалдаж авах</Link>
+      </Button>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export function LessonContent({
   lesson,
@@ -187,6 +221,7 @@ export function LessonContent({
   productSlug,
   token,
   userKey,
+  locked = false,
 }: {
   lesson: CourseLesson;
   content?: string | null;
@@ -195,13 +230,20 @@ export function LessonContent({
   token?: string;
   /** Хувийн тэмдэглэлийн localStorage key prefix (userId эсвэл 'guest') */
   userKey: string;
+  /**
+   * Хичээл түгжээтэй эсэх (paid + худалдаагүй). YouTube шиг — tab бүтэц харагдана,
+   * харин контентын оронд "худалдаж аваарай" upsell. Preview/худалдсан үед false.
+   */
+  locked?: boolean;
 }) {
   const showContent = hasRichContent(content);
   const resourceList = resources ?? [];
   const noteKey = `digitalger:note:${userKey}:${lesson.id}`;
 
-  // Default tab — content байвал тэмдэглэл, үгүй бол материал, үгүй бол хувийн тэмдэглэл
+  // Default tab — content байвал тэмдэглэл, үгүй бол материал, үгүй бол хувийн тэмдэглэл.
+  // Түгжээтэй үед заавал "Тэмдэглэл" таб (бүтэц нэгэн зэрэг харагдана).
   const defaultTab = useMemo(() => {
+    if (locked) return 'notes';
     if (showContent) return 'notes';
     if (resourceList.length > 0) return 'resources';
     return 'mynotes';
@@ -262,7 +304,14 @@ export function LessonContent({
 
         {/* Тэмдэглэл (rich content) */}
         <TabsContent value="notes" className="mt-4">
-          {showContent ? (
+          {locked ? (
+            <LockedUpsell
+              icon={StickyNote}
+              title="Хичээлийн тэмдэглэл"
+              hint="Энэ хичээлд бичгэн тэмдэглэл, тайлбар багтсан."
+              productSlug={productSlug}
+            />
+          ) : showContent ? (
             <div
               className="prose prose-sm prose-invert max-w-none leading-relaxed
                 prose-headings:text-white prose-p:text-white/80 prose-li:text-white/80
@@ -280,7 +329,43 @@ export function LessonContent({
 
         {/* Татах материал */}
         <TabsContent value="resources" className="mt-4">
-          {resourceList.length > 0 ? (
+          {locked ? (
+            // Түгжээтэй — материал байгааг мэдэгдэх боловч татах түгжээтэй.
+            resourceList.length > 0 ? (
+              <div className="space-y-2">
+                {resourceList.map((res) => {
+                  const Icon = resourceIcon(res);
+                  return (
+                    <div
+                      key={res.id}
+                      className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 opacity-70"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#ffbe00]/15 text-[#ffbe00]">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                        {res.fileName}
+                      </span>
+                      <Lock className="h-4 w-4 shrink-0 text-white/40" />
+                    </div>
+                  );
+                })}
+                <LockedUpsell
+                  icon={Paperclip}
+                  title="Татах материал түгжээтэй"
+                  hint={`${resourceList.length} файл хавсаргасан.`}
+                  productSlug={productSlug}
+                />
+              </div>
+            ) : (
+              <LockedUpsell
+                icon={Paperclip}
+                title="Татах материал"
+                hint="Энэ хичээлд татаж авах файл, материал багтсан байж болзошгүй."
+                productSlug={productSlug}
+              />
+            )
+          ) : resourceList.length > 0 ? (
             <div className="space-y-2">
               {resourceList.map((res) => (
                 <ResourceRow key={res.id} res={res} productSlug={productSlug} token={token} />
@@ -293,12 +378,30 @@ export function LessonContent({
 
         {/* Асуулт хариулт (Q&A) */}
         <TabsContent value="qa" className="mt-4">
-          <LessonQA productSlug={productSlug} lessonId={lesson.id} token={token} />
+          {locked ? (
+            <LockedUpsell
+              icon={MessageCircleQuestion}
+              title="Асуулт хариулт"
+              hint="Багштай асуулт асууж, бусад суралцагчийн хариултыг үзэх боломжтой."
+              productSlug={productSlug}
+            />
+          ) : (
+            <LessonQA productSlug={productSlug} lessonId={lesson.id} token={token} />
+          )}
         </TabsContent>
 
         {/* Шалгалт (quiz) */}
         <TabsContent value="quiz" className="mt-4">
-          <LessonQuiz productSlug={productSlug} lessonId={lesson.id} token={token} />
+          {locked ? (
+            <LockedUpsell
+              icon={ClipboardCheck}
+              title="Шалгалт"
+              hint="Хичээлийн төгсгөлд мэдлэгээ шалгах сорил байна."
+              productSlug={productSlug}
+            />
+          ) : (
+            <LessonQuiz productSlug={productSlug} lessonId={lesson.id} token={token} />
+          )}
         </TabsContent>
 
         {/* Миний тэмдэглэл (localStorage) */}

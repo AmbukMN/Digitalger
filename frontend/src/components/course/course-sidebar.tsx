@@ -44,6 +44,49 @@ export function computeLessonState(
   return { locked, completed, pct };
 }
 
+/**
+ * Курсын БОДИТ үзсэн хувь — нийт үзсэн хугацаа / нийт хугацаа.
+ * Хичээлийн тоогоор биш (1/69=1%), бодит секундээр тооцох тул нэг видео
+ * 90% үзэхэд явц бодитоор нэмэгдэнэ. Дууссан хичээлийг бүрэн (100%) гэж тооцно.
+ * + дууссан хичээлийн тоо (completedCount / total).
+ */
+export function computeCourseProgress(
+  allLessons: CourseLesson[],
+  progressMap: Record<string, LessonProgress>,
+) {
+  let watchedSum = 0;
+  let durationSum = 0;
+  let completedCount = 0;
+
+  for (const l of allLessons) {
+    const p = progressMap[l.id];
+    const dur = p?.durationSec ?? l.durationSec ?? 0;
+    durationSum += dur;
+    if (p?.completed) {
+      completedCount += 1;
+      // Дууссан хичээл = бүрэн үзсэн (watchedSeconds бага байсан ч).
+      watchedSum += dur;
+    } else if (p?.watchedSeconds && dur > 0) {
+      watchedSum += Math.min(p.watchedSeconds, dur);
+    }
+  }
+
+  const watchedPct = durationSum > 0 ? Math.min(100, Math.round((watchedSum / durationSum) * 100)) : 0;
+
+  return {
+    total: allLessons.length,
+    completedCount,
+    // Бодит үзсэн хувь (хугацаагаар). Хугацаа мэдэгдэхгүй (бүх durationSec=0)
+    // тохиолдолд дууссан хичээлийн хувь руу шилжинэ (fallback).
+    watchedPct:
+      durationSum > 0
+        ? watchedPct
+        : allLessons.length > 0
+          ? Math.round((completedCount / allLessons.length) * 100)
+          : 0,
+  };
+}
+
 // ─── Single lesson item ───────────────────────────────────────────────────────
 function LessonItem({
   lesson,
@@ -247,34 +290,45 @@ export function CourseSidebar({
   progressMap: Record<string, LessonProgress>;
   onSelect: (lesson: CourseLesson) => void;
 }) {
-  // Нийт хичээлийн тоо + үзсэн тоо + ерөнхий progress
-  const { allLessons, completedCount, pct } = useMemo(() => {
+  // Нийт хичээл + БОДИТ үзсэн хувь (хугацаагаар) + дууссан хичээлийн тоо
+  const { total, completedCount, watchedPct } = useMemo(() => {
     const all = [...modules.flatMap((m) => m.lessons), ...lessons];
-    const done = all.filter((l) => progressMap[l.id]?.completed).length;
-    return {
-      allLessons: all,
-      completedCount: done,
-      pct: all.length > 0 ? Math.round((done / all.length) * 100) : 0,
-    };
+    return computeCourseProgress(all, progressMap);
   }, [modules, lessons, progressMap]);
+
+  // Дууссан хичээлийн хувь (бүтэн дугуй заагчид) — watchedPct-ээс ялгаатай
+  const completedPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   return (
     <div className="flex h-full flex-col bg-[#0b1020]">
-      {/* Дээд: курсын ерөнхий progress */}
+      {/* Дээд: курсын ерөнхий progress — БОДИТ үзсэн хувь (хугацаагаар) */}
       <div className="shrink-0 border-b border-white/10 px-4 py-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-white">Сургалтын явц</span>
-          <span className="text-sm font-bold text-[#ffbe00] tabular-nums">{pct}%</span>
+          <span className="text-sm font-bold text-[#ffbe00] tabular-nums">{watchedPct}%</span>
         </div>
+        {/* Бодит үзсэн хувийн bar (gold) — доор нь дууссан хичээлийн bar (emerald) */}
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-[#ffbe00] transition-all duration-500"
-            style={{ width: `${pct}%` }}
+            style={{ width: `${watchedPct}%` }}
           />
         </div>
-        <p className="mt-2 text-[11px] text-white/50">
-          {completedCount} / {allLessons.length} хичээл үзсэн
-        </p>
+        {/* Хоёр хэмжүүр: (1) бодит үзсэн хувь, (2) дууссан хичээл X/Y */}
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+          <span className="text-white/50">Бодитоор үзсэн: {watchedPct}%</span>
+          <span className="flex items-center gap-1.5 text-white/50">
+            <Check className="h-3 w-3 text-emerald-400" />
+            {completedCount} / {total} хичээл дууссан
+          </span>
+        </div>
+        {/* Дууссан хичээлийн нимгэн заагч (тусдаа хэмжүүр) */}
+        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${completedPct}%` }}
+          />
+        </div>
       </div>
 
       {/* Хичээлийн жагсаалт (scroll) */}

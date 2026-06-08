@@ -205,13 +205,18 @@ export class CoursesService {
     userId: string,
     dto: { watchedSeconds: number; durationSec?: number; completed?: boolean },
   ) {
-    await this.ensureLessonAccess(productSlug, lessonId, userId);
+    const lesson = await this.ensureLessonAccess(productSlug, lessonId, userId);
 
     const watchedSeconds = Math.max(0, Math.floor(dto.watchedSeconds ?? 0));
+    // durationSec: client өгвөл түүнийг, эс бөгөөс хичээлийн (admin тохируулсан)
+    // durationSec-ийг fallback болгож ашиглана. Энэ нь 90% threshold ажиллахад чухал
+    // (зарим тоглуулагч metadata-гүй бол client duration илгээдэггүй).
+    const fallbackDuration =
+      lesson.durationSec !== null && lesson.durationSec > 0 ? lesson.durationSec : undefined;
     const durationSec =
-      dto.durationSec !== undefined && dto.durationSec !== null
+      dto.durationSec !== undefined && dto.durationSec !== null && dto.durationSec > 0
         ? Math.max(0, Math.floor(dto.durationSec))
-        : undefined;
+        : fallbackDuration;
 
     // 90%-аас дээш үзсэн бол автоматаар дууссан гэж тэмдэглэнэ.
     const autoCompleted =
@@ -257,10 +262,24 @@ export class CoursesService {
 
     const progress = await this.prisma.lessonProgress.findMany({
       where: { userId, lesson: { courseId: product.course.id } },
-      select: { lessonId: true, watchedSeconds: true, durationSec: true, completed: true },
+      select: {
+        lessonId: true,
+        watchedSeconds: true,
+        durationSec: true,
+        completed: true,
+        // Progress-д durationSec байхгүй бол хичээлийн durationSec-ийг fallback болгоно.
+        lesson: { select: { durationSec: true } },
+      },
     });
 
-    return progress;
+    // durationSec баталгаажуулах: progress-д null бол хичээлийн durationSec ашиглах.
+    // Frontend бодит үзсэн % (watchedSeconds/durationSec) тооцоход чухал.
+    return progress.map((p) => ({
+      lessonId: p.lessonId,
+      watchedSeconds: p.watchedSeconds,
+      durationSec: p.durationSec ?? p.lesson?.durationSec ?? null,
+      completed: p.completed,
+    }));
   }
 
   /**

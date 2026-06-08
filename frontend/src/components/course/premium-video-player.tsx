@@ -27,9 +27,10 @@ import {
 } from 'lucide-react';
 import type HlsType from 'hls.js';
 import { cn } from '@digitalger/shared';
+import { useTheme } from '@digitalger/shared/ui';
 
 /**
- * Premium custom video player (DigitalGer).
+ * Premium custom video player (DigitalGer) — ENTERPRISE.
  *
  * Дэмжих эх сурвалж:
  *  - type='stream'   → Cloudflare HLS manifest (signed) → hls.js (dynamic import)
@@ -38,6 +39,13 @@ import { cn } from '@digitalger/shared';
  *
  * Зөвхөн stream/r2 үед custom controls (seek/volume/speed/fullscreen/PiP/keyboard)
  * ажиллана. External үед энгийн embed.
+ *
+ * Enterprise онцлог:
+ *  - Бүх menu гадуур дарахад / Escape-д хаагдана (outside-click)
+ *  - Theme-aware controls/menu (light ↔ dark сайтын theme дагана)
+ *  - volume / speed / muted → localStorage-д хадгална, сэргээнэ
+ *  - Mobile/touch: volume slider tap, seek preview pointer
+ *  - PiP / fullscreen visual sync
  */
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -64,6 +72,45 @@ function getEmbedUrl(url: string): string | null {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const SAVE_THROTTLE_SEC = 10;
+
+// localStorage түлхүүрүүд (state persistence)
+const LS_VOLUME = 'digitalger:video-volume';
+const LS_SPEED = 'digitalger:video-speed';
+const LS_MUTED = 'digitalger:video-muted';
+
+/** localStorage-аас number унших (SSR-safe, хүчингүй бол fallback) */
+function readNum(key: string, fallback: number, min: number, max: number): number {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw == null) return fallback;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  } catch {
+    return fallback;
+  }
+}
+
+function readBool(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw == null) return fallback;
+    return raw === '1' || raw === 'true';
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLS(key: string, value: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* quota/private mode — чимээгүй өнгөрөөнө */
+  }
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -105,6 +152,7 @@ interface WebkitFullscreenContainer extends HTMLDivElement {
 
 // ─── Custom range (seek / volume) ─────────────────────────────────────────────
 // shadcn Slider байхгүй тул хөнгөн, fully-controlled custom range ашиглав.
+// Pointer events (mouse + touch + pen) — mobile дээр ч ажиллана.
 
 interface RangeProps {
   value: number; // 0..1
@@ -114,6 +162,8 @@ interface RangeProps {
   onHover?: (v: number | null) => void;
   className?: string;
   trackClassName?: string;
+  /** Track-ийн дэвсгэр өнгө (theme) */
+  baseTrackClass?: string;
   ariaLabel: string;
 }
 
@@ -125,6 +175,7 @@ function CustomRange({
   onHover,
   className,
   trackClassName,
+  baseTrackClass = 'bg-white/25',
   ariaLabel,
 }: RangeProps) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -144,9 +195,15 @@ function CustomRange({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       draggingRef.current = true;
       onScrub?.(true);
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      // Хуучин/зарим төхөөрөмж дээр setPointerCapture шиддэг — try/catch
+      try {
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      } catch {
+        /* ignore */
+      }
       onChange(valueFromEvent(e.clientX));
     },
     [onChange, onScrub, valueFromEvent],
@@ -161,12 +218,16 @@ function CustomRange({
     [onChange, onHover, valueFromEvent],
   );
 
-  const handlePointerUp = useCallback(
+  const endDrag = useCallback(
     (e: React.PointerEvent) => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
       onScrub?.(false);
-      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      try {
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch {
+        /* ignore */
+      }
     },
     [onScrub],
   );
@@ -181,23 +242,25 @@ function CustomRange({
       aria-valuenow={Math.round(pct * 100)}
       tabIndex={-1}
       className={cn(
-        'group/range relative flex h-4 cursor-pointer items-center touch-none select-none',
+        'group/range relative flex h-5 cursor-pointer touch-none select-none items-center',
         className,
       )}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
       onPointerLeave={() => onHover?.(null)}
     >
       <div
         className={cn(
-          'relative h-1 w-full overflow-hidden rounded-full bg-white/25 transition-all group-hover/range:h-1.5',
+          'relative h-1.5 w-full overflow-hidden rounded-full transition-all group-hover/range:h-2',
+          baseTrackClass,
           trackClassName,
         )}
       >
-        {/* buffered давхарга */}
+        {/* buffered давхарга — тод (white/50) */}
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-white/30"
+          className="absolute inset-y-0 left-0 rounded-full bg-white/50"
           style={{ width: `${bufPct * 100}%` }}
         />
         {/* played давхарга (brand gold) */}
@@ -208,7 +271,7 @@ function CustomRange({
       </div>
       {/* thumb */}
       <div
-        className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ffbe00] opacity-0 shadow ring-2 ring-black/20 transition-opacity group-hover/range:opacity-100"
+        className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ffbe00] opacity-0 shadow ring-2 ring-black/20 transition-opacity group-hover/range:opacity-100"
         style={{ left: `${pct * 100}%` }}
       />
     </div>
@@ -250,21 +313,29 @@ function IconBtn({
   label,
   onClick,
   children,
+  active,
   className,
 }: {
   label: string;
   onClick: (e: React.MouseEvent) => void;
   children: React.ReactNode;
+  /** Идэвхтэй (PiP зэрэг) — gold highlight */
+  active?: boolean;
   className?: string;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      aria-pressed={active}
       title={label}
       onClick={onClick}
       className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffbe00]',
+        // touch-friendly tap target (≥40px)
+        'flex h-10 w-10 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffbe00]',
+        active
+          ? 'bg-[#ffbe00] text-[#022179]'
+          : 'text-white/90 hover:bg-white/15 hover:text-white',
         className,
       )}
     >
@@ -288,11 +359,18 @@ function PremiumVideoPlayerBase({
 }: PremiumVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<HlsType | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef(0);
   const resumeRef = useRef(resumeFrom);
   resumeRef.current = resumeFrom;
+
+  // Сайтын theme (light/dark) — controls/menu өнгийг үүгээр сольно.
+  // Видеоны viewport (зураг хэсэг) нь үргэлж black (видео контентын хүрээ),
+  // харин controls bar / menu / toast / overlay theme дагана.
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === 'light';
 
   // Callback-уудыг ref-ээр барина — listener-уудыг parent бүр render-д дахин
   // холбохгүйгээр хамгийн сүүлийн утгыг дуудна (stale closure-аас сэргийлнэ).
@@ -310,9 +388,13 @@ function PremiumVideoPlayerBase({
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [buffered, setBuffered] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  // volume / speed / muted — localStorage-аас сэргээнэ (state persistence)
+  const [volume, setVolume] = useState(() => readNum(LS_VOLUME, 1, 0, 1));
+  const [muted, setMuted] = useState(() => readBool(LS_MUTED, false));
+  const [speed, setSpeed] = useState(() => {
+    const s = readNum(LS_SPEED, 1, 0.5, 2);
+    return (SPEEDS as readonly number[]).includes(s) ? s : 1;
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [scrubbing, setScrubbing] = useState(false);
@@ -322,12 +404,31 @@ function PremiumVideoPlayerBase({
   const [autoNext, setAutoNext] = useState(autoPlayNext);
   const [showResumeToast, setShowResumeToast] = useState(false);
   const [pipSupported, setPipSupported] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
+
+  // Дор хаяж нэг menu нээлттэй эсэх (outside-click / auto-hide логикт хэрэгтэй)
+  const anyMenuOpen = speedMenuOpen || volumeOpen;
 
   // ── PiP дэмжих эсэх (client дээр) ──
   useEffect(() => {
     if (typeof document !== 'undefined') {
       setPipSupported(!!(document as Document).pictureInPictureEnabled);
     }
+  }, []);
+
+  // ── Менюг нэг л зэрэг нэг нээх (mutual exclusion) ──
+  const openSpeedMenu = useCallback(() => {
+    setVolumeOpen(false);
+    setSpeedMenuOpen((v) => !v);
+  }, []);
+  const openVolume = useCallback(() => {
+    setSpeedMenuOpen(false);
+    setVolumeOpen(true);
+  }, []);
+
+  const closeAllMenus = useCallback(() => {
+    setSpeedMenuOpen(false);
+    setVolumeOpen(false);
   }, []);
 
   // ── Эх сурвалж ачаалах (hls.js dynamic import эсвэл шууд src) ──
@@ -397,6 +498,19 @@ function PremiumVideoPlayerBase({
     };
   }, [started, isExternal, source.type, source.url, source.hlsUrl]);
 
+  // ── localStorage-д хадгалсан volume/speed/muted-ийг video element дээр буулгах ──
+  // started болж video DOM-д орсны дараа л playbackRate/volume утга авна.
+  useEffect(() => {
+    if (isExternal || !started) return;
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = volume;
+    video.muted = muted;
+    video.playbackRate = speed;
+    // зөвхөн анх attach үед нэг удаа — дараа нь setVol/changeSpeed өөрсдөө бичнэ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started, isExternal]);
+
   // ── Video element-ийн event-үүд ──
   useEffect(() => {
     if (isExternal || !started) return;
@@ -424,7 +538,6 @@ function PremiumVideoPlayerBase({
       if (rf > 2 && rf < dur - 2) {
         video.currentTime = rf;
         setShowResumeToast(true);
-        setTimeout(() => setShowResumeToast(false), 3500);
       }
     };
     const onTimeUpdate = () => {
@@ -436,7 +549,11 @@ function PremiumVideoPlayerBase({
         setBuffered(video.buffered.end(video.buffered.length - 1));
       }
     };
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      // Play эхэлмэгц resume toast хаах (3.5с хүлээхгүй)
+      setShowResumeToast(false);
+    };
     const onPause = () => {
       setPlaying(false);
       emitProgress(true); // pause үед хадгалах
@@ -445,6 +562,7 @@ function PremiumVideoPlayerBase({
     const onPlaying = () => {
       setBuffering(false);
       setLoading(false);
+      setShowResumeToast(false);
     };
     const onSeeked = () => emitProgress(true); // seek үед хадгалах
     const onEnd = () => {
@@ -458,6 +576,9 @@ function PremiumVideoPlayerBase({
       setMuted(video.muted);
     };
     const onCanPlay = () => setLoading(false);
+    // PiP visual feedback
+    const onEnterPip = () => setPipActive(true);
+    const onLeavePip = () => setPipActive(false);
 
     video.addEventListener('loadedmetadata', onLoadedMeta);
     video.addEventListener('timeupdate', onTimeUpdate);
@@ -470,6 +591,8 @@ function PremiumVideoPlayerBase({
     video.addEventListener('ended', onEnd);
     video.addEventListener('volumechange', onVol);
     video.addEventListener('canplay', onCanPlay);
+    video.addEventListener('enterpictureinpicture', onEnterPip);
+    video.addEventListener('leavepictureinpicture', onLeavePip);
 
     return () => {
       video.removeEventListener('loadedmetadata', onLoadedMeta);
@@ -483,12 +606,14 @@ function PremiumVideoPlayerBase({
       video.removeEventListener('ended', onEnd);
       video.removeEventListener('volumechange', onVol);
       video.removeEventListener('canplay', onCanPlay);
+      video.removeEventListener('enterpictureinpicture', onEnterPip);
+      video.removeEventListener('leavepictureinpicture', onLeavePip);
       // Unmount/хаагдахад сүүлийн байрлал хадгалах
       emitProgress(true);
     };
   }, [started, isExternal, scrubbing, autoNext, onNext]);
 
-  // ── Fullscreen өөрчлөлт сонсох ──
+  // ── Fullscreen өөрчлөлт сонсох (iOS webkit орно — товч UI sync) ──
   useEffect(() => {
     const handler = () => {
       const doc = document as WebkitDocument;
@@ -496,11 +621,15 @@ function PremiumVideoPlayerBase({
     };
     document.addEventListener('fullscreenchange', handler);
     document.addEventListener('webkitfullscreenchange', handler);
+    // iOS Safari — video element өөрөө fullscreen болдог
+    const video = videoRef.current;
+    video?.addEventListener('webkitbeginfullscreen', () => setIsFullscreen(true));
+    video?.addEventListener('webkitendfullscreen', () => setIsFullscreen(false));
     return () => {
       document.removeEventListener('fullscreenchange', handler);
       document.removeEventListener('webkitfullscreenchange', handler);
     };
-  }, []);
+  }, [started]);
 
   // ─── Controls ───────────────────────────────────────────────────────────────
 
@@ -555,6 +684,9 @@ function PremiumVideoPlayerBase({
     const clamped = Math.max(0, Math.min(1, v));
     video.volume = clamped;
     video.muted = clamped === 0;
+    // persist (volumechange event onVol-аар state шинэчилнэ)
+    writeLS(LS_VOLUME, String(clamped));
+    writeLS(LS_MUTED, clamped === 0 ? '1' : '0');
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -564,6 +696,7 @@ function PremiumVideoPlayerBase({
     if (!video.muted && video.volume === 0) {
       video.volume = 0.5;
     }
+    writeLS(LS_MUTED, video.muted ? '1' : '0');
   }, []);
 
   const changeSpeed = useCallback((rate: number) => {
@@ -572,6 +705,7 @@ function PremiumVideoPlayerBase({
     video.playbackRate = rate;
     setSpeed(rate);
     setSpeedMenuOpen(false);
+    writeLS(LS_SPEED, String(rate));
   }, []);
 
   const cycleSpeed = useCallback(
@@ -622,17 +756,22 @@ function PremiumVideoPlayerBase({
     }
   }, []);
 
-  // ─── Controls auto-hide ───────────────────────────────────────────────────────
+  // ─── Controls auto-hide (menu нээлттэй бол нуухгүй) ────────────────────────────
+
+  // forceShow-г ref-ээр барина — timer callback stale closure-гүйгээр шинэ утга авна.
+  const forceShow = scrubbing || anyMenuOpen || !playing;
+  const forceShowRef = useRef(forceShow);
+  forceShowRef.current = forceShow;
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
-      // Тоглож байгаа, scrub/menu нээлттэй биш үед л нуух
+      // Menu нээлттэй / scrub / paused бол controls-ийг НУУХГҮЙ
+      // (menu-г force-close хийхгүй — зөвхөн controls bar л алга болдог).
+      if (forceShowRef.current) return;
       if (videoRef.current && !videoRef.current.paused) {
         setControlsVisible(false);
-        setSpeedMenuOpen(false);
-        setVolumeOpen(false);
       }
     }, 3000);
   }, []);
@@ -643,16 +782,52 @@ function PremiumVideoPlayerBase({
     };
   }, []);
 
-  // Scrub/menu нээлттэй бол controls үргэлж харагдах
-  const forceShow = scrubbing || speedMenuOpen || volumeOpen || !playing;
+  // Menu нээгдмэгц controls-ийг үргэлж харагдуулна (хаалттай таймер дахин эхэлнэ)
+  useEffect(() => {
+    if (anyMenuOpen) {
+      setControlsVisible(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    } else {
+      showControls();
+    }
+  }, [anyMenuOpen, showControls]);
+
   const effectiveVisible = controlsVisible || forceShow;
+
+  // ─── Outside-click: menu гадуур дарвал хаах ─────────────────────────────────
+  useEffect(() => {
+    if (!anyMenuOpen) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      const el = controlsRef.current;
+      // Controls bar дотор (speed/volume товч+menu) дарсан бол хаахгүй —
+      // тэдгээрийн өөрсдийн toggle логик ажиллана. Гадуур бол бүгдийг хаана.
+      if (el && e.target instanceof Node && el.contains(e.target)) return;
+      closeAllMenus();
+    };
+    // pointerdown — mouse + touch + pen бүгдийг барина
+    document.addEventListener('pointerdown', onDocPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
+  }, [anyMenuOpen, closeAllMenus]);
 
   // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      // Input/textarea фокуст байвал алгасах (player л фокуст)
       const key = e.key;
+
+      // Escape — нээлттэй menu бүгдийг хаах (хамгийн түрүүнд)
+      if (key === 'Escape') {
+        if (anyMenuOpen) {
+          e.preventDefault();
+          closeAllMenus();
+        }
+        return;
+      }
+
+      // Menu нээлттэй үед бусад shortcut-ийг алгасна (зөрчилдөхгүй) —
+      // зөвхөн Escape ажиллана (дээр шийдэгдсэн).
+      if (anyMenuOpen) return;
+
       let handled = true;
       switch (key) {
         case ' ':
@@ -698,6 +873,8 @@ function PremiumVideoPlayerBase({
       }
     },
     [
+      anyMenuOpen,
+      closeAllMenus,
       togglePlay,
       toggleFullscreen,
       toggleMute,
@@ -727,6 +904,44 @@ function PremiumVideoPlayerBase({
     [],
   );
 
+  // ─── Theme-aware class токенууд (controls/menu/toast/overlay) ──────────────────
+  // Видеоны viewport black хэвээр; зөвхөн UI элементүүд theme дагана.
+  const ui = useMemo(() => {
+    if (isLight) {
+      return {
+        // controls bar gradient — цайвар (доороос дээш)
+        controlsGradient:
+          'bg-gradient-to-t from-white/95 via-white/70 to-transparent',
+        // top title gradient
+        topGradient: 'bg-gradient-to-b from-white/85 to-transparent',
+        text: 'text-[#022179]',
+        textSoft: 'text-[#022179]/80',
+        iconBtn:
+          'text-[#022179]/90 hover:bg-[#022179]/10 hover:text-[#022179]',
+        rangeTrack: 'bg-[#022179]/20',
+        // menu / toast панель — цайвар
+        panel:
+          'border border-[#022179]/10 bg-white/95 text-[#022179] shadow-2xl backdrop-blur',
+        menuItem: 'text-[#022179]/80 hover:bg-[#022179]/10',
+        toggleOff: 'bg-[#022179]/25',
+        hoverBubble: 'bg-[#022179] text-white',
+      };
+    }
+    return {
+      controlsGradient: 'bg-gradient-to-t from-black/90 via-black/50 to-transparent',
+      topGradient: 'bg-gradient-to-b from-black/70 to-transparent',
+      text: 'text-white',
+      textSoft: 'text-white/90',
+      iconBtn: 'text-white/90 hover:bg-white/15 hover:text-white',
+      rangeTrack: 'bg-white/25',
+      panel:
+        'border border-white/10 bg-zinc-900/95 text-white shadow-2xl backdrop-blur',
+      menuItem: 'text-white/85 hover:bg-white/10',
+      toggleOff: 'bg-white/30',
+      hoverBubble: 'bg-black/90 text-white',
+    };
+  }, [isLight]);
+
   // ─── External бол энгийн embed ──
   if (isExternal && source.url) {
     return <ExternalPlayer url={source.url} title={title} />;
@@ -751,6 +966,7 @@ function PremiumVideoPlayerBase({
       )}
     >
       {/* Video element (custom controls тул browser controls={false}) */}
+      {/* Double-click → fullscreen, single click → play/pause */}
       <video
         ref={videoRef}
         poster={poster}
@@ -759,7 +975,15 @@ function PremiumVideoPlayerBase({
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture={false}
         onContextMenu={(e) => e.preventDefault()}
-        onClick={togglePlay}
+        onClick={() => {
+          // Menu нээлттэй бол эхний tap-аар menu хаана (play/pause-гүй)
+          if (anyMenuOpen) {
+            closeAllMenus();
+            return;
+          }
+          togglePlay();
+        }}
+        onDoubleClick={toggleFullscreen}
         className="absolute inset-0 h-full w-full bg-black"
       />
 
@@ -806,7 +1030,7 @@ function PremiumVideoPlayerBase({
         )}
       </AnimatePresence>
 
-      {/* Continue watching toast */}
+      {/* Continue watching toast (play эхлэхэд автоматаар хаагдана) */}
       <AnimatePresence>
         {showResumeToast && (
           <motion.div
@@ -814,7 +1038,10 @@ function PremiumVideoPlayerBase({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
-            className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-lg bg-black/80 px-3 py-2 text-sm text-white backdrop-blur"
+            className={cn(
+              'absolute left-4 top-4 z-30 flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
+              ui.panel,
+            )}
           >
             <RotateCw className="h-4 w-4 text-[#ffbe00]" />
             {formatTime(resumeFrom)}-оос үргэлжлүүлж байна
@@ -843,15 +1070,22 @@ function PremiumVideoPlayerBase({
       <AnimatePresence>
         {started && effectiveVisible && (
           <motion.div
+            ref={controlsRef}
             {...fadeProps}
-            className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-2 pt-10 sm:px-4"
+            className={cn(
+              'absolute inset-x-0 bottom-0 z-30 px-3 pb-2 pt-10 sm:px-4',
+              ui.controlsGradient,
+            )}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Seek bar + hover preview */}
+            {/* Seek bar + hover/touch preview */}
             <div className="relative mb-1">
               {hoverTime != null && (
                 <div
-                  className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/90 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white"
+                  className={cn(
+                    'pointer-events-none absolute -top-7 -translate-x-1/2 rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums',
+                    ui.hoverBubble,
+                  )}
                   style={{ left: `${(hoverPct ?? 0) * 100}%` }}
                 >
                   {formatTime(hoverTime)}
@@ -861,6 +1095,7 @@ function PremiumVideoPlayerBase({
                 ariaLabel="Видео байрлал"
                 value={playedFrac}
                 buffered={bufferedFrac}
+                baseTrackClass={ui.rangeTrack}
                 onChange={(v) => {
                   setScrubbing(true);
                   setCurrent(v * duration);
@@ -876,23 +1111,38 @@ function PremiumVideoPlayerBase({
 
             {/* Buttons row */}
             <div className="flex items-center gap-1">
-              <IconBtn label={playing ? 'Түр зогсоох' : 'Тоглуулах'} onClick={togglePlay}>
+              <IconBtn
+                label={playing ? 'Түр зогсоох' : 'Тоглуулах'}
+                onClick={togglePlay}
+                className={ui.iconBtn}
+              >
                 {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 fill-current" />}
               </IconBtn>
 
               {onNext && (
-                <IconBtn label="Дараагийн хичээл" onClick={onNext}>
+                <IconBtn label="Дараагийн хичээл" onClick={onNext} className={ui.iconBtn}>
                   <SkipForward className="h-5 w-5" />
                 </IconBtn>
               )}
 
-              {/* Volume (hover дээр slider гарах) */}
+              {/* Volume — hover (desktop) болон click/tap (mobile) дээр slider гарна */}
               <div
                 className="flex items-center"
                 onMouseEnter={() => setVolumeOpen(true)}
-                onMouseLeave={() => setVolumeOpen(false)}
+                onMouseLeave={() => {
+                  // Зөвхөн hover-аар нээснийг хаана; speed menu нээлттэй бол хөндөхгүй
+                  if (!speedMenuOpen) setVolumeOpen(false);
+                }}
               >
-                <IconBtn label={muted ? 'Дуу нээх' : 'Дуу хаах'} onClick={toggleMute}>
+                <IconBtn
+                  label={muted ? 'Дуу нээх' : 'Дуу хаах'}
+                  onClick={() => {
+                    // Touch дээр slider toggle хийнэ; desktop дээр mute toggle
+                    toggleMute();
+                    openVolume();
+                  }}
+                  className={ui.iconBtn}
+                >
                   <VolumeIcon className="h-5 w-5" />
                 </IconBtn>
                 <div
@@ -905,13 +1155,19 @@ function PremiumVideoPlayerBase({
                     ariaLabel="Дууны түвшин"
                     className="w-20 px-1"
                     value={muted ? 0 : volume}
+                    baseTrackClass={ui.rangeTrack}
                     onChange={setVol}
                   />
                 </div>
               </div>
 
               {/* Цаг */}
-              <span className="ml-1 select-none text-xs font-medium tabular-nums text-white/90 sm:text-sm">
+              <span
+                className={cn(
+                  'ml-1 select-none text-xs font-medium tabular-nums sm:text-sm',
+                  ui.textSoft,
+                )}
+              >
                 {formatTime(current)} / {formatTime(duration)}
               </span>
 
@@ -922,13 +1178,16 @@ function PremiumVideoPlayerBase({
                 <button
                   type="button"
                   onClick={() => setAutoNext((v) => !v)}
-                  className="mr-1 hidden items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition-colors hover:bg-white/15 sm:flex"
+                  className={cn(
+                    'mr-1 hidden items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors sm:flex',
+                    ui.iconBtn,
+                  )}
                   title="Дараагийн хичээлийг автоматаар тоглуулах"
                 >
                   <span
                     className={cn(
                       'flex h-4 w-7 items-center rounded-full p-0.5 transition-colors',
-                      autoNext ? 'bg-[#ffbe00]' : 'bg-white/30',
+                      autoNext ? 'bg-[#ffbe00]' : ui.toggleOff,
                     )}
                   >
                     <span
@@ -947,9 +1206,13 @@ function PremiumVideoPlayerBase({
                 <button
                   type="button"
                   aria-label="Тоглуулах хурд"
+                  aria-expanded={speedMenuOpen}
                   title="Тоглуулах хурд"
-                  onClick={() => setSpeedMenuOpen((v) => !v)}
-                  className="flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/15 hover:text-white"
+                  onClick={openSpeedMenu}
+                  className={cn(
+                    'flex h-10 items-center gap-1 rounded-lg px-2 text-xs font-semibold transition-colors',
+                    ui.iconBtn,
+                  )}
                 >
                   <Gauge className="h-4 w-4" />
                   {speed}x
@@ -961,7 +1224,10 @@ function PremiumVideoPlayerBase({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 6, scale: 0.96 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute bottom-11 right-0 z-40 min-w-28 overflow-hidden rounded-xl border border-white/10 bg-zinc-900/95 py-1 shadow-2xl backdrop-blur"
+                      className={cn(
+                        'absolute bottom-12 right-0 z-50 min-w-28 overflow-hidden rounded-xl py-1',
+                        ui.panel,
+                      )}
                     >
                       {SPEEDS.map((s) => (
                         <button
@@ -969,8 +1235,8 @@ function PremiumVideoPlayerBase({
                           type="button"
                           onClick={() => changeSpeed(s)}
                           className={cn(
-                            'flex w-full items-center justify-between px-3 py-1.5 text-sm transition-colors hover:bg-white/10',
-                            speed === s ? 'text-[#ffbe00]' : 'text-white/85',
+                            'flex w-full items-center justify-between px-3 py-1.5 text-sm transition-colors',
+                            speed === s ? 'font-semibold text-[#ffbe00]' : ui.menuItem,
                           )}
                         >
                           {s === 1 ? 'Хэвийн' : `${s}x`}
@@ -982,9 +1248,14 @@ function PremiumVideoPlayerBase({
                 </AnimatePresence>
               </div>
 
-              {/* Picture-in-Picture */}
+              {/* Picture-in-Picture (идэвхтэй үед gold highlight) */}
               {pipSupported && (
-                <IconBtn label="Зураг доторх зураг" onClick={togglePip}>
+                <IconBtn
+                  label="Зураг доторх зураг"
+                  onClick={togglePip}
+                  active={pipActive}
+                  className={ui.iconBtn}
+                >
                   <PictureInPicture2 className="h-5 w-5" />
                 </IconBtn>
               )}
@@ -993,6 +1264,7 @@ function PremiumVideoPlayerBase({
               <IconBtn
                 label={isFullscreen ? 'Бүтэн дэлгэцээс гарах' : 'Бүтэн дэлгэц'}
                 onClick={toggleFullscreen}
+                className={ui.iconBtn}
               >
                 {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
               </IconBtn>
@@ -1006,16 +1278,19 @@ function PremiumVideoPlayerBase({
         {started && effectiveVisible && title && (
           <motion.div
             {...fadeProps}
-            className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 to-transparent px-4 pb-8 pt-3"
+            className={cn(
+              'pointer-events-none absolute inset-x-0 top-0 z-20 px-4 pb-8 pt-3',
+              ui.topGradient,
+            )}
           >
-            <p className="truncate text-sm font-semibold text-white drop-shadow sm:text-base">
+            <p className={cn('truncate text-sm font-semibold drop-shadow sm:text-base', ui.text)}>
               {title}
             </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Next lesson overlay (autoNext + ended дараа гарч ирэх боломжтой — энд товч хэлбэр) */}
+      {/* Next lesson overlay (ended дараа) */}
       {onNext && started && !playing && current > 0 && duration > 0 && current >= duration - 0.5 && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60">
           <button
