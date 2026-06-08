@@ -127,23 +127,29 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       </Link>
 
       <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
-        <div className="mb-1.5 flex items-center gap-1.5 flex-wrap">
-          <Badge variant={productTypeBadgeVariant(product.type)} className="text-[10px] sm:text-xs px-1.5 py-0 gap-1">
+        {/* Төрөл + үнэлгээ/татсан НЭГ мөрөнд (категори арилгасан) */}
+        <div className="mb-1.5 flex items-center gap-1.5 flex-nowrap overflow-hidden">
+          <Badge variant={productTypeBadgeVariant(product.type)} className="text-[10px] sm:text-xs px-1.5 py-0 gap-1 shrink-0">
             {mounted && <DynamicLucideIcon name={typeIcon} className="h-2.5 w-2.5" />}
             {typeLabel}
           </Badge>
-          {product.category && (
-            <Link
-              href={`/categories/${product.category.slug}`}
-              className="text-[9px] sm:text-[10px] uppercase tracking-wider font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-24"
-            >
-              {product.category.name}
-            </Link>
+          {product.ratingCount > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-muted-foreground shrink-0">
+              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+              <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+              <span>({product.ratingCount})</span>
+            </span>
+          )}
+          {product.downloadCount > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-medium shrink-0">
+              <Flame className="h-3 w-3" />
+              {product.downloadCount} татсан
+            </span>
           )}
           {product.lessonCount != null && product.lessonCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-primary font-medium">
+            <span className="flex items-center gap-0.5 text-[10px] sm:text-xs text-primary font-medium shrink-0">
               <BookOpen className="h-3 w-3" />
-              {product.lessonCount} хичээл
+              {product.lessonCount}
             </span>
           )}
         </div>
@@ -173,24 +179,6 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           )}
         </div>
 
-        {/* Бодит social proof — татсан тоо + үнэлгээ (хуурамч тоо БИШ) */}
-        {(product.ratingCount > 0 || product.downloadCount > 0) && (
-          <div className="mt-1.5 flex items-center gap-2.5 text-[10px] sm:text-xs text-muted-foreground">
-            {product.ratingCount > 0 && (
-              <span className="flex items-center gap-0.5">
-                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
-                <span>({product.ratingCount})</span>
-              </span>
-            )}
-            {product.downloadCount > 0 && (
-              <span className="flex items-center gap-0.5 text-orange-600 dark:text-orange-400 font-medium">
-                <Flame className="h-3 w-3" />
-                {product.downloadCount} татсан
-              </span>
-            )}
-          </div>
-        )}
       </CardContent>
 
       <CardFooter className="flex gap-1.5 p-3 sm:p-4 pt-0">
