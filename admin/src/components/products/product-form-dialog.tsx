@@ -41,7 +41,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, getAccessToken } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import type { AdminBundle, AdminBundleItem, AdminCourseModule, AdminFaq, AdminLesson, AdminLessonResource, AdminLessonQuestion, AdminQuizQuestion, AdminProduct, AdminProductFile, AdminProductImage, AdminTestimonial } from '@/types/admin';
 import { RichEditor } from '@/components/ui/rich-editor';
@@ -2213,15 +2213,111 @@ function ModuleSection({
   );
 }
 
+// 🎓 Сертификат загварыг modal дотор iframe-ээр харуулна (A4 landscape).
+// HTML-ийг backend-ээс token-той татаж srcDoc-д шууд өгнө (өөрийн серверийн demo HTML — XSS-гүй).
+function CertificatePreviewModal({
+  open,
+  onOpenChange,
+  html,
+  onPrint,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  html: string | null;
+  onPrint: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-primary" />
+            Сертификат загвар
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="overflow-hidden rounded-lg border border-border bg-muted/20">
+          {html ? (
+            <iframe
+              title="Сертификат загвар"
+              srcDoc={html}
+              sandbox="allow-same-origin allow-modals"
+              className="h-[480px] w-full border-0 bg-white"
+            />
+          ) : (
+            <div className="flex h-[480px] items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            <X className="h-4 w-4" /> Хаах
+          </Button>
+          <Button type="button" size="sm" onClick={onPrint} disabled={!html}>
+            <Download className="h-4 w-4" /> Хэвлэх / PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CourseTab({ productId, productTitle }: { productId?: string; productTitle?: string }) {
   const queryClient = useQueryClient();
 
-  // 🎓 Сертификат загвар үзэх — backend demo preview-г шинэ tab-д нээнэ
-  function openCertificatePreview() {
-    const params = new URLSearchParams();
-    if (productTitle?.trim()) params.set('courseTitle', productTitle.trim());
-    window.open(`${API_URL}/api/admin/certificate/preview?${params.toString()}`, '_blank', 'noopener,noreferrer');
+  // 🎓 Сертификат загвар үзэх — backend preview HTML-ийг token-той татаж modal iframe-д харуулна.
+  // ⚠️ window.open ашиглахгүй: шинэ tab-д Authorization header дамждаггүй тул backend
+  // admin guard "401 Authentication required" өгдөг. Иймд token-той fetch → srcDoc iframe.
+  const [certModalOpen, setCertModalOpen] = useState(false);
+  const [certLoading, setCertLoading] = useState(false);
+  const [certPreviewHtml, setCertPreviewHtml] = useState<string | null>(null);
+
+  async function openCertificatePreview() {
+    setCertLoading(true);
+    try {
+      const token = await getAccessToken();
+      const params = new URLSearchParams();
+      if (productTitle?.trim()) params.set('courseTitle', productTitle.trim());
+      const res = await fetch(
+        `${API_URL}/api/admin/certificate/preview?${params.toString()}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const html = await res.text();
+      setCertPreviewHtml(html);
+      setCertModalOpen(true);
+    } catch {
+      toast.error('Сертификат загварыг ачаалж чадсангүй');
+    } finally {
+      setCertLoading(false);
+    }
   }
+
+  // iframe доторх сертификатыг browser-ийн хэвлэх (PDF болгож хадгалах) цонхоор нээнэ
+  function printCertificate() {
+    if (!certPreviewHtml) return;
+    const blob = new Blob([certPreviewHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.src = url;
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
+      }, 300);
+    };
+    document.body.appendChild(iframe);
+  }
+
   const [addingModule, setAddingModule] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [addingLesson, setAddingLesson] = useState(false);
@@ -2279,13 +2375,19 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
             <GraduationCap className="h-4 w-4 text-primary" />
             <span className="text-muted-foreground">Курс төгсөгчдөд олгох сертификатын загвар</span>
           </div>
-          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={openCertificatePreview}>
-            <GraduationCap className="h-3.5 w-3.5" /> Сертификат загвар үзэх
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={openCertificatePreview} disabled={certLoading}>
+            {certLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GraduationCap className="h-3.5 w-3.5" />} Сертификат загвар үзэх
           </Button>
         </div>
         <div className="py-8 text-center text-sm text-muted-foreground">
           Бүтээгдэхүүнийг хадгалсны дараа хичээл нэмнэ үү.
         </div>
+        <CertificatePreviewModal
+          open={certModalOpen}
+          onOpenChange={setCertModalOpen}
+          html={certPreviewHtml}
+          onPrint={printCertificate}
+        />
       </div>
     );
   }
@@ -2300,10 +2402,17 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
           <GraduationCap className="h-4 w-4 text-primary" />
           <span className="text-muted-foreground">Курс төгсөгчдөд олгох сертификатын загвар</span>
         </div>
-        <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={openCertificatePreview}>
-          <GraduationCap className="h-3.5 w-3.5" /> Сертификат загвар үзэх
+        <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={openCertificatePreview} disabled={certLoading}>
+          {certLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GraduationCap className="h-3.5 w-3.5" />} Сертификат загвар үзэх
         </Button>
       </div>
+
+      <CertificatePreviewModal
+        open={certModalOpen}
+        onOpenChange={setCertModalOpen}
+        html={certPreviewHtml}
+        onPrint={printCertificate}
+      />
 
       {/* Stats */}
       {totalLessons > 0 && (

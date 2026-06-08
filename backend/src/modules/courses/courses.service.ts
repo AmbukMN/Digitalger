@@ -490,135 +490,312 @@ export class CoursesService {
 <style>
   @page { size: A4 landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Noto Sans', Arial, sans-serif;
-    background: #eef1f7;
-    color: #022179;
+  :root {
+    --navy: #022179;
+    --gold: #ffbe00;
+    --ink: #2a2f45;
+    --muted: #6b7280;
+  }
+  html, body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Noto Sans', 'Noto Sans Mongolian', Arial, sans-serif;
+    background: #e9edf5;
+    color: var(--ink);
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
     padding: 24px;
   }
+
+  /* ── Хуудас (A4 landscape, цагаан дэвсгэр) ── */
   .sheet {
-    width: 1000px;
+    width: 1040px;
     max-width: 100%;
     aspect-ratio: 1.414 / 1;
     background: #ffffff;
     position: relative;
-    border: 14px solid #022179;
-    box-shadow: 0 24px 60px rgba(2,33,121,0.25);
     overflow: hidden;
+    box-shadow: 0 24px 70px rgba(2,33,121,0.22);
   }
-  .sheet::after {
-    content: "";
+
+  /* ── Булангийн navy гурвалжингууд (clip-path) ── */
+  .corner {
     position: absolute;
-    inset: 14px;
-    border: 2px solid #ffbe00;
+    width: 200px;
+    height: 200px;
+    background: var(--navy);
+    z-index: 2;
     pointer-events: none;
   }
+  .corner.tr { top: 0; right: 0; clip-path: polygon(100% 0, 0 0, 100% 100%); }
+  .corner.bl { bottom: 0; left: 0; clip-path: polygon(0 0, 0 100%, 100% 100%); }
+  .corner.br { bottom: 0; right: 0; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+  /* Gold нимгэн accent гурвалжингууд (булан тус бүрд давхар өнгө) */
+  .corner-accent {
+    position: absolute;
+    width: 132px;
+    height: 132px;
+    background: var(--gold);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .corner-accent.tr { top: 0; right: 0; clip-path: polygon(100% 0, 30% 0, 100% 70%); }
+  .corner-accent.bl { bottom: 0; left: 0; clip-path: polygon(0 30%, 0 100%, 70% 100%); }
+  .corner-accent.br { bottom: 0; right: 0; clip-path: polygon(100% 30%, 100% 100%, 30% 100%); }
+
+  /* ── Gold inner border (цэгтэй нимгэн хүрээ) ── */
+  .frame {
+    position: absolute;
+    inset: 26px;
+    border: 2px solid var(--gold);
+    z-index: 3;
+    pointer-events: none;
+  }
+  .frame::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 1px dotted rgba(2,33,121,0.35);
+  }
+
+  /* ── Зүүн дээд: GOLD ribbon badge + navy ★ ── */
+  .ribbon {
+    position: absolute;
+    top: 0;
+    left: 70px;
+    width: 70px;
+    z-index: 5;
+  }
+  .ribbon .flag {
+    position: relative;
+    width: 70px;
+    height: 110px;
+    background: var(--gold);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    box-shadow: 0 6px 14px rgba(2,33,121,0.18);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .ribbon .badge {
+    margin-top: 16px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gold);
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  /* ── Гол агуулга ── */
   .inner {
     position: absolute;
     inset: 0;
-    padding: 48px 64px;
+    padding: 64px 96px 56px;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
+    z-index: 4;
   }
   .logo-bar {
-    background: #022179;
+    margin-top: 18px;
+    background: var(--navy);
     border-radius: 12px;
-    padding: 12px 28px;
+    padding: 11px 26px;
     display: inline-flex;
+    box-shadow: 0 8px 20px rgba(2,33,121,0.22);
   }
-  .logo-bar img { height: 38px; width: auto; display: block; border: 0; }
-  .title {
-    margin-top: 28px;
-    font-size: 34px;
-    font-weight: 800;
+  .logo-bar img { height: 34px; width: auto; display: block; border: 0; }
+
+  .hero {
+    margin-top: 26px;
+    font-size: 58px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    color: var(--navy);
+    line-height: 1;
+  }
+  .hero-sub {
+    margin-top: 12px;
+    font-size: 15px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .hero-en {
+    margin-top: 4px;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  .lead {
+    margin-top: 30px;
+    font-size: 13px;
     letter-spacing: 3px;
     text-transform: uppercase;
-    color: #022179;
+    color: var(--muted);
+    font-weight: 600;
   }
-  .subtitle {
-    margin-top: 6px;
-    font-size: 14px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #ffbe00;
-    font-weight: 700;
-  }
-  .lead { margin-top: 34px; font-size: 15px; color: #555; }
   .name {
-    margin-top: 12px;
-    font-size: 42px;
-    font-weight: 800;
-    color: #022179;
-    border-bottom: 3px solid #ffbe00;
-    padding-bottom: 8px;
-    display: inline-block;
-  }
-  .for { margin-top: 26px; font-size: 15px; color: #555; }
-  .course {
-    margin-top: 8px;
-    font-size: 24px;
+    margin-top: 10px;
+    font-family: 'Georgia', 'Times New Roman', 'Noto Serif', serif;
+    font-size: 50px;
     font-weight: 700;
-    color: #0a3aa0;
-    max-width: 760px;
+    font-style: italic;
+    color: var(--navy);
+    padding: 0 16px 12px;
+    display: inline-block;
+    position: relative;
   }
+  .name::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 78%;
+    min-width: 320px;
+    height: 3px;
+    background: var(--gold);
+    border-radius: 3px;
+  }
+
+  .for {
+    margin-top: 22px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .course {
+    margin-top: 6px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--navy);
+    max-width: 720px;
+  }
+  .course .gold { color: var(--gold); }
+
+  /* ── Footer: 2 баганат гарын үсэг + gold зураас ── */
   .footer {
     margin-top: auto;
     width: 100%;
+    max-width: 760px;
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
+    gap: 40px;
   }
-  .sign { text-align: center; min-width: 220px; }
-  .sign-line { border-top: 2px solid #022179; padding-top: 8px; font-size: 13px; color: #555; font-weight: 600; }
-  .sign-name { font-size: 16px; font-weight: 800; color: #022179; margin-bottom: 38px; }
-  .meta { text-align: center; font-size: 12px; color: #888; }
-  .meta .certno { font-family: monospace; font-size: 15px; font-weight: 800; color: #022179; letter-spacing: 1px; }
-  .date { text-align: center; min-width: 220px; }
-  .date-val { font-size: 16px; font-weight: 700; color: #022179; margin-bottom: 4px; }
-  .date-label { font-size: 13px; color: #555; }
+  .col { text-align: center; flex: 1; min-width: 0; }
+  .col .val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    padding-bottom: 8px;
+    white-space: nowrap;
+  }
+  .col .rule {
+    height: 2px;
+    background: var(--gold);
+    width: 100%;
+  }
+  .col .label {
+    margin-top: 7px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* ── Доод: certNo + verify ── */
+  .meta {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 30px;
+    text-align: center;
+    z-index: 4;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .meta .certno {
+    font-family: 'Courier New', monospace;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--navy);
+  }
+  .meta .verify { color: var(--muted); }
+
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0; min-height: auto; }
     .sheet { box-shadow: none; }
   }
 </style>
 </head>
 <body>
   <div class="sheet">
+    <!-- Булангийн navy + gold гурвалжингууд -->
+    <div class="corner-accent tr"></div>
+    <div class="corner tr"></div>
+    <div class="corner-accent bl"></div>
+    <div class="corner bl"></div>
+    <div class="corner-accent br"></div>
+    <div class="corner br"></div>
+
+    <!-- Gold inner border -->
+    <div class="frame"></div>
+
+    <!-- Зүүн дээд ribbon badge -->
+    <div class="ribbon">
+      <div class="flag"><div class="badge">&#9733;</div></div>
+    </div>
+
     <div class="inner">
       <div class="logo-bar">
         <img src="${logoUrl}" alt="DigitalGer" />
       </div>
-      <div class="title">Гэрчилгээ</div>
-      <div class="subtitle">Certificate of Completion</div>
 
-      <div class="lead">Энэхүү гэрчилгээг дараах хэрэглэгчид олгов:</div>
+      <div class="hero">Сертификат</div>
+      <div class="hero-sub">Гүйцэтгэлийн гэрчилгээ</div>
+      <div class="hero-en">Certificate of Completion</div>
+
+      <div class="lead">Олгов:</div>
       <div class="name">${esc(opts.userName)}</div>
 
-      <div class="for">дараах курсыг амжилттай дүүргэсэн тул:</div>
-      <div class="course">«${esc(opts.courseTitle)}»</div>
+      <div class="for">дараах курсыг амжилттай төгссөн тул энэхүү гэрчилгээг гардуулав:</div>
+      <div class="course">&laquo;${esc(opts.courseTitle)}&raquo;</div>
 
       <div class="footer">
-        <div class="date">
-          <div class="date-val">${esc(opts.dateStr)}</div>
-          <div class="date-label">Олгосон огноо</div>
+        <div class="col">
+          <div class="val">DigitalGer</div>
+          <div class="rule"></div>
+          <div class="label">Гүйцэтгэх захирал</div>
         </div>
-        <div class="meta">
-          <div class="certno">${esc(opts.certNo)}</div>
-          <div>Гэрчилгээний дугаар</div>
-        </div>
-        <div class="sign">
-          <div class="sign-name">DigitalGer</div>
-          <div class="sign-line">Гарын үсэг / Тамга</div>
+        <div class="col">
+          <div class="val">${esc(opts.dateStr)}</div>
+          <div class="rule"></div>
+          <div class="label">Олгосон огноо</div>
         </div>
       </div>
+    </div>
+
+    <div class="meta">
+      <span class="certno">${esc(opts.certNo)}</span>
+      &nbsp;&middot;&nbsp;
+      <span class="verify">Баталгаажуулах: ${esc(opts.verifyUrl)}</span>
     </div>
   </div>
 </body>

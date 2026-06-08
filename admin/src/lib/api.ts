@@ -50,7 +50,7 @@ export class ApiError extends Error {
   }
 }
 
-async function getAccessToken(): Promise<string | undefined> {
+export async function getAccessToken(): Promise<string | undefined> {
   if (typeof window === 'undefined') {
     const { cookies } = await import('next/headers');
     const { jwtVerify } = await import('jose');
