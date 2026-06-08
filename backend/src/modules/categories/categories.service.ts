@@ -21,20 +21,31 @@ export class CategoriesService {
       const categories = await this.prisma.category.findMany({
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       });
-      // ⚠️ _count.products нь зөвхөн categoryId (single) relation тоолдог тул
-      // categoryIds (олон категори array)-д байгаа product-уудыг алгасдаг. Product
-      // тухайн категорид categoryId ЭСВЭЛ categoryIds-ийн алинд нь байвал тооцно.
-      const counts = await Promise.all(
-        categories.map((c) =>
-          this.prisma.product.count({
-            where: {
-              published: true,
-              OR: [{ categoryId: c.id }, { categoryIds: { has: c.id } }],
-            },
-          }),
-        ),
-      );
-      return categories.map((c, i) => ({ ...c, _count: { products: counts[i] } }));
+
+      // ⚠️ Product тухайн категорид categoryId (single) ЭСВЭЛ categoryIds (array)-ийн
+      // алинд нь байвал тооцно. Өмнө нь категори бүрд тус тусдаа count query явдаг
+      // (N+1) байсныг НЭГ raw query болгов: published product бүрийн categoryId болон
+      // categoryIds-ийг нэгтгэн (UNION) тэгшилж (unnest), категори тус бүрээр
+      // DISTINCT product тоолно. Нэг product нэг категорид олон удаа орохгүй.
+      const rows = await this.prisma.$queryRaw<{ categoryId: string; count: bigint }[]>`
+        SELECT "categoryId", COUNT(DISTINCT "productId")::bigint AS count
+        FROM (
+          SELECT "id" AS "productId", "categoryId"
+          FROM "Product"
+          WHERE "published" = true AND "categoryId" IS NOT NULL
+          UNION ALL
+          SELECT "id" AS "productId", UNNEST("categoryIds") AS "categoryId"
+          FROM "Product"
+          WHERE "published" = true
+        ) AS t
+        GROUP BY "categoryId"
+      `;
+
+      const countMap = new Map(rows.map((r) => [r.categoryId, Number(r.count)]));
+      return categories.map((c) => ({
+        ...c,
+        _count: { products: countMap.get(c.id) ?? 0 },
+      }));
     });
   }
 

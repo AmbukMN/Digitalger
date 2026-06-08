@@ -10,6 +10,7 @@ import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
 import { N8nService } from '../n8n/n8n.service';
 import { EmailService } from '../notifications/email.service';
+import { ProductsService } from '../products/products.service';
 import { expandQuery } from '../../common/transliterate';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -23,6 +24,7 @@ export class AdminProductsService {
     private readonly stream: CloudflareStreamService,
     private readonly n8n: N8nService,
     private readonly email: EmailService,
+    private readonly products: ProductsService,
   ) {}
 
   async findAll(query: { page?: number; pageSize?: number; search?: string }) {
@@ -131,7 +133,7 @@ export class AdminProductsService {
       categoryIds && categoryIds.length > 0 ? categoryIds : primaryCategoryId ? [primaryCategoryId] : [],
     );
 
-    return this.prisma.product.create({
+    const created = await this.prisma.product.create({
       data: {
         ...rest,
         categoryId: validIds[0] ?? null,
@@ -151,6 +153,8 @@ export class AdminProductsService {
       },
       include: { category: true },
     });
+    await this.products.invalidateListCache();
+    return created;
   }
 
   async update(id: string, dto: UpdateProductDto) {
@@ -214,11 +218,15 @@ export class AdminProductsService {
       }
     }
 
+    // Жагсаалт/suggested cache-г шинэчилнэ (хуучин үнэ/нэр харагдахаас сэргийлнэ).
+    await this.products.invalidateListCache();
     return updated;
   }
 
   async remove(id: string) {
     await this.ensureProductExists(id);
+    // Жагсаалтаас шууд алга болгохын тулд cache-г цэвэрлэнэ.
+    await this.products.invalidateListCache();
 
     // HARD DELETE — захиалгатай ч бай шууд бүрэн устгана. Устгасан бүтээгдэхүүн
     // хэрэглэгчийн "Миний сан"-д огт харагдахгүй (бүтээгдэхүүн байхгүй болно).
@@ -576,6 +584,7 @@ export class AdminProductsService {
       });
     }
 
+    await this.products.invalidateListCache();
     return cloned;
   }
 

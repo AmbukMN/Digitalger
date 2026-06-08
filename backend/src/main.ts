@@ -66,8 +66,21 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression({ filter: (req) => !req.path.includes('/uploads') }));
 
+  // ⚠️ Production-д CORS_ORIGIN заавал тодорхой байх ёстой — wildcard (true)
+  // зөвхөн development-д. Production-д хоосон бол localhost fallback (гадны origin
+  // зөвшөөрөхгүй — CSRF/credential гоожихоос хамгаална).
+  const isProd = process.env.NODE_ENV === 'production';
+  const corsOrigin = corsOrigins.length
+    ? corsOrigins
+    : isProd
+      ? ['https://digitalger.mn', 'https://admin.digitalger.mn']
+      : true;
+  if (isProd && !corsOrigins.length) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ CORS_ORIGIN тохируулаагүй — production fallback ашиглаж байна');
+  }
   app.enableCors({
-    origin: corsOrigins.length ? corsOrigins : true,
+    origin: corsOrigin,
     credentials: true,
   });
 

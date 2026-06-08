@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Download,
   FileText,
+  Flame,
   Gift,
   Loader2,
   ShoppingCart,
@@ -30,6 +31,7 @@ import { useFileDownload } from '@/hooks/use-file-download';
 import { trackAddToCart, trackInitiateCheckout } from '@/lib/analytics';
 import { DiscountTimer } from './discount-timer';
 import { DownloadAllButton } from './download-all-button';
+import { TrustBadges } from './trust-badges';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
 const FILES_PAGE_SIZE = 10;
@@ -499,12 +501,23 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
             ))}
           </div>
           <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
-          <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
+          {product.ratingCount > 0 && (
+            <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
+          )}
         </div>
+        {/* Бодит татсан тоо (social proof) — хуурамч "X хүн үзэж байна" биш */}
+        {product.downloadCount > 0 && (
+          <div className="mt-1.5 flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400">
+            <Flame className="h-3.5 w-3.5" />
+            {product.downloadCount} удаа татагдсан
+          </div>
+        )}
       </div>
 
-      {/* Discount timer */}
-      {product.discountEndsAt && (
+      {/* Urgency: discountEndsAt бодит хугацаа байвал countdown timer.
+          Байхгүй бол зөвхөн хямдралтай үед "Хязгаарлагдмал хямдрал" badge
+          (хуурамч timer гаргахгүй). */}
+      {product.discountEndsAt ? (
         <DiscountTimer
           endsAt={product.discountEndsAt}
           discountLabel={
@@ -513,6 +526,16 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
               : undefined
           }
         />
+      ) : (
+        comparePrice && comparePrice > finalPrice && (
+          <div className="flex items-center gap-2 rounded-lg bg-secondary/90 px-3 py-2">
+            <Flame className="h-4 w-4 shrink-0 text-secondary-foreground" />
+            <span className="text-xs font-bold text-secondary-foreground">Хязгаарлагдмал хямдрал</span>
+            <span className="ml-auto rounded-full bg-secondary-foreground/15 px-2 py-0.5 text-xs font-bold text-secondary-foreground">
+              -{Math.round((1 - finalPrice / comparePrice) * 100)}%
+            </span>
+          </div>
+        )
       )}
 
       {/* CTA — gold primary button, price-аас тодорхой ялгарна */}
@@ -544,6 +567,11 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
           <span className="text-muted-foreground">Татах</span>
           <span className="font-medium">Нэн даруй</span>
         </div>
+      </div>
+
+      {/* Trust badges — итгэлийн тэмдгүүд */}
+      <div className="rounded-xl border border-border bg-muted/30 p-3">
+        <TrustBadges />
       </div>
 
       {/* Coupon section — visually distinct from sidebar bg */}

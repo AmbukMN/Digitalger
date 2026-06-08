@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
-import { AppCacheService } from '../../common/cache/app-cache.service';
+import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { expandQuery } from '../../common/transliterate';
 
 @Injectable()
@@ -69,6 +69,41 @@ export class ProductsService {
   }) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(48, Math.max(1, query.pageSize ?? 12));
+
+    // Homepage / жагсаалтын эхний 2 хуудсыг 5 мин cache (хамгийн их хандалттай).
+    // 3+ дахь хуудас, ховор тохиолдлуудыг шууд DB-ээс уншина (cache key тэсрэхээс
+    // сэргийлж). Admin product өөрчлөгдөхөд бүх products:list:* invalidate болно.
+    if (page <= 2) {
+      const key =
+        CacheKeys.productListPrefix +
+        JSON.stringify({
+          p: page,
+          ps: pageSize,
+          c: query.categorySlug ?? '',
+          f: query.featured ?? '',
+          t: (query.types ?? []).slice().sort(),
+          s: query.sortBy ?? 'newest',
+          o: query.onSale ?? false,
+        });
+      return this.cache.getOrSet(key, 5 * 60_000, () =>
+        this.computeFindPublished(query, page, pageSize),
+      );
+    }
+
+    return this.computeFindPublished(query, page, pageSize);
+  }
+
+  private async computeFindPublished(
+    query: {
+      categorySlug?: string;
+      featured?: boolean;
+      types?: string[];
+      sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
+      onSale?: boolean;
+    },
+    page: number,
+    pageSize: number,
+  ) {
     const skip = (page - 1) * pageSize;
 
     // Категори шүүлт: product тухайн категорид categoryId (primary) ЭСВЭЛ
@@ -357,5 +392,17 @@ export class ProductsService {
         files: true,
       },
     });
+  }
+
+  /**
+   * Public product list / suggested cache-г бөөнөөр устгана. Admin product
+   * create/update/delete/clone хийх бүрд дуудна (хуучин жагсаалт харагдахаас
+   * сэргийлнэ). Fail-open — cache устгаж чадаагүй ч TTL дээр түшиглэнэ.
+   */
+  async invalidateListCache(): Promise<void> {
+    await this.cache.delByPrefix(CacheKeys.productListPrefix, 'suggested:');
+    // Product-ийн категори/published өөрчлөгдвөл категори тус бүрийн product count
+    // хуучирна — категорийн жагсаалтын cache-г ч цэвэрлэнэ.
+    await this.cache.del(CacheKeys.categories);
   }
 }

@@ -286,7 +286,14 @@ export class PaymentsService {
   }
 
   async handleWebhook(body: Record<string, unknown>, rawBody: string, signature?: string) {
-    if (signature && !this.verifyWebhookSignature(rawBody, signature)) {
+    // Secret тохируулсан (production) үед signature ЗААВАЛ ирж, таарах ёстой.
+    // (Доорх QPay API давхар шалгалт нь үндсэн хамгаалалт — энэ нэмэлт давхарга.)
+    const webhookSecret = this.config.get<string>('qpay.webhookSecret');
+    if (webhookSecret) {
+      if (!signature || !this.verifyWebhookSignature(rawBody, signature)) {
+        throw new UnauthorizedException('Invalid webhook signature');
+      }
+    } else if (signature && !this.verifyWebhookSignature(rawBody, signature)) {
       throw new UnauthorizedException('Invalid webhook signature');
     }
 

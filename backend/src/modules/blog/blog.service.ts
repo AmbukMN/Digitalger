@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 
 export class CreateBlogPostDto {
   @IsString() title!: string;
@@ -28,7 +29,10 @@ export class UpdateBlogPostDto {
 
 @Injectable()
 export class BlogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: AppCacheService,
+  ) {}
 
   async findAllPublished(params?: { page?: number; pageSize?: number; tag?: string }) {
     const page = params?.page ?? 1;
@@ -61,13 +65,17 @@ export class BlogService {
     });
   }
 
+  // Homepage-д харагддаг — ховор өөрчлөгддөг тул 5 мин cache.
+  // Blog post create/update/remove үед blog:latest:* invalidate болно.
   findLatest(count = 3) {
-    return this.prisma.blogPost.findMany({
-      where: { published: true },
-      orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
-      take: count,
-      select: { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, authorName: true, createdAt: true },
-    });
+    return this.cache.getOrSet(`${CacheKeys.blogLatestPrefix}${count}`, 5 * 60_000, () =>
+      this.prisma.blogPost.findMany({
+        where: { published: true },
+        orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+        take: count,
+        select: { id: true, title: true, slug: true, excerpt: true, coverImageUrl: true, publishedAt: true, authorName: true, createdAt: true },
+      }),
+    );
   }
 
   findBySlug(slug: string) {
@@ -88,28 +96,34 @@ export class BlogService {
     });
   }
 
-  create(dto: CreateBlogPostDto) {
-    return this.prisma.blogPost.create({
+  async create(dto: CreateBlogPostDto) {
+    const created = await this.prisma.blogPost.create({
       data: {
         ...dto,
         publishedAt: dto.published ? new Date() : undefined,
       },
     });
+    await this.cache.delByPrefix(CacheKeys.blogLatestPrefix);
+    return created;
   }
 
   async update(id: string, dto: UpdateBlogPostDto) {
     const existing = await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
-    return this.prisma.blogPost.update({
+    const updated = await this.prisma.blogPost.update({
       where: { id },
       data: {
         ...dto,
         publishedAt: dto.published && !existing.published ? new Date() : undefined,
       },
     });
+    await this.cache.delByPrefix(CacheKeys.blogLatestPrefix);
+    return updated;
   }
 
   async remove(id: string) {
     await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
-    return this.prisma.blogPost.delete({ where: { id } });
+    const removed = await this.prisma.blogPost.delete({ where: { id } });
+    await this.cache.delByPrefix(CacheKeys.blogLatestPrefix);
+    return removed;
   }
 }

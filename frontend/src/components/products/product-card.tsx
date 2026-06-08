@@ -2,7 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardFooter, productTypeBadgeVariant } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
-import { BookOpen, CheckCircle, Download, Heart, ShoppingCart, Star } from 'lucide-react';
+import { BookOpen, CheckCircle, Download, Flame, Heart, ShoppingCart, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -169,6 +169,25 @@ export function ProductCard({ product }: { product: ProductSummary }) {
             </>
           )}
         </div>
+
+        {/* Бодит social proof — татсан тоо + үнэлгээ (хуурамч тоо БИШ) */}
+        {(product.ratingCount > 0 || product.downloadCount > 0) && (
+          <div className="mt-1.5 flex items-center gap-2.5 text-[10px] sm:text-xs text-muted-foreground">
+            {product.ratingCount > 0 && (
+              <span className="flex items-center gap-0.5">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+                <span>({product.ratingCount})</span>
+              </span>
+            )}
+            {product.downloadCount > 0 && (
+              <span className="flex items-center gap-0.5 text-orange-600 dark:text-orange-400 font-medium">
+                <Flame className="h-3 w-3" />
+                {product.downloadCount} татсан
+              </span>
+            )}
+          </div>
+        )}
       </CardContent>
 
       <CardFooter className="flex gap-1.5 p-3 sm:p-4 pt-0">

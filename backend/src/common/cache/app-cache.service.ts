@@ -66,6 +66,34 @@ export class AppCacheService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Угтвараар (prefix) бүх key-г устгана. Параметртэй cache (products:list:<...>,
+   * blog:latest:<...>) олон хувилбартай тул нэг угтвараар бөөнөөр цэвэрлэнэ.
+   * SCAN ашиглана (KEYS биш) — production Redis-ийг блоклохгүй. Fail-open.
+   */
+  async delByPrefix(...prefixes: string[]): Promise<void> {
+    if (!prefixes.length) return;
+    try {
+      for (const p of prefixes) {
+        const match = `${this.prefix}${p}*`;
+        let cursor = '0';
+        do {
+          const [next, keys] = await this.redis.scan(
+            cursor,
+            'MATCH',
+            match,
+            'COUNT',
+            100,
+          );
+          cursor = next;
+          if (keys.length) await this.redis.del(...keys);
+        } while (cursor !== '0');
+      }
+    } catch {
+      // Redis унасан/SCAN амжилтгүй — TTL дээр түшиглэнэ (fail-open)
+    }
+  }
+
   async onModuleDestroy() {
     try {
       await this.redis.quit();
@@ -81,4 +109,11 @@ export const CacheKeys = {
   productTypes: 'public:product-types',
   publicMenu: 'public:menu',
   categories: 'public:categories',
+  // Homepage / product list — admin product өөрчлөгдөхөд бөөнөөр нь устгана.
+  // Параметртэй (хуудас/сорт/категори) key-үүдийг нэг wildcard-аар цэвэрлэхэд
+  // хялбар байхын тулд ижил угтвар (products:list:) ашиглана.
+  productListPrefix: 'products:list:',
+  blogLatestPrefix: 'blog:latest:',
+  // Admin dashboard статистик — invalidate шаардлагагүй (5 мин TTL хангалттай).
+  dashboardStatsPrefix: 'admin:dashboard:',
 } as const;

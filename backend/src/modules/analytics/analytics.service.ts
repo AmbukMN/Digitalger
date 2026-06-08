@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 
 // Имэйл маркетингийн кампанит ажлууд (admin dashboard-д харагдах эрэмбээр).
 // redis email:open:{campaign} тоолуур болон EmailOpen хүснэгтийн campaign-тай тааруулна.
@@ -21,6 +22,7 @@ export class AnalyticsService {
   constructor(
     private prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly cache: AppCacheService,
   ) {
     const redisUrl =
       this.config.get<string>('redisUrl') ??
@@ -146,7 +148,18 @@ export class AnalyticsService {
     });
   }
 
+  // Admin dashboard 15+ parallel query (2-3 сек) — статистик тул 5 мин хоцролт
+  // зүгээр. Redis cache-аар дараагийн ачаалал шуурхай болно. Invalidate
+  // шаардлагагүй (TTL дуусахад дахин тооцоолно). Fail-open: Redis унавал DB.
   async getDashboardStats(days = 30) {
+    return this.cache.getOrSet(
+      `${CacheKeys.dashboardStatsPrefix}stats:${days}`,
+      5 * 60_000,
+      () => this.computeDashboardStats(days),
+    );
+  }
+
+  private async computeDashboardStats(days = 30) {
     const since = new Date();
     since.setDate(since.getDate() - days);
 

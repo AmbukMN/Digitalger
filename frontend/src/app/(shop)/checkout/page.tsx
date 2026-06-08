@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Input, Separator } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
-import { CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
+import { CheckCircle2, Gift, Loader2, ShieldCheck, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { couponsApi, ordersApi, paymentsApi, productsApi } from '@/lib/api';
@@ -19,6 +19,7 @@ import { QPayCheckout } from '@/components/payment/qpay-checkout';
 import { BrowserSwitchModal } from '@/components/browser-switch-modal';
 import { isInAppBrowser } from '@/lib/download-helper';
 import { ProductRowItem } from '@/components/ui/product-row-item';
+import { TrustBadges } from '@/components/products/trust-badges';
 import type { PaymentInitiateResult } from '@/types/api';
 
 interface AppliedCoupon {
@@ -451,6 +452,19 @@ function CheckoutContent() {
                   'QPay-ээр төлөх'
                 )}
               </Button>
+
+              {/* Trust badges — итгэлийн тэмдгүүд (төлбөрийн товчны доор) */}
+              <div className="pt-1">
+                <TrustBadges />
+              </div>
+            </div>
+
+            {/* Худалдан авалтын баталгаа — насан туршийн хандалт, шууд татах */}
+            <div className="flex items-center gap-2.5 rounded-xl border border-primary/15 bg-primary/4 px-4 py-3">
+              <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Худалдан авалт = <span className="font-semibold text-foreground">насан туршийн хандалт</span>, төлбөр төлсний дараа шууд татах эрх нээгдэнэ. Бүх төлбөр QPay-ээр аюулгүй хийгдэнэ.
+              </p>
             </div>
           </div>
         )}
