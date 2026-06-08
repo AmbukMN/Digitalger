@@ -4,6 +4,7 @@ import { ProductGrid } from '@/components/products/product-grid';
 import { categoriesApi, productsApi } from '@/lib/api';
 import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
+import { applySeoOverride } from '@/lib/page-metadata';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const title = cat.name;
     const description = cat.description ?? `${cat.name} ангиллын дижитал бүтээгдэхүүнүүд.`;
     const canonicalUrl = `${SITE_URL}/categories/${slug}`;
-    return {
+    const defaultMeta: Metadata = {
       title,
       description,
       alternates: { canonical: canonicalUrl },
@@ -31,6 +32,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
       },
     };
+    // Admin override байвал custom og:image/title/desc дарж бичнэ,
+    // байхгүй бол default (динамик opengraph-image) ХЭВЭЭР
+    return applySeoOverride(`/categories/${slug}`, defaultMeta);
   } catch {
     return { title: 'Ангилал' };
   }

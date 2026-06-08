@@ -5,6 +5,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 // ⚠️ Зөвхөн БОДИТ жагсаалтын хуудас (Page model-гүй). Page хуудсууд
 // (/about, /contact, /privacy-policy, /terms-of-use, /data-deletion) нь
 // admin Pages хэсэгт өөрийн SEO-г тохируулдаг тул энд ОРОХГҮЙ (давхцалгүй).
+// ТОГТМОЛ хуудас (бүх хэрэглэгчдэд нийтлэг). Эдгээрээс гадна динамикаар
+// БОДИТ category (/categories/{slug}) + БОДИТ published blog (/blog/{slug})
+// нэмэгдэнэ (getAllowedPaths / upsert validation доор).
 export const ALLOWED_PATHS = [
   '/',
   '/products',
@@ -12,6 +15,19 @@ export const ALLOWED_PATHS = [
   '/blog',
   '/search',
 ] as const;
+
+// admin dropdown-д ойлгомжтой нэг мөр
+export interface AllowedPath {
+  path: string;
+  label: string;
+}
+
+// бүлэглэсэн хариу (admin dropdown — Тогтмол / Ангилал / Блог)
+export interface AllowedPathsGrouped {
+  static: AllowedPath[];
+  categories: AllowedPath[];
+  blog: AllowedPath[];
+}
 
 export class UpsertSeoDto {
   @IsString() path!: string;
@@ -43,14 +59,77 @@ export class SeoService {
     return this.prisma.seoOverride.findMany({ orderBy: { path: 'asc' } });
   }
 
-  // admin dropdown-д бодит route жагсаалт
-  getAllowedPaths(): string[] {
-    return [...ALLOWED_PATHS];
+  // Тогтмол хуудсуудын ойлгомжтой label
+  private static readonly STATIC_LABELS: Record<string, string> = {
+    '/': 'Нүүр хуудас',
+    '/products': 'Бүтээгдэхүүн',
+    '/categories': 'Ангилал (жагсаалт)',
+    '/blog': 'Блог (жагсаалт)',
+    '/search': 'Хайлт',
+  };
+
+  // admin dropdown-д бодит route жагсаалт (динамик + label, бүлэглэсэн).
+  // ⚠️ findMany хөнгөн — зөвхөн slug/name/title select.
+  async getAllowedPaths(): Promise<AllowedPathsGrouped> {
+    const [categories, blogPosts] = await Promise.all([
+      this.prisma.category.findMany({
+        select: { slug: true, name: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.prisma.blogPost.findMany({
+        where: { published: true },
+        select: { slug: true, title: true },
+        orderBy: { publishedAt: 'desc' },
+      }),
+    ]);
+
+    const staticPaths: AllowedPath[] = (ALLOWED_PATHS as readonly string[]).map(
+      (path) => ({
+        path,
+        label: `${path} (${SeoService.STATIC_LABELS[path] ?? path})`,
+      }),
+    );
+
+    const categoryPaths: AllowedPath[] = categories.map((c) => ({
+      path: `/categories/${c.slug}`,
+      label: `/categories/${c.slug} (${c.name})`,
+    }));
+
+    const blogPaths: AllowedPath[] = blogPosts.map((b) => ({
+      path: `/blog/${b.slug}`,
+      label: `/blog/${b.slug} (${b.title})`,
+    }));
+
+    return { static: staticPaths, categories: categoryPaths, blog: blogPaths };
+  }
+
+  // path нь зөвшөөрөгдсөн эсэх (тогтмол + БОДИТ category/blog slug).
+  // ⚠️ DB-ээс баталгаажуулна — буруу/404 URL биш.
+  private async isPathAllowed(path: string): Promise<boolean> {
+    if ((ALLOWED_PATHS as readonly string[]).includes(path)) return true;
+
+    const categoryMatch = path.match(/^\/categories\/([^/]+)$/);
+    if (categoryMatch) {
+      const slug = categoryMatch[1];
+      const count = await this.prisma.category.count({ where: { slug } });
+      return count > 0;
+    }
+
+    const blogMatch = path.match(/^\/blog\/([^/]+)$/);
+    if (blogMatch) {
+      const slug = blogMatch[1];
+      const count = await this.prisma.blogPost.count({
+        where: { slug, published: true },
+      });
+      return count > 0;
+    }
+
+    return false;
   }
 
   async upsert(dto: UpsertSeoDto) {
     const path = this.normalizePath(dto.path);
-    if (!(ALLOWED_PATHS as readonly string[]).includes(path)) {
+    if (!(await this.isPathAllowed(path))) {
       throw new BadRequestException('Энэ хуудас байхгүй');
     }
     const data = {

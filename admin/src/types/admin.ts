@@ -625,6 +625,19 @@ export interface SeoOverrideInput {
   ogImageUrl?: string | null;
 }
 
+// dropdown-д ойлгомжтой нэг мөр (backend AllowedPath-тэй тааруулсан)
+export interface SeoAllowedPath {
+  path: string;
+  label: string;
+}
+
+// бүлэглэсэн хариу (backend AllowedPathsGrouped — Тогтмол / Ангилал / Блог)
+export interface SeoAllowedPathsGrouped {
+  static: SeoAllowedPath[];
+  categories: SeoAllowedPath[];
+  blog: SeoAllowedPath[];
+}
+
 export interface UploadResult {
   key: string;
   url: string;

@@ -12,6 +12,7 @@ import { SITE_URL } from '@/lib/constants';
 import type { BlogPost, ProductSummary } from '@/types/api';
 import { BlogShareButton } from '@/components/blog/blog-share-button';
 import { formatDate } from '@/lib/format';
+import { applySeoOverride } from '@/lib/page-metadata';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description = post.excerpt ?? post.title;
     const canonicalUrl = `${SITE_URL}/blog/${slug}`;
     const publishedAt = post.publishedAt ?? post.createdAt;
-    return {
+    const defaultMeta: Metadata = {
       title,
       description,
       alternates: { canonical: canonicalUrl },
@@ -44,6 +45,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         ...(post.coverImageUrl ? { images: [post.coverImageUrl] } : {}),
       },
     };
+    // Admin override байвал custom og:image/title/desc дарж бичнэ,
+    // байхгүй бол default (нийтлэлийн cover зураг) ХЭВЭЭР
+    return applySeoOverride(`/blog/${slug}`, defaultMeta);
   } catch {
     return { title: 'Нийтлэл' };
   }

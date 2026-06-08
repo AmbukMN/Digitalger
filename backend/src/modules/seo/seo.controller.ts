@@ -39,7 +39,7 @@ export class SeoAdminController {
     return this.service.listAll();
   }
 
-  // Бодит route жагсаалт (admin dropdown)
+  // Бодит route жагсаалт (admin dropdown) — динамик, бүлэглэсэн, label-тай
   @Get('allowed-paths')
   getAllowedPaths() {
     return this.service.getAllowedPaths();

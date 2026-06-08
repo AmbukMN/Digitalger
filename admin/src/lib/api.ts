@@ -31,6 +31,7 @@ import type {
   AdminUserFullDetail,
   DashboardStats,
   QueueStatus,
+  SeoAllowedPathsGrouped,
   SeoOverride,
   SeoOverrideInput,
   SiteSettings,
@@ -417,7 +418,8 @@ export const adminApi = {
   // —— SEO override (тогтмол хуудсуудын custom OG meta) ——
   seo: {
     list: () => adminFetch<SeoOverride[]>('/admin/seo'),
-    allowedPaths: () => adminFetch<string[]>('/admin/seo/allowed-paths'),
+    allowedPaths: () =>
+      adminFetch<SeoAllowedPathsGrouped>('/admin/seo/allowed-paths'),
     upsert: (body: SeoOverrideInput) => {
       // id байвал PUT (засах), үгүй бол POST (шинээр нэмэх)
       if (body.id) {

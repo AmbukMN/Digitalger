@@ -29,20 +29,16 @@ import { cn } from '@digitalger/shared';
 import { LayoutTemplate, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
-import type { SeoOverride } from '@/types/admin';
+import type { SeoAllowedPath, SeoOverride } from '@/types/admin';
 
-// Хүн уншихад ойлгомжтой нэр (зөвхөн харуулахад)
-const PATH_LABELS: Record<string, string> = {
+// Тогтмол хуудсуудын анхдагч нэр (allowed-paths уншиж амжаагүй үед fallback)
+const STATIC_PATH_LABELS: Record<string, string> = {
   '/': 'Нүүр хуудас',
   '/products': 'Бүтээгдэхүүн',
   '/categories': 'Ангилал',
   '/blog': 'Нийтлэл',
   '/search': 'Хайлт',
 };
-
-function pathLabel(path: string) {
-  return PATH_LABELS[path] ? `${PATH_LABELS[path]} (${path})` : path;
-}
 
 type FormState = {
   id?: string;
@@ -77,16 +73,45 @@ export function SeoOverrideManager() {
     staleTime: 60_000,
   });
 
+  // Бүх path → label lookup (override жагсаалт + dialog-д харуулахад)
+  const labelByPath = useMemo(() => {
+    const map = new Map<string, string>();
+    const add = (list?: SeoAllowedPath[]) =>
+      list?.forEach((p) => map.set(p.path, p.label));
+    add(allowedPaths?.static);
+    add(allowedPaths?.categories);
+    add(allowedPaths?.blog);
+    return map;
+  }, [allowedPaths]);
+
+  // Хүн уншихад ойлгомжтой нэр: backend label → static fallback → түүхий path
+  const pathLabel = useMemo(
+    () =>
+      (path: string) => {
+        const label = labelByPath.get(path) ?? STATIC_PATH_LABELS[path];
+        return label ? `${label} (${path})` : path;
+      },
+    [labelByPath],
+  );
+
   // Засаж буй хуудас (id байгаа) бол түүний path-г сонголтод үлдээх,
   // эс бөгөөс аль хэдийн override үүсгэсэн хуудсуудыг dropdown-оос хасна
   const usedPaths = useMemo(
     () => new Set((overrides ?? []).map((o) => o.path)),
     [overrides],
   );
-  const selectablePaths = useMemo(() => {
-    const all = allowedPaths ?? [];
-    return all.filter((p) => p === form.path || !usedPaths.has(p));
+
+  // Бүлэг бүрээс ашиглагдсан path-уудыг хасна (form.path-ыг үлдээнэ — засах үед)
+  const selectableGroups = useMemo(() => {
+    const keep = (p: SeoAllowedPath) => p.path === form.path || !usedPaths.has(p.path);
+    return [
+      { key: 'static', label: 'Тогтмол хуудас', items: (allowedPaths?.static ?? []).filter(keep) },
+      { key: 'categories', label: 'Ангилал (төсөл)', items: (allowedPaths?.categories ?? []).filter(keep) },
+      { key: 'blog', label: 'Блог', items: (allowedPaths?.blog ?? []).filter(keep) },
+    ].filter((g) => g.items.length > 0);
   }, [allowedPaths, usedPaths, form.path]);
+
+  const hasSelectable = selectableGroups.length > 0;
 
   const upsertMutation = useMutation({
     mutationFn: () =>
@@ -242,16 +267,25 @@ export function SeoOverrideManager() {
               ) : (
                 <Select value={form.path} onValueChange={(v) => setForm((p) => ({ ...p, path: v }))}>
                   <SelectTrigger id="seo-path">
-                    <SelectValue placeholder="Хуудас сонгох..." />
+                    <SelectValue placeholder="Хуудас сонгох...">
+                      {form.path ? pathLabel(form.path) : undefined}
+                    </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
-                    {selectablePaths.length === 0 ? (
+                  <SelectContent className="max-h-72">
+                    {!hasSelectable ? (
                       <div className="px-2 py-1.5 text-xs text-muted-foreground">Бүх хуудас аль хэдийн override-тэй</div>
                     ) : (
-                      selectablePaths.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {pathLabel(p)}
-                        </SelectItem>
+                      selectableGroups.map((group) => (
+                        <div key={group.key} className="py-1 first:pt-0">
+                          <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            {group.label}
+                          </div>
+                          {group.items.map((item) => (
+                            <SelectItem key={item.path} value={item.path}>
+                              {item.label ? `${item.label} (${item.path})` : item.path}
+                            </SelectItem>
+                          ))}
+                        </div>
                       ))
                     )}
                   </SelectContent>
