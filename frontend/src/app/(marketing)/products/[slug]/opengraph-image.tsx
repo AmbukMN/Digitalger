@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadOgFonts, loadOgLogo, OG_FONT_FAMILY } from '@/lib/og-fonts';
 
 export const alt = 'DigitalGer бүтээгдэхүүн';
 export const size = { width: 1200, height: 630 };
@@ -86,7 +87,11 @@ type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
   const { slug } = await params;
-  const product = await getProduct(slug);
+  const [product, fonts, logo] = await Promise.all([
+    getProduct(slug),
+    loadOgFonts(),
+    loadOgLogo(),
+  ]);
 
   // Product олдоогүй → static fallback OG зураг
   if (!product) {
@@ -147,7 +152,7 @@ export default async function Image({ params }: Props) {
           width: '100%',
           height: '100%',
           display: 'flex',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: OG_FONT_FAMILY,
           background: NAVY,
           overflow: 'hidden',
         }}
@@ -196,34 +201,23 @@ export default async function Image({ params }: Props) {
 
           {/* ── Brand ─────────────────────────────────────────────────── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {logo ? (
               <div
                 style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  background: GOLD,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '18px',
-                  fontWeight: '900',
-                  color: NAVY,
+                  background: '#ffffff',
+                  borderRadius: '12px',
+                  padding: '10px 18px',
+                  boxShadow: '0 6px 22px rgba(0,0,0,0.28)',
                 }}
               >
-                DG
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logo} alt="DigitalGer" height={38} style={{ height: '38px' }} />
               </div>
-              <span
-                style={{
-                  fontSize: '24px',
-                  fontWeight: '800',
-                  color: '#fff',
-                  letterSpacing: '-0.3px',
-                }}
-              >
-                DigitalGer
-              </span>
-            </div>
+            ) : (
+              <span style={{ fontSize: '26px', fontWeight: 900, color: '#fff' }}>DigitalGer</span>
+            )}
             {/* Type + category badge */}
             <div style={{ display: 'flex', gap: '8px' }}>
               {categoryName && (
@@ -449,6 +443,6 @@ export default async function Image({ params }: Props) {
         />
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }

@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadOgFonts, loadOgLogo, OG_FONT_FAMILY } from '@/lib/og-fonts';
 
 export const alt = 'DigitalGer — Монголын дижитал бүтээгдэхүүний marketplace';
 export const size = { width: 1200, height: 630 };
@@ -67,7 +68,12 @@ async function getFallbackImageData(): Promise<string> {
 }
 
 export default async function Image() {
-  const [settings, banner] = await Promise.all([getPublicSettings(), getHeroBanner()]);
+  const [settings, banner, fonts, logo] = await Promise.all([
+    getPublicSettings(),
+    getHeroBanner(),
+    loadOgFonts(),
+    loadOgLogo(),
+  ]);
 
   // 1. Admin panel-аас upload хийсэн OG image байвал full-bleed ашиглана
   if (settings?.ogImageUrl) {
@@ -101,7 +107,7 @@ export default async function Image() {
           height: '100%',
           display: 'flex',
           overflow: 'hidden',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: OG_FONT_FAMILY,
           background: NAVY,
         }}
       >
@@ -177,48 +183,31 @@ export default async function Image() {
           }}
         >
           {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logo ? (
             <div
               style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '16px',
-                background: GOLD,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '22px',
-                fontWeight: '900',
-                color: NAVY,
-                letterSpacing: '-0.5px',
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '14px 24px',
+                alignSelf: 'flex-start',
+                boxShadow: '0 8px 28px rgba(0,0,0,0.28)',
               }}
             >
-              DG
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logo} alt="DigitalGer" height={52} style={{ height: '52px' }} />
             </div>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span
-                style={{
-                  fontSize: '30px',
-                  fontWeight: '800',
-                  color: '#ffffff',
-                  lineHeight: 1,
-                  letterSpacing: '-0.5px',
-                }}
-              >
+              <span style={{ fontSize: '34px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
                 DigitalGer
               </span>
-              <span
-                style={{
-                  fontSize: '13px',
-                  color: 'rgba(255,255,255,0.55)',
-                  marginTop: '3px',
-                  letterSpacing: '0.5px',
-                }}
-              >
+              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginTop: '4px' }}>
                 digitalger.mn
               </span>
             </div>
-          </div>
+          )}
 
           {/* Main headline */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -289,6 +278,6 @@ export default async function Image() {
         />
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }

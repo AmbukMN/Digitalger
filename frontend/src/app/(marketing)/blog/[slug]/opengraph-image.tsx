@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadOgFonts, loadOgLogo, OG_FONT_FAMILY } from '@/lib/og-fonts';
 
 export const alt = 'DigitalGer блог';
 export const size = { width: 1200, height: 630 };
@@ -68,7 +69,11 @@ type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
   const { slug } = await params;
-  const post = await getBlogPost(slug);
+  const [post, fonts, logo] = await Promise.all([
+    getBlogPost(slug),
+    loadOgFonts(),
+    loadOgLogo(),
+  ]);
 
   // Post олдоогүй → static fallback OG зураг
   if (!post) {
@@ -116,7 +121,7 @@ export default async function Image({ params }: Props) {
           height: '100%',
           display: 'flex',
           overflow: 'hidden',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: OG_FONT_FAMILY,
           background: NAVY,
         }}
       >
@@ -186,29 +191,23 @@ export default async function Image({ params }: Props) {
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {logo ? (
             <div
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '12px',
-                background: GOLD,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                fontWeight: '900',
-                color: NAVY,
+                background: '#ffffff',
+                borderRadius: '12px',
+                padding: '10px 18px',
+                boxShadow: '0 6px 22px rgba(0,0,0,0.28)',
               }}
             >
-              DG
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logo} alt="DigitalGer" height={40} style={{ height: '40px' }} />
             </div>
-            <span
-              style={{ fontSize: '24px', fontWeight: '800', color: '#fff', letterSpacing: '-0.3px' }}
-            >
-              DigitalGer
-            </span>
-          </div>
+          ) : (
+            <span style={{ fontSize: '28px', fontWeight: 900, color: '#fff' }}>DigitalGer</span>
+          )}
 
           {/* "Блог" label */}
           <div
@@ -354,6 +353,6 @@ export default async function Image({ params }: Props) {
         </div>
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }

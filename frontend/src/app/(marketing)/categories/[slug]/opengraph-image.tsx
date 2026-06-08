@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { loadOgFonts, loadOgLogo, OG_FONT_FAMILY } from '@/lib/og-fonts';
 
 export const alt = 'DigitalGer ангилал';
 export const size = { width: 1200, height: 630 };
@@ -37,21 +38,15 @@ async function getCategory(slug: string): Promise<Category | null> {
   }
 }
 
-// Product type icons for decorative grid
-const TYPE_TILES = [
-  { label: 'Файл', icon: '📄' },
-  { label: 'Загвар', icon: '🎨' },
-  { label: 'Курс', icon: '🎓' },
-  { label: 'Видео', icon: '🎬' },
-  { label: 'Баримт', icon: '📋' },
-  { label: 'Хосолсон', icon: '📦' },
-];
-
 type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
   const { slug } = await params;
-  const category = await getCategory(slug);
+  const [category, fonts, logo] = await Promise.all([
+    getCategory(slug),
+    loadOgFonts(),
+    loadOgLogo(),
+  ]);
 
   const name = category?.name ?? 'Ангилал';
   const description = category?.description ?? null;
@@ -64,7 +59,8 @@ export default async function Image({ params }: Props) {
           width: '100%',
           height: '100%',
           display: 'flex',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          flexDirection: 'column',
+          fontFamily: OG_FONT_FAMILY,
           background: NAVY_DARK,
           overflow: 'hidden',
           position: 'relative',
@@ -75,103 +71,36 @@ export default async function Image({ params }: Props) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(150deg, ${NAVY_DARK} 0%, ${NAVY} 55%, #0d3399 100%)`,
+            background: `linear-gradient(145deg, ${NAVY_DARK} 0%, ${NAVY} 55%, #0d3399 100%)`,
             display: 'flex',
           }}
         />
 
-        {/* ── Decorative geometric shapes ───────────────────────────────── */}
-        {/* Large circle top-right */}
+        {/* ── Decorative soft glows ─────────────────────────────────────── */}
         <div
           style={{
             position: 'absolute',
-            top: '-180px',
-            right: '-180px',
-            width: '540px',
-            height: '540px',
+            top: '-220px',
+            right: '-160px',
+            width: '620px',
+            height: '620px',
             borderRadius: '50%',
-            border: `2px solid rgba(255,190,0,0.12)`,
+            background: 'radial-gradient(circle, rgba(255,190,0,0.12) 0%, transparent 70%)',
             display: 'flex',
           }}
         />
         <div
           style={{
             position: 'absolute',
-            top: '-120px',
-            right: '-120px',
-            width: '380px',
-            height: '380px',
+            bottom: '-160px',
+            left: '-120px',
+            width: '460px',
+            height: '460px',
             borderRadius: '50%',
-            border: `1px solid rgba(255,190,0,0.08)`,
+            background: 'radial-gradient(circle, rgba(26,92,200,0.28) 0%, transparent 70%)',
             display: 'flex',
           }}
         />
-        {/* Gold glow */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '-80px',
-            right: '80px',
-            width: '300px',
-            height: '300px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,190,0,0.1) 0%, transparent 70%)',
-            display: 'flex',
-          }}
-        />
-        {/* Bottom-left glow */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '-100px',
-            left: '-60px',
-            width: '400px',
-            height: '400px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(26,92,200,0.25) 0%, transparent 70%)',
-            display: 'flex',
-          }}
-        />
-
-        {/* ── Right: decorative product type tiles ─────────────────────── */}
-        <div
-          style={{
-            position: 'absolute',
-            right: '60px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-          }}
-        >
-          {[TYPE_TILES.slice(0, 3), TYPE_TILES.slice(3, 6)].map((row, ri) => (
-            <div key={ri} style={{ display: 'flex', gap: '12px' }}>
-              {row.map((tile) => (
-                <div
-                  key={tile.label}
-                  style={{
-                    width: '120px',
-                    height: '90px',
-                    borderRadius: '16px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span style={{ fontSize: '26px', lineHeight: 1 }}>{tile.icon}</span>
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', fontWeight: '500' }}>
-                    {tile.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
 
         {/* ── Gold top accent bar ───────────────────────────────────────── */}
         <div
@@ -180,22 +109,8 @@ export default async function Image({ params }: Props) {
             top: 0,
             left: 0,
             right: 0,
-            height: '6px',
+            height: '8px',
             background: `linear-gradient(90deg, ${GOLD} 0%, ${GOLD_LIGHT} 100%)`,
-            display: 'flex',
-          }}
-        />
-
-        {/* ── Left accent line ─────────────────────────────────────────── */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '60px',
-            left: 0,
-            bottom: '60px',
-            width: '5px',
-            background: `linear-gradient(180deg, ${GOLD} 0%, ${GOLD_LIGHT} 100%)`,
-            borderRadius: '0 4px 4px 0',
             display: 'flex',
           }}
         />
@@ -203,128 +118,110 @@ export default async function Image({ params }: Props) {
         {/* ── Main content ─────────────────────────────────────────────── */}
         <div
           style={{
-            position: 'absolute',
-            left: '72px',
-            right: '460px',
-            top: '60px',
-            bottom: '52px',
+            position: 'relative',
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
+            padding: '64px 72px 60px 72px',
           }}
         >
-          {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Brand row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {logo ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '14px 22px',
+                  boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logo} alt="DigitalGer" height={48} style={{ height: '48px' }} />
+              </div>
+            ) : (
+              <span style={{ fontSize: '30px', fontWeight: 900, color: '#fff' }}>DigitalGer</span>
+            )}
+
+            {/* "Ангилал" badge */}
             <div
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '12px',
-                background: GOLD,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                fontWeight: '900',
-                color: NAVY,
-              }}
-            >
-              DG
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '22px', fontWeight: '800', color: '#fff', lineHeight: 1 }}>
-                DigitalGer
-              </span>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>
-                digitalger.mn
-              </span>
-            </div>
-          </div>
-
-          {/* Category name + product count */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* "Ангилал" label */}
-            <div
-              style={{
-                padding: '5px 14px',
+                padding: '9px 20px',
                 borderRadius: '100px',
-                background: 'rgba(255,190,0,0.15)',
-                border: `1px solid rgba(255,190,0,0.35)`,
+                background: 'rgba(255,190,0,0.16)',
+                border: `1px solid rgba(255,190,0,0.4)`,
                 color: GOLD,
-                fontSize: '13px',
-                fontWeight: '600',
-                display: 'flex',
-                alignSelf: 'flex-start',
-                letterSpacing: '0.8px',
+                fontSize: '16px',
+                fontWeight: 700,
+                letterSpacing: '1px',
               }}
             >
               АНГИЛАЛ
             </div>
+          </div>
 
-            {/* Category name */}
+          {/* Category name + description */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '980px' }}>
             <div
               style={{
-                fontSize: name.length > 20 ? '52px' : name.length > 14 ? '60px' : '68px',
-                fontWeight: '900',
+                fontSize: name.length > 24 ? '64px' : name.length > 14 ? '76px' : '88px',
+                fontWeight: 900,
                 color: '#ffffff',
                 lineHeight: 1.05,
                 letterSpacing: '-2px',
+                display: 'flex',
               }}
             >
               {name}
             </div>
 
-            {/* Description */}
             {description && (
               <div
                 style={{
-                  fontSize: '18px',
-                  color: 'rgba(255,255,255,0.58)',
+                  fontSize: '24px',
+                  color: 'rgba(255,255,255,0.62)',
                   lineHeight: 1.5,
-                  maxWidth: '480px',
+                  fontWeight: 400,
+                  display: 'flex',
                 }}
               >
-                {description.length > 100 ? description.slice(0, 100) + '…' : description}
+                {description.length > 120 ? description.slice(0, 120) + '…' : description}
               </div>
             )}
           </div>
 
           {/* Bottom stats */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
             {productCount > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                }}
-              >
-                <span style={{ fontSize: '36px', fontWeight: '900', color: GOLD, lineHeight: 1 }}>
-                  {productCount}+
-                </span>
-                <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', fontWeight: '500' }}>
-                  бүтээгдэхүүн
-                </span>
-              </div>
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '44px', fontWeight: 900, color: GOLD, lineHeight: 1 }}>
+                    {productCount}+
+                  </span>
+                  <span style={{ fontSize: '17px', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>
+                    бүтээгдэхүүн
+                  </span>
+                </div>
+                <div style={{ width: '1px', height: '48px', background: 'rgba(255,255,255,0.18)', display: 'flex' }} />
+              </>
             )}
-            {productCount > 0 && (
-              <div
-                style={{
-                  width: '1px',
-                  height: '40px',
-                  background: 'rgba(255,255,255,0.15)',
-                  display: 'flex',
-                }}
-              />
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span style={{ fontSize: '36px', fontWeight: '900', color: 'rgba(255,255,255,0.8)', lineHeight: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontSize: '44px', fontWeight: 900, color: 'rgba(255,255,255,0.92)', lineHeight: 1 }}>
                 4.8★
               </span>
-              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', fontWeight: '500' }}>
+              <span style={{ fontSize: '17px', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>
                 дундаж үнэлгээ
               </span>
             </div>
+            <div style={{ flex: 1, display: 'flex' }} />
+            <span style={{ fontSize: '18px', color: 'rgba(255,255,255,0.42)', fontWeight: 500, letterSpacing: '0.5px' }}>
+              digitalger.mn
+            </span>
           </div>
         </div>
 
@@ -335,13 +232,13 @@ export default async function Image({ params }: Props) {
             bottom: 0,
             left: 0,
             right: 0,
-            height: '4px',
+            height: '5px',
             background: `linear-gradient(90deg, ${GOLD}, transparent)`,
             display: 'flex',
           }}
         />
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }
