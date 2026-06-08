@@ -96,16 +96,16 @@ function ResourceRow({
       type="button"
       onClick={handleDownload}
       disabled={!token || downloading}
-      className="group flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+      className="group flex w-full items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#ffbe00]/15 text-[#ffbe00]">
         <Icon className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-white">{res.fileName}</span>
-        {size && <span className="mt-0.5 block text-[11px] text-white/40">{size}</span>}
+        <span className="block truncate text-sm font-medium text-foreground">{res.fileName}</span>
+        {size && <span className="mt-0.5 block text-[11px] text-muted-foreground">{size}</span>}
       </span>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors group-hover:bg-[#ffbe00] group-hover:text-[#022179]">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors group-hover:bg-[#ffbe00] group-hover:text-[#022179]">
         {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
       </span>
     </button>
@@ -153,7 +153,7 @@ function PersonalNote({ noteKey }: { noteKey: string }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-white/50">Энэ хичээлд хувийн тэмдэглэлээ бичээрэй (зөвхөн та харна).</p>
+        <p className="text-xs text-muted-foreground">Энэ хичээлд хувийн тэмдэглэлээ бичээрэй (зөвхөн та харна).</p>
         {saved && (
           <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">
             <Save className="h-3 w-3" /> Хадгалагдлаа
@@ -165,7 +165,7 @@ function PersonalNote({ noteKey }: { noteKey: string }) {
         onChange={(e) => setValue(e.target.value)}
         placeholder="Жишээ нь: 12:30-д хэлсэн томьёог тэмдэглэх..."
         rows={6}
-        className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none transition-colors focus:border-[#ffbe00]/50 focus:bg-white/[0.05]"
+        className="w-full resize-y rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-[#ffbe00]/50 focus:bg-muted"
       />
     </div>
   );
@@ -174,9 +174,9 @@ function PersonalNote({ noteKey }: { noteKey: string }) {
 // ─── Хоосон төлөв ─────────────────────────────────────────────────────────────
 function EmptyTab({ icon: Icon, text }: { icon: typeof FileText; text: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-6 py-10 text-center">
-      <Icon className="h-7 w-7 text-white/25" />
-      <p className="text-sm text-white/40">{text}</p>
+    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 py-10 text-center">
+      <Icon className="h-7 w-7 text-muted-foreground/60" />
+      <p className="text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }
@@ -197,14 +197,14 @@ function LockedUpsell({
     <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[#ffbe00]/25 bg-[#ffbe00]/5 px-6 py-10 text-center">
       <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#ffbe00]/15 text-[#ffbe00]">
         <Icon className="h-5 w-5" />
-        <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0b1020] ring-2 ring-[#ffbe00]/30">
+        <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-card ring-2 ring-[#ffbe00]/30">
           <Lock className="h-3 w-3 text-[#ffbe00]" />
         </span>
       </span>
       <div>
-        <p className="text-sm font-semibold text-white">{title}</p>
-        {hint && <p className="mt-1 text-xs text-white/50">{hint}</p>}
-        <p className="mt-1 text-xs text-white/50">Энэ хэсгийг үзэхийн тулд сургалтыг худалдаж аваарай.</p>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+        <p className="mt-1 text-xs text-muted-foreground">Энэ хэсгийг үзэхийн тулд сургалтыг худалдаж аваарай.</p>
       </div>
       <Button asChild size="sm" className="bg-[#ffbe00] text-[#022179] hover:bg-[#ffbe00]/90">
         <Link href={`/products/${productSlug}`}>Худалдаж авах</Link>
@@ -256,46 +256,46 @@ export function LessonContent({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="border-b border-white/10 bg-[#0b1020] px-4 py-5"
+      className="border-b border-border bg-card px-4 py-5"
     >
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-white/[0.04] p-1">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
           <TabsTrigger
             value="notes"
-            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
           >
             <StickyNote className="h-3.5 w-3.5" />
             Тэмдэглэл
           </TabsTrigger>
           <TabsTrigger
             value="resources"
-            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
           >
             <Paperclip className="h-3.5 w-3.5" />
             Материал
             {resourceList.length > 0 && (
-              <span className="ml-1 rounded-full bg-white/15 px-1.5 text-[10px] font-bold tabular-nums">
+              <span className="ml-1 rounded-full bg-foreground/15 px-1.5 text-[10px] font-bold tabular-nums">
                 {resourceList.length}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger
             value="qa"
-            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
           >
             <MessageCircleQuestion className="h-3.5 w-3.5" />
             Асуулт хариулт
           </TabsTrigger>
           <TabsTrigger
             value="quiz"
-            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
             Шалгалт
           </TabsTrigger>
           <TabsTrigger
             value="mynotes"
-            className="gap-1.5 text-white/60 data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
           >
             <NotebookPen className="h-3.5 w-3.5" />
             Миний тэмдэглэл
@@ -313,13 +313,13 @@ export function LessonContent({
             />
           ) : showContent ? (
             <div
-              className="prose prose-sm prose-invert max-w-none leading-relaxed
-                prose-headings:text-white prose-p:text-white/80 prose-li:text-white/80
-                prose-strong:text-white prose-a:text-[#ffbe00]
-                prose-code:rounded prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[#ffbe00] prose-code:before:content-[''] prose-code:after:content-['']
-                prose-pre:rounded-xl prose-pre:border prose-pre:border-white/10 prose-pre:bg-black/50
-                prose-img:rounded-xl prose-img:border prose-img:border-white/10
-                prose-blockquote:border-l-[#ffbe00] prose-blockquote:text-white/70"
+              className="prose prose-sm dark:prose-invert max-w-none leading-relaxed
+                prose-headings:text-foreground prose-p:text-foreground/80 prose-li:text-foreground/80
+                prose-strong:text-foreground prose-a:text-[#ffbe00]
+                prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[#ffbe00] prose-code:before:content-[''] prose-code:after:content-['']
+                prose-pre:rounded-xl prose-pre:border prose-pre:border-border prose-pre:bg-muted
+                prose-img:rounded-xl prose-img:border prose-img:border-border
+                prose-blockquote:border-l-[#ffbe00] prose-blockquote:text-muted-foreground"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(content!) }}
             />
           ) : (
@@ -338,15 +338,15 @@ export function LessonContent({
                   return (
                     <div
                       key={res.id}
-                      className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 opacity-70"
+                      className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 opacity-70"
                     >
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#ffbe00]/15 text-[#ffbe00]">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                         {res.fileName}
                       </span>
-                      <Lock className="h-4 w-4 shrink-0 text-white/40" />
+                      <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
                     </div>
                   );
                 })}

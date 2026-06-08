@@ -123,7 +123,7 @@ function LessonItem({
       aria-current={isCurrent ? 'true' : undefined}
       className={cn(
         'group relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
-        locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-white/5',
+        locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted',
         isCurrent && 'bg-[#ffbe00]/10',
       )}
     >
@@ -138,7 +138,7 @@ function LessonItem({
             ? 'border-emerald-500 bg-emerald-500 text-white'
             : isCurrent
               ? 'border-[#ffbe00] bg-[#ffbe00]/20 text-[#ffbe00]'
-              : 'border-white/20 text-white/50',
+              : 'border-border text-muted-foreground',
         )}
       >
         {completed ? (
@@ -157,12 +157,16 @@ function LessonItem({
         <span
           className={cn(
             'block text-sm leading-snug',
-            isCurrent ? 'font-semibold text-[#ffbe00]' : completed ? 'text-white/70' : 'text-white/90',
+            isCurrent
+              ? 'font-semibold text-[#ffbe00]'
+              : completed
+                ? 'text-muted-foreground'
+                : 'text-foreground',
           )}
         >
           {lesson.title}
         </span>
-        <span className="mt-1 flex items-center gap-2 text-[11px] text-white/40">
+        <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
           {dur && (
             <span className="flex items-center gap-1 tabular-nums">
               <Clock className="h-3 w-3" />
@@ -175,7 +179,7 @@ function LessonItem({
         </span>
         {/* Хагас үзсэн progress bar */}
         {pct > 0 && (
-          <span className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-white/10">
+          <span className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-muted">
             <span className="block h-full rounded-full bg-[#ffbe00] transition-all" style={{ width: `${pct}%` }} />
           </span>
         )}
@@ -236,22 +240,22 @@ function ModuleSection({
   const completedInMod = mod.lessons.filter((l) => progressMap[l.id]?.completed).length;
 
   return (
-    <div className="border-b border-white/10 last:border-b-0">
+    <div className="border-b border-border last:border-b-0">
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center gap-3 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.06]"
+        className="flex w-full items-center gap-3 bg-muted/50 px-4 py-3 text-left transition-colors hover:bg-muted"
       >
         <FolderOpen className="h-4 w-4 shrink-0 text-[#ffbe00]" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-white">{mod.title}</span>
-          <span className="mt-0.5 block text-[11px] text-white/40">
+          <span className="block truncate text-sm font-semibold text-foreground">{mod.title}</span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">
             {completedInMod}/{mod.lessons.length} хичээл
             {totalSec > 0 && ` · ${formatTotalDuration(totalSec)}`}
           </span>
         </span>
         <ChevronDown
-          className={cn('h-4 w-4 shrink-0 text-white/40 transition-transform', isOpen && 'rotate-180')}
+          className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')}
         />
       </button>
 
@@ -300,15 +304,15 @@ export function CourseSidebar({
   const completedPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   return (
-    <div className="flex h-full flex-col bg-[#0b1020]">
+    <div className="flex h-full flex-col bg-card">
       {/* Дээд: курсын ерөнхий progress — БОДИТ үзсэн хувь (хугацаагаар) */}
-      <div className="shrink-0 border-b border-white/10 px-4 py-4">
+      <div className="shrink-0 border-b border-border px-4 py-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-white">Сургалтын явц</span>
+          <span className="text-sm font-semibold text-foreground">Сургалтын явц</span>
           <span className="text-sm font-bold text-[#ffbe00] tabular-nums">{watchedPct}%</span>
         </div>
         {/* Бодит үзсэн хувийн bar (gold) — доор нь дууссан хичээлийн bar (emerald) */}
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-[#ffbe00] transition-all duration-500"
             style={{ width: `${watchedPct}%` }}
@@ -316,14 +320,14 @@ export function CourseSidebar({
         </div>
         {/* Хоёр хэмжүүр: (1) бодит үзсэн хувь, (2) дууссан хичээл X/Y */}
         <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
-          <span className="text-white/50">Бодитоор үзсэн: {watchedPct}%</span>
-          <span className="flex items-center gap-1.5 text-white/50">
+          <span className="text-muted-foreground">Бодитоор үзсэн: {watchedPct}%</span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
             <Check className="h-3 w-3 text-emerald-400" />
             {completedCount} / {total} хичээл дууссан
           </span>
         </div>
         {/* Дууссан хичээлийн нимгэн заагч (тусдаа хэмжүүр) */}
-        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-emerald-500 transition-all duration-500"
             style={{ width: `${completedPct}%` }}
@@ -350,9 +354,9 @@ export function CourseSidebar({
 
         {/* Бүлэггүй (flat) хичээлүүд */}
         {lessons.length > 0 && (
-          <div className={cn(modules.length > 0 && 'border-t border-white/10')}>
+          <div className={cn(modules.length > 0 && 'border-t border-border')}>
             {modules.length > 0 && (
-              <div className="bg-white/[0.03] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/40">
+              <div className="bg-muted/50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Бусад хичээл
               </div>
             )}

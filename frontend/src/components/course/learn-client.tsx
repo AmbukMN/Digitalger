@@ -74,7 +74,11 @@ export function LearnClient({ product }: LearnClientProps) {
     enabled: !!token,
     staleTime: 60_000,
   });
-  const purchased = library.some((item) => item.product.id === product.id);
+  // ⚠️ Хугацаа дууссан (isExpired) худалдан авалтыг "эзэмшээгүй" гэж үзнэ —
+  // expired бол бүх хичээл дахин түгжигдэж, "Худалдан авах" статус руу шилжинэ.
+  const purchased = library.some(
+    (item) => item.product.id === product.id && item.isExpired !== true,
+  );
 
   // ── Progress ──
   const { data: progressList = [], refetch: refetchProgress } = useQuery({
@@ -368,45 +372,53 @@ export function LearnClient({ product }: LearnClientProps) {
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#070a14] lg:h-[100dvh] lg:flex-row lg:overflow-hidden">
-      {/* ─── Гол хэсэг (player + доорх мэдээлэл) ─── */}
-      <div className="flex min-w-0 flex-1 flex-col lg:overflow-y-auto">
-        {/* Top bar */}
-        <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1020] px-4 py-3">
-          <Link
-            href={`/products/${product.slug}`}
-            className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Бүтээгдэхүүн рүү буцах</span>
-            <span className="sm:hidden">Буцах</span>
-          </Link>
-          <p className="hidden min-w-0 flex-1 truncate text-center text-sm font-semibold text-white md:block">
-            {product.title}
-          </p>
-          {/* Mobile: sidebar нээх */}
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="flex items-center gap-2 rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/5 lg:hidden"
-          >
-            <Menu className="h-4 w-4" />
-            Хичээлүүд
-          </button>
-        </header>
+    <div className="flex min-h-dvh flex-col bg-background text-foreground lg:h-dvh lg:overflow-hidden">
+      {/* ─── Дээд бар (бүх өргөн) ─── */}
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
+        <Link
+          href={`/products/${product.slug}`}
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Бүтээгдэхүүн рүү буцах</span>
+          <span className="sm:hidden">Буцах</span>
+        </Link>
+        <p className="hidden min-w-0 flex-1 truncate text-center text-sm font-semibold text-foreground md:block">
+          {product.title}
+        </p>
+        {/* Mobile: sidebar нээх */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted lg:hidden"
+        >
+          <Menu className="h-4 w-4" />
+          Хичээлүүд
+        </button>
+      </header>
 
-        {/* Player (16:9) */}
-        <div className="relative aspect-video w-full shrink-0 bg-black">{renderPlayer()}</div>
+      {/* ─── YouTube watch layout: зүүн (player + tabs) | баруун (sidebar) ─── */}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:overflow-hidden">
+        {/* Гол хэсэг (player + доорх мэдээлэл) — өргөний ~65% */}
+        <div className="flex min-w-0 flex-1 flex-col lg:overflow-y-auto">
+          {/* Player — YouTube шиг дэлгэц дүүргэхгүй: дунд зэрэг хэмжээ (өндрийг viewport-ийн
+              ~60%-аар хязгаарлаж, 16:9-ийн дагуу өргөнийг тааруулна → max-w-[106.66vh]).
+              Видео контент black хэвээр. */}
+          <div className="bg-background px-0 lg:px-4 lg:pt-4">
+            <div className="relative mx-auto aspect-video w-full max-h-[60vh] max-w-full shrink-0 overflow-hidden bg-black lg:max-w-[calc(60vh*16/9)] lg:rounded-xl">
+              {renderPlayer()}
+            </div>
+          </div>
 
-        {/* Player доорх удирдлага */}
-        <div className="border-b border-white/10 bg-[#0b1020] px-4 py-4">
+          {/* Player доорх удирдлага */}
+          <div className="border-b border-border bg-card px-4 py-4 lg:mx-4 lg:mt-4 lg:rounded-xl lg:border">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-base font-semibold text-white sm:text-lg">
+              <h1 className="text-base font-semibold text-foreground sm:text-lg">
                 {currentLesson?.title ?? product.title}
               </h1>
               {/* Хичээлийн дугаар + хугацаа + явц */}
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/45">
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                 {currentIndex >= 0 && totalLessons > 0 && (
                   <span className="tabular-nums">
                     Хичээл {currentIndex + 1} / {totalLessons}
@@ -431,13 +443,13 @@ export function LearnClient({ product }: LearnClientProps) {
               role="switch"
               aria-checked={autoPlayNext}
               onClick={toggleAutoPlay}
-              className="flex shrink-0 items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/5"
+              className="flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
             >
               <span>Дараагийнхыг автоматаар</span>
               <span
                 className={cn(
                   'relative h-5 w-9 rounded-full transition-colors',
-                  autoPlayNext ? 'bg-[#ffbe00]' : 'bg-white/20',
+                  autoPlayNext ? 'bg-[#ffbe00]' : 'bg-muted-foreground/30',
                 )}
               >
                 <span
@@ -458,8 +470,8 @@ export function LearnClient({ product }: LearnClientProps) {
               className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
             >
               <div className="flex items-center gap-3">
-                <PartyPopper className="h-5 w-5 shrink-0 text-emerald-400" />
-                <p className="text-sm font-semibold text-white">
+                <PartyPopper className="h-5 w-5 shrink-0 text-emerald-500" />
+                <p className="text-sm font-semibold text-foreground">
                   Баяр хүргэе, та сургалтыг бүрэн үзэж дууслаа! 🎉
                 </p>
               </div>
@@ -485,12 +497,12 @@ export function LearnClient({ product }: LearnClientProps) {
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted"
                 >
-                  <ChevronLeft className="h-5 w-5 shrink-0 text-white/60 transition-transform group-hover:-translate-x-0.5" />
+                  <ChevronLeft className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-x-0.5" />
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-medium text-white/40">Өмнөх хичээл</span>
-                    <span className="block truncate text-sm font-semibold text-white">{prevLesson.title}</span>
+                    <span className="block text-[11px] font-medium text-muted-foreground">Өмнөх хичээл</span>
+                    <span className="block truncate text-sm font-semibold text-foreground">{prevLesson.title}</span>
                   </span>
                 </button>
               ) : (
@@ -506,7 +518,7 @@ export function LearnClient({ product }: LearnClientProps) {
                 >
                   <span className="min-w-0">
                     <span className="block text-[11px] font-medium text-[#ffbe00]/80">Дараагийн хичээл</span>
-                    <span className="block truncate text-sm font-semibold text-white">{nextLesson.title}</span>
+                    <span className="block truncate text-sm font-semibold text-foreground">{nextLesson.title}</span>
                   </span>
                   <ChevronRight className="h-5 w-5 shrink-0 text-[#ffbe00] transition-transform group-hover:translate-x-0.5" />
                 </button>
@@ -521,7 +533,7 @@ export function LearnClient({ product }: LearnClientProps) {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ffbe00]/30 bg-[#ffbe00]/10 px-4 py-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[#ffbe00]" />
-                <p className="text-sm text-white/80">
+                <p className="text-sm text-foreground/80">
                   Та зөвхөн үнэгүй preview хичээлүүдийг үзэж байна.
                 </p>
               </div>
@@ -550,32 +562,33 @@ export function LearnClient({ product }: LearnClientProps) {
           </AnimatePresence>
         )}
 
-        {/* Mobile sticky "Дараагийн хичээл" товч (доод) */}
-        {nextLesson && (
-          <div className="sticky bottom-0 z-20 border-t border-white/10 bg-[#0b1020]/95 px-4 py-3 backdrop-blur lg:hidden">
-            <button
-              type="button"
-              onClick={handleNext}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffbe00] px-4 py-3 text-sm font-semibold text-[#022179] transition-transform active:scale-[0.98]"
-            >
-              Дараагийн хичээл
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        )}
-      </div>
+          {/* Mobile sticky "Дараагийн хичээл" товч (доод) */}
+          {nextLesson && (
+            <div className="sticky bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
+              <button
+                type="button"
+                onClick={handleNext}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffbe00] px-4 py-3 text-sm font-semibold text-[#022179] transition-transform active:scale-[0.98]"
+              >
+                Дараагийн хичээл
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
 
-      {/* ─── Desktop sidebar ─── */}
-      <aside className="hidden w-[340px] shrink-0 border-l border-white/10 lg:block xl:w-[380px]">
-        <CourseSidebar
-          modules={modules}
-          lessons={flatLessons}
-          purchased={purchased}
-          currentLessonId={currentLessonId}
-          progressMap={progressMap}
-          onSelect={goToLesson}
-        />
-      </aside>
+        {/* ─── Desktop sidebar (баруун багана — sticky, scroll) ─── */}
+        <aside className="hidden w-[340px] shrink-0 border-l border-border bg-card lg:block lg:overflow-y-auto xl:w-[380px]">
+          <CourseSidebar
+            modules={modules}
+            lessons={flatLessons}
+            purchased={purchased}
+            currentLessonId={currentLessonId}
+            progressMap={progressMap}
+            onSelect={goToLesson}
+          />
+        </aside>
+      </div>
 
       {/* ─── Mobile sidebar drawer ─── */}
       <AnimatePresence>
@@ -593,16 +606,16 @@ export function LearnClient({ product }: LearnClientProps) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="absolute right-0 top-0 flex h-full w-[88%] max-w-sm flex-col bg-[#0b1020] shadow-2xl"
+              className="absolute right-0 top-0 flex h-full w-[88%] max-w-sm flex-col bg-card shadow-2xl"
             >
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <p className="text-sm font-semibold text-white">Хичээлийн хөтөлбөр</p>
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <p className="text-sm font-semibold text-foreground">Хичээлийн хөтөлбөр</p>
                 <button
                   type="button"
                   onClick={() => setMobileOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/20"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-muted transition-colors hover:bg-muted/70"
                 >
-                  <X className="h-4 w-4 text-white" />
+                  <X className="h-4 w-4 text-foreground" />
                 </button>
               </div>
               <div className="min-h-0 flex-1">
@@ -634,13 +647,13 @@ function PlayerMessage({ text }: { text: string }) {
 
 function NoAccess({ product }: { product: ProductDetail }) {
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#070a14] px-6 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
-        <Lock className="h-7 w-7 text-white/70" />
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-background px-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+        <Lock className="h-7 w-7 text-muted-foreground" />
       </div>
       <div>
-        <h1 className="text-xl font-bold text-white">Энэ хичээлийг үзэх эрх танд алга</h1>
-        <p className="mt-2 max-w-md text-sm text-white/60">
+        <h1 className="text-xl font-bold text-foreground">Энэ хичээлийг үзэх эрх танд алга</h1>
+        <p className="mt-2 max-w-md text-sm text-muted-foreground">
           Энэ хичээлийг үзэхийн тулд эхлээд худалдан авна уу. Худалдаж авсны дараа бүх хичээл нээгдэнэ.
         </p>
       </div>
@@ -651,7 +664,7 @@ function NoAccess({ product }: { product: ProductDetail }) {
             Худалдан авах
           </Link>
         </Button>
-        <Button asChild variant="outline" className="border-white/20 text-white hover:bg-white/10">
+        <Button asChild variant="outline">
           <Link href="/products">Бусад бүтээгдэхүүн</Link>
         </Button>
       </div>
