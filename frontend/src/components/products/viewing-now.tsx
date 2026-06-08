@@ -39,15 +39,15 @@ export function ViewingNow({ seed, className = '' }: ViewingNowProps) {
 
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 font-medium text-emerald-700 dark:text-emerald-400 ${className}`}
+      className={`flex items-center gap-1 sm:gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 sm:px-2.5 py-1 font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap ${className}`}
     >
-      <span className="relative flex h-2 w-2 shrink-0">
+      <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0">
         <motion.span
           className="absolute inline-flex h-full w-full rounded-full bg-emerald-500"
           animate={{ scale: [1, 1.8, 1], opacity: [0.7, 0, 0.7] }}
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
         />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+        <span className="relative inline-flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-emerald-500" />
       </span>
       <span>{count} хүн үзэж байна</span>
     </div>

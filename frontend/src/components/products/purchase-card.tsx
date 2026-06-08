@@ -30,7 +30,7 @@ import { useFileDownload } from '@/hooks/use-file-download';
 import { trackAddToCart, trackInitiateCheckout } from '@/lib/analytics';
 import { DiscountTimer } from './discount-timer';
 import { DownloadAllButton } from './download-all-button';
-import { TrustBadges, accessLabel as accessLabelText } from './trust-badges';
+import { TrustBadges } from './trust-badges';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
 const FILES_PAGE_SIZE = 10;
@@ -434,7 +434,6 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
   // Видео хичээлтэй эсэх — "Татах"→"Үзэх", trust badge "Шууд үзэх"
   const isVideoCourse = (product.course?.lessons?.length ?? 0) > 0
     || (product.course?.modules?.some((m) => m.lessons.length > 0) ?? false);
-  const accessLabelShort = accessLabelText(product.accessType, product.accessDays);
   const totalDiscount = coupons.reduce((sum, c) => sum + c.discount, 0);
   const finalPrice = Math.max(0, basePrice - totalDiscount);
   const comparePrice =
@@ -549,24 +548,16 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
             <span className="font-medium">{product.course.lessons.length} хичээл</span>
           </div>
         )}
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Хандалт</span>
-          <span className="font-medium">{accessLabelShort}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">{isVideoCourse ? 'Үзэх' : 'Татах'}</span>
-          <span className="font-medium">Нэн даруй</span>
-        </div>
       </div>
 
       {/* Trust badges — итгэлийн тэмдгүүд (eco/teal зөөлөн background).
-          ♾️ хандалтын badge-ийг НУУНА — дээрх "Хандалт" мөртэй давхцахгүй (SS3 засвар). */}
+          "Хандалт"/"Татах" хүснэгт мөрийг ЭНД нэгтгэв — давхардалгүй (SS2 засвар):
+          хандалт (Насан туршийн/N сар) + "Шууд татах/үзэх" badge энд динамикаар гарна. */}
       <div className="rounded-xl border border-teal-500/20 bg-teal-500/6 dark:bg-teal-400/6 p-3">
         <TrustBadges
           isVideoCourse={isVideoCourse}
           accessType={product.accessType}
           accessDays={product.accessDays}
-          hideAccessBadge
         />
       </div>
 
