@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsInt,
@@ -26,8 +27,10 @@ export class QuizQuestionDto {
   @MinLength(1)
   question!: string;
 
+  // Сонголт 2-6 хооронд уян хатан (хатуу 4 биш).
   @IsArray()
   @ArrayMinSize(2)
+  @ArrayMaxSize(6)
   @IsString({ each: true })
   options!: string[];
 

@@ -9,10 +9,12 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import * as XLSX from 'xlsx';
@@ -27,6 +29,7 @@ import type { JwtPayload } from '../../common/decorators/current-user.decorator'
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { ReviewsService } from '../reviews/reviews.service';
+import { CoursesService } from '../courses/courses.service';
 import { CategoriesService } from '../categories/categories.service';
 import { OrdersService } from '../orders/orders.service';
 import { UsersService } from '../users/users.service';
@@ -66,6 +69,7 @@ export class AdminController {
     private readonly emailService: EmailService,
     private readonly cache: AppCacheService,
     private readonly reviews: ReviewsService,
+    private readonly courses: CoursesService,
   ) {}
 
   @Get('dashboard')
@@ -987,6 +991,20 @@ export class AdminController {
   @Delete('products/:id/lessons/:lessonId/quiz')
   deleteLessonQuiz(@Param('lessonId') lessonId: string) {
     return this.adminProducts.deleteQuiz(lessonId);
+  }
+
+  // ── Сертификат preview (admin) ────────────────────────────────────────────
+  // Demo дата-аар сертификатын дизайныг HTML-ээр харах (admin шинэ tab нээнэ).
+  // Параметргүй бол default demo. RolesGuard класс түвшинд (ADMIN).
+  @Get('certificate/preview')
+  certificatePreview(
+    @Res() res: Response,
+    @Query('userName') userName?: string,
+    @Query('courseTitle') courseTitle?: string,
+  ) {
+    const html = this.courses.getCertificatePreviewHtml({ userName, courseTitle });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   }
 
   // ── Lesson Q&A модерац ────────────────────────────────────────────────────

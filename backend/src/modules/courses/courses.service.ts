@@ -446,6 +446,24 @@ export class CoursesService {
     });
   }
 
+  /**
+   * Admin preview — demo дата (жишээ нэр/курс/огноо)-аар сертификат HTML буцаана.
+   * Бодит сертификат үүсгэхгүй, зөвхөн дизайн харах зорилготой (admin шинэ tab).
+   * @param opts.userName demo хэрэглэгчийн нэр (default "Бат-Эрдэнэ")
+   * @param opts.courseTitle demo курсын нэр (default жишээ нэр)
+   */
+  getCertificatePreviewHtml(opts?: { userName?: string; courseTitle?: string }): string {
+    const userName = opts?.userName?.trim() || 'Бат-Эрдэнэ';
+    const courseTitle = opts?.courseTitle?.trim() || 'Дижитал маркетингийн суурь курс';
+
+    const now = new Date();
+    const dateStr = `${now.getFullYear()} оны ${String(now.getMonth() + 1).padStart(2, '0')} сарын ${String(now.getDate()).padStart(2, '0')}`;
+    const certNo = 'DG-DEMO';
+    const verifyUrl = `${this.siteUrl}/courses/certificate/${encodeURIComponent(certNo)}/view`;
+
+    return this.buildCertificateHtml({ userName, courseTitle, certNo, dateStr, verifyUrl });
+  }
+
   /** Landscape сертификатын HTML дизайн (хэвлэх/баталгаажуулах). */
   private buildCertificateHtml(opts: {
     userName: string;

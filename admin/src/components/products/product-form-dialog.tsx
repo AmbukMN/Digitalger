@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GripVertical, ListChecks, Loader2, Lock, MessageSquare, Package, Paperclip, Pencil, Play, Plus, Send, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GraduationCap, GripVertical, ListChecks, Loader2, Lock, MessageSquare, Package, Paperclip, Pencil, Play, Plus, Send, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   DndContext,
@@ -1293,7 +1293,7 @@ function LessonQuizBuilder({ productId, lessonId }: { productId: string; lessonI
   }
   function addQuestion() {
     setDirty(true);
-    setQuestions((prev) => [...prev, { question: '', options: ['', ''], correctIndex: 0 }]);
+    setQuestions((prev) => [...prev, { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
     setOpen(true);
   }
   function removeQuestion(qi: number) {
@@ -1303,7 +1303,7 @@ function LessonQuizBuilder({ productId, lessonId }: { productId: string; lessonI
   function addOption(qi: number) {
     setDirty(true);
     setQuestions((prev) =>
-      prev.map((q, i) => (i === qi && q.options.length < 4 ? { ...q, options: [...q.options, ''] } : q)),
+      prev.map((q, i) => (i === qi && q.options.length < 6 ? { ...q, options: [...q.options, ''] } : q)),
     );
   }
   function removeOption(qi: number, oi: number) {
@@ -1442,7 +1442,7 @@ function LessonQuizBuilder({ productId, lessonId }: { productId: string; lessonI
                           </div>
                         ))}
                         <div className="flex items-center justify-between">
-                          {q.options.length < 4 ? (
+                          {q.options.length < 6 ? (
                             <button
                               type="button"
                               onClick={() => addOption(qi)}
@@ -2213,8 +2213,15 @@ function ModuleSection({
   );
 }
 
-function CourseTab({ productId }: { productId?: string }) {
+function CourseTab({ productId, productTitle }: { productId?: string; productTitle?: string }) {
   const queryClient = useQueryClient();
+
+  // 🎓 Сертификат загвар үзэх — backend demo preview-г шинэ tab-д нээнэ
+  function openCertificatePreview() {
+    const params = new URLSearchParams();
+    if (productTitle?.trim()) params.set('courseTitle', productTitle.trim());
+    window.open(`${API_URL}/api/admin/certificate/preview?${params.toString()}`, '_blank', 'noopener,noreferrer');
+  }
   const [addingModule, setAddingModule] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [addingLesson, setAddingLesson] = useState(false);
@@ -2266,8 +2273,19 @@ function CourseTab({ productId }: { productId?: string }) {
 
   if (!productId) {
     return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        Бүтээгдэхүүнийг хадгалсны дараа хичээл нэмнэ үү.
+      <div className="space-y-4">
+        <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm">
+            <GraduationCap className="h-4 w-4 text-primary" />
+            <span className="text-muted-foreground">Курс төгсөгчдөд олгох сертификатын загвар</span>
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={openCertificatePreview}>
+            <GraduationCap className="h-3.5 w-3.5" /> Сертификат загвар үзэх
+          </Button>
+        </div>
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          Бүтээгдэхүүнийг хадгалсны дараа хичээл нэмнэ үү.
+        </div>
       </div>
     );
   }
@@ -2276,6 +2294,17 @@ function CourseTab({ productId }: { productId?: string }) {
 
   return (
     <div className="space-y-4">
+      {/* 🎓 Сертификат загвар үзэх — demo дата-аар backend preview-г шинэ tab-д нээнэ */}
+      <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5">
+        <div className="flex items-center gap-2 text-sm">
+          <GraduationCap className="h-4 w-4 text-primary" />
+          <span className="text-muted-foreground">Курс төгсөгчдөд олгох сертификатын загвар</span>
+        </div>
+        <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={openCertificatePreview}>
+          <GraduationCap className="h-3.5 w-3.5" /> Сертификат загвар үзэх
+        </Button>
+      </div>
+
       {/* Stats */}
       {totalLessons > 0 && (
         <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-2.5 text-sm">
@@ -3417,7 +3446,14 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto max-w-6xl">
+      <DialogContent
+        className="max-h-[92vh] overflow-y-auto max-w-6xl"
+        // ⚠️ ЗӨВХӨН энэ product modal — гадуур/overlay дарж санамсаргүй хаагдахаас сэргийлнэ.
+        // X товч эсвэл Цуцлах товчоор л хаагдана. (Бусад dialog-ийн default зан хэвээр.)
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {savedProduct ? `✓ Үүслээ — нэмэлт мэдээлэл оруулах` : effectiveProduct ? 'Бүтээгдэхүүн засах' : 'Шинэ бүтээгдэхүүн'}
@@ -3928,7 +3964,7 @@ export function ProductFormDialog({
 
           {/* Course Tab */}
           <TabsContent value="course" className="pt-4">
-            <CourseTab productId={effectiveProduct?.id} />
+            <CourseTab productId={effectiveProduct?.id} productTitle={form.title} />
           </TabsContent>
 
           {/* Bundle Tab */}

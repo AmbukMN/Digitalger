@@ -114,6 +114,46 @@ export class CloudflareStreamService {
     await fetch(`${this.apiBase}/${uid}`, { method: 'DELETE', headers: this.headers() }).catch(() => null);
   }
 
+  /**
+   * Аккаунтын БҮХ Stream видеог жагсаана (orphan cleanup cron-д ашиглана).
+   * Cloudflare хариу нь нэг удаад дээд тал нь ~1000 видео буцаадаг тул
+   * `created` талбараар хуудаслаж (asc) бүгдийг цуглуулна.
+   * @returns { uid, created } массив — created нь ISO огноо (saяхан upload хамгаалах).
+   */
+  async listVideos(): Promise<{ uid: string; created: string | null }[]> {
+    if (!this.configured) return [];
+    const all: { uid: string; created: string | null }[] = [];
+    const seen = new Set<string>();
+    let asc: string | undefined; // сүүлчийн created-аас цааш хуудаслах cursor
+    // Аюулгүйн хязгаар — хязгааргүй давталтаас сэргийлэх (50k видео хүртэл).
+    for (let page = 0; page < 50; page++) {
+      const url = new URL(this.apiBase);
+      url.searchParams.set('asc', 'true');
+      if (asc) url.searchParams.set('after', asc);
+      const res = await fetch(url.toString(), { headers: this.headers() }).catch(() => null);
+      if (!res) break;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success || !Array.isArray(data.result)) {
+        this.logger.warn(`Stream listVideos алдаа: ${JSON.stringify(data?.errors ?? 'fetch failed')}`);
+        break;
+      }
+      const batch: any[] = data.result;
+      let added = 0;
+      for (const v of batch) {
+        if (!v?.uid || seen.has(v.uid)) continue;
+        seen.add(v.uid);
+        all.push({ uid: v.uid, created: v.created ?? null });
+        added += 1;
+      }
+      // Дараагийн хуудасны cursor — энэ багцын хамгийн сүүлийн created.
+      const last = batch[batch.length - 1];
+      if (!last?.created || added === 0) break;
+      asc = last.created;
+      if (batch.length < 1000) break; // сүүлийн хуудас
+    }
+    return all;
+  }
+
   /** Signed HLS playback manifest URL (player-д шууд өгөх боломжтой). */
   hlsUrl(uid: string, token: string): string {
     return `https://videodelivery.net/${token}/manifest/video.m3u8`;

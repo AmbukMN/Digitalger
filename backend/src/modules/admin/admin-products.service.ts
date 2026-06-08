@@ -429,6 +429,22 @@ export class AdminProductsService {
 
   async updateLesson(lessonId: string, dto: UpdateLessonDto) {
     const data: Record<string, unknown> = { ...dto };
+
+    // Хуучин Stream видеоны uid-г урьдчилж авах — видео солих/устгахад
+    // Cloudflare-аас ч устгахын тулд (orphan үлдээхгүй).
+    let oldStreamId: string | null = null;
+    const willChangeSource =
+      (dto.videoStreamId !== undefined && dto.videoStreamId) ||
+      (dto.videoKey !== undefined && dto.videoKey) ||
+      (dto.videoUrl !== undefined && dto.videoUrl);
+    if (willChangeSource) {
+      const prev = await this.prisma.lesson.findUnique({
+        where: { id: lessonId },
+        select: { videoStreamId: true },
+      });
+      oldStreamId = prev?.videoStreamId ?? null;
+    }
+
     // Видео эх сурвалжийн аль нэг өгөгдсөн бол бусдыг null болгож mutually exclusive байлгана.
     if (dto.videoStreamId !== undefined && dto.videoStreamId) {
       data.videoStreamId = dto.videoStreamId;
@@ -443,7 +459,17 @@ export class AdminProductsService {
       data.videoStreamId = null;
       data.videoKey = null;
     }
-    return this.prisma.lesson.update({ where: { id: lessonId }, data });
+
+    const updated = await this.prisma.lesson.update({ where: { id: lessonId }, data });
+
+    // Хуучин Stream видео байсан бөгөөд шинэ эх сурвалж ӨӨР бол (stream→stream солих
+    // эсвэл stream→key/url солих) → Cloudflare-аас хуучныг устгана (orphan үлдээхгүй).
+    // fire-and-forget, алдвал хайхрахгүй (cron orphan cleanup нөөцлөнө).
+    if (oldStreamId && oldStreamId !== updated.videoStreamId) {
+      void this.stream.deleteVideo(oldStreamId).catch(() => null);
+    }
+
+    return updated;
   }
 
   async deleteLesson(lessonId: string) {
@@ -772,8 +798,12 @@ export class AdminProductsService {
       if (!q.question?.trim()) {
         throw new BadRequestException(`${i + 1}-р асуултын текст хоосон байна`);
       }
+      // Сонголт 2-6 хооронд уян хатан (хатуу 4 биш).
       if (!Array.isArray(q.options) || q.options.length < 2) {
         throw new BadRequestException(`${i + 1}-р асуултад дор хаяж 2 сонголт байх ёстой`);
+      }
+      if (q.options.length > 6) {
+        throw new BadRequestException(`${i + 1}-р асуултад хамгийн ихдээ 6 сонголт байх ёстой`);
       }
       if (q.correctIndex < 0 || q.correctIndex >= q.options.length) {
         throw new BadRequestException(`${i + 1}-р асуултын зөв хариултын индекс буруу байна`);
