@@ -185,7 +185,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           </h3>
         </Link>
 
-        <div className="mt-2 flex items-baseline gap-1.5">
+        <div className="mt-2 flex items-baseline justify-end gap-1.5">
           {(product.price == null || Number(product.price) === 0) ? (
             <p className="text-sm sm:text-base font-extrabold tabular-nums tracking-tight text-green-600 dark:text-green-400">
               Үнэгүй

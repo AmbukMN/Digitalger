@@ -477,9 +477,9 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
 
   return (
     <div className="sticky top-24 rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/[0.06] to-card shadow-md ring-1 ring-primary/10 p-6 space-y-5">
-      {/* Price — foreground (white/dark), CTA-д л алт өнгө үлдэнэ */}
+      {/* Price — foreground (white/dark), CTA-д л алт өнгө үлдэнэ. Баруун 0 (right-aligned). */}
       <div>
-        <div className="flex items-baseline gap-3 flex-wrap">
+        <div className="flex items-baseline justify-end gap-3 flex-wrap">
           <p className="text-3xl font-black tabular-nums tracking-tight text-foreground">
             {formatPrice(finalPrice)}
           </p>
