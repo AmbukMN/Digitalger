@@ -918,16 +918,10 @@ function VideoUploadInput({
     if (!file) return;
     e.target.value = '';
 
-    // Локал metadata-аас хугацаа автоматаар тодорхойлно (fallback)
-    const objUrl = URL.createObjectURL(file);
-    const vid = document.createElement('video');
-    vid.preload = 'metadata';
-    vid.src = objUrl;
-    vid.onloadedmetadata = () => {
-      const sec = Math.round(vid.duration);
-      if (sec > 0 && !duration) setDuration(formatDurationInput(sec));
-      URL.revokeObjectURL(objUrl);
-    };
+    // ⚠️ Stream-д байршуулах үед хугацааг ЗӨВХӨН Cloudflare-ийн БОДИТ урт (ready.durationSec)-аар
+    // тавина. Локал metadata-аас урьдчилж тааруулахгүй — учир нь onloadedmetadata async тул
+    // Stream-ийн бодит утгыг дараа нь дарж (race) зохиомол урт үлдэх эрсдэлтэй. Стрийм бэлэн
+    // болоход (доор) бодит durationSec-ийг үргэлж override хийнэ.
 
     const toastId = `stream-${Date.now()}`;
     setStreamFileName(file.name);
@@ -965,6 +959,7 @@ function VideoUploadInput({
       setVideoKey('');
       setVideoUrl('');
       setUploadedName('');
+      // Cloudflare Stream-ийн БОДИТ урт — ҮРГЭЛЖ тавина (гараар оруулсан/локал утгыг override).
       if (ready.durationSec && ready.durationSec > 0) setDuration(formatDurationInput(ready.durationSec));
       setStreamPhase('ready');
       toast.success('Видео бэлэн боллоо', { id: toastId, duration: 2500 });
@@ -2174,12 +2169,16 @@ function ModuleSection({
             onMoved={handleMoveLesson}
             onDeleted={(lessonId) => deleteLessonMut.mutate(lessonId)}
             onReorder={(ordered) => {
+              // Optimistic: module cache-ийг шуурхай шинэчилнэ (UI хурдан)...
               queryClient.setQueryData<AdminCourseModule[]>(
                 ['admin', 'products', productId, 'modules'],
                 (old) => old?.map((m) => m.id === mod.id ? { ...m, lessons: ordered } : m) ?? old,
               );
+              // ...дараа нь НАЙДВАРТАЙ refetch (modules + lessons query) — буцаж ороход stale болохгүй.
+              onInvalidate();
             }}
             onUpdated={(updated) => {
+              // Optimistic: хадгалсан хичээл (видео/content) module cache-д шууд тусгана...
               queryClient.setQueryData<AdminCourseModule[]>(
                 ['admin', 'products', productId, 'modules'],
                 (old) => old?.map((m) => m.id === mod.id
@@ -2187,6 +2186,10 @@ function ModuleSection({
                   : m,
                 ) ?? old,
               );
+              // ...дараа нь НАЙДВАРТАЙ refetch (modules + lessons query). Энэ нь гол засвар:
+              // тусдаа lessons query-г invalidate хийхгүй бол save хийгээд буцаж ороход
+              // stale (хадгалагдаагүй мэт) харагдаж байсан.
+              onInvalidate();
             }}
           />
 
@@ -2491,7 +2494,7 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
               onMoved={handleMoveUngrouped}
               onDeleted={(lessonId) => deleteUngroupedMut.mutate(lessonId)}
               onReorder={(ordered) => {
-                // ungrouped хичээлүүдийн шинэ дарааллыг бусад (module-тай) хичээлтэй нэгтгэнэ
+                // ungrouped хичээлүүдийн шинэ дарааллыг бусад (module-тай) хичээлтэй нэгтгэнэ (optimistic)...
                 queryClient.setQueryData<AdminLesson[]>(
                   ['admin', 'products', productId, 'lessons'],
                   (old) => {
@@ -2500,12 +2503,17 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
                     return [...ordered, ...others];
                   },
                 );
+                // ...дараа нь НАЙДВАРТАЙ refetch (lessons + modules) — буцаж ороход stale болохгүй.
+                invalidateAll();
               }}
               onUpdated={(updated) => {
+                // Optimistic тусгал...
                 queryClient.setQueryData<AdminLesson[]>(
                   ['admin', 'products', productId, 'lessons'],
                   (old) => old?.map((l) => l.id === updated.id ? updated : l) ?? old,
                 );
+                // ...+ НАЙДВАРТАЙ refetch (хадгалсан видео/content найдвартай харагдана).
+                invalidateAll();
               }}
             />
             <div className="px-3 py-2.5 bg-muted/10">

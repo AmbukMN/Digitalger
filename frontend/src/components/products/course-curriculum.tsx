@@ -222,6 +222,9 @@ function LessonRow({
   onPlayClick: (e: React.MouseEvent, lesson: CourseLesson) => void;
 }) {
   const locked = !sessionLoading && !lesson.isFreePreview && !purchased;
+  // Видео 3 эх сурвалж (videoUrl/videoKey/videoStreamId) — backend hasVideo flag.
+  // Хуучин кэш/буцаалтад hasVideo байхгүй бол videoUrl-руу унана.
+  const hasVideo = lesson.hasVideo ?? !!lesson.videoUrl;
   const dur = formatDuration(lesson.durationSec);
   const descText = lesson.description?.replace(/<[^>]*>/g, '').trim() ?? '';
   const hasDesc = descText.length > 0;
@@ -274,21 +277,26 @@ function LessonRow({
 
         {/* Right: action → duration → chevron */}
         <div className="flex items-center gap-2 shrink-0">
-          {lesson.isFreePreview && lesson.videoUrl ? (
+          {lesson.isFreePreview && hasVideo ? (
+            // Үнэгүй preview + видео БАЙГАА (3 эх сурвалжийн аль нэг) → идэвхтэй Preview товч.
             <button
               type="button"
               onClick={(e) => onPlayClick(e, lesson)}
-              className="flex items-center gap-1 rounded border border-primary/40 bg-primary/5 hover:bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary transition-colors"
+              disabled={isLoadingThis}
+              className="flex items-center gap-1 rounded border border-primary/40 bg-primary/5 hover:bg-primary/15 disabled:opacity-60 px-2 py-0.5 text-xs font-semibold text-primary transition-colors"
             >
-              <Play className="h-2.5 w-2.5 fill-primary" />
+              {isLoadingThis ? (
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              ) : (
+                <Play className="h-2.5 w-2.5 fill-primary" />
+              )}
               Preview
             </button>
-          ) : lesson.isFreePreview && !lesson.videoUrl ? (
-            <span className="flex items-center gap-1 rounded border border-muted bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground">
-              <Play className="h-2.5 w-2.5" />
-              Preview
-            </span>
-          ) : purchased ? (
+          ) : lesson.isFreePreview && !hasVideo ? (
+            // Үнэгүй preview ГЭХДЭЭ видео БАЙХГҮЙ → товч ХАРУУЛАХГҮЙ (зүгээр зай).
+            null
+          ) : purchased && hasVideo ? (
+            // Худалдаж авсан + видео БАЙГАА → үзэх товч (видео байхгүй хичээлд харуулахгүй).
             <button
               type="button"
               onClick={(e) => onPlayClick(e, lesson)}
@@ -496,13 +504,35 @@ export function CourseCurriculum({
   );
 
   async function openLesson(lesson: CourseLesson) {
-    // Үнэгүй preview — getLessonVideoUrl дуудалгүй шууд external/url ашиглана
-    if (lesson.isFreePreview && lesson.videoUrl && !purchased) {
+    // ── Худалдаж авсан хэрэглэгч — бүх төрлийн видео (stream/r2/external) ──
+    // getLessonVideoUrl backend дээр signed token/presigned url буцаана.
+    if (purchased && session?.accessToken) {
+      setLoadingLessonId(lesson.id);
+      try {
+        const res = await coursesApi.getLessonVideoUrl(session.accessToken, productSlug, lesson.id);
+        setActiveLesson(lesson);
+        setActiveVideo(res);
+      } catch {
+        // silently ignore
+      } finally {
+        setLoadingLessonId(null);
+      }
+      return;
+    }
+
+    // ── Үнэгүй preview (худалдаж аваагүй) ──
+    // 1) videoUrl аль хэдийн resolve хийгдсэн (гадаад YouTube/Vimeo ЭСВЭЛ R2 preview
+    //    presigned url backend-ээс ирсэн) → шууд нээнэ, token шаардахгүй (зочинд ч ажиллана).
+    if (lesson.isFreePreview && lesson.videoUrl) {
       setActiveLesson(lesson);
       setActiveVideo({ lessonId: lesson.id, type: 'external', url: lesson.videoUrl });
       return;
     }
-    if (purchased && session?.accessToken) {
+
+    // 2) Cloudflare Stream preview (videoStreamId — videoUrl байхгүй, hasVideo=true).
+    //    Signed token нь backend-ийн /video endpoint-ээс (JwtAuthGuard) → нэвтэрсэн байх ёстой.
+    //    Backend isFreePreview-г шалгана тул худалдаж аваагүй ч preview нээгдэнэ.
+    if (lesson.isFreePreview && (lesson.hasVideo ?? false) && session?.accessToken) {
       setLoadingLessonId(lesson.id);
       try {
         const res = await coursesApi.getLessonVideoUrl(session.accessToken, productSlug, lesson.id);

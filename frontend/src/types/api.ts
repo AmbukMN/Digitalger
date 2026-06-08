@@ -8,6 +8,9 @@ export interface CourseLesson {
   sortOrder: number;
   moduleId?: string | null;
   videoUrl?: string | null;
+  // Видео байгаа эсэх (videoUrl | videoKey | videoStreamId аль нэг) — backend тооцоод буцаана.
+  // Preview/play товч идэвхжүүлэхэд ашиглана (Stream/R2 ID-г нийтэд задлахгүй).
+  hasVideo?: boolean;
   isFreePreview: boolean;
 }
 

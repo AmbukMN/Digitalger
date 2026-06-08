@@ -191,11 +191,11 @@ export class ProductsService {
             modules: {
               orderBy: { sortOrder: 'asc' },
               include: {
-                lessons: { orderBy: { sortOrder: 'asc' }, select: { id: true, title: true, description: true, durationSec: true, sortOrder: true, videoKey: true, videoUrl: true, isFreePreview: true, moduleId: true } },
+                lessons: { orderBy: { sortOrder: 'asc' }, select: { id: true, title: true, description: true, durationSec: true, sortOrder: true, videoKey: true, videoUrl: true, videoStreamId: true, isFreePreview: true, moduleId: true } },
               },
             },
             // Only ungrouped lessons (no module)
-            lessons: { where: { moduleId: null }, orderBy: { sortOrder: 'asc' }, select: { id: true, title: true, description: true, durationSec: true, sortOrder: true, videoKey: true, videoUrl: true, isFreePreview: true, moduleId: true } },
+            lessons: { where: { moduleId: null }, orderBy: { sortOrder: 'asc' }, select: { id: true, title: true, description: true, durationSec: true, sortOrder: true, videoKey: true, videoUrl: true, videoStreamId: true, isFreePreview: true, moduleId: true } },
           },
         },
         reviews: {
@@ -229,13 +229,18 @@ export class ProductsService {
     // Flatten junction tables for frontend consumption
     const mapped = this.mapProduct(product);
 
-    // Resolve video URLs for free preview lessons (R2 keys → presigned URLs)
+    // Resolve video URLs for free preview lessons (R2 keys → presigned URLs).
+    // ⚠️ Видео 3 эх сурвалжтай: videoUrl (гадаад) | videoKey (R2) | videoStreamId (Stream).
+    // hasVideo flag-аар frontend preview/play товч идэвхжүүлнэ. videoKey/videoStreamId
+    // бодит утгыг НИЙТЭД задлахгүй (зөвхөн boolean), Stream/R2 нээх нь getLessonVideoUrl-аар.
     const resolveLesson = async (lesson: any) => {
+      const hasVideo = Boolean(lesson.videoUrl || lesson.videoKey || lesson.videoStreamId);
+      // Free preview + R2 → presigned url (Stream нь preview үед getLessonVideoUrl-аар).
       if (lesson.isFreePreview && lesson.videoKey && !lesson.videoUrl) {
         const url = await this.storage.getPresignedUrl(lesson.videoKey, 7200, 'get').catch(() => null);
-        return { ...lesson, videoUrl: url, videoKey: null };
+        return { ...lesson, hasVideo, videoUrl: url, videoKey: null, videoStreamId: null };
       }
-      return { ...lesson, videoKey: null };
+      return { ...lesson, hasVideo, videoKey: null, videoStreamId: null };
     };
 
     let course = mapped.course;

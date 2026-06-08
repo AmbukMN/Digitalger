@@ -409,6 +409,11 @@ export class AdminProductsService {
     // Видео эх сурвалж 3 хувилбар — зэрэг ОРОХГҮЙ (mutually exclusive).
     // Давуу эрэмбэ: videoStreamId → videoKey → videoUrl.
     const source = this.resolveVideoSource(dto);
+
+    // ⚠️ Stream видеотой бол хугацааг Cloudflare-ийн БОДИТ урт-аар баталгаажуулна:
+    // dto.durationSec ирээгүй/0 байвал getVideoStatus-аас durationSec автомат авч хадгална.
+    const durationSec = await this.resolveStreamDuration(source.videoStreamId, dto.durationSec);
+
     return this.prisma.lesson.create({
       data: {
         courseId: course.id,
@@ -420,7 +425,7 @@ export class AdminProductsService {
         videoKey: source.videoKey,
         videoUrl: source.videoUrl,
         ...(dto.streamStatus !== undefined && { streamStatus: dto.streamStatus }),
-        durationSec: dto.durationSec,
+        durationSec,
         isFreePreview: dto.isFreePreview ?? false,
         sortOrder: dto.sortOrder ?? count,
       },
@@ -450,6 +455,9 @@ export class AdminProductsService {
       data.videoStreamId = dto.videoStreamId;
       data.videoKey = null;
       data.videoUrl = null;
+      // ⚠️ Stream видеотой бол хугацааг Cloudflare-ийн БОДИТ урт-аар баталгаажуулна:
+      // dto.durationSec ирээгүй/0 байвал getVideoStatus-аас durationSec автомат авна (нийт хугацаа бодит).
+      data.durationSec = await this.resolveStreamDuration(dto.videoStreamId, dto.durationSec);
     } else if (dto.videoKey !== undefined && dto.videoKey) {
       data.videoKey = dto.videoKey;
       data.videoStreamId = null;
@@ -483,6 +491,28 @@ export class AdminProductsService {
       void this.stream.deleteVideo(lesson.videoStreamId).catch(() => null);
     }
     return deleted;
+  }
+
+  /**
+   * Хичээлийн нийт хугацааг БОДИТ видео уртаар (зохиомол биш) тогтооно.
+   * - dto.durationSec өгөгдсөн (>0) бол түүнийг хүндэтгэнэ (frontend Stream-ийн бодит уртыг илгээсэн).
+   * - videoStreamId байгаа ба durationSec ирээгүй/0 бол Cloudflare Stream-аас getVideoStatus-аар
+   *   бодит durationSec-ийг автомат авч хадгална.
+   * - Stream тохируулагдаагүй/алдаа гарвал dto утгад (эсвэл undefined-д) найдаж тасрахгүй.
+   */
+  private async resolveStreamDuration(
+    streamId: string | null | undefined,
+    dtoDurationSec: number | undefined,
+  ): Promise<number | undefined> {
+    if (dtoDurationSec !== undefined && dtoDurationSec > 0) return dtoDurationSec;
+    if (!streamId || !this.stream.configured) return dtoDurationSec;
+    try {
+      const status = await this.stream.getVideoStatus(streamId);
+      if (status.durationSec && status.durationSec > 0) return status.durationSec;
+    } catch {
+      // Stream төлөв авч чадаагүй — байгаа утгаар үргэлжилнэ (хадгалалт тасрахгүй).
+    }
+    return dtoDurationSec;
   }
 
   /**
