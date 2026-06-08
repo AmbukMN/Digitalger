@@ -86,6 +86,9 @@ const emptyForm = {
   categoryIds: [] as string[],
   published: false,
   featured: false,
+  // Хандалтын хугацаа — default насан туршийн (хуучин бүх бүтээгдэхүүн LIFETIME)
+  accessType: 'LIFETIME' as 'LIFETIME' | 'DAYS',
+  accessDays: '' as string,
   seoTitle: '',
   seoDescription: '',
   howToUse: DEFAULT_HOW_TO_USE,
@@ -3147,6 +3150,8 @@ export function ProductFormDialog({
       categoryIds: effectiveCategoryIds,
       published: p.published,
       featured: p.featured,
+      accessType: (p.accessType === 'DAYS' ? 'DAYS' : 'LIFETIME') as 'LIFETIME' | 'DAYS',
+      accessDays: p.accessType === 'DAYS' && p.accessDays ? String(p.accessDays) : '',
       seoTitle: p.seoTitle ?? '',
       seoDescription: p.seoDescription ?? '',
       howToUse: p.howToUse ?? DEFAULT_HOW_TO_USE,
@@ -3302,6 +3307,12 @@ export function ProductFormDialog({
         categoryIds: validCategoryIds,
         published: form.published,
         featured: form.featured,
+        // Хандалтын хугацаа — DAYS бол хоног, LIFETIME бол accessDays=null
+        accessType: form.accessType,
+        accessDays:
+          form.accessType === 'DAYS' && parseInt(form.accessDays) > 0
+            ? parseInt(form.accessDays)
+            : null,
         seoTitle: form.seoTitle || undefined,
         seoDescription: form.seoDescription || undefined,
         howToUse: form.howToUse || undefined,
@@ -3515,6 +3526,81 @@ export function ProductFormDialog({
               <div className="space-y-1.5">
                 <Label>Хямдрал дуусах огноо</Label>
                 <Input type="datetime-local" value={form.discountEndsAt} onChange={(e) => set('discountEndsAt', e.target.value)} className="max-w-xs" />
+              </div>
+
+              {/* ── Хандалтын хугацаа ── */}
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary/70" />
+                  <span className="text-sm font-semibold">Хандалтын хугацаа</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, accessType: 'LIFETIME', accessDays: '' }))}
+                    className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${form.accessType === 'LIFETIME' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}
+                  >
+                    <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${form.accessType === 'LIFETIME' ? 'border-primary' : 'border-input'}`}>
+                      {form.accessType === 'LIFETIME' && <div className="h-2 w-2 rounded-full bg-primary" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-tight">Насан туршийн</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Худалдан авсны дараа эрх хэзээ ч дуусахгүй.</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, accessType: 'DAYS', accessDays: f.accessDays || '365' }))}
+                    className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${form.accessType === 'DAYS' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}
+                  >
+                    <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${form.accessType === 'DAYS' ? 'border-primary' : 'border-input'}`}>
+                      {form.accessType === 'DAYS' && <div className="h-2 w-2 rounded-full bg-primary" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-tight">Хугацаатай</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Тодорхой хоногийн дараа эрх дуусна.</p>
+                    </div>
+                  </button>
+                </div>
+
+                {form.accessType === 'DAYS' && (
+                  <div className="space-y-2 rounded-md border border-dashed border-border bg-background/60 p-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Хугацаа сонгох</Label>
+                        <Select
+                          value={['90', '180', '365'].includes(form.accessDays) ? form.accessDays : 'custom'}
+                          onValueChange={(v) => set('accessDays', v === 'custom' ? '' : v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Хугацаа сонгох..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="90">3 сар (90 хоног)</SelectItem>
+                            <SelectItem value="180">6 сар (180 хоног)</SelectItem>
+                            <SelectItem value="365">1 жил (365 хоног)</SelectItem>
+                            <SelectItem value="custom">Бусад (хоног гараар)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="accessDays">Хоног</Label>
+                        <Input
+                          id="accessDays"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={form.accessDays}
+                          onChange={(e) => set('accessDays', e.target.value)}
+                          placeholder="Жишээ: 365"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      Хугацаатай бол хэрэглэгч худалдан авсан огнооноос тухайн хугацааны дараа эрх дуусч, дахин худалдан авах шаардлагатай болно. Видео хичээлтэй бүтээгдэхүүнд ялангуяа тохиромжтой (ихэвчлэн 1/3/6 сар), гэхдээ бүх төрлийн бүтээгдэхүүнд сонгох боломжтой.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

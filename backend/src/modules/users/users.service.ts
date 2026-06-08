@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
+import { computeOrderExpiresAt } from '../../common/access-expiry';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -721,7 +722,7 @@ export class UsersService {
     // Бодит бүтээгдэхүүн эсэхийг шалгана
     const products = await this.prisma.product.findMany({
       where: { id: { in: ids } },
-      select: { id: true, title: true, price: true },
+      select: { id: true, title: true, price: true, accessType: true, accessDays: true },
     });
     if (!products.length) throw new BadRequestException('Сонгосон бүтээгдэхүүн олдсонгүй');
 
@@ -774,12 +775,18 @@ export class UsersService {
         }
       }
 
-      // total=0, PAID, ADMIN_GRANT захиалга үүсгэнэ (item бүр price=0)
+      // total=0, PAID, ADMIN_GRANT захиалга үүсгэнэ (item бүр price=0).
+      // Хандалтын хугацаа (expiresAt) нь худалдаж авсантай адил тооцогдоно:
+      // аль нэг LIFETIME бол насан туршийн (null), бүгд DAYS бол MAX(accessDays).
+      const grantPaidAt = new Date();
+      const grantExpiresAt = computeOrderExpiresAt(toGrant, grantPaidAt);
       return tx.order.create({
         data: {
           userId,
           total: 0,
           status: OrderStatus.PAID,
+          paidAt: grantPaidAt,
+          expiresAt: grantExpiresAt,
           source: 'ADMIN_GRANT',
           grantedByAdminId: adminId,
           items: {

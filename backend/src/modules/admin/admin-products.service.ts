@@ -125,8 +125,17 @@ export class AdminProductsService {
       throw new ConflictException('Product slug already exists');
     }
 
-    const { compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, categoryId, ...rest } = dto;
+    const { compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, categoryId, accessType, accessDays, ...rest } = dto;
     const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : categoryId;
+
+    // Хандалтын хугацаа: DAYS бол accessDays-тай, LIFETIME (эсвэл заагаагүй) бол
+    // accessDays=null (хязгааргүй). Зөрчилтэй утга хадгалахаас сэргийлнэ.
+    const accessFields =
+      accessType === 'DAYS'
+        ? { accessType: 'DAYS', accessDays: accessDays ?? null }
+        : accessType === 'LIFETIME'
+        ? { accessType: 'LIFETIME', accessDays: null }
+        : {};
 
     // Устсан/буруу category id үед FK алдаа (500)-аас сэргийлж зөвхөн БОДИТ үлдээнэ.
     const validIds = await this.filterExistingCategoryIds(
@@ -136,6 +145,7 @@ export class AdminProductsService {
     const created = await this.prisma.product.create({
       data: {
         ...rest,
+        ...accessFields,
         categoryId: validIds[0] ?? null,
         categoryIds: validIds,
         // price null/undefined бол 0 (үнэгүй бүтээгдэхүүн) — Decimal(null) алдаа гаргадаг
@@ -169,8 +179,17 @@ export class AdminProductsService {
       }
     }
 
-    const { price, compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, categoryId: dtoCategoryId, ...rest } = dto;
+    const { price, compareAtPrice, discountEndsAt, howToUseSteps, categoryIds, categoryId: dtoCategoryId, accessType, accessDays, ...rest } = dto;
     const primaryCategoryId = categoryIds && categoryIds.length > 0 ? categoryIds[0] : dtoCategoryId;
+
+    // Хандалтын хугацаа: зөвхөн accessType заасан үед шинэчилнэ. DAYS бол
+    // accessDays-тай, LIFETIME бол accessDays=null (хязгааргүй).
+    const accessFields =
+      accessType === 'DAYS'
+        ? { accessType: 'DAYS', accessDays: accessDays ?? null }
+        : accessType === 'LIFETIME'
+        ? { accessType: 'LIFETIME', accessDays: null }
+        : {};
 
     // Устсан/буруу category id үед FK алдаа (500)-аас сэргийлж зөвхөн БОДИТ
     // байгаа category id-г үлдээнэ (байхгүйг шүүнэ).
@@ -183,6 +202,7 @@ export class AdminProductsService {
       where: { id },
       data: {
         ...rest,
+        ...accessFields,
         ...(primaryCategoryId !== undefined && { categoryId: safePrimaryId }),
         ...(categoryIds !== undefined && { categoryIds: validIds }),
         ...(price !== undefined && { price: new Prisma.Decimal(price) }),

@@ -10,6 +10,7 @@ import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { N8nService } from '../n8n/n8n.service';
+import { computeOrderExpiresAt } from '../../common/access-expiry';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -361,10 +362,25 @@ export class PaymentsService {
     // reconcile + polling) нэгэн зэрэг ажиллаж болзошгүй тул заавал шалгана.
     // updateMany нь where: status=PENDING нөхцөл хангагдсан үед Л PAID болгоно —
     // count=0 буцвал өөр зам аль хэдийн confirm хийсэн тул энд зогсоно.
+    // ── Хандалтын хугацаа (access expiry) ──
+    // Захиалгад буй бүтээгдэхүүний accessType-аас хамаарч expiresAt тооцно.
+    // Бүгд LIFETIME → null (насан туршийн). Аль нэг DAYS бол MAX(accessDays).
+    const paidAt = new Date();
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: { orderId },
+      select: { product: { select: { accessType: true, accessDays: true } } },
+    });
+    const expiresAt = computeOrderExpiresAt(
+      orderItems.map((i) => i.product),
+      paidAt,
+    );
+
     const claimed = await this.prisma.order.updateMany({
       where: { id: orderId, status: OrderStatus.PENDING },
       data: {
         status: OrderStatus.PAID,
+        paidAt,
+        expiresAt,
         ...(meta.qpayPaymentId && { qpayIdentifier: meta.qpayPaymentId }),
       },
     });

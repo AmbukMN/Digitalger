@@ -16,7 +16,7 @@ describe('CoursesService', () => {
   beforeEach(() => {
     prisma = {
       lesson: { findFirst: jest.fn() },
-      order: { findFirst: jest.fn() },
+      order: { findFirst: jest.fn(), findMany: jest.fn() },
       product: { findFirst: jest.fn() },
       lessonProgress: { findMany: jest.fn(), upsert: jest.fn() },
     };
@@ -65,7 +65,7 @@ describe('CoursesService', () => {
       expect(res.type).toBe('r2');
       expect(res.url).toBe('https://r2.signed/video');
       // free preview — order шалгахгүй
-      expect(prisma.order.findFirst).not.toHaveBeenCalled();
+      expect(prisma.order.findMany).not.toHaveBeenCalled();
     });
 
     it('preview биш + PAID эзэмшээгүй → NotFoundException (Access denied)', async () => {
@@ -78,7 +78,7 @@ describe('CoursesService', () => {
         course: { productId: 'prod-1', product: {} },
         resources: [],
       });
-      prisma.order.findFirst.mockResolvedValue(null); // эзэмшээгүй
+      prisma.order.findMany.mockResolvedValue([]); // эзэмшээгүй
 
       await expect(
         service.getLessonVideoUrl('slug', 'l3', 'user-1'),
@@ -96,13 +96,14 @@ describe('CoursesService', () => {
         course: { productId: 'prod-1', product: {} },
         resources: [],
       });
-      prisma.order.findFirst.mockResolvedValue({ id: 'order-paid' });
+      // ИДЭВХТЭЙ (expiresAt=null=насан туршийн) PAID order
+      prisma.order.findMany.mockResolvedValue([{ id: 'order-paid', expiresAt: null }]);
 
       const res: any = await service.getLessonVideoUrl('slug', 'l4', 'user-1');
 
       expect(res.type).toBe('r2');
       expect(res.url).toBe('https://r2.signed/video');
-      expect(prisma.order.findFirst).toHaveBeenCalledWith(
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             userId: 'user-1',
@@ -123,7 +124,7 @@ describe('CoursesService', () => {
         course: { productId: 'prod-1', product: {} },
         resources: [],
       });
-      prisma.order.findFirst.mockResolvedValue({ id: 'order-paid' });
+      prisma.order.findMany.mockResolvedValue([{ id: 'order-paid', expiresAt: null }]);
 
       const res: any = await service.getLessonVideoUrl('slug', 'l5', 'user-1');
 

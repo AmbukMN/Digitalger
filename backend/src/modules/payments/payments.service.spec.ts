@@ -30,6 +30,7 @@ describe('PaymentsService', () => {
         updateMany: jest.fn(),
       },
       payment: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+      orderItem: { findMany: jest.fn() },
       user: { update: jest.fn() },
     };
     config = {
@@ -49,6 +50,8 @@ describe('PaymentsService', () => {
     prisma.order.findUnique.mockResolvedValue({ userId: 'user-1' });
     prisma.user.update.mockResolvedValue({});
     prisma.payment.update.mockResolvedValue({});
+    // completePayment нь expiresAt тооцоход orderItem.findMany дуудна (default: хоосон)
+    prisma.orderItem.findMany.mockResolvedValue([]);
   });
 
   afterEach(() => {

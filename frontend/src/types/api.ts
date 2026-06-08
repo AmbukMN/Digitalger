@@ -67,6 +67,10 @@ export interface ProductSummary {
   mainVideoUrl?: string | null;
   previewUrl?: string | null;
   lessonCount?: number | null;
+  /** Хандалтын төрөл: LIFETIME = насан туршийн, DAYS = хязгаартай хоног */
+  accessType?: 'LIFETIME' | 'DAYS' | null;
+  /** accessType=DAYS үед хандалтын хоногийн тоо (жишээ: 90, 180, 365) */
+  accessDays?: number | null;
   category?: { id: string; name: string; slug: string };
 }
 
@@ -196,6 +200,12 @@ export interface Order {
 export interface PurchasedProduct {
   orderId: string;
   purchasedAt: string;
+  /** Хандалтын дуусах огноо (accessType=DAYS бол). LIFETIME бол null/undefined. */
+  expiresAt?: string | null;
+  /** Хандалтын хугацаа дууссан эсэх (backend тооцоолж буцаана) */
+  isExpired?: boolean;
+  /** Хандалтын төрөл — LIFETIME = насан туршийн, DAYS = хязгаартай */
+  accessType?: 'LIFETIME' | 'DAYS' | null;
   product: {
     id: string;
     title: string;

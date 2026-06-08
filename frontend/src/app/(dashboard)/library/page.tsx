@@ -7,6 +7,7 @@ import {
   Archive,
   CheckCircle2,
   ChevronDown,
+  Clock,
   Code,
   Download,
   DownloadCloud,
@@ -17,6 +18,7 @@ import {
   Loader2,
   Music,
   Package,
+  RefreshCw,
   Type,
   Video,
   XCircle,
@@ -456,6 +458,19 @@ export default function LibraryPage() {
             const canDownloadAll = hasFiles || hasBundles || hasZip;
             const zipName = `${entry.product.slug ?? entry.product.id}.zip`;
 
+            // ── Хандалтын хугацаа (accessType=DAYS) ──────────────────────────
+            // isExpired бол татах/үзэх идэвхгүй + "Дахин худалдан авах". Идэвхтэй
+            // хугацаатай бол үлдсэн хоног/дуусах огноо харуулна.
+            const isExpired = entry.isExpired === true;
+            const expiresAt = entry.expiresAt ? new Date(entry.expiresAt) : null;
+            const daysLeft =
+              expiresAt && !isExpired
+                ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000))
+                : null;
+            const expiresDateStr = expiresAt
+              ? expiresAt.toLocaleDateString('mn-MN', { year: 'numeric', month: 'short', day: 'numeric' })
+              : null;
+
             // Нийт татах боломжтой файлын тоо тооцоол
             const allBundleFileIds = (entry.product.bundles ?? []).flatMap((b: LibBundle) =>
               b.items.flatMap((item) => item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [])
@@ -515,11 +530,41 @@ export default function LibraryPage() {
                             })}
                             -нд авсан
                           </span>
+                          {/* Хандалтын хугацааны badge */}
+                          {isExpired ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                              <Clock className="h-3 w-3" />
+                              Хугацаа дууссан
+                            </span>
+                          ) : daysLeft != null ? (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                                daysLeft <= 7
+                                  ? 'border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                                  : 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                              }`}
+                            >
+                              <Clock className="h-3 w-3" />
+                              {daysLeft} хоног үлдсэн
+                            </span>
+                          ) : null}
                         </div>
                       }
                     />
                   </div>
-                  {canDownloadAll && (
+                  {/* Хугацаа дууссан бол "Дахин худалдан авах", эс бол "Бүгдийг татах" */}
+                  {isExpired ? (
+                    <Button
+                      asChild
+                      size="sm"
+                      className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Link href={`/products/${entry.product.slug}`}>
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Дахин худалдан авах
+                      </Link>
+                    </Button>
+                  ) : canDownloadAll && (
                     <Button
                       size="sm"
                       className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
@@ -532,6 +577,38 @@ export default function LibraryPage() {
                   )}
                 </div>
 
+                {/* Хугацаа дууссан бол файл/татах товч идэвхгүй — дахин авах CTA */}
+                {isExpired ? (
+                  <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/40">
+                        <Clock className="h-4.5 w-4.5 text-red-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-red-600 dark:text-red-400">
+                          Ашиглах хугацаа дууссан
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {expiresDateStr
+                            ? `${expiresDateStr}-нд хандалт дууссан. `
+                            : ''}
+                          Татах/үзэх эрхийг сэргээхийн тулд дахин худалдан авна уу.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      asChild
+                      size="sm"
+                      className="shrink-0 gap-1.5 w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Link href={`/products/${entry.product.slug}`}>
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Дахин худалдан авах
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                <>
                 {/* Bundles accordion */}
                 {hasBundles && (
                   <BundleSection
@@ -626,6 +703,8 @@ export default function LibraryPage() {
                       {isSingleFile ? 'Татах' : zipLabel(zipState)}
                     </Button>
                   </div>
+                )}
+                </>
                 )}
               </div>
             );

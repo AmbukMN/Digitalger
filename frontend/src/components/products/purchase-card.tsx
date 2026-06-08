@@ -16,7 +16,6 @@ import {
   Gift,
   Loader2,
   ShoppingCart,
-  Star,
   Tag,
   X,
 } from 'lucide-react';
@@ -31,7 +30,7 @@ import { useFileDownload } from '@/hooks/use-file-download';
 import { trackAddToCart, trackInitiateCheckout } from '@/lib/analytics';
 import { DiscountTimer } from './discount-timer';
 import { DownloadAllButton } from './download-all-button';
-import { TrustBadges } from './trust-badges';
+import { TrustBadges, accessLabel as accessLabelText } from './trust-badges';
 
 const EMPTY_COUPONS: AppliedCoupon[] = [];
 const FILES_PAGE_SIZE = 10;
@@ -423,12 +422,19 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
     staleTime: 60_000,
   });
 
-  const purchase = library.find((item) => item.product.id === product.id) ?? null;
+  // Хугацаа дууссан (isExpired) худалдан авалтыг "эзэмшээгүй" гэж үзнэ —
+  // ингэснээр expired бол энгийн "худалдаж авах" статус автомат харагдана (#6).
+  const purchase =
+    library.find((item) => item.product.id === product.id && item.isExpired !== true) ?? null;
   const sessionLoading = status === 'loading' || (!!session && libraryLoading);
 
   const basePrice = Number(product.price);
   // Үнэгүй: үнэ 0/null/хоосон. Нэвтрэхгүй хэн ч шууд татна.
   const isFree = product.price == null || basePrice === 0 || Number.isNaN(basePrice);
+  // Видео хичээлтэй эсэх — "Татах"→"Үзэх", trust badge "Шууд үзэх"
+  const isVideoCourse = (product.course?.lessons?.length ?? 0) > 0
+    || (product.course?.modules?.some((m) => m.lessons.length > 0) ?? false);
+  const accessLabelShort = accessLabelText(product.accessType, product.accessDays);
   const totalDiscount = coupons.reduce((sum, c) => sum + c.discount, 0);
   const finalPrice = Math.max(0, basePrice - totalDiscount);
   const comparePrice =
@@ -494,24 +500,8 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
             </span>
           )}
         </div>
-        <div className="mt-2 flex items-center gap-2 text-sm">
-          <div className="flex items-center gap-0.5">
-            {[1,2,3,4,5].map((s) => (
-              <Star key={s} className={`h-3.5 w-3.5 ${s <= Math.round(product.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`} />
-            ))}
-          </div>
-          <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
-          {product.ratingCount > 0 && (
-            <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
-          )}
-        </div>
-        {/* Бодит татсан тоо (social proof) — хуурамч "X хүн үзэж байна" биш */}
-        {product.downloadCount > 0 && (
-          <div className="mt-1.5 flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400">
-            <Flame className="h-3.5 w-3.5" />
-            {product.downloadCount} удаа татагдсан
-          </div>
-        )}
+        {/* ⭐ үнэлгээ / 🔥 татсан тоо нь MAIN хэсэгт (гарчгийн доор) байгаа тул
+            right sidebar-аас давхардуулахгүй — энд харуулахгүй (SS2 засвар). */}
       </div>
 
       {/* Urgency: discountEndsAt бодит хугацаа байвал countdown timer.
@@ -561,17 +551,23 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
         )}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Хандалт</span>
-          <span className="font-medium">Насан туршийн</span>
+          <span className="font-medium">{accessLabelShort}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Татах</span>
+          <span className="text-muted-foreground">{isVideoCourse ? 'Үзэх' : 'Татах'}</span>
           <span className="font-medium">Нэн даруй</span>
         </div>
       </div>
 
-      {/* Trust badges — итгэлийн тэмдгүүд */}
-      <div className="rounded-xl border border-border bg-muted/30 p-3">
-        <TrustBadges />
+      {/* Trust badges — итгэлийн тэмдгүүд (eco/teal зөөлөн background).
+          ♾️ хандалтын badge-ийг НУУНА — дээрх "Хандалт" мөртэй давхцахгүй (SS3 засвар). */}
+      <div className="rounded-xl border border-teal-500/20 bg-teal-500/6 dark:bg-teal-400/6 p-3">
+        <TrustBadges
+          isVideoCourse={isVideoCourse}
+          accessType={product.accessType}
+          accessDays={product.accessDays}
+          hideAccessBadge
+        />
       </div>
 
       {/* Coupon section — visually distinct from sidebar bg */}
@@ -653,7 +649,9 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
     staleTime: 60_000,
   });
 
-  const purchase = library.find((item) => item.product.id === product.id) ?? null;
+  // Expired бол "эзэмшээгүй" гэж үзнэ — энгийн худалдаж авах bar харагдана (#6).
+  const purchase =
+    library.find((item) => item.product.id === product.id && item.isExpired !== true) ?? null;
   const sessionLoading = status === 'loading' || (!!session && libraryLoading);
 
   const basePrice = Number(product.price);

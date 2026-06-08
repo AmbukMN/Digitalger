@@ -453,14 +453,15 @@ function CheckoutContent() {
                 )}
               </Button>
 
-              {/* Trust badges — итгэлийн тэмдгүүд (төлбөрийн товчны доор) */}
-              <div className="pt-1">
+              {/* Trust badges — итгэлийн тэмдгүүд (eco/teal зөөлөн background).
+                  Доорх баталгааны мессеж box-оос ялгаатай өнгөтэй — толгой эргэхгүй. */}
+              <div className="mt-1 rounded-xl border border-teal-500/20 bg-teal-500/6 dark:bg-teal-400/6 p-3">
                 <TrustBadges />
               </div>
             </div>
 
-            {/* Худалдан авалтын баталгаа — насан туршийн хандалт, шууд татах */}
-            <div className="flex items-center gap-2.5 rounded-xl border border-primary/15 bg-primary/4 px-4 py-3">
+            {/* Худалдан авалтын баталгаа — trust badge-ээс ялгаатай (primary navy) box */}
+            <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/4 px-4 py-3">
               <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Худалдан авалт = <span className="font-semibold text-foreground">насан туршийн хандалт</span>, төлбөр төлсний дараа шууд татах эрх нээгдэнэ. Бүх төлбөр QPay-ээр аюулгүй хийгдэнэ.

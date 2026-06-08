@@ -1,6 +1,8 @@
 import {
   IsArray,
   IsBoolean,
+  IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -133,4 +135,18 @@ export class UpdateProductDto {
   @ValidateIf((_, v) => v !== null)
   @IsString()
   proofAuthorRole?: string | null;
+
+  // ── Хандалтын хугацаа (access expiry) ──
+  // LIFETIME — насан туршийн. DAYS — accessDays хоногийн дараа дуусна.
+  @IsOptional()
+  @IsIn(['LIFETIME', 'DAYS'])
+  accessType?: 'LIFETIME' | 'DAYS';
+
+  // accessType=DAYS үед хоногийн тоо (1-ээс дээш). null/тэг үед хязгааргүй.
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && o.accessType === 'DAYS')
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  accessDays?: number | null;
 }

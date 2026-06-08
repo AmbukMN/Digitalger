@@ -11,6 +11,7 @@ import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { ZIP_QUEUE, type ZipJobPayload } from './zip.processor';
+import { isActiveOrder, pickActiveOrder } from '../../common/access-expiry';
 
 @Injectable()
 export class DownloadsService {
@@ -88,25 +89,30 @@ export class DownloadsService {
     // (2) Энэ fileId нь хэрэглэгчийн эзэмшсэн ЯМАР НЭГЭН bundle-ийн fileIds-д
     //     багтсан эсэх (BundleItem.fileIds нь өөр product-ийн файл байж болно —
     //     bundle худалдсан хэрэглэгч тэр файлыг татах эрхтэй).
-    const ownedDirect = await this.prisma.order.findFirst({
+    // Шууд эзэмшсэн (PAID) захиалгуудаас ИДЭВХТЭЙ (expiresAt null/future) нэг
+    // байгаа эсэх. Бүгд дууссан бол энэ файлыг шууд эрхээр татахыг зөвшөөрөхгүй.
+    const directOrders = await this.prisma.order.findMany({
       where: {
         userId,
         status: OrderStatus.PAID,
         items: { some: { productId: file.productId } },
       },
-      select: { id: true },
+      select: { id: true, expiresAt: true },
     });
 
-    let owned = !!ownedDirect;
+    let owned = !!pickActiveOrder(directOrders);
 
     if (!owned) {
-      // Хэрэглэгчийн эзэмшсэн бүх product-ийн bundle-уудаас энэ fileId-г хайна
-      const ownedProductIds = (
-        await this.prisma.orderItem.findMany({
-          where: { order: { userId, status: OrderStatus.PAID } },
-          select: { productId: true },
-        })
-      ).map((i) => i.productId);
+      // Хэрэглэгчийн эзэмшсэн бүх product-ийн bundle-уудаас энэ fileId-г хайна.
+      // ⚠️ Зөвхөн ИДЭВХТЭЙ (хугацаа дуусаагүй) захиалгын product-уудыг авна —
+      // дууссан bundle-ийн cross-product файлыг татах эрхгүй.
+      const ownedItems = await this.prisma.orderItem.findMany({
+        where: { order: { userId, status: OrderStatus.PAID } },
+        select: { productId: true, order: { select: { expiresAt: true } } },
+      });
+      const ownedProductIds = ownedItems
+        .filter((i) => isActiveOrder(i.order))
+        .map((i) => i.productId);
 
       if (ownedProductIds.length) {
         const bundles = await this.prisma.productBundle.findMany({
@@ -151,15 +157,8 @@ export class DownloadsService {
 
     if (!product) throw new NotFoundException('Product not found');
 
-    const owned = await this.prisma.order.findFirst({
-      where: {
-        userId,
-        status: OrderStatus.PAID,
-        items: { some: { productId } },
-      },
-    });
-
-    if (!owned) throw new ForbiddenException('You do not own this product');
+    // Эзэмшил + хандалтын хугацаа (expiresAt) идэвхтэй эсэхийг шалгана.
+    await this.assertActiveOwnership(userId, productId);
 
     if (!product.files.length) throw new NotFoundException('No files to download');
 
@@ -188,10 +187,8 @@ export class DownloadsService {
   }
 
   async streamBundleZip(userId: string, productId: string, bundleId: string, res: Response) {
-    const owned = await this.prisma.order.findFirst({
-      where: { userId, status: OrderStatus.PAID, items: { some: { productId } } },
-    });
-    if (!owned) throw new ForbiddenException('You do not own this product');
+    // Эзэмшил + хандалтын хугацаа (expiresAt) идэвхтэй эсэхийг шалгана.
+    await this.assertActiveOwnership(userId, productId);
 
     const bundle = await this.prisma.productBundle.findUnique({
       where: { id: bundleId },
@@ -233,10 +230,27 @@ export class DownloadsService {
   // ── Async queue-based zip (production) ───────────────────────────────────
 
   private async assertOwned(userId: string, productId: string) {
-    const owned = await this.prisma.order.findFirst({
+    await this.assertActiveOwnership(userId, productId);
+  }
+
+  /**
+   * Тухайн product-д хэрэглэгчид ИДЭВХТЭЙ (хугацаа дуусаагүй) хандах эрх байгаа
+   * эсэхийг шалгана. Бүх PAID захиалгыг авч, аль нэг нь идэвхтэй (expiresAt
+   * null=насан туршийн ЭСВЭЛ ирээдүйд) бол зөвшөөрнө.
+   *   - PAID огт байхгүй → ForbiddenException('You do not own this product')
+   *   - PAID байгаа ч БҮГД дууссан → ForbiddenException('Хандалтын хугацаа дууссан')
+   */
+  private async assertActiveOwnership(userId: string, productId: string) {
+    const orders = await this.prisma.order.findMany({
       where: { userId, status: OrderStatus.PAID, items: { some: { productId } } },
+      select: { id: true, expiresAt: true },
     });
-    if (!owned) throw new ForbiddenException('You do not own this product');
+    if (!orders.length) {
+      throw new ForbiddenException('You do not own this product');
+    }
+    if (!pickActiveOrder(orders)) {
+      throw new ForbiddenException('Хандалтын хугацаа дууссан');
+    }
   }
 
   async enqueueProductZip(userId: string, productId: string) {
@@ -534,6 +548,8 @@ export class DownloadsService {
                 slug: true,
                 type: true,
                 downloadFileKey: true,
+                accessType: true,
+                accessDays: true,
                 files: {
                   select: { id: true, fileName: true, sortOrder: true },
                   orderBy: { sortOrder: 'asc' },
@@ -596,7 +612,9 @@ export class DownloadsService {
       for (const f of resolved) bundleFileMap.set(f.id, f);
     }
 
-    return orders.flatMap((order) =>
+    const now = new Date();
+
+    const rows = orders.flatMap((order) =>
       order.items.map((item) => {
         const { images, bundles, files, ...productRest } = item.product as any;
 
@@ -632,11 +650,17 @@ export class DownloadsService {
           }
         }
 
+        const expiresAt = order.expiresAt ?? null;
+        const isExpired = !!expiresAt && expiresAt <= now;
+
         return {
           orderId: order.id,
           purchasedAt: order.createdAt,
+          // Хандалтын хугацаа — null бол насан туршийн, огноо бол түүнээс хойш дуусна.
+          expiresAt,
+          isExpired,
           product: {
-            ...productRest,
+            ...productRest, // accessType/accessDays багтсан (frontend trust badge/badge)
             files: standaloneFiles,
             bundleFiles: resolvedBundleFiles,
             bundles: bundles ?? [],
@@ -645,5 +669,47 @@ export class DownloadsService {
         };
       }),
     );
+
+    // ── Давхардал арилгах (нэг product = нэг мөр) ──
+    // Нэг бүтээгдэхүүнийг дахин худалдсан/grant хийсэн бол олон захиалгад орж
+    // болзошгүй. Хамгийн СОНГОМОЛ ИДЭВХТЭЙ эрхийг харуулна:
+    //   1) Идэвхтэй (isExpired=false) мөр байвал тэдгээрээс хамгийн урт хүчинтэйг
+    //      (expiresAt=null=насан туршийн хамгийн дээд) сонгоно.
+    //   2) Идэвхтэй огт байхгүй бол хамгийн сүүлд дууссан (expiresAt хамгийн их)
+    //      мөрийг isExpired=true-аар харуулна.
+    const byProduct = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const pid = row.product.id as string;
+      const prev = byProduct.get(pid);
+      if (!prev) {
+        byProduct.set(pid, row);
+        continue;
+      }
+      byProduct.set(pid, this.pickBetterDownloadRow(prev, row));
+    }
+
+    return [...byProduct.values()];
+  }
+
+  /**
+   * Нэг бүтээгдэхүүний 2 захиалгын мөрөөс "илүү сайн" (харуулах) нэгийг сонгоно.
+   * Идэвхтэй > дууссан; хоёул идэвхтэй бол насан туршийн (expiresAt=null) эсвэл
+   * хамгийн хожуу дуусах; хоёул дууссан бол хамгийн сүүлд дуусах.
+   */
+  private pickBetterDownloadRow<
+    T extends { expiresAt: Date | null; isExpired: boolean },
+  >(a: T, b: T): T {
+    // Идэвхтэйг дууссанаас илүүд үзнэ.
+    if (a.isExpired !== b.isExpired) return a.isExpired ? b : a;
+    // Хоёул идэвхтэй: насан туршийн (null) хамгийн дээд, эс бол хожуу дуусахыг авна.
+    if (!a.isExpired) {
+      if (!a.expiresAt) return a;
+      if (!b.expiresAt) return b;
+      return b.expiresAt > a.expiresAt ? b : a;
+    }
+    // Хоёул дууссан: хамгийн сүүлд дууссанг (хамгийн их expiresAt) харуулна.
+    if (!a.expiresAt) return a;
+    if (!b.expiresAt) return b;
+    return b.expiresAt > a.expiresAt ? b : a;
   }
 }

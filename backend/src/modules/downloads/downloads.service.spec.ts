@@ -22,7 +22,7 @@ describe('DownloadsService.verifyAndGetSignedUrl', () => {
   beforeEach(() => {
     prisma = {
       productFile: { findUnique: jest.fn(), findMany: jest.fn() },
-      order: { findFirst: jest.fn() },
+      order: { findFirst: jest.fn(), findMany: jest.fn() },
       orderItem: { findMany: jest.fn() },
       productBundle: { findMany: jest.fn() },
       product: { update: jest.fn() },
@@ -52,15 +52,15 @@ describe('DownloadsService.verifyAndGetSignedUrl', () => {
       productId: 'prod-1',
       product: { id: 'prod-1' },
     });
-    // ownedDirect олдсон (PAID order, тухайн product-той)
-    prisma.order.findFirst.mockResolvedValue({ id: 'order-1' });
+    // Шууд эзэмшсэн ИДЭВХТЭЙ (expiresAt=null=насан туршийн) PAID order олдсон
+    prisma.order.findMany.mockResolvedValue([{ id: 'order-1', expiresAt: null }]);
 
     const res = await service.verifyAndGetSignedUrl('user-1', 'file-1');
 
     expect(res.url).toBe('https://signed.url/file');
     expect(res.fileId).toBe('file-1');
     expect(res.fileName).toBe('doc.pdf');
-    expect(prisma.order.findFirst).toHaveBeenCalledWith(
+    expect(prisma.order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           userId: 'user-1',
@@ -78,7 +78,7 @@ describe('DownloadsService.verifyAndGetSignedUrl', () => {
       productId: 'prod-2',
       product: { id: 'prod-2' },
     });
-    prisma.order.findFirst.mockResolvedValue(null); // direct эзэмшээгүй
+    prisma.order.findMany.mockResolvedValue([]); // direct эзэмшээгүй
     prisma.orderItem.findMany.mockResolvedValue([]); // эзэмшсэн product байхгүй
 
     await expect(service.verifyAndGetSignedUrl('user-1', 'file-2')).rejects.toBeInstanceOf(
@@ -94,9 +94,11 @@ describe('DownloadsService.verifyAndGetSignedUrl', () => {
       productId: 'other-prod', // өөр product-ийн файл
       product: { id: 'other-prod' },
     });
-    prisma.order.findFirst.mockResolvedValue(null); // direct биш
-    // хэрэглэгч prod-1-ийг эзэмшсэн
-    prisma.orderItem.findMany.mockResolvedValue([{ productId: 'prod-1' }]);
+    prisma.order.findMany.mockResolvedValue([]); // direct биш
+    // хэрэглэгч prod-1-ийг эзэмшсэн (ИДЭВХТЭЙ — expiresAt=null)
+    prisma.orderItem.findMany.mockResolvedValue([
+      { productId: 'prod-1', order: { expiresAt: null } },
+    ]);
     // prod-1-ийн bundle дотор cross-file байна
     prisma.productBundle.findMany.mockResolvedValue([
       { items: [{ fileId: null, fileIds: ['cross-file'] }] },
@@ -116,8 +118,10 @@ describe('DownloadsService.verifyAndGetSignedUrl', () => {
       productId: 'other-prod',
       product: { id: 'other-prod' },
     });
-    prisma.order.findFirst.mockResolvedValue(null);
-    prisma.orderItem.findMany.mockResolvedValue([{ productId: 'prod-1' }]);
+    prisma.order.findMany.mockResolvedValue([]);
+    prisma.orderItem.findMany.mockResolvedValue([
+      { productId: 'prod-1', order: { expiresAt: null } },
+    ]);
     // bundle байгаа ч ондоо файл
     prisma.productBundle.findMany.mockResolvedValue([
       { items: [{ fileId: 'some-other', fileIds: [] }] },

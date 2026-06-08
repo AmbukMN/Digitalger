@@ -150,6 +150,10 @@ model Product {
   howToUseSteps     Json                 @default("[]")
   whatsIncluded     String?              @db.Text
   discountEndsAt    DateTime?
+  // Хандалтын хугацаа: LIFETIME (насан туршийн) эсвэл accessDays хоног (3/6/12 сар).
+  // Хугацаатай бол худалдсан огнооноос accessDays-ийн дараа эрх дуусна (Order.expiresAt).
+  accessType        String               @default("LIFETIME") // LIFETIME | DAYS
+  accessDays        Int? // accessType=DAYS үед хоногийн тоо (90/180/365 гэх мэт)
   videoUrl          String?
   downloadFileKey   String?
   proofImageUrl     String?
@@ -382,6 +386,11 @@ model Order {
   // Marketing automation — давхар имэйл явуулахаас сэргийлэх тэмдэглэгээ
   reminderSentAt     DateTime? // Cart abandonment (1ц) сануулга явуулсан огноо
   discountPushSentAt DateTime? // Discount push (24ц) 10% coupon follow-up явуулсан
+  // Хандалтын хугацаа: PAID болох үед бүтээгдэхүүний accessType-аас хамаарч тооцно.
+  //   paidAt    — төлбөр баталгаажсан огноо
+  //   expiresAt — null бол насан туршийн (LIFETIME); огноо бол түүнээс хойш эрх дуусна
+  paidAt           DateTime?
+  expiresAt        DateTime?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   items            OrderItem[]
@@ -390,6 +399,7 @@ model Order {
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
   @@index([userId, source])
+  @@index([userId, expiresAt])
 }
 
 model OrderItem {

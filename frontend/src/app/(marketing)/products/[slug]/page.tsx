@@ -19,14 +19,14 @@ import { DownloadAllButton } from '@/components/products/download-all-button';
 import { ProductSwiper } from '@/components/products/product-swiper';
 import {
   Star,
-  Download,
-  FileText,
   Package,
   BookOpen,
   CheckCircle2,
   ChevronRight,
   Quote,
+  Flame,
 } from 'lucide-react';
+import { ViewingNow } from '@/components/products/viewing-now';
 import { formatPrice } from '@digitalger/shared';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { ProductTracker } from '@/components/products/product-tracker';
@@ -223,27 +223,35 @@ export default async function ProductDetailPage({ params }: Props) {
                 <ProductTitleActions product={product} />
               </div>
 
-              {/* Rating + download row */}
-              <div className="mt-2 sm:mt-3 flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-nowrap overflow-hidden">
-                <a href="#reviews" className="flex items-center gap-1 sm:gap-1.5 hover:opacity-80 transition-opacity shrink-0">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
-                        star <= Math.round(product.rating)
-                          ? 'fill-yellow-400 text-yellow-400'
-                          : 'text-muted-foreground/30'
-                      }`}
-                    />
-                  ))}
-                  <span className="font-semibold">{product.rating.toFixed(1)}</span>
-                  <span className="text-muted-foreground">({product.ratingCount} үнэлгээ)</span>
+              {/* Rating + download + viewing-now row */}
+              <div className="mt-2 sm:mt-3 flex items-center gap-2 sm:gap-3 text-xs sm:text-sm flex-wrap">
+                <a
+                  href="#reviews"
+                  className="flex items-center gap-1.5 rounded-full bg-yellow-400/10 border border-yellow-400/25 px-2.5 py-1 hover:bg-yellow-400/20 transition-colors shrink-0"
+                >
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
+                          star <= Math.round(product.rating)
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-muted-foreground/30'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="font-bold text-foreground">{product.rating.toFixed(1)}</span>
+                  <span className="text-muted-foreground">({product.ratingCount})</span>
                 </a>
-                <span className="text-muted-foreground/40 shrink-0">·</span>
-                <div className="flex items-center gap-1 text-muted-foreground shrink-0">
-                  <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  {product.downloadCount} удаа татсан
-                </div>
+                {product.downloadCount > 0 && (
+                  <div className="flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/25 px-2.5 py-1 font-medium text-orange-600 dark:text-orange-400 shrink-0">
+                    <Flame className="h-3.5 w-3.5" />
+                    {product.downloadCount} татсан
+                  </div>
+                )}
+                {/* Хуурамч social-proof urgency — "X хүн үзэж байна" (хэрэглэгч хүссэн) */}
+                <ViewingNow seed={product.id} className="shrink-0" />
               </div>
               {/* Price — mobile only, shown below rating row */}
               <div className="mt-2 flex items-baseline gap-2 lg:hidden">

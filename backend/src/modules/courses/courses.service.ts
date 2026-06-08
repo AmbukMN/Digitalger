@@ -9,6 +9,7 @@ import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
+import { pickActiveOrder } from '../../common/access-expiry';
 
 @Injectable()
 export class CoursesService {
@@ -22,6 +23,19 @@ export class CoursesService {
     private readonly config: ConfigService,
   ) {
     this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
+  }
+
+  /**
+   * Тухайн курсын product-д хэрэглэгчид ИДЭВХТЭЙ (хугацаа дуусаагүй) хандах эрх
+   * байгаа эсэх. Бүх PAID захиалгаас аль нэг идэвхтэй (expiresAt null=насан
+   * туршийн ЭСВЭЛ ирээдүйд) байвал true. Хугацаа дууссан/эзэмшээгүй бол false.
+   */
+  private async hasActiveCourseAccess(userId: string, productId: string): Promise<boolean> {
+    const orders = await this.prisma.order.findMany({
+      where: { userId, status: OrderStatus.PAID, items: { some: { productId } } },
+      select: { id: true, expiresAt: true },
+    });
+    return !!pickActiveOrder(orders);
   }
 
   async getLessonsByProductSlug(slug: string) {
@@ -103,16 +117,11 @@ export class CoursesService {
       throw new NotFoundException('Lesson video not found');
     }
 
-    // Entitlement шалгалт — preview биш бол PAID order заавал (бүх эх сурвалжид адил).
+    // Entitlement шалгалт — preview биш бол ИДЭВХТЭЙ (хугацаа дуусаагүй) PAID
+    // order заавал (бүх эх сурвалжид адил). Дууссан бол хандах эрхгүй.
     if (!lesson.isFreePreview) {
-      const owned = await this.prisma.order.findFirst({
-        where: {
-          userId,
-          status: OrderStatus.PAID,
-          items: { some: { productId: lesson.course.productId } },
-        },
-      });
-      if (!owned) {
+      const active = await this.hasActiveCourseAccess(userId, lesson.course.productId);
+      if (!active) {
         throw new NotFoundException('Access denied');
       }
     }
@@ -177,14 +186,8 @@ export class CoursesService {
       throw new NotFoundException('Lesson not found');
     }
     if (!lesson.isFreePreview) {
-      const owned = await this.prisma.order.findFirst({
-        where: {
-          userId,
-          status: OrderStatus.PAID,
-          items: { some: { productId: lesson.course.productId } },
-        },
-      });
-      if (!owned) {
+      const active = await this.hasActiveCourseAccess(userId, lesson.course.productId);
+      if (!active) {
         throw new ForbiddenException('Access denied');
       }
     }
@@ -278,16 +281,10 @@ export class CoursesService {
       throw new NotFoundException('Resource not found');
     }
 
-    // Entitlement — preview бус хичээлийн хавсралт бол PAID order заавал.
+    // Entitlement — preview бус хичээлийн хавсралт бол ИДЭВХТЭЙ PAID order заавал.
     if (!resource.lesson.isFreePreview) {
-      const owned = await this.prisma.order.findFirst({
-        where: {
-          userId,
-          status: OrderStatus.PAID,
-          items: { some: { productId: resource.lesson.course.productId } },
-        },
-      });
-      if (!owned) {
+      const active = await this.hasActiveCourseAccess(userId, resource.lesson.course.productId);
+      if (!active) {
         throw new ForbiddenException('Access denied');
       }
     }

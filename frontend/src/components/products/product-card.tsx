@@ -40,7 +40,10 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     staleTime: 5 * 60_000,
   });
 
-  const isPurchased = mounted && !!purchased?.some((p) => p.product.id === product.id);
+  // Expired (хугацаа дууссан) худалдан авалтыг "эзэмшээгүй" гэж үзнэ —
+  // ингэснээр card дээр энгийн "худалдаж авах" статус харагдана (#6).
+  const isPurchased =
+    mounted && !!purchased?.some((p) => p.product.id === product.id && p.isExpired !== true);
   const inWishlist = mounted && inWishlistRaw;
   const inCart = mounted && has(product.id);
 

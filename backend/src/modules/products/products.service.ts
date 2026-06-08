@@ -239,9 +239,15 @@ export class ProductsService {
       course = { ...course, lessons: resolvedLessons, modules: resolvedModules };
     }
 
+    // Trust badge dynamic: видео курс бол "Шууд үзэх", эс бол "Шууд татах".
+    // hasCourse — энэ product курс мөн эсэх (course != null).
+    const hasCourse = !!course;
+
     return {
-      ...mapped,
+      ...mapped, // accessType/accessDays багтсан (findFirst бүх scalar буцаана)
       course,
+      hasCourse,
+      isVideoCourse: hasCourse,
       faqs: product.faqs.map((pf) => pf.faq),
       testimonials: product.testimonials.map((pt) => pt.testimonial),
     };

@@ -1,11 +1,14 @@
 import {
   IsArray,
   IsBoolean,
+  IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -117,4 +120,18 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   proofAuthorRole?: string;
+
+  // ── Хандалтын хугацаа (access expiry) ──
+  // LIFETIME (default) — насан туршийн. DAYS — accessDays хоногийн дараа дуусна.
+  @IsOptional()
+  @IsIn(['LIFETIME', 'DAYS'])
+  accessType?: 'LIFETIME' | 'DAYS';
+
+  // accessType=DAYS үед хоногийн тоо (1-ээс дээш). LIFETIME үед үл хэрэгсэнэ.
+  @IsOptional()
+  @ValidateIf((o) => o.accessType === 'DAYS')
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  accessDays?: number;
 }

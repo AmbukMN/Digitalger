@@ -258,6 +258,9 @@ export interface AdminProduct {
   category?: AdminCategory;
   published: boolean;
   featured: boolean;
+  // Хандалтын хугацаа: LIFETIME = насан туршийн, DAYS = тодорхой хоногийн дараа эрх дуусна
+  accessType?: 'LIFETIME' | 'DAYS';
+  accessDays?: number | null;
   previewUrl: string | null;
   seoTitle: string | null;
   seoDescription: string | null;

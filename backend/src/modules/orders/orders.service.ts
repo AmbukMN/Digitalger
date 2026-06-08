@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { computeOrderExpiresAt } from '../../common/access-expiry';
 
 @Injectable()
 export class OrdersService {
@@ -170,12 +171,18 @@ export class OrdersService {
     const isFree = total.isZero();
     const appliedCouponCodes = appliedCoupons.map((c) => c.code).join(',') || undefined;
 
+    // Free order шууд PAID болох тул хандалтын хугацааг (expiresAt) энд тооцно.
+    // Аль нэг бүтээгдэхүүн LIFETIME бол null (насан туршийн), бүгд DAYS бол MAX.
+    const freePaidAt = isFree ? new Date() : null;
+    const freeExpiresAt = isFree ? computeOrderExpiresAt(products, freePaidAt!) : null;
+
     const order = await this.prisma.order.create({
       data: {
         userId,
         total,
         // If total is 0, immediately mark as PAID (free order — no payment needed)
         status: isFree ? OrderStatus.PAID : OrderStatus.PENDING,
+        ...(isFree && { paidAt: freePaidAt, expiresAt: freeExpiresAt }),
         couponCode: appliedCouponCodes,
         items: {
           create: products.map((p) => ({
@@ -288,10 +295,23 @@ export class OrdersService {
   }
 
   async markPaid(orderId: string, qpayIdentifier?: string) {
+    // Хандалтын хугацаа (expiresAt) тооцно — бүтээгдэхүүний accessType-аас хамаарч.
+    const paidAt = new Date();
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: { orderId },
+      select: { product: { select: { accessType: true, accessDays: true } } },
+    });
+    const expiresAt = computeOrderExpiresAt(
+      orderItems.map((i) => i.product),
+      paidAt,
+    );
+
     const order = await this.prisma.order.update({
       where: { id: orderId },
       data: {
         status: OrderStatus.PAID,
+        paidAt,
+        expiresAt,
         ...(qpayIdentifier && { qpayIdentifier }),
       },
       include: {
