@@ -68,6 +68,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       id: `cart-${product.id}`,
       duration: 4000,
       description: product.title,
+      action: { label: 'Сагс харах', onClick: () => window.location.href = '/checkout' },
     });
   };
 
