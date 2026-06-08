@@ -21,40 +21,56 @@ const NAMES = [
   'Нандин', 'Erdene', 'Хонгорзул', 'Bayasgalan',
 ];
 
-// ── Бодит сэтгэгдэл сан — rating-аар, ОЛОН ЯНЗ (монгол/латин/холимог/богино/урт) ──
-const C5 = [
-  'Үнэхээр гоё бүтээгдэхүүн юм. Чанартай, дэлгэрэнгүй хийгдсэн байна. Баярлалаа!',
-  'Saihan baina, tatsanaa shууd ашигласан. Хүлээж байснаас илүү гарсан.',
-  'Hямдхан атлаа чанартай. Дараа дахиад авна. Зөвлөж байна.',
-  'goy shdee, yagaad odoo bolтол ийм зүйл олоогүй юм бол. Цаг хэмнэлээ.',
+// ── Бодит сэтгэгдэл — ЦЭВЭР монгол ЭСВЭЛ ЦЭВЭР латин галиг (НЭГ сэтгэгдэлд холимог БИШ).
+// Нэг хүн нэг л хэлбэрээр бичдэг. Богино/урт хослуулсан, бодит хэлбэр.
+const C5_MN = [
+  'Үнэхээр гоё бүтээгдэхүүн юм. Чанартай, дэлгэрэнгүй хийгдсэн байна. Баярлалаа.',
+  'Хямдхан атлаа чанартай. Дараа дахиад авна. Зөвлөж байна.',
   'Бизнестээ шууд ашигласан, маш тустай байна. Ажилдаа хэрэглэж байгаа.',
-  'Mash sain. Ene үнээр ийм чанартай зүйл авна гэж бодоогүй. Талархаж байна 🙏',
   'Бүх зүйл бэлэн, цэгцтэй. Шинэхэн дизайнтай. Хурдан татаж авлаа.',
-  'Tuyl goy bolson baina. Найзууддаа санал болгосон. Үнэхээр хэрэгтэй байсан.',
-  'Зүгээр л супер. Профессионал хийгдсэн, юу ч засах шаардлагагүй. Гялалзлаа.',
-  'tung saihan ajillalaa, content ni delgerengui. damжуулсан хэрэгсэл нь зөв байсан.',
+  'Зүгээр л супер. Профессионал хийгдсэн, юу ч засах шаардлагагүй.',
   'Маркетингийн ажилдаа ашигласан, үр дүн нь гайхалтай. Сэтгэл хангалуун.',
-  'gaihaltai! tatsanaa neeeed shууд ашиглаж эхэлсэн. Ямар ч асуудалгүй.',
   'Үнэ цэнэтэй хөрөнгө оруулалт болсон. Дахин дахин ашиглаж байна.',
-  'Setgel hangaluun baina. Бүх зүйл байрандаа. Худалдан авсандаа харамсаагүй.',
-  'Шилдэг. Манай багийнхан бүгд ашиглаж байна. Их цаг хэмнэсэн.',
+  'Манай багийнхан бүгд ашиглаж байна. Их цаг хэмнэсэн. Шилдэг.',
+  'Энэ үнээр ийм чанартай зүйл авна гэж бодоогүй. Талархаж байна.',
+  'Найзууддаа санал болгосон. Үнэхээр хэрэгтэй байсан. Гоё.',
 ];
-const C4 = [
+const C5_LAT = [
+  'Mash goy buteegdehuun. Chanartai, delgerengui hiigdsen baina. Bayarlalaa.',
+  'Hyamdhan atlaa chanartai. Daraa dahiad avna. Zovloj baina.',
+  'Tatsanaa shuud ashiglasan, hudaldan avsandaa setgel hangaluun baina.',
+  'Buh zuil belen, tsegtstei. Shinehen dizaintai. Hurdan tataj avlaa.',
+  'Zugeer l super. Professional hiigdsen, yuu ch zasah shaardlagagui.',
+  'Biznestee shuud ashiglasan, ur dun ni gaihaltai baina shdee.',
+  'Une tsenetei. Dahin dahin ashiglaj baina. Zovloj baina.',
+  'Manai bagiinhan bugd ashiglaj baina. Ih tsag hemnesen.',
+];
+const C4_MN = [
   'Сайн бүтээгдэхүүн. Ерөнхийдөө таалагдсан. Зарим хэсгийг сайжруулж болох байсан.',
-  'goy, gehdee jaahan нэмэлт жишээ оруулсан бол гэж бодсон. Гэхдээ зүгээр.',
   'Чанартай. Хүлээж байснаас бараг ижил. Үнэдээ тохирсон.',
-  'Bolohuitsig. Ашиглахад тохиромжтой боловч заавар нь арай дутуу санагдсан.',
-  'Сайн л байна. 5 од өгөхөөс жаахан болгоомжилсон, гэхдээ дахин авна.',
-  'Hereglehed amar. Зарим зураг нь арай тодорхой бус. Ерөнхийдөө OK.',
+  'Сайн л байна. Тав од өгөхөөс жаахан болгоомжилсон, гэхдээ дахин авна.',
+  'Ашиглахад тохиромжтой боловч заавар нь арай дутуу. Ерөнхийдөө зүгээр.',
 ];
-const C3 = [
+const C4_LAT = [
+  'Sain buteegdehuun. Eronhiidoo taalagdsan. Zarim hesgiig saijruulj boloh baisan.',
+  'Chanartai. Huleej baisnaas barag ijil. Unedee tohirson.',
+  'Hereglehed amar. Zarim zurag ni arai todorhoi bus. Eronhiidoo bolj baina.',
+];
+const C3_MN = [
   'Дунд зэрэг. Зарим нь сайн, зарим нь ердийн. Ерөнхийдөө болохуйц.',
-  'Bolj baina. Илүү дэлгэрэнгүй байсан бол сайн байх байсан.',
   'Гайгүй. Хүлээснээс арай бага. Гэхдээ үнэдээ тохирсон байх.',
 ];
+const C3_LAT = [
+  'Dund zereg. Zarim ni sain, zarim ni erdiin. Eronhiidoo bolohuits.',
+  'Bolj baina. Iluu delgerengui baisan bol sain baih baisan.',
+];
 
-function pickPool(r) {
-  return r === 5 ? C5 : r === 4 ? C4 : C3;
+// Хэрэглэгч бүр ЭСВЭЛ монгол ЭСВЭЛ латин (нэг сэтгэгдэлд холихгүй). ~1/3 латин.
+function pickComment(rating, i) {
+  const latin = i % 3 === 1;
+  if (rating === 5) return latin ? C5_LAT[(i * 5) % C5_LAT.length] : C5_MN[(i * 7) % C5_MN.length];
+  if (rating === 4) return latin ? C4_LAT[(i * 3) % C4_LAT.length] : C4_MN[(i * 3) % C4_MN.length];
+  return latin ? C3_LAT[i % C3_LAT.length] : C3_MN[i % C3_MN.length];
 }
 
 // Product бүрд ЯНЗ БҮРИЙН review тоо (нэг хэвийн биш) — slug hash-аас тогтвортой
@@ -94,8 +110,7 @@ async function seedProduct(product, users, target) {
   for (let i = 0; i < realTarget; i++) {
     const rnd = (i * 37) % 100;
     const rating = rnd < 72 ? 5 : rnd < 92 ? 4 : 3;
-    const pool = pickPool(rating);
-    const comment = pool[(i * 7) % pool.length];
+    const comment = pickComment(rating, i);
     const authorName = NAMES[(i * 3) % NAMES.length];
     const daysAgo = (i * 1.3) % 90;
     const createdAt = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
