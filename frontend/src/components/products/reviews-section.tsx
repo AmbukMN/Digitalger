@@ -197,6 +197,17 @@ function ReviewForm({
   const [captcha, setCaptcha] = useState(() => ({ a: rand(), b: rand() }));
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [loading, setLoading] = useState(false);
+  // Хэрэглэгч "Илгээх" дарж оролдсон эсэх — анхааруулга/highlight-ийг зөвхөн дараа нь харуулна.
+  const [attempted, setAttempted] = useState(false);
+
+  // Валидаци төлөв (UX): од сонгоогүй / сэтгэгдэл хоосон.
+  const ratingMissing = rating < 1;
+  const commentMissing = comment.trim().length === 0;
+  // Илгээх товч идэвхгүй болох нөхцөл (0 од ХЭЗЭЭ Ч илгээгдэхгүй).
+  const submitDisabled = loading || ratingMissing || commentMissing;
+  // Анхааруулга харуулах: хэрэглэгч "Илгээх" дарсан, ЭСВЭЛ сэтгэгдэл бичсэн атлаа од сонгоогүй
+  // (товч disabled тул click toast гарахгүй — иймд бичиж эхэлмэгц л сануулна, хэрэглэгч мартахгүй).
+  const showRatingWarning = ratingMissing && (attempted || !commentMissing);
 
   const refreshCaptcha = useCallback(() => {
     setCaptcha({ a: rand(), b: rand() });
@@ -207,8 +218,12 @@ function ReviewForm({
     e.preventDefault();
     if (loading) return;
 
+    // Анхааруулга/highlight харуулахаар тэмдэглэнэ.
+    setAttempted(true);
+
+    // ⚠️ 0 од ХЭЗЭЭ Ч илгээгдэхгүй (frontend хамгаалалт; backend ч давхар шалгана).
     if (rating < 1 || rating > 5) {
-      toast.error('Од сонгож үнэлгээ өгнө үү');
+      toast.error('Од дарж үнэлгээгээ өгнө үү');
       return;
     }
     const trimmedComment = comment.trim();
@@ -285,7 +300,27 @@ function ReviewForm({
         <Label>
           Үнэлгээ <span className="text-destructive">*</span>
         </Label>
-        <StarPicker value={rating} onChange={setRating} disabled={loading} />
+        {/* Хэрэглэгч "Илгээх" дарсан ч од сонгоогүй бол улаан хүрээгээр анхаарал татна. */}
+        <div
+          className={cn(
+            'inline-flex w-fit rounded-lg transition-colors',
+            showRatingWarning &&
+              'animate-pulse rounded-lg ring-2 ring-destructive/70 ring-offset-2 ring-offset-background',
+          )}
+        >
+          <StarPicker
+            value={rating}
+            onChange={(v) => {
+              setRating(v);
+              setAttempted(false); // Од сонгомогц анхааруулга арилна — хэрэглэгч мартахгүй.
+            }}
+            disabled={loading}
+          />
+        </div>
+        {/* Улаан анхааруулга текст — од сонгоогүй (илгээх оролдсон эсвэл сэтгэгдэл бичсэн) үед. */}
+        {showRatingWarning && (
+          <p className="text-xs font-medium text-destructive">Од дарж үнэлгээгээ өгнө үү</p>
+        )}
       </div>
 
       {/* Нэр (зөвхөн шинээр үлдээхэд) */}
@@ -356,7 +391,8 @@ function ReviewForm({
       )}
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={loading} className="font-semibold">
+        {/* rating===0 эсвэл сэтгэгдэл хоосон бол DISABLED — 0 од дарагдахгүй. */}
+        <Button type="submit" disabled={submitDisabled} className="font-semibold">
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />

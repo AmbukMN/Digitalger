@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const PENDING_EXPIRE_HOURS = 48;
@@ -15,24 +15,35 @@ export class OrderCleanupService {
   async autoCancelExpiredOrders() {
     const cutoff = new Date(Date.now() - PENDING_EXPIRE_HOURS * 60 * 60 * 1000);
 
-    // Цуцлахаас ӨМНӨ купонтой захиалгуудыг авна — usedCount буцаахын тулд.
+    // Цуцлахаас ӨМНӨ хугацаа дууссан захиалгуудыг авна:
+    //   - id     → холбоотой PENDING Payment-уудыг FAILED болгож синк хийхэд
+    //   - купон  → usedCount буцаахад
     const expiring = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.PENDING,
         createdAt: { lt: cutoff },
-        couponCode: { not: null },
       },
-      select: { couponCode: true },
+      select: { id: true, couponCode: true },
     });
+    const expiringIds = expiring.map((o) => o.id);
 
-    const result = await this.prisma.order.updateMany({
-      where: {
-        status: OrderStatus.PENDING,
-        createdAt: { lt: cutoff },
-      },
-      // Систем (cron) автоматаар цуцалсан — admin UI ялгаж харуулна.
-      data: { status: OrderStatus.CANCELLED, cancelledBy: 'SYSTEM', cancelledAt: new Date() },
-    });
+    if (expiringIds.length === 0) {
+      return;
+    }
+
+    // Order CANCELLED + холбоотой PENDING Payment → FAILED-ийг хамт (атомик) хийнэ —
+    // нэг захиалга 2 өөр статустай (Order CANCELLED / Payment PENDING) болохоос сэргийлнэ.
+    const [result] = await this.prisma.$transaction([
+      this.prisma.order.updateMany({
+        where: { id: { in: expiringIds } },
+        // Систем (cron) автоматаар цуцалсан — admin UI ялгаж харуулна.
+        data: { status: OrderStatus.CANCELLED, cancelledBy: 'SYSTEM', cancelledAt: new Date() },
+      }),
+      this.prisma.payment.updateMany({
+        where: { orderId: { in: expiringIds }, status: PaymentStatus.PENDING },
+        data: { status: PaymentStatus.FAILED },
+      }),
+    ]);
 
     // Цуцалсан захиалгуудын купоны usedCount-ийг буцаана (0-ээс доош буурахгүй).
     const codes = expiring

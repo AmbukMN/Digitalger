@@ -20,7 +20,7 @@ import { memoryStorage } from 'multer';
 import * as XLSX from 'xlsx';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
-import { OrderStatus, Prisma, Role } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -712,24 +712,54 @@ export class AdminController {
   }
 
   @Patch('orders/:id/status')
-  updateOrderStatus(
+  async updateOrderStatus(
     @Param('id') id: string,
     @Body('status') status: OrderStatus,
   ) {
-    return this.prisma.order.update({
-      where: { id },
-      data: {
-        status,
-        // Админ гараар цуцалбал эх сурвалжийг тэмдэглэнэ (admin UI ялгана).
-        ...(status === OrderStatus.CANCELLED
-          ? { cancelledBy: 'ADMIN', cancelledAt: new Date() }
-          : {}),
-      },
-    });
+    // Order статус солихдоо холбоотой Payment-ийг ч синк хийнэ (нэг захиалга
+    // 2 өөр статустай болохоос сэргийлнэ). Атомик транзакц.
+    const [order] = await this.prisma.$transaction([
+      this.prisma.order.update({
+        where: { id },
+        data: {
+          status,
+          // Админ гараар цуцалбал эх сурвалжийг тэмдэглэнэ (admin UI ялгана).
+          ...(status === OrderStatus.CANCELLED
+            ? { cancelledBy: 'ADMIN', cancelledAt: new Date() }
+            : {}),
+        },
+      }),
+      ...this.syncPaymentsForOrderStatus(id, status),
+    ]);
+    return order;
+  }
+
+  /** Order статусаас хамаарч Payment-ийг синк хийх transaction op-уудыг буцаана:
+   *   - CANCELLED/FAILED → PENDING Payment-ууд FAILED (цуцлагдсан = амжилтгүй)
+   *   - PAID            → бүх Payment SUCCESS (admin gift/manual идэвхжүүлэлт)
+   * Бусад статус (PENDING/REFUNDED) → Payment-д хүрэхгүй. */
+  private syncPaymentsForOrderStatus(orderId: string, status: OrderStatus) {
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.FAILED) {
+      return [
+        this.prisma.payment.updateMany({
+          where: { orderId, status: PaymentStatus.PENDING },
+          data: { status: PaymentStatus.FAILED },
+        }),
+      ];
+    }
+    if (status === OrderStatus.PAID) {
+      return [
+        this.prisma.payment.updateMany({
+          where: { orderId, status: { not: PaymentStatus.SUCCESS } },
+          data: { status: PaymentStatus.SUCCESS },
+        }),
+      ];
+    }
+    return [];
   }
 
   @Patch('orders/:id')
-  updateOrder(
+  async updateOrder(
     @Param('id') id: string,
     @Body() body: { status?: OrderStatus; couponCode?: string | null },
   ) {
@@ -743,15 +773,23 @@ export class AdminController {
       }
     }
     if (body.couponCode !== undefined) data.couponCode = body.couponCode ?? null;
-    return this.prisma.order.update({
-      where: { id },
-      data,
-      include: {
-        user: { select: { id: true, email: true, name: true } },
-        items: { include: { product: { select: { title: true, slug: true } } } },
-        payments: true,
-      },
-    });
+    // Order статус солих үед Payment-ийг ч синк хийнэ (нэг захиалга 2 өөр
+    // статустай болохоос сэргийлнэ). Атомик транзакц.
+    const [order] = await this.prisma.$transaction([
+      this.prisma.order.update({
+        where: { id },
+        data,
+        include: {
+          user: { select: { id: true, email: true, name: true } },
+          items: { include: { product: { select: { title: true, slug: true } } } },
+          payments: true,
+        },
+      }),
+      ...(body.status !== undefined
+        ? this.syncPaymentsForOrderStatus(id, body.status)
+        : []),
+    ]);
+    return order;
   }
 
   @Delete('orders/:id')

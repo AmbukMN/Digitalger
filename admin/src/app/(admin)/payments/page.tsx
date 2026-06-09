@@ -52,6 +52,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// Захиалгын төлөв — Payment-ийн төлөвтэй зэрэгцүүлж харуулна (зөрүү эсэхийг
+// admin шууд хармагц ойлгоно; одоо backend синк хийдэг тул ихэвчлэн таарна).
+const ORDER_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  PAID:      { label: 'Төлсөн',           cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  PENDING:   { label: 'Хүлээгдэж байна',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  CANCELLED: { label: 'Цуцалсан',         cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  FAILED:    { label: 'Амжилтгүй',        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  REFUNDED:  { label: 'Буцаасан',         cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+};
+
+function OrderStatusBadge({ status }: { status: string }) {
+  const s = ORDER_STATUS_MAP[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' };
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${s.cls}`}>
+      Захиалга: {s.label}
+    </span>
+  );
+}
+
 function UserCell({ name, email, image }: { name: string | null; email: string; image?: string | null }) {
   const initials = (name ?? email).charAt(0).toUpperCase();
   return (
@@ -197,11 +216,14 @@ export default function PaymentsPage() {
       id: 'order',
       header: 'Захиалга',
       cell: ({ row }) => (
-        <div>
+        <div className="space-y-1">
           <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 font-mono text-xs font-bold tracking-wide">
             #{row.original.order.id.slice(-8).toUpperCase()}
           </span>
-          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+          <div>
+            <OrderStatusBadge status={row.original.order.status} />
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">
             {row.original.id.slice(-10).toUpperCase()}
           </p>
         </div>

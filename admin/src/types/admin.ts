@@ -324,6 +324,7 @@ export interface AdminPaymentRow {
   createdAt: string;
   order: {
     id: string;
+    status: string;
     user: { id: string; email: string; name: string | null; image?: string | null };
   };
 }

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
@@ -248,11 +248,19 @@ export class OrdersService {
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException('Зөвхөн хүлээгдэж буй захиалгыг цуцалж болно');
     }
-    const cancelled = await this.prisma.order.update({
-      where: { id: orderId },
-      // Цуцлалтын эх сурвалж: хэрэглэгч өөрөө цуцалсан (admin UI ялгаж харуулна).
-      data: { status: OrderStatus.CANCELLED, cancelledBy: 'USER', cancelledAt: new Date() },
-    });
+    // Order CANCELLED болохдоо холбоотой PENDING Payment-уудыг → FAILED болгоно
+    // (нэг захиалга 2 өөр статустай болохоос сэргийлнэ). Атомик транзакц.
+    const [cancelled] = await this.prisma.$transaction([
+      this.prisma.order.update({
+        where: { id: orderId },
+        // Цуцлалтын эх сурвалж: хэрэглэгч өөрөө цуцалсан (admin UI ялгаж харуулна).
+        data: { status: OrderStatus.CANCELLED, cancelledBy: 'USER', cancelledAt: new Date() },
+      }),
+      this.prisma.payment.updateMany({
+        where: { orderId, status: PaymentStatus.PENDING },
+        data: { status: PaymentStatus.FAILED },
+      }),
+    ]);
     // Захиалгад хэрэглэсэн купоны usedCount-ийг буцаана — эс бол цуцалсан
     // захиалгын купон "хэрэглэгдсэн" хэвээр үлдэж maxUses-д буруу хүрнэ.
     await this.releaseOrderCoupons(order.couponCode);
