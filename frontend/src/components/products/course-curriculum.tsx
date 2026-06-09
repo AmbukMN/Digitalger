@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -517,6 +518,7 @@ export function CourseCurriculum({
   productSlug: string;
 }) {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [activeLesson, setActiveLesson] = useState<CourseLesson | null>(null);
   const [activeVideo, setActiveVideo] = useState<LessonVideoResult | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -591,19 +593,12 @@ export function CourseCurriculum({
   );
 
   async function openLesson(lesson: CourseLesson) {
-    // ── Худалдаж авсан хэрэглэгч — бүх төрлийн видео (stream/r2/external) ──
-    // getLessonVideoUrl backend дээр signed token/presigned url буцаана.
-    if (purchased && session?.accessToken) {
-      setLoadingLessonId(lesson.id);
-      try {
-        const res = await coursesApi.getLessonVideoUrl(session.accessToken, productSlug, lesson.id);
-        setActiveLesson(lesson);
-        setActiveVideo(res);
-      } catch {
-        // silently ignore
-      } finally {
-        setLoadingLessonId(null);
-      }
+    // ── Худалдаж авсан хэрэглэгч — solo player ОГТ ашиглахгүй.
+    // Учир detail хуудсан дээрх хичээл дээр дарвал ШУУД ҮНДСЭН learn page
+    // (том баруунтай player) руу шилжинэ. Solo modal зөвхөн худалдаагүй
+    // үеийн үнэгүй preview-д л.
+    if (purchased) {
+      router.push(`/learn/${productSlug}?lesson=${lesson.id}`);
       return;
     }
 

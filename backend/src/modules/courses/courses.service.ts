@@ -145,9 +145,8 @@ export class CoursesService {
       },
     });
 
-    // Видео эх сурвалж 3 хувилбар (mutually exclusive): videoStreamId | videoKey | videoUrl
-    if (!lesson?.videoKey && !lesson?.videoUrl && !lesson?.videoStreamId) {
-      throw new NotFoundException('Lesson video not found');
+    if (!lesson) {
+      throw new NotFoundException('Lesson not found');
     }
 
     // Entitlement шалгалт — preview биш бол ИДЭВХТЭЙ (хугацаа дуусаагүй) PAID
@@ -205,8 +204,14 @@ export class CoursesService {
     // 3) R2 видео — НИЙТИЙН public URL (TTL-гүй, social share/copy-paste OK).
     // ⚠️ R2 нь үнэгүй/нээлттэй контентод (preview), бодит хамгаалалт Cloudflare Stream-д.
     // Тиймээс presigned (хугацаатай) биш public url буцаана — линк хуваалцахад тасрахгүй.
-    const url = this.storage.getAssetUrl(lesson.videoKey!);
-    return { lessonId: lesson.id, type: 'r2' as const, url, expiresIn: null, ...extras };
+    if (lesson.videoKey) {
+      const url = this.storage.getAssetUrl(lesson.videoKey);
+      return { lessonId: lesson.id, type: 'r2' as const, url, expiresIn: null, ...extras };
+    }
+
+    // 4) Видеогүй хичээл (зөвхөн тэмдэглэл/материал) — АЛДАА БИШ.
+    // content + resources буцаана (frontend "Видео хараахан оруулаагүй" + тэмдэглэл харна).
+    return { lessonId: lesson.id, type: 'none' as const, expiresIn: null, ...extras };
   }
 
   /**

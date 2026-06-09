@@ -459,7 +459,7 @@ export interface LessonResource {
 
 export interface LessonVideoResult {
   lessonId: string;
-  type: 'stream' | 'r2' | 'external';
+  type: 'stream' | 'r2' | 'external' | 'none';
   url?: string;
   streamToken?: string;
   hlsUrl?: string;

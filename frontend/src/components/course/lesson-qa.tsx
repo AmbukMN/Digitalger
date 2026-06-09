@@ -247,13 +247,15 @@ function AnswerRow({ a }: { a: LessonAnswer }) {
         }
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className={'text-xs font-semibold ' + (instructor ? 'text-primary' : 'text-foreground')}>
-            {a.user.name ?? 'Хэрэглэгч'}
-          </span>
-          {instructor && (
+          {instructor ? (
+            /* Багш хариулсан үед нэр (Admin) ХАРУУЛАХГҮЙ — зөвхөн "Багш" badge. */
             <span className="flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
               <GraduationCap className="h-3 w-3" />
               Багш
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-foreground">
+              {a.user.name ?? 'Хэрэглэгч'}
             </span>
           )}
           <span className="text-[10px] text-muted-foreground">{timeAgo(a.createdAt)}</span>

@@ -176,13 +176,6 @@ export function LearnClient({ product }: LearnClientProps) {
       return;
     }
 
-    // Видео хараахан оруулаагүй (hasVideo===false) — getLessonVideoUrl дуудахгүй,
-    // "no-video" төлөв (алдаа БИШ, зүгээр л мэдээлэл).
-    if (currentLesson.hasVideo === false) {
-      setVideoState('no-video');
-      return;
-    }
-
     // Үнэгүй preview & худалдаагүй — getLessonVideoUrl дуудалгүй шууд external url
     if (currentLesson.isFreePreview && currentLesson.videoUrl && !purchased) {
       setVideo({ lessonId: currentLesson.id, type: 'external', url: currentLesson.videoUrl });
@@ -190,16 +183,21 @@ export function LearnClient({ product }: LearnClientProps) {
       return;
     }
     if (!token) {
-      setVideoState('idle');
+      // Нэвтрээгүй: видеогүй бол no-video, эс бол idle.
+      setVideoState(currentLesson.hasVideo === false ? 'no-video' : 'idle');
       return;
     }
 
+    // ⚠️ Видеогүй хичээлд ч getLessonVideoUrl дуудна — backend type:'none' + content
+    // + resources буцаана (тэмдэглэл/материал харуулахын тулд). Видео эх сурвалжгүй
+    // бол player хэсэгт "Видео хараахан оруулаагүй", доор тэмдэглэл/материал харагдана.
     setVideoState('loading');
     coursesApi
       .getLessonVideoUrl(token, product.slug, currentLesson.id)
       .then((res) => {
         if (cancelled) return;
-        // Backend хариу буцаасан ч бодит видео эх сурвалжгүй бол "no-video"
+        // Бодит видео эх сурвалжгүй (type 'none') бол "no-video" — гэхдээ video object
+        // (content/resources-тай) ХАДГАЛНА, тэмдэглэл харагдахын тулд.
         const hasSource = !!(res.url || res.hlsUrl || res.iframeUrl);
         setVideo(res);
         setVideoState(hasSource ? 'ready' : 'no-video');
@@ -373,8 +371,9 @@ export function LearnClient({ product }: LearnClientProps) {
     if (videoState === 'error') {
       return <PlayerMessage text="Видео ачаалахад алдаа гарлаа. Дахин оролдоно уу." />;
     }
-    if (!video) {
-      // Эх сурвалж байхгүй (хүлээгдээгүй төлөв) — "хараахан оруулаагүй" гэж зөөлөн харуулна
+    if (!video || video.type === 'none') {
+      // Эх сурвалж байхгүй (видеогүй хичээл) — "хараахан оруулаагүй" зөөлөн харуулна.
+      // (Доорх Tabs-д тэмдэглэл/материал хэвээр харагдана.)
       return <NoVideoMessage />;
     }
     // Хичээлийн poster (backend resolve) → product thumbnail руу fallback
