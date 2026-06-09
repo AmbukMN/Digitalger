@@ -601,6 +601,19 @@ export interface AdminReview {
   user: { id?: string; name: string | null; email: string; image?: string | null } | null;
 }
 
+// ─── Татаалт (DownloadLog) ───────────────────────────────────────────────────
+export interface AdminDownloadLog {
+  id: string;
+  createdAt: string;
+  source: 'free' | 'paid' | 'bundle' | string;
+  fileName: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  product: { title: string; slug: string } | null;
+  // null = нэвтрээгүй зочин (IP-ээр ялгана)
+  user: { name: string | null; email: string } | null;
+}
+
 export interface AdminCoupon {
   id: string;
   code: string;

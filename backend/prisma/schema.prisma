@@ -62,6 +62,7 @@ model User {
   orders        Order[]
   reviews       Review[]
   downloads     Download[]
+  downloadLogs  DownloadLog[]
   wishlists     Wishlist[]
   notifications Notification[]
   accounts      Account[]
@@ -174,6 +175,7 @@ model Product {
   orderItems        OrderItem[]
   reviews           Review[]
   wishlists         Wishlist[]
+  downloadLogs      DownloadLog[]
   faqs              ProductFAQ[]
   testimonials      ProductTestimonial[]
   bundles           ProductBundle[]
@@ -466,6 +468,26 @@ model Download {
 
   @@index([userId, createdAt])
   @@index([fileId])
+}
+
+// Татаалтын дэлгэрэнгүй бүртгэл — admin "хэн/хэзээ/хаанаас юу татсан" харна.
+// Download (file-level түүх)-аас ялгаатай: энэ нь бүтээгдэхүүн түвшний, зочин (guest)
+// + IP/source/device-тэй, нэвтрээгүй татаалтыг ч бүртгэнэ.
+model DownloadLog {
+  id        String   @id @default(cuid())
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  userId    String? // null = нэвтрээгүй зочин
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fileName  String? // татсан файл/zip нэр (resolve хийсэн)
+  source    String   @default("paid") // "paid" | "free" | "bundle"
+  ip        String? // зочин/хэрэглэгчийн IP
+  userAgent String? // төхөөрөмж/browser
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model Wishlist {

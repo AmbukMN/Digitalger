@@ -1,4 +1,4 @@
-import { Controller, Get, Ip, Param, Post } from '@nestjs/common';
+import { Controller, Get, Headers, Ip, Param, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { DownloadsService } from './downloads.service';
 
@@ -25,21 +25,30 @@ export class PublicDownloadsController {
     @Param('productId') productId: string,
     @Param('fileId') fileId: string,
     @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
   ) {
-    return this.downloadsService.freeFileUrl(productId, fileId, ip);
+    return this.downloadsService.freeFileUrl(productId, fileId, ip, { ip, userAgent });
   }
 
   /** Бэлэн zip (downloadFileKey) шууд татах */
   @Post(':productId/download-file')
-  freeDownloadFile(@Param('productId') productId: string, @Ip() ip: string) {
-    return this.downloadsService.freeProductDownloadFileUrl(productId, ip);
+  freeDownloadFile(
+    @Param('productId') productId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.downloadsService.freeProductDownloadFileUrl(productId, ip, { ip, userAgent });
   }
 
   /** Бүх файлыг zip болгох queue — job үүсгэдэг тул бага limit */
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post(':productId/zip')
-  freeZip(@Param('productId') productId: string, @Ip() ip: string) {
-    return this.downloadsService.enqueueFreeProductZip(productId, ip);
+  freeZip(
+    @Param('productId') productId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.downloadsService.enqueueFreeProductZip(productId, ip, { ip, userAgent });
   }
 
   /** Zip job-ийн статус — polling тул өндөр limit */

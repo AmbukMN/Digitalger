@@ -1079,6 +1079,87 @@ export class AdminController {
     return this.adminProducts.deleteAnswer(answerId);
   }
 
+  // ── Татаалт (DownloadLog) — бүх татаалтын лог ────────────────────────────
+  // GET /admin/downloads — pagination + filter (productId/source/огноо/хайлт).
+  // Хэн (нэвтэрсэн нэр/email эсвэл зочин IP), юу, хаанаас, ямар замаар татсан.
+  @Get('downloads')
+  async listDownloads(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('productId') productId?: string,
+    @Query('source') source?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('q') q?: string,
+  ) {
+    const p = Math.max(1, page ? parseInt(page, 10) : 1);
+    const ps = Math.min(100, Math.max(1, pageSize ? parseInt(pageSize, 10) : 20));
+    const skip = (p - 1) * ps;
+
+    const term = (q ?? '').trim();
+    const src =
+      source && ['free', 'paid', 'bundle'].includes(source) ? source : undefined;
+
+    // Огнооны хязгаар (буруу огноог үл хэрэгснэ). dateTo-г өдрийн төгсгөл болгоно.
+    const createdAt: { gte?: Date; lte?: Date } = {};
+    if (dateFrom) {
+      const d = new Date(dateFrom);
+      if (!isNaN(d.getTime())) createdAt.gte = d;
+    }
+    if (dateTo) {
+      const d = new Date(dateTo);
+      if (!isNaN(d.getTime())) {
+        d.setHours(23, 59, 59, 999);
+        createdAt.lte = d;
+      }
+    }
+
+    const where: Prisma.DownloadLogWhereInput = {
+      ...(productId ? { productId } : {}),
+      ...(src ? { source: src } : {}),
+      ...(createdAt.gte || createdAt.lte ? { createdAt } : {}),
+      ...(term
+        ? {
+            OR: [
+              { ip: { contains: term, mode: 'insensitive' } },
+              { user: { name: { contains: term, mode: 'insensitive' } } },
+              { user: { email: { contains: term, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.downloadLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: ps,
+        include: {
+          product: { select: { title: true, slug: true } },
+          user: { select: { name: true, email: true } },
+        },
+      }),
+      this.prisma.downloadLog.count({ where }),
+    ]);
+
+    const items = rows.map((row) => ({
+      id: row.id,
+      createdAt: row.createdAt,
+      source: row.source,
+      fileName: row.fileName,
+      ip: row.ip,
+      userAgent: row.userAgent,
+      product: row.product
+        ? { title: row.product.title, slug: row.product.slug }
+        : null,
+      // Зочин бол user=null (IP-ээр ялгана), нэвтэрсэн бол нэр/email.
+      user: row.user ? { name: row.user.name, email: row.user.email } : null,
+    }));
+
+    return { items, total, page: p, pageSize: ps };
+  }
+
   // ── Queue Monitoring ─────────────────────────────────────────────────────
 
   @Get('queue/status')

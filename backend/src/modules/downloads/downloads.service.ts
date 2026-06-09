@@ -57,6 +57,34 @@ export class DownloadsService {
     }
   }
 
+  // ── Татаалтын ДЭЛГЭРЭНГҮЙ бүртгэл (admin "Татаалт" хуудасны эх сурвалж) ──
+  // Хэн (userId эсвэл зочин IP), юу (productId/fileName), хаанаас (ip/userAgent),
+  // ямар замаар (source: paid/free/bundle) татсаныг бүртгэнэ. БҮХ татах метод
+  // дуудна. Fire-and-forget — алдаа гарвал чимээгүй (татах урсгалд нөлөөлөхгүй).
+  private recordDownloadLog(input: {
+    productId?: string | null;
+    userId?: string | null;
+    fileName?: string | null;
+    source: 'paid' | 'free' | 'bundle';
+    ip?: string | null;
+    userAgent?: string | null;
+  }) {
+    this.prisma.downloadLog
+      .create({
+        data: {
+          productId: input.productId ?? null,
+          userId: input.userId ?? null,
+          fileName: input.fileName ?? null,
+          source: input.source,
+          ip: input.ip ?? null,
+          userAgent: input.userAgent ?? null,
+        },
+      })
+      .catch(() => {
+        /* бүртгэлийн алдаа татах урсгалд нөлөөлөхгүй (fire-and-forget) */
+      });
+  }
+
   // Нэвтэрсэн хэрэглэгчийн татаж авсан файл(ууд)-ыг Download-д бүртгэнэ.
   // Энэ нь admin panel-ийн хэрэглэгчийн "Татсан" түүх болон хэрэглэгчийн
   // татах бүртгэлийн ҮНДЭС — татах БҮХ метод (нэг файл/zip/bundle) дуудах ёстой.
@@ -74,7 +102,11 @@ export class DownloadsService {
     }
   }
 
-  async verifyAndGetSignedUrl(userId: string, fileId: string) {
+  async verifyAndGetSignedUrl(
+    userId: string,
+    fileId: string,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     const file = await this.prisma.productFile.findUnique({
       where: { id: fileId },
       include: { product: true },
@@ -137,6 +169,14 @@ export class DownloadsService {
     // recordDownloads helper ашиглана (бусад татах методтой нэгдсэн, dedup-тай).
     await this.recordDownloads(userId, [file.id]);
     await this.bumpRealDownload(file.productId);
+    this.recordDownloadLog({
+      productId: file.productId,
+      userId,
+      fileName: file.fileName,
+      source: 'paid',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
 
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
 
@@ -149,7 +189,12 @@ export class DownloadsService {
     };
   }
 
-  async streamZipDownload(userId: string, productId: string, res: Response) {
+  async streamZipDownload(
+    userId: string,
+    productId: string,
+    res: Response,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: { files: { orderBy: { sortOrder: 'asc' } } },
@@ -164,6 +209,14 @@ export class DownloadsService {
 
     await this.bumpRealDownload(productId);
     await this.recordDownloads(userId, product.files.map((f) => f.id));
+    this.recordDownloadLog({
+      productId,
+      userId,
+      fileName: `${product.title} (бүх файл).zip`,
+      source: 'paid',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
 
     const zipName = `${product.slug ?? productId}.zip`;
     res.setHeader('Content-Type', 'application/zip');
@@ -186,7 +239,13 @@ export class DownloadsService {
     await zip.finalize();
   }
 
-  async streamBundleZip(userId: string, productId: string, bundleId: string, res: Response) {
+  async streamBundleZip(
+    userId: string,
+    productId: string,
+    bundleId: string,
+    res: Response,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     // Эзэмшил + хандалтын хугацаа (expiresAt) идэвхтэй эсэхийг шалгана.
     await this.assertActiveOwnership(userId, productId);
 
@@ -203,6 +262,14 @@ export class DownloadsService {
 
     await this.bumpRealDownload(productId);
     await this.recordDownloads(userId, allFileIds);
+    this.recordDownloadLog({
+      productId,
+      userId,
+      fileName: `${bundle.title} (багц).zip`,
+      source: 'bundle',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
 
     const files = await this.prisma.productFile.findMany({
       where: { id: { in: allFileIds } },
@@ -253,7 +320,11 @@ export class DownloadsService {
     }
   }
 
-  async enqueueProductZip(userId: string, productId: string) {
+  async enqueueProductZip(
+    userId: string,
+    productId: string,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     await this.assertOwned(userId, productId);
     await this.bumpRealDownload(productId);
 
@@ -265,6 +336,15 @@ export class DownloadsService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
+
+    this.recordDownloadLog({
+      productId,
+      userId,
+      fileName: `${product.title} (бүх файл).zip`,
+      source: 'paid',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
 
     // flat файл + бүх bundle-ийн файлууд нэгтгэнэ (давхардал хасна)
     const flatFileIds = product.files.map((f) => f.id);
@@ -302,7 +382,12 @@ export class DownloadsService {
     return { jobId: job.id };
   }
 
-  async enqueueBundleZip(userId: string, productId: string, bundleId: string) {
+  async enqueueBundleZip(
+    userId: string,
+    productId: string,
+    bundleId: string,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     await this.assertOwned(userId, productId);
     await this.bumpRealDownload(productId);
 
@@ -316,6 +401,15 @@ export class DownloadsService {
       item.fileIds.length > 0 ? item.fileIds : item.fileId ? [item.fileId] : [],
     );
     if (!allFileIds.length) throw new NotFoundException('No files in bundle');
+
+    this.recordDownloadLog({
+      productId,
+      userId,
+      fileName: `${bundle.title} (багц).zip`,
+      source: 'bundle',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
 
     // Татсан түүхэнд бүртгэнэ (admin popup-д харагдана)
     await this.recordDownloads(userId, allFileIds);
@@ -345,7 +439,11 @@ export class DownloadsService {
     return { status: job.status, error: job.error ?? undefined };
   }
 
-  async getProductDownloadFileUrl(userId: string, productId: string) {
+  async getProductDownloadFileUrl(
+    userId: string,
+    productId: string,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     await this.assertOwned(userId, productId);
 
     const product = await this.prisma.product.findUnique({
@@ -353,6 +451,7 @@ export class DownloadsService {
       select: {
         id: true,
         slug: true,
+        title: true,
         downloadFileKey: true,
         files: { select: { id: true } },
       },
@@ -366,10 +465,22 @@ export class DownloadsService {
 
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
+    this.recordDownloadLog({
+      productId,
+      userId,
+      fileName,
+      source: 'paid',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
     return { url, fileName };
   }
 
-  async getBundleDownloadFileUrl(userId: string, bundleId: string) {
+  async getBundleDownloadFileUrl(
+    userId: string,
+    bundleId: string,
+    meta?: { ip?: string | null; userAgent?: string | null },
+  ) {
     const bundle = await this.prisma.productBundle.findUnique({
       where: { id: bundleId },
       select: { id: true, title: true, productId: true, downloadFileKey: true },
@@ -384,6 +495,14 @@ export class DownloadsService {
 
     const url = await this.storage.getPresignedUrl(bundle.downloadFileKey, 900, 'get');
     const fileName = bundle.downloadFileKey.split('/').pop() ?? `${bundle.title.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
+    this.recordDownloadLog({
+      productId: bundle.productId,
+      userId,
+      fileName,
+      source: 'bundle',
+      ip: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
     return { url, fileName };
   }
 
@@ -408,7 +527,12 @@ export class DownloadsService {
   }
 
   /** Үнэгүй: ганц файлын signed URL (нэвтрэхгүй). fileId нь үнэгүй product-ийнх байх ёстой. */
-  async freeFileUrl(productId: string, fileId: string, identifier?: string | null) {
+  async freeFileUrl(
+    productId: string,
+    fileId: string,
+    identifier?: string | null,
+    meta?: { userId?: string | null; ip?: string | null; userAgent?: string | null },
+  ) {
     await this.assertFree(productId);
 
     const file = await this.prisma.productFile.findUnique({
@@ -424,6 +548,15 @@ export class DownloadsService {
     if (!belongs) throw new ForbiddenException('File does not belong to this product');
 
     await this.bumpRealDownload(productId, identifier);
+    this.recordDownloadLog({
+      productId,
+      // Нэвтэрсэн байж болно (guest ч user). Байвал userId, эс бол null + ip.
+      userId: meta?.userId ?? null,
+      fileName: file.fileName,
+      source: 'free',
+      ip: meta?.ip ?? identifier,
+      userAgent: meta?.userAgent,
+    });
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
     return {
       fileId: file.id,
@@ -449,10 +582,14 @@ export class DownloadsService {
   }
 
   /** Үнэгүй: бэлэн zip (downloadFileKey) шууд presign (нэвтрэхгүй). */
-  async freeProductDownloadFileUrl(productId: string, identifier?: string | null) {
+  async freeProductDownloadFileUrl(
+    productId: string,
+    identifier?: string | null,
+    meta?: { userId?: string | null; ip?: string | null; userAgent?: string | null },
+  ) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, slug: true, price: true, published: true, downloadFileKey: true },
+      select: { id: true, slug: true, title: true, price: true, published: true, downloadFileKey: true },
     });
     if (!product || !product.published) throw new NotFoundException('Product not found');
     if (product.price != null && Number(product.price) > 0) {
@@ -463,11 +600,23 @@ export class DownloadsService {
     await this.bumpRealDownload(productId, identifier);
     const url = await this.storage.getPresignedUrl(product.downloadFileKey, 900, 'get');
     const fileName = product.downloadFileKey.split('/').pop() ?? `${product.slug ?? productId}.zip`;
+    this.recordDownloadLog({
+      productId,
+      userId: meta?.userId ?? null,
+      fileName,
+      source: 'free',
+      ip: meta?.ip ?? identifier,
+      userAgent: meta?.userAgent,
+    });
     return { url, fileName };
   }
 
   /** Үнэгүй: бүх файлыг zip болгох queue (нэвтрэхгүй — userId-гүй job). */
-  async enqueueFreeProductZip(productId: string, identifier?: string | null) {
+  async enqueueFreeProductZip(
+    productId: string,
+    identifier?: string | null,
+    meta?: { userId?: string | null; ip?: string | null; userAgent?: string | null },
+  ) {
     await this.assertFree(productId);
     await this.bumpRealDownload(productId, identifier);
 
@@ -479,6 +628,15 @@ export class DownloadsService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
+
+    this.recordDownloadLog({
+      productId,
+      userId: meta?.userId ?? null,
+      fileName: `${product.title} (бүх файл).zip`,
+      source: 'free',
+      ip: meta?.ip ?? identifier,
+      userAgent: meta?.userAgent,
+    });
 
     const flatFileIds = product.files.map((f) => f.id);
     const bundleFileIds = product.bundles.flatMap((b) =>

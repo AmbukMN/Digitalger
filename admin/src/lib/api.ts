@@ -6,6 +6,7 @@ import type {
   AdminBundleItem,
   AdminCategory,
   AdminCoupon,
+  AdminDownloadLog,
   AdminFaq,
   AdminLesson,
   AdminLessonResource,
@@ -495,6 +496,32 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify({ ids }),
       }),
+  },
+
+  // ─── Татаалт (DownloadLog) — бүх татаалтын лог ─────────────────────────────
+  downloads: {
+    list: (params?: {
+      page?: number;
+      pageSize?: number;
+      productId?: string;
+      source?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      q?: string;
+    }) => {
+      const qp = new URLSearchParams();
+      if (params?.page) qp.set('page', String(params.page));
+      if (params?.pageSize) qp.set('pageSize', String(params.pageSize));
+      if (params?.productId) qp.set('productId', params.productId);
+      if (params?.source && params.source !== 'ALL') qp.set('source', params.source);
+      if (params?.dateFrom) qp.set('dateFrom', params.dateFrom);
+      if (params?.dateTo) qp.set('dateTo', params.dateTo);
+      if (params?.q) qp.set('q', params.q);
+      const qs = qp.toString();
+      return adminFetch<{ items: AdminDownloadLog[]; total: number; page: number; pageSize: number }>(
+        `/admin/downloads${qs ? `?${qs}` : ''}`,
+      );
+    },
   },
 
   testimonials: {

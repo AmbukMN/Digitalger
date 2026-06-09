@@ -1,4 +1,4 @@
-import { Controller, Get, GoneException, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, GoneException, Headers, Ip, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DownloadsService } from './downloads.service';
@@ -19,8 +19,10 @@ export class DownloadsController {
   enqueueProductZip(
     @CurrentUser('sub') userId: string,
     @Param('productId') productId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
   ) {
-    return this.downloadsService.enqueueProductZip(userId, productId);
+    return this.downloadsService.enqueueProductZip(userId, productId, { ip, userAgent });
   }
 
   @Post('async-zip/:productId/bundle/:bundleId')
@@ -28,8 +30,10 @@ export class DownloadsController {
     @CurrentUser('sub') userId: string,
     @Param('productId') productId: string,
     @Param('bundleId') bundleId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
   ) {
-    return this.downloadsService.enqueueBundleZip(userId, productId, bundleId);
+    return this.downloadsService.enqueueBundleZip(userId, productId, bundleId, { ip, userAgent });
   }
 
   @Get('async-zip/status/:jobId')
@@ -59,16 +63,20 @@ export class DownloadsController {
   getProductDownloadFile(
     @CurrentUser('sub') userId: string,
     @Param('productId') productId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
   ) {
-    return this.downloadsService.getProductDownloadFileUrl(userId, productId);
+    return this.downloadsService.getProductDownloadFileUrl(userId, productId, { ip, userAgent });
   }
 
   @Post('bundle/:bundleId/download-file')
   getBundleDownloadFile(
     @CurrentUser('sub') userId: string,
     @Param('bundleId') bundleId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
   ) {
-    return this.downloadsService.getBundleDownloadFileUrl(userId, bundleId);
+    return this.downloadsService.getBundleDownloadFileUrl(userId, bundleId, { ip, userAgent });
   }
 
   // ── Single file signed URL ───────────────────────────────────────────────
@@ -77,7 +85,9 @@ export class DownloadsController {
   getSignedUrl(
     @CurrentUser('sub') userId: string,
     @Param('fileId') fileId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
   ) {
-    return this.downloadsService.verifyAndGetSignedUrl(userId, fileId);
+    return this.downloadsService.verifyAndGetSignedUrl(userId, fileId, { ip, userAgent });
   }
 }
