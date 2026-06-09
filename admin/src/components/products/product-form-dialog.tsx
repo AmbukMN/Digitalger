@@ -1536,7 +1536,7 @@ function LessonQuestions({ productId, lessonId }: { productId: string; lessonId:
   // хариулаагүй (ямар ч хариултгүй) асуултын тоо — oncлоход ашиглана
   const unansweredCount = questions.filter((q) => q.answers.length === 0).length;
 
-  function authorName(u?: { name: string | null; email: string } | null): string {
+  function authorName(u?: { name: string | null; email?: string | null } | null): string {
     if (!u) return 'Хэрэглэгч';
     return u.name || u.email || 'Хэрэглэгч';
   }

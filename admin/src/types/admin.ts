@@ -287,12 +287,22 @@ export interface AdminProduct {
   updatedAt: string;
 }
 
+// Захиалгын эх сурвалж — "PURCHASE" (мөнгөөр) | "ADMIN_GRANT" (админ үнэгүй идэвхжүүлсэн gift)
+export type OrderSource = 'PURCHASE' | 'ADMIN_GRANT';
+// Цуцлалтын эх сурвалж — "USER" (хэрэглэгч) | "SYSTEM" (cron автомат) | "ADMIN" (админ гараар)
+export type OrderCancelledBy = 'USER' | 'SYSTEM' | 'ADMIN';
+
 export interface AdminOrder {
   id: string;
   total: number | string;
   currency: string;
   status: OrderStatus;
   couponCode?: string | null;
+  // Эх сурвалж / gift / цуцлалтын тодотгол (backend order багана)
+  source?: OrderSource | string | null;
+  grantedByAdminId?: string | null;
+  cancelledBy?: OrderCancelledBy | string | null;
+  cancelledAt?: string | null;
   createdAt: string;
   user: { id: string; email: string; name: string | null; image?: string | null };
   items: Array<{
@@ -527,25 +537,57 @@ export interface AdminQuizInput {
 }
 
 // ─── Хичээлийн Q&A модерац ───────────────────────────────────────────────────
+// Асуулт/хариултад хавсаргасан файл (R2). Зураг бол preview, бусад нь татах.
+// Backend resolveQaAttachment-тай талбарын нэр тохирно: { key, name, mimeType, size, url }.
+export interface AdminQaAttachment {
+  key?: string | null;
+  url?: string | null;
+  name?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
+}
+
 export interface AdminLessonAnswer {
   id: string;
   questionId: string;
   answer: string;
   isInstructor: boolean;
   createdAt: string;
-  user?: { id: string; name: string | null; email: string; image?: string | null } | null;
+  user?: { id: string; name: string | null; email?: string | null; image?: string | null } | null;
+  // Хариултад хавсаргасан файл (байж болно)
+  attachment?: AdminQaAttachment | null;
+}
+
+// Q&A асуулт холбоотой хичээл + бүтээгдэхүүн
+export interface AdminQaLessonRef {
+  id: string;
+  title: string;
+  product?: { id: string; title: string; slug: string } | null;
 }
 
 export interface AdminLessonQuestion {
   id: string;
-  lessonId: string;
+  lessonId?: string;
   question: string;
   isPinned: boolean;
   createdAt: string;
-  user?: { id: string; name: string | null; email: string; image?: string | null } | null;
+  // Backend жагсаалт буцаах туслах талбарууд
+  answered?: boolean;
+  answerCount?: number;
+  user?: { id: string; name: string | null; email?: string | null; image?: string | null } | null;
   answers: AdminLessonAnswer[];
-  // Аль хичээлийнх болохыг танихад туслах (зарим endpoint буцаана)
-  lesson?: { id: string; title: string } | null;
+  // Аль хичээл / бүтээгдэхүүний асуулт болохыг танихад
+  lesson?: AdminQaLessonRef | null;
+  // Асуултад хавсаргасан файл (байж болно)
+  attachment?: AdminQaAttachment | null;
+}
+
+// GET /admin/lessons/questions хариу (pagination)
+export interface AdminLessonQuestionsList {
+  items: AdminLessonQuestion[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 // ─── Review / Сэтгэгдэл (бүтээгдэхүүний үнэлгээ) ─────────────────────────────

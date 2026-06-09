@@ -320,6 +320,11 @@ model LessonQuestion {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   question  String           @db.Text
   isPinned  Boolean          @default(false)
+  // Хавсралт (image/file) — R2 key, нийтэд presigned URL-аар үзүүлнэ.
+  attachmentKey      String?
+  attachmentName     String?
+  attachmentMimeType String?
+  attachmentSize     Int?
   createdAt DateTime         @default(now())
   answers   LessonAnswer[]
 
@@ -334,6 +339,11 @@ model LessonAnswer {
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   answer     String         @db.Text
   isInstructor Boolean      @default(false) // admin/багшийн хариулт онцлох
+  // Хавсралт (image/file) — R2 key, presigned URL-аар үзүүлнэ.
+  attachmentKey      String?
+  attachmentName     String?
+  attachmentMimeType String?
+  attachmentSize     Int?
   createdAt  DateTime       @default(now())
 
   @@index([questionId, createdAt])
@@ -384,6 +394,10 @@ model Order {
   // Захиалгын эх сурвалж: "PURCHASE" (хэрэглэгч мөнгөөр) | "ADMIN_GRANT" (админ үнэгүй идэвхжүүлсэн)
   source           String      @default("PURCHASE")
   grantedByAdminId String? // ADMIN_GRANT үед идэвхжүүлсэн админ
+  // Цуцлалтын эх сурвалж — admin UI-д ялгаж харуулна:
+  //   "USER" (хэрэглэгч өөрөө), "SYSTEM" (cron — PENDING хугацаа дуусч автомат), "ADMIN" (админ гараар)
+  cancelledBy      String?
+  cancelledAt      DateTime?
   qpayIdentifier   String?     @unique
   couponCode       String?
   // Marketing automation — давхар имэйл явуулахаас сэргийлэх тэмдэглэгээ

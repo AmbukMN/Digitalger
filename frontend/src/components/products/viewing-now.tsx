@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 interface ViewingNowProps {
   /** product id/slug — энэ seed-ээс тогтвортой тоо тооцоолно (product бүрд өөр) */
   seed: string;
+  /** Сургалт (LESSON) эсэх — тийм бол 10-20 хооронд (арай олон), үгүй бол 3-12 */
+  lesson?: boolean;
   className?: string;
 }
 
@@ -26,14 +28,16 @@ function hashSeed(seed: string): number {
  *
  * SSR/CSR hydration зөрөхөөс сэргийлж эхэндээ render хийхгүй (mount-ийн дараа л).
  */
-export function ViewingNow({ seed, className = '' }: ViewingNowProps) {
+export function ViewingNow({ seed, lesson = false, className = '' }: ViewingNowProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const count = useMemo(() => {
-    // 3..12 хооронд (10 утга)
-    return 3 + (hashSeed(seed) % 10);
-  }, [seed]);
+    // Сургалт (LESSON): 10..20 хооронд (11 утга) — арай олон.
+    // Бусад: 3..12 хооронд (10 утга). Seed-ээс тогтвортой (refresh-д өөрчлөгдөхгүй).
+    const h = hashSeed(seed);
+    return lesson ? 10 + (h % 11) : 3 + (h % 10);
+  }, [seed, lesson]);
 
   if (!mounted) return null;
 

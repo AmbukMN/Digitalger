@@ -51,6 +51,78 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+// Presigned R2 URL руу файлыг PUT хийнэ (progress дэмждэг — XHR).
+function putToPresignedUrl(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl, true);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new ApiError(`Upload амжилтгүй (${xhr.status})`, xhr.status));
+    xhr.onerror = () => reject(new ApiError('Сүлжээний алдаа', 0));
+    xhr.send(file);
+  });
+}
+
+// Multipart (proxy) upload — backend /courses/questions/attachment руу файл илгээнэ.
+function uploadQnaMultipart(
+  token: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<QnaAttachment> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_URL}/api/courses/questions/attachment`, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText) as Partial<QnaAttachment> & {
+            key?: string;
+            fileName?: string;
+            mimeType?: string;
+            size?: number;
+            url?: string;
+          };
+          // Backend ямар нэрээр буцаасныг (attachment* эсвэл upload-style key/url) нийцүүлнэ.
+          resolve({
+            attachmentKey: data.attachmentKey ?? data.key ?? '',
+            attachmentName: data.attachmentName ?? data.fileName ?? file.name,
+            attachmentMimeType:
+              data.attachmentMimeType ?? data.mimeType ?? file.type ?? 'application/octet-stream',
+            attachmentSize: data.attachmentSize ?? data.size ?? file.size,
+            attachmentUrl: data.attachmentUrl ?? data.url,
+          });
+        } catch {
+          reject(new ApiError('Хариу боловсруулж чадсангүй', xhr.status));
+        }
+      } else {
+        reject(new ApiError(xhr.responseText || `Upload амжилтгүй (${xhr.status})`, xhr.status));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError('Сүлжээний алдаа', 0));
+    xhr.send(form);
+  });
+}
+
 function qs(params: Record<string, string | number | boolean | undefined>) {
   const search = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -435,12 +507,27 @@ export interface QuestionUser {
   image?: string | null;
 }
 
+// Q&A асуулт/хариултад хавсаргасан файл (зураг/баримт). Backend R2-д хадгална.
+export interface QnaAttachment {
+  // R2 дахь объектын key (татах/resolve хийхэд)
+  attachmentKey: string;
+  // Файлын анхны нэр (UI-д харуулах)
+  attachmentName: string;
+  // MIME төрөл (зураг эсэхийг ялгахад: image/* бол thumbnail)
+  attachmentMimeType: string;
+  // Байт хэмжээ
+  attachmentSize: number;
+  // Шууд харах/татах нийтийн URL (backend буцаавал)
+  attachmentUrl?: string;
+}
+
 export interface LessonAnswer {
   id?: string;
   answer: string;
   user: QuestionUser;
   isInstructor: boolean;
   createdAt: string;
+  attachment?: QnaAttachment | null;
 }
 
 export interface LessonQuestion {
@@ -450,6 +537,27 @@ export interface LessonQuestion {
   createdAt: string;
   isPinned?: boolean;
   answers: LessonAnswer[];
+  attachment?: QnaAttachment | null;
+}
+
+// Q&A файл хавсаргахад зөвшөөрөгдөх төрөл/хэмжээ (frontend урьдчилсан шалгалт)
+export const QNA_MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+export const QNA_ALLOWED_MIME_PREFIXES = ['image/'];
+export const QNA_ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+  'application/x-zip-compressed',
+]);
+
+export function isQnaMimeAllowed(mime: string): boolean {
+  if (QNA_ALLOWED_MIME_PREFIXES.some((p) => mime.startsWith(p))) return true;
+  return QNA_ALLOWED_MIME_TYPES.has(mime);
 }
 
 // ── Шалгалт (quiz) ──
@@ -522,18 +630,70 @@ export const coursesApi = {
         `/courses/${productSlug}/lessons/${lessonId}/questions`,
         { token },
       ),
-    ask: (token: string, productSlug: string, lessonId: string, question: string) =>
+    ask: (
+      token: string,
+      productSlug: string,
+      lessonId: string,
+      question: string,
+      attachment?: QnaAttachment | null,
+    ) =>
       request<LessonQuestion>(`/courses/${productSlug}/lessons/${lessonId}/questions`, {
         method: 'POST',
         token,
-        body: JSON.stringify({ question }),
+        body: JSON.stringify(attachment ? { question, attachment } : { question }),
       }),
-    answer: (token: string, questionId: string, answer: string) =>
+    answer: (
+      token: string,
+      questionId: string,
+      answer: string,
+      attachment?: QnaAttachment | null,
+    ) =>
       request<LessonAnswer>(`/courses/questions/${questionId}/answers`, {
         method: 'POST',
         token,
-        body: JSON.stringify({ answer }),
+        body: JSON.stringify(attachment ? { answer, attachment } : { answer }),
       }),
+
+    // Q&A-д хавсаргах файлыг R2-д upload хийнэ.
+    // Backend presigned PUT URL өгвөл browser шууд R2 руу хуулна (том файлд тохиромжтой),
+    // үгүй бол /courses/questions/attachment руу multipart proxy upload хийнэ.
+    // Backend хараахан бэлэн биш бол алдаа шиднэ — дуудагч талд graceful барина.
+    uploadAttachment: async (
+      token: string,
+      file: File,
+      onProgress?: (percent: number) => void,
+    ): Promise<QnaAttachment> => {
+      // 1) Presign оролдоно (том файл — шууд R2)
+      try {
+        const presign = await request<{ uploadUrl: string; key: string; publicUrl: string }>(
+          `/courses/questions/attachment/presign`,
+          {
+            method: 'POST',
+            token,
+            body: JSON.stringify({
+              fileName: file.name,
+              contentType: file.type || 'application/octet-stream',
+            }),
+          },
+        );
+        await putToPresignedUrl(presign.uploadUrl, file, onProgress);
+        return {
+          attachmentKey: presign.key,
+          attachmentName: file.name,
+          attachmentMimeType: file.type || 'application/octet-stream',
+          attachmentSize: file.size,
+          attachmentUrl: presign.publicUrl,
+        };
+      } catch (err) {
+        // presign endpoint байхгүй (404) бол multipart proxy руу шилжинэ.
+        // Бусад алдаа (хэмжээ/эрх) бол дамжуулна.
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+      }
+
+      // 2) Multipart proxy upload (жижиг файл / presign байхгүй)
+      const result = await uploadQnaMultipart(token, file, onProgress);
+      return result;
+    },
   },
 
   // ── Шалгалт (quiz) ──

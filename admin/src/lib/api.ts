@@ -11,6 +11,7 @@ import type {
   AdminLessonResource,
   AdminLessonAnswer,
   AdminLessonQuestion,
+  AdminLessonQuestionsList,
   AdminQuiz,
   AdminQuizInput,
   AdminCourseModule,
@@ -262,15 +263,36 @@ export const adminApi = {
     },
     // Бүх хичээлийн Q&A — модерацийн нэгдсэн жагсаалт (backend: /admin/lessons/...).
     questions: {
-      list: (onlyUnanswered?: boolean) =>
-        adminFetch<{ items: AdminLessonQuestion[]; total: number }>(
-          `/admin/lessons/questions${onlyUnanswered ? '?onlyUnanswered=1' : ''}`,
-        ),
-      // Багшийн (admin) хариулт — isInstructor=true backend талд.
-      answer: (questionId: string, answer: string) =>
+      list: (params?: { page?: number; pageSize?: number; onlyUnanswered?: boolean }) => {
+        const q = new URLSearchParams();
+        if (params?.page) q.set('page', String(params.page));
+        if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+        if (params?.onlyUnanswered) q.set('onlyUnanswered', '1');
+        const qs = q.toString();
+        return adminFetch<AdminLessonQuestionsList>(
+          `/admin/lessons/questions${qs ? `?${qs}` : ''}`,
+        );
+      },
+      // Багшийн (admin) хариулт — isInstructor=true backend талд. Файл хавсаргаж болно.
+      // ⚠️ DTO талбарын нэр backend-тэй яг тохирно: attachmentKey/Name/MimeType/Size.
+      answer: (
+        questionId: string,
+        answer: string,
+        attachment?: { key: string; fileName: string; mimeType?: string; sizeBytes?: number },
+      ) =>
         adminFetch<AdminLessonAnswer>(`/admin/lessons/questions/${questionId}/answers`, {
           method: 'POST',
-          body: JSON.stringify({ answer }),
+          body: JSON.stringify(
+            attachment
+              ? {
+                  answer,
+                  attachmentKey: attachment.key,
+                  attachmentName: attachment.fileName,
+                  attachmentMimeType: attachment.mimeType,
+                  attachmentSize: attachment.sizeBytes,
+                }
+              : { answer },
+          ),
         }),
       pin: (questionId: string, isPinned: boolean) =>
         adminFetch<void>(`/admin/lessons/questions/${questionId}/pin`, {

@@ -30,7 +30,8 @@ export class OrderCleanupService {
         status: OrderStatus.PENDING,
         createdAt: { lt: cutoff },
       },
-      data: { status: OrderStatus.CANCELLED },
+      // Систем (cron) автоматаар цуцалсан — admin UI ялгаж харуулна.
+      data: { status: OrderStatus.CANCELLED, cancelledBy: 'SYSTEM', cancelledAt: new Date() },
     });
 
     // Цуцалсан захиалгуудын купоны usedCount-ийг буцаана (0-ээс доош буурахгүй).

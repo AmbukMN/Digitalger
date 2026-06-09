@@ -34,6 +34,8 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const [mounted, setMounted] = useState(false);
   const typeLabel = useProductTypeLabel(product.type);
   const typeIcon = useProductTypeIcon(product.type);
+  // Сургалт (LESSON) бол "татсан" → "элссэн" (тоо хэвээр, зөвхөн label). Бусад "татсан".
+  const downloadLabel = product.type === 'LESSON' ? 'элссэн' : 'татсан';
   useEffect(() => setMounted(true), []);
 
   const { data: purchased } = useQuery({
@@ -176,7 +178,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
               {product.downloadCount > 0 && (
                 <span className="flex items-center gap-0.5 text-xs text-orange-600 dark:text-orange-400 font-medium">
                   <Flame className="h-3 w-3" />
-                  {product.downloadCount} татсан
+                  {product.downloadCount} {downloadLabel}
                 </span>
               )}
             </div>
@@ -194,7 +196,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
               {product.downloadCount > 0 && (
                 <span className="flex items-center gap-0.5 text-orange-600 dark:text-orange-400 font-medium">
                   <Flame className="h-3 w-3" />
-                  {product.downloadCount} татсан
+                  {product.downloadCount} {downloadLabel}
                 </span>
               )}
             </div>

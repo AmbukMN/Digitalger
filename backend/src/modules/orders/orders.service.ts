@@ -250,7 +250,8 @@ export class OrdersService {
     }
     const cancelled = await this.prisma.order.update({
       where: { id: orderId },
-      data: { status: OrderStatus.CANCELLED },
+      // Цуцлалтын эх сурвалж: хэрэглэгч өөрөө цуцалсан (admin UI ялгаж харуулна).
+      data: { status: OrderStatus.CANCELLED, cancelledBy: 'USER', cancelledAt: new Date() },
     });
     // Захиалгад хэрэглэсэн купоны usedCount-ийг буцаана — эс бол цуцалсан
     // захиалгын купон "хэрэглэгдсэн" хэвээр үлдэж maxUses-д буруу хүрнэ.

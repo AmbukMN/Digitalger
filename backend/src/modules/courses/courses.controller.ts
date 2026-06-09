@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -115,27 +116,39 @@ export class CoursesController {
     return this.coursesService.listQuestions(productSlug, lessonId, userId);
   }
 
-  // Хичээлд асуулт асуух.
+  // Хичээлд асуулт асуух. Спам сэргийлэх — 5 асуулт/минут.
   @Post(':productSlug/lessons/:lessonId/questions')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   askQuestion(
     @Param('productSlug') productSlug: string,
     @Param('lessonId') lessonId: string,
     @CurrentUser('sub') userId: string,
     @Body() body: AskQuestionDto,
   ) {
-    return this.coursesService.askQuestion(productSlug, lessonId, userId, body.question);
+    return this.coursesService.askQuestion(productSlug, lessonId, userId, body.question, {
+      attachmentKey: body.attachmentKey,
+      attachmentName: body.attachmentName,
+      attachmentMimeType: body.attachmentMimeType,
+      attachmentSize: body.attachmentSize,
+    });
   }
 
-  // Асуултад хариулах — хэрэглэгч ч хариулж болно (isInstructor=false).
+  // Асуултад хариулах — хэрэглэгч ч хариулж болно (isInstructor=false). 5 хариулт/минут.
   @Post('questions/:questionId/answers')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   addAnswer(
     @Param('questionId') questionId: string,
     @CurrentUser('sub') userId: string,
     @Body() body: AddAnswerDto,
   ) {
-    return this.coursesService.addAnswer(questionId, userId, body.answer, false);
+    return this.coursesService.addAnswer(questionId, userId, body.answer, false, {
+      attachmentKey: body.attachmentKey,
+      attachmentName: body.attachmentName,
+      attachmentMimeType: body.attachmentMimeType,
+      attachmentSize: body.attachmentSize,
+    });
   }
 
   // ── Quiz (хичээлийн дараах шалгалт) ──────────────────────────────────────────

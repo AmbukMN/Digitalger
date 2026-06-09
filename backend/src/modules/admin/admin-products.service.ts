@@ -15,6 +15,11 @@ import { expandQuery } from '../../common/transliterate';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateLessonDto, UpdateLessonDto } from './dto/lesson.dto';
+import {
+  QA_ALLOWED_MIME_TYPES,
+  QA_ATTACHMENT_MAX_SIZE,
+} from '../courses/dto/qa.dto';
+import type { QaAttachmentInput } from '../courses/courses.service';
 
 @Injectable()
 export class AdminProductsService {
@@ -896,7 +901,62 @@ export class AdminProductsService {
       this.prisma.lessonQuestion.count({ where }),
     ]);
 
-    const mapped = items.map((q) => ({
+    const mapped = await Promise.all(
+      items.map(async (q) => ({
+        id: q.id,
+        question: q.question,
+        isPinned: q.isPinned,
+        createdAt: q.createdAt,
+        answerCount: q.answers.length,
+        answered: q.answers.length > 0,
+        user: q.user,
+        lesson: {
+          id: q.lesson.id,
+          title: q.lesson.title,
+          product: q.lesson.course.product,
+        },
+        // Хавсралтыг presigned URL болгож resolve хийнэ (admin форумд харагдана).
+        attachment: await this.resolveQaAttachment(q),
+        answers: await Promise.all(
+          q.answers.map(async (a) => ({
+            ...a,
+            attachment: await this.resolveQaAttachment(a),
+          })),
+        ),
+      })),
+    );
+
+    // Хариулаагүйг эхэнд онцолно (онцлох эрэмбэ).
+    mapped.sort((a, b) => Number(a.answered) - Number(b.answered));
+
+    return { items: mapped, total, page, pageSize };
+  }
+
+  /**
+   * Нэг асуултын дэлгэрэнгүй (conversation) — асуулт + бүх хариулт + хэрэглэгч/хичээл/бүтээгдэхүүн.
+   * Хавсралтыг presigned URL-аар resolve хийж буцаана (admin/багш үзнэ).
+   */
+  async getQuestionDetail(questionId: string) {
+    const q = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        lesson: {
+          select: {
+            id: true,
+            title: true,
+            course: { select: { product: { select: { id: true, title: true, slug: true } } } },
+          },
+        },
+        answers: {
+          orderBy: { createdAt: 'asc' },
+          include: { user: { select: { id: true, name: true, image: true } } },
+        },
+      },
+    });
+    if (!q) throw new NotFoundException('Question not found');
+
+    return {
       id: q.id,
       question: q.question,
       isPinned: q.isPinned,
@@ -909,27 +969,80 @@ export class AdminProductsService {
         title: q.lesson.title,
         product: q.lesson.course.product,
       },
-      answers: q.answers,
-    }));
-
-    // Хариулаагүйг эхэнд онцолно (онцлох эрэмбэ).
-    mapped.sort((a, b) => Number(a.answered) - Number(b.answered));
-
-    return { items: mapped, total, page, pageSize };
+      attachment: await this.resolveQaAttachment(q),
+      answers: await Promise.all(
+        q.answers.map(async (a) => ({
+          ...a,
+          attachment: await this.resolveQaAttachment(a),
+        })),
+      ),
+    };
   }
 
-  /** Admin/багшийн хариулт (isInstructor=true). */
-  async answerQuestion(questionId: string, userId: string, answer: string) {
+  /**
+   * Admin/багшийн хариулт (isInstructor=true). Хавсралт (R2 key) хадгалах боломжтой.
+   */
+  async answerQuestion(
+    questionId: string,
+    userId: string,
+    answer: string,
+    attachment?: QaAttachmentInput,
+  ) {
     const question = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
       select: { id: true },
     });
     if (!question) throw new NotFoundException('Question not found');
 
-    return this.prisma.lessonAnswer.create({
-      data: { questionId, userId, answer: answer.trim(), isInstructor: true },
+    const created = await this.prisma.lessonAnswer.create({
+      data: {
+        questionId,
+        userId,
+        answer: answer.trim(),
+        isInstructor: true,
+        ...this.buildQaAttachmentData(attachment),
+      },
       include: { user: { select: { id: true, name: true, image: true } } },
     });
+
+    return { ...created, attachment: await this.resolveQaAttachment(created) };
+  }
+
+  // ── Q&A хавсралтын туслах функцууд ───────────────────────────────────────────
+
+  /** DTO хавсралтыг шалгаж Prisma create data болгоно (MIME + 100MB шалгана). */
+  private buildQaAttachmentData(attachment?: QaAttachmentInput) {
+    if (!attachment?.attachmentKey) return {};
+    const mime = attachment.attachmentMimeType;
+    if (mime && !QA_ALLOWED_MIME_TYPES.has(mime)) {
+      throw new BadRequestException(`Зөвшөөрөгдөөгүй файлын төрөл: ${mime}`);
+    }
+    if (attachment.attachmentSize != null && attachment.attachmentSize > QA_ATTACHMENT_MAX_SIZE) {
+      throw new BadRequestException('Файлын хэмжээ 100MB-аас хэтэрсэн байна');
+    }
+    return {
+      attachmentKey: attachment.attachmentKey,
+      attachmentName: attachment.attachmentName ?? null,
+      attachmentMimeType: mime ?? null,
+      attachmentSize: attachment.attachmentSize ?? null,
+    };
+  }
+
+  /** Хавсралтын R2 key-г presigned URL болгож resolve хийнэ (хавсралтгүй бол null). */
+  private async resolveQaAttachment(record: {
+    attachmentKey: string | null;
+    attachmentName: string | null;
+    attachmentMimeType: string | null;
+    attachmentSize: number | null;
+  }) {
+    if (!record.attachmentKey) return null;
+    return {
+      key: record.attachmentKey,
+      name: record.attachmentName,
+      mimeType: record.attachmentMimeType,
+      size: record.attachmentSize,
+      url: await this.storage.getPresignedUrl(record.attachmentKey, 3600, 'get'),
+    };
   }
 
   /** Асуултыг онцлох/болиулах (pin). */

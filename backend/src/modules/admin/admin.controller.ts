@@ -718,7 +718,13 @@ export class AdminController {
   ) {
     return this.prisma.order.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        // Админ гараар цуцалбал эх сурвалжийг тэмдэглэнэ (admin UI ялгана).
+        ...(status === OrderStatus.CANCELLED
+          ? { cancelledBy: 'ADMIN', cancelledAt: new Date() }
+          : {}),
+      },
     });
   }
 
@@ -728,7 +734,14 @@ export class AdminController {
     @Body() body: { status?: OrderStatus; couponCode?: string | null },
   ) {
     const data: Record<string, unknown> = {};
-    if (body.status !== undefined) data.status = body.status;
+    if (body.status !== undefined) {
+      data.status = body.status;
+      // Админ гараар CANCELLED болгож байвал цуцлалтын эх сурвалжийг тэмдэглэнэ.
+      if (body.status === OrderStatus.CANCELLED) {
+        data.cancelledBy = 'ADMIN';
+        data.cancelledAt = new Date();
+      }
+    }
     if (body.couponCode !== undefined) data.couponCode = body.couponCode ?? null;
     return this.prisma.order.update({
       where: { id },
@@ -1028,13 +1041,24 @@ export class AdminController {
     return this.adminProducts.listLessonQuestions(lessonId);
   }
 
+  // Нэг асуултын дэлгэрэнгүй (conversation) — хавсралт presigned URL-аар.
+  @Get('lessons/questions/:questionId')
+  getLessonQuestionDetail(@Param('questionId') questionId: string) {
+    return this.adminProducts.getQuestionDetail(questionId);
+  }
+
   @Post('lessons/questions/:questionId/answers')
   answerLessonQuestion(
     @Param('questionId') questionId: string,
     @Body() body: AddAnswerDto,
     @CurrentUser() me: JwtPayload,
   ) {
-    return this.adminProducts.answerQuestion(questionId, me.sub, body.answer);
+    return this.adminProducts.answerQuestion(questionId, me.sub, body.answer, {
+      attachmentKey: body.attachmentKey,
+      attachmentName: body.attachmentName,
+      attachmentMimeType: body.attachmentMimeType,
+      attachmentSize: body.attachmentSize,
+    });
   }
 
   @Patch('lessons/questions/:questionId/pin')

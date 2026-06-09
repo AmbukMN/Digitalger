@@ -11,6 +11,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
 import { pickActiveOrder } from '../../common/access-expiry';
+import { QA_ALLOWED_MIME_TYPES, QA_ATTACHMENT_MAX_SIZE } from './dto/qa.dto';
+
+/** Q&A асуулт/хариултад дамжуулах хавсралтын мета (uploads-аар R2-д хуулсан key). */
+export interface QaAttachmentInput {
+  attachmentKey?: string;
+  attachmentName?: string;
+  attachmentMimeType?: string;
+  attachmentSize?: number;
+}
 
 @Injectable()
 export class CoursesService {
@@ -1131,30 +1140,47 @@ export class CoursesService {
       },
     });
 
-    return questions.map((q) => ({
-      id: q.id,
-      question: q.question,
-      isPinned: q.isPinned,
-      createdAt: q.createdAt,
-      user: q.user,
-      isMine: q.userId === userId,
-      answers: q.answers.map((a) => ({
-        id: a.id,
-        answer: a.answer,
-        isInstructor: a.isInstructor,
-        createdAt: a.createdAt,
-        user: a.user,
-        isMine: a.userId === userId,
+    return Promise.all(
+      questions.map(async (q) => ({
+        id: q.id,
+        question: q.question,
+        isPinned: q.isPinned,
+        createdAt: q.createdAt,
+        user: q.user,
+        isMine: q.userId === userId,
+        attachment: await this.resolveQaAttachment(q),
+        answers: await Promise.all(
+          q.answers.map(async (a) => ({
+            id: a.id,
+            answer: a.answer,
+            isInstructor: a.isInstructor,
+            createdAt: a.createdAt,
+            user: a.user,
+            isMine: a.userId === userId,
+            attachment: await this.resolveQaAttachment(a),
+          })),
+        ),
       })),
-    }));
+    );
   }
 
   /** Хичээлд асуулт асуух (entitlement шалгасны дараа). */
-  async askQuestion(productSlug: string, lessonId: string, userId: string, question: string) {
+  async askQuestion(
+    productSlug: string,
+    lessonId: string,
+    userId: string,
+    question: string,
+    attachment?: QaAttachmentInput,
+  ) {
     await this.ensureLessonAccess(productSlug, lessonId, userId);
 
     const created = await this.prisma.lessonQuestion.create({
-      data: { lessonId, userId, question: question.trim() },
+      data: {
+        lessonId,
+        userId,
+        question: question.trim(),
+        ...this.buildAttachmentData(attachment),
+      },
       include: {
         user: { select: { id: true, name: true, image: true } },
       },
@@ -1167,6 +1193,7 @@ export class CoursesService {
       createdAt: created.createdAt,
       user: created.user,
       isMine: true,
+      attachment: await this.resolveQaAttachment(created),
       answers: [],
     };
   }
@@ -1175,7 +1202,13 @@ export class CoursesService {
    * Асуултад хариулт нэмнэ. Хэрэглэгч ч хариулж болно (isInstructor=false).
    * Зөвхөн тухайн курс авах эрхтэй (PAID) хэрэглэгч хариулна.
    */
-  async addAnswer(questionId: string, userId: string, answer: string, isInstructor = false) {
+  async addAnswer(
+    questionId: string,
+    userId: string,
+    answer: string,
+    isInstructor = false,
+    attachment?: QaAttachmentInput,
+  ) {
     const question = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
       select: {
@@ -1207,7 +1240,13 @@ export class CoursesService {
     }
 
     const created = await this.prisma.lessonAnswer.create({
-      data: { questionId, userId, answer: answer.trim(), isInstructor },
+      data: {
+        questionId,
+        userId,
+        answer: answer.trim(),
+        isInstructor,
+        ...this.buildAttachmentData(attachment),
+      },
       include: { user: { select: { id: true, name: true, image: true } } },
     });
 
@@ -1218,6 +1257,53 @@ export class CoursesService {
       createdAt: created.createdAt,
       user: created.user,
       isMine: created.userId === userId,
+      attachment: await this.resolveQaAttachment(created),
+    };
+  }
+
+  // ── Q&A хавсралтын туслах функцууд ───────────────────────────────────────────
+
+  /**
+   * DTO-оос ирсэн хавсралтыг шалгаж Prisma create data болгоно.
+   * - attachmentKey байхгүй бол хавсралтгүй (хоосон объект).
+   * - MIME зөвшөөрөгдсөн эсэх, хэмжээ 100MB-аас хэтрэхгүйг шалгана.
+   */
+  private buildAttachmentData(attachment?: QaAttachmentInput) {
+    if (!attachment?.attachmentKey) return {};
+
+    const mime = attachment.attachmentMimeType;
+    if (mime && !QA_ALLOWED_MIME_TYPES.has(mime)) {
+      throw new BadRequestException(`Зөвшөөрөгдөөгүй файлын төрөл: ${mime}`);
+    }
+    if (attachment.attachmentSize != null && attachment.attachmentSize > QA_ATTACHMENT_MAX_SIZE) {
+      throw new BadRequestException('Файлын хэмжээ 100MB-аас хэтэрсэн байна');
+    }
+
+    return {
+      attachmentKey: attachment.attachmentKey,
+      attachmentName: attachment.attachmentName ?? null,
+      attachmentMimeType: mime ?? null,
+      attachmentSize: attachment.attachmentSize ?? null,
+    };
+  }
+
+  /**
+   * Хадгалсан хавсралтын R2 key-г presigned URL болгож resolve хийнэ.
+   * Хавсралтгүй бол null. (хэрэглэгч/admin аль аль нь үзнэ.)
+   */
+  private async resolveQaAttachment(record: {
+    attachmentKey: string | null;
+    attachmentName: string | null;
+    attachmentMimeType: string | null;
+    attachmentSize: number | null;
+  }) {
+    if (!record.attachmentKey) return null;
+    return {
+      key: record.attachmentKey,
+      name: record.attachmentName,
+      mimeType: record.attachmentMimeType,
+      size: record.attachmentSize,
+      url: await this.storage.getPresignedUrl(record.attachmentKey, 3600, 'get'),
     };
   }
 

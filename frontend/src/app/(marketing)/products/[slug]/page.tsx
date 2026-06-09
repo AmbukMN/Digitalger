@@ -255,11 +255,13 @@ export default async function ProductDetailPage({ params }: Props) {
                 {product.downloadCount > 0 && (
                   <div className="flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/25 px-2 sm:px-2.5 py-1 font-medium text-orange-600 dark:text-orange-400 shrink-0">
                     <Flame className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                    {product.downloadCount} татсан
+                    {/* Сургалт (LESSON) бол "элссэн", бусад "татсан" (тоо хэвээр) */}
+                    {product.downloadCount} {product.type === 'LESSON' ? 'элссэн' : 'татсан'}
                   </div>
                 )}
-                {/* Хуурамч social-proof urgency — "X хүн үзэж байна" (хэрэглэгч хүссэн) */}
-                <ViewingNow seed={product.id} className="shrink-0" />
+                {/* Хуурамч social-proof urgency — "X хүн үзэж байна" (хэрэглэгч хүссэн).
+                    Сургалт (LESSON) бол арай олон (10-20), бусад 3-12 (lesson prop). */}
+                <ViewingNow seed={product.id} lesson={product.type === 'LESSON'} className="shrink-0" />
               </div>
               {/* Price — mobile only, shown below rating row */}
               <div className="mt-2 flex items-baseline gap-2 lg:hidden">
