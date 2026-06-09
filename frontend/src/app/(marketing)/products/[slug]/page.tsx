@@ -10,7 +10,7 @@ import { PurchaseCard, MobileBuyBar } from '@/components/products/purchase-card'
 import { ProductTitleActions } from '@/components/products/product-title-actions';
 import { FaqAccordion } from '@/components/products/faq-accordion';
 import { ReviewsSection } from '@/components/products/reviews-section';
-import { ProductTestimonialsSection } from '@/components/products/testimonials-section';
+import { TestimonialsGate } from '@/components/products/testimonials-gate';
 import { MediaGallery } from '@/components/products/media-gallery';
 import { CourseCurriculum } from '@/components/products/course-curriculum';
 import { WatchCourseButton } from '@/components/products/watch-course-button';
@@ -392,15 +392,13 @@ export default async function ProductDetailPage({ params }: Props) {
               </section>
             )}
 
-            {/* Testimonials */}
+            {/* Testimonials — сургалтыг ХУДАЛДАЖ АВСАН үед нуудаг (gate, client) */}
             {hasTestimonials && (
-              <section>
-                <div className="mb-4">
-                  <h2 className="text-lg font-bold">Худалдан авагчид юу гэж хэлэв?</h2>
-                  <p className="text-xs text-muted-foreground mt-1">Мянга мянган хэрэглэгчид DigitalGer-ээр дамжуулан хэрэгтэй файл, сургалт, бэлэн шийдлүүдээ олж, цаг хугацаа болон зардлаа хэмнэж байна. Бодит хэрэглэгчдийн туршлага танд зөв сонголт хийхэд тусална.</p>
-                </div>
-                <ProductTestimonialsSection testimonials={product.testimonials!} />
-              </section>
+              <TestimonialsGate
+                productId={product.id}
+                isLesson={product.type === 'LESSON'}
+                testimonials={product.testimonials!}
+              />
             )}
 
             {/* FAQ */}
