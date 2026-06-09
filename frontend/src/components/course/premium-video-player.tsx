@@ -380,10 +380,13 @@ function PremiumVideoPlayerBase({
   // Видеоны viewport (зураг хэсэг) нь үргэлж black (видео контентын хүрээ),
   // харин controls bar / menu / toast / overlay theme дагана.
   const { resolvedTheme } = useTheme();
+  // ⚠️ SSR hydration mismatch (#418)-аас сэргийлж mount-ийн дараа л theme авна
+  // (SSR-д resolvedTheme undefined тул эхний render dark default — client-тэй тааруулна).
+  const [themeReady, setThemeReady] = useState(false);
+  useEffect(() => setThemeReady(true), []);
 
   // Player нь ТУСДАА toggle-гүй — learn хуудсын (сайтын) theme-ийг ШУУД дагана.
-  // (Learn header дээрх нэг toggle бүхэл хуудас + player-ийг хамт сольдог.)
-  const isLight = resolvedTheme === 'light';
+  const isLight = themeReady && resolvedTheme === 'light';
 
   // Callback-уудыг ref-ээр барина — listener-уудыг parent бүр render-д дахин
   // холбохгүйгээр хамгийн сүүлийн утгыг дуудна (stale closure-аас сэргийлнэ).
@@ -626,8 +629,11 @@ function PremiumVideoPlayerBase({
     const onEnd = () => {
       setPlaying(false);
       emitProgress(true);
+      // ⚠️ ЗӨВХӨН onEnded дуудна. autoplay (дараагийн хичээл рүү шилжих) логикийг
+      // parent (learn-client handleEnded) удирдана — autoStart=true-аар. Өмнө энд
+      // autoNext+onNext давхар дуудаж, autoStart=false-аар ДАХИН шилжүүлж эхнийхийг
+      // дардаг байсан тул autoplay тоглодоггүй байв.
       cbRef.current.onEnded?.();
-      if (autoNext && onNext) onNext();
     };
     const onVol = () => {
       setVolume(video.volume);
