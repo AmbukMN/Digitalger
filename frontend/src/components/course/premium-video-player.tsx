@@ -395,6 +395,10 @@ function PremiumVideoPlayerBase({
 
   // Playback state — autoStart (autoplay-аар шилжсэн) бол шууд started (poster даралгүй).
   const [started, setStarted] = useState(autoStart); // poster дарж эхэлсэн эсэх (lazy)
+  // autoStart prop true болоход (key remount-д найдахгүй) started=true болгоно.
+  useEffect(() => {
+    if (autoStart) setStarted(true);
+  }, [autoStart]);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false); // эх сурвалж ачаалж байна
   const [buffering, setBuffering] = useState(false); // waiting (re-buffer)
@@ -506,15 +510,23 @@ function PremiumVideoPlayerBase({
 
     // ── autoStart (autoplay-аар шилжсэн) — src тавьсны ДАРАА автомат play() ──
     // Энэ нь attach-тай НЭГ effect тул src заавал тавигдсан байна (race-гүй).
-    // canplay/loadeddata хүлээгээд play. Policy татгалзвал muted-аар дахин.
+    // ⚠️ Browser autoplay policy: client navigation (router.replace) дараа "user
+    // gesture" алдагддаг тул МUTED-ээр л найдвартай тоглоно. Тиймээс autoStart үед
+    // ШУУД muted болгоод play (хэрэглэгч дараа volume дарж unmute хийнэ — toast).
     if (autoStart) {
+      video.muted = true;
+      setMuted(true);
       const tryPlay = () => {
         if (destroyed) return;
-        video.play().catch(() => {
-          video.muted = true;
-          setMuted(true);
-          video.play().catch(() => {});
-        });
+        const p = video.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {
+            // muted ч татгалзвал дахин нэг оролдоно (буфер бэлэн болоход)
+            setTimeout(() => {
+              if (!destroyed) video.play().catch(() => {});
+            }, 300);
+          });
+        }
       };
       if (video.readyState >= 2) {
         tryPlay();
