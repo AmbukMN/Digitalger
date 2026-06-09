@@ -56,15 +56,22 @@ export class CoursesService {
    *  3) R2 видео (videoKey) → null (frontend видеоны эхний frame-ийг харуулна).
    * @returns public poster url эсвэл null.
    */
-  private resolvePosterUrl(lesson: {
+  private async resolvePosterUrl(lesson: {
     posterKey?: string | null;
     videoStreamId?: string | null;
-  }): string | null {
+  }): Promise<string | null> {
     if (lesson.posterKey) {
       return this.storage.getAssetUrl(lesson.posterKey);
     }
-    if (lesson.videoStreamId) {
-      return this.stream.getThumbnailUrl(lesson.videoStreamId);
+    if (lesson.videoStreamId && this.stream.configured) {
+      // ⚠️ requireSignedURLs видеоны thumbnail signed token шаардана (эс бол 403).
+      // Token авч чадаагүй бол poster null (player видеоны эхний frame харуулна).
+      try {
+        const token = await this.stream.getSignedPlaybackToken(lesson.videoStreamId, 24 * 60 * 60);
+        return this.stream.getThumbnailUrl(lesson.videoStreamId, '10s', token);
+      } catch {
+        return null;
+      }
     }
     return null;
   }
@@ -99,7 +106,7 @@ export class CoursesService {
 
     // ⚠️ content нь зөвхөн entitlement (худалдан авсан/preview) шалгасны дараа —
     // нийтийн жагсаалтад content БҮҮ оруул. Энд зөвхөн meta + хавсралтын тоо.
-    const mapLesson = (lesson: any) => ({
+    const mapLesson = async (lesson: any) => ({
       id: lesson.id,
       title: lesson.title,
       description: lesson.description,
@@ -108,27 +115,27 @@ export class CoursesService {
       isFreePreview: lesson.isFreePreview,
       moduleId: lesson.moduleId ?? null,
       hasVideo: Boolean(lesson.videoKey || lesson.videoUrl || lesson.videoStreamId),
-      // Poster: admin upload (posterKey) → Stream автомат thumbnail → null (R2 видео).
-      posterUrl: this.resolvePosterUrl(lesson),
+      // Poster: admin upload (posterKey) → Stream signed thumbnail → null (R2 видео).
+      posterUrl: await this.resolvePosterUrl(lesson),
       resourceCount: lesson._count?.resources ?? 0,
       hasResources: (lesson._count?.resources ?? 0) > 0,
     });
 
     // Lessons with no module (ungrouped)
-    const ungroupedLessons = product.course.lessons
-      .filter((l) => !l.moduleId)
-      .map(mapLesson);
+    const ungroupedLessons = await Promise.all(
+      product.course.lessons.filter((l) => !l.moduleId).map(mapLesson),
+    );
 
     return {
       productId: product.id,
       productTitle: product.title,
       courseId: product.course.id,
-      modules: product.course.modules.map((m) => ({
+      modules: await Promise.all(product.course.modules.map(async (m) => ({
         id: m.id,
         title: m.title,
         sortOrder: m.sortOrder,
-        lessons: m.lessons.map(mapLesson),
-      })),
+        lessons: await Promise.all(m.lessons.map(mapLesson)),
+      }))),
       lessons: ungroupedLessons,
     };
   }
@@ -163,8 +170,8 @@ export class CoursesService {
     // GET :productSlug/resources/:resourceId/download endpoint дуудна.
     const extras = {
       content: lesson.content ?? null,
-      // Poster: admin upload (posterKey) → Stream автомат thumbnail → null (R2 видео).
-      posterUrl: this.resolvePosterUrl(lesson),
+      // Poster: admin upload (posterKey) → Stream signed thumbnail → null (R2 видео).
+      posterUrl: await this.resolvePosterUrl(lesson),
       resources: lesson.resources.map((r) => ({
         id: r.id,
         fileName: r.fileName,

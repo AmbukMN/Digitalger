@@ -156,13 +156,17 @@ export class CloudflareStreamService {
 
   /**
    * Cloudflare Stream автомат thumbnail (poster) URL.
-   * ⚠️ Thumbnail нь НИЙТЭД нээлттэй (signed token шаардахгүй) — requireSignedURLs нь
-   * зөвхөн видео playback-д үйлчилнэ. videodelivery.net домэйн customer-code шаардахгүй
-   * тул account бүрд найдвартай ажиллана.
+   * ⚠️ requireSignedURLs=true видеоны thumbnail НИЙТЭД НЭЭЛТТЭЙ БИШ — signed token
+   * заавал хэрэгтэй (эс бол 403 broken image). signedToken дамжуулбал token-той URL,
+   * эс бол энгийн (signed бус видеонд) URL буцаана.
    * @param uid видеоны Stream uid
    * @param time эхнээс хэдэн секундын frame (default '10s' — эхний 10 секунд)
+   * @param signedToken playback signed token (requireSignedURLs видеонд заавал)
    */
-  getThumbnailUrl(uid: string, time = '10s'): string {
+  getThumbnailUrl(uid: string, time = '10s', signedToken?: string): string {
+    if (signedToken) {
+      return `https://videodelivery.net/${signedToken}/thumbnails/thumbnail.jpg?time=${time}`;
+    }
     return `https://videodelivery.net/${uid}/thumbnails/thumbnail.jpg?time=${time}`;
   }
 

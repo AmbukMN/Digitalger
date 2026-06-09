@@ -1053,7 +1053,13 @@ function PremiumVideoPlayerBase({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={poster}
-                alt={title ?? ''}
+                alt=""
+                aria-hidden
+                // Poster ачаалагдахгүй (broken) бол нуух — зүүн дээд буланд broken
+                // image icon гарахаас сэргийлнэ.
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
                 className="absolute inset-0 h-full w-full object-cover opacity-80"
               />
             )}
