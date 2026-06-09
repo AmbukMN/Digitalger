@@ -82,7 +82,7 @@ const navSections: readonly NavSection[] = [
       { href: '/users', label: 'Хэрэглэгч', icon: Users },
       { href: '/subscribers', label: 'Subscriber', icon: Mail },
       { href: '/reviews', label: 'Review', icon: Star },
-      { href: '/testimonials', label: 'Гэрчлэл', icon: MessageSquare },
+      { href: '/testimonials', label: 'Testimonial', icon: MessageSquare },
       { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
     ],
   },
