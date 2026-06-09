@@ -257,15 +257,16 @@ export default function UsersPage() {
         const isAdmin = u.role === 'ADMIN';
         return (
           <div className="flex items-center gap-1">
-            {!isAdmin && (
-              <Button
-                variant="ghost" size="icon"
-                className="h-7 w-7 text-primary/70 hover:text-primary hover:bg-primary/10"
-                onClick={() => setGrantTarget(u)} title="Бүтээгдэхүүн идэвхжүүлэх"
-              >
-                <Gift className="h-3.5 w-3.5" />
-              </Button>
-            )}
+            {/* Gift (бүтээгдэхүүн идэвхжүүлэх) — admin өөртөө ч grant хийж болно
+                (худалдсан үеийн харагдацыг шалгах, test хийх). */}
+            <Button
+              variant="ghost" size="icon"
+              className="h-7 w-7 text-primary/70 hover:text-primary hover:bg-primary/10"
+              onClick={() => setGrantTarget(u)}
+              title={isAdmin ? 'Өөртөө бүтээгдэхүүн идэвхжүүлэх (тест)' : 'Бүтээгдэхүүн идэвхжүүлэх'}
+            >
+              <Gift className="h-3.5 w-3.5" />
+            </Button>
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => openEdit(u)} title="Засах"
