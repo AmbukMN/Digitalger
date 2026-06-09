@@ -173,8 +173,12 @@ function LessonItem({
               {dur}
             </span>
           )}
+          {/* Үнэгүй preview badge — дарахад тоглоно (тод gold) */}
           {lesson.isFreePreview && !purchased && (
-            <span className="rounded bg-[#ffbe00]/15 px-1.5 py-0.5 font-semibold text-[#ffbe00]">Preview</span>
+            <span className="flex items-center gap-1 rounded-full bg-[#ffbe00]/20 px-1.5 py-0.5 font-bold uppercase tracking-wide text-[#ffbe00]">
+              <Play className="h-2.5 w-2.5 fill-current" />
+              Үзэх
+            </span>
           )}
         </span>
         {/* Хагас үзсэн progress bar */}

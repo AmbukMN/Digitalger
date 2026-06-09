@@ -16,11 +16,13 @@ import {
   Loader2,
   Maximize,
   Minimize,
+  Moon,
   Pause,
   PictureInPicture2,
   Play,
   RotateCw,
   SkipForward,
+  Sun,
   Volume1,
   Volume2,
   VolumeX,
@@ -77,6 +79,26 @@ const SAVE_THROTTLE_SEC = 10;
 const LS_VOLUME = 'digitalger:video-volume';
 const LS_SPEED = 'digitalger:video-speed';
 const LS_MUTED = 'digitalger:video-muted';
+// Player-ийн ТУСДАА theme (сайтын theme-аас үл хамаарч болно).
+//  'auto'  → сайтын resolvedTheme дагана
+//  'light' → player зөвхөн light
+//  'dark'  → player зөвхөн dark
+const LS_PLAYER_THEME = 'digitalger:player-theme';
+
+/** Player-ийн theme сонголт (auto = сайт дагах) */
+type PlayerTheme = 'auto' | 'light' | 'dark';
+
+/** localStorage-аас player theme унших (SSR-safe) */
+function readPlayerTheme(): PlayerTheme {
+  if (typeof window === 'undefined') return 'auto';
+  try {
+    const raw = window.localStorage.getItem(LS_PLAYER_THEME);
+    if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw;
+    return 'auto';
+  } catch {
+    return 'auto';
+  }
+}
 
 /** localStorage-аас number унших (SSR-safe, хүчингүй бол fallback) */
 function readNum(key: string, fallback: number, min: number, max: number): number {
@@ -157,6 +179,8 @@ interface WebkitFullscreenContainer extends HTMLDivElement {
 interface RangeProps {
   value: number; // 0..1
   buffered?: number; // 0..1 (seek bar дээр buffered давхарга)
+  /** buffered давхаргын өнгө (theme) */
+  bufferedClass?: string;
   onChange: (v: number) => void;
   onScrub?: (active: boolean) => void;
   onHover?: (v: number | null) => void;
@@ -170,6 +194,7 @@ interface RangeProps {
 function CustomRange({
   value,
   buffered = 0,
+  bufferedClass = 'bg-white/50',
   onChange,
   onScrub,
   onHover,
@@ -258,9 +283,9 @@ function CustomRange({
           trackClassName,
         )}
       >
-        {/* buffered давхарга — тод (white/50) */}
+        {/* buffered давхарга — theme-aware тод өнгө */}
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-white/50"
+          className={cn('absolute inset-y-0 left-0 rounded-full', bufferedClass)}
           style={{ width: `${bufPct * 100}%` }}
         />
         {/* played давхарга (brand gold) */}
@@ -370,7 +395,31 @@ function PremiumVideoPlayerBase({
   // Видеоны viewport (зураг хэсэг) нь үргэлж black (видео контентын хүрээ),
   // харин controls bar / menu / toast / overlay theme дагана.
   const { resolvedTheme } = useTheme();
-  const isLight = resolvedTheme === 'light';
+
+  // ── Player-ийн ТУСДАА theme (auto = сайт дагах, эс бөгөөс өөрөө) ──
+  // Анх хэрэглэгч сайтын theme дагана ('auto'). Player доторх Sun/Moon товч
+  // дарвал 'light'/'dark' болж сайтаас үл хамааран ажиллана (localStorage-д хадгална).
+  const [playerTheme, setPlayerTheme] = useState<PlayerTheme>('auto');
+  // SSR hydration зөрчилгүйн тулд localStorage-аас зөвхөн client дээр уншина.
+  useEffect(() => {
+    setPlayerTheme(readPlayerTheme());
+  }, []);
+
+  // Effective theme — playerTheme нь 'auto' бол сайтын resolvedTheme, эс бөгөөс өөрөө.
+  const effectiveTheme =
+    playerTheme === 'auto' ? (resolvedTheme === 'light' ? 'light' : 'dark') : playerTheme;
+  const isLight = effectiveTheme === 'light';
+
+  // Player theme toggle (light ↔ dark). 'auto'-аас гарч ТУСДАА горимд орно.
+  const togglePlayerTheme = useCallback(() => {
+    setPlayerTheme((prev) => {
+      // Одоогийн харагдаж буй effective theme-ийн ЭСРЭГ рүү шилжинэ.
+      const current = prev === 'auto' ? (resolvedTheme === 'light' ? 'light' : 'dark') : prev;
+      const next: PlayerTheme = current === 'light' ? 'dark' : 'light';
+      writeLS(LS_PLAYER_THEME, next);
+      return next;
+    });
+  }, [resolvedTheme]);
 
   // Callback-уудыг ref-ээр барина — listener-уудыг parent бүр render-д дахин
   // холбохгүйгээр хамгийн сүүлийн утгыг дуудна (stale closure-аас сэргийлнэ).
@@ -906,34 +955,39 @@ function PremiumVideoPlayerBase({
 
   // ─── Theme-aware class токенууд (controls/menu/toast/overlay) ──────────────────
   // Видеоны viewport black хэвээр; зөвхөн UI элементүүд theme дагана.
+  // ⚠️ Light theme: видео ХАР тул зүгээр gradient-аар цайвар текст харагдахгүй.
+  //    Шийдэл — controls bar-д ХАГАС ТУНГАЛАГ ЦАЙВАР дэвсгэр (white/90) + blur,
+  //    дээр нь НАВИ/ХАР текст (эсрэг өнгө) → видео дээр ч ТОД харагдана.
+  //    Dark theme: хагас тунгалаг ХАР дэвсгэр + ЦАГААН текст.
   const ui = useMemo(() => {
     if (isLight) {
       return {
-        // controls bar gradient — цайвар (доороос дээш)
-        controlsGradient:
-          'bg-gradient-to-t from-white/95 via-white/70 to-transparent',
-        // top title gradient
-        topGradient: 'bg-gradient-to-b from-white/85 to-transparent',
+        // controls bar — хагас тунгалаг ЦАЙВАР дэвсгэр + blur (видео дээр тод)
+        controlsBar: 'bg-white/90 text-[#022179] backdrop-blur-md',
+        // top title — хагас тунгалаг цайвар (доош сулрах)
+        topGradient: 'bg-gradient-to-b from-white/90 via-white/70 to-transparent',
         text: 'text-[#022179]',
         textSoft: 'text-[#022179]/80',
-        iconBtn:
-          'text-[#022179]/90 hover:bg-[#022179]/10 hover:text-[#022179]',
-        rangeTrack: 'bg-[#022179]/20',
-        // menu / toast панель — цайвар
+        iconBtn: 'text-[#022179] hover:bg-[#022179]/10 hover:text-[#022179]',
+        rangeTrack: 'bg-[#022179]/25',
+        bufferedFill: 'bg-[#022179]/40',
+        // menu / toast панель — цайвар, тод хүрээ
         panel:
-          'border border-[#022179]/10 bg-white/95 text-[#022179] shadow-2xl backdrop-blur',
+          'border border-[#022179]/15 bg-white/95 text-[#022179] shadow-2xl backdrop-blur',
         menuItem: 'text-[#022179]/80 hover:bg-[#022179]/10',
         toggleOff: 'bg-[#022179]/25',
         hoverBubble: 'bg-[#022179] text-white',
       };
     }
     return {
-      controlsGradient: 'bg-gradient-to-t from-black/90 via-black/50 to-transparent',
-      topGradient: 'bg-gradient-to-b from-black/70 to-transparent',
+      // controls bar — хагас тунгалаг ХАР дэвсгэр + blur (видео дээр тод)
+      controlsBar: 'bg-black/55 text-white backdrop-blur-md',
+      topGradient: 'bg-gradient-to-b from-black/70 via-black/40 to-transparent',
       text: 'text-white',
       textSoft: 'text-white/90',
       iconBtn: 'text-white/90 hover:bg-white/15 hover:text-white',
       rangeTrack: 'bg-white/25',
+      bufferedFill: 'bg-white/50',
       panel:
         'border border-white/10 bg-zinc-900/95 text-white shadow-2xl backdrop-blur',
       menuItem: 'text-white/85 hover:bg-white/10',
@@ -1073,8 +1127,8 @@ function PremiumVideoPlayerBase({
             ref={controlsRef}
             {...fadeProps}
             className={cn(
-              'absolute inset-x-0 bottom-0 z-30 px-3 pb-2 pt-10 sm:px-4',
-              ui.controlsGradient,
+              'absolute inset-x-0 bottom-0 z-30 px-3 pb-2 pt-3 sm:px-4',
+              ui.controlsBar,
             )}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1095,6 +1149,7 @@ function PremiumVideoPlayerBase({
                 ariaLabel="Видео байрлал"
                 value={playedFrac}
                 buffered={bufferedFrac}
+                bufferedClass={ui.bufferedFill}
                 baseTrackClass={ui.rangeTrack}
                 onChange={(v) => {
                   setScrubbing(true);
@@ -1247,6 +1302,20 @@ function PremiumVideoPlayerBase({
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Player theme toggle (light ↔ dark) — сайтаас ТУСДАА.
+                  Light үед Moon (dark руу), dark үед Sun (light руу) харагдана. */}
+              <IconBtn
+                label={
+                  isLight
+                    ? 'Player-ийг бараан горимд'
+                    : 'Player-ийг цайвар горимд'
+                }
+                onClick={togglePlayerTheme}
+                className={ui.iconBtn}
+              >
+                {isLight ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              </IconBtn>
 
               {/* Picture-in-Picture (идэвхтэй үед gold highlight) */}
               {pipSupported && (

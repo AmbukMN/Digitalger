@@ -81,7 +81,7 @@ export function LessonQuiz({
   // ── Ачаалж байна ──
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-10 text-sm text-white/40">
+      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         Ачааллаж байна...
       </div>
@@ -91,9 +91,9 @@ export function LessonQuiz({
   // ── Шалгалт байхгүй / нэвтрээгүй ──
   if (!quiz) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-6 py-10 text-center">
-        <ClipboardCheck className="h-7 w-7 text-white/25" />
-        <p className="text-sm font-medium text-white/50">
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 py-10 text-center">
+        <ClipboardCheck className="h-7 w-7 text-muted-foreground/50" />
+        <p className="text-sm font-medium text-muted-foreground">
           {token ? 'Энэ хичээлд шалгалт алга.' : 'Шалгалт өгөхийн тулд нэвтэрнэ үү.'}
         </p>
       </div>
@@ -118,9 +118,9 @@ export function LessonQuiz({
           <XCircle className="h-14 w-14 text-red-400" />
         )}
         <div>
-          <p className="text-xl font-bold text-white">{passed ? 'Та тэнцлээ! 🎉' : 'Дахин оролдоно уу'}</p>
-          <p className="mt-1 text-sm text-white/60">
-            Таны оноо: <span className="font-bold text-white">{result.score}</span> · Тэнцэх оноо:{' '}
+          <p className="text-xl font-bold text-foreground">{passed ? 'Та тэнцлээ! 🎉' : 'Дахин оролдоно уу'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Таны оноо: <span className="font-bold text-foreground">{result.score}</span> · Тэнцэх оноо:{' '}
             {quiz.passScore}
           </p>
         </div>
@@ -128,7 +128,7 @@ export function LessonQuiz({
           <button
             type="button"
             onClick={retry}
-            className="flex items-center gap-2 rounded-lg bg-[#ffbe00] px-5 py-2.5 text-sm font-semibold text-[#022179] transition-opacity hover:opacity-90"
+            className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             <RotateCcw className="h-4 w-4" />
             Дахин өгөх
@@ -138,7 +138,7 @@ export function LessonQuiz({
           <button
             type="button"
             onClick={retry}
-            className="flex items-center gap-2 rounded-lg border border-white/15 px-5 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/5"
+            className="flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted"
           >
             <RotateCcw className="h-4 w-4" />
             Дахин өгөх
@@ -154,21 +154,21 @@ export function LessonQuiz({
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center gap-4 rounded-2xl border border-[#ffbe00]/30 bg-[#ffbe00]/[0.06] p-8 text-center"
+        className="flex flex-col items-center gap-4 rounded-2xl border border-primary/30 bg-primary/6 p-8 text-center"
       >
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#ffbe00]/15">
-          <ClipboardCheck className="h-7 w-7 text-[#ffbe00]" />
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+          <ClipboardCheck className="h-7 w-7 text-primary" />
         </span>
         <div>
-          <p className="text-lg font-bold text-white">{quiz.title}</p>
-          <p className="mt-1 text-sm text-white/60">
+          <p className="text-lg font-bold text-foreground">{quiz.title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             {quiz.questions.length} асуулт · Тэнцэх оноо: {quiz.passScore}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setStarted(true)}
-          className="rounded-lg bg-[#ffbe00] px-6 py-2.5 text-sm font-semibold text-[#022179] transition-opacity hover:opacity-90"
+          className="rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
         >
           Шалгалт эхлүүлэх
         </button>
@@ -180,8 +180,8 @@ export function LessonQuiz({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-white">{quiz.title}</p>
-        <span className="text-xs text-white/40 tabular-nums">
+        <p className="text-sm font-semibold text-foreground">{quiz.title}</p>
+        <span className="text-xs text-muted-foreground tabular-nums">
           {Object.keys(answers).length} / {quiz.questions.length} хариулсан
         </span>
       </div>
@@ -192,10 +192,10 @@ export function LessonQuiz({
             key={q.id}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+            className="rounded-2xl border border-border bg-card p-4"
           >
-            <p className="mb-3 text-sm font-medium text-white">
-              <span className="mr-1.5 text-[#ffbe00]">{qi + 1}.</span>
+            <p className="mb-3 text-sm font-medium text-foreground">
+              <span className="mr-1.5 text-primary">{qi + 1}.</span>
               {q.question}
             </p>
             <div className="space-y-2">
@@ -209,14 +209,14 @@ export function LessonQuiz({
                     className={
                       'flex w-full items-center gap-3 rounded-xl border px-4 py-2.5 text-left text-sm transition-colors ' +
                       (selected
-                        ? 'border-[#ffbe00] bg-[#ffbe00]/10 text-white'
-                        : 'border-white/10 bg-white/[0.02] text-white/80 hover:bg-white/[0.05]')
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-background text-foreground/80 hover:bg-muted')
                     }
                   >
                     <span
                       className={
                         'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ' +
-                        (selected ? 'border-[#ffbe00] bg-[#ffbe00] text-[#022179]' : 'border-white/30 text-white/40')
+                        (selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground')
                       }
                     >
                       {String.fromCharCode(65 + oi)}
@@ -234,7 +234,7 @@ export function LessonQuiz({
         type="button"
         onClick={submit}
         disabled={!allAnswered || submitting}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffbe00] px-4 py-3 text-sm font-semibold text-[#022179] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         Шалгалт илгээх

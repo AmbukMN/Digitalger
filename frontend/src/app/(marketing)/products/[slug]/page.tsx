@@ -13,7 +13,6 @@ import { ReviewsSection } from '@/components/products/reviews-section';
 import { ProductTestimonialsSection } from '@/components/products/testimonials-section';
 import { MediaGallery } from '@/components/products/media-gallery';
 import { CourseCurriculum } from '@/components/products/course-curriculum';
-import { CourseOverview } from '@/components/products/course-overview';
 import { WatchCourseButton } from '@/components/products/watch-course-button';
 import { BundleList } from '@/components/products/bundle-list';
 import { DownloadAllButton } from '@/components/products/download-all-button';
@@ -110,7 +109,6 @@ export default async function ProductDetailPage({ params }: Props) {
     ...(product.course?.modules?.flatMap((m) => m.lessons) ?? []),
   ];
   const hasLessons = allLessons.length > 0;
-  const coursePreviewCount = allLessons.filter((l) => l.isFreePreview).length;
   const hasFaqs = product.faqs && product.faqs.length > 0;
   const hasTestimonials = product.testimonials && product.testimonials.length > 0;
   const hasProof = Boolean(product.proofQuote || product.proofImageUrl);
@@ -322,15 +320,6 @@ export default async function ProductDetailPage({ params }: Props) {
                   )
                 )}
               </section>
-            )}
-
-            {/* Course overview — зөвхөн хичээлтэй (course) бүтээгдэхүүнд */}
-            {hasLessons && (
-              <CourseOverview
-                modules={product.course!.modules ?? []}
-                lessons={product.course!.lessons ?? []}
-                previewCount={coursePreviewCount}
-              />
             )}
 
             {/* Course curriculum */}

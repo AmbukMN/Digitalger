@@ -50,7 +50,7 @@ function Avatar({ name, image, instructor }: { name?: string | null; image?: str
     <span
       className={
         'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
-        (instructor ? 'bg-[#ffbe00] text-[#022179]' : 'bg-white/10 text-white/70')
+        (instructor ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')
       }
     >
       {initial(name)}
@@ -67,18 +67,18 @@ function AnswerRow({ a }: { a: LessonAnswer }) {
       className="flex gap-2.5"
     >
       <Avatar name={a.user.name} image={a.user.image} instructor={a.isInstructor} />
-      <div className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+      <div className="min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-white">{a.user.name ?? 'Хэрэглэгч'}</span>
+          <span className="text-xs font-semibold text-foreground">{a.user.name ?? 'Хэрэглэгч'}</span>
           {a.isInstructor && (
-            <span className="flex items-center gap-1 rounded-full bg-[#ffbe00]/15 px-2 py-0.5 text-[10px] font-bold text-[#ffbe00]">
+            <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
               <GraduationCap className="h-3 w-3" />
               Багш
             </span>
           )}
-          <span className="text-[10px] text-white/35">{timeAgo(a.createdAt)}</span>
+          <span className="text-[10px] text-muted-foreground">{timeAgo(a.createdAt)}</span>
         </div>
-        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/80">{a.answer}</p>
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground/80">{a.answer}</p>
       </div>
     </motion.div>
   );
@@ -120,29 +120,29 @@ function QuestionCard({
       layout
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+      className="rounded-2xl border border-border bg-card p-4"
     >
       {/* Асуулт */}
       <div className="flex gap-2.5">
         <Avatar name={q.user.name} image={q.user.image} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-white">{q.user.name ?? 'Хэрэглэгч'}</span>
+            <span className="text-sm font-semibold text-foreground">{q.user.name ?? 'Хэрэглэгч'}</span>
             {q.isPinned && (
-              <span className="flex items-center gap-1 rounded-full bg-[#ffbe00]/15 px-2 py-0.5 text-[10px] font-bold text-[#ffbe00]">
+              <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
                 <Pin className="h-3 w-3" />
                 Онцолсон
               </span>
             )}
-            <span className="text-[10px] text-white/35">{timeAgo(q.createdAt)}</span>
+            <span className="text-[10px] text-muted-foreground">{timeAgo(q.createdAt)}</span>
           </div>
-          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/90">{q.question}</p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground/90">{q.question}</p>
         </div>
       </div>
 
       {/* Хариултууд */}
       {q.answers.length > 0 && (
-        <div className="mt-3 space-y-2 border-l border-white/10 pl-3 sm:pl-5">
+        <div className="mt-3 space-y-2 border-l border-border pl-3 sm:pl-5">
           {q.answers.map((a, i) => (
             <AnswerRow key={a.id ?? i} a={a} />
           ))}
@@ -160,14 +160,14 @@ function QuestionCard({
                 placeholder="Хариултаа бичнэ үү..."
                 rows={2}
                 autoFocus
-                className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none transition-colors focus:border-[#ffbe00]/50 focus:bg-white/[0.05]"
+                className="w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/30"
               />
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={submitReply}
                   disabled={!reply.trim() || sending}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#ffbe00] px-3 py-1.5 text-xs font-semibold text-[#022179] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   Илгээх
@@ -178,7 +178,7 @@ function QuestionCard({
                     setReplying(false);
                     setReply('');
                   }}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-white/50 transition-colors hover:text-white/80"
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Болих
                 </button>
@@ -188,7 +188,7 @@ function QuestionCard({
             <button
               type="button"
               onClick={() => setReplying(true)}
-              className="flex items-center gap-1.5 text-xs font-medium text-white/50 transition-colors hover:text-[#ffbe00]"
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
             >
               <CornerDownRight className="h-3.5 w-3.5" />
               Хариулах
@@ -277,20 +277,20 @@ export function LessonQA({
     <div className="space-y-4">
       {/* Асуулт бичих */}
       {token ? (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Энэ хичээлийн талаар асуух зүйлээ бичнэ үү..."
             rows={3}
-            className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition-colors focus:border-[#ffbe00]/50 focus:bg-white/[0.05]"
+            className="w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
           <div className="mt-2 flex justify-end">
             <button
               type="button"
               onClick={submitQuestion}
               disabled={!text.trim() || asking}
-              className="flex items-center gap-1.5 rounded-lg bg-[#ffbe00] px-4 py-2 text-sm font-semibold text-[#022179] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {asking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Асуулт илгээх
@@ -298,14 +298,14 @@ export function LessonQA({
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 px-6 py-6 text-center text-sm text-white/40">
+        <div className="rounded-2xl border border-dashed border-border px-6 py-6 text-center text-sm text-muted-foreground">
           Асуулт асуухын тулд нэвтэрнэ үү.
         </div>
       )}
 
       {/* Жагсаалт */}
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-10 text-sm text-white/40">
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           Ачааллаж байна...
         </div>
@@ -318,13 +318,13 @@ export function LessonQA({
           </AnimatePresence>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-6 py-10 text-center">
-          <MessageCircleQuestion className="h-7 w-7 text-white/25" />
-          <p className="text-sm font-medium text-white/50">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 py-10 text-center">
+          <MessageCircleQuestion className="h-7 w-7 text-muted-foreground/50" />
+          <p className="text-sm font-medium text-muted-foreground">
             {error ? 'Асуулт-хариулт одоогоор боломжгүй байна.' : 'Асуулт хараахан алга.'}
           </p>
           {!error && token && (
-            <p className="max-w-sm text-xs text-white/30">Хамгийн түрүүнд асуулт асууж, хэлэлцүүлгийг эхлүүлээрэй.</p>
+            <p className="max-w-sm text-xs text-muted-foreground/70">Хамгийн түрүүнд асуулт асууж, хэлэлцүүлгийг эхлүүлээрэй.</p>
           )}
         </div>
       )}

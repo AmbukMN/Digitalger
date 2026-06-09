@@ -165,7 +165,7 @@ function PersonalNote({ noteKey }: { noteKey: string }) {
         onChange={(e) => setValue(e.target.value)}
         placeholder="Жишээ нь: 12:30-д хэлсэн томьёог тэмдэглэх..."
         rows={6}
-        className="w-full resize-y rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-[#ffbe00]/50 focus:bg-muted"
+        className="w-full resize-y rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/30"
       />
     </div>
   );
@@ -262,14 +262,14 @@ export function LessonContent({
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
           <TabsTrigger
             value="notes"
-            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <StickyNote className="h-3.5 w-3.5" />
-            Тэмдэглэл
+            Хичээлийн тухай
           </TabsTrigger>
           <TabsTrigger
             value="resources"
-            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <Paperclip className="h-3.5 w-3.5" />
             Материал
@@ -281,21 +281,21 @@ export function LessonContent({
           </TabsTrigger>
           <TabsTrigger
             value="qa"
-            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <MessageCircleQuestion className="h-3.5 w-3.5" />
             Асуулт хариулт
           </TabsTrigger>
           <TabsTrigger
             value="quiz"
-            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
             Шалгалт
           </TabsTrigger>
           <TabsTrigger
             value="mynotes"
-            className="gap-1.5 text-muted-foreground data-[state=active]:bg-[#ffbe00] data-[state=active]:text-[#022179]"
+            className="gap-1.5 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <NotebookPen className="h-3.5 w-3.5" />
             Миний тэмдэглэл

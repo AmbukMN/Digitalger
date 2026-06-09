@@ -17,7 +17,8 @@ interface WatchCourseButtonProps {
 /**
  * Product page доорх "Хичээл үзэх / Үргэлжлүүлэн үзэх" товч.
  * - Худалдаж авсан хэрэглэгч: progress байвал "Үргэлжлүүлэн үзэх", үгүй бол "Хичээл үзэх".
- * - Үнэгүй preview хичээлтэй боловч худалдаагүй: "Үнэгүй preview үзэх".
+ * - ⚠️ Худалдаагүй (preview-only) хэрэглэгчид ТУСДАА "Үнэгүй preview үзэх" товч ХАРУУЛАХГҮЙ:
+ *   хичээл бүрийн ард байгаа "Preview / Үзэх" товч дээр дарж шууд тоглуулна (доорх curriculum).
  * Дарвал /learn/[slug] руу (continue watching хичээлийн ?lesson=-тэй).
  */
 export function WatchCourseButton({ productId, productSlug, modules, lessons }: WatchCourseButtonProps) {
@@ -40,23 +41,21 @@ export function WatchCourseButton({ productId, productSlug, modules, lessons }: 
   });
 
   const orderedLessons = [...modules.flatMap((m) => m.lessons), ...lessons];
-  const hasFreePreview = orderedLessons.some((l) => l.isFreePreview);
 
-  // Худалдаагүй бөгөөд preview ч байхгүй бол товч харуулахгүй
-  if (!purchased && !hasFreePreview) return null;
+  // ⚠️ Худалдаагүй бол ТУСДАА товч ХАРУУЛАХГҮЙ — preview-г хичээл бүрийн "Үзэх" товчоор
+  //    тоглуулна (доорх CourseCurriculum). Зөвхөн худалдсан хэрэглэгчид энэ товч гарна.
+  if (!purchased) return null;
 
   // Continue watching хичээл (completed биш, watched>0 — хамгийн сүүлийнх)
   let resumeId: string | null = null;
-  if (purchased) {
-    const map = new Map(progressList.map((p) => [p.lessonId, p]));
-    for (const l of orderedLessons) {
-      const p = map.get(l.id);
-      if (p && !p.completed && p.watchedSeconds > 0) resumeId = l.id;
-    }
+  const map = new Map(progressList.map((p) => [p.lessonId, p]));
+  for (const l of orderedLessons) {
+    const p = map.get(l.id);
+    if (p && !p.completed && p.watchedSeconds > 0) resumeId = l.id;
   }
 
   const href = resumeId ? `/learn/${productSlug}?lesson=${resumeId}` : `/learn/${productSlug}`;
-  const label = !purchased ? 'Үнэгүй preview үзэх' : resumeId ? 'Үргэлжлүүлэн үзэх' : 'Хичээл үзэх';
+  const label = resumeId ? 'Үргэлжлүүлэн үзэх' : 'Хичээл үзэх';
 
   return (
     <Link
