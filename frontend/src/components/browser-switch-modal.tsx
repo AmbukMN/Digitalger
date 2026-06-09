@@ -14,9 +14,8 @@ interface Props {
 }
 
 // ─── Системийн браузар руу шилжих modal ────────────────────────────────────
-// FB/IG доторх цонх нь төлбөр/татахыг хязгаарладаг + тусдаа орчинтой тул
-// худалдан авах/нэвтрэхийн өмнө гадаад браузар руу шилжүүлнэ. Сагс/wishlist/
-// coupon бүгд автоматаар дамжина — хэрэглэгч дахин сагслах шаардлагагүй.
+// FB/IG доторх цонх нь нэвтрэх/төлбөр хийхийг хязгаарладаг тул худалдан
+// авах/нэвтрэхийн өмнө гадаад браузар руу шилжүүлнэ.
 //
 // UI зарчим: "Safari/Chrome" нэр ашиглахгүй (хэрэглэгч мэдэхгүй) — "браузер"
 // гэх ерөнхий үг. Заавар нь FB/IG-ийн ··· цэсэнд БОДИТООР байдаг "Open in
@@ -98,11 +97,11 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
           </button>
         </div>
 
-        {/* State дамжих баталгаа */}
-        <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 dark:bg-emerald-950/30">
-          <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <p className="text-xs leading-relaxed text-emerald-700 dark:text-emerald-300">
-            <span className="font-semibold">Сагс, купон</span> бүгд хадгалагдаж дамжина.
+        {/* FB/IG доторх цонхны хязгаарлалтыг тайлбарлах (нэвтрэх/төлбөр ажиллахгүй) */}
+        <div className="mb-4 flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 dark:bg-amber-950/30">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+            {browser} доторх цонхонд <span className="font-semibold">нэвтрэх болон төлбөр хийх боломжгүй</span> тул гадаад браузераар нээнэ үү.
           </p>
         </div>
 

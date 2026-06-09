@@ -619,8 +619,8 @@ export class CoursesService {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 
-    // ⚠️ ЗӨВ лого — 'DigitalGer white logo.png' (space-тай тул URL encode).
-    const logoUrl = `${this.siteUrl}/brand/DigitalGer%20white%20logo.png`;
+    // ⚠️ Сертификатын лого — 'DigitalGer-color logo-NoBG.png' (ил тод background, space encode).
+    const logoUrl = `${this.siteUrl}/brand/DigitalGer-color%20logo-NoBG.png`;
 
     // ── Default тамга/гарын үсэг SVG (public/brand) ──
     // Гарын үсэг: admin upload (certSignatureUrl) байвал тэр, байхгүй бол бодит SVG.
@@ -766,6 +766,7 @@ export class CoursesService {
     width: 50px;
     height: 50px;
     border-radius: 50%;
+    /* Дэвсгэр хуучин navy хэвээр — хэрэглэгч логог өөрөө background-тай тааруулсан */
     background: var(--navy);
     display: flex;
     align-items: center;
@@ -795,14 +796,15 @@ export class CoursesService {
   }
   .logo-bar {
     margin-top: 16px;
+    /* Дэвсгэр хуучин navy хэвээр — хэрэглэгч логог өөрөө background-тай тааруулсан */
     background: var(--navy);
     border-radius: 14px;
     padding: 13px 32px;
     display: inline-flex;
     align-items: center;
-    box-shadow: 0 10px 24px rgba(2,33,121,0.24);
+    box-shadow: 0 10px 24px rgba(2,33,121,0.14);
   }
-  /* Тод цэвэр white лого (badge доторх жижиг биш) */
+  /* Тод цэвэр NoBG color лого (badge доторх жижиг биш) */
   .logo-bar img { height: 40px; width: auto; display: block; border: 0; }
 
   .hero {
@@ -1040,6 +1042,21 @@ export class CoursesService {
     text-transform: uppercase;
     color: var(--muted);
     font-weight: 700;
+  }
+
+  /* ── Дэлгэц дээр (admin preview iframe) бүтэн багтаах — таслахгүй ──
+     Print A4 landscape хэвээр; зөвхөн screen-д хуудсыг responsive болгоно.
+     iframe нарийн/намхан байсан ч сертификат бүтэн (297:210 харьцаа) харагдана. */
+  @media screen {
+    body {
+      padding: 12px;
+      min-height: auto;
+    }
+    .sheet {
+      width: 100%;
+      max-width: 1040px;
+      /* aspect-ratio 1.414 хэвээр — өндөр автоматаар тооцогдоно */
+    }
   }
 
   @media print {

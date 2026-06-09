@@ -2274,7 +2274,7 @@ function CertificatePreviewModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-primary" />
@@ -2282,16 +2282,19 @@ function CertificatePreviewModal({
           </DialogTitle>
         </DialogHeader>
 
+        {/* ⚠️ Сертификат A4 landscape (297:210). iframe-ийг тэр харьцаагаар (aspect-ratio)
+            харуулж print preview шиг БҮТЭН харуулна — тогтмол өндөр (480px) байсан тул таслагдаж байсан. */}
         <div className="overflow-hidden rounded-lg border border-border bg-muted/20">
           {html ? (
             <iframe
               title="Сертификат загвар"
               srcDoc={html}
               sandbox="allow-same-origin allow-modals"
-              className="h-[480px] w-full border-0 bg-white"
+              className="block w-full border-0 bg-white"
+              style={{ aspectRatio: '297 / 210' }}
             />
           ) : (
-            <div className="flex h-[480px] items-center justify-center">
+            <div className="flex items-center justify-center" style={{ aspectRatio: '297 / 210' }}>
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
