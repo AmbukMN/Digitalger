@@ -22,8 +22,9 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, Skeleton } from '@digitalger/shared/ui';
+import { Button, Skeleton, useTheme } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
+import { Sun, Moon } from 'lucide-react';
 import { coursesApi, downloadsApi } from '@/lib/api';
 import type { LessonProgress, LessonVideoResult } from '@/lib/api';
 import type { CourseLesson, ProductDetail } from '@/types/api';
@@ -57,6 +58,9 @@ export function LearnClient({ product }: LearnClientProps) {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const token = session?.accessToken;
+  // Learn хуудсыг бүхэлд нь (header/sidebar/content/player) light↔dark солих.
+  // learn-client/sidebar/content shadcn token-той тул theme автомат дагана.
+  const { resolvedTheme, setTheme } = useTheme();
   const sessionLoading = status === 'loading';
 
   const modules: CourseSidebarModule[] = useMemo(() => product.course?.modules ?? [], [product.course]);
@@ -100,6 +104,8 @@ export function LearnClient({ product }: LearnClientProps) {
 
   // ── Идэвхтэй хичээл ──
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
+  // autoplay-аар (өмнөх хичээл дуусч) шилжсэн эсэх — player poster даралгүй шууд тоглоно
+  const [autoStartNext, setAutoStartNext] = useState(false);
 
   // URL ?lesson / continue watching / эхний хичээлээс эхлэх анхны сонголт
   useEffect(() => {
@@ -139,10 +145,11 @@ export function LearnClient({ product }: LearnClientProps) {
     return { completedCount: p.completedCount, totalLessons: p.total, watchedPct: p.watchedPct };
   }, [orderedLessons, progressMap]);
 
-  // ── Autoplay next toggle (localStorage) ──
-  const [autoPlayNext, setAutoPlayNext] = useState(false);
+  // ── Autoplay next toggle (localStorage) — DEFAULT ON (хэрэглэгч өөрөө off болгоно) ──
+  const [autoPlayNext, setAutoPlayNext] = useState(true);
   useEffect(() => {
-    setAutoPlayNext(localStorage.getItem(AUTOPLAY_KEY) === '1');
+    // Зөвхөн ил тод '0' (хэрэглэгч off болгосон) бол off, эс бол ON (default).
+    setAutoPlayNext(localStorage.getItem(AUTOPLAY_KEY) !== '0');
   }, []);
   const toggleAutoPlay = useCallback(() => {
     setAutoPlayNext((prev) => {
@@ -252,8 +259,9 @@ export function LearnClient({ product }: LearnClientProps) {
   );
 
   const goToLesson = useCallback(
-    (lesson: CourseLesson) => {
+    (lesson: CourseLesson, autoStart = false) => {
       setCurrentLessonId(lesson.id);
+      setAutoStartNext(autoStart); // autoplay-аар шилжсэн бол шинэ видео шууд тоглоно
       setMobileOpen(false);
       lastSavedRef.current = 0;
       // URL ?lesson= шинэчлэх (хуудас reload хийхгүй)
@@ -272,8 +280,9 @@ export function LearnClient({ product }: LearnClientProps) {
       durationSec: currentLesson.durationSec ?? undefined,
       completed: true,
     });
+    // Autoplay ON бол дараагийн хичээл рүү шилжээд ШУУД тоглоно (autoStart=true).
     if (autoPlayNext && nextLesson) {
-      goToLesson(nextLesson);
+      goToLesson(nextLesson, true);
     }
   }, [currentLesson, nextLesson, autoPlayNext, saveProgress, goToLesson]);
 
@@ -389,6 +398,8 @@ export function LearnClient({ product }: LearnClientProps) {
         onEnded={handleEnded}
         onNext={nextLesson ? handleNext : undefined}
         autoPlayNext={autoPlayNext}
+        onToggleAutoplay={toggleAutoPlay}
+        autoStart={autoStartNext}
       />
     );
   }
@@ -408,15 +419,27 @@ export function LearnClient({ product }: LearnClientProps) {
         <p className="hidden min-w-0 flex-1 truncate text-center text-sm font-semibold text-foreground md:block">
           {product.title}
         </p>
-        {/* Mobile: sidebar нээх */}
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted lg:hidden"
-        >
-          <Menu className="h-4 w-4" />
-          Хичээлүүд
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Бүхэл learn хуудсыг light↔dark солих (header/sidebar/content/player) */}
+          <button
+            type="button"
+            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title={resolvedTheme === 'dark' ? 'Цайвар горим' : 'Бараан горим'}
+            aria-label="Гэрэл/бараан горим солих"
+          >
+            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+          {/* Mobile: sidebar нээх */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted lg:hidden"
+          >
+            <Menu className="h-4 w-4" />
+            Хичээлүүд
+          </button>
+        </div>
       </header>
 
       {/* ─── YouTube watch layout: зүүн (player + tabs) | баруун (sidebar) ─── */}

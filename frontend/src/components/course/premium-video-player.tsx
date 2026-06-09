@@ -153,10 +153,14 @@ export interface PremiumVideoPlayerProps {
   onProgress?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
   onReady?: (duration: number) => void;
-  /** Next lesson autoplay toggle (UI-д харагдана) */
+  /** Next lesson autoplay toggle (UI-д харагдана) — parent (learn-client)-аас удирдана */
   autoPlayNext?: boolean;
+  /** Авто toggle дарахад parent-д мэдэгдэнэ (нэг л control, доорхтой синк) */
+  onToggleAutoplay?: () => void;
   /** Дараагийн хичээл рүү шилжих */
   onNext?: () => void;
+  /** autoplay-аар (өмнөх хичээл дуусч) шилжсэн бол poster даралгүй шууд тоглоно */
+  autoStart?: boolean;
 }
 
 // Vendor-prefixed (iOS Safari, webkit fullscreen) хэлбэрүүд
@@ -379,8 +383,10 @@ function PremiumVideoPlayerBase({
   onProgress,
   onEnded,
   onReady,
-  autoPlayNext = false,
+  autoPlayNext = true,
+  onToggleAutoplay,
   onNext,
+  autoStart = false,
 }: PremiumVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -429,8 +435,8 @@ function PremiumVideoPlayerBase({
   // External бол custom controls хэрэггүй
   const isExternal = source.type === 'external';
 
-  // Playback state
-  const [started, setStarted] = useState(false); // poster дарж эхэлсэн эсэх (lazy)
+  // Playback state — autoStart (autoplay-аар шилжсэн) бол шууд started (poster даралгүй).
+  const [started, setStarted] = useState(autoStart); // poster дарж эхэлсэн эсэх (lazy)
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false); // эх сурвалж ачаалж байна
   const [buffering, setBuffering] = useState(false); // waiting (re-buffer)
@@ -450,7 +456,9 @@ function PremiumVideoPlayerBase({
   const [hoverPct, setHoverPct] = useState<number | null>(null);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [volumeOpen, setVolumeOpen] = useState(false);
-  const [autoNext, setAutoNext] = useState(autoPlayNext);
+  // ⚠️ autoNext дотоод state БИШ — parent (learn-client)-аас prop-оор удирдана
+  // (доорх "Дараагийнх авто" toggle-тэй НЭГ control, давхардахгүй, синк).
+  const autoNext = autoPlayNext;
   const [showResumeToast, setShowResumeToast] = useState(false);
   const [pipSupported, setPipSupported] = useState(false);
   const [pipActive, setPipActive] = useState(false);
@@ -546,6 +554,23 @@ function PremiumVideoPlayerBase({
       }
     };
   }, [started, isExternal, source.type, source.url, source.hlsUrl]);
+
+  // ── autoStart (autoplay-аар шилжсэн) — attach дууссаны дараа автомат play() ──
+  // Хэрэглэгч poster дарах шаардлагагүй (дараагийн хичээл шууд тоглоно).
+  useEffect(() => {
+    if (isExternal || !started || !autoStart) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const t = requestAnimationFrame(() => {
+      video.play().catch(() => {
+        // Autoplay policy татгалзвал muted-аар дахин (browser зөвшөөрнө)
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    });
+    return () => cancelAnimationFrame(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started, isExternal, autoStart]);
 
   // ── localStorage-д хадгалсан volume/speed/muted-ийг video element дээр буулгах ──
   // started болж video DOM-д орсны дараа л playbackRate/volume утга авна.
@@ -1232,7 +1257,7 @@ function PremiumVideoPlayerBase({
               {onNext && (
                 <button
                   type="button"
-                  onClick={() => setAutoNext((v) => !v)}
+                  onClick={() => onToggleAutoplay?.()}
                   className={cn(
                     'mr-1 hidden items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors sm:flex',
                     ui.iconBtn,
