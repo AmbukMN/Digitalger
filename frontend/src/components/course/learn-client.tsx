@@ -61,6 +61,10 @@ export function LearnClient({ product }: LearnClientProps) {
   // Learn хуудсыг бүхэлд нь (header/sidebar/content/player) light↔dark солих.
   // learn-client/sidebar/content shadcn token-той тул theme автомат дагана.
   const { resolvedTheme, setTheme } = useTheme();
+  // ⚠️ resolvedTheme нь SSR-д undefined, client дээр light/dark — hydration
+  // mismatch (React #418)-аас сэргийлж зөвхөн mount-ийн дараа icon render хийнэ.
+  const [themeMounted, setThemeMounted] = useState(false);
+  useEffect(() => setThemeMounted(true), []);
   const sessionLoading = status === 'loading';
 
   const modules: CourseSidebarModule[] = useMemo(() => product.course?.modules ?? [], [product.course]);
@@ -420,16 +424,19 @@ export function LearnClient({ product }: LearnClientProps) {
           {product.title}
         </p>
         <div className="flex items-center gap-2">
-          {/* Бүхэл learn хуудсыг light↔dark солих (header/sidebar/content/player) */}
-          <button
-            type="button"
-            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            title={resolvedTheme === 'dark' ? 'Цайвар горим' : 'Бараан горим'}
-            aria-label="Гэрэл/бараан горим солих"
-          >
-            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          {/* Бүхэл learn хуудсыг light↔dark солих (header/sidebar/content/player).
+              themeMounted-ийн дараа л render — SSR hydration mismatch (#418)-аас сэргийлнэ. */}
+          {themeMounted && (
+            <button
+              type="button"
+              onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title={resolvedTheme === 'dark' ? 'Цайвар горим' : 'Бараан горим'}
+              aria-label="Гэрэл/бараан горим солих"
+            >
+              {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          )}
           {/* Mobile: sidebar нээх */}
           <button
             type="button"
