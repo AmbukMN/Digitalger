@@ -169,12 +169,14 @@ export class ProductsService {
 
   // Үзэлт +1 — frontend client-side (нэг л удаа) дуудна. Fire-and-forget,
   // унавал чимээгүй (хариу буцаахад нөлөөлөхгүй).
+  // ⚠️ Raw SQL — Prisma updateMany нь @updatedAt-ийг автомат шинэчилдэг тул
+  // viewCount нэмэгдэх бүрд updatedAt хөдөлж, admin жагсаалт (updatedAt desc)
+  // дээш доош үсэрдэг байв. Raw SQL-ээр зөвхөн viewCount нэмж, updatedAt-д хүрэхгүй
+  // (updatedAt зөвхөн admin бүтээгдэхүүн засах үед өөрчлөгдөнө).
   async incrementView(slug: string, isAdmin?: boolean) {
-    await this.prisma.product
-      .updateMany({
-        where: { slug, published: true, ...(isAdmin !== true && { adminOnly: false }) },
-        data: { viewCount: { increment: 1 } },
-      })
+    const adminFilter = isAdmin === true ? Prisma.empty : Prisma.sql`AND "adminOnly" = false`;
+    await this.prisma
+      .$executeRaw`UPDATE "Product" SET "viewCount" = "viewCount" + 1 WHERE "slug" = ${slug} AND "published" = true ${adminFilter}`
       .catch(() => {});
     return { ok: true };
   }
