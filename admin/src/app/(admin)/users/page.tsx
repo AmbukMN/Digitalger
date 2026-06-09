@@ -229,7 +229,7 @@ export default function UsersPage() {
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Download className="h-3.5 w-3.5 shrink-0" />
                 <span className="tabular-nums">{u._count?.downloads}</span>
-                <span>татаалт</span>
+                <span>таталт</span>
               </div>
             )}
           </div>

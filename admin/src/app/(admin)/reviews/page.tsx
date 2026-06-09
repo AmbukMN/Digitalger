@@ -241,7 +241,7 @@ export default function ReviewsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Star className="h-6 w-6 text-primary" /> Үнэлгээ / Сэтгэгдэл
+            <Star className="h-6 w-6 text-primary" /> Review (Сэтгэгдэл ба үнэлгээ)
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Бүтээгдэхүүний бүх сэтгэгдлийг удирдах ({total})

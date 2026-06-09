@@ -106,10 +106,10 @@ export default function DownloadsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Download className="h-6 w-6 text-primary" /> Татаалт
+            <Download className="h-6 w-6 text-primary" /> Таталт
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Бүх татаалтын түүх — хэн, хэзээ, хаанаас, ямар замаар татсан ({total})
+            Бүх таталтын түүх — хэн, хэзээ, хаанаас, ямар замаар татсан ({total})
           </p>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function DownloadsPage() {
           {isLoading ? (
             <div className="py-12 text-center text-sm text-muted-foreground">Ачаалж байна...</div>
           ) : items.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">Татаалт олдсонгүй</div>
+            <div className="py-12 text-center text-sm text-muted-foreground">Таталт олдсонгүй</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

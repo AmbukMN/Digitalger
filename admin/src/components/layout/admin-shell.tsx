@@ -21,6 +21,7 @@ import {
   Layers,
   LogOut,
   Mail,
+  Menu,
   MessageSquare,
   MessagesSquare,
   Navigation,
@@ -32,35 +33,77 @@ import {
   User,
   Users,
   Activity,
+  X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { Button, Separator, ThemeToggle } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import { API_URL } from '@/lib/constants';
 import { adminApi } from '@/lib/api';
 
-const navItems = [
-  { href: '/', label: 'Хяналтын самбар', icon: LayoutDashboard },
-  { href: '/products', label: 'Бүтээгдэхүүн', icon: Package },
-  { href: '/product-types', label: 'Бүтээгдэхүүний төрөл', icon: Layers },
-  { href: '/categories', label: 'Ангилал', icon: FolderTree },
-  { href: '/orders', label: 'Захиалга', icon: ShoppingCart },
-  { href: '/users', label: 'Хэрэглэгч', icon: Users },
-  { href: '/payments', label: 'Төлбөр', icon: CreditCard },
-  { href: '/downloads', label: 'Татаалт', icon: Download },
-  { href: '/coupons', label: 'Купон', icon: Tag },
-  { href: '/subscribers', label: 'Subscriber', icon: Mail },
-  { href: '/banners', label: 'Баннер', icon: Images },
-  { href: '/faqs', label: 'FAQ', icon: HelpCircle },
-  { href: '/testimonials', label: 'Сэтгэгдэл', icon: MessageSquare },
-  { href: '/reviews', label: 'Үнэлгээ', icon: Star },
-  { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
-  { href: '/menu', label: 'Навигац', icon: Navigation },
-  { href: '/blog', label: 'Нийтлэл', icon: FileText },
-  { href: '/pages', label: 'Хуудас', icon: FileEdit },
-  { href: '/settings', label: 'Тохиргоо', icon: Settings },
-  { href: '/seo', label: 'SEO', icon: Globe },
-  { href: '/queue', label: 'Дараалал', icon: Activity },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+interface NavSection {
+  title: string;
+  items: readonly NavItem[];
+}
+
+/**
+ * Sidebar-ийн цэсүүдийг логик бүлгээр ангилав (Vercel/Stripe маягийн
+ * enterprise бүтэц). Бүлэг тус бүр жижиг uppercase гарчигтай.
+ */
+const navSections: readonly NavSection[] = [
+  {
+    title: 'Үндсэн',
+    items: [
+      { href: '/', label: 'Хяналтын самбар', icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: 'Худалдаа',
+    items: [
+      { href: '/products', label: 'Бүтээгдэхүүн', icon: Package },
+      { href: '/product-types', label: 'Бүтээгдэхүүний төрөл', icon: Layers },
+      { href: '/categories', label: 'Ангилал', icon: FolderTree },
+      { href: '/orders', label: 'Захиалга', icon: ShoppingCart },
+      { href: '/payments', label: 'Төлбөр', icon: CreditCard },
+      { href: '/downloads', label: 'Таталт', icon: Download },
+      { href: '/coupons', label: 'Купон', icon: Tag },
+    ],
+  },
+  {
+    title: 'Хэрэглэгч',
+    items: [
+      { href: '/users', label: 'Хэрэглэгч', icon: Users },
+      { href: '/subscribers', label: 'Subscriber', icon: Mail },
+      { href: '/reviews', label: 'Review', icon: Star },
+      { href: '/testimonials', label: 'Гэрчлэл', icon: MessageSquare },
+      { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
+    ],
+  },
+  {
+    title: 'Контент',
+    items: [
+      { href: '/banners', label: 'Баннер', icon: Images },
+      { href: '/faqs', label: 'FAQ', icon: HelpCircle },
+      { href: '/blog', label: 'Нийтлэл', icon: FileText },
+      { href: '/pages', label: 'Хуудас', icon: FileEdit },
+      { href: '/menu', label: 'Навигац', icon: Navigation },
+    ],
+  },
+  {
+    title: 'Тохиргоо',
+    items: [
+      { href: '/settings', label: 'Тохиргоо', icon: Settings },
+      { href: '/seo', label: 'SEO', icon: Globe },
+      { href: '/queue', label: 'Дараалал', icon: Activity },
+    ],
+  },
 ] as const;
 
 interface PublicSettings {
@@ -118,11 +161,90 @@ function SiteLogo({ logoUrl, siteName, collapsed }: { logoUrl: string | null; si
   );
 }
 
+/** Active эсэхийг тооцох — root зөвхөн яг таарвал, бусад нь prefix-ээр. */
+function isActive(pathname: string, href: string): boolean {
+  return href === '/' ? pathname === '/' : pathname.startsWith(href);
+}
+
+/**
+ * Бүлэглэсэн навигацийн жагсаалт — desktop sidebar болон mobile drawer
+ * хоёуланд хуваалцаж ашиглана. Collapse үед бүлгийн гарчиг нуугдаж зөвхөн
+ * icon үлдэнэ; бүлэг хооронд нимгэн зураас гарч ирнэ.
+ */
+function NavSections({
+  pathname,
+  collapsed,
+  onNavigate,
+}: {
+  pathname: string;
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="flex-1 overflow-y-auto p-2">
+      {navSections.map((section, sectionIdx) => (
+        <div
+          key={section.title}
+          className={cn(
+            sectionIdx > 0 && (collapsed ? 'mt-2 border-t border-border pt-2' : 'mt-4'),
+          )}
+        >
+          {/* Бүлгийн гарчиг — зөвхөн expanded үед */}
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.18 }}
+                className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70"
+              >
+                {section.title}
+              </motion.p>
+            )}
+          </AnimatePresence>
+
+          <div className="space-y-0.5">
+            {section.items.map(({ href, label, icon: Icon }) => {
+              const active = isActive(pathname, href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    'flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
+                    active
+                      ? 'bg-primary/10 text-primary rounded-l-none'
+                      : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
+                    collapsed ? 'justify-center px-2' : 'px-3',
+                  )}
+                  style={active ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Замбараа солигдоход mobile drawer хаах
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   async function handleSignOut() {
     await fetch('/api/logout', { method: 'POST' });
@@ -142,7 +264,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-background">
       <aside
         className={cn(
-          'sticky top-0 flex h-screen flex-col border-r border-border bg-card transition-all duration-300',
+          'sticky top-0 hidden h-screen flex-col border-r border-border bg-card transition-all duration-300 md:flex',
           collapsed ? 'w-18' : 'w-64',
         )}
       >
@@ -177,32 +299,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active =
-              href === '/'
-                ? pathname === '/'
-                : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                title={collapsed ? label : undefined}
-                className={cn(
-                  'flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-primary/10 text-primary rounded-l-none'
-                    : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
-                  collapsed ? 'justify-center px-2' : 'px-3',
-                )}
-                style={active ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span>{label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
+        <NavSections pathname={pathname} collapsed={collapsed} />
 
         <div className="border-t border-border p-2">
           <Link
@@ -238,8 +335,95 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* ─── Mobile drawer ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden
+            />
+            {/* Panel */}
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+              className="absolute left-0 top-0 flex h-full w-64 flex-col border-r border-border bg-card shadow-xl"
+            >
+              <div className="flex h-14 items-center gap-2 border-b border-border px-4">
+                <Link href="/" className="min-w-0 flex-1" onClick={() => setMobileOpen(false)}>
+                  <SiteLogo logoUrl={logoUrl} siteName={siteName} collapsed={false} />
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => setMobileOpen(false)}
+                  aria-label="Хаах"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <NavSections
+                pathname={pathname}
+                collapsed={false}
+                onNavigate={() => setMobileOpen(false)}
+              />
+
+              <div className="border-t border-border p-2">
+                <Link
+                  href="/account"
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-r-lg px-3 py-2 text-sm font-medium transition-colors',
+                    pathname === '/account'
+                      ? 'bg-primary/10 text-primary rounded-l-none'
+                      : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                  style={pathname === '/account' ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
+                >
+                  {userImage ? (
+                    <Image
+                      src={userImage}
+                      alt={userName}
+                      width={24}
+                      height={24}
+                      className="h-6 w-6 shrink-0 rounded-full object-cover ring-2 ring-primary/20"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                      {userInitial}
+                    </div>
+                  )}
+                  <span className="truncate">Профайл</span>
+                </Link>
+              </div>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/60">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 md:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Цэс нээх"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+
           <div className="flex-1" />
 
           <Button variant="ghost" size="icon" aria-label="Мэдэгдэл">

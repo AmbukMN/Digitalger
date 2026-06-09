@@ -498,7 +498,7 @@ export const adminApi = {
       }),
   },
 
-  // ─── Татаалт (DownloadLog) — бүх татаалтын лог ─────────────────────────────
+  // ─── Таталт (DownloadLog) — бүх таталтын лог ─────────────────────────────
   downloads: {
     list: (params?: {
       page?: number;

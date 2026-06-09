@@ -602,7 +602,7 @@ export interface AdminReview {
   user: { id?: string; name: string | null; email: string; image?: string | null } | null;
 }
 
-// ─── Татаалт (DownloadLog) ───────────────────────────────────────────────────
+// ─── Таталт (DownloadLog) ───────────────────────────────────────────────────
 export interface AdminDownloadLog {
   id: string;
   createdAt: string;
