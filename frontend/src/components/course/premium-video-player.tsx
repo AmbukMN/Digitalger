@@ -504,6 +504,26 @@ function PremiumVideoPlayerBase({
 
     attach();
 
+    // ── autoStart (autoplay-аар шилжсэн) — src тавьсны ДАРАА автомат play() ──
+    // Энэ нь attach-тай НЭГ effect тул src заавал тавигдсан байна (race-гүй).
+    // canplay/loadeddata хүлээгээд play. Policy татгалзвал muted-аар дахин.
+    if (autoStart) {
+      const tryPlay = () => {
+        if (destroyed) return;
+        video.play().catch(() => {
+          video.muted = true;
+          setMuted(true);
+          video.play().catch(() => {});
+        });
+      };
+      if (video.readyState >= 2) {
+        tryPlay();
+      } else {
+        video.addEventListener('loadeddata', tryPlay, { once: true });
+        video.addEventListener('canplay', tryPlay, { once: true });
+      }
+    }
+
     return () => {
       destroyed = true;
       if (hlsRef.current) {
@@ -512,31 +532,6 @@ function PremiumVideoPlayerBase({
       }
     };
   }, [started, isExternal, source.type, source.url, source.hlsUrl]);
-
-  // ── autoStart (autoplay-аар шилжсэн) — видео БЭЛЭН болмогц автомат play() ──
-  // Хэрэглэгч poster дарах шаардлагагүй (дараагийн хичээл шууд тоглоно).
-  // ⚠️ canplay event дээр play хийнэ (src тавигдсаны дараа — race-гүй, найдвартай).
-  useEffect(() => {
-    if (isExternal || !started || !autoStart) return;
-    const video = videoRef.current;
-    if (!video) return;
-    const tryPlay = () => {
-      video.play().catch(() => {
-        // Autoplay policy татгалзвал muted-аар дахин (browser зөвшөөрнө)
-        video.muted = true;
-        setMuted(true);
-        video.play().catch(() => {});
-      });
-    };
-    // Аль хэдийн бэлэн (canplay өнгөрсөн) бол шууд, эс бол canplay хүлээнэ.
-    if (video.readyState >= 3) {
-      tryPlay();
-    } else {
-      video.addEventListener('canplay', tryPlay, { once: true });
-    }
-    return () => video.removeEventListener('canplay', tryPlay);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, isExternal, autoStart, source.url, source.hlsUrl]);
 
   // ── localStorage-д хадгалсан volume/speed/muted-ийг video element дээр буулгах ──
   // started болж video DOM-д орсны дараа л playbackRate/volume утга авна.
@@ -1016,10 +1011,6 @@ function PremiumVideoPlayerBase({
         ref={videoRef}
         poster={poster}
         playsInline
-        // autoStart (autoplay-аар шилжсэн) — browser-ийн autoPlay attribute хамгийн
-        // найдвартай (canplay/play() race-гүй). Policy шаардвал muted-аар тоглоно.
-        autoPlay={autoStart}
-        muted={autoStart ? true : undefined}
         controls={false}
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture={false}
