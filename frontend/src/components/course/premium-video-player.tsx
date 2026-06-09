@@ -16,13 +16,11 @@ import {
   Loader2,
   Maximize,
   Minimize,
-  Moon,
   Pause,
   PictureInPicture2,
   Play,
   RotateCw,
   SkipForward,
-  Sun,
   Volume1,
   Volume2,
   VolumeX,
@@ -79,26 +77,7 @@ const SAVE_THROTTLE_SEC = 10;
 const LS_VOLUME = 'digitalger:video-volume';
 const LS_SPEED = 'digitalger:video-speed';
 const LS_MUTED = 'digitalger:video-muted';
-// Player-ийн ТУСДАА theme (сайтын theme-аас үл хамаарч болно).
-//  'auto'  → сайтын resolvedTheme дагана
-//  'light' → player зөвхөн light
-//  'dark'  → player зөвхөн dark
-const LS_PLAYER_THEME = 'digitalger:player-theme';
-
-/** Player-ийн theme сонголт (auto = сайт дагах) */
-type PlayerTheme = 'auto' | 'light' | 'dark';
-
-/** localStorage-аас player theme унших (SSR-safe) */
-function readPlayerTheme(): PlayerTheme {
-  if (typeof window === 'undefined') return 'auto';
-  try {
-    const raw = window.localStorage.getItem(LS_PLAYER_THEME);
-    if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw;
-    return 'auto';
-  } catch {
-    return 'auto';
-  }
-}
+// Player нь ТУСДАА theme-гүй — learn хуудсын (сайтын) theme-ийг шууд дагана.
 
 /** localStorage-аас number унших (SSR-safe, хүчингүй бол fallback) */
 function readNum(key: string, fallback: number, min: number, max: number): number {
@@ -402,30 +381,9 @@ function PremiumVideoPlayerBase({
   // харин controls bar / menu / toast / overlay theme дагана.
   const { resolvedTheme } = useTheme();
 
-  // ── Player-ийн ТУСДАА theme (auto = сайт дагах, эс бөгөөс өөрөө) ──
-  // Анх хэрэглэгч сайтын theme дагана ('auto'). Player доторх Sun/Moon товч
-  // дарвал 'light'/'dark' болж сайтаас үл хамааран ажиллана (localStorage-д хадгална).
-  const [playerTheme, setPlayerTheme] = useState<PlayerTheme>('auto');
-  // SSR hydration зөрчилгүйн тулд localStorage-аас зөвхөн client дээр уншина.
-  useEffect(() => {
-    setPlayerTheme(readPlayerTheme());
-  }, []);
-
-  // Effective theme — playerTheme нь 'auto' бол сайтын resolvedTheme, эс бөгөөс өөрөө.
-  const effectiveTheme =
-    playerTheme === 'auto' ? (resolvedTheme === 'light' ? 'light' : 'dark') : playerTheme;
-  const isLight = effectiveTheme === 'light';
-
-  // Player theme toggle (light ↔ dark). 'auto'-аас гарч ТУСДАА горимд орно.
-  const togglePlayerTheme = useCallback(() => {
-    setPlayerTheme((prev) => {
-      // Одоогийн харагдаж буй effective theme-ийн ЭСРЭГ рүү шилжинэ.
-      const current = prev === 'auto' ? (resolvedTheme === 'light' ? 'light' : 'dark') : prev;
-      const next: PlayerTheme = current === 'light' ? 'dark' : 'light';
-      writeLS(LS_PLAYER_THEME, next);
-      return next;
-    });
-  }, [resolvedTheme]);
+  // Player нь ТУСДАА toggle-гүй — learn хуудсын (сайтын) theme-ийг ШУУД дагана.
+  // (Learn header дээрх нэг toggle бүхэл хуудас + player-ийг хамт сольдог.)
+  const isLight = resolvedTheme === 'light';
 
   // Callback-уудыг ref-ээр барина — listener-уудыг parent бүр render-д дахин
   // холбохгүйгээр хамгийн сүүлийн утгыг дуудна (stale closure-аас сэргийлнэ).
@@ -555,22 +513,30 @@ function PremiumVideoPlayerBase({
     };
   }, [started, isExternal, source.type, source.url, source.hlsUrl]);
 
-  // ── autoStart (autoplay-аар шилжсэн) — attach дууссаны дараа автомат play() ──
+  // ── autoStart (autoplay-аар шилжсэн) — видео БЭЛЭН болмогц автомат play() ──
   // Хэрэглэгч poster дарах шаардлагагүй (дараагийн хичээл шууд тоглоно).
+  // ⚠️ canplay event дээр play хийнэ (src тавигдсаны дараа — race-гүй, найдвартай).
   useEffect(() => {
     if (isExternal || !started || !autoStart) return;
     const video = videoRef.current;
     if (!video) return;
-    const t = requestAnimationFrame(() => {
+    const tryPlay = () => {
       video.play().catch(() => {
         // Autoplay policy татгалзвал muted-аар дахин (browser зөвшөөрнө)
         video.muted = true;
+        setMuted(true);
         video.play().catch(() => {});
       });
-    });
-    return () => cancelAnimationFrame(t);
+    };
+    // Аль хэдийн бэлэн (canplay өнгөрсөн) бол шууд, эс бол canplay хүлээнэ.
+    if (video.readyState >= 3) {
+      tryPlay();
+    } else {
+      video.addEventListener('canplay', tryPlay, { once: true });
+    }
+    return () => video.removeEventListener('canplay', tryPlay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, isExternal, autoStart]);
+  }, [started, isExternal, autoStart, source.url, source.hlsUrl]);
 
   // ── localStorage-д хадгалсан volume/speed/muted-ийг video element дээр буулгах ──
   // started болж video DOM-д орсны дараа л playbackRate/volume утга авна.
@@ -1327,20 +1293,6 @@ function PremiumVideoPlayerBase({
                   )}
                 </AnimatePresence>
               </div>
-
-              {/* Player theme toggle (light ↔ dark) — сайтаас ТУСДАА.
-                  Light үед Moon (dark руу), dark үед Sun (light руу) харагдана. */}
-              <IconBtn
-                label={
-                  isLight
-                    ? 'Player-ийг бараан горимд'
-                    : 'Player-ийг цайвар горимд'
-                }
-                onClick={togglePlayerTheme}
-                className={ui.iconBtn}
-              >
-                {isLight ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-              </IconBtn>
 
               {/* Picture-in-Picture (идэвхтэй үед gold highlight) */}
               {pipSupported && (

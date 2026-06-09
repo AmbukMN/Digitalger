@@ -314,12 +314,12 @@ export function LessonContent({
           ) : showContent ? (
             <div
               className="prose prose-sm dark:prose-invert max-w-none leading-relaxed
-                prose-headings:text-foreground prose-p:text-foreground/80 prose-li:text-foreground/80
+                prose-headings:text-foreground prose-p:text-foreground prose-li:text-foreground
                 prose-strong:text-foreground prose-a:text-[#ffbe00]
                 prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[#ffbe00] prose-code:before:content-[''] prose-code:after:content-['']
                 prose-pre:rounded-xl prose-pre:border prose-pre:border-border prose-pre:bg-muted
                 prose-img:rounded-xl prose-img:border prose-img:border-border
-                prose-blockquote:border-l-[#ffbe00] prose-blockquote:text-muted-foreground"
+                prose-blockquote:border-l-[#ffbe00] prose-blockquote:text-foreground/90"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(content!) }}
             />
           ) : (
