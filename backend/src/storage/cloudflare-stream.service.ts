@@ -160,9 +160,9 @@ export class CloudflareStreamService {
    * зөвхөн видео playback-д үйлчилнэ. videodelivery.net домэйн customer-code шаардахгүй
    * тул account бүрд найдвартай ажиллана.
    * @param uid видеоны Stream uid
-   * @param time эхнээс хэдэн секундын frame (default '2s' — эхний 2 секунд)
+   * @param time эхнээс хэдэн секундын frame (default '10s' — эхний 10 секунд)
    */
-  getThumbnailUrl(uid: string, time = '2s'): string {
+  getThumbnailUrl(uid: string, time = '10s'): string {
     return `https://videodelivery.net/${uid}/thumbnails/thumbnail.jpg?time=${time}`;
   }
 

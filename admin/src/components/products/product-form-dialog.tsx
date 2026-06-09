@@ -1341,7 +1341,7 @@ function VideoUploadInput({
         )}
 
         <p className="text-[10px] text-muted-foreground/70 leading-snug">
-          Эс тохируулбал видеоны эхний 2 секундын frame автоматаар poster болно.
+          Эс тохируулбал видеоны эхний 10 секундын frame автоматаар poster болно.
         </p>
       </div>
     </div>

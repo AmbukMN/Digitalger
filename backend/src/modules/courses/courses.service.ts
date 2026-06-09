@@ -52,7 +52,7 @@ export class CoursesService {
    * Хичээлийн poster (thumbnail) URL resolve хийнэ — нийтийн жагсаалт + видео хариуд.
    * Эрэмбэ:
    *  1) lesson.posterKey (admin upload) → R2 PUBLIC url (getAssetUrl, social share OK).
-   *  2) videoStreamId (Cloudflare Stream) → автомат thumbnail (эхний 2сек frame).
+   *  2) videoStreamId (Cloudflare Stream) → автомат thumbnail (эхний 10сек frame).
    *  3) R2 видео (videoKey) → null (frontend видеоны эхний frame-ийг харуулна).
    * @returns public poster url эсвэл null.
    */
