@@ -536,7 +536,7 @@ export function CourseCurriculum({
   const expandAll = () => setOpenModules(new Set(modules.map((m) => m.id)));
   const collapseAll = () => setOpenModules(new Set());
 
-  const { data: library = [] } = useQuery({
+  const { data: library = [], isLoading: libraryLoading, refetch: refetchLibrary } = useQuery({
     queryKey: ['downloads', 'history'],
     queryFn: () => downloadsApi.history(session!.accessToken!),
     enabled: !!session?.accessToken,
@@ -545,6 +545,9 @@ export function CourseCurriculum({
 
   const sessionLoading = status === 'loading';
   const purchased = library.some((item) => item.product.id === productId);
+  // ⚠️ purchased статус тодорхой болоогүй (session/library ачаалж байгаа) эсэх.
+  // Энэ үед "Үзэх" дарахад түр хүлээнэ (эс бол хагас ачаалсан үед буруу preview руу орно).
+  const accessResolving = sessionLoading || (!!session?.accessToken && libraryLoading);
 
   // Watch progress — зөвхөн худалдаж авсан хэрэглэгчдэд
   const { data: progressList = [], refetch: refetchProgress } = useQuery({
@@ -593,6 +596,24 @@ export function CourseCurriculum({
   );
 
   async function openLesson(lesson: CourseLesson) {
+    // ⚠️ purchased статус тодорхой болоогүй (session/library ачаалж байгаа) бол
+    // түр хүлээгээд ачаалал дуустал loading харуулна — эс бол хагас ачаалсан үед
+    // purchased=false гэж буруу preview руу орох (хэрэглэгч 3-4 удаа дарах) асуудал.
+    if (accessResolving) {
+      setLoadingLessonId(lesson.id);
+      try {
+        const fresh = await refetchLibrary();
+        const ownsIt = (fresh.data ?? []).some((item) => item.product.id === productId);
+        if (ownsIt) {
+          router.push(`/learn/${productSlug}?lesson=${lesson.id}`);
+          return;
+        }
+      } finally {
+        setLoadingLessonId(null);
+      }
+      // эзэмшээгүй нь батлагдсан — preview урсгал руу унана (доор).
+    }
+
     // ── Худалдаж авсан хэрэглэгч — solo player ОГТ ашиглахгүй.
     // Учир detail хуудсан дээрх хичээл дээр дарвал ШУУД ҮНДСЭН learn page
     // (том баруунтай player) руу шилжинэ. Solo modal зөвхөн худалдаагүй

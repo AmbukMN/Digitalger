@@ -1016,6 +1016,10 @@ function PremiumVideoPlayerBase({
         ref={videoRef}
         poster={poster}
         playsInline
+        // autoStart (autoplay-аар шилжсэн) — browser-ийн autoPlay attribute хамгийн
+        // найдвартай (canplay/play() race-гүй). Policy шаардвал muted-аар тоглоно.
+        autoPlay={autoStart}
+        muted={autoStart ? true : undefined}
         controls={false}
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture={false}
