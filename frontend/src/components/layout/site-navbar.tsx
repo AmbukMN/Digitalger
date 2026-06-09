@@ -459,7 +459,7 @@ export function SiteNavbar() {
 
           <SearchAutocomplete
             placeholder="Хайх..."
-            className="hidden max-w-xs flex-1 lg:block"
+            className="hidden w-44 shrink-0 lg:block xl:w-56"
           />
 
           <div className="ml-auto flex items-center gap-1">
