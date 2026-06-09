@@ -452,6 +452,8 @@ function PremiumVideoPlayerBase({
 
   // ── Эх сурвалж ачаалах (hls.js dynamic import эсвэл шууд src) ──
   useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[autoplay] attach effect: started=', started, 'autoStart=', autoStart, 'isExternal=', isExternal);
     if (isExternal || !started) return;
     const video = videoRef.current;
     if (!video) return;
@@ -514,13 +516,22 @@ function PremiumVideoPlayerBase({
     // gesture" алдагддаг тул МUTED-ээр л найдвартай тоглоно. Тиймээс autoStart үед
     // ШУУД muted болгоод play (хэрэглэгч дараа volume дарж unmute хийнэ — toast).
     if (autoStart) {
+      // eslint-disable-next-line no-console
+      console.log('[autoplay] attach: autoStart=true, readyState=', video.readyState, 'src=', source.type);
       video.muted = true;
       setMuted(true);
       const tryPlay = () => {
         if (destroyed) return;
+        // eslint-disable-next-line no-console
+        console.log('[autoplay] tryPlay called, readyState=', video.readyState);
         const p = video.play();
         if (p && typeof p.catch === 'function') {
-          p.catch(() => {
+          p.then(() => {
+            // eslint-disable-next-line no-console
+            console.log('[autoplay] PLAYING ✓');
+          }).catch((err) => {
+            // eslint-disable-next-line no-console
+            console.warn('[autoplay] play() rejected:', err?.name, err?.message);
             // muted ч татгалзвал дахин нэг оролдоно (буфер бэлэн болоход)
             setTimeout(() => {
               if (!destroyed) video.play().catch(() => {});
