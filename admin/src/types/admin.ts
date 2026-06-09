@@ -498,6 +498,9 @@ export interface AdminLesson {
   videoUrl?: string | null;
   videoStreamId?: string | null;
   streamStatus?: string | null;
+  // Видео thumbnail/poster — admin upload (R2 key) + resolve хийсэн public url.
+  posterKey?: string | null;
+  posterUrl?: string | null;
   durationSec?: number | null;
   isFreePreview: boolean;
   sortOrder: number;

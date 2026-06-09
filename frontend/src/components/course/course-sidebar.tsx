@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Clock, Lock, Play, FolderOpen } from 'lucide-react';
+import { Check, ChevronDown, Clock, FileText, Lock, Play, FolderOpen } from 'lucide-react';
 import { cn } from '@digitalger/shared';
 import type { LessonProgress } from '@/lib/api';
 import type { CourseLesson } from '@/types/api';
@@ -87,6 +87,39 @@ export function computeCourseProgress(
   };
 }
 
+// ─── Тойрог (circular) progress icon — хагас үзсэн хичээл (0 < pct < 90) ──────────
+// SVG дугуй: gold strokeDashoffset-ээр явцыг харуулна, дотор нь жижиг % тоо.
+function CircularProgress({ pct }: { pct: number }) {
+  const r = 9; // радиус (viewBox 24×24, төв 12,12)
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(100, Math.max(0, pct)) / 100) * circ;
+  return (
+    <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 24 24" className="h-6 w-6 -rotate-90">
+        {/* Суурь дугуй (бүдэг) */}
+        <circle cx="12" cy="12" r={r} fill="none" stroke="currentColor" strokeWidth="2.5" className="text-muted" />
+        {/* Явцын дугуй (gold) */}
+        <circle
+          cx="12"
+          cy="12"
+          r={r}
+          fill="none"
+          stroke="#ffbe00"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          className="transition-[stroke-dashoffset] duration-500"
+        />
+      </svg>
+      {/* Дотор % тоо */}
+      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none text-[#ffbe00] tabular-nums">
+        {pct}
+      </span>
+    </span>
+  );
+}
+
 // ─── Single lesson item ───────────────────────────────────────────────────────
 function LessonItem({
   lesson,
@@ -106,6 +139,12 @@ function LessonItem({
   const { locked, completed, pct } = computeLessonState(lesson, purchased, progress);
   const dur = formatDuration(lesson.durationSec);
   const ref = useRef<HTMLButtonElement>(null);
+
+  // Видеогүй (текст/баримт) хичээл эсэх — backend hasVideo тооцоод буцаана.
+  // hasVideo===false бол play биш баримтын icon (FileText) харуулна.
+  const isTextLesson = lesson.hasVideo === false;
+  // Тойрог progress харуулах эсэх — хагас үзсэн (дуусаагүй, 0 < pct < 90) видео хичээл.
+  const showProgressRing = !completed && !locked && pct > 0 && pct < 90;
 
   // Идэвхтэй хичээл → sidebar дотор автоматаар харагдахуйц scroll
   useEffect(() => {
@@ -130,27 +169,37 @@ function LessonItem({
       {/* Идэвхтэй (current) хичээлийн зүүн талын gold заагч */}
       {isCurrent && <span className="absolute left-0 top-0 h-full w-1 bg-[#ffbe00]" />}
 
-      {/* Status icon */}
-      <span
-        className={cn(
-          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold',
-          completed
-            ? 'border-emerald-500 bg-emerald-500 text-white'
-            : isCurrent
-              ? 'border-[#ffbe00] bg-[#ffbe00]/20 text-[#ffbe00]'
-              : 'border-border text-muted-foreground',
-        )}
-      >
-        {completed ? (
-          <Check className="h-3.5 w-3.5" />
-        ) : locked ? (
-          <Lock className="h-3 w-3" />
-        ) : isCurrent ? (
-          <Play className="h-3 w-3 fill-current" />
-        ) : (
-          index + 1
-        )}
-      </span>
+      {/* Status icon —
+          completed (90%+) → ногоон ✓ | хагас үзсэн (0<pct<90) → тойрог progress |
+          locked → Lock | видеогүй текст хичээл → FileText | идэвхтэй → Play | эс → дугаар */}
+      {showProgressRing ? (
+        <span className="mt-0.5">
+          <CircularProgress pct={pct} />
+        </span>
+      ) : (
+        <span
+          className={cn(
+            'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold',
+            completed
+              ? 'border-emerald-500 bg-emerald-500 text-white'
+              : isCurrent
+                ? 'border-[#ffbe00] bg-[#ffbe00]/20 text-[#ffbe00]'
+                : 'border-border text-muted-foreground',
+          )}
+        >
+          {completed ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : locked ? (
+            <Lock className="h-3 w-3" />
+          ) : isCurrent ? (
+            <Play className="h-3 w-3 fill-current" />
+          ) : isTextLesson ? (
+            <FileText className="h-3 w-3" />
+          ) : (
+            index + 1
+          )}
+        </span>
+      )}
 
       {/* Title + meta + progress */}
       <span className="min-w-0 flex-1">

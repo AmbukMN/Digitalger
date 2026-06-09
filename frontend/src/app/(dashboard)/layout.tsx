@@ -35,7 +35,8 @@ export default function DashboardLayout({
   return (
     <>
       <SiteNavbar />
-      <div className="mx-auto flex max-w-7xl gap-8 px-4 pt-8 sm:px-6 lg:px-8 pb-[calc(6rem+env(safe-area-inset-bottom,0))] md:pb-8">
+      {/* Fixed navbar (h-16 = 64px) доор цэвэр зай — гарчиг header-т наалдахгүй */}
+      <div className="mx-auto flex max-w-7xl gap-8 px-4 pt-22 sm:px-6 md:pt-24 lg:px-8 pb-[calc(6rem+env(safe-area-inset-bottom,0))] md:pb-8">
         {/* Desktop sidebar */}
         <aside className="hidden w-48 shrink-0 md:block">
           <nav className="sticky top-24 space-y-1">

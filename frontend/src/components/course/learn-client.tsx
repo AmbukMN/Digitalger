@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clapperboard,
   Clock,
   Loader2,
   Lock,
@@ -155,9 +156,10 @@ export function LearnClient({ product }: LearnClientProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // ── Сонгосон хичээлийн видео эх сурвалж ──
+  // videoState: 'idle' = эхлээгүй | 'loading' = ачаалж буй | 'ready' = бэлэн
+  //             | 'error' = ачаалахад алдаа | 'no-video' = видео хараахан оруулаагүй (алдаа биш)
   const [video, setVideo] = useState<LessonVideoResult | null>(null);
-  const [videoLoading, setVideoLoading] = useState(false);
-  const [videoError, setVideoError] = useState(false);
+  const [videoState, setVideoState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'no-video'>('idle');
 
   const currentLocked = currentLesson
     ? computeLessonState(currentLesson, purchased, progressMap[currentLesson.id]).locked
@@ -167,29 +169,43 @@ export function LearnClient({ product }: LearnClientProps) {
     if (!currentLesson) return;
     let cancelled = false;
     setVideo(null);
-    setVideoError(false);
 
     const lessonState = computeLessonState(currentLesson, purchased, progressMap[currentLesson.id]);
-    if (lessonState.locked) return; // түгжээтэй — видео ачаалахгүй
+    if (lessonState.locked) {
+      setVideoState('idle'); // түгжээтэй — видео ачаалахгүй (locked UI тусдаа)
+      return;
+    }
+
+    // Видео хараахан оруулаагүй (hasVideo===false) — getLessonVideoUrl дуудахгүй,
+    // "no-video" төлөв (алдаа БИШ, зүгээр л мэдээлэл).
+    if (currentLesson.hasVideo === false) {
+      setVideoState('no-video');
+      return;
+    }
 
     // Үнэгүй preview & худалдаагүй — getLessonVideoUrl дуудалгүй шууд external url
     if (currentLesson.isFreePreview && currentLesson.videoUrl && !purchased) {
       setVideo({ lessonId: currentLesson.id, type: 'external', url: currentLesson.videoUrl });
+      setVideoState('ready');
       return;
     }
-    if (!token) return;
+    if (!token) {
+      setVideoState('idle');
+      return;
+    }
 
-    setVideoLoading(true);
+    setVideoState('loading');
     coursesApi
       .getLessonVideoUrl(token, product.slug, currentLesson.id)
       .then((res) => {
-        if (!cancelled) setVideo(res);
+        if (cancelled) return;
+        // Backend хариу буцаасан ч бодит видео эх сурвалжгүй бол "no-video"
+        const hasSource = !!(res.url || res.hlsUrl || res.iframeUrl);
+        setVideo(res);
+        setVideoState(hasSource ? 'ready' : 'no-video');
       })
       .catch(() => {
-        if (!cancelled) setVideoError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setVideoLoading(false);
+        if (!cancelled) setVideoState('error');
       });
 
     return () => {
@@ -328,7 +344,7 @@ export function LearnClient({ product }: LearnClientProps) {
 
   // ─── Player талбар ───────────────────────────────────────────────────────────
   function renderPlayer() {
-    if (accessLoading || (videoLoading && !video)) {
+    if (accessLoading || (videoState === 'loading' && !video)) {
       return <Skeleton className="absolute inset-0 h-full w-full rounded-none bg-white/5" />;
     }
     if (!currentLesson) {
@@ -350,17 +366,24 @@ export function LearnClient({ product }: LearnClientProps) {
         </div>
       );
     }
-    if (videoError) {
+    // Видео хараахан оруулаагүй (hasVideo===false эсвэл эх сурвалжгүй) — алдаа БИШ, мэдээлэл
+    if (videoState === 'no-video') {
+      return <NoVideoMessage />;
+    }
+    if (videoState === 'error') {
       return <PlayerMessage text="Видео ачаалахад алдаа гарлаа. Дахин оролдоно уу." />;
     }
     if (!video) {
-      return <PlayerMessage text="Энэ хичээлд видео байхгүй байна." />;
+      // Эх сурвалж байхгүй (хүлээгдээгүй төлөв) — "хараахан оруулаагүй" гэж зөөлөн харуулна
+      return <NoVideoMessage />;
     }
+    // Хичээлийн poster (backend resolve) → product thumbnail руу fallback
+    const posterUrl = video.posterUrl ?? currentLesson.posterUrl ?? product.thumbnailUrl ?? undefined;
     return (
       <PremiumVideoPlayer
         key={currentLesson.id}
         source={{ type: video.type, url: video.url, hlsUrl: video.hlsUrl, iframeUrl: video.iframeUrl }}
-        poster={product.thumbnailUrl ?? undefined}
+        poster={posterUrl}
         resumeFrom={resumeFrom}
         title={currentLesson.title}
         onProgress={handleProgress}
@@ -641,6 +664,25 @@ function PlayerMessage({ text }: { text: string }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
       <p className="text-sm text-white/60">{text}</p>
+    </div>
+  );
+}
+
+// Видео хараахан оруулаагүй хичээл — алдаа БИШ, ойлгомжтой мэдээлэл (төвд)
+function NoVideoMessage() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10"
+      >
+        <Clapperboard className="h-7 w-7 text-white/70" />
+      </motion.div>
+      <div>
+        <p className="text-base font-semibold text-white">Видео сургалт хараахан оруулаагүй байна</p>
+        <p className="mt-1 text-sm text-white/60">Энэ хичээлийн видео удахгүй нэмэгдэнэ. Тэмдэглэл, материалыг доороос үзнэ үү.</p>
+      </div>
     </div>
   );
 }

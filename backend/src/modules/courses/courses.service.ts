@@ -48,6 +48,27 @@ export class CoursesService {
     return !!pickActiveOrder(orders);
   }
 
+  /**
+   * Хичээлийн poster (thumbnail) URL resolve хийнэ — нийтийн жагсаалт + видео хариуд.
+   * Эрэмбэ:
+   *  1) lesson.posterKey (admin upload) → R2 PUBLIC url (getAssetUrl, social share OK).
+   *  2) videoStreamId (Cloudflare Stream) → автомат thumbnail (эхний 2сек frame).
+   *  3) R2 видео (videoKey) → null (frontend видеоны эхний frame-ийг харуулна).
+   * @returns public poster url эсвэл null.
+   */
+  private resolvePosterUrl(lesson: {
+    posterKey?: string | null;
+    videoStreamId?: string | null;
+  }): string | null {
+    if (lesson.posterKey) {
+      return this.storage.getAssetUrl(lesson.posterKey);
+    }
+    if (lesson.videoStreamId) {
+      return this.stream.getThumbnailUrl(lesson.videoStreamId);
+    }
+    return null;
+  }
+
   async getLessonsByProductSlug(slug: string) {
     const product = await this.prisma.product.findFirst({
       where: { slug, published: true },
@@ -87,6 +108,8 @@ export class CoursesService {
       isFreePreview: lesson.isFreePreview,
       moduleId: lesson.moduleId ?? null,
       hasVideo: Boolean(lesson.videoKey || lesson.videoUrl || lesson.videoStreamId),
+      // Poster: admin upload (posterKey) → Stream автомат thumbnail → null (R2 видео).
+      posterUrl: this.resolvePosterUrl(lesson),
       resourceCount: lesson._count?.resources ?? 0,
       hasResources: (lesson._count?.resources ?? 0) > 0,
     });
@@ -141,6 +164,8 @@ export class CoursesService {
     // GET :productSlug/resources/:resourceId/download endpoint дуудна.
     const extras = {
       content: lesson.content ?? null,
+      // Poster: admin upload (posterKey) → Stream автомат thumbnail → null (R2 видео).
+      posterUrl: this.resolvePosterUrl(lesson),
       resources: lesson.resources.map((r) => ({
         id: r.id,
         fileName: r.fileName,
@@ -177,9 +202,11 @@ export class CoursesService {
       return { lessonId: lesson.id, type: 'external' as const, url: lesson.videoUrl, expiresIn: null, ...extras };
     }
 
-    // 3) R2 presigned (хуучин) — хэвээр.
-    const url = await this.storage.getPresignedUrl(lesson.videoKey!, 7200, 'get');
-    return { lessonId: lesson.id, type: 'r2' as const, url, expiresIn: 7200, ...extras };
+    // 3) R2 видео — НИЙТИЙН public URL (TTL-гүй, social share/copy-paste OK).
+    // ⚠️ R2 нь үнэгүй/нээлттэй контентод (preview), бодит хамгаалалт Cloudflare Stream-д.
+    // Тиймээс presigned (хугацаатай) биш public url буцаана — линк хуваалцахад тасрахгүй.
+    const url = this.storage.getAssetUrl(lesson.videoKey!);
+    return { lessonId: lesson.id, type: 'r2' as const, url, expiresIn: null, ...extras };
   }
 
   /**

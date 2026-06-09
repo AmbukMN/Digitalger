@@ -465,6 +465,8 @@ export interface LessonVideoResult {
   hlsUrl?: string;
   iframeUrl?: string;
   expiresIn?: number | null;
+  /** Видео плэйерийн poster (thumbnail) — backend resolve хийж буцаана */
+  posterUrl?: string | null;
   // ── Хичээлийн нэмэлт агуулга (backend шинэ) ──
   /** Rich HTML тэмдэглэл (sanitizeHtml-аар render) */
   content?: string | null;

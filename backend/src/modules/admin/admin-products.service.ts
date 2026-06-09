@@ -429,6 +429,8 @@ export class AdminProductsService {
         videoStreamId: source.videoStreamId,
         videoKey: source.videoKey,
         videoUrl: source.videoUrl,
+        // Poster (thumbnail) R2 key — хоосон бол null (автомат frame).
+        ...(dto.posterKey !== undefined && { posterKey: dto.posterKey || null }),
         ...(dto.streamStatus !== undefined && { streamStatus: dto.streamStatus }),
         durationSec,
         isFreePreview: dto.isFreePreview ?? false,
@@ -439,6 +441,11 @@ export class AdminProductsService {
 
   async updateLesson(lessonId: string, dto: UpdateLessonDto) {
     const data: Record<string, unknown> = { ...dto };
+
+    // Poster (thumbnail) — хоосон утга илгээвэл null болгож устгана (автомат frame руу буцна).
+    if (dto.posterKey !== undefined) {
+      data.posterKey = dto.posterKey || null;
+    }
 
     // Хуучин Stream видеоны uid-г урьдчилж авах — видео солих/устгахад
     // Cloudflare-аас ч устгахын тулд (orphan үлдээхгүй).

@@ -255,6 +255,9 @@ model Lesson {
   videoUrl      String?
   videoStreamId String?       // Cloudflare Stream UID
   streamStatus  String?       // pending | ready | error (Stream боловсруулалтын төлөв)
+  // Видео thumbnail/poster — admin upload (R2 key). Эс тохируулбал видеоны эхний
+  // frame (Stream автомат thumbnail / R2 видео эхний 2сек) ашиглана.
+  posterKey     String?
   durationSec   Int?
   isFreePreview Boolean       @default(false)
   sortOrder     Int           @default(0)

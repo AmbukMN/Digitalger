@@ -47,6 +47,11 @@ export class CreateLessonDto {
   @IsString()
   streamStatus?: string;
 
+  // Видео thumbnail/poster (R2 key, admin upload). Эс тохируулбал автомат frame.
+  @IsOptional()
+  @IsString()
+  posterKey?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -99,6 +104,11 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsString()
   streamStatus?: string;
+
+  // Видео thumbnail/poster (R2 key). null → poster устгана (автомат frame руу буцна).
+  @IsOptional()
+  @IsString()
+  posterKey?: string | null;
 
   @IsOptional()
   @Type(() => Number)

@@ -221,9 +221,9 @@ export const adminApi = {
     },
     lessons: {
       list: (productId: string) => adminFetch<AdminLesson[]>(`/admin/products/${productId}/lessons`),
-      create: (productId: string, body: { title: string; description?: string; content?: string; videoUrl?: string; videoKey?: string; videoStreamId?: string; streamStatus?: string; durationSec?: number; isFreePreview?: boolean; sortOrder?: number; moduleId?: string }) =>
+      create: (productId: string, body: { title: string; description?: string; content?: string; videoUrl?: string; videoKey?: string; videoStreamId?: string; streamStatus?: string; posterKey?: string; durationSec?: number; isFreePreview?: boolean; sortOrder?: number; moduleId?: string }) =>
         adminFetch<AdminLesson>(`/admin/products/${productId}/lessons`, { method: 'POST', body: JSON.stringify(body) }),
-      update: (productId: string, lessonId: string, body: Partial<{ title: string; description: string; content: string; videoUrl: string; videoKey: string; videoStreamId: string; streamStatus: string; durationSec: number; isFreePreview: boolean; sortOrder: number; moduleId: string | null }>) =>
+      update: (productId: string, lessonId: string, body: Partial<{ title: string; description: string; content: string; videoUrl: string; videoKey: string; videoStreamId: string; streamStatus: string; posterKey: string | null; durationSec: number; isFreePreview: boolean; sortOrder: number; moduleId: string | null }>) =>
         adminFetch<AdminLesson>(`/admin/products/${productId}/lessons/${lessonId}`, { method: 'PATCH', body: JSON.stringify(body) }),
       remove: (productId: string, lessonId: string) =>
         adminFetch<void>(`/admin/products/${productId}/lessons/${lessonId}`, { method: 'DELETE' }),

@@ -11,6 +11,9 @@ export interface CourseLesson {
   // Видео байгаа эсэх (videoUrl | videoKey | videoStreamId аль нэг) — backend тооцоод буцаана.
   // Preview/play товч идэвхжүүлэхэд ашиглана (Stream/R2 ID-г нийтэд задлахгүй).
   hasVideo?: boolean;
+  // Видео плэйерийн poster (thumbnail) — backend resolve хийж буцаана.
+  // Байхгүй бол product.thumbnailUrl руу fallback хийнэ.
+  posterUrl?: string | null;
   isFreePreview: boolean;
 }
 

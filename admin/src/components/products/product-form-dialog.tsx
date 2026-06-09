@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GraduationCap, GripVertical, ListChecks, Loader2, Lock, MessageSquare, Package, Paperclip, Pencil, Play, Plus, Send, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Download, FileText, FolderOpen, FolderPlus, GraduationCap, GripVertical, Image as ImageIcon, ListChecks, Loader2, Lock, MessageSquare, Package, Paperclip, Pencil, Play, Plus, Send, Sparkles, Star, Trash2, Upload, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   DndContext,
@@ -838,6 +838,8 @@ function VideoUploadInput({
   videoKey, setVideoKey,
   videoStreamId, setVideoStreamId,
   setStreamStatus,
+  posterKey, setPosterKey,
+  initialPosterUrl,
   duration, setDuration,
   onUploadingChange,
 }: {
@@ -854,6 +856,10 @@ function VideoUploadInput({
   videoKey: string; setVideoKey: (v: string) => void;
   videoStreamId: string; setVideoStreamId: (v: string) => void;
   setStreamStatus: (v: string) => void;
+  /** Видео thumbnail/poster R2 key (admin upload). Хоосон бол автомат frame. */
+  posterKey: string; setPosterKey: (v: string) => void;
+  /** Хадгалагдсан poster-ийн public url (backend resolve хийсэн) — preview-д. */
+  initialPosterUrl?: string | null;
   duration: string; setDuration: (v: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
 }) {
@@ -875,6 +881,14 @@ function VideoUploadInput({
   );
   const [streamFileName, setStreamFileName] = useState('');
   const videoFileRef = useRef<HTMLInputElement>(null);
+
+  // ── Thumbnail/poster (сонголт) — R2-д хадгална, posterKey-д тавина ──
+  const [posterUploading, setPosterUploading] = useState(false);
+  const posterFileRef = useRef<HTMLInputElement>(null);
+  // Preview url: шинээр upload хийсэн public url (memory) эсвэл backend resolve хийсэн url.
+  // posterKey хоосон бол (admin устгасан) preview-г ч хоослоно.
+  const [posterPreview, setPosterPreview] = useState(initialPosterUrl ?? '');
+  const posterSrc = posterKey ? (posterPreview || initialPosterUrl || '') : '';
 
   // ⚠️ isFreePreview солих edge case: аль хэдийн видеотой хичээлийн "Үнэгүй" тохиргоог
   // соливол хадгалагдсан эх сурвалж (R2/Stream) одоогийн дүрэмтэй таарахгүй болж болзошгүй.
@@ -1043,6 +1057,34 @@ function VideoUploadInput({
       setStreamUploading(false);
       onUploadingChange?.(false);
     }
+  }
+
+  // ── Thumbnail/poster зураг байршуулах (R2) — posterKey-д тавина ──
+  async function handlePosterFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!file.type.startsWith('image/')) {
+      toast.error('Зөвхөн зураг файл байршуулна уу');
+      return;
+    }
+    setPosterUploading(true);
+    onUploadingChange?.(true);
+    try {
+      const result = await uploadFileWithToast(file);
+      setPosterKey(result.key);
+      setPosterPreview(result.url);
+    } catch {
+      // toast аль хэдийн uploadFileWithToast дотор гарсан
+    } finally {
+      setPosterUploading(false);
+      onUploadingChange?.(false);
+    }
+  }
+
+  function clearPoster() {
+    setPosterKey('');
+    setPosterPreview('');
   }
 
   // Байршуулсан видеог (R2 эсвэл Stream) арилгана.
@@ -1248,6 +1290,60 @@ function VideoUploadInput({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ── Thumbnail/poster зураг (сонголт) — видео эх сурвалжаас үл хамаарна ── */}
+      <div className="space-y-1.5 rounded-lg border border-border bg-muted/5 px-2.5 py-2">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+            <ImageIcon className="h-3 w-3" /> Thumbnail зураг (сонголт)
+          </span>
+          {posterSrc && !posterUploading && (
+            <button type="button" onClick={clearPoster} className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-0.5">
+              <X className="h-2.5 w-2.5" /> Устгах
+            </button>
+          )}
+        </div>
+
+        <input
+          ref={posterFileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePosterFile}
+          disabled={posterUploading || busy}
+        />
+
+        {posterUploading ? (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground py-1.5">
+            <span className="inline-block h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+            Зураг байршуулж байна...
+          </div>
+        ) : posterSrc ? (
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={posterSrc} alt="Poster" className="h-12 w-20 rounded object-cover border border-border" />
+            <button
+              type="button"
+              onClick={() => posterFileRef.current?.click()}
+              className="text-[11px] font-medium text-primary hover:underline"
+            >
+              Зураг солих
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => posterFileRef.current?.click()}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground transition hover:border-primary/50 hover:bg-muted/20"
+          >
+            <ImageIcon className="h-3.5 w-3.5" /> Зураг сонгох
+          </button>
+        )}
+
+        <p className="text-[10px] text-muted-foreground/70 leading-snug">
+          Эс тохируулбал видеоны эхний 2 секундын frame автоматаар poster болно.
+        </p>
+      </div>
     </div>
   );
 }
@@ -1735,6 +1831,7 @@ function LessonRow({
   const [videoKey, setVideoKey] = useState(lesson.videoKey ?? '');
   const [videoStreamId, setVideoStreamId] = useState(lesson.videoStreamId ?? '');
   const [streamStatus, setStreamStatus] = useState(lesson.streamStatus ?? '');
+  const [posterKey, setPosterKey] = useState(lesson.posterKey ?? '');
   const [duration, setDuration] = useState(formatDurationInput(lesson.durationSec));
   const [freePreview, setFreePreview] = useState(lesson.isFreePreview);
   const [description, setDescription] = useState(lesson.description ?? '');
@@ -1750,6 +1847,7 @@ function LessonRow({
       setVideoKey(lesson.videoKey ?? '');
       setVideoStreamId(lesson.videoStreamId ?? '');
       setStreamStatus(lesson.streamStatus ?? '');
+      setPosterKey(lesson.posterKey ?? '');
       setDuration(formatDurationInput(lesson.durationSec));
       setFreePreview(lesson.isFreePreview);
       setDescription(lesson.description ?? '');
@@ -1772,6 +1870,8 @@ function LessonRow({
         streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
         videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
         videoKey: videoStreamId ? undefined : (videoKey || undefined),
+        // Poster — хоосон бол null илгээж устгана (автомат frame руу буцна).
+        posterKey: posterKey || null,
         durationSec,
         isFreePreview: freePreview,
       });
@@ -1791,6 +1891,7 @@ function LessonRow({
     setVideoKey(lesson.videoKey ?? '');
     setVideoStreamId(lesson.videoStreamId ?? '');
     setStreamStatus(lesson.streamStatus ?? '');
+    setPosterKey(lesson.posterKey ?? '');
     setDuration(formatDurationInput(lesson.durationSec));
     setFreePreview(lesson.isFreePreview);
     setDescription(lesson.description ?? '');
@@ -1857,6 +1958,8 @@ function LessonRow({
                 videoKey={videoKey} setVideoKey={setVideoKey}
                 videoStreamId={videoStreamId} setVideoStreamId={setVideoStreamId}
                 setStreamStatus={setStreamStatus}
+                posterKey={posterKey} setPosterKey={setPosterKey}
+                initialPosterUrl={lesson.posterUrl}
                 duration={duration} setDuration={setDuration}
                 onUploadingChange={setIsUploading}
               />
@@ -1972,6 +2075,7 @@ function AddLessonForm({
   const [videoKey, setVideoKey] = useState('');
   const [videoStreamId, setVideoStreamId] = useState('');
   const [streamStatus, setStreamStatus] = useState('');
+  const [posterKey, setPosterKey] = useState('');
   const [duration, setDuration] = useState('');
   const [freePreview, setFreePreview] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -1985,6 +2089,7 @@ function AddLessonForm({
       streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
       videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
       videoKey: videoStreamId ? undefined : (videoKey || undefined),
+      posterKey: posterKey || undefined,
       durationSec: parseDurationToSec(duration),
       isFreePreview: freePreview,
       moduleId: moduleId,
@@ -2016,6 +2121,7 @@ function AddLessonForm({
           videoKey={videoKey} setVideoKey={setVideoKey}
           videoStreamId={videoStreamId} setVideoStreamId={setVideoStreamId}
           setStreamStatus={setStreamStatus}
+          posterKey={posterKey} setPosterKey={setPosterKey}
           duration={duration} setDuration={setDuration}
           onUploadingChange={setUploading}
         />
