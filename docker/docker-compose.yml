@@ -87,6 +87,7 @@ services:
       DATABASE_URL: postgresql://digitalger:digitalger_secret@postgres:5432/digitalger?schema=public
       REDIS_URL: redis://redis:6379
       ZIP_WORKER_CONCURRENCY: 5
+      EMAIL_WORKER_CONCURRENCY: 5   # email queue concurrency (queue limiter max 10/сек SES 14-ийг давуулахгүй)
       DB_POOL_SIZE: 20
       DB_POOL_TIMEOUT: 10
     command: ["node", "dist/src/worker.js"]
