@@ -434,7 +434,7 @@ export class AnalyticsService {
     const since = sesStart > periodSince ? sesStart : periodSince;
 
     // EmailOpen + EmailLog-оос campaign бүрийн нээлт/илгээлтийг ЗЭРЭГ авна.
-    const [opensGrouped, uniqueGrouped, sentGrouped, deliveredGrouped, bouncedGrouped] =
+    const [opensGrouped, uniqueGrouped, sentGrouped, deliveredGrouped, bouncedGrouped, recipientGrouped] =
       await Promise.all([
         // 1) Нийт нээлт (campaign бүрд, SES эхэлснээс хойш)
         this.prisma.emailOpen.groupBy({
@@ -466,6 +466,13 @@ export class AnalyticsService {
           where: { campaign: { not: null }, bouncedAt: { gte: since } },
           _count: { id: true },
         }),
+        // 6) Unique хүлээн авагч — (campaign+to) distinct. Open rate-ийн ХУВААРЬ.
+        // ⚠️ Нэг хаяг руу 2 имэйл явсан ч 1 хүн = 1 хүлээн авагч (open rate зөв болно).
+        this.prisma.emailLog.groupBy({
+          by: ['campaign', 'to'],
+          where: { campaign: { not: null }, createdAt: { gte: since } },
+          _count: { id: true },
+        }),
       ]);
 
     const openMap = new Map(opensGrouped.map((o) => [o.campaign, o._count.id]));
@@ -476,6 +483,12 @@ export class AnalyticsService {
     const sentMap = new Map(
       sentGrouped.map((s) => [s.campaign as string, s._count.id]),
     );
+    // Unique хүлээн авагчийн тоо (campaign бүрд) — open rate-ийн хуваарь
+    const recipientMap = new Map<string, number>();
+    for (const r of recipientGrouped) {
+      const k = r.campaign as string;
+      recipientMap.set(k, (recipientMap.get(k) ?? 0) + 1);
+    }
     const deliveredMap = new Map(
       deliveredGrouped.map((s) => [s.campaign as string, s._count.id]),
     );
@@ -502,15 +515,20 @@ export class AnalyticsService {
       const bounced = bouncedMap.get(key) ?? 0;
       const openedPeriod = openMap.get(key) ?? 0;
       const uniqueOpens = uniqueMap.get(key) ?? 0;
-      // Open rate = unique нээгчид / илгээсэн (sent байхгүй бол delivered-ээр)
-      const denom = sent || delivered || 0;
-      const openRate = denom > 0 ? Math.round((uniqueOpens / denom) * 1000) / 10 : 0;
+      const recipients = recipientMap.get(key) ?? 0;
+      // ⚠️ Open rate = нээсэн ХҮН / хүлээн авсан ХҮН (хоёулаа хаягийн түвшинд).
+      // Нэг хаяг руу 2 имэйл явж, тэр хүн нээвэл: 1 нээсэн / 1 хүлээн авсан = 100%.
+      // (Өмнө нь uniqueOpens/sent байсан → 1/2 = 50% буруу гарч байсан.)
+      const denom = recipients || sent || delivered || 0;
+      const openRate =
+        denom > 0 ? Math.min(100, Math.round((uniqueOpens / denom) * 1000) / 10) : 0;
       return {
         key,
         label,
         sent,
         delivered,
         bounced,
+        recipients,
         openedPeriod,
         uniqueOpens,
         openedTotal,
@@ -537,16 +555,19 @@ export class AnalyticsService {
 
     const totalSent = campaigns.reduce((s, c) => s + c.sent, 0);
     const totalDelivered = campaigns.reduce((s, c) => s + c.delivered, 0);
+    const totalRecipients = campaigns.reduce((s, c) => s + c.recipients, 0);
     const totalOpensPeriod = campaigns.reduce((s, c) => s + c.openedPeriod, 0);
     const totalUnique = campaigns.reduce((s, c) => s + c.uniqueOpens, 0);
-    // Нийт open rate = unique нээгчид / нийт илгээсэн
+    // ⚠️ Нийт open rate = нээсэн ХҮН / хүлээн авсан ХҮН (хаягийн түвшинд, дээд 100%)
+    const denom = totalRecipients || totalSent || 0;
     const overallOpenRate =
-      totalSent > 0 ? Math.round((totalUnique / totalSent) * 1000) / 10 : 0;
+      denom > 0 ? Math.min(100, Math.round((totalUnique / denom) * 1000) / 10) : 0;
 
     return {
       campaigns,
       totalSent,
       totalDelivered,
+      totalRecipients,
       totalOpensPeriod,
       totalUnique,
       overallOpenRate,

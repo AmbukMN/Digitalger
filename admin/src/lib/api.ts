@@ -723,6 +723,7 @@ export const adminApi = {
         sent: number;
         delivered: number;
         bounced: number;
+        recipients: number;
         openedPeriod: number;
         uniqueOpens: number;
         openedTotal: number;
@@ -730,6 +731,7 @@ export const adminApi = {
       }[];
       totalSent: number;
       totalDelivered: number;
+      totalRecipients: number;
       totalOpensPeriod: number;
       totalUnique: number;
       overallOpenRate: number;

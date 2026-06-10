@@ -140,7 +140,7 @@ export function EmailMarketingPanel() {
                   <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-2.5 font-medium">Кампанит ажил</th>
                     <th className="px-3 py-2.5 font-medium text-right">Илгээсэн</th>
-                    <th className="px-3 py-2.5 font-medium text-right">Хүргэгдсэн</th>
+                    <th className="px-3 py-2.5 font-medium text-right">Хүлээн авсан хүн</th>
                     <th className="px-3 py-2.5 font-medium text-right">Нээлт</th>
                     <th className="px-3 py-2.5 font-medium text-right">Нээсэн хүн</th>
                     <th className="px-4 py-2.5 font-medium text-right">Нээлтийн хувь</th>
@@ -165,7 +165,7 @@ export function EmailMarketingPanel() {
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{c.sent.toLocaleString('mn-MN')}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                          {c.delivered > 0 ? c.delivered.toLocaleString('mn-MN') : '—'}
+                          {(c.recipients || c.sent).toLocaleString('mn-MN')}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{c.openedPeriod.toLocaleString('mn-MN')}</td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-primary">{c.uniqueOpens.toLocaleString('mn-MN')}</td>
@@ -190,7 +190,7 @@ export function EmailMarketingPanel() {
                     <td className="px-4 py-2.5">Нийт ({days} хоног)</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{email.totalSent.toLocaleString('mn-MN')}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                      {email.totalDelivered > 0 ? email.totalDelivered.toLocaleString('mn-MN') : '—'}
+                      {(email.totalRecipients || email.totalSent).toLocaleString('mn-MN')}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{email.totalOpensPeriod.toLocaleString('mn-MN')}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-primary">{email.totalUnique.toLocaleString('mn-MN')}</td>
@@ -227,9 +227,9 @@ export function EmailMarketingPanel() {
             )}
 
             <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground/70">
-              <span className="font-medium">Нээлтийн хувь</span> = давхардалгүй нээсэн хүн ÷ илгээсэн имэйл. Зөвхөн{' '}
-              <span className="font-medium">AWS SES тохируулсан огнооноос хойших</span> дата (өмнөх Resend үеийнхийг оруулаагүй).
-              Нээлтийг pixel-ээр бүртгэнэ (зарим имэйл клиент зураг блоклодог тул бодит нээлт арай өндөр байж болно).
+              <span className="font-medium">Нээлтийн хувь</span> = нээсэн хүн ÷ хүлээн авсан хүн (нэг хаяг руу олон имэйл явсан ч 1 хүн).
+              Зөвхөн <span className="font-medium">AWS SES тохируулсан огнооноос хойших</span> дата (өмнөх Resend үеийнхийг оруулаагүй).
+              Нээлтийг имэйл доторх pixel-ээр бүртгэнэ — <span className="font-medium">Gmail зэрэг зургийг кэшэлдэг тул нэг хүн дахин нээхэд бүртгэгдэхгүй</span>, бодит нээлт арай өндөр байж болно.
             </p>
           </div>
         </>
