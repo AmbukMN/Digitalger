@@ -17,6 +17,8 @@ import {
   FileSpreadsheet,
   FileText,
   ChevronDown,
+  Send,
+  Eye,
 } from 'lucide-react';
 import {
   Badge,
@@ -280,6 +282,186 @@ function CategoryDialog({
   );
 }
 
+// ─── Bulk marketing email compose dialog ─────────────────────────────────────
+function EmailComposeDialog({
+  open,
+  selectedIds,
+  categories,
+  onClose,
+}: {
+  open: boolean;
+  selectedIds: string[];
+  categories: AdminSubscriberCategory[];
+  onClose: () => void;
+}) {
+  // Хүлээн авагч: 'selected' (сонгосон N) | 'all' (бүх идэвхтэй) | категори id
+  const [target, setTarget] = useState<string>('selected');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Dialog нээгдэх бүрд reset. Сонгосон байвал 'selected', эс бол 'all'.
+  useEffect(() => {
+    if (open) {
+      setTarget(selectedIds.length > 0 ? 'selected' : 'all');
+      setSubject('');
+      setBody('');
+      setShowPreview(false);
+      setConfirmOpen(false);
+    }
+  }, [open, selectedIds.length]);
+
+  const sendMut = useMutation({
+    mutationFn: () => {
+      const payload: {
+        recipientIds?: string[];
+        status?: 'ACTIVE';
+        categoryId?: string;
+        subject: string;
+        bodyHtml: string;
+      } = { subject: subject.trim(), bodyHtml: body };
+      if (target === 'selected') payload.recipientIds = selectedIds;
+      else if (target === 'all') payload.status = 'ACTIVE';
+      else { payload.status = 'ACTIVE'; payload.categoryId = target; }
+      return adminApi.subscribers.sendEmail(payload);
+    },
+    onSuccess: (res) => {
+      toast.success(
+        `${res.sent} имэйл илгээгдлээ${res.failed ? ` · ${res.failed} амжилтгүй` : ''}`,
+        { duration: 5000 },
+      );
+      setConfirmOpen(false);
+      onClose();
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || 'Имэйл илгээхэд алдаа гарлаа');
+      setConfirmOpen(false);
+    },
+  });
+
+  // Хүлээн авагчийн тоо/тайлбар (баталгаажуулалтад харуулна)
+  const recipientLabel =
+    target === 'selected'
+      ? `Сонгосон ${selectedIds.length} захиалагч`
+      : target === 'all'
+      ? 'Бүх идэвхтэй захиалагч'
+      : `«${categories.find((c) => c.id === target)?.name ?? 'категори'}» — идэвхтэй захиалагч`;
+
+  const canSend = subject.trim().length > 0 && body.trim().length > 0 &&
+    !(target === 'selected' && selectedIds.length === 0);
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-primary" /> Имэйл явуулах
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Хүлээн авагч сонгох */}
+            <div className="space-y-1.5">
+              <Label>Хүлээн авагч</Label>
+              <Select value={target} onValueChange={setTarget}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {selectedIds.length > 0 && (
+                    <SelectItem value="selected">Сонгосон ({selectedIds.length})</SelectItem>
+                  )}
+                  <SelectItem value="all">Бүх идэвхтэй захиалагч</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      Категори: {c.name} ({c.count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Зөвхөн идэвхтэй (захиалга цуцлаагүй) хаягууд руу илгээгдэнэ.
+              </p>
+            </div>
+
+            {/* Гарчиг */}
+            <div className="space-y-1.5">
+              <Label>Гарчиг (Subject) *</Label>
+              <Input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Жишээ: 🎉 Шинэ хямдрал эхэллээ!"
+                maxLength={200}
+              />
+            </div>
+
+            {/* Агуулга / Preview */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Агуулга (HTML дэмжинэ) *</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowPreview((v) => !v)}
+                >
+                  <Eye className="mr-1 h-3.5 w-3.5" />
+                  {showPreview ? 'Засах' : 'Урьдчилан харах'}
+                </Button>
+              </div>
+              {showPreview ? (
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <div
+                    className="prose prose-sm max-w-none text-sm dark:prose-invert"
+                    // Зөвхөн admin өөрийн бичсэн агуулга — backend дээр sanitize хийнэ
+                    dangerouslySetInnerHTML={{ __html: body || '<p class="text-muted-foreground">Агуулга хоосон байна</p>' }}
+                  />
+                </div>
+              ) : (
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={9}
+                  maxLength={50000}
+                  placeholder={'<p>Сайн байна уу!</p>\n<p>Манай шинэ бүтээгдэхүүнтэй танилцаарай...</p>\n<a href="https://digitalger.mn/products">Үзэх</a>'}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono leading-relaxed outline-none focus:ring-2 focus:ring-ring"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Брэндийн загвар (лого, footer, «Захиалга цуцлах» холбоос) автоматаар нэмэгдэнэ.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Болих</Button>
+            <Button type="button" disabled={!canSend} onClick={() => setConfirmOpen(true)}>
+              <Send className="mr-1.5 h-4 w-4" /> Явуулах
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Баталгаажуулалт — санамсаргүй явуулахаас сэргийлэх */}
+      <Dialog open={confirmOpen} onOpenChange={(o) => !o && setConfirmOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Имэйл явуулах уу?</DialogTitle></DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p><span className="text-muted-foreground">Хүлээн авагч:</span> <span className="font-medium">{recipientLabel}</span></p>
+            <p><span className="text-muted-foreground">Гарчиг:</span> <span className="font-medium">{subject.trim() || '—'}</span></p>
+            <p className="text-xs text-muted-foreground">Илгээсэн имэйлийг буцаах боломжгүй.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Цуцлах</Button>
+            <Button disabled={sendMut.isPending} onClick={() => sendMut.mutate()}>
+              {sendMut.isPending ? 'Илгээж байна...' : 'Тийм, явуулах'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function SubscribersPage() {
   const qc = useQueryClient();
@@ -297,6 +479,7 @@ export default function SubscribersPage() {
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminSubscriber | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -423,6 +606,9 @@ export default function SubscribersPage() {
           <Button variant="outline" onClick={() => setCatDialogOpen(true)}>
             <FolderPlus className="mr-1.5 h-4 w-4" /> Категори
           </Button>
+          <Button variant="outline" onClick={() => setEmailDialogOpen(true)}>
+            <Send className="mr-1.5 h-4 w-4" /> Имэйл явуулах
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -512,6 +698,9 @@ export default function SubscribersPage() {
                 {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)}>
+              <Send className="mr-1.5 h-3.5 w-3.5" /> Имэйл явуулах
+            </Button>
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Устгах ({selectedIds.size})
             </Button>
@@ -604,6 +793,12 @@ export default function SubscribersPage() {
 
       <SubscriberDialog open={dialogOpen} subscriber={editing} categories={categories} onClose={() => setDialogOpen(false)} />
       <CategoryDialog open={catDialogOpen} categories={categories} onClose={() => setCatDialogOpen(false)} />
+      <EmailComposeDialog
+        open={emailDialogOpen}
+        selectedIds={[...selectedIds]}
+        categories={categories}
+        onClose={() => setEmailDialogOpen(false)}
+      />
 
       {/* Bulk delete баталгаажуулах */}
       <Dialog open={bulkDeleteOpen} onOpenChange={(o) => !o && setBulkDeleteOpen(false)}>

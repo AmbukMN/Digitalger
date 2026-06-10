@@ -24,6 +24,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { SubscribersService } from './subscribers.service';
 import { CreateSubscriberDto } from './dto/create-subscriber.dto';
 import { UpdateSubscriberDto } from './dto/update-subscriber.dto';
+import { SendBulkEmailDto } from './dto/send-bulk-email.dto';
 
 // ─── PUBLIC: имэйл захиалах (newsletter) ──────────────────────────────────────
 @Controller('subscribers')
@@ -79,6 +80,20 @@ export class AdminSubscribersController {
   @Post('bulk-delete')
   bulkDelete(@Body() body: { subscriberIds: string[] }) {
     return this.subscribers.bulkDelete(body.subscriberIds);
+  }
+
+  // Bulk marketing email — admin compose (subject/body → сонгосон/бүх/category).
+  // Олон имэйл (rate limit) удаан байж болзошгүй тул throttle өндөр (5/мин).
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('send-email')
+  sendEmail(@Body() dto: SendBulkEmailDto) {
+    return this.subscribers.sendBulkEmail({
+      recipientIds: dto.recipientIds,
+      status: dto.status,
+      categoryId: dto.categoryId,
+      subject: dto.subject,
+      bodyHtml: dto.bodyHtml,
+    });
   }
 
   // ── Import / Export ──

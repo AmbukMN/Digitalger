@@ -326,6 +326,70 @@ export class SubscribersService {
     return { deleted: res.count };
   }
 
+  // ─── BULK MARKETING EMAIL (admin compose → олон subscriber) ─────────────────
+  // recipientIds байвал тэдгээр; эс бол status (default ACTIVE) / categoryId-аар
+  // шүүж subscriber олно. Имэйл бүрд брэндийн layout + unsubscribe footer
+  // (CAN-SPAM). Resend rate limit, алдаа гарвал тухайн имэйл алгасаад үргэлжилнэ.
+  async sendBulkEmail(opts: {
+    recipientIds?: string[];
+    status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
+    categoryId?: string;
+    subject: string;
+    bodyHtml: string;
+  }): Promise<{ sent: number; failed: number; total: number }> {
+    const subject = (opts.subject ?? '').trim();
+    if (!subject) throw new BadRequestException('Гарчиг оруулна уу');
+    if (!(opts.bodyHtml ?? '').trim()) throw new BadRequestException('Имэйлийн агуулга оруулна уу');
+
+    // Хэн рүү явуулахыг тодорхойлох
+    const where: Prisma.SubscriberWhereInput = {};
+    if (opts.recipientIds?.length) {
+      where.id = { in: opts.recipientIds };
+    } else {
+      // recipientIds байхгүй бол filter-ээр. Default ACTIVE (зөвхөн идэвхтэйд).
+      where.status = (opts.status ?? 'ACTIVE') as Prisma.EnumSubscriberStatusFilter['equals'];
+      if (opts.categoryId) where.categoryId = opts.categoryId;
+    }
+
+    const subs = await this.prisma.subscriber.findMany({
+      where,
+      select: { email: true, status: true },
+    });
+
+    // ⚠️ UNSUBSCRIBED-д marketing явуулахгүй (recipientIds-ээр сонгосон ч).
+    // Мөн guest имэйл алгасна (email.service дотор ч шалгана).
+    const recipients = subs
+      .filter((s) => s.status !== 'UNSUBSCRIBED')
+      .map((s) => s.email)
+      .filter((e) => e && !e.endsWith('@guest.digitalger.mn'));
+
+    if (!recipients.length) {
+      throw new BadRequestException('Илгээх боломжтой хүлээн авагч олдсонгүй');
+    }
+
+    const sanitizedBody = this.sanitizeBodyHtml(opts.bodyHtml);
+
+    const { sent, failed } = await this.email.sendBulkMarketing({
+      to: recipients,
+      subject,
+      bodyHtml: sanitizedBody,
+      heading: subject,
+      preheader: subject,
+    });
+
+    return { sent, failed, total: recipients.length };
+  }
+
+  // Энгийн XSS цэвэрлэгээ (admin л явуулдаг тул бага эрсдэлтэй, гэхдээ <script>,
+  // event handler, javascript: URL-уудыг хасна). Брэндийн layout-д шигтгэгдэнэ.
+  private sanitizeBodyHtml(html: string): string {
+    return String(html ?? '')
+      .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<\s*\/?\s*(?:iframe|object|embed|form|link|meta|style)[^>]*>/gi, '')
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/(href|src)\s*=\s*("|')?\s*javascript:[^"'>\s]*/gi, '$1="#"');
+  }
+
   // ─── Import (XLSX/CSV) ────────────────────────────────────────────────────
   async bulkImport(file: Express.Multer.File, categoryId?: string) {
     const wb = XLSX.read(file.buffer, { type: 'buffer' });

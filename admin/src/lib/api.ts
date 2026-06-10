@@ -764,6 +764,18 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify({ subscriberIds }),
       }),
+    // Bulk marketing email — custom subject/body → сонгосон эсвэл бүх/category subscriber.
+    sendEmail: (body: {
+      recipientIds?: string[];
+      status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
+      categoryId?: string;
+      subject: string;
+      bodyHtml: string;
+    }) =>
+      adminFetch<{ sent: number; failed: number; total: number }>('/admin/subscribers/send-email', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     bulkImport: (file: File, categoryId?: string) => {
       const fd = new FormData();
       fd.append('file', file);

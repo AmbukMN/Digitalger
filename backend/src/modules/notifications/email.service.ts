@@ -512,6 +512,69 @@ ${pixel}
     await this.redis.incr(`email:open:${campaign}`).catch(() => {});
   }
 
+  // ═══ BULK MARKETING (admin → олон subscriber) ═══════════════════════════════
+  /**
+   * Admin-аас бичсэн custom subject/body-г олон subscriber руу илгээнэ.
+   * - Брэндийн layout (лого/footer) + unsubscribe холбоос (CAN-SPAM).
+   * - Resend rate limit (имэйл бүрийн хооронд 300ms).
+   * - Алдаа гарвал тухайн имэйл алгасаад үргэлжилнэ (нэг унавал бусад явна).
+   * @returns { sent, failed }
+   */
+  async sendBulkMarketing(opts: {
+    to: string[];
+    subject: string;
+    bodyHtml: string;
+    heading?: string;       // body эхний гарчиг (default = subject)
+    preheader?: string;     // inbox preview
+    campaign?: string;      // tracking pixel/open campaign нэр
+  }): Promise<{ sent: number; failed: number }> {
+    const subject = (opts.subject ?? '').trim();
+    const recipients = (opts.to ?? [])
+      .map((e) => (e ?? '').toLowerCase().trim())
+      .filter((e, i, arr) => e && arr.indexOf(e) === i); // давхардал хасах
+
+    if (!subject || !recipients.length) {
+      return { sent: 0, failed: 0 };
+    }
+
+    const campaign = opts.campaign?.trim() || `broadcast-${this.currentMonthSlug()}`;
+    const heading = (opts.heading ?? subject).trim();
+
+    let sent = 0;
+    let failed = 0;
+
+    this.logger.log(`Bulk marketing эхэллээ → ${recipients.length} хүлээн авагч | "${subject}"`);
+
+    // queue ашиглахгүй (sent/failed тоог буцаах хэрэгтэй) — энд дараалан явуулна,
+    // имэйл бүрийн хооронд 300ms (Resend rate limit ~ 2 req/s аюулгүй).
+    for (let i = 0; i < recipients.length; i++) {
+      const to = recipients[i];
+      try {
+        const html = this.emailLayout({
+          heading,
+          bodyHtml: opts.bodyHtml ?? '',
+          preheader: opts.preheader,
+          campaign,
+          email: to,
+          showUnsubscribe: true, // ⚠️ Marketing → unsubscribe заавал (CAN-SPAM)
+        });
+        const ok = await this.send(to, subject, html);
+        if (ok) sent++;
+        else failed++;
+      } catch (err) {
+        // Нэг имэйл унавал бусдыг зогсоохгүй
+        failed++;
+        this.logger.error(`Bulk marketing имэйл алдаа → ${to}: ${err}`);
+      }
+      if (i < recipients.length - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
+    this.logger.log(`Bulk marketing дууслаа → илгээсэн: ${sent}, амжилтгүй: ${failed}`);
+    return { sent, failed };
+  }
+
   // ─── Холбоо барих (inquiry) → info@digitalger.mn ──────────────────────────────
   async sendContactInquiry(opts: { name: string; email: string; phone?: string; message: string }) {
     const { name, email, phone, message } = opts;
