@@ -674,6 +674,92 @@ ${pixel}
     );
   }
 
+  // ─── Захиалга цуцлагдсан мэдэгдэл (auto-cancel 48ц / хэрэглэгч өөрөө) ──────────
+  // reason: 'auto' = систем 2 хоног төлбөргүйд автоматаар цуцалсан,
+  //         'user' = хэрэглэгч өөрөө цуцалсан.
+  // ⚠️ Invalid/guest имэйл рүү явуулахгүй (send() дотор isValidEmail шалгана).
+  async sendOrderCancelled(opts: {
+    to: string;
+    name: string | null;
+    orderId: string;
+    items: { title: string; price: number }[];
+    total: number;
+    reason: 'auto' | 'user';
+  }) {
+    const { to, name, orderId, items, total, reason } = opts;
+    // Guest/invalid имэйлд эрт гарна (queue ч дэмий ачаалахгүй).
+    if (!this.isValidEmail(to)) {
+      this.logger.log(`Захиалга цуцлах имэйл алгасав (хүчингүй/зочин хаяг) → ${to}`);
+      return;
+    }
+    const greeting = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
+    const shortId = `#${orderId.slice(-8).toUpperCase()}`;
+    const isAuto = reason === 'auto';
+    const intro = isAuto
+      ? 'Таны захиалга 48 цагийн дотор төлбөр төлөгдөөгүй тул автоматаар цуцлагдлаа.'
+      : 'Таны хүсэлтээр захиалга амжилттай цуцлагдлаа.';
+    const note = isAuto
+      ? 'Хэрэв та энэ бүтээгдэхүүнийг авах сонирхолтой хэвээр байвал дахин захиалга үүсгэн төлбөрөө төлнө үү.'
+      : 'Хүсвэл хүссэн үедээ дахин захиалга үүсгэх боломжтой.';
+
+    const rows = items
+      .map(
+        (i) =>
+          `<tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#555">${i.title}</td>
+           <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#555;text-align:right;white-space:nowrap">₮${i.price.toLocaleString()}</td></tr>`,
+      )
+      .join('');
+
+    const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%">
+  ${this.emailHeader()}
+  <!-- Body -->
+  <tr><td style="padding:36px 36px 0;text-align:center">
+    <div style="display:inline-block;background:#fef2f2;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:30px;margin-bottom:16px">🚫</div>
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#022179">Захиалга цуцлагдлаа</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#555">${greeting}<br>${intro}</p>
+  </td></tr>
+  <tr><td style="padding:0 36px">
+    <div style="background:#f8f9fb;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+      <p style="margin:0 0 4px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px">Захиалгын дугаар</p>
+      <p style="margin:0;font-size:15px;font-weight:700;color:#022179;font-family:monospace">${shortId}</p>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px">
+      <tr><th style="text-align:left;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #e5e7eb">Бүтээгдэхүүн</th>
+          <th style="text-align:right;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #e5e7eb">Үнэ</th></tr>
+      ${rows}
+    </table>
+    <div style="display:flex;justify-content:flex-end;border-top:2px solid #e5e7eb;padding-top:12px;margin-top:4px">
+      <p style="margin:0;font-size:16px;font-weight:800;color:#888;text-decoration:line-through">₮${total.toLocaleString()}</p>
+    </div>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin:20px 0 0">
+      <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6">${note}</p>
+    </div>
+  </td></tr>
+  <tr><td style="padding:28px 36px;text-align:center">
+    <a href="${this.siteUrl}" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none">
+      Дахин үзэх →
+    </a>
+    <p style="margin:16px 0 0;font-size:13px;color:#888">Асуулт байвал: <a href="mailto:support@digitalger.mn" style="color:#022179">support@digitalger.mn</a></p>
+  </td></tr>
+  <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
+    <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    this.logger.log(
+      `Захиалга цуцлах имэйл дараалалд → ${to} | ${shortId} | ${reason}`,
+    );
+    this.enqueue(() =>
+      this.send(to, `Захиалга цуцлагдлаа — ${shortId}`, html),
+    );
+  }
+
   // ─── Newsletter subscribe → 10% coupon + үнэгүй product welcome имэйл ──────────
   // @returns имэйл амжилттай явсан эсэх (false бол имэйл хүчингүй болж магадгүй).
   async sendWelcomeCoupon(opts: {

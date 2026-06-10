@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 
 const PENDING_EXPIRE_HOURS = 48;
 
@@ -9,7 +10,10 @@ const PENDING_EXPIRE_HOURS = 48;
 export class OrderCleanupService {
   private readonly logger = new Logger(OrderCleanupService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
   async autoCancelExpiredOrders() {
@@ -18,12 +22,19 @@ export class OrderCleanupService {
     // Цуцлахаас ӨМНӨ хугацаа дууссан захиалгуудыг авна:
     //   - id     → холбоотой PENDING Payment-уудыг FAILED болгож синк хийхэд
     //   - купон  → usedCount буцаахад
+    //   - items/user/total → цуцлалтын имэйл мэдэгдэл явуулахад
     const expiring = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.PENDING,
         createdAt: { lt: cutoff },
       },
-      select: { id: true, couponCode: true },
+      select: {
+        id: true,
+        couponCode: true,
+        total: true,
+        user: { select: { email: true, name: true } },
+        items: { select: { price: true, product: { select: { title: true } } } },
+      },
     });
     const expiringIds = expiring.map((o) => o.id);
 
@@ -58,6 +69,22 @@ export class OrderCleanupService {
 
     if (result.count > 0) {
       this.logger.log(`Auto-cancelled ${result.count} expired PENDING orders (>${PENDING_EXPIRE_HOURS}h)`);
+
+      // Цуцлагдсан захиалга бүрт имэйл мэдэгдэл (invalid/guest хаягт явахгүй —
+      // sendOrderCancelled дотор isValidEmail шалгана). Fire-and-forget.
+      for (const o of expiring) {
+        if (!o.user?.email) continue;
+        this.email
+          .sendOrderCancelled({
+            to: o.user.email,
+            name: o.user.name,
+            orderId: o.id,
+            items: o.items.map((i) => ({ title: i.product.title, price: Number(i.price) })),
+            total: Number(o.total),
+            reason: 'auto',
+          })
+          .catch(() => null);
+      }
     }
   }
 }

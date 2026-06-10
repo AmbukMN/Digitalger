@@ -243,7 +243,14 @@ export class OrdersService {
   }
 
   async cancelOrder(orderId: string, userId: string) {
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, userId } });
+    // Цуцлах имэйлд items + user хэрэгтэй тул багцтай нь авна.
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        items: { include: { product: { select: { title: true } } } },
+        user: { select: { email: true, name: true } },
+      },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException('Зөвхөн хүлээгдэж буй захиалгыг цуцалж болно');
@@ -264,6 +271,21 @@ export class OrdersService {
     // Захиалгад хэрэглэсэн купоны usedCount-ийг буцаана — эс бол цуцалсан
     // захиалгын купон "хэрэглэгдсэн" хэвээр үлдэж maxUses-д буруу хүрнэ.
     await this.releaseOrderCoupons(order.couponCode);
+
+    // Хэрэглэгч өөрөө цуцалсан тухай имэйл мэдэгдэл (invalid/guest хаягт явахгүй).
+    // Fire-and-forget — цуцлалтад саад болохгүй.
+    if (order.user?.email) {
+      this.email
+        .sendOrderCancelled({
+          to: order.user.email,
+          name: order.user.name,
+          orderId: order.id,
+          items: order.items.map((i) => ({ title: i.product.title, price: Number(i.price) })),
+          total: Number(order.total),
+          reason: 'user',
+        })
+        .catch(() => null);
+    }
     return cancelled;
   }
 
