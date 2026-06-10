@@ -213,6 +213,8 @@ export function ChatWidget() {
   // ── Floating дүрсний Lottie робот ──
   // Хэвийн үед тэвчээр (зогссон), hover үед тоглоно. Мөн анхаарал татахаар
   // 6 секунд тутам нэг удаа богино тоглоод зогсоно.
+  // Lottie ачаалагдтал Bot icon fallback харуулна (хэлбэр алдагдахгүй).
+  const [botReady, setBotReady] = useState(false);
   const dotLottieRef = useRef<DotLottie | null>(null);
   const playBot = () => {
     const dl = dotLottieRef.current;
@@ -355,7 +357,9 @@ export function ChatWidget() {
         // хаахгүйн тулд bottom-32). Бусад хуудсанд ердийн доод (bottom-5).
         // Desktop: ямар ч хуудсанд доод буланд хэвээр (md:bottom-6).
         className={cn(
-          'fixed right-5 z-[60] flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
+          // ⚠️ shrink-0 + aspect-square + overflow-hidden — Lottie ачаалагдах хооронд
+          // launcher тойрог хэвээр (гонзгой/буруу хэлбэртэй болохоос сэргийлнэ).
+          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
         whileHover={{ scale: 1.08 }}
@@ -379,15 +383,18 @@ export function ChatWidget() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.6, opacity: 0 }}
             >
-              {/* Хөдөлгөөнт робот (Lottie). Хэвийн үед эхний frame, hover/үе үе тоглоно. */}
+              {/* Хөдөлгөөнт робот (Lottie). Ачаалагдтал Bot icon fallback (хэлбэр
+                  алдагдахгүй, layout shift-гүй). Бэлэн болоход Lottie харагдана. */}
+              {!botReady && <Bot className="h-9 w-9" />}
               <DotLottieReact
                 src="/digitalgerBot.json"
                 autoplay
                 loop={false}
                 dotLottieRefCallback={(dl) => {
                   dotLottieRef.current = dl;
+                  if (dl) setBotReady(true);
                 }}
-                className="h-12 w-12"
+                className={cn('h-12 w-12', botReady ? 'block' : 'hidden')}
               />
             </motion.span>
           )}
