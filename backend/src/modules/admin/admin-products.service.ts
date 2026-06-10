@@ -720,11 +720,9 @@ export class AdminProductsService {
       const primary =
         imgs.find((img) => img.isPrimary) ??
         imgs.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
-      // 'card' эсвэл том variant байвал тэр (email-д тод), эс бол оригинал.
-      const variantKey =
-        primary?.variants?.find((v) => v.size === 'card')?.fileKey ??
-        primary?.variants?.find((v) => v.size === 'thumbnail')?.fileKey ??
-        primary?.fileKey;
+      // Email-д ОРИГИНАЛ зураг ашиглана (variant файл зарим product-д үүсээгүй
+      // байж болзошгүй → 404 broken. Оригинал ВСЕГДА байдаг тул найдвартай).
+      const variantKey = primary?.fileKey;
       const imageUrl = variantKey ? this.storage.getAssetUrl(variantKey) : null;
 
       const price = Number(product.price);
