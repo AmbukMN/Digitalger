@@ -42,6 +42,7 @@ import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
+import { EmailMarketingPanel } from '@/components/email-marketing-panel';
 
 // ── Захиалагчийн эх сурвалжийн нэрийг Монголоор харуулах ──
 const SUBSCRIBER_SOURCE_LABELS: Record<string, string> = {
@@ -631,64 +632,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* ── 3 баганат нэг мөр: Subscriber + Email Marketing + AWS SES ──
-          Өргөн: эхнийх жижиг (1fr), дунд дунд (1.1fr), AWS том (1.25fr) — дата хэмжээгээр */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr_1.25fr] items-stretch">
-        {/* Багана 1 — Subscriber (нийт + эх сурвалж НЭГ block) */}
-        <div className="flex h-full flex-col rounded-xl border border-border bg-card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-emerald-100 p-1.5 dark:bg-emerald-900/40">
-                <Mail className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <h2 className="text-sm font-semibold">Subscriber</h2>
-            </div>
-            <Link href="/subscribers" className="text-[11px] text-muted-foreground hover:text-primary">
-              Бүгд →
-            </Link>
-          </div>
-          <div className="flex flex-1 flex-col gap-3 p-4">
-            {/* Нийт + энэ сар */}
-            <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
-              <div className="flex items-baseline gap-2">
-                <p className="text-2xl font-bold tabular-nums">{stats.subscribersTotal.toLocaleString()}</p>
-                {stats.subscribersThisMonth > 0 && (
-                  <span className="inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
-                    энэ сар +{stats.subscribersThisMonth.toLocaleString()}
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-muted-foreground">Нийт захиалагч</p>
-            </div>
-            {/* Эх сурвалжийн задаргаа — НЭГ block-д нэгтгэв */}
-            <div className="flex flex-1 flex-col">
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Эх сурвалжаар</p>
-              {subscribersBySource.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Захиалагч байхгүй</p>
-              ) : (
-                <div className="flex flex-wrap content-start gap-1.5">
-                  {subscribersBySource.map((s) => (
-                    <span
-                      key={s.source}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2 py-1 text-[11px]"
-                    >
-                      <span className="text-muted-foreground">{subscriberSourceLabel(s.source)}</span>
-                      <span className="font-semibold tabular-nums">{s.count.toLocaleString()}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Багана 2 — Имэйл маркетинг (товч summary) */}
-        <EmailMarketingSummary />
-
-        {/* Багана 3 — AWS SES хяналт (өдрийн квота, reputation, 3 сар) */}
-        <EmailStatsPanel stats={emailStats} />
-      </div>
-
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Сарын орлого */}
@@ -765,8 +708,71 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Analytics section */}
-      <AnalyticsSection />
+      {/* Analytics section — Имэйл хэсэг (3 баганат summary + дэлгэрэнгүй панель)-ийг
+          Сайтын аналитикийн ДООР, Хичээлийн ДЭЭР НЭГ section болгож дамжуулна */}
+      <AnalyticsSection
+        emailSection={
+          <div className="space-y-4">
+            {/* 3 баганат: Subscriber + Email Marketing summary + AWS SES */}
+            <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr_1.25fr] items-stretch">
+              {/* Багана 1 — Subscriber (нийт + эх сурвалж НЭГ block) */}
+              <div className="flex h-full flex-col rounded-xl border border-border bg-card overflow-hidden">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg bg-emerald-100 p-1.5 dark:bg-emerald-900/40">
+                      <Mail className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <h2 className="text-sm font-semibold">Subscriber</h2>
+                  </div>
+                  <Link href="/subscribers" className="text-[11px] text-muted-foreground hover:text-primary">
+                    Бүгд →
+                  </Link>
+                </div>
+                <div className="flex flex-1 flex-col gap-3 p-4">
+                  <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-2xl font-bold tabular-nums">{stats.subscribersTotal.toLocaleString()}</p>
+                      {stats.subscribersThisMonth > 0 && (
+                        <span className="inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                          энэ сар +{stats.subscribersThisMonth.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Нийт захиалагч</p>
+                  </div>
+                  <div className="flex flex-1 flex-col">
+                    <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Эх сурвалжаар</p>
+                    {subscribersBySource.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Захиалагч байхгүй</p>
+                    ) : (
+                      <div className="flex flex-wrap content-start gap-1.5">
+                        {subscribersBySource.map((s) => (
+                          <span
+                            key={s.source}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2 py-1 text-[11px]"
+                          >
+                            <span className="text-muted-foreground">{subscriberSourceLabel(s.source)}</span>
+                            <span className="font-semibold tabular-nums">{s.count.toLocaleString()}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Багана 2 — Имэйл маркетинг (товч summary) */}
+              <EmailMarketingSummary />
+
+              {/* Багана 3 — AWS SES хяналт */}
+              <EmailStatsPanel stats={emailStats} />
+            </div>
+
+            {/* Имэйл маркетингийн дэлгэрэнгүй (4 summary карт + илгээлт бүрийн хүснэгт, pagination) */}
+            <EmailMarketingPanel />
+          </div>
+        }
+      />
 
       {/* Recent orders */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">

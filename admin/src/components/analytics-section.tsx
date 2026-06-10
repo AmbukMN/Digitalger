@@ -13,7 +13,6 @@ import {
   GraduationCap, PlayCircle, CheckCircle2, Clock,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
-import { EmailMarketingPanel } from '@/components/email-marketing-panel';
 
 const DAYS_OPTIONS = [
   { label: '1 хоног', value: 1 },
@@ -65,7 +64,9 @@ function StatCard({ label, value, sub, icon, trend }: {
   );
 }
 
-export function AnalyticsSection() {
+// emailSection — Имэйл хэсэг (3 баганат summary + дэлгэрэнгүй панель), нэг section
+// болгож Сайтын аналитикийн ДООР, Хичээлийн аналитикийн ДЭЭР оруулна.
+export function AnalyticsSection({ emailSection }: { emailSection?: React.ReactNode }) {
   const [days, setDays] = useState(30);
 
   const { data, isLoading } = useQuery({
@@ -310,10 +311,8 @@ export function AnalyticsSection() {
         </>
       ) : null}
 
-      {/* ─── Имэйл маркетинг — Сайтын аналитикийн ДООР, Хичээлийн ДЭЭР ─────── */}
-      <div className="pt-2">
-        <EmailMarketingPanel />
-      </div>
+      {/* ─── Имэйл хэсэг (3 баганат summary + дэлгэрэнгүй) — Сайтын ДООР, Хичээлийн ДЭЭР ─── */}
+      {emailSection && <div className="pt-2">{emailSection}</div>}
 
       {/* ─── Хичээлийн аналитик (курс дуусгалт / dropoff) ─────────────────── */}
       <div className="flex items-center gap-2 pt-2">
