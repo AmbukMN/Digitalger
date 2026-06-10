@@ -1300,10 +1300,13 @@ ${pixel}
     if (this.ses) {
       try {
         const q = await this.ses.send(new GetSendQuotaCommand({}));
+        // ⚠️ AWS SDK field: Max24HourSend (V1 SES). Зарим хувилбарт Max24HourSendQuota —
+        // хоёуланг fallback-аар авна (undefined-аас сэргийлнэ).
+        const anyQ = q as unknown as Record<string, number | undefined>;
         return {
-          sentToday: Math.round(q.SentLast24Hours ?? 0),
-          dailyLimit: Math.round(q.Max24HourSend ?? 50000),
-          maxSendRate: Math.round(q.MaxSendRate ?? 14),
+          sentToday: Math.round(anyQ.SentLast24Hours ?? 0),
+          dailyLimit: Math.round(anyQ.Max24HourSend ?? anyQ.Max24HourSendQuota ?? 50000),
+          maxSendRate: Math.round(anyQ.MaxSendRate ?? 14),
         };
       } catch (err) {
         // sandbox/permission/credential алдаа — EmailLog fallback руу шилжинэ.
