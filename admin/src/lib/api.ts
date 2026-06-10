@@ -767,6 +767,7 @@ export const adminApi = {
       }),
     // Bulk marketing email — custom subject/body → олон filter хослолоор (status/category/source/сонгосон).
     // Background queue-д нэмэгдэх тул campaignId буцааж явцыг poll хийнэ.
+    // Background queue-д нэмэгдэх тул { queued, total, campaign } буцааж явцыг poll хийнэ.
     sendEmail: (body: {
       recipientIds?: string[];
       status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
@@ -775,24 +776,34 @@ export const adminApi = {
       subject: string;
       bodyHtml: string;
     }) =>
-      adminFetch<{ sent: number; failed: number; total: number; campaignId?: string }>(
+      adminFetch<{ queued: number; total: number; campaign: string }>(
         '/admin/subscribers/send-email',
         { method: 'POST', body: JSON.stringify(body) },
       ),
     // Тухайн филтрт хэдэн идэвхтэй хүлээн авагч таарахыг урьдчилан тооцох.
+    // Backend нь GET + query params (?status=&categoryId=&source=&recipientIds=a,b).
     countRecipients: (body: {
       recipientIds?: string[];
       status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
       categoryId?: string;
       source?: string;
-    }) =>
-      adminFetch<{ count: number }>('/admin/subscribers/count-recipients', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
+    }) => {
+      const qs = new URLSearchParams();
+      if (body.recipientIds?.length) qs.set('recipientIds', body.recipientIds.join(','));
+      if (body.status) qs.set('status', body.status);
+      if (body.categoryId) qs.set('categoryId', body.categoryId);
+      if (body.source) qs.set('source', body.source);
+      const q = qs.toString();
+      return adminFetch<{ count: number }>(
+        `/admin/subscribers/count-recipients${q ? `?${q}` : ''}`,
+      );
+    },
     // Bulk кампанит ажлын илгээлтийн явц (queue background) — poll хийнэ.
-    campaignProgress: (campaignId: string) =>
-      adminFetch<EmailCampaignProgress>(`/admin/subscribers/campaign/${campaignId}`),
+    // Backend: GET send-email/progress?campaign=...
+    campaignProgress: (campaign: string) =>
+      adminFetch<EmailCampaignProgress>(
+        `/admin/subscribers/send-email/progress?campaign=${encodeURIComponent(campaign)}`,
+      ),
     bulkImport: (file: File, categoryId?: string) => {
       const fd = new FormData();
       fd.append('file', file);

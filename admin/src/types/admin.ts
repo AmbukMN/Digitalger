@@ -22,12 +22,14 @@ export interface EmailStats {
 export type ResendStats = EmailStats;
 
 // Bulk кампанит ажлын илгээлтийн явц (queue background)
+// Backend getCampaignProgress буцаах формат (Redis тоологчид).
 export interface EmailCampaignProgress {
-  campaignId: string;
+  campaign: string;
   total: number;
   sent: number;
   failed: number;
-  status: 'queued' | 'sending' | 'done' | 'failed';
+  remaining: number;
+  done: boolean;
 }
 
 // Админаас хэрэглэгчид үнэгүй идэвхжүүлсэн бүтээгдэхүүн

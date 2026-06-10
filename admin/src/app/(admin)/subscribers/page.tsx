@@ -378,27 +378,20 @@ function EmailComposeDialog({
     queryKey: ['admin', 'campaign-progress', campaignId],
     queryFn: () => adminApi.subscribers.campaignProgress(campaignId as string),
     enabled: !!campaignId,
-    refetchInterval: (q) => {
-      const s = q.state.data?.status;
-      return s === 'done' || s === 'failed' ? false : 2000;
-    },
+    refetchInterval: (q) => (q.state.data?.done ? false : 2000),
   });
 
   const sendMut = useMutation({
     mutationFn: () => adminApi.subscribers.sendEmail({ ...buildPayload(), subject: subject.trim(), bodyHtml: body }),
     onSuccess: (res) => {
       setConfirmOpen(false);
-      if (res.campaignId) {
-        // Background queue — явцыг хянана
-        setCampaignId(res.campaignId);
+      if (res.campaign && res.total > 0) {
+        // Background queue — явцыг campaign-аар хянана
+        setCampaignId(res.campaign);
         toast.success(`${res.total} имэйл дараалалд нэмэгдлээ — илгээгдэж байна...`, { duration: 4000 });
       } else {
-        // Шууд илгээсэн (queue-гүй backend)
-        toast.success(
-          `${res.sent} имэйл илгээгдлээ${res.failed ? ` · ${res.failed} амжилтгүй` : ''}`,
-          { duration: 5000 },
-        );
-        onClose();
+        // Хүлээн авагч олдсонгүй (бүгд UNSUBSCRIBED / шүүлтэд тохирохгүй)
+        toast.error('Хүлээн авагч олдсонгүй — шүүлтээ шалгана уу');
       }
     },
     onError: (e: Error) => {
@@ -423,23 +416,30 @@ function EmailComposeDialog({
     !(mode === 'selected' && selectedIds.length === 0) &&
     (recipientCount === null || recipientCount > 0);
 
-  // Бодит email layout (брэнд header/footer)-той preview
+  // ⚠️ Бодит EmailService.emailHeader()-тэй ЯГ адил preview (logo image + DigitalGer.mn).
+  // Backend дээр template өөрчлөгдвөл энд мөн тааруулна.
   const previewHtml = `
-    <div style="max-width:600px;margin:0 auto;font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#1f2937">
-      <div style="background:#022179;padding:20px 24px;border-radius:12px 12px 0 0;text-align:center">
-        <span style="color:#ffbe00;font-weight:800;font-size:20px;letter-spacing:0.5px">DigitalGer</span>
+    <div style="max-width:600px;margin:0 auto;font-family:Roboto,'Helvetica Neue',Arial,system-ui,sans-serif;color:#1f2937">
+      <div style="background:#022179;padding:20px 36px;border-radius:12px 12px 0 0;text-align:center">
+        <table cellpadding="0" cellspacing="0" style="margin:0 auto"><tr>
+          <td style="vertical-align:middle;padding-right:12px">
+            <img src="https://digitalger.mn/brand/DigitalGer-color%20logo-NoBG.png" alt="DigitalGer" height="40" style="height:40px;width:auto;display:block;border:0" />
+          </td>
+          <td style="vertical-align:middle">
+            <span style="font-size:20px;font-weight:800;color:#ffffff;vertical-align:middle">DigitalGer.mn</span>
+          </td>
+        </tr></table>
       </div>
-      <div style="background:#ffffff;padding:28px 24px;border:1px solid #eee;border-top:0">
+      <div style="background:#ffffff;padding:34px 36px;border:1px solid #eee;border-top:0">
         ${body || '<p style="color:#9ca3af">Агуулга хоосон байна…</p>'}
       </div>
-      <div style="background:#f8f9fb;padding:16px 24px;border-radius:0 0 12px 12px;border:1px solid #eee;border-top:0;text-align:center">
-        <p style="margin:0;font-size:12px;color:#9ca3af">© ${new Date().getFullYear()} DigitalGer · digitalger.mn</p>
+      <div style="background:#f8f9fb;padding:20px 36px;border-radius:0 0 12px 12px;border:1px solid #eee;border-top:0;text-align:center">
+        <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · digitalger.mn</p>
         <p style="margin:6px 0 0;font-size:11px;color:#c0c4cc">Захиалга цуцлах холбоос автоматаар нэмэгдэнэ</p>
       </div>
     </div>`;
 
   const sending = sendMut.isPending;
-  const isQueued = !!campaignId && progress && progress.status !== 'done' && progress.status !== 'failed';
 
   return (
     <>
@@ -637,8 +637,7 @@ function CampaignProgressView({
   progress: import('@/types/admin').EmailCampaignProgress;
   onClose: () => void;
 }) {
-  const { total, sent, failed, status } = progress;
-  const done = status === 'done' || status === 'failed';
+  const { total, sent, failed, done } = progress;
   const processed = sent + failed;
   const pct = total > 0 ? Math.round((processed / total) * 100) : (done ? 100 : 0);
 
@@ -652,10 +651,10 @@ function CampaignProgressView({
         )}
         <div>
           <p className="font-semibold">
-            {status === 'done'
-              ? 'Илгээлт дууслаа'
-              : status === 'failed'
-              ? 'Илгээлт алдаатай дууслаа'
+            {done
+              ? failed > 0
+                ? `Илгээлт дууслаа · ${failed} амжилтгүй`
+                : 'Илгээлт амжилттай дууслаа'
               : 'Илгээж байна…'}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -671,7 +670,7 @@ function CampaignProgressView({
         </div>
         <div className="h-2.5 overflow-hidden rounded-full bg-muted">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${status === 'failed' ? 'bg-destructive' : 'bg-primary'}`}
+            className={`h-full rounded-full transition-all duration-500 ${done && failed > 0 && sent === 0 ? 'bg-destructive' : 'bg-primary'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
