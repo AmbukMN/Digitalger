@@ -610,6 +610,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Имэйл хяналт (AWS SES — өдрийн квота, reputation, 3 сар) — subscriber мөрний дараа */}
+      <EmailStatsPanel stats={emailStats} />
+
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Сарын орлого */}
@@ -685,9 +688,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Имэйл хяналт (AWS SES — өдрийн квота, reputation, 3 сар) */}
-      <EmailStatsPanel stats={emailStats} />
 
       {/* Analytics section */}
       <AnalyticsSection />
