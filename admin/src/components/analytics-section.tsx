@@ -10,7 +10,7 @@ import {
   Activity, TrendingUp, TrendingDown, Minus,
   Eye, MousePointerClick, ShoppingCart, CreditCard,
   Search, Monitor, Smartphone, Tablet,
-  GraduationCap, PlayCircle, CheckCircle2, Clock, Mail, MailOpen,
+  GraduationCap, PlayCircle, CheckCircle2, Clock,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 
@@ -78,14 +78,6 @@ export function AnalyticsSection() {
   const { data: lessons, isLoading: lessonsLoading } = useQuery({
     queryKey: ['analytics', 'lessons', days],
     queryFn: () => adminApi.getLessonAnalytics(days),
-    staleTime: 0,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const { data: email, isLoading: emailLoading } = useQuery({
-    queryKey: ['analytics', 'email', days],
-    queryFn: () => adminApi.getEmailAnalytics(days),
     staleTime: 0,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -413,140 +405,6 @@ export function AnalyticsSection() {
             )}
           </div>
         </div>
-      ) : null}
-
-      {/* ─── Имэйл маркетинг (илгээлт + нээлтийн хувь) ─────────────────────── */}
-      <div className="flex items-center gap-2 pt-2">
-        <Mail className="h-5 w-5 text-muted-foreground" />
-        <h2 className="text-lg font-bold">Имэйл маркетинг</h2>
-        <span className="text-xs text-muted-foreground">({days} хоног)</span>
-      </div>
-
-      {emailLoading ? (
-        <div className="grid gap-4 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-xl border border-border bg-card animate-pulse" />
-          ))}
-        </div>
-      ) : email ? (
-        <>
-          {/* ── Дээд эгнээ: нийт үзүүлэлт (явсан / нээсэн / unique / open rate) ── */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Нийт илгээсэн имэйл"
-              value={email.totalSent}
-              sub={email.totalDelivered > 0 ? `Хүргэгдсэн: ${email.totalDelivered.toLocaleString('mn-MN')}` : undefined}
-              icon={<Mail className="h-4 w-4" />}
-            />
-            <StatCard
-              label="Нийт нээлт"
-              value={email.totalOpensPeriod}
-              sub="Бүх нээлтийн тоо (давхардалтай)"
-              icon={<MailOpen className="h-4 w-4" />}
-            />
-            <StatCard
-              label="Нээсэн хүн (unique)"
-              value={email.totalUnique}
-              sub="Давхардалгүй хүний тоо"
-              icon={<Eye className="h-4 w-4" />}
-            />
-            <StatCard
-              label="Нээлтийн хувь (open rate)"
-              value={`${email.overallOpenRate}%`}
-              sub="Нээсэн хүн / Илгээсэн"
-              icon={<TrendingUp className="h-4 w-4" />}
-            />
-          </div>
-
-          {/* ── Кампанит ажил бүрийн дэлгэрэнгүй хүснэгт ── */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <p className="text-sm font-semibold">Илгээлт бүрийн задаргаа</p>
-              <span className="text-[11px] text-muted-foreground">
-                Bulk бүр өөр мөр — явсан / нээсэн / нээлтийн хувь
-              </span>
-            </div>
-            {email.campaigns.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-2.5 font-medium">Кампанит ажил</th>
-                      <th className="px-3 py-2.5 font-medium text-right">Илгээсэн</th>
-                      <th className="px-3 py-2.5 font-medium text-right">Хүргэгдсэн</th>
-                      <th className="px-3 py-2.5 font-medium text-right">Нээлт</th>
-                      <th className="px-3 py-2.5 font-medium text-right">Нээсэн хүн</th>
-                      <th className="px-4 py-2.5 font-medium text-right">Нээлтийн хувь</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {email.campaigns.map((c) => {
-                      // Open rate-ийн өнгө: ≥25% сайн (ногоон), ≥10% дунд (амбер), <10% бага (саарал)
-                      const rateColor =
-                        c.openRate >= 25
-                          ? 'text-green-600 dark:text-green-400'
-                          : c.openRate >= 10
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : 'text-muted-foreground';
-                      const isBulk = c.key.startsWith('bulk-') || c.key.startsWith('broadcast-');
-                      return (
-                        <tr key={c.key} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isBulk ? 'bg-primary' : 'bg-amber-400'}`} />
-                              <span className="font-medium">{c.label}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{c.sent.toLocaleString('mn-MN')}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                            {c.delivered > 0 ? c.delivered.toLocaleString('mn-MN') : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{c.openedPeriod.toLocaleString('mn-MN')}</td>
-                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-primary">{c.uniqueOpens.toLocaleString('mn-MN')}</td>
-                          <td className="px-4 py-2.5 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <div className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted sm:block">
-                                <div
-                                  className={`h-full rounded-full ${c.openRate >= 25 ? 'bg-green-500' : c.openRate >= 10 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
-                                  style={{ width: `${Math.min(c.openRate, 100)}%` }}
-                                />
-                              </div>
-                              <span className={`w-12 font-bold tabular-nums ${rateColor}`}>{c.openRate}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  {/* Нийт мөр */}
-                  <tfoot>
-                    <tr className="border-t-2 border-border bg-muted/30 font-semibold">
-                      <td className="px-4 py-2.5">Нийт</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{email.totalSent.toLocaleString('mn-MN')}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                        {email.totalDelivered > 0 ? email.totalDelivered.toLocaleString('mn-MN') : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{email.totalOpensPeriod.toLocaleString('mn-MN')}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-primary">{email.totalUnique.toLocaleString('mn-MN')}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{email.overallOpenRate}%</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-                <div className="rounded-full bg-muted p-3"><Mail className="h-6 w-6 text-muted-foreground" /></div>
-                <p className="text-sm font-medium">Энэ хугацаанд имэйл илгээгээгүй</p>
-                <p className="max-w-xs text-xs text-muted-foreground">
-                  Subscriber → «Имэйл явуулах»-аар bulk кампанит ажил илгээмэгц энд илгээлт бүрийн нээлтийн статистик харагдана.
-                </p>
-              </div>
-            )}
-            <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground/70">
-              <span className="font-medium">Нээлтийн хувь</span> = давхардалгүй нээсэн хүн ÷ илгээсэн имэйл. Нээлтийг имэйл доторх pixel-ээр бүртгэнэ (зарим имэйл клиент зураг блоклодог тул бодит нээлт арай өндөр байж болно).
-            </p>
-          </div>
-        </>
       ) : null}
     </div>
   );

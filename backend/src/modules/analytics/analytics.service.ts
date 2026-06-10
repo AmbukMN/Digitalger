@@ -412,19 +412,31 @@ export class AnalyticsService {
   }
 
   /**
-   * Имэйл маркетингийн кампанит ажлуудын нээлтийн статистик.
-   * - openedTotal: redis email:open:{campaign} тоолуур (нийт амьдралын турш).
-   * - openedPeriod / uniqueOpens: EmailOpen хүснэгт (сонгосон хугацаанд, бодит/unique).
-   * EmailOpen хүснэгт нь нээлт бүрт мөр үүсгэдэг тул бодит open rate-д энэ найдвартай.
+   * Имэйл маркетингийн кампанит ажлуудын илгээлт + нээлтийн статистик.
+   * ⚠️ ЗӨВХӨН AWS SES тохируулсан огнооноос хойших дата (EmailLog хүснэгт SES-тэй
+   * эхэлсэн). Үүнээс өмнөх Resend үеийн EmailOpen нээлтийг ОРУУЛАХГҮЙ — эс бол
+   * "2 илгээсэн / 55 нээлт = 600%" мэт буруу open rate гарна (нээлт хуучин, илгээлт шинэ).
+   * - openedPeriod / uniqueOpens: EmailOpen (SES эхэлснээс хойш, хугацаанд).
+   * - sent/delivered/bounced: EmailLog (SES audit log).
    */
   async getEmailAnalytics(days = 30) {
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const periodSince = new Date();
+    periodSince.setDate(periodSince.getDate() - days);
+
+    // AWS SES эхэлсэн огноо = EmailLog хүснэгтийн хамгийн эхний бичлэг.
+    // (EmailLog нь SES infra-тай хамт нэмэгдсэн тул өмнө нь Resend байсан.)
+    const firstLog = await this.prisma.emailLog.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    });
+    const sesStart = firstLog?.createdAt ?? periodSince;
+    // Нээлт болон илгээлтийг ИЖИЛ хугацаанаас тоолно (max → SES эхэлсэн огноо).
+    const since = sesStart > periodSince ? sesStart : periodSince;
 
     // EmailOpen + EmailLog-оос campaign бүрийн нээлт/илгээлтийг ЗЭРЭГ авна.
     const [opensGrouped, uniqueGrouped, sentGrouped, deliveredGrouped, bouncedGrouped] =
       await Promise.all([
-        // 1) Нийт нээлт (campaign бүрд, хугацаанд)
+        // 1) Нийт нээлт (campaign бүрд, SES эхэлснээс хойш)
         this.prisma.emailOpen.groupBy({
           by: ['campaign'],
           where: { openedAt: { gte: since } },
