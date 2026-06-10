@@ -221,7 +221,11 @@ export class AdminProductsService {
           howToUseSteps: JSON.parse(JSON.stringify(howToUseSteps)),
         }),
       },
-      include: { category: true, images: true },
+      include: {
+        category: true,
+        // variants — шинэ бүтээгдэхүүн email-д card/thumbnail зураг ашиглахад.
+        images: { include: { variants: { select: { size: true, fileKey: true } } } },
+      },
     });
 
     // published: false → true болсон үед n8n-д мэдэгдэл (Telegram)
@@ -688,8 +692,10 @@ export class AdminProductsService {
     title: string;
     slug: string;
     price: Prisma.Decimal;
+    compareAtPrice?: Prisma.Decimal | null;
+    description?: string | null;
     adminOnly?: boolean;
-    images?: { fileKey: string; videoUrl: string | null }[];
+    images?: { fileKey: string; videoUrl: string | null; isPrimary?: boolean; sortOrder?: number; variants?: { size: string; fileKey: string }[] }[];
   }) {
     // ⚠️ adminOnly (зөвхөн админд харагдах туршилт) бүтээгдэхүүнд marketing имэйл
     // ЯВУУЛАХГҮЙ — хэрэглэгчид харагдахгүй бүтээгдэхүүнийг сурталчлахгүй.
@@ -709,11 +715,20 @@ export class AdminProductsService {
       });
       if (subscribers.length === 0) return;
 
-      // Primary зураг (видео биш) → R2 public url.
-      const primary = product.images?.find((img) => !img.videoUrl && img.fileKey);
-      const imageUrl = primary ? this.storage.getAssetUrl(primary.fileKey) : null;
+      // Featured зураг (видео биш) → R2 public url. isPrimary эхэнд, эс бол sortOrder.
+      const imgs = (product.images ?? []).filter((img) => !img.videoUrl && img.fileKey);
+      const primary =
+        imgs.find((img) => img.isPrimary) ??
+        imgs.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
+      // 'card' эсвэл том variant байвал тэр (email-д тод), эс бол оригинал.
+      const variantKey =
+        primary?.variants?.find((v) => v.size === 'card')?.fileKey ??
+        primary?.variants?.find((v) => v.size === 'thumbnail')?.fileKey ??
+        primary?.fileKey;
+      const imageUrl = variantKey ? this.storage.getAssetUrl(variantKey) : null;
 
       const price = Number(product.price);
+      const compareAt = product.compareAtPrice != null ? Number(product.compareAtPrice) : null;
 
       for (const sub of subscribers) {
         // sendNewProduct дотроо queue-д enqueue хийдэг тул await хийхгүй —
@@ -724,7 +739,8 @@ export class AdminProductsService {
             productTitle: product.title,
             productSlug: product.slug,
             price,
-            salePrice: null,
+            salePrice: compareAt, // анх (хямдрахаас өмнөх) үнэ
+            description: product.description ?? null,
             imageUrl,
           })
           .catch(() => null);

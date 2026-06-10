@@ -155,14 +155,16 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   private emailHeader(): string {
-    // Бодит PNG лого (DG badge биш) — frontend/public/brand/logo-white.png
-    // Лого (height 40) + хажууд "DigitalGer.mn" цагаан title, table-аар голлуулж зэрэгцүүлэв.
+    // ⚠️ Бүх template НЭГ header ашиглана. Лого — DigitalGer-color logo-NoBG.png
+    // (ил тод background, navy header дээр харагдана). Лого (height 40) + хажууд
+    // "DigitalGer.mn" цагаан title, table-аар голлуулж зэрэгцүүлэв.
+    const logoUrl = `${this.siteUrl}/brand/DigitalGer-color%20logo-NoBG.png`;
     return `
   <tr><td style="background:#022179;padding:20px 36px;text-align:center">
     <a href="${this.siteUrl}" style="text-decoration:none;display:inline-block">
       <table cellpadding="0" cellspacing="0" style="margin:0 auto"><tr>
         <td style="vertical-align:middle;padding-right:12px">
-          <img src="${this.siteUrl}/brand/logo-white.png" alt="DigitalGer" height="40" style="height:40px;width:auto;display:block;border:0" />
+          <img src="${logoUrl}" alt="DigitalGer" height="40" style="height:40px;width:auto;display:block;border:0" />
         </td>
         <td style="vertical-align:middle">
           <span style="font-size:20px;font-weight:800;color:#ffffff;vertical-align:middle;font-family:Roboto,'Helvetica Neue',Arial,system-ui,sans-serif">DigitalGer.mn</span>
@@ -881,16 +883,27 @@ ${pixel}
     productTitle: string;
     productSlug: string;
     price: number;
-    salePrice?: number | null;
+    salePrice?: number | null; // compareAtPrice (хямдрал) — анх үнэ
+    description?: string | null;
     imageUrl?: string | null;
   }) {
-    const eff =
-      opts.salePrice != null && opts.salePrice >= 0
-        ? opts.salePrice
-        : opts.price;
-    const priceLabel = eff === 0 ? 'ҮНЭГҮЙ 🎁' : `₮${eff.toLocaleString()}`;
+    // salePrice (compareAtPrice) нь АНХ үнэ (зураасаар), price нь одоогийн зарах үнэ.
+    const hasDiscount = opts.salePrice != null && opts.salePrice > opts.price;
+    const priceLabel = opts.price === 0 ? 'ҮНЭГҮЙ 🎁' : `₮${opts.price.toLocaleString()}`;
+    const oldPriceLabel = hasDiscount
+      ? `<span style="font-size:13px;color:#9aa3b2;text-decoration:line-through;margin-right:8px">₮${opts.salePrice!.toLocaleString()}</span>`
+      : '';
     const img = opts.imageUrl
-      ? `<tr><td style="padding:0 0 16px"><img src="${opts.imageUrl}" alt="${opts.productTitle}" width="528" style="width:100%;max-width:528px;border-radius:12px;display:block" /></td></tr>`
+      ? `<tr><td style="padding:0 0 16px"><img src="${opts.imageUrl}" alt="${opts.productTitle}" width="528" style="width:100%;max-width:528px;border-radius:12px;display:block;margin:0 auto" /></td></tr>`
+      : '';
+    // Тайлбар — товч (160 тэмдэгт), HTML/тэг арилгасан.
+    const descText = (opts.description ?? '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 160);
+    const desc = descText
+      ? `<p style="margin:0 0 12px;font-size:14px;color:#5a6472;line-height:1.5;text-align:center">${descText}${descText.length >= 160 ? '…' : ''}</p>`
       : '';
     const body = `
       <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Манайд шинэ бүтээгдэхүүн нэмэгдлээ! Хамгийн түрүүнд танилцаарай 👇</p>
@@ -898,8 +911,9 @@ ${pixel}
         <table width="100%" cellpadding="0" cellspacing="0">
           ${img}
           <tr><td style="text-align:center">
-            <p style="margin:0 0 6px;font-size:17px;font-weight:800;color:#022179;line-height:1.4">${opts.productTitle}</p>
-            <p style="margin:0;font-size:16px;font-weight:700;color:${eff === 0 ? '#16a34a' : '#022179'}">${priceLabel}</p>
+            <p style="margin:0 0 8px;font-size:18px;font-weight:800;color:#022179;line-height:1.4">${opts.productTitle}</p>
+            ${desc}
+            <p style="margin:0;font-size:17px;font-weight:700;color:${opts.price === 0 ? '#16a34a' : '#022179'}">${oldPriceLabel}${priceLabel}</p>
           </td></tr>
         </table>
       </div>`;
