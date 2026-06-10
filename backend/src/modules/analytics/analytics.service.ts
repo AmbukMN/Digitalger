@@ -421,28 +421,55 @@ export class AnalyticsService {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    // EmailOpen хүснэгтээс campaign бүрийн нийт болон unique нээлт (хугацаагаар)
-    const [opensGrouped, uniqueGrouped] = await Promise.all([
-      this.prisma.emailOpen.groupBy({
-        by: ['campaign'],
-        where: { openedAt: { gte: since } },
-        _count: { id: true },
-      }),
-      // Unique = ялгаатай имэйлийн тоо (campaign+email distinct)
-      this.prisma.emailOpen.groupBy({
-        by: ['campaign', 'email'],
-        where: { openedAt: { gte: since } },
-        _count: { id: true },
-      }),
-    ]);
+    // EmailOpen + EmailLog-оос campaign бүрийн нээлт/илгээлтийг ЗЭРЭГ авна.
+    const [opensGrouped, uniqueGrouped, sentGrouped, deliveredGrouped, bouncedGrouped] =
+      await Promise.all([
+        // 1) Нийт нээлт (campaign бүрд, хугацаанд)
+        this.prisma.emailOpen.groupBy({
+          by: ['campaign'],
+          where: { openedAt: { gte: since } },
+          _count: { id: true },
+        }),
+        // 2) Unique = ялгаатай (campaign+email) хосын тоо
+        this.prisma.emailOpen.groupBy({
+          by: ['campaign', 'email'],
+          where: { openedAt: { gte: since } },
+          _count: { id: true },
+        }),
+        // 3) Илгээсэн (sent) — EmailLog-оос campaign бүрийн нийт илгээлт
+        this.prisma.emailLog.groupBy({
+          by: ['campaign'],
+          where: { campaign: { not: null }, createdAt: { gte: since } },
+          _count: { id: true },
+        }),
+        // 4) Хүргэгдсэн (delivered)
+        this.prisma.emailLog.groupBy({
+          by: ['campaign'],
+          where: { campaign: { not: null }, deliveredAt: { gte: since } },
+          _count: { id: true },
+        }),
+        // 5) Буцсан (bounced)
+        this.prisma.emailLog.groupBy({
+          by: ['campaign'],
+          where: { campaign: { not: null }, bouncedAt: { gte: since } },
+          _count: { id: true },
+        }),
+      ]);
 
-    const openMap = new Map(
-      opensGrouped.map((o) => [o.campaign, o._count.id]),
-    );
+    const openMap = new Map(opensGrouped.map((o) => [o.campaign, o._count.id]));
     const uniqueMap = new Map<string, number>();
     for (const u of uniqueGrouped) {
       uniqueMap.set(u.campaign, (uniqueMap.get(u.campaign) ?? 0) + 1);
     }
+    const sentMap = new Map(
+      sentGrouped.map((s) => [s.campaign as string, s._count.id]),
+    );
+    const deliveredMap = new Map(
+      deliveredGrouped.map((s) => [s.campaign as string, s._count.id]),
+    );
+    const bouncedMap = new Map(
+      bouncedGrouped.map((s) => [s.campaign as string, s._count.id]),
+    );
 
     // redis нийт тоолуур (best-effort, fail-open)
     const redisTotals = await Promise.all(
@@ -456,34 +483,75 @@ export class AnalyticsService {
       }),
     );
 
-    // EMAIL_CAMPAIGNS-д байхгүй ч DB-д орсон бусад campaign-ийг нэмж оруулна
+    // campaign бүрд бүрэн үзүүлэлт бүтээх туслах (sent/delivered/opened/unique/openRate)
+    const buildCampaign = (key: string, label: string, openedTotal: number) => {
+      const sent = sentMap.get(key) ?? 0;
+      const delivered = deliveredMap.get(key) ?? 0;
+      const bounced = bouncedMap.get(key) ?? 0;
+      const openedPeriod = openMap.get(key) ?? 0;
+      const uniqueOpens = uniqueMap.get(key) ?? 0;
+      // Open rate = unique нээгчид / илгээсэн (sent байхгүй бол delivered-ээр)
+      const denom = sent || delivered || 0;
+      const openRate = denom > 0 ? Math.round((uniqueOpens / denom) * 1000) / 10 : 0;
+      return {
+        key,
+        label,
+        sent,
+        delivered,
+        bounced,
+        openedPeriod,
+        uniqueOpens,
+        openedTotal,
+        openRate, // %
+      };
+    };
+
+    // EMAIL_CAMPAIGNS + DB-д орсон бусад (sent эсвэл opened-тэй) campaign-уудыг нэгтгэх
     const known = new Set(EMAIL_CAMPAIGNS.map((c) => c.key));
-    const extraCampaigns = [...openMap.keys()].filter((k) => !known.has(k));
+    const extraKeys = new Set<string>();
+    for (const k of openMap.keys()) if (!known.has(k)) extraKeys.add(k);
+    for (const k of sentMap.keys()) if (!known.has(k)) extraKeys.add(k);
 
     const campaigns = [
-      ...EMAIL_CAMPAIGNS.map((c, i) => ({
-        key: c.key,
-        label: c.label,
-        openedPeriod: openMap.get(c.key) ?? 0,
-        uniqueOpens: uniqueMap.get(c.key) ?? 0,
-        openedTotal: redisTotals[i],
-      })),
-      ...extraCampaigns.map((k) => ({
-        key: k,
-        label: k,
-        openedPeriod: openMap.get(k) ?? 0,
-        uniqueOpens: uniqueMap.get(k) ?? 0,
-        openedTotal: 0,
-      })),
-    ];
+      ...EMAIL_CAMPAIGNS.map((c, i) =>
+        buildCampaign(c.key, c.label, redisTotals[i]),
+      ),
+      ...[...extraKeys].map((k) => buildCampaign(k, this.prettyCampaign(k), 0)),
+    ]
+      // Илгээлт ч, нээлт ч байхгүй хоосон campaign-ийг нуух (UI цэвэр байх)
+      .filter((c) => c.sent > 0 || c.openedPeriod > 0 || c.openedTotal > 0)
+      // Хамгийн их илгээсэн нь дээр
+      .sort((a, b) => b.sent - a.sent || b.openedPeriod - a.openedPeriod);
 
+    const totalSent = campaigns.reduce((s, c) => s + c.sent, 0);
+    const totalDelivered = campaigns.reduce((s, c) => s + c.delivered, 0);
     const totalOpensPeriod = campaigns.reduce((s, c) => s + c.openedPeriod, 0);
     const totalUnique = campaigns.reduce((s, c) => s + c.uniqueOpens, 0);
+    // Нийт open rate = unique нээгчид / нийт илгээсэн
+    const overallOpenRate =
+      totalSent > 0 ? Math.round((totalUnique / totalSent) * 1000) / 10 : 0;
 
     return {
       campaigns,
+      totalSent,
+      totalDelivered,
       totalOpensPeriod,
       totalUnique,
+      overallOpenRate,
     };
+  }
+
+  // Campaign key-г уншихад ойлгомжтой Монгол нэр болгох (bulk-167... → "Бөөн илгээлт").
+  private prettyCampaign(key: string): string {
+    if (key.startsWith('bulk-') || key.startsWith('broadcast-')) {
+      return 'Бөөн имэйл (Marketing)';
+    }
+    const map: Record<string, string> = {
+      'new-product': 'Шинэ бүтээгдэхүүн',
+      welcome: 'Тавтай морил',
+      reactivation: 'Эргэн идэвхжүүлэлт',
+      'coupon-expiring': 'Купон дуусах',
+    };
+    return map[key] ?? key;
   }
 }

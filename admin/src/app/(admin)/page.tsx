@@ -23,6 +23,9 @@ import {
   Zap,
   Gauge,
   Activity,
+  MailOpen,
+  Eye,
+  Send,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -255,12 +258,11 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
   const complaintWarn = complaintPct != null && complaintPct >= 0.1;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+    <div className="flex h-full flex-col rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Mail className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-semibold">Имэйл хяналт</h2>
-          <Badge variant="secondary" className="text-[10px] font-mono">{provider}</Badge>
+          <h2 className="text-sm font-semibold">AWS SES хяналт</h2>
           {!stats.configured && (
             <Badge variant="destructive" className="text-[10px]">Холбоогүй</Badge>
           )}
@@ -272,62 +274,47 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
         )}
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="flex flex-1 flex-col gap-3 p-4">
         {!stats.configured && (
-          <p className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
-            AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY тохируулаагүй байна. Имэйл явуулж чадахгүй.
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            AWS түлхүүр тохируулаагүй. Имэйл явуулж чадахгүй.
           </p>
         )}
 
         {/* ── Өдрийн (24ц) quota — гол үзүүлэлт ── */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Gauge className="h-3.5 w-3.5" /> Өнөөдөр илгээсэн (24ц)
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Gauge className="h-3.5 w-3.5" /> Өнөөдөр (24ц)
             </span>
             <span className={`text-xs font-bold tabular-nums ${dayCritical ? 'text-destructive' : dayWarning ? 'text-amber-600' : 'text-foreground'}`}>
               {sentToday !== null ? sentToday.toLocaleString() : '—'} / {dailyLimit.toLocaleString()}
             </span>
           </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
               className={`h-full rounded-full transition-all ${dayCritical ? 'bg-destructive' : dayWarning ? 'bg-amber-500' : 'bg-primary'}`}
               style={{ width: `${Math.min(dayPct, 100)}%` }}
             />
           </div>
-          <p className={`mt-1 text-[11px] ${dayCritical ? 'text-destructive' : dayWarning ? 'text-amber-600' : 'text-muted-foreground'}`}>
-            {sentToday === null
-              ? 'Өдрийн тоолуур ачаалж байна…'
-              : dayCritical
-                ? '⚠️ Өдрийн лимит дүүрэхэд ойрхон!'
-                : dayWarning
-                  ? '⚠️ Өдрийн квотын 80% ашигласан'
-                  : `Өдрийн квотын ${dayPct}% ашигласан`}
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {sentToday === null ? 'Тоолуур ачаалж байна…' : `Өдрийн квотын ${dayPct}% ашигласан`}
+            {stats.maxSendRate != null && ` · ${stats.maxSendRate}/сек`}
           </p>
         </div>
-
-        {/* Send rate (мэдээлэл) */}
-        {stats.maxSendRate != null && (
-          <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2">
-            <Activity className="h-3.5 w-3.5 text-primary shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              Илгээх хурд: <span className="font-semibold text-foreground tabular-nums">{stats.maxSendRate}/сек</span>
-            </p>
-          </div>
-        )}
 
         {/* ── Reputation: bounce / complaint rate ── */}
         {(bouncePct != null || complaintPct != null) && (
           <div className="grid grid-cols-2 gap-2">
-            <div className={`rounded-lg border p-2.5 ${bounceDanger ? 'border-destructive/40 bg-destructive/5' : bounceWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
-              <p className="text-[10px] text-muted-foreground">Bounce rate</p>
-              <p className={`text-lg font-bold tabular-nums ${bounceDanger ? 'text-destructive' : bounceWarn ? 'text-amber-600' : 'text-foreground'}`}>
+            <div className={`rounded-lg border p-2 ${bounceDanger ? 'border-destructive/40 bg-destructive/5' : bounceWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
+              <p className="text-[10px] text-muted-foreground">Bounce</p>
+              <p className={`text-base font-bold tabular-nums ${bounceDanger ? 'text-destructive' : bounceWarn ? 'text-amber-600' : 'text-foreground'}`}>
                 {bouncePct != null ? `${bouncePct.toFixed(2)}%` : '—'}
               </p>
             </div>
-            <div className={`rounded-lg border p-2.5 ${complaintDanger ? 'border-destructive/40 bg-destructive/5' : complaintWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
-              <p className="text-[10px] text-muted-foreground">Гомдлын хувь</p>
-              <p className={`text-lg font-bold tabular-nums ${complaintDanger ? 'text-destructive' : complaintWarn ? 'text-amber-600' : 'text-foreground'}`}>
+            <div className={`rounded-lg border p-2 ${complaintDanger ? 'border-destructive/40 bg-destructive/5' : complaintWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
+              <p className="text-[10px] text-muted-foreground">Гомдол</p>
+              <p className={`text-base font-bold tabular-nums ${complaintDanger ? 'text-destructive' : complaintWarn ? 'text-amber-600' : 'text-foreground'}`}>
                 {complaintPct != null ? `${complaintPct.toFixed(3)}%` : '—'}
               </p>
             </div>
@@ -335,9 +322,9 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
         )}
 
         {/* ── Сүүлийн 3 сарын илгээлт ── */}
-        <div>
-          <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Сүүлийн 3 сар</p>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="mt-auto">
+          <p className="mb-1 text-[10px] font-medium text-muted-foreground">Сүүлийн 3 сар</p>
+          <div className="grid grid-cols-3 gap-1.5">
             {[
               { label: getMonthLabel(2), value: stats.sentTwoMonthsAgo },
               { label: getMonthLabel(1), value: stats.sentLastMonth },
@@ -345,12 +332,12 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
             ].map((m) => (
               <div
                 key={m.label}
-                className={`rounded-lg p-2.5 text-center ${m.highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted/40'}`}
+                className={`rounded-lg p-2 text-center ${m.highlight ? 'border border-primary/20 bg-primary/10' : 'bg-muted/40'}`}
               >
-                <p className={`text-lg font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
+                <p className={`text-sm font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
                   {m.value.toLocaleString()}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{m.label}</p>
+                <p className="mt-0.5 text-[9px] text-muted-foreground">{m.label}</p>
               </div>
             ))}
           </div>
@@ -358,14 +345,89 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
 
         {/* Queue */}
         {stats.queueLength > 0 && (
-          <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
-            <Zap className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              {stats.queueLength} имэйл дарааллаас илгээгдэхийг хүлээж байна
+          <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 dark:bg-blue-900/20">
+            <Zap className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+            <p className="text-[11px] text-blue-700 dark:text-blue-300">
+              {stats.queueLength} имэйл дараалалд хүлээж байна
             </p>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Имэйл маркетингийн ТОВЧ summary (30 хоног) — dashboard 3 баганат мөрөнд ──
+// Дэлгэрэнгүй (bulk бүрийн хүснэгт) нь доорх Analytics секцэд харагдана.
+function EmailMarketingSummary() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['analytics', 'email', 30],
+    queryFn: () => adminApi.getEmailAnalytics(30),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  return (
+    <div className="flex h-full flex-col rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Send className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold">Имэйл маркетинг</h2>
+        </div>
+        <span className="text-[10px] text-muted-foreground">30 хоног</span>
+      </div>
+
+      {isLoading ? (
+        <div className="flex-1 animate-pulse p-4">
+          <div className="h-full rounded-lg bg-muted/40" />
+        </div>
+      ) : data && data.totalSent > 0 ? (
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          {/* Гол хос: илгээсэн + нээлтийн хувь */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-primary/10 p-2.5">
+              <p className="flex items-center gap-1 text-[10px] text-muted-foreground"><Send className="h-3 w-3" />Илгээсэн</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{data.totalSent.toLocaleString('mn-MN')}</p>
+            </div>
+            <div className="rounded-lg bg-muted/40 p-2.5">
+              <p className="flex items-center gap-1 text-[10px] text-muted-foreground"><TrendingUp className="h-3 w-3" />Нээлтийн хувь</p>
+              <p className={`mt-0.5 text-xl font-bold tabular-nums ${data.overallOpenRate >= 25 ? 'text-green-600 dark:text-green-400' : data.overallOpenRate >= 10 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
+                {data.overallOpenRate}%
+              </p>
+            </div>
+          </div>
+
+          {/* Нээлт / нээсэн хүн */}
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="rounded-lg border border-border/60 px-2 py-2">
+              <p className="text-base font-bold tabular-nums">{data.totalOpensPeriod.toLocaleString('mn-MN')}</p>
+              <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground"><MailOpen className="h-3 w-3" />Нийт нээлт</p>
+            </div>
+            <div className="rounded-lg border border-border/60 px-2 py-2">
+              <p className="text-base font-bold tabular-nums">{data.totalUnique.toLocaleString('mn-MN')}</p>
+              <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground"><Eye className="h-3 w-3" />Нээсэн хүн</p>
+            </div>
+          </div>
+
+          {/* Сүүлийн илгээлт (хамгийн их sent) — товч */}
+          {data.campaigns[0] && (
+            <div className="mt-auto rounded-lg bg-muted/30 px-3 py-2">
+              <p className="truncate text-[11px] font-medium">{data.campaigns[0].label}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {data.campaigns[0].sent.toLocaleString('mn-MN')} илгээсэн · {data.campaigns[0].uniqueOpens.toLocaleString('mn-MN')} нээсэн ({data.campaigns[0].openRate}%)
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-4 text-center">
+          <div className="rounded-full bg-muted p-2.5"><Send className="h-5 w-5 text-muted-foreground" /></div>
+          <p className="text-xs font-medium">Илгээлт алга</p>
+          <Link href="/subscribers" className="text-[11px] font-medium text-primary hover:underline">
+            Имэйл явуулах →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -569,49 +631,63 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Захиалагч (subscriber) статистик: нийт + энэ сар + эх сурвалжийн задаргаа */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Нийт захиалагч */}
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-          <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/40 p-2 shrink-0">
-            <Mail className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+      {/* ── 3 баганат нэг мөр: Subscriber + Email Marketing + AWS SES ──
+          Өргөн: эхнийх жижиг (1fr), дунд дунд (1.1fr), AWS том (1.25fr) — дата хэмжээгээр */}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr_1.25fr] items-stretch">
+        {/* Багана 1 — Subscriber (нийт + эх сурвалж НЭГ block) */}
+        <div className="flex h-full flex-col rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-emerald-100 p-1.5 dark:bg-emerald-900/40">
+                <Mail className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h2 className="text-sm font-semibold">Subscriber</h2>
+            </div>
+            <Link href="/subscribers" className="text-[11px] text-muted-foreground hover:text-primary">
+              Бүгд →
+            </Link>
           </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <p className="text-xl font-bold tabular-nums">{stats.subscribersTotal.toLocaleString()}</p>
-              {stats.subscribersThisMonth > 0 && (
-                <span className="inline-flex items-center rounded-md bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                  энэ сар +{stats.subscribersThisMonth.toLocaleString()}
-                </span>
+          <div className="flex flex-1 flex-col gap-3 p-4">
+            {/* Нийт + энэ сар */}
+            <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl font-bold tabular-nums">{stats.subscribersTotal.toLocaleString()}</p>
+                {stats.subscribersThisMonth > 0 && (
+                  <span className="inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                    энэ сар +{stats.subscribersThisMonth.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">Нийт захиалагч</p>
+            </div>
+            {/* Эх сурвалжийн задаргаа — НЭГ block-д нэгтгэв */}
+            <div className="flex flex-1 flex-col">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Эх сурвалжаар</p>
+              {subscribersBySource.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Захиалагч байхгүй</p>
+              ) : (
+                <div className="flex flex-wrap content-start gap-1.5">
+                  {subscribersBySource.map((s) => (
+                    <span
+                      key={s.source}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2 py-1 text-[11px]"
+                    >
+                      <span className="text-muted-foreground">{subscriberSourceLabel(s.source)}</span>
+                      <span className="font-semibold tabular-nums">{s.count.toLocaleString()}</span>
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Нийт Subscriber</p>
           </div>
         </div>
 
-        {/* Эх сурвалжийн задаргаа (хамгийн их нь эхэнд) */}
-        <div className="rounded-xl border border-border bg-card px-4 py-3 lg:col-span-2">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Эх сурвалжаар</p>
-          {subscribersBySource.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Захиалагч байхгүй</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {subscribersBySource.map((s) => (
-                <span
-                  key={s.source}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs"
-                >
-                  <span className="text-muted-foreground">{subscriberSourceLabel(s.source)}</span>
-                  <span className="font-semibold tabular-nums">{s.count.toLocaleString()}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+        {/* Багана 2 — Имэйл маркетинг (товч summary) */}
+        <EmailMarketingSummary />
 
-      {/* Имэйл хяналт (AWS SES — өдрийн квота, reputation, 3 сар) — subscriber мөрний дараа */}
-      <EmailStatsPanel stats={emailStats} />
+        {/* Багана 3 — AWS SES хяналт (өдрийн квота, reputation, 3 сар) */}
+        <EmailStatsPanel stats={emailStats} />
+      </div>
 
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}
       <div className="grid gap-4 lg:grid-cols-2">

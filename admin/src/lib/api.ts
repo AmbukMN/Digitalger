@@ -713,18 +713,26 @@ export const adminApi = {
       }[];
     }>(`/analytics/lessons?days=${days}`),
 
-  // Имэйл маркетингийн кампанит ажлуудын нээлтийн статистик
+  // Имэйл маркетингийн кампанит ажлуудын илгээлт + нээлтийн статистик
+  // campaign бүрд: sent (явсан) / delivered / opened / unique / openRate%
   getEmailAnalytics: (days = 30) =>
     adminFetch<{
       campaigns: {
         key: string;
         label: string;
+        sent: number;
+        delivered: number;
+        bounced: number;
         openedPeriod: number;
         uniqueOpens: number;
         openedTotal: number;
+        openRate: number;
       }[];
+      totalSent: number;
+      totalDelivered: number;
       totalOpensPeriod: number;
       totalUnique: number;
+      overallOpenRate: number;
     }>(`/analytics/email?days=${days}`),
 
   subscribers: {
