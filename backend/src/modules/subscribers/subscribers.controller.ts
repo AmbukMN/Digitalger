@@ -87,13 +87,51 @@ export class AdminSubscribersController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('send-email')
   sendEmail(@Body() dto: SendBulkEmailDto) {
+    // BullMQ queue-д background-аар нэмнэ — { queued, total, campaign } шууд буцна.
+    // Явцыг GET send-email/progress?campaign=... -аар хянана.
     return this.subscribers.sendBulkEmail({
       recipientIds: dto.recipientIds,
       status: dto.status,
       categoryId: dto.categoryId,
+      source: dto.source,
       subject: dto.subject,
       bodyHtml: dto.bodyHtml,
     });
+  }
+
+  // Bulk compose-ийн өмнө "хэдэн хүнд явах вэ" тоог буцаана (filter өөрчлөгдөх бүрд).
+  // ⚠️ ':id' route-аас ӨМНӨ байх ёстой (зам зөрчилдөхгүйн тулд).
+  // recipientIds-ийг query-д олон утга (?recipientIds=a&recipientIds=b) эсвэл
+  // таслалаар (?recipientIds=a,b) дамжуулж болно — аль алинд нь зохицуулна.
+  @Get('count-recipients')
+  countRecipients(
+    @Query('recipientIds') recipientIds?: string | string[],
+    @Query('status') status?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('source') source?: string,
+  ) {
+    const ids = Array.isArray(recipientIds)
+      ? recipientIds
+      : recipientIds
+        ? recipientIds.split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined;
+    const validStatus =
+      status === 'ACTIVE' || status === 'INACTIVE' || status === 'UNSUBSCRIBED'
+        ? status
+        : undefined;
+    return this.subscribers.countRecipients({
+      recipientIds: ids,
+      status: validStatus,
+      categoryId: categoryId || undefined,
+      source: source || undefined,
+    });
+  }
+
+  // Bulk имэйлийн явц — "N илгээгдсэн / M үлдсэн" (frontend polling).
+  // ⚠️ ':id' route-аас ӨМНӨ байх ёстой (зөрчилдөхгүйн тулд).
+  @Get('send-email/progress')
+  bulkProgress(@Query('campaign') campaign: string) {
+    return this.subscribers.getBulkProgress((campaign ?? '').trim());
   }
 
   // ── Import / Export ──

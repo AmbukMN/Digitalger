@@ -326,6 +326,43 @@ export class SubscribersService {
     return { deleted: res.count };
   }
 
+  // ─── COUNT RECIPIENTS (bulk compose-ийн өмнө "хэдэн хүнд явах вэ" тоолох) ─────
+  // Admin compose дэлгэцэд filter өөрчлөгдөх бүрд бодит хүлээн авагчийн тоог
+  // буцаана. sendBulkEmail-тэй ИЖИЛ логик: UNSUBSCRIBED + guest имэйл хасна.
+  //   - recipientIds байвал тэр давамгайлна (status/category/source үл хэрэгсэнэ).
+  //   - эс бол status (default ACTIVE) / categoryId / source-аар шүүнэ.
+  async countRecipients(opts: {
+    recipientIds?: string[];
+    status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
+    categoryId?: string;
+    source?: string;
+  }): Promise<{ count: number }> {
+    const where: Prisma.SubscriberWhereInput = {};
+    if (opts.recipientIds?.length) {
+      where.id = { in: opts.recipientIds };
+    } else {
+      where.status = (opts.status ??
+        'ACTIVE') as Prisma.EnumSubscriberStatusFilter['equals'];
+      if (opts.categoryId) where.categoryId = opts.categoryId;
+      if (opts.source) where.source = opts.source;
+    }
+
+    const subs = await this.prisma.subscriber.findMany({
+      where,
+      select: { email: true, status: true },
+    });
+
+    // ⚠️ UNSUBSCRIBED + guest имэйл хасна (sendBulkEmail-тэй адил).
+    const count = subs.filter(
+      (s) =>
+        s.status !== 'UNSUBSCRIBED' &&
+        s.email &&
+        !s.email.endsWith('@guest.digitalger.mn'),
+    ).length;
+
+    return { count };
+  }
+
   // ─── BULK MARKETING EMAIL (admin compose → олон subscriber) ─────────────────
   // recipientIds байвал тэдгээр; эс бол status (default ACTIVE) / categoryId-аар
   // шүүж subscriber олно. Имэйл бүрд брэндийн layout + unsubscribe footer
@@ -334,9 +371,11 @@ export class SubscribersService {
     recipientIds?: string[];
     status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
     categoryId?: string;
+    source?: string;
     subject: string;
     bodyHtml: string;
-  }): Promise<{ sent: number; failed: number; total: number }> {
+    campaign?: string;
+  }): Promise<{ queued: number; total: number; campaign: string }> {
     const subject = (opts.subject ?? '').trim();
     if (!subject) throw new BadRequestException('Гарчиг оруулна уу');
     if (!(opts.bodyHtml ?? '').trim()) throw new BadRequestException('Имэйлийн агуулга оруулна уу');
@@ -349,6 +388,7 @@ export class SubscribersService {
       // recipientIds байхгүй бол filter-ээр. Default ACTIVE (зөвхөн идэвхтэйд).
       where.status = (opts.status ?? 'ACTIVE') as Prisma.EnumSubscriberStatusFilter['equals'];
       if (opts.categoryId) where.categoryId = opts.categoryId;
+      if (opts.source) where.source = opts.source;
     }
 
     const subs = await this.prisma.subscriber.findMany({
@@ -369,15 +409,25 @@ export class SubscribersService {
 
     const sanitizedBody = this.sanitizeBodyHtml(opts.bodyHtml);
 
-    const { sent, failed } = await this.email.sendBulkMarketing({
+    // ⚠️ 300ms loop биш — BullMQ queue-д background-аар нэмнэ (durable, rate-limited
+    // ≤10/сек SES зөрчихгүй). Хэрэглэгч хүлээхгүй: { queued } шууд буцна. Явцыг
+    // getBulkProgress(campaign)-аар хянана ("N илгээгдсэн / M үлдсэн").
+    const campaign = (opts.campaign ?? '').trim() || `bulk-${Date.now()}`;
+    const { queued } = await this.email.queueBulkMarketing({
       to: recipients,
       subject,
       bodyHtml: sanitizedBody,
       heading: subject,
       preheader: subject,
+      campaign,
     });
 
-    return { sent, failed, total: recipients.length };
+    return { queued, total: recipients.length, campaign };
+  }
+
+  /** Bulk имэйл кампанит ажлын явц (admin progress polling). */
+  async getBulkProgress(campaign: string) {
+    return this.email.getBulkProgress(campaign);
   }
 
   // Энгийн XSS цэвэрлэгээ (admin л явуулдаг тул бага эрсдэлтэй, гэхдээ <script>,

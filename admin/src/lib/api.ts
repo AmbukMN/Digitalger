@@ -33,6 +33,7 @@ import type {
   AdminUserDetail,
   AdminUserFullDetail,
   DashboardStats,
+  EmailCampaignProgress,
   QueueStatus,
   SeoAllowedPathsGrouped,
   SeoOverride,
@@ -764,18 +765,34 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify({ subscriberIds }),
       }),
-    // Bulk marketing email — custom subject/body → сонгосон эсвэл бүх/category subscriber.
+    // Bulk marketing email — custom subject/body → олон filter хослолоор (status/category/source/сонгосон).
+    // Background queue-д нэмэгдэх тул campaignId буцааж явцыг poll хийнэ.
     sendEmail: (body: {
       recipientIds?: string[];
       status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
       categoryId?: string;
+      source?: string;
       subject: string;
       bodyHtml: string;
     }) =>
-      adminFetch<{ sent: number; failed: number; total: number }>('/admin/subscribers/send-email', {
+      adminFetch<{ sent: number; failed: number; total: number; campaignId?: string }>(
+        '/admin/subscribers/send-email',
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+    // Тухайн филтрт хэдэн идэвхтэй хүлээн авагч таарахыг урьдчилан тооцох.
+    countRecipients: (body: {
+      recipientIds?: string[];
+      status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
+      categoryId?: string;
+      source?: string;
+    }) =>
+      adminFetch<{ count: number }>('/admin/subscribers/count-recipients', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    // Bulk кампанит ажлын илгээлтийн явц (queue background) — poll хийнэ.
+    campaignProgress: (campaignId: string) =>
+      adminFetch<EmailCampaignProgress>(`/admin/subscribers/campaign/${campaignId}`),
     bulkImport: (file: File, categoryId?: string) => {
       const fd = new FormData();
       fd.append('file', file);

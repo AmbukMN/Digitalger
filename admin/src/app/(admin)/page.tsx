@@ -21,7 +21,8 @@ import {
   UserPlus,
   XCircle,
   Zap,
-  Send,
+  Gauge,
+  Activity,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -36,7 +37,7 @@ import {
 } from 'recharts';
 import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
-import type { AdminOrder, EmailStats, DashboardStats } from '@/types/admin';
+import type { AdminOrder, EmailStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
 
 // ── Захиалагчийн эх сурвалжийн нэрийг Монголоор харуулах ──
@@ -231,12 +232,27 @@ function OrderRow({ order }: { order: AdminOrder }) {
 }
 
 function EmailStatsPanel({ stats }: { stats: EmailStats }) {
-  const usedPct = stats.monthlyLimit > 0
-    ? Math.round((stats.sentThisMonth / stats.monthlyLimit) * 100)
+  const provider = stats.provider ?? 'AWS SES';
+
+  // ── 24 цагийн (өдрийн) sending quota ──
+  // Backend getSendQuota()-аас ирвэл sentToday/dailyLimit ашиглана.
+  // Эс бол dailyLimit-ийг monthlyLimit (50000)-аар нөхнө, sentToday мэдэгдэхгүй.
+  const dailyLimit = stats.dailyLimit ?? stats.monthlyLimit ?? 50000;
+  const sentToday = stats.sentToday ?? null;
+  const dayPct = sentToday !== null && dailyLimit > 0
+    ? Math.round((sentToday / dailyLimit) * 100)
     : 0;
-  const isWarning  = usedPct >= 80;
-  const isCritical = usedPct >= 95;
-  const provider   = stats.provider ?? 'AWS SES';
+  const dayWarning = dayPct >= 80;
+  const dayCritical = dayPct >= 95;
+
+  // ── Reputation (bounce/complaint) — байвал ──
+  const bouncePct = stats.bounceRate != null ? stats.bounceRate * 100 : null;
+  const complaintPct = stats.complaintRate != null ? stats.complaintRate * 100 : null;
+  // AWS босго: bounce > 5% danger, > 2% warning; complaint > 0.5% danger, > 0.1% warning
+  const bounceDanger = bouncePct != null && bouncePct >= 5;
+  const bounceWarn = bouncePct != null && bouncePct >= 2;
+  const complaintDanger = complaintPct != null && complaintPct >= 0.5;
+  const complaintWarn = complaintPct != null && complaintPct >= 0.1;
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -245,9 +261,6 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
           <Mail className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold">Имэйл хяналт</h2>
           <Badge variant="secondary" className="text-[10px] font-mono">{provider}</Badge>
-          {stats.active === false && (
-            <Badge variant="outline" className="text-[10px] text-muted-foreground">Нөөц</Badge>
-          )}
           {!stats.configured && (
             <Badge variant="destructive" className="text-[10px]">Холбоогүй</Badge>
           )}
@@ -266,42 +279,81 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
           </p>
         )}
 
-        {/* Progress bar */}
+        {/* ── Өдрийн (24ц) quota — гол үзүүлэлт ── */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Энэ сар илгээсэн</span>
-            <span className={`text-xs font-bold tabular-nums ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-foreground'}`}>
-              {stats.sentThisMonth.toLocaleString()} / {stats.monthlyLimit.toLocaleString()}
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Gauge className="h-3.5 w-3.5" /> Өнөөдөр илгээсэн (24ц)
+            </span>
+            <span className={`text-xs font-bold tabular-nums ${dayCritical ? 'text-destructive' : dayWarning ? 'text-amber-600' : 'text-foreground'}`}>
+              {sentToday !== null ? sentToday.toLocaleString() : '—'} / {dailyLimit.toLocaleString()}
             </span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${isCritical ? 'bg-destructive' : isWarning ? 'bg-amber-500' : 'bg-primary'}`}
-              style={{ width: `${Math.min(usedPct, 100)}%` }}
+              className={`h-full rounded-full transition-all ${dayCritical ? 'bg-destructive' : dayWarning ? 'bg-amber-500' : 'bg-primary'}`}
+              style={{ width: `${Math.min(dayPct, 100)}%` }}
             />
           </div>
-          <p className={`mt-1 text-[11px] ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-muted-foreground'}`}>
-            {isCritical ? '⚠️ Лимит дүүрэхэд ойрхон!' : isWarning ? '⚠️ 80% ашигласан' : usedPct > 0 ? `${usedPct}% ашигласан` : 'Тоолуур Redis-д хадгалагдана'}
+          <p className={`mt-1 text-[11px] ${dayCritical ? 'text-destructive' : dayWarning ? 'text-amber-600' : 'text-muted-foreground'}`}>
+            {sentToday === null
+              ? 'Өдрийн тоолуур ачаалж байна…'
+              : dayCritical
+                ? '⚠️ Өдрийн лимит дүүрэхэд ойрхон!'
+                : dayWarning
+                  ? '⚠️ Өдрийн квотын 80% ашигласан'
+                  : `Өдрийн квотын ${dayPct}% ашигласан`}
           </p>
         </div>
 
-        {/* Monthly breakdown */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: getMonthLabel(2), value: stats.sentTwoMonthsAgo },
-            { label: getMonthLabel(1), value: stats.sentLastMonth },
-            { label: getMonthLabel(0), value: stats.sentThisMonth, highlight: true },
-          ].map((m) => (
-            <div
-              key={m.label}
-              className={`rounded-lg p-2.5 text-center ${m.highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted/40'}`}
-            >
-              <p className={`text-lg font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
-                {m.value.toLocaleString()}
+        {/* Send rate (мэдээлэл) */}
+        {stats.maxSendRate != null && (
+          <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2">
+            <Activity className="h-3.5 w-3.5 text-primary shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Илгээх хурд: <span className="font-semibold text-foreground tabular-nums">{stats.maxSendRate}/сек</span>
+            </p>
+          </div>
+        )}
+
+        {/* ── Reputation: bounce / complaint rate ── */}
+        {(bouncePct != null || complaintPct != null) && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className={`rounded-lg border p-2.5 ${bounceDanger ? 'border-destructive/40 bg-destructive/5' : bounceWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
+              <p className="text-[10px] text-muted-foreground">Bounce rate</p>
+              <p className={`text-lg font-bold tabular-nums ${bounceDanger ? 'text-destructive' : bounceWarn ? 'text-amber-600' : 'text-foreground'}`}>
+                {bouncePct != null ? `${bouncePct.toFixed(2)}%` : '—'}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{m.label}</p>
             </div>
-          ))}
+            <div className={`rounded-lg border p-2.5 ${complaintDanger ? 'border-destructive/40 bg-destructive/5' : complaintWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
+              <p className="text-[10px] text-muted-foreground">Гомдлын хувь</p>
+              <p className={`text-lg font-bold tabular-nums ${complaintDanger ? 'text-destructive' : complaintWarn ? 'text-amber-600' : 'text-foreground'}`}>
+                {complaintPct != null ? `${complaintPct.toFixed(3)}%` : '—'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Сүүлийн 3 сарын илгээлт ── */}
+        <div>
+          <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Сүүлийн 3 сар</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: getMonthLabel(2), value: stats.sentTwoMonthsAgo },
+              { label: getMonthLabel(1), value: stats.sentLastMonth },
+              { label: getMonthLabel(0), value: stats.sentThisMonth, highlight: true },
+            ].map((m) => (
+              <div
+                key={m.label}
+                className={`rounded-lg p-2.5 text-center ${m.highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted/40'}`}
+              >
+                <p className={`text-lg font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
+                  {m.value.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{m.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Queue */}
@@ -310,99 +362,6 @@ function EmailStatsPanel({ stats }: { stats: EmailStats }) {
             <Zap className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <p className="text-xs text-blue-700 dark:text-blue-300">
               {stats.queueLength} имэйл дарааллаас илгээгдэхийг хүлээж байна
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Resend имэйл хяналт — AWS SES-ийн хажуугийн карт.
-// Resend нь одоогийн идэвхтэй провайдер (AWS verify болоогүй тул).
-function ResendStatsPanel({ stats }: { stats?: DashboardStats['resendStats'] }) {
-  const s = stats ?? {
-    configured: false, sentThisMonth: 0, sentLastMonth: 0, sentTwoMonthsAgo: 0,
-    monthlyLimit: 3000, queueLength: 0, provider: 'Resend', active: true,
-  };
-  const usedPct = s.monthlyLimit > 0
-    ? Math.round((s.sentThisMonth / s.monthlyLimit) * 100)
-    : 0;
-  const isWarning  = usedPct >= 80;
-  const isCritical = usedPct >= 95;
-
-  return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Send className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-semibold">Resend хяналт</h2>
-          <Badge variant="secondary" className="text-[10px] font-mono">{s.provider ?? 'Resend'}</Badge>
-          {s.active && (
-            <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Идэвхтэй</Badge>
-          )}
-          {!s.configured && (
-            <Badge variant="destructive" className="text-[10px]">Холбоогүй</Badge>
-          )}
-        </div>
-        {s.configured ? (
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-        ) : (
-          <AlertCircle className="h-4 w-4 text-amber-500" />
-        )}
-      </div>
-
-      <div className="p-4 space-y-4">
-        {!s.configured && (
-          <p className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
-            RESEND_API_KEY тохируулаагүй байна. Имэйл явуулж чадахгүй.
-          </p>
-        )}
-
-        {/* Progress bar */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Энэ сар илгээсэн</span>
-            <span className={`text-xs font-bold tabular-nums ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-foreground'}`}>
-              {s.sentThisMonth.toLocaleString()} / {s.monthlyLimit.toLocaleString()}
-            </span>
-          </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${isCritical ? 'bg-destructive' : isWarning ? 'bg-amber-500' : 'bg-primary'}`}
-              style={{ width: `${Math.min(usedPct, 100)}%` }}
-            />
-          </div>
-          <p className={`mt-1 text-[11px] ${isCritical ? 'text-destructive' : isWarning ? 'text-amber-600' : 'text-muted-foreground'}`}>
-            {isCritical ? '⚠️ Лимит дүүрэхэд ойрхон!' : isWarning ? '⚠️ 80% ашигласан' : usedPct > 0 ? `${usedPct}% ашигласан` : 'Тоолуур Redis-д хадгалагдана'}
-          </p>
-        </div>
-
-        {/* Monthly breakdown */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: getMonthLabel(2), value: s.sentTwoMonthsAgo },
-            { label: getMonthLabel(1), value: s.sentLastMonth },
-            { label: getMonthLabel(0), value: s.sentThisMonth, highlight: true },
-          ].map((m) => (
-            <div
-              key={m.label}
-              className={`rounded-lg p-2.5 text-center ${m.highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted/40'}`}
-            >
-              <p className={`text-lg font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
-                {m.value.toLocaleString()}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{m.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Queue */}
-        {s.queueLength > 0 && (
-          <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
-            <Zap className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              {s.queueLength} имэйл дарааллаас илгээгдэхийг хүлээж байна
             </p>
           </div>
         )}
@@ -496,7 +455,7 @@ export default function DashboardPage() {
   if (isError || !data)
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const { stats, trends, recentOrders, monthlyRevenue, emailStats, resendStats, topDownloaded, subscribersBySource } = data;
+  const { stats, trends, recentOrders, monthlyRevenue, emailStats, topDownloaded, subscribersBySource } = data;
 
   const statValues: Record<string, number> = {
     users: stats.users,
@@ -727,11 +686,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Resend + Email хяналт row (Resend идэвхтэй, AWS SES нөөц) */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ResendStatsPanel stats={resendStats} />
-        <EmailStatsPanel stats={emailStats} />
-      </div>
+      {/* Имэйл хяналт (AWS SES — өдрийн квота, reputation, 3 сар) */}
+      <EmailStatsPanel stats={emailStats} />
 
       {/* Analytics section */}
       <AnalyticsSection />

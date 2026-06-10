@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -22,7 +22,7 @@ import {
   Undo, Redo, Quote, Minus, Highlighter, ChevronDown, Check,
   Superscript as SuperscriptIcon, Subscript as SubscriptIcon,
   Table as TableIcon, ImageIcon, Code, Code2, RemoveFormatting, Link2Off, FileCode,
-  Baseline, PaintBucket, Palette,
+  Baseline, PaintBucket, Palette, Upload, Video, MousePointerClick, Loader2,
 } from 'lucide-react';
 
 // Custom FontSize extension — TextStyle-д fontSize attribute нэмнэ
@@ -80,6 +80,34 @@ const LineHeight = Extension.create({
 });
 
 const LINE_HEIGHTS = ['1', '1.2', '1.4', '1.5', '1.6', '1.8', '2', '2.5'];
+
+// Имэйлийн CTA товч/видеоны inline-style болон data-* маркерыг линк дээр хадгалах
+// нэмэлт Link extension. (Стандарт Link нь зөвхөн href/target хадгалдаг тул товч стиль
+// алдагддаг.) products editor-т нөлөөгүй — энгийн линкэд эдгээр attribute null хэвээр.
+const EmailLink = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).getAttribute('style'),
+        renderHTML: (attrs) => (attrs.style ? { style: attrs.style } : {}),
+      },
+      'data-email-button': {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).getAttribute('data-email-button'),
+        renderHTML: (attrs) =>
+          attrs['data-email-button'] ? { 'data-email-button': attrs['data-email-button'] } : {},
+      },
+      'data-email-video': {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).getAttribute('data-email-video'),
+        renderHTML: (attrs) =>
+          attrs['data-email-video'] ? { 'data-email-video': attrs['data-email-video'] } : {},
+      },
+    };
+  },
+});
 
 // Хурдан сонгох preset өнгөний палитр (брэндийн өнгө + түгээмэл)
 const PRESET_COLORS: { label: string; value: string }[] = [
@@ -210,6 +238,10 @@ interface RichEditorProps {
   placeholder?: string;
   minHeight?: string;
   className?: string;
+  /** R2 руу зураг upload хийх функц — өгвөл toolbar-т "Зураг байршуулах" товч идэвхждэг */
+  onImageUpload?: (file: File) => Promise<string>;
+  /** Email element-үүд (CTA товч, видео embed) toolbar-т нэмэх — зөвхөн имэйл editor-д */
+  emailMode?: boolean;
 }
 
 function ToolbarButton({
@@ -242,9 +274,11 @@ function Divider() {
   return <div className="mx-1 h-5 w-px bg-border shrink-0" />;
 }
 
-export function RichEditor({ value, onChange, placeholder, minHeight = '200px', className }: RichEditorProps) {
+export function RichEditor({ value, onChange, placeholder, minHeight = '200px', className, onImageUpload, emailMode }: RichEditorProps) {
   const [htmlMode, setHtmlMode] = useState(false);
   const [htmlSource, setHtmlSource] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const imgInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -261,7 +295,7 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
       Color,
       Highlight.configure({ multicolor: true }) as any,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Link.configure({ openOnClick: false, autolink: true }),
+      EmailLink.configure({ openOnClick: false, autolink: true }),
       Image.configure({ inline: false, allowBase64: false }),
       Superscript,
       Subscript,
@@ -300,6 +334,55 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
     editor.chain().focus().setImage({ src: url }).run();
   };
 
+  // R2 руу зураг байршуулаад editor-д оруулна (onImageUpload өгсөн үед)
+  const handleImageFile = async (file: File) => {
+    if (!onImageUpload) return;
+    setUploading(true);
+    try {
+      const url = await onImageUpload(file);
+      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Имэйлд тохирох CTA товч — линкэн дотор inline-styled товч (email-friendly).
+  // TipTap зөвхөн бүртгэгдсэн node-уудыг хадгалдаг тул paragraph дотор styled link insert хийнэ.
+  const insertCtaButton = () => {
+    const label = window.prompt('Товчны текст:', 'Дэлгэрэнгүй үзэх');
+    if (label === null) return;
+    const href = window.prompt('Товчны холбоос (URL):', 'https://digitalger.mn');
+    if (!href) return;
+    const safeLabel = label.trim() || 'Дэлгэрэнгүй';
+    // data-email-button attribute-аар backend sanitize/styling-д таних боломжтой
+    const buttonHtml =
+      `<p style="text-align:center"><a href="${href}" target="_blank" rel="noopener" ` +
+      `data-email-button="true" ` +
+      `style="display:inline-block;background:#022179;color:#ffbe00;font-weight:700;` +
+      `font-size:15px;padding:13px 30px;border-radius:10px;text-decoration:none">${safeLabel}</a></p>`;
+    editor.chain().focus().insertContent(buttonHtml).run();
+  };
+
+  // Видео embed — YouTube/Vimeo линк → thumbnail зураг + "тоглуулах" линк (имэйлд iframe ажилладаггүй).
+  const insertVideo = () => {
+    const url = window.prompt('Видеоны холбоос (YouTube/Vimeo/MP4):');
+    if (!url) return;
+    // YouTube ID-г олж thumbnail авах
+    const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
+    const thumb = ytMatch ? `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` : null;
+    const chain = editor.chain().focus();
+    // Thumbnail зураг (байвал) — тусдаа image node
+    if (thumb) {
+      chain.setImage({ src: thumb, alt: 'Видео' });
+    }
+    // "Видео тоглуулах" линк — data-email-video маркертай (backend playable болгоно)
+    const linkHtml =
+      `<p style="text-align:center"><a href="${url}" target="_blank" rel="noopener" ` +
+      `data-email-video="true" style="color:#022179;font-weight:600;text-decoration:none">` +
+      `▶ Видео тоглуулах</a></p>`;
+    chain.insertContent(linkHtml).run();
+  };
+
   const insertTable = () => {
     (editor.chain().focus() as any).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   };
@@ -317,6 +400,21 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
 
   return (
     <div className={cn('rounded-lg border border-input bg-background overflow-hidden', className)}>
+      {/* Нуугдмал зураг upload input (R2) */}
+      {onImageUpload && (
+        <input
+          ref={imgInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleImageFile(f);
+            e.target.value = '';
+          }}
+        />
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 px-2 py-1.5">
 
@@ -510,12 +608,34 @@ export function RichEditor({ value, onChange, placeholder, minHeight = '200px', 
         <Divider />
 
         {/* Image & Table */}
-        <ToolbarButton title="Зураг оруулах" onClick={addImage}>
+        <ToolbarButton title="Зураг (URL-ээр)" onClick={addImage}>
           <ImageIcon className="h-3.5 w-3.5" />
         </ToolbarButton>
+        {onImageUpload && (
+          <ToolbarButton
+            title="Зураг байршуулах (R2)"
+            onClick={() => imgInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          </ToolbarButton>
+        )}
         <ToolbarButton title="Хүснэгт оруулах" onClick={insertTable}>
           <TableIcon className="h-3.5 w-3.5" />
         </ToolbarButton>
+
+        {/* Имэйлийн element-үүд (CTA товч, видео) */}
+        {emailMode && (
+          <>
+            <Divider />
+            <ToolbarButton title="CTA товч оруулах" onClick={insertCtaButton}>
+              <MousePointerClick className="h-3.5 w-3.5" />
+            </ToolbarButton>
+            <ToolbarButton title="Видео оруулах" onClick={insertVideo}>
+              <Video className="h-3.5 w-3.5" />
+            </ToolbarButton>
+          </>
+        )}
 
         <Divider />
 

@@ -19,6 +19,10 @@ import {
   ChevronDown,
   Send,
   Eye,
+  Users,
+  Layers,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   Badge,
@@ -39,10 +43,23 @@ import {
   SelectValue,
 } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import { TagInput } from '@/components/ui/tag-input';
+import { RichEditor } from '@/components/ui/rich-editor';
 import { SimpleDropdown, SimpleDropdownItem } from '@/components/ui/simple-dropdown';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminSubscriber, AdminSubscriberCategory } from '@/types/admin';
+
+// Захиалагчийн эх сурвалжууд (filter + илгээлтэд) — Монгол нэртэйгээр
+const SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'homepage', label: 'Нүүр хуудас' },
+  { value: 'free-ppt', label: 'Үнэгүй PPT' },
+  { value: 'checkout', label: 'Худалдан авалт' },
+  { value: 'popup', label: 'Поп-ап' },
+  { value: 'web-register', label: 'Веб бүртгэл' },
+  { value: 'admin', label: 'Админ' },
+  { value: 'import', label: 'Импорт' },
+];
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'Идэвхтэй',
@@ -282,7 +299,12 @@ function CategoryDialog({
   );
 }
 
-// ─── Bulk marketing email compose dialog ─────────────────────────────────────
+// ─── Bulk marketing email compose dialog (Mailchimp маягийн) ──────────────────
+// Хүлээн авагчийг олон filter хослолоор (сонгосон / status / категори / эх сурвалж) сонгох,
+// VISUAL editor (TipTap rich text + зураг/видео upload + CTA товч), бодит email preview,
+// background queue-ийн илгээлтийн явц (poll).
+type RecipientMode = 'selected' | 'filter';
+
 function EmailComposeDialog({
   open,
   selectedIds,
@@ -294,45 +316,90 @@ function EmailComposeDialog({
   categories: AdminSubscriberCategory[];
   onClose: () => void;
 }) {
-  // Хүлээн авагч: 'selected' (сонгосон N) | 'all' (бүх идэвхтэй) | категори id
-  const [target, setTarget] = useState<string>('selected');
+  const [mode, setMode] = useState<RecipientMode>('filter');
+  // Filter горимын олон шүүлт (хослуулна): status + категори + эх сурвалж
+  const [fStatus, setFStatus] = useState<'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED' | 'all'>('ACTIVE');
+  const [fCategory, setFCategory] = useState<string>('all');
+  const [fSource, setFSource] = useState<string>('all');
+
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
 
-  // Dialog нээгдэх бүрд reset. Сонгосон байвал 'selected', эс бол 'all'.
+  // Dialog нээгдэх бүрд reset. Сонгосон байвал 'selected', эс бол 'filter'.
   useEffect(() => {
     if (open) {
-      setTarget(selectedIds.length > 0 ? 'selected' : 'all');
+      setMode(selectedIds.length > 0 ? 'selected' : 'filter');
+      setFStatus('ACTIVE');
+      setFCategory('all');
+      setFSource('all');
       setSubject('');
       setBody('');
       setShowPreview(false);
       setConfirmOpen(false);
+      setCampaignId(null);
     }
   }, [open, selectedIds.length]);
 
-  const sendMut = useMutation({
-    mutationFn: () => {
-      const payload: {
-        recipientIds?: string[];
-        status?: 'ACTIVE';
-        categoryId?: string;
-        subject: string;
-        bodyHtml: string;
-      } = { subject: subject.trim(), bodyHtml: body };
-      if (target === 'selected') payload.recipientIds = selectedIds;
-      else if (target === 'all') payload.status = 'ACTIVE';
-      else { payload.status = 'ACTIVE'; payload.categoryId = target; }
-      return adminApi.subscribers.sendEmail(payload);
+  // Илгээх payload-ийг filter-уудаас бүрдүүлнэ (status='all' бол status илгээхгүй)
+  const buildPayload = () => {
+    const p: {
+      recipientIds?: string[];
+      status?: 'ACTIVE' | 'INACTIVE' | 'UNSUBSCRIBED';
+      categoryId?: string;
+      source?: string;
+    } = {};
+    if (mode === 'selected') {
+      p.recipientIds = selectedIds;
+    } else {
+      if (fStatus !== 'all') p.status = fStatus;
+      if (fCategory !== 'all') p.categoryId = fCategory;
+      if (fSource !== 'all') p.source = fSource;
+    }
+    return p;
+  };
+
+  // ── Хүлээн авагчийн тоог сервер талд тооцоолно (filter өөрчлөгдөх бүрд) ──
+  const countKey = mode === 'selected'
+    ? ['sel', selectedIds.length]
+    : ['flt', fStatus, fCategory, fSource];
+  const { data: countData, isFetching: countLoading } = useQuery({
+    queryKey: ['admin', 'recipient-count', countKey],
+    queryFn: () => adminApi.subscribers.countRecipients(buildPayload()),
+    enabled: open && !(mode === 'selected'),
+    staleTime: 10_000,
+  });
+  const recipientCount = mode === 'selected' ? selectedIds.length : countData?.count ?? null;
+
+  // ── Background queue явцыг poll хийх ──
+  const { data: progress } = useQuery({
+    queryKey: ['admin', 'campaign-progress', campaignId],
+    queryFn: () => adminApi.subscribers.campaignProgress(campaignId as string),
+    enabled: !!campaignId,
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
+      return s === 'done' || s === 'failed' ? false : 2000;
     },
+  });
+
+  const sendMut = useMutation({
+    mutationFn: () => adminApi.subscribers.sendEmail({ ...buildPayload(), subject: subject.trim(), bodyHtml: body }),
     onSuccess: (res) => {
-      toast.success(
-        `${res.sent} имэйл илгээгдлээ${res.failed ? ` · ${res.failed} амжилтгүй` : ''}`,
-        { duration: 5000 },
-      );
       setConfirmOpen(false);
-      onClose();
+      if (res.campaignId) {
+        // Background queue — явцыг хянана
+        setCampaignId(res.campaignId);
+        toast.success(`${res.total} имэйл дараалалд нэмэгдлээ — илгээгдэж байна...`, { duration: 4000 });
+      } else {
+        // Шууд илгээсэн (queue-гүй backend)
+        toast.success(
+          `${res.sent} имэйл илгээгдлээ${res.failed ? ` · ${res.failed} амжилтгүй` : ''}`,
+          { duration: 5000 },
+        );
+        onClose();
+      }
     },
     onError: (e: Error) => {
       toast.error(e.message || 'Имэйл илгээхэд алдаа гарлаа');
@@ -340,125 +407,297 @@ function EmailComposeDialog({
     },
   });
 
-  // Хүлээн авагчийн тоо/тайлбар (баталгаажуулалтад харуулна)
-  const recipientLabel =
-    target === 'selected'
-      ? `Сонгосон ${selectedIds.length} захиалагч`
-      : target === 'all'
-      ? 'Бүх идэвхтэй захиалагч'
-      : `«${categories.find((c) => c.id === target)?.name ?? 'категори'}» — идэвхтэй захиалагч`;
+  // Хүлээн авагчийн тайлбар (баталгаажуулалт + footer-т)
+  const recipientLabel = (() => {
+    if (mode === 'selected') return `Сонгосон ${selectedIds.length} захиалагч`;
+    const parts: string[] = [];
+    parts.push(fStatus === 'all' ? 'Бүх төлөв' : STATUS_LABEL[fStatus]);
+    if (fCategory !== 'all') parts.push(`«${categories.find((c) => c.id === fCategory)?.name ?? 'категори'}»`);
+    if (fSource !== 'all') parts.push(SOURCE_OPTIONS.find((s) => s.value === fSource)?.label ?? fSource);
+    return parts.join(' · ');
+  })();
 
-  const canSend = subject.trim().length > 0 && body.trim().length > 0 &&
-    !(target === 'selected' && selectedIds.length === 0);
+  const canSend =
+    subject.trim().length > 0 &&
+    body.replace(/<[^>]*>/g, '').trim().length > 0 &&
+    !(mode === 'selected' && selectedIds.length === 0) &&
+    (recipientCount === null || recipientCount > 0);
+
+  // Бодит email layout (брэнд header/footer)-той preview
+  const previewHtml = `
+    <div style="max-width:600px;margin:0 auto;font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#1f2937">
+      <div style="background:#022179;padding:20px 24px;border-radius:12px 12px 0 0;text-align:center">
+        <span style="color:#ffbe00;font-weight:800;font-size:20px;letter-spacing:0.5px">DigitalGer</span>
+      </div>
+      <div style="background:#ffffff;padding:28px 24px;border:1px solid #eee;border-top:0">
+        ${body || '<p style="color:#9ca3af">Агуулга хоосон байна…</p>'}
+      </div>
+      <div style="background:#f8f9fb;padding:16px 24px;border-radius:0 0 12px 12px;border:1px solid #eee;border-top:0;text-align:center">
+        <p style="margin:0;font-size:12px;color:#9ca3af">© ${new Date().getFullYear()} DigitalGer · digitalger.mn</p>
+        <p style="margin:6px 0 0;font-size:11px;color:#c0c4cc">Захиалга цуцлах холбоос автоматаар нэмэгдэнэ</p>
+      </div>
+    </div>`;
+
+  const sending = sendMut.isPending;
+  const isQueued = !!campaignId && progress && progress.status !== 'done' && progress.status !== 'failed';
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={open} onOpenChange={(o) => !o && !sending && onClose()}>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-primary" /> Имэйл явуулах
+              <Send className="h-5 w-5 text-primary" /> Имэйл кампанит ажил
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            {/* Хүлээн авагч сонгох */}
-            <div className="space-y-1.5">
-              <Label>Хүлээн авагч</Label>
-              <Select value={target} onValueChange={setTarget}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {selectedIds.length > 0 && (
-                    <SelectItem value="selected">Сонгосон ({selectedIds.length})</SelectItem>
-                  )}
-                  <SelectItem value="all">Бүх идэвхтэй захиалагч</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      Категори: {c.name} ({c.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Зөвхөн идэвхтэй (захиалга цуцлаагүй) хаягууд руу илгээгдэнэ.
-              </p>
-            </div>
 
-            {/* Гарчиг */}
-            <div className="space-y-1.5">
-              <Label>Гарчиг (Subject) *</Label>
-              <Input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Жишээ: 🎉 Шинэ хямдрал эхэллээ!"
-                maxLength={200}
-              />
-            </div>
-
-            {/* Агуулга / Preview */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label>Агуулга (HTML дэмжинэ) *</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setShowPreview((v) => !v)}
-                >
-                  <Eye className="mr-1 h-3.5 w-3.5" />
-                  {showPreview ? 'Засах' : 'Урьдчилан харах'}
-                </Button>
-              </div>
-              {showPreview ? (
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <div
-                    className="prose prose-sm max-w-none text-sm dark:prose-invert"
-                    // Зөвхөн admin өөрийн бичсэн агуулга — backend дээр sanitize хийнэ
-                    dangerouslySetInnerHTML={{ __html: body || '<p class="text-muted-foreground">Агуулга хоосон байна</p>' }}
-                  />
+          {/* Илгээлтийн явц (background queue) */}
+          {campaignId && progress ? (
+            <CampaignProgressView progress={progress} onClose={onClose} />
+          ) : (
+            <div className="space-y-4">
+              {/* ── Хүлээн авагч ── */}
+              <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-semibold">Хүлээн авагч</Label>
+                  <div className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                    {countLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Users className="h-3 w-3" />
+                    )}
+                    {recipientCount !== null ? `${recipientCount.toLocaleString()} хүн` : '…'}
+                  </div>
                 </div>
-              ) : (
-                <textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={9}
-                  maxLength={50000}
-                  placeholder={'<p>Сайн байна уу!</p>\n<p>Манай шинэ бүтээгдэхүүнтэй танилцаарай...</p>\n<a href="https://digitalger.mn/products">Үзэх</a>'}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono leading-relaxed outline-none focus:ring-2 focus:ring-ring"
+
+                {/* Горим: сонгосон / шүүлтээр */}
+                <div className="flex flex-wrap gap-2">
+                  {selectedIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setMode('selected')}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        mode === 'selected' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'
+                      }`}
+                    >
+                      Сонгосон ({selectedIds.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMode('filter')}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      mode === 'filter' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'
+                    }`}
+                  >
+                    <Layers className="h-3.5 w-3.5" /> Шүүлтээр
+                  </button>
+                </div>
+
+                {/* Filter горимын олон шүүлт */}
+                {mode === 'filter' && (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Төлөв</Label>
+                      <Select value={fStatus} onValueChange={(v) => setFStatus(v as typeof fStatus)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Идэвхтэй</SelectItem>
+                          <SelectItem value="INACTIVE">Идэвхгүй</SelectItem>
+                          <SelectItem value="UNSUBSCRIBED">Орхисон</SelectItem>
+                          <SelectItem value="all">Бүх төлөв</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Категори</Label>
+                      <Select value={fCategory} onValueChange={setFCategory}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Бүх категори" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Бүх категори</SelectItem>
+                          {categories.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.name} ({c.count})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Эх сурвалж</Label>
+                      <Select value={fSource} onValueChange={setFSource}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Бүх эх сурвалж" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Бүх эх сурвалж</SelectItem>
+                          {SOURCE_OPTIONS.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Орхисон (захиалга цуцалсан) хаягууд руу автоматаар илгээгдэхгүй.
+                </p>
+              </div>
+
+              {/* ── Гарчиг ── */}
+              <div className="space-y-1.5">
+                <Label>Гарчиг (Subject) *</Label>
+                <Input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Жишээ: 🎉 Шинэ хямдрал эхэллээ!"
+                  maxLength={200}
                 />
-              )}
-              <p className="text-xs text-muted-foreground">
-                Брэндийн загвар (лого, footer, «Захиалга цуцлах» холбоос) автоматаар нэмэгдэнэ.
-              </p>
+              </div>
+
+              {/* ── Агуулга (Visual editor) / Preview ── */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>Агуулга *</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowPreview((v) => !v)}
+                  >
+                    <Eye className="mr-1 h-3.5 w-3.5" />
+                    {showPreview ? 'Засах' : 'Имэйл харагдац'}
+                  </Button>
+                </div>
+                {showPreview ? (
+                  <div className="rounded-lg border border-border bg-[#f1f3f7] p-4 dark:bg-muted/30">
+                    <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                  </div>
+                ) : (
+                  <RichEditor
+                    value={body}
+                    onChange={setBody}
+                    emailMode
+                    minHeight="260px"
+                    placeholder="Сайн байна уу! Манай шинэ бүтээгдэхүүнтэй танилцаарай…"
+                    onImageUpload={async (file) => {
+                      const res = await uploadWithProgress(file, 'email');
+                      return res.url;
+                    }}
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Гарчиг, текст, зураг, видео, CTA товч нэмэх боломжтой. Брэндийн header/footer автоматаар нэмэгдэнэ.
+                </p>
+              </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Болих</Button>
-            <Button type="button" disabled={!canSend} onClick={() => setConfirmOpen(true)}>
-              <Send className="mr-1.5 h-4 w-4" /> Явуулах
-            </Button>
-          </DialogFooter>
+          )}
+
+          {!campaignId && (
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Болих</Button>
+              <Button type="button" disabled={!canSend} onClick={() => setConfirmOpen(true)}>
+                <Send className="mr-1.5 h-4 w-4" /> Явуулах
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Баталгаажуулалт — санамсаргүй явуулахаас сэргийлэх */}
-      <Dialog open={confirmOpen} onOpenChange={(o) => !o && setConfirmOpen(false)}>
+      <Dialog open={confirmOpen} onOpenChange={(o) => !o && !sending && setConfirmOpen(false)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Имэйл явуулах уу?</DialogTitle></DialogHeader>
           <div className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">Хүлээн авагч:</span> <span className="font-medium">{recipientLabel}</span></p>
+            <p>
+              <span className="text-muted-foreground">Хүлээн авагч:</span>{' '}
+              <span className="font-medium">{recipientLabel}</span>
+              {recipientCount !== null && (
+                <span className="ml-1 font-semibold text-primary">({recipientCount.toLocaleString()} хүн)</span>
+              )}
+            </p>
             <p><span className="text-muted-foreground">Гарчиг:</span> <span className="font-medium">{subject.trim() || '—'}</span></p>
             <p className="text-xs text-muted-foreground">Илгээсэн имэйлийг буцаах боломжгүй.</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Цуцлах</Button>
-            <Button disabled={sendMut.isPending} onClick={() => sendMut.mutate()}>
-              {sendMut.isPending ? 'Илгээж байна...' : 'Тийм, явуулах'}
+            <Button variant="outline" disabled={sending} onClick={() => setConfirmOpen(false)}>Цуцлах</Button>
+            <Button disabled={sending} onClick={() => sendMut.mutate()}>
+              {sending ? 'Илгээж байна...' : 'Тийм, явуулах'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// Background queue-ийн илгээлтийн явц (progress bar + тоонууд)
+function CampaignProgressView({
+  progress,
+  onClose,
+}: {
+  progress: import('@/types/admin').EmailCampaignProgress;
+  onClose: () => void;
+}) {
+  const { total, sent, failed, status } = progress;
+  const done = status === 'done' || status === 'failed';
+  const processed = sent + failed;
+  const pct = total > 0 ? Math.round((processed / total) * 100) : (done ? 100 : 0);
+
+  return (
+    <div className="space-y-4 py-2">
+      <div className="flex items-center gap-3">
+        {done ? (
+          <CheckCircle2 className="h-6 w-6 text-green-500" />
+        ) : (
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        )}
+        <div>
+          <p className="font-semibold">
+            {status === 'done'
+              ? 'Илгээлт дууслаа'
+              : status === 'failed'
+              ? 'Илгээлт алдаатай дууслаа'
+              : 'Илгээж байна…'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {processed.toLocaleString()} / {total.toLocaleString()} боловсруулсан
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Явц</span>
+          <span className="font-bold tabular-nums">{pct}%</span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${status === 'failed' ? 'bg-destructive' : 'bg-primary'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg bg-muted/40 p-2.5">
+          <p className="text-lg font-bold tabular-nums">{total.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground">Нийт</p>
+        </div>
+        <div className="rounded-lg bg-green-50 p-2.5 dark:bg-green-900/20">
+          <p className="text-lg font-bold tabular-nums text-green-600 dark:text-green-400">{sent.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground">Илгээсэн</p>
+        </div>
+        <div className="rounded-lg bg-red-50 p-2.5 dark:bg-red-900/20">
+          <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400">{failed.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground">Амжилтгүй</p>
+        </div>
+      </div>
+
+      {done && (
+        <div className="flex justify-end">
+          <Button onClick={onClose}>Хаах</Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -591,8 +830,6 @@ export default function SubscribersPage() {
   const total = data?.total ?? 0;
   const items = data?.items ?? [];
 
-  const sources = ['homepage', 'free-ppt', 'checkout', 'popup', 'web-register', 'admin', 'import'];
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -673,7 +910,7 @@ export default function SubscribersPage() {
               <SelectTrigger className="w-40"><SelectValue placeholder="Эх сурвалж" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Бүх эх сурвалж</SelectItem>
-                {sources.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {SOURCE_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
             {(status || categoryId || source || search) && (

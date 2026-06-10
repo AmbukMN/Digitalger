@@ -20,6 +20,11 @@ export class SendBulkEmailDto {
   @IsString()
   categoryId?: string;
 
+  // 4) source — эх сурвалжаар шүүх (newsletter/checkout/import/admin г.м).
+  @IsOptional()
+  @IsString()
+  source?: string;
+
   @IsString()
   @IsNotEmpty({ message: 'Гарчиг (subject) оруулна уу' })
   @MaxLength(200)

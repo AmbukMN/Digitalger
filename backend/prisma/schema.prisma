@@ -815,6 +815,46 @@ model EmailOpen {
   @@index([email, campaign])
 }
 
+// ── AWS SES Enterprise email infrastructure ──────────────────────────────────
+
+// Илгээсэн имэйл бүрийн лог (audit, status tracking).
+//   status: queued | sent | delivered | bounced | complained | failed
+model EmailLog {
+  id           String   @id @default(cuid())
+  to           String
+  subject      String
+  campaign     String? // marketing campaign нэр (transactional бол null)
+  provider     String   @default("ses") // ses | resend
+  status       String   @default("queued")
+  messageId    String? // SES MessageId (bounce/complaint match хийхэд)
+  errorMessage String?  @db.Text
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deliveredAt  DateTime?
+  bouncedAt    DateTime?
+  complainedAt DateTime?
+
+  @@index([to, createdAt])
+  @@index([status, createdAt])
+  @@index([messageId])
+  @@index([campaign, createdAt])
+}
+
+// Suppression list — bounce/complaint/manual хаягууд. Энд байгаа хаягт ХЭЗЭЭ Ч
+// имэйл явуулахгүй (send-ийн өмнө шалгана) — sender reputation хамгаална.
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String // bounce | complaint | manual
+  // bounce subType: Permanent | Transient | Undetermined; complaint: abuse гэх мэт
+  subType   String?
+  detail    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([reason, createdAt])
+}
+
 // Чатбот харилцаа (web chat / FB / IG) — admin хэрэглэгчийн дэлгэрэнгүйд харах.
 // n8n workflow-аас мессеж бүрийг backend-д хадгална. Нэвтрээгүй (зочин) үеийн
 // chat-ийг sessionId-аар хадгалж, хэрэглэгч нэвтрэхэд userId-д холбоно (backfill).

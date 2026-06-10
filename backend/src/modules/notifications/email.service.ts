@@ -1,12 +1,47 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Optional,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import {
+  SESClient,
+  SendEmailCommand,
+  SendEmailCommandOutput,
+  GetSendQuotaCommand,
+} from '@aws-sdk/client-ses';
 import { Resend } from 'resend';
 import Redis from 'ioredis';
+import { PrismaService } from '../../prisma/prisma.service';
+import { EmailQueueService } from './email-queue.service';
+import { EmailJobPayload } from './email-queue.types';
+import { ReputationService } from './reputation.service';
 
-const EMAIL_COUNT_KEY        = 'email:sent:count';        // AWS SES тоолуур
-const EMAIL_RESEND_COUNT_KEY = 'email:resend:count';      // Resend тоолуур (тусдаа)
-const EMAIL_QUEUE_KEY        = 'email:queue:length';
+// SES түр (transient) алдааны нэрс — эдгээрт retry хийнэ (exponential backoff).
+// Бусад (invalid email, MessageRejected гэх мэт permanent) → retry ХИЙХГҮЙ.
+const SES_TRANSIENT_ERRORS = new Set<string>([
+  'Throttling',
+  'ThrottlingException',
+  'TooManyRequestsException',
+  'ServiceUnavailable',
+  'ServiceUnavailableException',
+  'InternalFailure',
+  'RequestTimeout',
+  'RequestTimeoutException',
+  'TimeoutError',
+  'NetworkingError',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'ENOTFOUND',
+]);
+const SES_MAX_ATTEMPTS = 3; // нийт оролдлого (1 анхны + 2 retry)
+
+const EMAIL_COUNT_KEY = 'email:sent:count'; // AWS SES тоолуур
+const EMAIL_RESEND_COUNT_KEY = 'email:resend:count'; // Resend тоолуур (тусдаа)
+const EMAIL_QUEUE_KEY = 'email:queue:length';
 
 // Имэйл илгээх провайдер. AWS verify болоогүй тул түр Resend ашиглана.
 // EMAIL_PROVIDER=resend (анхдагч) | ses — env-ээр сэлгэнэ, код дахин бичихгүй.
@@ -24,20 +59,48 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   private readonly queue: Array<() => Promise<unknown>> = [];
   private draining = false;
 
-  constructor(private readonly config: ConfigService) {
-    this.from       = this.config.get<string>('MAIL_FROM') ?? this.config.get<string>('EMAIL_FROM') ?? 'noreply@digitalger.mn';
-    this.siteUrl    = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
-    const region    = this.config.get<string>('AWS_REGION') ?? 'eu-north-1';
+  // Suppression-ийн санах ой кэш (email → suppressed эсэх). DB load бууруулна.
+  // TTL 5 минут — webhook шинэ bounce нэмбэл удалгүй мөрдөгдөнө.
+  private readonly suppressionCache = new Map<
+    string,
+    { suppressed: boolean; at: number }
+  >();
+  private readonly SUPPRESSION_TTL_MS = 5 * 60 * 1000;
+
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly emailQueue: EmailQueueService,
+    // ⚠️ Optional — worker.module-д ReputationService (N8nModule-аас хамаардаг)
+    // бүртгэгддэггүй. getStats нь зөвхөн API admin dashboard-д дуудагддаг тул
+    // worker-т reputation null байж болно (rate-уудыг 0 болгоно).
+    @Optional() private readonly reputation?: ReputationService,
+  ) {
+    this.from =
+      this.config.get<string>('MAIL_FROM') ??
+      this.config.get<string>('EMAIL_FROM') ??
+      'noreply@digitalger.mn';
+    this.siteUrl =
+      this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
+    const region = this.config.get<string>('AWS_REGION') ?? 'eu-north-1';
     const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID');
     const secretKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
     const resendKey = this.config.get<string>('RESEND_API_KEY');
-    const redisUrl  = this.config.get<string>('redisUrl') ?? this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+    const redisUrl =
+      this.config.get<string>('redisUrl') ??
+      this.config.get<string>('REDIS_URL') ??
+      'redis://localhost:6379';
 
     // Провайдерийг env-ээс. Анхдагч 'resend' (AWS verify болоогүй).
-    const rawProvider = (this.config.get<string>('EMAIL_PROVIDER') ?? 'resend').toLowerCase();
+    const rawProvider = (
+      this.config.get<string>('EMAIL_PROVIDER') ?? 'resend'
+    ).toLowerCase();
     this.provider = rawProvider === 'ses' ? 'ses' : 'resend';
 
-    this.redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 3 });
+    this.redis = new Redis(redisUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 3,
+    });
 
     // ── Resend client ──
     if (resendKey) {
@@ -46,7 +109,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     } else {
       this.resend = null;
       if (this.provider === 'resend') {
-        this.logger.warn('RESEND_API_KEY тохируулаагүй — Resend имэйл явуулахгүй');
+        this.logger.warn(
+          'RESEND_API_KEY тохируулаагүй — Resend имэйл явуулахгүй',
+        );
       }
     }
 
@@ -61,7 +126,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       this.ses = null;
     }
 
-    this.logger.log(`Имэйлийн идэвхтэй провайдер: ${this.provider.toUpperCase()}`);
+    this.logger.log(
+      `Имэйлийн идэвхтэй провайдер: ${this.provider.toUpperCase()}`,
+    );
   }
 
   async onModuleInit() {
@@ -108,28 +175,31 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   // ─── Дундын имэйл layout (бүх marketing/transactional template-д) ─────────────
   // Гоё, найдвартай (table-based, бүх email client дэмжинэ), лого/footer/pixel.
   private emailLayout(opts: {
-    heading: string;       // гол гарчиг (body эхэнд)
-    bodyHtml: string;      // дунд хэсэг (HTML)
-    ctaText?: string;      // CTA товчны текст
-    ctaUrl?: string;       // CTA холбоос
-    preheader?: string;    // inbox preview текст
-    campaign?: string;     // tracking pixel campaign нэр
-    email?: string;        // pixel-д хэрэглэгчийн имэйл
-    refId?: string;        // pixel refId (order/coupon/product)
+    heading: string; // гол гарчиг (body эхэнд)
+    bodyHtml: string; // дунд хэсэг (HTML)
+    ctaText?: string; // CTA товчны текст
+    ctaUrl?: string; // CTA холбоос
+    preheader?: string; // inbox preview текст
+    campaign?: string; // tracking pixel campaign нэр
+    email?: string; // pixel-д хэрэглэгчийн имэйл
+    refId?: string; // pixel refId (order/coupon/product)
     showUnsubscribe?: boolean; // marketing имэйлд unsubscribe footer
   }): string {
-    const cta = opts.ctaText && opts.ctaUrl
-      ? `<tr><td style="padding:8px 36px 28px;text-align:center">
+    const cta =
+      opts.ctaText && opts.ctaUrl
+        ? `<tr><td style="padding:8px 36px 28px;text-align:center">
            <a href="${opts.ctaUrl}" style="display:inline-block;background:#022179;color:#ffbe00;font-weight:800;font-size:15px;padding:14px 36px;border-radius:10px;text-decoration:none">${opts.ctaText}</a>
          </td></tr>`
-      : '';
+        : '';
     // Tracking pixel (1×1) — нээлт хянана
-    const pixel = opts.campaign && opts.email
-      ? `<img src="${this.siteUrl.replace('digitalger.mn', 'api.digitalger.mn')}/api/email/open?c=${encodeURIComponent(opts.campaign)}&e=${encodeURIComponent(opts.email)}${opts.refId ? `&r=${encodeURIComponent(opts.refId)}` : ''}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`
-      : '';
-    const unsub = opts.showUnsubscribe && opts.email
-      ? `<p style="margin:8px 0 0;font-size:11px;color:#bbb">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}" style="color:#999;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
-      : '';
+    const pixel =
+      opts.campaign && opts.email
+        ? `<img src="${this.siteUrl.replace('digitalger.mn', 'api.digitalger.mn')}/api/email/open?c=${encodeURIComponent(opts.campaign)}&e=${encodeURIComponent(opts.email)}${opts.refId ? `&r=${encodeURIComponent(opts.refId)}` : ''}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`
+        : '';
+    const unsub =
+      opts.showUnsubscribe && opts.email
+        ? `<p style="margin:8px 0 0;font-size:11px;color:#bbb">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}" style="color:#999;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
+        : '';
     const pre = opts.preheader
       ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${opts.preheader}</div>`
       : '';
@@ -182,21 +252,193 @@ ${pixel}
     this.draining = false;
   }
 
+  // ─── Suppression (bounce/complaint/manual) ───────────────────────────────────
+  /**
+   * Тухайн имэйл suppression жагсаалтад байгаа эсэх (явуулахгүй).
+   * Санах ойн кэштэй (5 мин TTL) — webhook шинэ bounce нэмбэл удалгүй мөрдөгдөнө.
+   */
+  async isSuppressed(email: string): Promise<boolean> {
+    const key = email.toLowerCase().trim();
+    const cached = this.suppressionCache.get(key);
+    if (cached && Date.now() - cached.at < this.SUPPRESSION_TTL_MS) {
+      return cached.suppressed;
+    }
+    let suppressed = false;
+    try {
+      const row = await this.prisma.emailSuppression.findUnique({
+        where: { email: key },
+      });
+      suppressed = !!row;
+    } catch (err) {
+      // DB алдаа гарвал имэйлийг блоклохгүй (false-safe) — гэхдээ кэшлэхгүй.
+      this.logger.warn(`Suppression шалгахад алдаа → ${key}: ${err}`);
+      return false;
+    }
+    this.suppressionCache.set(key, { suppressed, at: Date.now() });
+    return suppressed;
+  }
+
+  /**
+   * Suppression жагсаалтад нэмэх (bounce/complaint webhook эсвэл админ гараар).
+   * Идемпотент (upsert) — давхар bounce ирэхэд алдаа гаргахгүй.
+   */
+  async addSuppression(opts: {
+    email: string;
+    reason: 'bounce' | 'complaint' | 'manual';
+    subType?: string | null;
+    detail?: string | null;
+  }): Promise<void> {
+    const email = opts.email.toLowerCase().trim();
+    if (!email) return;
+    try {
+      await this.prisma.emailSuppression.upsert({
+        where: { email },
+        create: {
+          email,
+          reason: opts.reason,
+          subType: opts.subType ?? null,
+          detail: opts.detail ?? null,
+        },
+        update: {
+          reason: opts.reason,
+          subType: opts.subType ?? null,
+          detail: opts.detail ?? null,
+        },
+      });
+      // Кэшийг шинэчилнэ — дараагийн send шууд блоклоно.
+      this.suppressionCache.set(email, { suppressed: true, at: Date.now() });
+      this.logger.log(
+        `Suppression нэмлээ → ${email} (${opts.reason}${opts.subType ? '/' + opts.subType : ''})`,
+      );
+    } catch (err) {
+      this.logger.error(`Suppression нэмж чадсангүй → ${email}: ${err}`);
+    }
+  }
+
+  /** Suppression жагсаалтаас хасах (админ гараар сэргээх). */
+  async removeSuppression(email: string): Promise<void> {
+    const key = email.toLowerCase().trim();
+    await this.prisma.emailSuppression
+      .deleteMany({ where: { email: key } })
+      .catch(() => null);
+    this.suppressionCache.set(key, { suppressed: false, at: Date.now() });
+  }
+
+  // ─── EmailLog (бүх илгээлтийн audit) ──────────────────────────────────────────
+  private async createLog(opts: {
+    to: string;
+    subject: string;
+    campaign?: string | null;
+    provider: EmailProvider;
+    status: string;
+    messageId?: string | null;
+    errorMessage?: string | null;
+    attempts: number;
+  }): Promise<void> {
+    try {
+      await this.prisma.emailLog.create({
+        data: {
+          to: opts.to,
+          subject: opts.subject,
+          campaign: opts.campaign ?? null,
+          provider: opts.provider,
+          status: opts.status,
+          messageId: opts.messageId ?? null,
+          errorMessage: opts.errorMessage ?? null,
+          attempts: opts.attempts,
+        },
+      });
+    } catch (err) {
+      // Лог үүсгэхэд алдаа гарвал имэйлийн урсгалыг зогсоохгүй.
+      this.logger.warn(`EmailLog үүсгэж чадсангүй → ${opts.to}: ${err}`);
+    }
+  }
+
+  // ─── messageId-аар лог status шинэчлэх (SNS webhook ашиглана) ─────────────────
+  /** delivered/bounced/complained зэрэг SNS эвентийг лог-д тэмдэглэнэ. */
+  async markLogStatus(
+    messageId: string,
+    status: 'delivered' | 'bounced' | 'complained',
+  ): Promise<void> {
+    if (!messageId) return;
+    const now = new Date();
+    const data: Record<string, unknown> = { status };
+    if (status === 'delivered') data.deliveredAt = now;
+    if (status === 'bounced') data.bouncedAt = now;
+    if (status === 'complained') data.complainedAt = now;
+    try {
+      await this.prisma.emailLog.updateMany({ where: { messageId }, data });
+    } catch (err) {
+      this.logger.warn(
+        `EmailLog status шинэчилж чадсангүй (${messageId}): ${err}`,
+      );
+    }
+  }
+
+  // SES алдаа transient (retry хийх) эсэхийг шалгана.
+  private isTransientSesError(err: unknown): boolean {
+    const e = err as {
+      name?: string;
+      code?: string;
+      $metadata?: { httpStatusCode?: number };
+    };
+    const name = e?.name ?? '';
+    const code = e?.code ?? '';
+    if (SES_TRANSIENT_ERRORS.has(name) || SES_TRANSIENT_ERRORS.has(code))
+      return true;
+    // 5xx (server-side) → transient. 4xx (invalid email/reject) → permanent.
+    const http = e?.$metadata?.httpStatusCode;
+    return typeof http === 'number' && http >= 500;
+  }
+
   // Имэйл амжилттай явсан эсэхийг буцаана (true=амжилттай, false=алдаа/явсангүй).
   // subscribe урсгал энэ утгаар имэйл хүчинтэй эсэхийг шийднэ.
-  private async send(to: string, subject: string, html: string, replyTo?: string): Promise<boolean> {
+  // campaign — EmailLog-д marketing campaign нэр (transactional бол undefined).
+  private async send(
+    to: string,
+    subject: string,
+    html: string,
+    replyTo?: string,
+    campaign?: string,
+  ): Promise<boolean> {
     if (!this.isValidEmail(to)) return false;
 
-    this.logger.log(`Имэйл боловсруулж байна (${this.provider}) → ${to} | ${subject}`);
+    // ⚠️ Suppression check — БҮХ send (transactional + marketing). bounce/complaint
+    // болсон хаягт дахин явуулахгүй (sender reputation хамгаална).
+    if (await this.isSuppressed(to)) {
+      this.logger.warn(`Suppression — имэйл алгассан → ${to} | ${subject}`);
+      await this.createLog({
+        to,
+        subject,
+        campaign,
+        provider: this.provider,
+        status: 'suppressed',
+        attempts: 0,
+      });
+      return false;
+    }
 
-    // ── Resend (идэвхтэй провайдер) ──
+    this.logger.log(
+      `Имэйл боловсруулж байна (${this.provider}) → ${to} | ${subject}`,
+    );
+
+    // ── Resend (нөөц провайдер) ──
     if (this.provider === 'resend') {
       if (!this.resend) {
         this.logger.warn(`Resend тохируулаагүй — имэйл алгассан → ${to}`);
+        await this.createLog({
+          to,
+          subject,
+          campaign,
+          provider: 'resend',
+          status: 'failed',
+          errorMessage: 'Resend not configured',
+          attempts: 0,
+        });
         return false;
       }
       try {
-        const { error } = await this.resend.emails.send({
+        const { data, error } = await this.resend.emails.send({
           from: `DigitalGer <${this.from}>`,
           to: [to],
           subject,
@@ -204,41 +446,143 @@ ${pixel}
           ...(replyTo ? { replyTo } : {}),
         });
         if (error) {
-          this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${JSON.stringify(error)}`);
+          this.logger.error(
+            `Resend имэйл явуулж чадсангүй → ${to}: ${JSON.stringify(error)}`,
+          );
+          await this.createLog({
+            to,
+            subject,
+            campaign,
+            provider: 'resend',
+            status: 'failed',
+            errorMessage: JSON.stringify(error),
+            attempts: 1,
+          });
           return false;
         }
         await this.bumpCounter(EMAIL_RESEND_COUNT_KEY);
+        await this.createLog({
+          to,
+          subject,
+          campaign,
+          provider: 'resend',
+          status: 'sent',
+          messageId: data?.id ?? null,
+          attempts: 1,
+        });
         this.logger.log(`Resend имэйл амжилттай илгээгдлээ → ${to}`);
         return true;
       } catch (err) {
         this.logger.error(`Resend имэйл явуулж чадсангүй → ${to}: ${err}`);
+        await this.createLog({
+          to,
+          subject,
+          campaign,
+          provider: 'resend',
+          status: 'failed',
+          errorMessage: String(err),
+          attempts: 1,
+        });
         return false;
       }
     }
 
-    // ── AWS SES (нөөц провайдер) ──
+    // ── AWS SES (идэвхтэй провайдер) — retry-тэй (transient алдаанд) ──
     if (!this.ses) {
       this.logger.warn(`AWS SES тохируулаагүй — имэйл алгассан → ${to}`);
+      await this.createLog({
+        to,
+        subject,
+        campaign,
+        provider: 'ses',
+        status: 'failed',
+        errorMessage: 'SES not configured',
+        attempts: 0,
+      });
       return false;
     }
-    try {
-      await this.ses.send(
-        new SendEmailCommand({
-          Source: `DigitalGer <${this.from}>`,
-          Destination: { ToAddresses: [to] },
-          Message: {
-            Subject: { Data: subject, Charset: 'UTF-8' },
-            Body:    { Html: { Data: html,    Charset: 'UTF-8' } },
-          },
-        }),
-      );
-      await this.bumpCounter(EMAIL_COUNT_KEY);
-      this.logger.log(`AWS SES имэйл амжилттай илгээгдлээ → ${to}`);
-      return true;
-    } catch (err) {
-      this.logger.error(`AWS SES имэйл явуулж чадсангүй → ${to}: ${err}`);
-      return false;
+
+    let attempt = 0;
+    let lastError: unknown = null;
+    while (attempt < SES_MAX_ATTEMPTS) {
+      attempt++;
+      try {
+        const out: SendEmailCommandOutput = await this.ses.send(
+          new SendEmailCommand({
+            Source: `DigitalGer <${this.from}>`,
+            Destination: { ToAddresses: [to] },
+            Message: {
+              Subject: { Data: subject, Charset: 'UTF-8' },
+              Body: { Html: { Data: html, Charset: 'UTF-8' } },
+            },
+          }),
+        );
+        await this.bumpCounter(EMAIL_COUNT_KEY);
+        await this.createLog({
+          to,
+          subject,
+          campaign,
+          provider: 'ses',
+          status: 'sent',
+          messageId: out.MessageId ?? null,
+          attempts: attempt,
+        });
+        this.logger.log(
+          `AWS SES имэйл амжилттай илгээгдлээ → ${to} | ${out.MessageId ?? '-'}`,
+        );
+        return true;
+      } catch (err) {
+        lastError = err;
+        // Permanent алдаа (invalid email, reject) → retry ХИЙХГҮЙ.
+        if (!this.isTransientSesError(err)) {
+          this.logger.error(
+            `AWS SES имэйл явуулж чадсангүй (permanent) → ${to}: ${err}`,
+          );
+          break;
+        }
+        // Transient → exponential backoff (500ms, 1000ms ...) дараа дахин оролдоно.
+        if (attempt < SES_MAX_ATTEMPTS) {
+          const backoff = 500 * Math.pow(2, attempt - 1);
+          this.logger.warn(
+            `AWS SES transient алдаа → ${to}, ${backoff}ms дараа дахин (${attempt}/${SES_MAX_ATTEMPTS}): ${err}`,
+          );
+          await new Promise((r) => setTimeout(r, backoff));
+        }
+      }
     }
+    this.logger.error(
+      `AWS SES имэйл бүх оролдлого амжилтгүй → ${to}: ${lastError}`,
+    );
+    await this.createLog({
+      to,
+      subject,
+      campaign,
+      provider: 'ses',
+      status: 'failed',
+      errorMessage: String(lastError),
+      attempts: attempt,
+    });
+    return false;
+  }
+
+  // ─── BullMQ email queue-ийн PUBLIC орц ────────────────────────────────────────
+  /**
+   * BullMQ EmailProcessor энэ методыг дууддаг. Дотроо private send()-ийг шууд
+   * дуудна — suppression шалгалт, EmailLog бичилт, SES transient retry бүгд send
+   * дотор аль хэдийн хийгдсэн тул энд ДАВХАР хийхгүй.
+   *
+   * @returns true=амжилттай явсан, false=явсангүй (suppressed/permanent/exhausted).
+   *          Processor false-д throw ХИЙХГҮЙ (давхар явуулахаас сэргийлнэ) — send
+   *          дотор transient retry аль хэдийн дуусгасан, permanent-д retry утгагүй.
+   */
+  async sendRaw(
+    to: string,
+    subject: string,
+    html: string,
+    replyTo?: string,
+    campaign?: string,
+  ): Promise<boolean> {
+    return this.send(to, subject, html, replyTo, campaign);
   }
 
   // Redis-д тухайн провайдерийн энэ сарын тоолуурыг нэмнэ (~3 сар хадгална)
@@ -316,13 +660,25 @@ ${pixel}
 </td></tr></table>
 </body></html>`;
 
-    this.logger.log(`Захиалгын имэйл дараалалд оруулав → ${to} | #${orderId.slice(-8).toUpperCase()}`);
-    this.enqueue(() => this.send(to, `Захиалга баталгаажлаа — #${orderId.slice(-8).toUpperCase()}`, html));
+    this.logger.log(
+      `Захиалгын имэйл дараалалд оруулав → ${to} | #${orderId.slice(-8).toUpperCase()}`,
+    );
+    this.enqueue(() =>
+      this.send(
+        to,
+        `Захиалга баталгаажлаа — #${orderId.slice(-8).toUpperCase()}`,
+        html,
+      ),
+    );
   }
 
   // ─── Newsletter subscribe → 10% coupon + үнэгүй product welcome имэйл ──────────
   // @returns имэйл амжилттай явсан эсэх (false бол имэйл хүчингүй болж магадгүй).
-  async sendWelcomeCoupon(opts: { to: string; couponCode: string; discountPercent: number }): Promise<boolean> {
+  async sendWelcomeCoupon(opts: {
+    to: string;
+    couponCode: string;
+    discountPercent: number;
+  }): Promise<boolean> {
     const { to, couponCode, discountPercent } = opts;
     const freeUrl = `${this.siteUrl}/products/font-canva-powerpoint-free`;
 
@@ -371,10 +727,16 @@ ${pixel}
 </td></tr></table>
 </body></html>`;
 
-    this.logger.log(`Welcome coupon имэйл илгээж байна → ${to} | ${couponCode}`);
+    this.logger.log(
+      `Welcome coupon имэйл илгээж байна → ${to} | ${couponCode}`,
+    );
     // ШУУД илгээнэ (queue биш) — амжилт буцаана. subscribe урсгал имэйл
     // хүчинтэй эсэхийг (явсан/явсангүй) энэ утгаар шийдэж invalid тэмдэглэнэ.
-    return this.send(to, `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`, html);
+    return this.send(
+      to,
+      `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`,
+      html,
+    );
   }
 
   // ═══ MARKETING AUTOMATION TEMPLATES ═════════════════════════════════════════
@@ -391,8 +753,16 @@ ${pixel}
   }
 
   /** 1. Cart abandonment (1ц) — худалдан авалт дуусгаагүй сануулга. */
-  async sendCartReminder(opts: { to: string; name: string | null; orderId: string; items: { title: string; price: number }[]; total: number }) {
-    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+  async sendCartReminder(opts: {
+    to: string;
+    name: string | null;
+    orderId: string;
+    items: { title: string; price: number }[];
+    total: number;
+  }) {
+    const greeting = opts.name
+      ? `Сайн байна уу, ${opts.name}!`
+      : 'Сайн байна уу!';
     const body = `
       <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таны сонгосон бүтээгдэхүүн сагсанд хүлээж байна 👀 Худалдан авалтаа дуусгаж шууд татаж аваарай.</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px">${this.itemRows(opts.items)}</table>
@@ -405,14 +775,33 @@ ${pixel}
       ctaText: 'Худалдан авалтаа дуусгах →',
       ctaUrl: `${this.siteUrl}/checkout`,
       preheader: 'Сагсанд байгаа бүтээгдэхүүнээ авч амжаарай',
-      campaign: 'cart-1h', email: opts.to, refId: opts.orderId, showUnsubscribe: true,
+      campaign: 'cart-1h',
+      email: opts.to,
+      refId: opts.orderId,
+      showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, 'Таны сонгосон бүтээгдэхүүн таныг хүлээж байна 👀', html));
+    this.enqueue(() =>
+      this.send(
+        opts.to,
+        'Таны сонгосон бүтээгдэхүүн таныг хүлээж байна 👀',
+        html,
+        undefined,
+        'cart-1h',
+      ),
+    );
   }
 
   /** 2. Discount push (24ц) — аваагүй хэрэглэгчид 10% coupon follow-up. */
-  async sendDiscountPush(opts: { to: string; name: string | null; orderId: string; couponCode: string; discountPercent: number }) {
-    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+  async sendDiscountPush(opts: {
+    to: string;
+    name: string | null;
+    orderId: string;
+    couponCode: string;
+    discountPercent: number;
+  }) {
+    const greeting = opts.name
+      ? `Сайн байна уу, ${opts.name}!`
+      : 'Сайн байна уу!';
     const body = `
       <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таны сонирхсон бүтээгдэхүүн хүлээсээр байна. Танд тусгай бэлэг бэлдлээ 🎁</p>
       <div style="background:linear-gradient(135deg,#1e40af,#3b5bdb);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
@@ -428,14 +817,34 @@ ${pixel}
       ctaText: 'Хямдралтай авах →',
       ctaUrl: `${this.siteUrl}/checkout`,
       preheader: `${opts.discountPercent}% хөнгөлөлтийн код таныг хүлээж байна`,
-      campaign: 'discount-24h', email: opts.to, refId: opts.orderId, showUnsubscribe: true,
+      campaign: 'discount-24h',
+      email: opts.to,
+      refId: opts.orderId,
+      showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, '🎁 Танд 10% хөнгөлөлт бэлэглэж байна', html));
+    this.enqueue(() =>
+      this.send(
+        opts.to,
+        '🎁 Танд 10% хөнгөлөлт бэлэглэж байна',
+        html,
+        undefined,
+        'discount-24h',
+      ),
+    );
   }
 
   /** 3. Expiring coupon (12ц өмнө) — coupon удахгүй дуусна сануулга. */
-  async sendExpiringCoupon(opts: { to: string; name: string | null; couponCode: string; discountLabel: string; expiresAt: Date; couponId?: string }) {
-    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+  async sendExpiringCoupon(opts: {
+    to: string;
+    name: string | null;
+    couponCode: string;
+    discountLabel: string;
+    expiresAt: Date;
+    couponId?: string;
+  }) {
+    const greeting = opts.name
+      ? `Сайн байна уу, ${opts.name}!`
+      : 'Сайн байна уу!';
     const exp = this.formatMnDate(new Date(opts.expiresAt));
     const body = `
       <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Та амжиж ашиглаарай! Таны <strong>${opts.couponCode}</strong> хөнгөлөлтийн код удахгүй дуусах гэж байна.</p>
@@ -450,14 +859,35 @@ ${pixel}
       ctaText: 'Одоо ашиглах →',
       ctaUrl: `${this.siteUrl}/products`,
       preheader: 'Хөнгөлөлтийн кодоо ашиглаж амжаарай',
-      campaign: 'coupon-expiring', email: opts.to, refId: opts.couponId, showUnsubscribe: true,
+      campaign: 'coupon-expiring',
+      email: opts.to,
+      refId: opts.couponId,
+      showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, '⏰ Танд бэлэглэсэн хөнгөлөлтийн купон дуусаж байна', html));
+    this.enqueue(() =>
+      this.send(
+        opts.to,
+        '⏰ Танд бэлэглэсэн хөнгөлөлтийн купон дуусаж байна',
+        html,
+        undefined,
+        'coupon-expiring',
+      ),
+    );
   }
 
   /** 4. New product notification — subscriber-уудад шинэ бүтээгдэхүүн. */
-  async sendNewProduct(opts: { to: string; productTitle: string; productSlug: string; price: number; salePrice?: number | null; imageUrl?: string | null }) {
-    const eff = opts.salePrice != null && opts.salePrice >= 0 ? opts.salePrice : opts.price;
+  async sendNewProduct(opts: {
+    to: string;
+    productTitle: string;
+    productSlug: string;
+    price: number;
+    salePrice?: number | null;
+    imageUrl?: string | null;
+  }) {
+    const eff =
+      opts.salePrice != null && opts.salePrice >= 0
+        ? opts.salePrice
+        : opts.price;
     const priceLabel = eff === 0 ? 'ҮНЭГҮЙ 🎁' : `₮${eff.toLocaleString()}`;
     const img = opts.imageUrl
       ? `<tr><td style="padding:0 0 16px"><img src="${opts.imageUrl}" alt="${opts.productTitle}" width="528" style="width:100%;max-width:528px;border-radius:12px;display:block" /></td></tr>`
@@ -479,14 +909,32 @@ ${pixel}
       ctaText: 'Үзэх →',
       ctaUrl: `${this.siteUrl}/products/${opts.productSlug}`,
       preheader: opts.productTitle,
-      campaign: 'new-product', email: opts.to, refId: opts.productSlug, showUnsubscribe: true,
+      campaign: 'new-product',
+      email: opts.to,
+      refId: opts.productSlug,
+      showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, `🆕 Шинэ: ${opts.productTitle}`, html));
+    this.enqueue(() =>
+      this.send(
+        opts.to,
+        `🆕 Шинэ: ${opts.productTitle}`,
+        html,
+        undefined,
+        'new-product',
+      ),
+    );
   }
 
   /** 5. Inactive user reactivation (30 хоног) — буцаан татах + coupon. */
-  async sendReactivation(opts: { to: string; name: string | null; couponCode: string; discountLabel: string }) {
-    const greeting = opts.name ? `Сайн байна уу, ${opts.name}!` : 'Сайн байна уу!';
+  async sendReactivation(opts: {
+    to: string;
+    name: string | null;
+    couponCode: string;
+    discountLabel: string;
+  }) {
+    const greeting = opts.name
+      ? `Сайн байна уу, ${opts.name}!`
+      : 'Сайн байна уу!';
     const body = `
       <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таныг DigitalGer.mn дээр эргэн ирэхэд тань зориулж тусгай хөнгөлөлтийн бэлэг илгээж байна.</p>
       <div style="background:linear-gradient(135deg,#1e40af,#3b5bdb);border-radius:14px;padding:24px;text-align:center;margin-bottom:8px">
@@ -501,9 +949,19 @@ ${pixel}
       ctaText: 'Шинэ бүтээгдэхүүн үзэх →',
       ctaUrl: `${this.siteUrl}/products`,
       preheader: 'Эргэн ирэхэд тань зориулсан тусгай хөнгөлөлт',
-      campaign: 'reactivation', email: opts.to, showUnsubscribe: true,
+      campaign: 'reactivation',
+      email: opts.to,
+      showUnsubscribe: true,
     });
-    this.enqueue(() => this.send(opts.to, 'Таныг бид хүлээсээр байна 👋', html));
+    this.enqueue(() =>
+      this.send(
+        opts.to,
+        'Таныг бид хүлээсээр байна 👋',
+        html,
+        undefined,
+        'reactivation',
+      ),
+    );
   }
 
   /** Имэйл нээлт (pixel) бүртгэх. */
@@ -524,9 +982,9 @@ ${pixel}
     to: string[];
     subject: string;
     bodyHtml: string;
-    heading?: string;       // body эхний гарчиг (default = subject)
-    preheader?: string;     // inbox preview
-    campaign?: string;      // tracking pixel/open campaign нэр
+    heading?: string; // body эхний гарчиг (default = subject)
+    preheader?: string; // inbox preview
+    campaign?: string; // tracking pixel/open campaign нэр
   }): Promise<{ sent: number; failed: number }> {
     const subject = (opts.subject ?? '').trim();
     const recipients = (opts.to ?? [])
@@ -537,13 +995,16 @@ ${pixel}
       return { sent: 0, failed: 0 };
     }
 
-    const campaign = opts.campaign?.trim() || `broadcast-${this.currentMonthSlug()}`;
+    const campaign =
+      opts.campaign?.trim() || `broadcast-${this.currentMonthSlug()}`;
     const heading = (opts.heading ?? subject).trim();
 
     let sent = 0;
     let failed = 0;
 
-    this.logger.log(`Bulk marketing эхэллээ → ${recipients.length} хүлээн авагч | "${subject}"`);
+    this.logger.log(
+      `Bulk marketing эхэллээ → ${recipients.length} хүлээн авагч | "${subject}"`,
+    );
 
     // queue ашиглахгүй (sent/failed тоог буцаах хэрэгтэй) — энд дараалан явуулна,
     // имэйл бүрийн хооронд 300ms (Resend rate limit ~ 2 req/s аюулгүй).
@@ -558,7 +1019,7 @@ ${pixel}
           email: to,
           showUnsubscribe: true, // ⚠️ Marketing → unsubscribe заавал (CAN-SPAM)
         });
-        const ok = await this.send(to, subject, html);
+        const ok = await this.send(to, subject, html, undefined, campaign);
         if (ok) sent++;
         else failed++;
       } catch (err) {
@@ -571,15 +1032,80 @@ ${pixel}
       }
     }
 
-    this.logger.log(`Bulk marketing дууслаа → илгээсэн: ${sent}, амжилтгүй: ${failed}`);
+    this.logger.log(
+      `Bulk marketing дууслаа → илгээсэн: ${sent}, амжилтгүй: ${failed}`,
+    );
     return { sent, failed };
   }
 
+  /**
+   * Bulk marketing-ийг BullMQ queue-д нэмнэ (background, durable, rate-limited).
+   * sendBulkMarketing-ийн оронд (300ms loop биш) — хэрэглэгч хүлээхгүй, шууд буцна.
+   * Имэйл бүрд брэндийн layout + unsubscribe footer (CAN-SPAM) бэлдээд queue-д өгнө.
+   *
+   * Прогрессыг campaign-аар Redis-д тоолно (admin "N илгээгдсэн / M үлдсэн").
+   * @returns { queued, campaign } — queue-д нэмэгдсэн job-ийн тоо.
+   */
+  async queueBulkMarketing(opts: {
+    to: string[];
+    subject: string;
+    bodyHtml: string;
+    heading?: string;
+    preheader?: string;
+    campaign?: string;
+  }): Promise<{ queued: number; campaign: string }> {
+    const subject = (opts.subject ?? '').trim();
+    const recipients = (opts.to ?? [])
+      .map((e) => (e ?? '').toLowerCase().trim())
+      .filter((e, i, arr) => e && arr.indexOf(e) === i); // давхардал хасах
+
+    const campaign =
+      opts.campaign?.trim() || `broadcast-${this.currentMonthSlug()}`;
+    if (!subject || !recipients.length) {
+      return { queued: 0, campaign };
+    }
+
+    const heading = (opts.heading ?? subject).trim();
+
+    const jobs: EmailJobPayload[] = recipients.map((to) => ({
+      to,
+      subject,
+      campaign,
+      html: this.emailLayout({
+        heading,
+        bodyHtml: opts.bodyHtml ?? '',
+        preheader: opts.preheader,
+        campaign,
+        email: to,
+        showUnsubscribe: true, // ⚠️ Marketing → unsubscribe заавал (CAN-SPAM)
+      }),
+    }));
+
+    const res = await this.emailQueue.enqueueBulk(jobs, campaign);
+    this.logger.log(
+      `Bulk marketing queue-д нэмэв → ${res.queued} имэйл | campaign=${campaign}`,
+    );
+    return res;
+  }
+
+  /** Bulk кампанит ажлын прогресс (admin status endpoint). */
+  async getBulkProgress(campaign: string) {
+    return this.emailQueue.getCampaignProgress(campaign);
+  }
+
   // ─── Холбоо барих (inquiry) → info@digitalger.mn ──────────────────────────────
-  async sendContactInquiry(opts: { name: string; email: string; phone?: string; message: string }) {
+  async sendContactInquiry(opts: {
+    name: string;
+    email: string;
+    phone?: string;
+    message: string;
+  }) {
     const { name, email, phone, message } = opts;
     const to = 'info@digitalger.mn';
-    const safe = (s: string) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safe = (s: string) =>
+      String(s ?? '')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 
     const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
@@ -619,18 +1145,23 @@ ${pixel}
     purpose: 'verify' | 'reset' | 'email_change';
   }) {
     const { to, name, otp, purpose } = opts;
-    const greeting  = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
-    const isReset   = purpose === 'reset';
-    const subject   = isReset ? 'Нууц үг шинэчлэх — DigitalGer' : 'Имэйл баталгаажуулах — DigitalGer';
-    const heading   = isReset ? 'Нууц үг шинэчлэх' : 'Имэйл баталгаажуулах';
-    const desc      = isReset
+    const greeting = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
+    const isReset = purpose === 'reset';
+    const subject = isReset
+      ? 'Нууц үг шинэчлэх — DigitalGer'
+      : 'Имэйл баталгаажуулах — DigitalGer';
+    const heading = isReset ? 'Нууц үг шинэчлэх' : 'Имэйл баталгаажуулах';
+    const desc = isReset
       ? 'Нууц үгээ шинэчлэхийн тулд доорх нэг удаагийн кодыг оруулна уу.'
       : 'Имэйл хаягаа баталгаажуулахын тулд доорх нэг удаагийн кодыг оруулна уу.';
 
-    const digitCells = otp.split('').map(
-      (d) =>
-        `<td style="padding:0 4px"><div style="width:44px;height:54px;line-height:54px;text-align:center;font-size:28px;font-weight:900;color:#022179;background:#f0f4ff;border-radius:10px">${d}</div></td>`,
-    ).join('');
+    const digitCells = otp
+      .split('')
+      .map(
+        (d) =>
+          `<td style="padding:0 4px"><div style="width:44px;height:54px;line-height:54px;text-align:center;font-size:28px;font-weight:900;color:#022179;background:#f0f4ff;border-radius:10px">${d}</div></td>`,
+      )
+      .join('');
 
     const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
@@ -729,14 +1260,20 @@ ${pixel}
 </td></tr></table>
 </body></html>`;
 
-    this.logger.log(`Төлбөрийн имэйл дараалалд оруулав → ${to} | ₮${total.toLocaleString()}`);
-    this.enqueue(() => this.send(to, `Төлбөр амжилттай — ₮${total.toLocaleString()}`, html));
+    this.logger.log(
+      `Төлбөрийн имэйл дараалалд оруулав → ${to} | ₮${total.toLocaleString()}`,
+    );
+    this.enqueue(() =>
+      this.send(to, `Төлбөр амжилттай — ₮${total.toLocaleString()}`, html),
+    );
   }
 
   // ─── stats (Redis-ийн тоолуур) ────────────────────────────────────────────
 
   // Тухайн base key-ийн сүүлийн 3 сарын тоог Redis-ээс уншина.
-  private async readMonthlyCounts(baseKey: string): Promise<[number, number, number]> {
+  private async readMonthlyCounts(
+    baseKey: string,
+  ): Promise<[number, number, number]> {
     const getCount = async (offset: number): Promise<number> => {
       try {
         const key = `${baseKey}:${this.monthSlug(offset)}`;
@@ -749,6 +1286,49 @@ ${pixel}
     return Promise.all([getCount(0), getCount(1), getCount(2)]);
   }
 
+  // SES-ийн өдрийн квот (GetSendQuota). Sandbox/permission алдаа гарвал
+  // EmailLog-аас сүүлийн 24ц-ийн бодит илгээлтийг fallback болгоно.
+  //   - Max24HourSend  → dailyLimit (production ~50000, sandbox 200)
+  //   - SentLast24Hours → sentToday
+  //   - MaxSendRate    → maxSendRate (имэйл/сек, ихэв(production) 14)
+  private async readSesQuota(): Promise<{
+    sentToday: number;
+    dailyLimit: number;
+    maxSendRate: number;
+  }> {
+    // SES client байгаа бол GetSendQuota дуудна.
+    if (this.ses) {
+      try {
+        const q = await this.ses.send(new GetSendQuotaCommand({}));
+        return {
+          sentToday: Math.round(q.SentLast24Hours ?? 0),
+          dailyLimit: Math.round(q.Max24HourSend ?? 50000),
+          maxSendRate: Math.round(q.MaxSendRate ?? 14),
+        };
+      } catch (err) {
+        // sandbox/permission/credential алдаа — EmailLog fallback руу шилжинэ.
+        this.logger.warn(
+          `SES GetSendQuota алдаа (EmailLog fallback): ${(err as Error)?.message ?? err}`,
+        );
+      }
+    }
+
+    // Fallback: EmailLog-оос сүүлийн 24 цагт SES-ээр илгээгдсэн тоо.
+    let sentToday = 0;
+    try {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      sentToday = await this.prisma.emailLog.count({
+        where: {
+          createdAt: { gte: since },
+          status: { in: ['sent', 'delivered', 'bounced', 'complained'] },
+        },
+      });
+    } catch {
+      sentToday = 0;
+    }
+    return { sentToday, dailyLimit: 50000, maxSendRate: 14 };
+  }
+
   // AWS SES статистик (admin dashboard-ийн 'Имэйл хяналт' карт)
   async getStats(): Promise<{
     configured: boolean;
@@ -759,9 +1339,25 @@ ${pixel}
     queueLength: number;
     provider: string;
     active: boolean;
+    sentToday: number;
+    dailyLimit: number;
+    maxSendRate: number;
+    bounceRate: number;
+    complaintRate: number;
   }> {
-    const [sentThisMonth, sentLastMonth, sentTwoMonthsAgo] =
-      await this.readMonthlyCounts(EMAIL_COUNT_KEY);
+    const [[sentThisMonth, sentLastMonth, sentTwoMonthsAgo], quota, reputation] =
+      await Promise.all([
+        this.readMonthlyCounts(EMAIL_COUNT_KEY),
+        this.readSesQuota(),
+        // bounce/complaint rate (сүүлийн 24ц) — reputation.service-ээс
+        // (worker-т reputation null → rate 0).
+        this.reputation?.getReputationStats().catch(() => null) ??
+          Promise.resolve(null),
+      ]);
+
+    // Rate-уудыг 0..1 бутархайгаар (reputation.service-ийн форматтай нэгдсэн).
+    const bounceRate = reputation?.last24h.bounceRate ?? 0;
+    const complaintRate = reputation?.last24h.complaintRate ?? 0;
 
     return {
       configured: this.ses !== null,
@@ -772,6 +1368,11 @@ ${pixel}
       queueLength: this.queue.length,
       provider: 'AWS SES',
       active: this.provider === 'ses', // одоо идэвхтэй провайдер эсэх
+      sentToday: quota.sentToday, // SES сүүлийн 24ц илгээсэн (эсвэл EmailLog fallback)
+      dailyLimit: quota.dailyLimit, // SES Max24HourSend
+      maxSendRate: quota.maxSendRate, // SES MaxSendRate (имэйл/сек)
+      bounceRate, // 0..1 (сүүлийн 24ц)
+      complaintRate, // 0..1 (сүүлийн 24ц)
     };
   }
 

@@ -5,7 +5,13 @@ import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
 import { ZipProcessor, ZIP_QUEUE } from './modules/downloads/zip.processor';
+import { EmailService } from './modules/notifications/email.service';
+import { EmailQueueService } from './modules/notifications/email-queue.service';
+import { EmailProcessor } from './modules/notifications/email.processor';
+import { EMAIL_QUEUE, EMAIL_RATE_LIMIT } from './modules/notifications/email-queue.types';
 
+// ⚠️ Worker container — ZIP болон EMAIL queue-ийн CONSUMER (processor) энд ажиллана.
+// API container нь зөвхөн producer (job нэмэх). Processor-ийг ЗӨВХӨН энд бүртгэнэ.
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
@@ -19,7 +25,19 @@ import { ZipProcessor, ZIP_QUEUE } from './modules/downloads/zip.processor';
       }),
     }),
     BullModule.registerQueue({ name: ZIP_QUEUE }),
+    BullModule.registerQueue({
+      name: EMAIL_QUEUE,
+      // ⚠️ SES 14/сек limit-ийг ЗӨРЧИХГҮЙ — max 10/сек.
+      limiter: { max: EMAIL_RATE_LIMIT.max, duration: EMAIL_RATE_LIMIT.duration },
+    }),
   ],
-  providers: [ZipProcessor],
+  providers: [
+    ZipProcessor,
+    // EmailProcessor нь EmailService.sendRaw (suppression/EmailLog/SES retry) +
+    // EmailQueueService (campaign прогресс) дуудна.
+    EmailService,
+    EmailQueueService,
+    EmailProcessor,
+  ],
 })
 export class WorkerModule {}

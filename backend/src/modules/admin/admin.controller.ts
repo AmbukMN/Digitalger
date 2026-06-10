@@ -36,6 +36,7 @@ import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
+import { ReputationService } from '../notifications/reputation.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -67,6 +68,7 @@ export class AdminController {
     private readonly storage: StorageService,
     @InjectQueue(ZIP_QUEUE) private readonly zipQueue: Queue,
     private readonly emailService: EmailService,
+    private readonly reputation: ReputationService,
     private readonly cache: AppCacheService,
     private readonly reviews: ReviewsService,
     private readonly courses: CoursesService,
@@ -103,6 +105,7 @@ export class AdminController {
       subscribersTotalRaw,
       subscribersThisMonth,
       subscribersBySourceRaw,
+      reputationStats,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.product.count(),
@@ -194,6 +197,8 @@ export class AdminController {
       this.prisma.subscriber.count(),
       this.prisma.subscriber.count({ where: { createdAt: { gte: startOfMonth } } }),
       this.prisma.subscriber.groupBy({ by: ['source'], _count: { _all: true } }),
+      // SES reputation (bounce/complaint rate — 24ц/7хоног)
+      this.reputation.getReputationStats(),
     ]);
 
     // Subscriber тоонуудыг задлах (Promise.all-ийн сүүлийн 3 утга)
@@ -275,8 +280,15 @@ export class AdminController {
       monthlyRevenue: monthlyRevenueSummary,
       emailStats,
       resendStats,
+      reputationStats,
       topDownloaded,
     };
+  }
+
+  // ─── SES reputation (bounce/complaint rate) — dashboard карт + polling ─────────
+  @Get('email/reputation')
+  getReputationStats() {
+    return this.reputation.getReputationStats();
   }
 
   @Get('ai/status')

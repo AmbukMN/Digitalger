@@ -9,10 +9,26 @@ export interface EmailStats {
   queueLength: number;
   provider?: string;
   active?: boolean; // одоо идэвхтэй провайдер эсэх
+  // ── SES 24 цагийн (өдрийн) sending quota — backend getSendQuota()-аас ирвэл ──
+  sentToday?: number;       // сүүлийн 24 цагт илгээсэн (SentLast24Hours эсвэл EmailLog тоо)
+  dailyLimit?: number;      // Max24HourSend (default 50000)
+  maxSendRate?: number;     // секундэд илгээх дээд хэмжээ (Max send rate, ж: 14/сек)
+  // ── Reputation (SES account-level) — байвал ──
+  bounceRate?: number;      // 0–1 (ж: 0.02 = 2%)
+  complaintRate?: number;   // 0–1
 }
 
 // Resend статистик — EmailStats-тэй ижил бүтэц
-export interface ResendStats extends EmailStats {}
+export type ResendStats = EmailStats;
+
+// Bulk кампанит ажлын илгээлтийн явц (queue background)
+export interface EmailCampaignProgress {
+  campaignId: string;
+  total: number;
+  sent: number;
+  failed: number;
+  status: 'queued' | 'sending' | 'done' | 'failed';
+}
 
 // Админаас хэрэглэгчид үнэгүй идэвхжүүлсэн бүтээгдэхүүн
 export interface GrantedProduct {
