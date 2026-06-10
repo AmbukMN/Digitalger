@@ -42,7 +42,6 @@ import { Badge, ErrorState, Loading } from '@digitalger/shared/ui';
 import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
-import { EmailMarketingPanel } from '@/components/email-marketing-panel';
 
 // ── Захиалагчийн эх сурвалжийн нэрийг Монголоор харуулах ──
 const SUBSCRIBER_SOURCE_LABELS: Record<string, string> = {
@@ -689,9 +688,6 @@ export default function DashboardPage() {
         {/* Багана 3 — AWS SES хяналт (өдрийн квота, reputation, 3 сар) */}
         <EmailStatsPanel stats={emailStats} />
       </div>
-
-      {/* Имэйл маркетингийн дэлгэрэнгүй (4 summary карт + илгээлт бүрийн хүснэгт, pagination) */}
-      <EmailMarketingPanel />
 
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}
       <div className="grid gap-4 lg:grid-cols-2">

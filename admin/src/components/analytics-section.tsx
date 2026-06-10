@@ -13,6 +13,7 @@ import {
   GraduationCap, PlayCircle, CheckCircle2, Clock,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { EmailMarketingPanel } from '@/components/email-marketing-panel';
 
 const DAYS_OPTIONS = [
   { label: '1 хоног', value: 1 },
@@ -308,6 +309,11 @@ export function AnalyticsSection() {
           </div>
         </>
       ) : null}
+
+      {/* ─── Имэйл маркетинг — Сайтын аналитикийн ДООР, Хичээлийн ДЭЭР ─────── */}
+      <div className="pt-2">
+        <EmailMarketingPanel />
+      </div>
 
       {/* ─── Хичээлийн аналитик (курс дуусгалт / dropoff) ─────────────────── */}
       <div className="flex items-center gap-2 pt-2">
