@@ -190,12 +190,15 @@ function NavSections({
   collapsed,
   onNavigate,
   isSuperadmin,
+  initialPermissions,
 }: {
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void;
   /** SUPERADMIN эсэх — superadminOnly цэсүүдийг харуулах эсэхийг шийднэ. */
   isSuperadmin: boolean;
+  /** Server-side урьдчилан татсан permission — refresh-д анивчихгүй. */
+  initialPermissions?: Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
 }) {
   const queryClient = useQueryClient();
   // ── УНШААГҮЙ суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
@@ -225,6 +228,7 @@ function NavSections({
     queryFn: () => adminApi.staff.myPermissions(),
     staleTime: 5 * 60_000,
     enabled: !isSuperadmin,
+    initialData: initialPermissions ?? undefined, // server-side → анивчихгүй
   });
   // resource-д canView эрхтэй эсэх. SUPERADMIN бүгдэд true; perm ачаалж дуустал
   // (myPerms undefined) НУУНА (анивчиж гарч ирэхээс сэргийлж — аюулгүй default).
@@ -344,7 +348,19 @@ function NavSections({
   );
 }
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+// Permission map type (server/client хуваалцана).
+type PermMap = Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
+
+export function AdminShell({
+  children,
+  initialProfile,
+  initialPermissions,
+}: {
+  children: React.ReactNode;
+  // ⚠️ Server-side урьдчилан татсан profile/permission (sidebar анивчихаас сэргийлэх).
+  initialProfile?: ProfileData | null;
+  initialPermissions?: PermMap;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -362,7 +378,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const { data: publicSettings } = usePublicSettings();
-  const { data: profile } = useAdminProfile();
+  // ⚠️ Server-side initialData → refresh-д анивчихгүй (анхнаасаа зөв role).
+  const { data: profile } = useQuery<ProfileData>({
+    queryKey: ['admin', 'profile'],
+    queryFn: () => adminApi.profile.get().catch(() => ({ name: null, email: 'admin@digitalger.mn', image: null, role: 'ADMIN', id: '', emailVerified: null, createdAt: '', updatedAt: '' })),
+    staleTime: 5 * 60 * 1000,
+    initialData: initialProfile ?? undefined,
+  });
 
   // SUPERADMIN бол site-level цэсүүд (Хэрэглэгч/Тохиргоо/SEO/Дараалал/
   // Subscriber/Таталт) харагдана. EDITOR/ADMIN-д зөвхөн контент+scope цэс.
@@ -375,6 +397,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     queryFn: () => adminApi.staff.myPermissions(),
     staleTime: 5 * 60_000,
     enabled: !!profile && !isSuperadmin, // SUPERADMIN бол guard хэрэггүй
+    initialData: initialPermissions ?? undefined, // server-side → анивчихгүй
   });
   useEffect(() => {
     if (!profile || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
@@ -454,7 +477,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <NavSections pathname={pathname} collapsed={collapsed} isSuperadmin={isSuperadmin} />
+        <NavSections pathname={pathname} collapsed={collapsed} isSuperadmin={isSuperadmin} initialPermissions={initialPermissions} />
 
         <div className="border-t border-border p-2">
           <Link
@@ -532,6 +555,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 collapsed={false}
                 onNavigate={() => setMobileOpen(false)}
                 isSuperadmin={isSuperadmin}
+                initialPermissions={initialPermissions}
               />
 
               <div className="border-t border-border p-2">
