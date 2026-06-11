@@ -4,6 +4,7 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { BlogService, CreateBlogPostDto, UpdateBlogPostDto } from './blog.service';
 
 @Controller('blog')
@@ -56,8 +57,8 @@ export class BlogAdminController {
   }
 
   @Post()
-  create(@Body() dto: CreateBlogPostDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateBlogPostDto, @CurrentUser() me: JwtPayload) {
+    return this.service.create(dto, me.sub);
   }
 
   @Patch(':id')

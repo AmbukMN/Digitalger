@@ -8,8 +8,10 @@ datasource db {
 }
 
 enum Role {
-  USER
-  ADMIN
+  USER // энгийн хэрэглэгч (frontend)
+  EDITOR // admin panel — зөвхөн ӨӨРИЙН контент create/edit (delete БАЙХГҮЙ)
+  ADMIN // admin panel — зөвхөн ӨӨРИЙН контент бүрэн CRUD
+  SUPERADMIN // бүх admin-ийг удирдах + бүх контент full (edit/delete/харах) + тохиргоо
 }
 
 enum ProductType {
@@ -79,6 +81,16 @@ model User {
   quizAttempts   QuizAttempt[]
   chatConversations ChatConversation[]
   adminSeens     AdminSeen[]
+  // ── Multi-tenant ownership: энэ admin-ийн үүсгэсэн контент (createdByUserId) ──
+  ownedProducts     Product[]           @relation("ContentOwner")
+  ownedCategories   Category[]          @relation("ContentOwner")
+  ownedTypes        ProductTypeConfig[] @relation("ContentOwner")
+  ownedTestimonials Testimonial[]       @relation("ContentOwner")
+  ownedFaqs         FAQ[]               @relation("ContentOwner")
+  ownedBlogPosts    BlogPost[]          @relation("ContentOwner")
+  ownedBanners      Banner[]            @relation("ContentOwner")
+  ownedPages        Page[]              @relation("ContentOwner")
+  ownedCoupons      Coupon[]            @relation("ContentOwner")
 }
 
 // Admin sidebar "шинэ/уншаагүй" badge — admin хэсэг бүрийг сүүлд харсан огноо.
@@ -136,9 +148,14 @@ model Category {
   description String?
   icon        String?
   sortOrder   Int       @default(0)
+  // ── Multi-tenant ownership (хэн үүсгэсэн admin) — null=хуучин/систем ──
+  createdByUserId String?
+  createdBy       User?   @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   products    Product[]
+
+  @@index([createdByUserId])
 }
 
 model Product {
@@ -182,6 +199,9 @@ model Product {
   proofAuthorRole   String?
   // New product notification — subscriber-уудад имэйл явуулсан огноо (давхар явуулахгүй)
   notifiedAt        DateTime?
+  // ── Multi-tenant ownership (хэн үүсгэсэн admin) ──
+  createdByUserId   String?
+  createdBy         User?                @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   files             ProductFile[]
@@ -194,6 +214,8 @@ model Product {
   faqs              ProductFAQ[]
   testimonials      ProductTestimonial[]
   bundles           ProductBundle[]
+
+  @@index([createdByUserId])
 }
 
 model ProductFile {
@@ -609,10 +631,13 @@ model Banner {
   bgColor         String?
   startsAt        DateTime?
   endsAt          DateTime?
+  createdByUserId String?
+  createdBy       User?     @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([active, sortOrder])
+  @@index([createdByUserId])
 }
 
 // ── FAQ: standalone, assigned to products via many-to-many ──
@@ -623,11 +648,14 @@ model FAQ {
   category  String?
   active    Boolean      @default(true)
   sortOrder Int          @default(0)
+  createdByUserId String?
+  createdBy       User?    @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   products  ProductFAQ[]
 
   @@index([active, sortOrder])
+  @@index([createdByUserId])
 }
 
 model ProductFAQ {
@@ -651,11 +679,14 @@ model Testimonial {
   featured  Boolean              @default(true)
   active    Boolean              @default(true)
   sortOrder Int                  @default(0)
+  createdByUserId String?
+  createdBy       User?          @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
   products  ProductTestimonial[]
 
   @@index([active, featured, sortOrder])
+  @@index([createdByUserId])
 }
 
 model ProductTestimonial {
@@ -704,10 +735,13 @@ model ProductTypeConfig {
   icon        String?
   sortOrder   Int      @default(0)
   active      Boolean  @default(true)
+  createdByUserId String?
+  createdBy       User?  @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([active, sortOrder])
+  @@index([createdByUserId])
 }
 
 model MenuItem {
@@ -738,10 +772,13 @@ model BlogPost {
   authorName    String    @default("DigitalGer")
   sortOrder     Int       @default(0)
   viewCount     Int       @default(0) // БОДИТ уншилт (хэрэглэгч нийтлэл нээх болгонд +1)
+  createdByUserId String?
+  createdBy       User?   @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([published, publishedAt])
+  @@index([createdByUserId])
 }
 
 model Page {
@@ -754,7 +791,11 @@ model Page {
   metaDescription String?
   metaKeywords    String?
   ogImageUrl      String?
+  createdByUserId String?
+  createdBy       User?    @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([createdByUserId])
 }
 
 // Тодорхой URL (тогтмол хуудас)-д custom OG meta — admin-аас add/edit/delete.
@@ -943,8 +984,12 @@ model Coupon {
   expiresAt DateTime?
   // Expiring coupon reminder (дуусахаас 12ц өмнө) давхар явуулахаас сэргийлэх
   reminderSentAt DateTime?
+  createdByUserId String?
+  createdBy       User?    @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+  @@index([createdByUserId])
 }
 
 model EmailOtp {

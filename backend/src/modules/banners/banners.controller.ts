@@ -12,6 +12,7 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { BannersService } from './banners.service';
 import { CreateBannerDto, UpdateBannerDto } from './dto/banner.dto';
 
@@ -37,8 +38,8 @@ export class BannersAdminController {
   }
 
   @Post()
-  create(@Body() dto: CreateBannerDto) {
-    return this.banners.create(dto);
+  create(@Body() dto: CreateBannerDto, @CurrentUser() me: JwtPayload) {
+    return this.banners.create(dto, me.sub);
   }
 
   @Patch(':id')

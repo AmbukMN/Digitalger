@@ -32,8 +32,10 @@ export class BannersService {
     return this.prisma.banner.findMany({ orderBy: { sortOrder: 'asc' } });
   }
 
-  create(dto: CreateBannerDto) {
-    return this.prisma.banner.create({ data: dto });
+  create(dto: CreateBannerDto, createdByUserId?: string) {
+    return this.prisma.banner.create({
+      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+    });
   }
 
   update(id: string, dto: UpdateBannerDto) {

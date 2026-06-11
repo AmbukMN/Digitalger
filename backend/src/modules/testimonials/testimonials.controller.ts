@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import {
   CreateTestimonialDto,
   TestimonialsService,
@@ -38,8 +39,8 @@ export class TestimonialsAdminController {
   }
 
   @Post()
-  create(@Body() dto: CreateTestimonialDto) {
-    return this.svc.create(dto);
+  create(@Body() dto: CreateTestimonialDto, @CurrentUser() me: JwtPayload) {
+    return this.svc.create(dto, me.sub);
   }
 
   @Patch(':id')

@@ -89,8 +89,10 @@ export class TestimonialsService {
     return this.prisma.testimonial.findUniqueOrThrow({ where: { id } });
   }
 
-  create(dto: CreateTestimonialDto) {
-    return this.prisma.testimonial.create({ data: dto });
+  create(dto: CreateTestimonialDto, createdByUserId?: string) {
+    return this.prisma.testimonial.create({
+      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+    });
   }
 
   async update(id: string, dto: UpdateTestimonialDto) {

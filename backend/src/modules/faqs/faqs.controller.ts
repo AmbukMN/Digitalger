@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CreateFaqDto, FaqsService, UpdateFaqDto } from './faqs.service';
 
 // Public: get FAQs for a product
@@ -29,8 +30,8 @@ export class FaqsAdminController {
   }
 
   @Post()
-  create(@Body() dto: CreateFaqDto) {
-    return this.faqs.create(dto);
+  create(@Body() dto: CreateFaqDto, @CurrentUser() me: JwtPayload) {
+    return this.faqs.create(dto, me.sub);
   }
 
   @Patch(':id')

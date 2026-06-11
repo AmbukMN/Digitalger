@@ -121,7 +121,7 @@ export class AdminProductsService {
     return product;
   }
 
-  async create(dto: CreateProductDto) {
+  async create(dto: CreateProductDto, createdByUserId?: string) {
     const slugExists = await this.prisma.product.findUnique({
       where: { slug: dto.slug },
     });
@@ -151,6 +151,8 @@ export class AdminProductsService {
       data: {
         ...rest,
         ...accessFields,
+        // Multi-tenant ownership — энэ product-ийг үүсгэсэн admin.
+        ...(createdByUserId && { createdByUserId }),
         categoryId: validIds[0] ?? null,
         categoryIds: validIds,
         // price null/undefined бол 0 (үнэгүй бүтээгдэхүүн) — Decimal(null) алдаа гаргадаг

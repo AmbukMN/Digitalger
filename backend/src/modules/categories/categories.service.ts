@@ -68,7 +68,7 @@ export class CategoriesService {
     return { ...category, _count: { products } };
   }
 
-  async create(dto: CreateCategoryDto) {
+  async create(dto: CreateCategoryDto, createdByUserId?: string) {
     const exists = await this.prisma.category.findUnique({
       where: { slug: dto.slug },
     });
@@ -77,7 +77,9 @@ export class CategoriesService {
       throw new ConflictException('Category slug already exists');
     }
 
-    const created = await this.prisma.category.create({ data: dto });
+    const created = await this.prisma.category.create({
+      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+    });
     await this.cache.del(CacheKeys.categories);
     return created;
   }

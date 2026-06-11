@@ -63,8 +63,9 @@ export class AdminCouponsController {
       active?: boolean;
       expiresAt?: string | null;
     },
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.coupons.create(body);
+    return this.coupons.create(body, userId);
   }
 
   @Patch(':id')

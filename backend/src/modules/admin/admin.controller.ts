@@ -387,8 +387,8 @@ export class AdminController {
   }
 
   @Post('products')
-  createProduct(@Body() dto: CreateProductDto) {
-    return this.adminProducts.create(dto);
+  createProduct(@Body() dto: CreateProductDto, @CurrentUser() me: JwtPayload) {
+    return this.adminProducts.create(dto, me.sub);
   }
 
   @Post('products/bulk-import')
@@ -1050,8 +1050,11 @@ export class AdminController {
   @Post('product-types')
   async createProductType(
     @Body() dto: { value: string; label: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
+    @CurrentUser() me: JwtPayload,
   ) {
-    const res = await this.prisma.productTypeConfig.create({ data: dto });
+    const res = await this.prisma.productTypeConfig.create({
+      data: { ...dto, ...(me.sub && { createdByUserId: me.sub }) },
+    });
     await this.cache.del(CacheKeys.productTypes);
     return res;
   }

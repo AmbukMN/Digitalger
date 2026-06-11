@@ -33,7 +33,7 @@ export class CouponsService {
     maxUses?: number;
     active?: boolean;
     expiresAt?: string | null;
-  }) {
+  }, createdByUserId?: string) {
     const code = dto.code?.trim().toUpperCase() || this.generateCode();
 
     const existing = await this.prisma.coupon.findUnique({ where: { code } });
@@ -48,6 +48,7 @@ export class CouponsService {
         maxUses: dto.maxUses ?? null,
         active: dto.active ?? true,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        ...(createdByUserId && { createdByUserId }),
       },
     });
   }

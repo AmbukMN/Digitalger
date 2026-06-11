@@ -34,8 +34,10 @@ export class FaqsService {
     return this.prisma.fAQ.findUniqueOrThrow({ where: { id } });
   }
 
-  create(dto: CreateFaqDto) {
-    return this.prisma.fAQ.create({ data: dto });
+  create(dto: CreateFaqDto, createdByUserId?: string) {
+    return this.prisma.fAQ.create({
+      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+    });
   }
 
   async update(id: string, dto: UpdateFaqDto) {

@@ -96,11 +96,12 @@ export class BlogService {
     });
   }
 
-  async create(dto: CreateBlogPostDto) {
+  async create(dto: CreateBlogPostDto, createdByUserId?: string) {
     const created = await this.prisma.blogPost.create({
       data: {
         ...dto,
         publishedAt: dto.published ? new Date() : undefined,
+        ...(createdByUserId && { createdByUserId }),
       },
     });
     await this.cache.delByPrefix(CacheKeys.blogLatestPrefix);

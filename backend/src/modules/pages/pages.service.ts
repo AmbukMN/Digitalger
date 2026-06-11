@@ -20,11 +20,12 @@ export class PagesService {
     return this.prisma.page.findUnique({ where: { slug } });
   }
 
-  upsert(slug: string, dto: UpsertPageDto) {
+  upsert(slug: string, dto: UpsertPageDto, createdByUserId?: string) {
     return this.prisma.page.upsert({
       where: { slug },
       update: { ...dto },
-      create: { slug, ...dto },
+      // ownership зөвхөн create үед бичигдэнэ (update-д createdByUserId-г хадгалахгүй)
+      create: { slug, ...dto, ...(createdByUserId && { createdByUserId }) },
     });
   }
 }
