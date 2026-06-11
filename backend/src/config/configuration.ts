@@ -29,6 +29,13 @@ export default () => ({
     token: process.env.CLOUDFLARE_STREAM_TOKEN,
   },
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  // Verify.mn — MO SMS утас баталгаажуулалт (хэрэглэгч 144773 руу код илгээнэ).
+  verifyMn: {
+    apiKey: process.env.VERIFY_MN_API_KEY ?? null,
+    baseUrl: process.env.VERIFY_MN_BASE_URL ?? 'https://api.verify.mn',
+    shortcode: process.env.VERIFY_MN_SHORTCODE ?? '144773',
+    callbackUrl: process.env.VERIFY_MN_CALLBACK_URL ?? null,
+  },
   qpay: {
     username: process.env.QPAY_USERNAME,
     password: process.env.QPAY_PASSWORD,

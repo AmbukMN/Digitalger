@@ -1,4 +1,10 @@
-import { IsEmail, IsIn, IsString, Length, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsString, Length, Matches, MinLength } from 'class-validator';
+
+// Утас баталгаажуулах хүсэлт (verify.mn MO SMS). 8-15 орон, заавал + байж болно.
+export class RequestPhoneVerifyDto {
+  @Matches(/^\+?[0-9]{8,15}$/, { message: 'Утасны дугаар буруу байна' })
+  phone: string;
+}
 
 export class SendOtpDto {
   @IsEmail()

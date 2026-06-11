@@ -259,6 +259,27 @@ export const authApi = {
   resendOtp: (body: { email: string; purpose: 'verify' | 'reset' }) =>
     request<{ message: string }>('/auth/resend-otp', { method: 'POST', body: JSON.stringify(body) }),
 
+  // Утас баталгаажуулах хүсэлт — verify.mn MO SMS. Хэрэглэгч буцаасан кодыг
+  // 144773 руу SMS-ээр ИЛГЭЭНЭ (имэйл OTP-аас ТЭС ӨӨР flow).
+  requestPhoneVerify: (token: string, phone: string) =>
+    request<{
+      sessionId: string;
+      smsUri: string;
+      displayInstruction: string;
+      expiresAt: string;
+    }>('/auth/request-phone-verify', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ phone }),
+    }),
+
+  // Утас verify статус (polling-аар шалгана — ≥3с зайтай, verify.mn 429 хязгаар)
+  phoneVerifyStatus: (token: string, sessionId: string) =>
+    request<{ status: 'pending' | 'verified' | 'expired' }>(
+      `/auth/phone-verify/status?sessionId=${encodeURIComponent(sessionId)}`,
+      { token },
+    ),
+
   forgotPassword: (email: string) =>
     request<{ message: string }>('/auth/forgot-password', {
       method: 'POST',

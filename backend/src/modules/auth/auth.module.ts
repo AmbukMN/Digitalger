@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PhoneVerifyService } from './phone-verify.service';
+import { VerifyMnService } from './verify-mn.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscribersModule } from '../subscribers/subscribers.module';
@@ -25,7 +27,7 @@ import { SubscribersModule } from '../subscribers/subscribers.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, PhoneVerifyService, VerifyMnService, JwtStrategy],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

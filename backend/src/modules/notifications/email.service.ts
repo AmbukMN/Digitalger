@@ -1396,6 +1396,41 @@ ${pixel}
     this.enqueue(() => this.send(to, subject, html));
   }
 
+  /**
+   * Утасны дугаар амжилттай баталгаажсан мэдэгдэл (verify.mn MO SMS).
+   * Transactional (campaign/pixel-гүй) — жинхэнэ лого бүхий emailLayout.
+   * ⚠️ Guest/хүчингүй имэйлд явуулахгүй (isValidEmail).
+   */
+  async sendPhoneVerified(
+    to: string,
+    name: string | null,
+    phone: string,
+  ): Promise<void> {
+    if (!this.isValidEmail(to)) {
+      this.logger.log(`Утас баталгаажсан имэйл алгасав (хүчингүй/зочин) → ${to}`);
+      return;
+    }
+    const greeting = name ? `Сайн байна уу, ${name}!` : 'Сайн байна уу!';
+    const body = `
+      <p style="margin:0 0 20px;font-size:15px;color:#1a1a1a">${greeting}<br>Таны утасны дугаар амжилттай баталгаажлаа ✓</p>
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:20px;text-align:center;margin-bottom:8px">
+        <p style="margin:0 0 6px;font-size:12px;color:#047857;text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Баталгаажсан дугаар</p>
+        <p style="margin:0;font-size:20px;font-weight:800;color:#022179;letter-spacing:1px">${phone}</p>
+      </div>
+      <p style="margin:16px 0 0;font-size:13px;color:#777;line-height:1.6">Хэрэв та энэ үйлдлийг хийгээгүй бол даруй <a href="mailto:support@digitalger.mn" style="color:#022179">support@digitalger.mn</a> хаягаар бидэнтэй холбогдоно уу.</p>`;
+    const html = this.emailLayout({
+      heading: '📱 Утасны дугаар баталгаажлаа',
+      bodyHtml: body,
+      ctaText: 'Профайл руу очих →',
+      ctaUrl: `${this.siteUrl}/profile`,
+      preheader: 'Таны утасны дугаар амжилттай баталгаажлаа',
+    });
+    this.logger.log(`Утас баталгаажсан имэйл дараалалд → ${to} | ${phone}`);
+    this.enqueue(() =>
+      this.send(to, '📱 Утасны дугаар баталгаажлаа — DigitalGer', html),
+    );
+  }
+
   async sendPaymentConfirmation(opts: {
     to: string;
     name: string | null;

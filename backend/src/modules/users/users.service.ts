@@ -787,6 +787,7 @@ export class UsersService {
     await this.prisma.$transaction([
       this.prisma.zipJob.deleteMany({ where: { userId: id } }),
       this.prisma.emailOtp.deleteMany({ where: { email: user.email } }),
+      this.prisma.phoneVerifySession.deleteMany({ where: { userId: id } }),
       this.prisma.user.delete({ where: { id } }),
     ]);
 
@@ -1193,6 +1194,7 @@ export class UsersService {
     await this.prisma.$transaction([
       this.prisma.zipJob.deleteMany({ where: { userId: id } }),
       ...(target?.email ? [this.prisma.emailOtp.deleteMany({ where: { email: target.email } })] : []),
+      this.prisma.phoneVerifySession.deleteMany({ where: { userId: id } }),
       this.prisma.user.delete({ where: { id } }),
     ]);
     return { success: true };

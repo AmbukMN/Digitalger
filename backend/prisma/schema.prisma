@@ -48,6 +48,8 @@ model User {
   role          Role           @default(USER)
   emailVerified DateTime?
   pendingEmail  String?
+  phoneVerified DateTime? // утас баталгаажсан огноо (verify.mn MO SMS)
+  pendingPhone  String?   // баталгаажуулж буй утас (verify хийж байж л phone солигдоно)
   oauthProvider String?
   oauthId       String?
   isGuest       Boolean        @default(false)
@@ -1023,6 +1025,24 @@ model EmailOtp {
   createdAt  DateTime @default(now())
 
   @@index([email, purpose])
+}
+
+// Verify.mn MO SMS утас баталгаажуулалт. Хэрэглэгч 144773 руу `code`-г SMS илгээнэ.
+// verifyMnSessionId = verify.mn-ийн session. callback/polling-аар VERIFIED болоход
+// User.phoneVerified=now болгоно. EmailOtp шиг FK-гүй (гар аргаар цэвэрлэнэ).
+model PhoneVerifySession {
+  id               String   @id @default(cuid())
+  userId           String
+  phone            String // баталгаажуулж буй утас
+  code             String // 144773 руу илгээх код (4-6 орон)
+  verifyMnSessionId String  @unique // verify.mn-ийн sessionId
+  status           String   @default("pending") // pending|verified|expired
+  expiresAt        DateTime
+  verifiedAt       DateTime?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([verifyMnSessionId])
 }
 
 model PageView {

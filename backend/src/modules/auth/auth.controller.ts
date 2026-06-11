@@ -1,6 +1,19 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Logger,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { PhoneVerifyService } from './phone-verify.service';
+import { RequestPhoneVerifyDto } from './dto/otp.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -18,9 +31,17 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
+// verify.mn callback-ийн IP whitelist (баримтжуулсан source IP-ууд).
+const VERIFY_MN_CALLBACK_IPS = new Set(['3.34.8.248', '13.124.219.192']);
+
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly logger = new Logger(AuthController.name);
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly phoneVerify: PhoneVerifyService,
+  ) {}
 
   @Post('register')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -119,5 +140,59 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
+  }
+
+  // ═══ Утас баталгаажуулалт (verify.mn MO SMS) ════════════════════════════════
+
+  /** Утас баталгаажуулах хүсэлт — verify.mn session үүсгэж 144773 заавар буцаана */
+  @Post('request-phone-verify')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  requestPhoneVerify(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: RequestPhoneVerifyDto,
+  ) {
+    return this.phoneVerify.requestPhoneVerify(user.sub, dto.phone);
+  }
+
+  /** Polling — verify.mn session төлөв шалгана (VERIFIED бол User шинэчилнэ) */
+  @Get('phone-verify/status')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  phoneVerifyStatus(
+    @CurrentUser() user: JwtPayload,
+    @Query('sessionId') sessionId: string,
+  ) {
+    return this.phoneVerify.getStatus(user.sub, sessionId);
+  }
+
+  /**
+   * verify.mn callback (PUBLIC, guard-гүй) — body-гүй wake-up signal.
+   * ⚠️ IP whitelist (verify.mn source IP) шалгана. Зөвхөн дохио тул session-ийг
+   * sid-ээр олж getSessionStatus-аар ДАХИН баталгаажуулна (handleCallback дотор).
+   * 200-г ХУРДАН буцаана (verify.mn 2xx хүлээдэг).
+   */
+  @Get('phone-verify/callback')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async phoneVerifyCallback(
+    @Query('sid') sid: string,
+    @Req() req: Request,
+  ): Promise<{ ok: boolean }> {
+    // ── IP whitelist (x-forwarded-for эхний IP эсвэл req.ip) ──
+    const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
+    const clientIp = (fwd.split(',')[0]?.trim() || req.ip || '').replace(
+      /^::ffff:/,
+      '',
+    );
+    if (!VERIFY_MN_CALLBACK_IPS.has(clientIp)) {
+      this.logger.warn(`Phone verify callback — зөвшөөрөгдөөгүй IP: ${clientIp}`);
+      // 403 буцаахын оронд 200 чимээгүй буцаана (verify.mn дахин дуудахгүй) —
+      // status polling нь ямар ч тохиолдолд баталгаажуулдаг тул critical биш.
+      return { ok: false };
+    }
+    // Fire-and-forget — verify.mn-д 200-г хурдан буцаана.
+    void this.phoneVerify.handleCallback(sid);
+    return { ok: true };
   }
 }

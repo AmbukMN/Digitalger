@@ -178,6 +178,7 @@ export interface AuthUser {
   isGuest?: boolean;
   oauthProvider?: string | null;
   emailVerified?: string | null;
+  phoneVerified?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

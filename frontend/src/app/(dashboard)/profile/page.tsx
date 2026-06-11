@@ -18,7 +18,8 @@ import {
 } from '@digitalger/shared/ui';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Camera, Check, Eye, EyeOff, Ghost, KeyRound, LogOut, Mail, Pencil, RotateCcw, Shield, X } from 'lucide-react';
+import { Camera, Check, Copy, Eye, EyeOff, Ghost, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, RotateCcw, Send, Shield, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { usersApi, authApi } from '@/lib/api';
 import { forgetGuestSession } from '@/lib/guest-session';
@@ -614,6 +615,309 @@ function EmailVerifySection({
   );
 }
 
+// ── Утас баталгаажуулах ────────────────────────────────────────
+// ⚠️ Имэйл OTP-аас ТЭС ӨӨР flow: хэрэглэгч код ОРУУЛАХГҮЙ, харин backend-ийн
+// өгсөн кодыг 144773 (verify.mn MO SMS) руу SMS-ээр ИЛГЭЭНЭ. Дараа нь
+// 3 секунд тутамд polling-аар status='verified' эсэхийг шалгана.
+const PHONE_VERIFY_SMS_NUMBER = '144773';
+
+type PhoneSession = {
+  sessionId: string;
+  smsUri: string;
+  displayInstruction: string;
+  expiresAt: string;
+};
+
+function PhoneVerifySection({
+  phone,
+  phoneVerified,
+  token,
+  onVerified,
+  onEditProfile,
+}: {
+  phone: string | null | undefined;
+  phoneVerified: Date | null | undefined;
+  token: string;
+  onVerified: () => void;
+  onEditProfile: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [session, setSession] = useState<PhoneSession | null>(null);
+  const [status, setStatus] = useState<'idle' | 'pending' | 'verified' | 'expired'>('idle');
+  const [remaining, setRemaining] = useState(0); // секунд (countdown)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearPoll = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  // Цэвэрлэх (unmount)
+  useEffect(() => () => clearPoll(), []);
+
+  // Countdown — expiresAt хүртэл MM:SS. 0 болоход expired.
+  useEffect(() => {
+    if (!open || !session || status !== 'pending') return;
+    const tick = () => {
+      const secs = Math.max(0, Math.round((new Date(session.expiresAt).getTime() - Date.now()) / 1000));
+      setRemaining(secs);
+      if (secs <= 0) {
+        setStatus('expired');
+        clearPoll();
+      }
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [open, session, status]);
+
+  // Polling — 3 секунд тутамд status шалгана (≥3с заавал: verify.mn 429 хязгаар)
+  useEffect(() => {
+    if (!open || !session || status !== 'pending') return;
+    clearPoll();
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await authApi.phoneVerifyStatus(token, session.sessionId);
+        if (res.status === 'verified') {
+          clearPoll();
+          setStatus('verified');
+          toast.success('Утас амжилттай баталгаажлаа!');
+          onVerified();
+          setTimeout(() => setOpen(false), 1500);
+        } else if (res.status === 'expired') {
+          clearPoll();
+          setStatus('expired');
+        }
+      } catch {
+        /* түр алдаа — дараагийн poll дээр дахин оролдоно */
+      }
+    }, 3000);
+    return () => clearPoll();
+  }, [open, session, status, token, onVerified]);
+
+  const handleRequest = async () => {
+    if (!phone) return;
+    setRequesting(true);
+    try {
+      const s = await authApi.requestPhoneVerify(token, phone);
+      setSession(s);
+      setStatus('pending');
+      setOpen(true);
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('already') || msg.includes('баталгаажсан'))
+        toast.error('Утас аль хэдийн баталгаажсан байна');
+      else if (msg.includes('use') || msg.includes('бүртгэлтэй'))
+        toast.error('Энэ утас өөр бүртгэлд хэрэглэгдсэн байна');
+      else toast.error('Хүсэлт илгээхэд алдаа гарлаа. Дахин оролдоно уу.');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const handleClose = (val: boolean) => {
+    if (!val) {
+      clearPoll();
+      setSession(null);
+      setStatus('idle');
+    }
+    setOpen(val);
+  };
+
+  // verify.mn руу илгээх кодыг displayInstruction-аас салгаж авах (copy-д).
+  // Зааврын текстээс эхний урт тоог олно (код ихэвчлэн 6 орон).
+  const code = session?.displayInstruction.match(/\b\d{4,8}\b/)?.[0] ?? '';
+
+  const copy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} хууллаа`);
+    } catch {
+      toast.error('Хуулж чадсангүй');
+    }
+  };
+
+  const mmss = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
+
+  // 1) Баталгаажсан → ногоон badge
+  if (phoneVerified) {
+    return (
+      <div className="flex items-center gap-2 py-3">
+        <span className="text-sm text-muted-foreground">Утас</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm font-medium">{phone}</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
+            <Check className="h-3 w-3" />
+            Баталгаажсан
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2) Утас огт байхгүй → профайл засах руу заах
+  if (!phone) {
+    return (
+      <div className="flex items-start gap-3 py-3">
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium">Утас</span>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Эхлээд утасны дугаараа оруулна уу
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={onEditProfile}>
+          <Pencil className="h-3.5 w-3.5" />
+          Утас оруулах
+        </Button>
+      </div>
+    );
+  }
+
+  // 3) Утас байгаа + баталгаажаагүй → "Баталгаажуулах" товч + Dialog
+  return (
+    <div className="py-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">{phone}</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+              Баталгаажаагүй
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">Утасны дугаараа баталгаажуулна уу</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5"
+          onClick={handleRequest}
+          disabled={requesting}
+        >
+          <Phone className="h-3.5 w-3.5" />
+          {requesting ? 'Түр хүлээнэ үү...' : 'Баталгаажуулах'}
+        </Button>
+      </div>
+
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Утас баталгаажуулах</DialogTitle>
+          </DialogHeader>
+
+          <AnimatePresence mode="wait">
+            {status === 'verified' ? (
+              <motion.div
+                key="verified"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col items-center gap-3 py-6 text-center"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-950">
+                  <Check className="h-7 w-7 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                  Утас баталгаажлаа
+                </p>
+              </motion.div>
+            ) : status === 'expired' ? (
+              <motion.div
+                key="expired"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4 py-2 text-center"
+              >
+                <p className="text-sm text-muted-foreground">
+                  Хугацаа дууссан байна. Дахин оролдоно уу.
+                </p>
+                <Button
+                  size="sm"
+                  className="w-full gap-1.5"
+                  onClick={handleRequest}
+                  disabled={requesting}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {requesting ? 'Түр хүлээнэ үү...' : 'Дахин эхлэх'}
+                </Button>
+              </motion.div>
+            ) : session ? (
+              <motion.div
+                key="pending"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-4"
+              >
+                <p className="text-sm text-muted-foreground">{session.displayInstruction}</p>
+
+                {/* ⚠️ Хамгийн чухал CTA — mobile дээр нэг дарахад SMS апп код бөглөгдсөн нээгдэнэ */}
+                <a href={session.smsUri} className="block">
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+                  >
+                    <Send className="h-4 w-4" />
+                    {PHONE_VERIFY_SMS_NUMBER} руу илгээх
+                  </Button>
+                </a>
+
+                {/* Гараар — код + дугаарыг copy боломжтой */}
+                {code && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-sm">
+                    <p className="text-xs text-muted-foreground text-center">
+                      Эсвэл гараар: дараах кодыг {PHONE_VERIFY_SMS_NUMBER} руу илгээнэ үү
+                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Код:</span>
+                      <button
+                        type="button"
+                        onClick={() => copy(code, 'Код')}
+                        className="inline-flex items-center gap-1.5 font-mono font-semibold tracking-wider hover:text-primary"
+                      >
+                        {code}
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Дугаар:</span>
+                      <button
+                        type="button"
+                        onClick={() => copy(PHONE_VERIFY_SMS_NUMBER, 'Дугаар')}
+                        className="inline-flex items-center gap-1.5 font-mono font-semibold hover:text-primary"
+                      >
+                        {PHONE_VERIFY_SMS_NUMBER}
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SMS хүлээж байна — spinner + countdown */}
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>SMS хүлээж байна...</span>
+                  {remaining > 0 && <span className="font-mono">{mmss}</span>}
+                </div>
+
+                <Button variant="ghost" size="sm" className="w-full" onClick={() => handleClose(false)}>
+                  Болих
+                </Button>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -724,6 +1028,7 @@ export default function ProfilePage() {
   const isGuest = user?.isGuest ?? session.user?.email?.endsWith('@guest.digitalger.mn') ?? false;
   const provider = user?.oauthProvider ?? (session.user as any)?.oauthProvider ?? null;
   const emailVerified: Date | null = user?.emailVerified ? new Date(user.emailVerified as any) : null;
+  const phoneVerified: Date | null = user?.phoneVerified ? new Date(user.phoneVerified as any) : null;
   const canEditEmail = isGuest || !provider;
   const displayName = user?.name ?? (isGuest ? 'Зочин' : session.user?.email ?? '—');
 
@@ -959,6 +1264,19 @@ export default function ProfilePage() {
               token={token}
               onVerified={async () => {
                 await updateSession({ emailVerified: new Date().toISOString() });
+                queryClient.invalidateQueries({ queryKey: ['me'] });
+              }}
+            />
+          )}
+          {/* Утас баталгаажуулах — зөвхөн жинхэнэ хэрэглэгч (зочин биш) дээр.
+              Утас байгаа эсвэл оруулахыг санал болгоно. */}
+          {!isGuest && token && (
+            <PhoneVerifySection
+              phone={user?.phone}
+              phoneVerified={phoneVerified}
+              token={token}
+              onEditProfile={() => setEditMode(true)}
+              onVerified={() => {
                 queryClient.invalidateQueries({ queryKey: ['me'] });
               }}
             />
