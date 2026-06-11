@@ -368,6 +368,47 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // Subscriber/Таталт) харагдана. EDITOR/ADMIN-д зөвхөн контент+scope цэс.
   const isSuperadmin = profile?.role === 'SUPERADMIN';
 
+  // ── PAGE-LEVEL GUARD: ADMIN эрхгүй page-д шууд URL-аар орвол → /(dashboard) redirect ──
+  // sidebar нуусан ч URL шууд бичих/bookmark-аас хамгаална (backend ч 403 хийнэ).
+  const { data: guardPerms } = useQuery({
+    queryKey: ['admin', 'my-permissions'],
+    queryFn: () => adminApi.staff.myPermissions(),
+    staleTime: 5 * 60_000,
+    enabled: !!profile && !isSuperadmin, // SUPERADMIN бол guard хэрэггүй
+  });
+  useEffect(() => {
+    if (!profile || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
+    // Route → шалгах төрөл. SUPERADMIN-only route эсвэл resource permission.
+    const SUPERADMIN_ROUTES = ['/users', '/subscribers', '/downloads', '/staff', '/settings', '/seo', '/queue', '/theme', '/media'];
+    const ROUTE_RESOURCE: { prefix: string; resource: string }[] = [
+      { prefix: '/products', resource: 'products' },
+      { prefix: '/product-types', resource: 'product-types' },
+      { prefix: '/categories', resource: 'categories' },
+      { prefix: '/orders', resource: 'orders' },
+      { prefix: '/payments', resource: 'orders' },
+      { prefix: '/coupons', resource: 'coupons' },
+      { prefix: '/banners', resource: 'banners' },
+      { prefix: '/faqs', resource: 'faqs' },
+      { prefix: '/blog', resource: 'blog' },
+      { prefix: '/pages', resource: 'pages' },
+      { prefix: '/menu', resource: 'menu' },
+      { prefix: '/reviews', resource: 'reviews' },
+      { prefix: '/testimonials', resource: 'testimonials' },
+    ];
+    // SUPERADMIN-only route → ADMIN хандах эрхгүй.
+    if (SUPERADMIN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) {
+      router.replace('/');
+      return;
+    }
+    // Resource route → permission ачаалсны дараа canView шалгах.
+    const match = ROUTE_RESOURCE.find(
+      (r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'),
+    );
+    if (match && guardPerms && guardPerms[match.resource]?.view !== true) {
+      router.replace('/'); // эрхгүй resource → dashboard
+    }
+  }, [pathname, profile, isSuperadmin, guardPerms, router]);
+
   const siteName = publicSettings?.siteName ?? 'DigitalGer';
   const logoUrl = publicSettings?.logoUrl ?? null;
   const userName = profile?.name ?? 'Admin';
