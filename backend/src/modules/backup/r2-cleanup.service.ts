@@ -35,6 +35,16 @@ export class R2CleanupService implements OnModuleDestroy {
   private readonly GRACE_DAYS = 3;
   // Шинэхэн upload-ийг candidate болгохгүй (идэвхтэй form draft) — энэ цонхны дотор алгасна.
   private readonly RECENT_HOURS = 2;
+  // ⚠️ ХАМГААЛАГДСАН prefix — cleanup-д ХЭЗЭЭ Ч хамруулахгүй. Эдгээр нь DB key-ээр
+  // tracking хийгддэггүй тул "orphan" мэт харагдана, гэхдээ устгаж БОЛОХГҮЙ:
+  //   backups/ = DB backup (.sql.gz) — устгавал нөөц алдагдана!
+  //   avatars/ = хэрэглэгчийн avatar (User.image нь зарим тохиолдолд URL хэлбэрээр
+  //              хадгалагддаг тул key таарахгүй — буруу устгахаас сэргийлж бүхэлд хамгаална).
+  private readonly PROTECTED_PREFIXES = ['backups/', 'avatars/'];
+
+  private isProtected(key: string): boolean {
+    return this.PROTECTED_PREFIXES.some((p) => key.startsWith(p));
+  }
 
   constructor(
     private readonly config: ConfigService,
@@ -146,6 +156,7 @@ export class R2CleanupService implements OnModuleDestroy {
       const orphanKeys = new Set<string>();
       for (const o of objects) {
         if (linked.has(o.key)) continue;
+        if (this.isProtected(o.key)) continue; // backups/avatars — хэзээ ч хамруулахгүй
         const lm = o.lastModified ? o.lastModified.getTime() : NaN;
         if (!Number.isFinite(lm) || lm > recentCutoff) continue; // саяхан — хамгаална
         orphanKeys.add(o.key);
@@ -232,8 +243,8 @@ export class R2CleanupService implements OnModuleDestroy {
     let bytes = 0;
     let reLinked = 0;
     for (const c of aged) {
-      if (linked.has(c.key)) {
-        // Дахин холбогдсон — устгахгүй, candidate-аас хасна.
+      // ⚠️ Давхар хамгаалалт: protected prefix-ийг хэзээ ч устгахгүй (candidate-аас хасна).
+      if (this.isProtected(c.key) || linked.has(c.key)) {
         await this.prisma.orphanCandidate.delete({ where: { id: c.id } }).catch(() => {});
         reLinked += 1;
         continue;
