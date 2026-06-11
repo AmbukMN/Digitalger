@@ -44,13 +44,17 @@ export class TestimonialsAdminController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateTestimonialDto) {
-    return this.svc.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateTestimonialDto,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.svc.update(id, dto, me);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.svc.remove(id, me);
   }
 
   // Get testimonial ids assigned to product

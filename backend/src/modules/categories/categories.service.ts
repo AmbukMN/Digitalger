@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,6 +8,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
 
 @Injectable()
 export class CategoriesService {
@@ -84,8 +87,10 @@ export class CategoriesService {
     return created;
   }
 
-  async update(id: string, dto: UpdateCategoryDto) {
-    await this.ensureExists(id);
+  async update(id: string, dto: UpdateCategoryDto, me: JwtPayload) {
+    const row = await this.ensureExists(id);
+    // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) category-г засна.
+    assertOwner(me, row, 'засах');
 
     if (dto.slug) {
       const conflict = await this.prisma.category.findFirst({
@@ -101,8 +106,27 @@ export class CategoriesService {
     return updated;
   }
 
-  async remove(id: string) {
-    await this.ensureExists(id);
+  async remove(id: string, me: JwtPayload) {
+    // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн category-г устгана.
+    assertCanDelete(me);
+    const row = await this.ensureExists(id);
+    assertOwner(me, row, 'устгах');
+    // ⚠️ Phase 3: ӨӨР admin-ийн product энэ category-г ашиглаж байвал устгахгүй
+    // (categoryId single ЭСВЭЛ categoryIds array). SUPERADMIN-д хамаарахгүй.
+    if (!isSuperadmin(me)) {
+      const usedByOther = await this.prisma.product.findFirst({
+        where: {
+          createdByUserId: { not: me.sub },
+          OR: [{ categoryId: id }, { categoryIds: { has: id } }],
+        },
+        select: { id: true },
+      });
+      if (usedByOther) {
+        throw new ForbiddenException(
+          'Энэ ангиллыг өөр админы бүтээгдэхүүн ашиглаж байгаа тул устгах боломжгүй (зөвхөн засах)',
+        );
+      }
+    }
     const removed = await this.prisma.category.delete({ where: { id } });
     await this.cache.del(CacheKeys.categories);
     return removed;

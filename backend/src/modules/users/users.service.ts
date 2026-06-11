@@ -855,6 +855,143 @@ export class UsersService {
     return { items };
   }
 
+  // ─── Phase 4: STAFF MANAGEMENT (зөвхөн SUPERADMIN) ──────────────────────────
+  // SUPERADMIN бусад admin (EDITOR/ADMIN)-ийг үүсгэх, эрх солих, блоклох, устгах.
+  // ⚠️ Загвар: НЭГ л SUPERADMIN — SUPERADMIN-ийг хэн ч role/block/delete хийхгүй,
+  // шинээр SUPERADMIN үүсгэх/болгох ч хийхгүй. Өөрийгөө downgrade/block/delete хийхгүй.
+
+  private readonly STAFF_ROLES = ['EDITOR', 'ADMIN', 'SUPERADMIN'] as const;
+  private readonly STAFF_SELECT = {
+    id: true,
+    email: true,
+    name: true,
+    role: true,
+    blocked: true,
+    image: true,
+    createdAt: true,
+  } as const;
+
+  /** Бүх admin (EDITOR/ADMIN/SUPERADMIN) жагсаалт. End-user (USER) хасна. */
+  async listStaff() {
+    const items = await this.prisma.user.findMany({
+      where: { role: { in: ['EDITOR', 'ADMIN', 'SUPERADMIN'] } },
+      orderBy: [{ role: 'desc' }, { createdAt: 'desc' }],
+      select: this.STAFF_SELECT,
+    });
+    return { items };
+  }
+
+  /** Шинэ admin (EDITOR|ADMIN) үүсгэх. Email давхцал шалгана. password байвал
+   * bcrypt hash, эс бол null (нууц үггүй — дараа нь админ тохируулна). */
+  async createStaff(
+    dto: { email: string; name?: string; role: 'EDITOR' | 'ADMIN'; password?: string },
+    adminId: string,
+  ) {
+    // ⚠️ SUPERADMIN үүсгэхгүй (нэг л superadmin).
+    if (dto.role !== 'EDITOR' && dto.role !== 'ADMIN') {
+      throw new BadRequestException('Эрх нь зөвхөн EDITOR эсвэл ADMIN байна');
+    }
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException('Энэ имэйл аль хэдийн бүртгэлтэй байна');
+    }
+    if (dto.password !== undefined && dto.password !== '' && dto.password.length < 8) {
+      throw new BadRequestException('Нууц үг хамгийн багадаа 8 тэмдэгт байх ёстой');
+    }
+    const passwordHash =
+      dto.password && dto.password.length >= 8
+        ? await bcrypt.hash(dto.password, BCRYPT_ROUNDS)
+        : null;
+
+    const created = await this.prisma.user.create({
+      data: {
+        email,
+        name: dto.name?.trim() || null,
+        role: dto.role,
+        passwordHash,
+        // Админаар үүсгэсэн тул имэйл баталгаажсан гэж үзнэ (зочин биш).
+        emailVerified: new Date(),
+        isGuest: false,
+      },
+      select: this.STAFF_SELECT,
+    });
+
+    await this.writeAudit([
+      { userId: created.id, field: 'role', oldValue: null, newValue: dto.role, actor: 'admin', actorId: adminId },
+    ]);
+    return created;
+  }
+
+  /** Тухайн admin-ийг олж, staff үйлдэл хийх боломжтой эсэхийг шалгана.
+   * SUPERADMIN-д хүрэхгүй, өөрийгөө хамгаална. */
+  private async getStaffTarget(id: string, adminId: string, action: string) {
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target) throw new NotFoundException('Админ олдсонгүй');
+    if (target.role === 'SUPERADMIN') {
+      throw new ForbiddenException(`SUPERADMIN-ийг ${action} боломжгүй`);
+    }
+    if (target.id === adminId) {
+      throw new ForbiddenException(`Өөрийгөө ${action} боломжгүй`);
+    }
+    return target;
+  }
+
+  /** Admin-ийн эрх солих (зөвхөн EDITOR|ADMIN). SUPERADMIN болгож upgrade хийхгүй. */
+  async updateStaffRole(id: string, role: 'EDITOR' | 'ADMIN', adminId: string) {
+    if (role !== 'EDITOR' && role !== 'ADMIN') {
+      throw new BadRequestException('Эрх нь зөвхөн EDITOR эсвэл ADMIN байна');
+    }
+    const target = await this.getStaffTarget(id, adminId, 'эрхийг өөрчлөх');
+    if (target.role === 'USER') {
+      throw new BadRequestException('Энэ хэрэглэгч admin биш байна');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { role },
+      select: this.STAFF_SELECT,
+    });
+    await this.writeAudit([
+      { userId: id, field: 'role', oldValue: target.role, newValue: role, actor: 'admin', actorId: adminId },
+    ]);
+    return updated;
+  }
+
+  /** Admin-ийг блоклох/нээх. SUPERADMIN-ийг блоклохгүй, өөрийгөө блоклохгүй. */
+  async blockStaff(id: string, blocked: boolean, adminId: string) {
+    const target = await this.getStaffTarget(id, adminId, 'блоклох');
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { blocked },
+      select: this.STAFF_SELECT,
+    });
+    await this.writeAudit([
+      {
+        userId: id,
+        field: 'blocked',
+        oldValue: target.blocked ? 'true' : 'false',
+        newValue: blocked ? 'true' : 'false',
+        actor: 'admin',
+        actorId: adminId,
+      },
+    ]);
+    return updated;
+  }
+
+  /** Admin-ийг устгах. SUPERADMIN устгахгүй, өөрийгөө устгахгүй.
+   * Тэр admin-ийн контент createdByUserId=null болно (FK SetNull). */
+  async deleteStaff(id: string, adminId: string) {
+    await this.getStaffTarget(id, adminId, 'устгах');
+    // Холбоотой ZipJob/EmailOtp гар аргаар (deleteUser-тэй ижил pattern).
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { email: true } });
+    await this.prisma.$transaction([
+      this.prisma.zipJob.deleteMany({ where: { userId: id } }),
+      ...(target?.email ? [this.prisma.emailOtp.deleteMany({ where: { email: target.email } })] : []),
+      this.prisma.user.delete({ where: { id } }),
+    ]);
+    return { success: true };
+  }
+
   /** Админаас идэвхжүүлсэн нэг бүтээгдэхүүнийг ЦУЦЛАХ (зөвхөн ADMIN_GRANT).
    * Худалдаж авсан (PURCHASE) захиалгыг цуцлахгүй. Нэг item бол захиалга
    * бүхэлдээ устгана, олон item бол зөвхөн тэр item-ийг устгана. */

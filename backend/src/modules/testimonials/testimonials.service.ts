@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
 
 export class CreateTestimonialDto {
   @IsString()
@@ -95,13 +97,31 @@ export class TestimonialsService {
     });
   }
 
-  async update(id: string, dto: UpdateTestimonialDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateTestimonialDto, me: JwtPayload) {
+    const row = await this.findOne(id);
+    // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) testimonial-г засна.
+    assertOwner(me, row, 'засах');
     return this.prisma.testimonial.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, me: JwtPayload) {
+    // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн testimonial-г устгана.
+    assertCanDelete(me);
+    const row = await this.findOne(id);
+    assertOwner(me, row, 'устгах');
+    // ⚠️ Phase 3 SHARED-resource delete-protection: ӨӨР admin-ийн product-д
+    // ашиглагдаж байвал устгаж БОЛОХГҮЙ (зөвхөн засах). SUPERADMIN-д хамаарахгүй.
+    if (!isSuperadmin(me)) {
+      const usedByOther = await this.prisma.productTestimonial.findFirst({
+        where: { testimonialId: id, product: { createdByUserId: { not: me.sub } } },
+        select: { productId: true },
+      });
+      if (usedByOther) {
+        throw new ForbiddenException(
+          'Энэ сэтгэгдлийг өөр админы бүтээгдэхүүн ашиглаж байгаа тул устгах боломжгүй (зөвхөн засах)',
+        );
+      }
+    }
     return this.prisma.testimonial.delete({ where: { id } });
   }
 

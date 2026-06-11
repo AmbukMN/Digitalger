@@ -33,8 +33,8 @@ export class BannersAdminController {
   constructor(private readonly banners: BannersService) {}
 
   @Get()
-  listAll() {
-    return this.banners.findAll();
+  listAll(@CurrentUser() me: JwtPayload) {
+    return this.banners.findAll(me);
   }
 
   @Post()
@@ -43,12 +43,12 @@ export class BannersAdminController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateBannerDto) {
-    return this.banners.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateBannerDto, @CurrentUser() me: JwtPayload) {
+    return this.banners.update(id, dto, me);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.banners.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.banners.remove(id, me);
   }
 }

@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
 
 @Injectable()
 export class CouponsService {
@@ -15,8 +17,11 @@ export class CouponsService {
     return code;
   }
 
-  async findAll() {
-    return this.prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } });
+  async findAll(me: JwtPayload) {
+    return this.prisma.coupon.findMany({
+      where: { ...buildOwnerWhere(me) },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async findOne(id: string) {
@@ -64,8 +69,10 @@ export class CouponsService {
       active: boolean;
       expiresAt: string | null;
     }>,
+    me: JwtPayload,
   ) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
+    assertOwner(me, existing, 'засах');
 
     if (dto.code) {
       const conflict = await this.prisma.coupon.findFirst({
@@ -86,8 +93,10 @@ export class CouponsService {
     return this.prisma.coupon.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, me: JwtPayload) {
+    assertCanDelete(me);
+    const existing = await this.findOne(id);
+    assertOwner(me, existing, 'устгах');
     return this.prisma.coupon.delete({ where: { id } });
   }
 

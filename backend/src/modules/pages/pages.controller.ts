@@ -24,6 +24,6 @@ export class PagesAdminController {
 
   @Put(':slug')
   upsert(@Param('slug') slug: string, @Body() dto: UpsertPageDto, @CurrentUser() me: JwtPayload) {
-    return this.service.upsert(slug, dto, me.sub);
+    return this.service.upsert(slug, dto, me);
   }
 }

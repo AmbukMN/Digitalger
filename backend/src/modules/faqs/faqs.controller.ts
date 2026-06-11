@@ -35,13 +35,17 @@ export class FaqsAdminController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateFaqDto) {
-    return this.faqs.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateFaqDto,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.faqs.update(id, dto, me);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.faqs.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.faqs.remove(id, me);
   }
 
   // Get FAQ ids assigned to a product

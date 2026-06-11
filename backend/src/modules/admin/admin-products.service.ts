@@ -12,6 +12,8 @@ import { N8nService } from '../n8n/n8n.service';
 import { EmailService } from '../notifications/email.service';
 import { ProductsService } from '../products/products.service';
 import { expandQuery } from '../../common/transliterate';
+import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
+import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateLessonDto, UpdateLessonDto } from './dto/lesson.dto';
@@ -32,13 +34,16 @@ export class AdminProductsService {
     private readonly products: ProductsService,
   ) {}
 
-  async findAll(query: { page?: number; pageSize?: number; search?: string }) {
+  async findAll(
+    query: { page?: number; pageSize?: number; search?: string },
+    me?: JwtPayload,
+  ) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
     const terms = query.search ? expandQuery(query.search) : [];
-    const where: Prisma.ProductWhereInput = terms.length
+    const searchWhere: Prisma.ProductWhereInput = terms.length
       ? {
           OR: terms.flatMap((term) => [
             { title:         { contains: term, mode: 'insensitive' } },
@@ -71,6 +76,11 @@ export class AdminProductsService {
         }
       : {};
 
+    // ⚠️ Multi-tenant scoping: SUPERADMIN бүгдийг, бусад зөвхөн ӨӨРИЙН product.
+    // search + ownership-ийг AND-аар нэгтгэнэ (өөр admin-ийн product хайлтад ч гарахгүй).
+    const ownerWhere = me ? buildOwnerWhere(me) : {};
+    const where: Prisma.ProductWhereInput = { AND: [searchWhere, ownerWhere] };
+
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -99,7 +109,7 @@ export class AdminProductsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, me?: JwtPayload) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -117,6 +127,8 @@ export class AdminProductsService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
+    // ⚠️ Зөвхөн өөрийн product-ийн дэлгэрэнгүйг харна (SUPERADMIN бүгдийг).
+    if (me) assertOwner(me, product, 'харах');
 
     return product;
   }
@@ -174,8 +186,10 @@ export class AdminProductsService {
     return created;
   }
 
-  async update(id: string, dto: UpdateProductDto) {
+  async update(id: string, dto: UpdateProductDto, me?: JwtPayload) {
     const existing = await this.ensureProductExists(id);
+    // ⚠️ Зөвхөн өөрийн product засна (SUPERADMIN бүгдийг).
+    if (me) assertOwner(me, existing, 'засах');
 
     if (dto.slug) {
       const conflict = await this.prisma.product.findFirst({
@@ -254,8 +268,10 @@ export class AdminProductsService {
     return updated;
   }
 
-  async remove(id: string) {
-    await this.ensureProductExists(id);
+  async remove(id: string, me?: JwtPayload) {
+    if (me) assertCanDelete(me); // EDITOR устгаж чадахгүй
+    const existing = await this.ensureProductExists(id);
+    if (me) assertOwner(me, existing, 'устгах'); // зөвхөн өөрийн product
     // Жагсаалтаас шууд алга болгохын тулд cache-г цэвэрлэнэ.
     await this.products.invalidateListCache();
 

@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
 
 export class CreateFaqDto {
   @IsString() question!: string;
@@ -40,13 +42,30 @@ export class FaqsService {
     });
   }
 
-  async update(id: string, dto: UpdateFaqDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateFaqDto, me: JwtPayload) {
+    const row = await this.findOne(id);
+    // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) FAQ-г засна.
+    assertOwner(me, row, 'засах');
     return this.prisma.fAQ.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, me: JwtPayload) {
+    // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн FAQ-г устгана.
+    assertCanDelete(me);
+    const row = await this.findOne(id);
+    assertOwner(me, row, 'устгах');
+    // ⚠️ Phase 3: ӨӨР admin-ийн product-д ашиглагдаж байвал устгахгүй.
+    if (!isSuperadmin(me)) {
+      const usedByOther = await this.prisma.productFAQ.findFirst({
+        where: { faqId: id, product: { createdByUserId: { not: me.sub } } },
+        select: { productId: true },
+      });
+      if (usedByOther) {
+        throw new ForbiddenException(
+          'Энэ FAQ-г өөр админы бүтээгдэхүүн ашиглаж байгаа тул устгах боломжгүй (зөвхөн засах)',
+        );
+      }
+    }
     return this.prisma.fAQ.delete({ where: { id } });
   }
 

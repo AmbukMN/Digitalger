@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CouponsService } from './coupons.service';
 
 // ── Public validate endpoint ──────────────────────────────────────────────────
@@ -42,8 +42,8 @@ export class AdminCouponsController {
   constructor(private readonly coupons: CouponsService) {}
 
   @Get()
-  findAll() {
-    return this.coupons.findAll();
+  findAll(@CurrentUser() me: JwtPayload) {
+    return this.coupons.findAll(me);
   }
 
   @Get('generate-code')
@@ -81,12 +81,13 @@ export class AdminCouponsController {
       active: boolean;
       expiresAt: string | null;
     }>,
+    @CurrentUser() me: JwtPayload,
   ) {
-    return this.coupons.update(id, body);
+    return this.coupons.update(id, body, me);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.coupons.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.coupons.remove(id, me);
   }
 }

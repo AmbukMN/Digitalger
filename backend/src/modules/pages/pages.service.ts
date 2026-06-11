@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { assertOwner } from '../../common/ownership';
 
 export class UpsertPageDto {
   @IsString() title!: string;
@@ -20,12 +22,15 @@ export class PagesService {
     return this.prisma.page.findUnique({ where: { slug } });
   }
 
-  upsert(slug: string, dto: UpsertPageDto, createdByUserId?: string) {
+  async upsert(slug: string, dto: UpsertPageDto, me: JwtPayload) {
+    // Хэрэв хуудас аль хэдийн байгаа бол ЗАСАХ эрхийг шалгана (IDOR хаах).
+    const existing = await this.prisma.page.findUnique({ where: { slug } });
+    if (existing) assertOwner(me, existing, 'засах');
     return this.prisma.page.upsert({
       where: { slug },
       update: { ...dto },
       // ownership зөвхөн create үед бичигдэнэ (update-д createdByUserId-г хадгалахгүй)
-      create: { slug, ...dto, ...(createdByUserId && { createdByUserId }) },
+      create: { slug, ...dto, ...(me.sub && { createdByUserId: me.sub }) },
     });
   }
 }

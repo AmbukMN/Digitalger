@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
+import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
 
 export class CreateBlogPostDto {
   @IsString() title!: string;
@@ -90,8 +92,9 @@ export class BlogService {
     return { ok: true };
   }
 
-  findAll() {
+  findAll(me: JwtPayload) {
     return this.prisma.blogPost.findMany({
+      where: { ...buildOwnerWhere(me) },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
   }
@@ -108,8 +111,9 @@ export class BlogService {
     return created;
   }
 
-  async update(id: string, dto: UpdateBlogPostDto) {
+  async update(id: string, dto: UpdateBlogPostDto, me: JwtPayload) {
     const existing = await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
+    assertOwner(me, existing, 'засах');
     const updated = await this.prisma.blogPost.update({
       where: { id },
       data: {
@@ -121,8 +125,10 @@ export class BlogService {
     return updated;
   }
 
-  async remove(id: string) {
-    await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
+  async remove(id: string, me: JwtPayload) {
+    assertCanDelete(me);
+    const existing = await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
+    assertOwner(me, existing, 'устгах');
     const removed = await this.prisma.blogPost.delete({ where: { id } });
     await this.cache.delByPrefix(CacheKeys.blogLatestPrefix);
     return removed;

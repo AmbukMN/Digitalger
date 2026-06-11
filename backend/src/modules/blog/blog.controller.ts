@@ -52,8 +52,8 @@ export class BlogAdminController {
   constructor(private readonly service: BlogService) {}
 
   @Get()
-  adminList() {
-    return this.service.findAll();
+  adminList(@CurrentUser() me: JwtPayload) {
+    return this.service.findAll(me);
   }
 
   @Post()
@@ -62,12 +62,12 @@ export class BlogAdminController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateBlogPostDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateBlogPostDto, @CurrentUser() me: JwtPayload) {
+    return this.service.update(id, dto, me);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.service.remove(id, me);
   }
 }

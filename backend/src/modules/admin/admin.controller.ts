@@ -26,6 +26,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { ReviewsService } from '../reviews/reviews.service';
@@ -132,7 +133,23 @@ export class AdminController {
   }
 
   @Get('dashboard')
-  async dashboard() {
+  async dashboard(@CurrentUser() me: JwtPayload) {
+    // ── Multi-tenant scope (Phase 5) ──
+    //  SUPERADMIN → бүх дата; ADMIN/EDITOR → зөвхөн өөрийн product + холбоотой order.
+    const sa = isSuperadmin(me);
+    const myId = me.sub;
+
+    // Product scope: шууд createdByUserId-аар.
+    const productOwnerWhere: Prisma.ProductWhereInput = sa
+      ? {}
+      : { createdByUserId: myId };
+
+    // Order scope: order шууд эзэнгүй тул ДАМ — order доторх item-ийн product эзэн.
+    //   sa → {} ; бусад → энэ admin-ийн product-ыг агуулсан order.
+    const orderOwnerWhere: Prisma.OrderWhereInput = sa
+      ? {}
+      : { items: { some: { product: { createdByUserId: myId } } } };
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -164,15 +181,17 @@ export class AdminController {
       subscribersBySourceRaw,
       reputationStats,
     ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.product.count(),
-      this.prisma.order.count(),
+      // user.count нь SITE-LEVEL (бүх хэрэглэгч) — non-superadmin-д хамааралгүй → 0
+      sa ? this.prisma.user.count() : Promise.resolve(0),
+      this.prisma.product.count({ where: productOwnerWhere }),
+      this.prisma.order.count({ where: orderOwnerWhere }),
       this.prisma.order.aggregate({
-        where: { status: 'PAID' },
+        where: { status: 'PAID', ...orderOwnerWhere },
         _sum: { total: true },
       }),
       this.prisma.order.findMany({
         take: 10,
+        where: orderOwnerWhere,
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, email: true, name: true, image: true } },
@@ -195,28 +214,36 @@ export class AdminController {
         },
       }),
       this.prisma.order.count({
-        where: { createdAt: { gte: startOfMonth }, status: 'PAID' },
+        where: { createdAt: { gte: startOfMonth }, status: 'PAID', ...orderOwnerWhere },
       }),
-      this.prisma.user.count({
-        where: { createdAt: { gte: startOfMonth } },
-      }),
+      // newUsersThisMonth нь SITE-LEVEL → non-superadmin-д 0
+      sa
+        ? this.prisma.user.count({
+            where: { createdAt: { gte: startOfMonth } },
+          })
+        : Promise.resolve(0),
       this.prisma.order.groupBy({
         by: ['createdAt'],
         where: {
           status: 'PAID',
           createdAt: { gte: startOf3MonthsAgo },
+          ...orderOwnerWhere,
         },
         _sum: { total: true },
       }),
-      this.emailService.getStats(),
-      this.emailService.getResendStats(),
+      // emailStats / resendStats нь SITE-LEVEL (имэйл маркетинг) → non-superadmin-д хоосон
+      sa ? this.emailService.getStats() : Promise.resolve(null),
+      sa ? this.emailService.getResendStats() : Promise.resolve(null),
       this.prisma.order.count({
-        where: { status: 'PENDING', createdAt: { lt: cutoff48h } },
+        where: { status: 'PENDING', createdAt: { lt: cutoff48h }, ...orderOwnerWhere },
       }),
-      // Бодит таталтын статистик (хэрэглэгчид татсан жинхэнэ тоо)
-      this.prisma.product.aggregate({ _sum: { realDownloadCount: true } }),
+      // Бодит таталтын статистик (хэрэглэгчид татсан жинхэнэ тоо) — өөрийн product
+      this.prisma.product.aggregate({
+        where: productOwnerWhere,
+        _sum: { realDownloadCount: true },
+      }),
       this.prisma.product.findMany({
-        where: { realDownloadCount: { gt: 0 } },
+        where: { realDownloadCount: { gt: 0 }, ...productOwnerWhere },
         orderBy: { realDownloadCount: 'desc' },
         take: 5,
         select: {
@@ -234,28 +261,37 @@ export class AdminController {
         where: {
           status: 'PAID',
           createdAt: { gte: startOfPrevMonth, lt: startOfMonth },
+          ...orderOwnerWhere,
         },
       }),
-      this.prisma.user.count({
-        where: { createdAt: { gte: startOfPrevMonth, lt: startOfMonth } },
-      }),
+      // usersPrevMonth нь SITE-LEVEL → non-superadmin-д 0
+      sa
+        ? this.prisma.user.count({
+            where: { createdAt: { gte: startOfPrevMonth, lt: startOfMonth } },
+          })
+        : Promise.resolve(0),
       this.prisma.order.aggregate({
-        where: { status: 'PAID', createdAt: { gte: startOfMonth } },
+        where: { status: 'PAID', createdAt: { gte: startOfMonth }, ...orderOwnerWhere },
         _sum: { total: true },
       }),
       this.prisma.order.aggregate({
         where: {
           status: 'PAID',
           createdAt: { gte: startOfPrevMonth, lt: startOfMonth },
+          ...orderOwnerWhere,
         },
         _sum: { total: true },
       }),
-      // ── Subscriber статистик (нийт + энэ сар + эх сурвалжаар) ──
-      this.prisma.subscriber.count(),
-      this.prisma.subscriber.count({ where: { createdAt: { gte: startOfMonth } } }),
-      this.prisma.subscriber.groupBy({ by: ['source'], _count: { _all: true } }),
-      // SES reputation (bounce/complaint rate — 24ц/7хоног)
-      this.reputation.getReputationStats(),
+      // ── Subscriber статистик нь SITE-LEVEL (бүх захиалагч) → non-superadmin-д 0/хоосон ──
+      sa ? this.prisma.subscriber.count() : Promise.resolve(0),
+      sa
+        ? this.prisma.subscriber.count({ where: { createdAt: { gte: startOfMonth } } })
+        : Promise.resolve(0),
+      sa
+        ? this.prisma.subscriber.groupBy({ by: ['source'], _count: { _all: true } })
+        : Promise.resolve([] as { source: string | null; _count: { _all: number } }[]),
+      // SES reputation (bounce/complaint rate) нь SITE-LEVEL → non-superadmin-д хоосон
+      sa ? this.reputation.getReputationStats() : Promise.resolve(null),
     ]);
 
     // Subscriber тоонуудыг задлах (Promise.all-ийн сүүлийн 3 утга)
@@ -318,6 +354,7 @@ export class AdminController {
     }));
 
     return {
+      isSuperadmin: sa,
       stats: {
         users: usersCount,
         products: productsCount,
@@ -370,20 +407,24 @@ export class AdminController {
   // Products
   @Get('products')
   listProducts(
+    @CurrentUser() me: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
   ) {
-    return this.adminProducts.findAll({
-      page: page ? parseInt(page, 10) : undefined,
-      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
-      search,
-    });
+    return this.adminProducts.findAll(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+        search,
+      },
+      me,
+    );
   }
 
   @Get('products/:id')
-  getProduct(@Param('id') id: string) {
-    return this.adminProducts.findOne(id);
+  getProduct(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.adminProducts.findOne(id, me);
   }
 
   @Post('products')
@@ -442,13 +483,17 @@ export class AdminController {
   }
 
   @Patch('products/:id')
-  updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {
-    return this.adminProducts.update(id, dto);
+  updateProduct(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.adminProducts.update(id, dto, me);
   }
 
   @Delete('products/:id')
-  deleteProduct(@Param('id') id: string) {
-    return this.adminProducts.remove(id);
+  deleteProduct(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.adminProducts.remove(id, me);
   }
 
   @Post('products/:id/clone')
@@ -693,13 +738,17 @@ export class AdminController {
   }
 
   @Patch('categories/:id')
-  updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
-    return this.categories.update(id, dto);
+  updateCategory(
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.categories.update(id, dto, me);
   }
 
   @Delete('categories/:id')
-  deleteCategory(@Param('id') id: string) {
-    return this.categories.remove(id);
+  deleteCategory(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    return this.categories.remove(id, me);
   }
 
   // Orders
@@ -1063,14 +1112,41 @@ export class AdminController {
   async updateProductType(
     @Param('id') id: string,
     @Body() dto: { label?: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
+    @CurrentUser() me: JwtPayload,
   ) {
+    // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) product-type-г засна.
+    const row = await this.prisma.productTypeConfig.findUniqueOrThrow({
+      where: { id },
+      select: { createdByUserId: true },
+    });
+    assertOwner(me, row, 'засах');
     const res = await this.prisma.productTypeConfig.update({ where: { id }, data: dto });
     await this.cache.del(CacheKeys.productTypes);
     return res;
   }
 
   @Delete('product-types/:id')
-  async deleteProductType(@Param('id') id: string) {
+  async deleteProductType(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн product-type-г устгана.
+    assertCanDelete(me);
+    const row = await this.prisma.productTypeConfig.findUniqueOrThrow({
+      where: { id },
+      select: { createdByUserId: true, value: true },
+    });
+    assertOwner(me, row, 'устгах');
+    // ⚠️ Phase 3: ӨӨР admin-ийн product энэ төрлийг (Product.type === value) ашиглаж
+    // байвал устгахгүй. SUPERADMIN-д хамаарахгүй.
+    if (me.role !== 'SUPERADMIN') {
+      const usedByOther = await this.prisma.product.findFirst({
+        where: { type: row.value, createdByUserId: { not: me.sub } },
+        select: { id: true },
+      });
+      if (usedByOther) {
+        throw new BadRequestException(
+          'Энэ төрлийг өөр админы бүтээгдэхүүн ашиглаж байгаа тул устгах боломжгүй (зөвхөн засах)',
+        );
+      }
+    }
     const res = await this.prisma.productTypeConfig.delete({ where: { id } });
     await this.cache.del(CacheKeys.productTypes);
     return res;

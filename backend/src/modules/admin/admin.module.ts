@@ -10,6 +10,7 @@ import { N8nModule } from '../n8n/n8n.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { CoursesModule } from '../courses/courses.module';
 import { AdminController } from './admin.controller';
+import { StaffController } from './staff.controller';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { ZIP_QUEUE } from '../downloads/zip.processor';
@@ -33,7 +34,7 @@ import { ZIP_QUEUE } from '../downloads/zip.processor';
     }),
     BullModule.registerQueue({ name: ZIP_QUEUE }),
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, StaffController],
   providers: [AdminProductsService, AdminAiService],
 })
 export class AdminModule {}
