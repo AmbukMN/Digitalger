@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 
 export class CreateBlogPostDto {
   @IsString() title!: string;
@@ -92,19 +93,21 @@ export class BlogService {
     return { ok: true };
   }
 
-  findAll(me: JwtPayload) {
+  async findAll(me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'blog', 'view');
     return this.prisma.blogPost.findMany({
       where: { ...buildOwnerWhere(me) },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
-  async create(dto: CreateBlogPostDto, createdByUserId?: string) {
+  async create(dto: CreateBlogPostDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'blog', 'create');
     const created = await this.prisma.blogPost.create({
       data: {
         ...dto,
         publishedAt: dto.published ? new Date() : undefined,
-        ...(createdByUserId && { createdByUserId }),
+        createdByUserId: me.sub,
       },
     });
     await this.cache.delByPrefix(CacheKeys.blogLatestPrefix);
@@ -112,6 +115,7 @@ export class BlogService {
   }
 
   async update(id: string, dto: UpdateBlogPostDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'blog', 'edit');
     const existing = await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
     assertOwner(me, existing, 'засах');
     const updated = await this.prisma.blogPost.update({
@@ -126,6 +130,7 @@ export class BlogService {
   }
 
   async remove(id: string, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'blog', 'delete');
     assertCanDelete(me);
     const existing = await this.prisma.blogPost.findUniqueOrThrow({ where: { id } });
     assertOwner(me, existing, 'устгах');

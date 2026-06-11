@@ -39,7 +39,7 @@ export class BannersAdminController {
 
   @Post()
   create(@Body() dto: CreateBannerDto, @CurrentUser() me: JwtPayload) {
-    return this.banners.create(dto, me.sub);
+    return this.banners.create(dto, me);
   }
 
   @Patch(':id')

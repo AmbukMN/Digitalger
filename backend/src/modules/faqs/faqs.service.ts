@@ -3,6 +3,7 @@ import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 
 export class CreateFaqDto {
   @IsString() question!: string;
@@ -24,7 +25,8 @@ export class UpdateFaqDto {
 export class FaqsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(params?: { active?: boolean }) {
+  async findAll(me: JwtPayload, params?: { active?: boolean }) {
+    await assertPermission(this.prisma, me, 'faqs', 'view');
     return this.prisma.fAQ.findMany({
       where: params?.active !== undefined ? { active: params.active } : {},
       orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
@@ -36,13 +38,15 @@ export class FaqsService {
     return this.prisma.fAQ.findUniqueOrThrow({ where: { id } });
   }
 
-  create(dto: CreateFaqDto, createdByUserId?: string) {
+  async create(dto: CreateFaqDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'faqs', 'create');
     return this.prisma.fAQ.create({
-      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+      data: { ...dto, createdByUserId: me.sub },
     });
   }
 
   async update(id: string, dto: UpdateFaqDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'faqs', 'edit');
     const row = await this.findOne(id);
     // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) FAQ-г засна.
     assertOwner(me, row, 'засах');
@@ -50,6 +54,7 @@ export class FaqsService {
   }
 
   async remove(id: string, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'faqs', 'delete');
     // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн FAQ-г устгана.
     assertCanDelete(me);
     const row = await this.findOne(id);

@@ -3,6 +3,7 @@ import { IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { assertOwner } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 
 export class UpsertPageDto {
   @IsString() title!: string;
@@ -23,8 +24,10 @@ export class PagesService {
   }
 
   async upsert(slug: string, dto: UpsertPageDto, me: JwtPayload) {
-    // Хэрэв хуудас аль хэдийн байгаа бол ЗАСАХ эрхийг шалгана (IDOR хаах).
+    // Хэрэв хуудас аль хэдийн байгаа бол ЗАСАХ эрх, шинэ бол ҮҮСГЭХ эрхийг шалгана.
     const existing = await this.prisma.page.findUnique({ where: { slug } });
+    await assertPermission(this.prisma, me, 'pages', existing ? 'edit' : 'create');
+    // IDOR: засах үед зөвхөн өөрийн (эсвэл SUPERADMIN) хуудсыг.
     if (existing) assertOwner(me, existing, 'засах');
     return this.prisma.page.upsert({
       where: { slug },

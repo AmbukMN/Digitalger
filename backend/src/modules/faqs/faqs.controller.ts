@@ -25,13 +25,13 @@ export class FaqsAdminController {
   constructor(private readonly faqs: FaqsService) {}
 
   @Get()
-  list() {
-    return this.faqs.findAll();
+  list(@CurrentUser() me: JwtPayload) {
+    return this.faqs.findAll(me);
   }
 
   @Post()
   create(@Body() dto: CreateFaqDto, @CurrentUser() me: JwtPayload) {
-    return this.faqs.create(dto, me.sub);
+    return this.faqs.create(dto, me);
   }
 
   @Patch(':id')

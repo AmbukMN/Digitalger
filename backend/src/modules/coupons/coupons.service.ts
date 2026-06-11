@@ -3,6 +3,7 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 
 @Injectable()
 export class CouponsService {
@@ -18,6 +19,7 @@ export class CouponsService {
   }
 
   async findAll(me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'coupons', 'view');
     return this.prisma.coupon.findMany({
       where: { ...buildOwnerWhere(me) },
       orderBy: { createdAt: 'desc' },
@@ -38,7 +40,8 @@ export class CouponsService {
     maxUses?: number;
     active?: boolean;
     expiresAt?: string | null;
-  }, createdByUserId?: string) {
+  }, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'coupons', 'create');
     const code = dto.code?.trim().toUpperCase() || this.generateCode();
 
     const existing = await this.prisma.coupon.findUnique({ where: { code } });
@@ -53,7 +56,7 @@ export class CouponsService {
         maxUses: dto.maxUses ?? null,
         active: dto.active ?? true,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
-        ...(createdByUserId && { createdByUserId }),
+        createdByUserId: me.sub,
       },
     });
   }
@@ -71,6 +74,7 @@ export class CouponsService {
     }>,
     me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'coupons', 'edit');
     const existing = await this.findOne(id);
     assertOwner(me, existing, 'засах');
 
@@ -94,6 +98,7 @@ export class CouponsService {
   }
 
   async remove(id: string, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'coupons', 'delete');
     assertCanDelete(me);
     const existing = await this.findOne(id);
     assertOwner(me, existing, 'устгах');

@@ -6,7 +6,7 @@
 // SUPERADMIN мөрийг онцолж, түүн дээр block/delete/эрх засах товчийг нуудаг.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Badge,
@@ -26,20 +26,21 @@ import { Ban, CheckCircle2, Crown, Plus, Shield, ShieldCheck, ShieldQuestion, Tr
 import { adminApi, ApiError } from '@/lib/api';
 import type { AdminStaff, AdminStaffPermission } from '@/types/admin';
 
-// Permission checkbox-д харагдах resource жагсаалт (Монгол label-тай).
-const PERMISSION_RESOURCES: { resource: string; label: string }[] = [
-  { resource: 'products', label: 'Бүтээгдэхүүн' },
-  { resource: 'categories', label: 'Ангилал' },
-  { resource: 'product-types', label: 'Төрөл' },
-  { resource: 'blog', label: 'Нийтлэл' },
-  { resource: 'banners', label: 'Баннер' },
-  { resource: 'testimonials', label: 'Testimonial' },
-  { resource: 'faqs', label: 'FAQ' },
-  { resource: 'coupons', label: 'Купон' },
-  { resource: 'pages', label: 'Хуудас' },
-  { resource: 'menu', label: 'Навигац' },
-  { resource: 'orders', label: 'Захиалга' },
-  { resource: 'reviews', label: 'Review' },
+// Permission checkbox-д харагдах resource жагсаалт (Монгол label + бүлэг + дүрс).
+// group — UI-д бүлэглэж харуулна (Худалдаа / Контент / Бусад).
+const PERMISSION_RESOURCES: { resource: string; label: string; group: string }[] = [
+  { resource: 'products', label: 'Бүтээгдэхүүн', group: 'Худалдаа' },
+  { resource: 'categories', label: 'Ангилал', group: 'Худалдаа' },
+  { resource: 'product-types', label: 'Төрөл', group: 'Худалдаа' },
+  { resource: 'coupons', label: 'Купон', group: 'Худалдаа' },
+  { resource: 'orders', label: 'Захиалга', group: 'Худалдаа' },
+  { resource: 'blog', label: 'Нийтлэл', group: 'Контент' },
+  { resource: 'banners', label: 'Баннер', group: 'Контент' },
+  { resource: 'testimonials', label: 'Testimonial', group: 'Контент' },
+  { resource: 'faqs', label: 'FAQ', group: 'Контент' },
+  { resource: 'pages', label: 'Хуудас', group: 'Контент' },
+  { resource: 'menu', label: 'Навигац', group: 'Контент' },
+  { resource: 'reviews', label: 'Review', group: 'Бусад' },
 ];
 
 type PermAction = 'canView' | 'canCreate' | 'canEdit' | 'canDelete';
@@ -60,6 +61,45 @@ function emptyPermissions(): AdminStaffPermission[] {
     canDelete: false,
   }));
 }
+
+// ── Бэлэн загвар (preset) — нэг товчоор нийтлэг эрхийн багц онооно ──
+// resources: тухайн preset-д хамаарах resource-ууд. actions: онооx эрхүүд.
+const PERMISSION_PRESETS: {
+  key: string;
+  label: string;
+  desc: string;
+  resources: string[];
+  actions: PermAction[];
+}[] = [
+  {
+    key: 'product-manager',
+    label: 'Бүтээгдэхүүн менежер',
+    desc: 'Бүтээгдэхүүн, ангилал, төрөл, купон бүрэн + захиалга харах',
+    resources: ['products', 'categories', 'product-types', 'coupons'],
+    actions: ['canView', 'canCreate', 'canEdit', 'canDelete'],
+  },
+  {
+    key: 'content-manager',
+    label: 'Контент менежер',
+    desc: 'Нийтлэл, баннер, testimonial, FAQ, хуудас бүрэн',
+    resources: ['blog', 'banners', 'testimonials', 'faqs', 'pages', 'menu'],
+    actions: ['canView', 'canCreate', 'canEdit', 'canDelete'],
+  },
+  {
+    key: 'viewer',
+    label: 'Зөвхөн харагч',
+    desc: 'Бүх хэсгийг ХАРАХ (засах/устгахгүй)',
+    resources: PERMISSION_RESOURCES.map((r) => r.resource),
+    actions: ['canView'],
+  },
+  {
+    key: 'order-staff',
+    label: 'Захиалга боловсруулагч',
+    desc: 'Захиалга харах + засах (статус)',
+    resources: ['orders'],
+    actions: ['canView', 'canEdit'],
+  },
+];
 
 // Backend-ээс ирсэн permission-уудыг бүрэн resource жагсаалттай нийлүүлнэ
 // (буцаагаагүй resource-ийг хоосон гэж тооцно).
@@ -112,50 +152,173 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-// resource бүрийн checkbox мөр (View/Create/Edit/Delete). Дахин ашиглагдах тул
-// create болон edit dialog хоёулаа энэ grid-ийг хуваалцана.
+// resource бүрийн эрхийн нарийвчилсан grid — бүлэг (Худалдаа/Контент/Бусад),
+// preset товч, багана/мөр/бүлэг select-all, View хамаарал (Create/Edit/Delete → View автомат).
+// value = бүтэн permission массив, onChange = шинэ массив (bulk үйлдэлд).
 function PermissionGrid({
-  permissions,
-  onToggle,
+  value,
+  onChange,
   disabled,
 }: {
-  permissions: AdminStaffPermission[];
-  onToggle: (resource: string, action: PermAction, value: boolean) => void;
+  value: AdminStaffPermission[];
+  onChange: (next: AdminStaffPermission[]) => void;
   disabled?: boolean;
 }) {
+  const byResource = new Map(value.map((p) => [p.resource, p]));
+
+  // Нэг эрх toggle — Create/Edit/Delete асаахад View автомат асна (хамаарал).
+  const toggleOne = (resource: string, action: PermAction, checked: boolean) => {
+    onChange(
+      value.map((p) => {
+        if (p.resource !== resource) return p;
+        const next = { ...p, [action]: checked };
+        // Create/Edit/Delete → View заавал (харахгүйгээр засах боломжгүй).
+        if (checked && action !== 'canView') next.canView = true;
+        // View унтраахад бусдыг ч унтраана (харахгүй бол юу ч хийхгүй).
+        if (!checked && action === 'canView') {
+          next.canCreate = false; next.canEdit = false; next.canDelete = false;
+        }
+        return next;
+      }),
+    );
+  };
+
+  // Багана (action) бүхэлд нь toggle — бүх resource-ийн тэр action.
+  const toggleColumn = (action: PermAction, checked: boolean) => {
+    onChange(
+      value.map((p) => {
+        const next = { ...p, [action]: checked };
+        if (checked && action !== 'canView') next.canView = true;
+        if (!checked && action === 'canView') { next.canCreate = false; next.canEdit = false; next.canDelete = false; }
+        return next;
+      }),
+    );
+  };
+
+  // Resource мөр бүхэлд нь — бүх 4 эрх (бүрэн эрх / огт эрхгүй).
+  const toggleRow = (resource: string, checked: boolean) => {
+    onChange(value.map((p) => (p.resource === resource
+      ? { ...p, canView: checked, canCreate: checked, canEdit: checked, canDelete: checked }
+      : p)));
+  };
+
+  // Preset хэрэглэх — заасан resource-уудад заасан action-уудыг АСААНА (бусдыг хэвээр).
+  const applyPreset = (preset: typeof PERMISSION_PRESETS[number]) => {
+    onChange(value.map((p) => {
+      if (!preset.resources.includes(p.resource)) return p;
+      const next = { ...p };
+      for (const a of preset.actions) next[a] = true;
+      if (preset.actions.some((a) => a !== 'canView')) next.canView = true;
+      return next;
+    }));
+  };
+
+  const clearAll = () => onChange(emptyPermissions());
+
+  const columnAllChecked = (action: PermAction) => value.length > 0 && value.every((p) => p[action]);
+  const groups = [...new Set(PERMISSION_RESOURCES.map((r) => r.group))];
+
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
-            <th className="px-3 py-2 font-medium">Хэсэг</th>
-            {PERM_ACTIONS.map((a) => (
-              <th key={a.key} className="px-2 py-2 font-medium text-center">{a.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {permissions.map((p) => (
-            <tr key={p.resource} className="border-b border-border last:border-0">
-              <td className="px-3 py-2 font-medium whitespace-nowrap">
-                {PERMISSION_RESOURCES.find((r) => r.resource === p.resource)?.label ?? p.resource}
-              </td>
+    <div className="space-y-3">
+      {/* ── Preset товчнууд ── */}
+      <div className="flex flex-wrap gap-1.5">
+        {PERMISSION_PRESETS.map((preset) => (
+          <button
+            key={preset.key}
+            type="button"
+            disabled={disabled}
+            onClick={() => applyPreset(preset)}
+            title={preset.desc}
+            className="rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+          >
+            + {preset.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={clearAll}
+          className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+        >
+          Бүгдийг цэвэрлэх
+        </button>
+      </div>
+
+      {/* ── Grid (бүлэглэсэн) ── */}
+      <div className="overflow-hidden rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Хэсэг</th>
               {PERM_ACTIONS.map((a) => (
-                <td key={a.key} className="px-2 py-2 text-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 cursor-pointer accent-primary align-middle"
-                    checked={p[a.key]}
-                    disabled={disabled}
-                    onChange={(e) => onToggle(p.resource, a.key, e.target.checked)}
-                    aria-label={`${p.resource} ${a.label}`}
-                  />
-                </td>
+                <th key={a.key} className="px-2 py-2 text-center font-medium">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span>{a.label}</span>
+                    {/* Багана бүхэлд нь сонгох */}
+                    <input
+                      type="checkbox"
+                      className="h-3 w-3 cursor-pointer accent-primary"
+                      checked={columnAllChecked(a.key)}
+                      disabled={disabled}
+                      onChange={(e) => toggleColumn(a.key, e.target.checked)}
+                      title={`Бүх хэсгийн "${a.label}"`}
+                      aria-label={`Бүгд ${a.label}`}
+                    />
+                  </div>
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <React.Fragment key={group}>
+                {/* Бүлгийн гарчиг */}
+                <tr className="bg-muted/20">
+                  <td colSpan={5} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {group}
+                  </td>
+                </tr>
+                {PERMISSION_RESOURCES.filter((r) => r.group === group).map((r) => {
+                  const p = byResource.get(r.resource);
+                  if (!p) return null;
+                  const rowAll = p.canView && p.canCreate && p.canEdit && p.canDelete;
+                  return (
+                    <tr key={r.resource} className="border-b border-border/60 last:border-0 hover:bg-muted/20">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => toggleRow(r.resource, !rowAll)}
+                          className="font-medium text-foreground hover:text-primary disabled:cursor-default"
+                          title={rowAll ? 'Бүх эрх хасах' : 'Бүх эрх өгөх'}
+                        >
+                          {r.label}
+                        </button>
+                      </td>
+                      {PERM_ACTIONS.map((a) => (
+                        <td key={a.key} className="px-2 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 cursor-pointer accent-primary align-middle"
+                            checked={p[a.key]}
+                            disabled={disabled}
+                            onChange={(e) => toggleOne(r.resource, a.key, e.target.checked)}
+                            aria-label={`${r.label} ${a.label}`}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        💡 Нэр дээр дарж бүх эрх, баганы дээд checkbox-аар бүх хэсгийн эрхийг нэг дор тохируулна.
+        Засах/Нэмэх/Устгах сонгоход «Харах» автомат асна.
+      </p>
     </div>
   );
 }
@@ -203,18 +366,6 @@ export function StaffPanel() {
   }
 
   // create dialog-ийн checkbox toggle
-  function toggleCreatePerm(resource: string, action: PermAction, value: boolean) {
-    setCreatePerms((prev) =>
-      prev.map((p) => (p.resource === resource ? { ...p, [action]: value } : p)),
-    );
-  }
-  // edit dialog-ийн checkbox toggle
-  function toggleEditPerm(resource: string, action: PermAction, value: boolean) {
-    setEditPerms((prev) =>
-      prev.map((p) => (p.resource === resource ? { ...p, [action]: value } : p)),
-    );
-  }
-
   const createMutation = useMutation({
     mutationFn: () =>
       adminApi.staff.create({
@@ -446,7 +597,7 @@ export function StaffPanel() {
             </div>
             <div className="space-y-1.5">
               <Label>Эрх (хэсэг бүрээр)</Label>
-              <PermissionGrid permissions={createPerms} onToggle={toggleCreatePerm} />
+              <PermissionGrid value={createPerms} onChange={setCreatePerms} />
             </div>
           </div>
           <DialogFooter>
@@ -486,8 +637,8 @@ export function StaffPanel() {
               <Loading label="Эрх ачаалж байна..." />
             ) : (
               <PermissionGrid
-                permissions={editPerms}
-                onToggle={toggleEditPerm}
+                value={editPerms}
+                onChange={setEditPerms}
                 disabled={savePermsMutation.isPending}
               />
             )}

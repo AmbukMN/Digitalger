@@ -34,13 +34,13 @@ export class TestimonialsAdminController {
   constructor(private readonly svc: TestimonialsService) {}
 
   @Get()
-  list() {
-    return this.svc.findAll();
+  list(@CurrentUser() me: JwtPayload) {
+    return this.svc.findAll(me);
   }
 
   @Post()
   create(@Body() dto: CreateTestimonialDto, @CurrentUser() me: JwtPayload) {
-    return this.svc.create(dto, me.sub);
+    return this.svc.create(dto, me);
   }
 
   @Patch(':id')

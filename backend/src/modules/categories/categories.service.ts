@@ -10,6 +10,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 
 @Injectable()
 export class CategoriesService {
@@ -71,7 +72,8 @@ export class CategoriesService {
     return { ...category, _count: { products } };
   }
 
-  async create(dto: CreateCategoryDto, createdByUserId?: string) {
+  async create(dto: CreateCategoryDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'categories', 'create');
     const exists = await this.prisma.category.findUnique({
       where: { slug: dto.slug },
     });
@@ -81,13 +83,14 @@ export class CategoriesService {
     }
 
     const created = await this.prisma.category.create({
-      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+      data: { ...dto, createdByUserId: me.sub },
     });
     await this.cache.del(CacheKeys.categories);
     return created;
   }
 
   async update(id: string, dto: UpdateCategoryDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'categories', 'edit');
     const row = await this.ensureExists(id);
     // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) category-г засна.
     assertOwner(me, row, 'засах');
@@ -107,6 +110,7 @@ export class CategoriesService {
   }
 
   async remove(id: string, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'categories', 'delete');
     // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн category-г устгана.
     assertCanDelete(me);
     const row = await this.ensureExists(id);

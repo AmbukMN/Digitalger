@@ -3,6 +3,7 @@ import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min } from 'class-valid
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 
 export class CreateTestimonialDto {
   @IsString()
@@ -80,7 +81,8 @@ export class TestimonialsService {
   }
 
   // Admin: all testimonials
-  findAll() {
+  async findAll(me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'testimonials', 'view');
     return this.prisma.testimonial.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { _count: { select: { products: true } } },
@@ -91,13 +93,15 @@ export class TestimonialsService {
     return this.prisma.testimonial.findUniqueOrThrow({ where: { id } });
   }
 
-  create(dto: CreateTestimonialDto, createdByUserId?: string) {
+  async create(dto: CreateTestimonialDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'testimonials', 'create');
     return this.prisma.testimonial.create({
-      data: { ...dto, ...(createdByUserId && { createdByUserId }) },
+      data: { ...dto, createdByUserId: me.sub },
     });
   }
 
   async update(id: string, dto: UpdateTestimonialDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'testimonials', 'edit');
     const row = await this.findOne(id);
     // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) testimonial-г засна.
     assertOwner(me, row, 'засах');
@@ -105,6 +109,7 @@ export class TestimonialsService {
   }
 
   async remove(id: string, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'testimonials', 'delete');
     // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн testimonial-г устгана.
     assertCanDelete(me);
     const row = await this.findOne(id);

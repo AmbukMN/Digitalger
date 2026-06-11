@@ -35,7 +35,7 @@ export class CategoriesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   create(@Body() dto: CreateCategoryDto, @CurrentUser() me: JwtPayload) {
-    return this.categoriesService.create(dto, me.sub);
+    return this.categoriesService.create(dto, me);
   }
 
   @Patch(':id')

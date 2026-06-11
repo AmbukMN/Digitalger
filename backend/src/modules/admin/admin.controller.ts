@@ -27,7 +27,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
-import { getMyPermissions } from '../../common/permission';
+import { getMyPermissions, assertPermission } from '../../common/permission';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { ReviewsService } from '../reviews/reviews.service';
@@ -437,12 +437,15 @@ export class AdminController {
 
   @Post('products')
   createProduct(@Body() dto: CreateProductDto, @CurrentUser() me: JwtPayload) {
-    return this.adminProducts.create(dto, me.sub);
+    return this.adminProducts.create(dto, me);
   }
 
   @Post('products/bulk-import')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
-  async bulkImportProducts(@UploadedFile() file: Express.Multer.File) {
+  async bulkImportProducts(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() me: JwtPayload,
+  ) {
     if (!file) throw new BadRequestException('Файл сонгоогүй байна');
     const ext = file.originalname.toLowerCase();
     if (!ext.endsWith('.xlsx') && !ext.endsWith('.xls') && !ext.endsWith('.csv')) {
@@ -478,7 +481,7 @@ export class AdminController {
           type,
           published: String(r['published'] ?? r['Published'] ?? 'false').toLowerCase() === 'true',
           featured: String(r['featured'] ?? r['Featured'] ?? 'false').toLowerCase() === 'true',
-        } as any);
+        } as any, me);
         results.push({ row: i + 2, status: 'created', title });
       } catch (err: any) {
         results.push({ row: i + 2, status: 'error', title, error: err?.message ?? 'Алдаа' });
@@ -741,8 +744,8 @@ export class AdminController {
   }
 
   @Post('categories')
-  createCategory(@Body() dto: CreateCategoryDto) {
-    return this.categories.create(dto);
+  createCategory(@Body() dto: CreateCategoryDto, @CurrentUser() me: JwtPayload) {
+    return this.categories.create(dto, me);
   }
 
   @Patch('categories/:id')
@@ -762,11 +765,13 @@ export class AdminController {
   // Orders
   @Get('orders')
   async listOrders(
+    @CurrentUser() me: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
+    await assertPermission(this.prisma, me, 'orders', 'view');
     const p = Math.max(1, page ? parseInt(page, 10) : 1);
     const ps = Math.min(100, pageSize ? parseInt(pageSize, 10) : 20);
     const skip = (p - 1) * ps;
@@ -833,7 +838,8 @@ export class AdminController {
   }
 
   @Get('orders/:id')
-  getOrder(@Param('id') id: string) {
+  async getOrder(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'orders', 'view');
     return this.orders.findById(id);
   }
 
@@ -841,7 +847,9 @@ export class AdminController {
   async updateOrderStatus(
     @Param('id') id: string,
     @Body('status') status: OrderStatus,
+    @CurrentUser() me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'orders', 'edit');
     // Order статус солихдоо холбоотой Payment-ийг ч синк хийнэ (нэг захиалга
     // 2 өөр статустай болохоос сэргийлнэ). Атомик транзакц.
     const [order] = await this.prisma.$transaction([
@@ -888,7 +896,9 @@ export class AdminController {
   async updateOrder(
     @Param('id') id: string,
     @Body() body: { status?: OrderStatus; couponCode?: string | null },
+    @CurrentUser() me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'orders', 'edit');
     const data: Record<string, unknown> = {};
     if (body.status !== undefined) {
       data.status = body.status;
@@ -919,7 +929,8 @@ export class AdminController {
   }
 
   @Delete('orders/:id')
-  async deleteOrder(@Param('id') id: string) {
+  async deleteOrder(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'orders', 'delete');
     await this.prisma.$transaction([
       this.prisma.payment.deleteMany({ where: { orderId: id } }),
       this.prisma.orderItem.deleteMany({ where: { orderId: id } }),
@@ -1098,7 +1109,8 @@ export class AdminController {
 
   // Product Type Config
   @Get('product-types')
-  listProductTypes() {
+  async listProductTypes(@CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'product-types', 'view');
     return this.prisma.productTypeConfig.findMany({
       orderBy: { sortOrder: 'asc' },
     });
@@ -1109,6 +1121,7 @@ export class AdminController {
     @Body() dto: { value: string; label: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
     @CurrentUser() me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'product-types', 'create');
     const res = await this.prisma.productTypeConfig.create({
       data: { ...dto, ...(me.sub && { createdByUserId: me.sub }) },
     });
@@ -1122,6 +1135,7 @@ export class AdminController {
     @Body() dto: { label?: string; description?: string; icon?: string; sortOrder?: number; active?: boolean },
     @CurrentUser() me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'product-types', 'edit');
     // ⚠️ IDOR: зөвхөн өөрийн (эсвэл SUPERADMIN) product-type-г засна.
     const row = await this.prisma.productTypeConfig.findUniqueOrThrow({
       where: { id },
@@ -1135,6 +1149,7 @@ export class AdminController {
 
   @Delete('product-types/:id')
   async deleteProductType(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'product-types', 'delete');
     // ⚠️ IDOR: EDITOR устгаж чадахгүй + зөвхөн өөрийн product-type-г устгана.
     assertCanDelete(me);
     const row = await this.prisma.productTypeConfig.findUniqueOrThrow({
@@ -1438,12 +1453,14 @@ export class AdminController {
   // GET /admin/reviews — бүх review pagination (product нэр, user нэр/имэйл).
   @Get('reviews')
   async listReviews(
+    @CurrentUser() me: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
     @Query('productId') productId?: string,
     @Query('rating') rating?: string,
   ) {
+    await assertPermission(this.prisma, me, 'reviews', 'view');
     const p = Math.max(1, page ? parseInt(page, 10) : 1);
     const ps = Math.min(100, Math.max(1, pageSize ? parseInt(pageSize, 10) : 20));
     const skip = (p - 1) * ps;
@@ -1489,7 +1506,9 @@ export class AdminController {
   async updateReview(
     @Param('id') id: string,
     @Body() body: { rating?: number; comment?: string; authorName?: string },
+    @CurrentUser() me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'reviews', 'edit');
     const existing = await this.prisma.review.findUnique({
       where: { id },
       select: { productId: true },
@@ -1530,7 +1549,8 @@ export class AdminController {
 
   // DELETE /admin/reviews/:id → recalc.
   @Delete('reviews/:id')
-  async deleteReview(@Param('id') id: string) {
+  async deleteReview(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'reviews', 'delete');
     const existing = await this.prisma.review.findUnique({
       where: { id },
       select: { productId: true },
@@ -1544,7 +1564,8 @@ export class AdminController {
 
   // POST /admin/reviews/bulk-delete — олон устгах + нөлөөлсөн product бүрийг recalc.
   @Post('reviews/bulk-delete')
-  async bulkDeleteReviews(@Body() body: { ids?: string[] }) {
+  async bulkDeleteReviews(@Body() body: { ids?: string[] }, @CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'reviews', 'delete');
     const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
     if (!ids.length) throw new BadRequestException('Устгах сэтгэгдэл сонгоогүй байна');
 

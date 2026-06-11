@@ -13,6 +13,7 @@ import { EmailService } from '../notifications/email.service';
 import { ProductsService } from '../products/products.service';
 import { expandQuery } from '../../common/transliterate';
 import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
+import { assertPermission } from '../../common/permission';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -38,6 +39,7 @@ export class AdminProductsService {
     query: { page?: number; pageSize?: number; search?: string },
     me?: JwtPayload,
   ) {
+    if (me) await assertPermission(this.prisma, me, 'products', 'view');
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
@@ -110,6 +112,7 @@ export class AdminProductsService {
   }
 
   async findOne(id: string, me?: JwtPayload) {
+    if (me) await assertPermission(this.prisma, me, 'products', 'view');
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -133,7 +136,9 @@ export class AdminProductsService {
     return product;
   }
 
-  async create(dto: CreateProductDto, createdByUserId?: string) {
+  async create(dto: CreateProductDto, me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'products', 'create');
+    const createdByUserId = me.sub;
     const slugExists = await this.prisma.product.findUnique({
       where: { slug: dto.slug },
     });
@@ -187,6 +192,7 @@ export class AdminProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto, me?: JwtPayload) {
+    if (me) await assertPermission(this.prisma, me, 'products', 'edit');
     const existing = await this.ensureProductExists(id);
     // ⚠️ Зөвхөн өөрийн product засна (SUPERADMIN бүгдийг).
     if (me) assertOwner(me, existing, 'засах');
@@ -269,6 +275,7 @@ export class AdminProductsService {
   }
 
   async remove(id: string, me?: JwtPayload) {
+    if (me) await assertPermission(this.prisma, me, 'products', 'delete');
     if (me) assertCanDelete(me); // EDITOR устгаж чадахгүй
     const existing = await this.ensureProductExists(id);
     if (me) assertOwner(me, existing, 'устгах'); // зөвхөн өөрийн product

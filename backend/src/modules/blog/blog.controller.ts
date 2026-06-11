@@ -58,7 +58,7 @@ export class BlogAdminController {
 
   @Post()
   create(@Body() dto: CreateBlogPostDto, @CurrentUser() me: JwtPayload) {
-    return this.service.create(dto, me.sub);
+    return this.service.create(dto, me);
   }
 
   @Patch(':id')

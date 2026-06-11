@@ -63,9 +63,9 @@ export class AdminCouponsController {
       active?: boolean;
       expiresAt?: string | null;
     },
-    @CurrentUser('sub') userId: string,
+    @CurrentUser() me: JwtPayload,
   ) {
-    return this.coupons.create(body, userId);
+    return this.coupons.create(body, me);
   }
 
   @Patch(':id')
