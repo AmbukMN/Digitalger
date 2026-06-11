@@ -104,6 +104,24 @@ export async function adminFetch<T>(
 export const adminApi = {
   dashboard: () => adminFetch<DashboardStats>('/admin/dashboard'),
 
+  // Sidebar "шинэ" badge — хэсэг бүрт admin сүүлд харснаас хойш үүссэн шинэ бичлэгийн тоо.
+  sidebar: {
+    getBadges: () =>
+      adminFetch<{
+        orders: number;
+        users: number;
+        subscribers: number;
+        reviews: number;
+        payments: number;
+      }>('/admin/sidebar-badges'),
+    // Хэсэгт орж харахад → lastSeenAt=now → тухайн badge цэвэрлэгдэнэ.
+    markSeen: (section: string) =>
+      adminFetch<{ success: boolean; lastSeenAt?: string }>(
+        `/admin/sidebar-seen/${section}`,
+        { method: 'POST' },
+      ),
+  },
+
   profile: {
     get: () => adminFetch<AdminProfile>('/users/me'),
     update: (body: { name?: string; image?: string; email?: string }) =>

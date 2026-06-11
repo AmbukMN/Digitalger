@@ -275,10 +275,16 @@ function ConversationDialog({
 
   const answers = question.answers ?? [];
 
+  // Dialog НЭЭГДЭХЭД хамгийн доош (сүүлийн чат) шууд үсэргэнэ (чат шиг).
+  // open болон answers.length хоёуланд hook — нээх + шинэ хариулт хоёуланд ажиллана.
   useEffect(() => {
-    // Шинэ хариулт нэмэгдэх үед доош гүйлгэнэ
-    threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [answers.length]);
+    if (!open) return;
+    // Mount/render дууссаны дараа scroll (rAF — content зурагдсаны дараа).
+    const id = requestAnimationFrame(() => {
+      threadEndRef.current?.scrollIntoView({ block: 'end' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open, answers.length]);
 
   // ⚠️ Dialog нээгдэхэд асуултыг УНШСАН болгоно (backend adminUnread=false) → sidebar
   // + жагсаалтын badge цэвэрлэгдэнэ. Зөвхөн уншаагүй үед дуудна (дэмий хүсэлтгүй).
@@ -559,9 +565,24 @@ function QuestionRow({ question }: { question: AdminLessonQuestion }) {
             )}
           </div>
 
-          <p className="mt-1 line-clamp-2 text-sm text-foreground/90" style={{ overflowWrap: 'anywhere' }}>
+          <p className="mt-1 line-clamp-1 text-sm text-foreground/90" style={{ overflowWrap: 'anywhere' }}>
             {question.question}
           </p>
+
+          {/* Хамгийн СҮҮЛИЙН мессежийн preview (чат шиг) — асуулт thread дотор олон
+              хариулт байвал сүүлийнхийг харуулна. Багш/хэрэглэгчийг ялгаж тэмдэглэнэ. */}
+          {(() => {
+            const last = question.answers?.[question.answers.length - 1];
+            if (!last) return null;
+            return (
+              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground" style={{ overflowWrap: 'anywhere' }}>
+                <span className={cn('font-medium', last.isInstructor ? 'text-primary' : 'text-foreground/70')}>
+                  {last.isInstructor ? 'Багш: ' : `${last.user?.name ?? 'Хэрэглэгч'}: `}
+                </span>
+                {last.answer}
+              </p>
+            );
+          })()}
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {question.lesson?.product?.title && (

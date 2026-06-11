@@ -74,6 +74,63 @@ export class AdminController {
     private readonly courses: CoursesService,
   ) {}
 
+  // ─── Sidebar "шинэ" badge ─────────────────────────────────────────────────────
+  // Admin хэсэг бүрт (orders/users/subscribers/reviews/payments) сүүлд харснаас хойш
+  // үүссэн ШИНЭ бичлэгийн тоог буцаана. lessons-questions нь өөрийн adminUnread-аас.
+  private readonly SIDEBAR_SECTIONS = [
+    'orders',
+    'users',
+    'subscribers',
+    'reviews',
+    'payments',
+  ] as const;
+
+  @Get('sidebar-badges')
+  async sidebarBadges(@CurrentUser() me: JwtPayload) {
+    const adminId = me.sub;
+    // Admin сүүлд харсан огноонууд (section→lastSeenAt). Байхгүй бол анх удаа =
+    // бүх одоо байгааг "шинэ" гэж тооцохгүйн тулд default нь ОДОО (анх орох үед 0).
+    const seens = await this.prisma.adminSeen.findMany({
+      where: { adminId, section: { in: [...this.SIDEBAR_SECTIONS] } },
+      select: { section: true, lastSeenAt: true },
+    });
+    const seenMap = new Map(seens.map((s) => [s.section, s.lastSeenAt]));
+    // Анх удаа (seen бичлэггүй) бол ОДООГ суурь болгоно — хуучин бүх дата badge болж
+    // спам гаргахгүй (зөвхөн ЭНЭ цэгээс хойшхи шинэ бичлэг тоологдоно).
+    const fallback = new Date();
+    const since = (section: string) => seenMap.get(section) ?? fallback;
+
+    const [orders, users, subscribers, reviews, payments] = await Promise.all([
+      this.prisma.order.count({ where: { createdAt: { gt: since('orders') } } }),
+      // Зочин (isGuest) бус жинхэнэ шинэ бүртгэл
+      this.prisma.user.count({
+        where: { createdAt: { gt: since('users') }, isGuest: false },
+      }),
+      this.prisma.subscriber.count({ where: { createdAt: { gt: since('subscribers') } } }),
+      this.prisma.review.count({ where: { createdAt: { gt: since('reviews') } } }),
+      this.prisma.payment.count({ where: { createdAt: { gt: since('payments') } } }),
+    ]);
+
+    return { orders, users, subscribers, reviews, payments };
+  }
+
+  @Post('sidebar-seen/:section')
+  async sidebarSeen(
+    @CurrentUser() me: JwtPayload,
+    @Param('section') section: string,
+  ) {
+    if (!(this.SIDEBAR_SECTIONS as readonly string[]).includes(section)) {
+      return { success: false };
+    }
+    const lastSeenAt = new Date();
+    await this.prisma.adminSeen.upsert({
+      where: { adminId_section: { adminId: me.sub, section } },
+      create: { adminId: me.sub, section, lastSeenAt },
+      update: { lastSeenAt },
+    });
+    return { success: true, lastSeenAt };
+  }
+
   @Get('dashboard')
   async dashboard() {
     const now = new Date();

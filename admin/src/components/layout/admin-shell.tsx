@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   ChevronLeft,
@@ -180,9 +180,8 @@ function NavSections({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
+  const queryClient = useQueryClient();
   // ── УНШААГҮЙ суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
-  // unreadTotal = admin хараагүй (хэрэглэгчээс шинэ асуулт/хариулт). 30 сек poll →
-  // шинэ асуулт ирэхэд admin-д улаан badge гарна, нээж харахад цэвэрлэгдэнэ.
   const { data: qStats } = useQuery({
     queryKey: ['admin', 'lessons-questions', 'unread-count'],
     queryFn: () => adminApi.products.questions.list({ pageSize: 1 }),
@@ -191,6 +190,38 @@ function NavSections({
     staleTime: 10_000,
   });
   const unansweredCount = qStats?.unreadTotal ?? 0;
+
+  // ── Бусад хэсгийн "шинэ" badge (Захиалга/Хэрэглэгч/Subscriber/Review/Төлбөр) ──
+  // admin сүүлд харснаас хойш үүссэн шинэ бичлэгийн тоо. 30 сек poll + focus.
+  const { data: sidebarBadges } = useQuery({
+    queryKey: ['admin', 'sidebar-badges'],
+    queryFn: () => adminApi.sidebar.getBadges(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+
+  // href → (section нэр, шинэ тоо). lessons-questions нь өөрийн unanswered-аас.
+  const badgeFor = (href: string): { section: string | null; count: number } => {
+    switch (href) {
+      case '/orders': return { section: 'orders', count: sidebarBadges?.orders ?? 0 };
+      case '/users': return { section: 'users', count: sidebarBadges?.users ?? 0 };
+      case '/subscribers': return { section: 'subscribers', count: sidebarBadges?.subscribers ?? 0 };
+      case '/reviews': return { section: 'reviews', count: sidebarBadges?.reviews ?? 0 };
+      case '/payments': return { section: 'payments', count: sidebarBadges?.payments ?? 0 };
+      case '/lessons-questions': return { section: null, count: unansweredCount };
+      default: return { section: null, count: 0 };
+    }
+  };
+
+  // Хэсэг дарахад тэр хэсгийг "харсан" болгоно → badge цэвэрлэнэ (optimistic refetch).
+  const markSectionSeen = (section: string | null) => {
+    if (!section) return; // lessons-questions нь dialog нээхэд өөрөө цэвэрлэгддэг
+    adminApi.sidebar
+      .markSeen(section)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['admin', 'sidebar-badges'] }))
+      .catch(() => {});
+  };
 
   return (
     <nav className="flex-1 overflow-y-auto p-2">
@@ -219,13 +250,19 @@ function NavSections({
           <div className="space-y-0.5">
             {section.items.map(({ href, label, icon: Icon }) => {
               const active = isActive(pathname, href);
-              // Суралцагчийн асуулт цэсэнд хариулаагүй асуултын тоо badge.
-              const showBadge = href === '/lessons-questions' && unansweredCount > 0;
+              // Тухайн цэсний "шинэ" тоо (orders/users/subscribers/reviews/payments/
+              // lessons-questions). 0 бол badge харагдахгүй.
+              const { section: badgeSection, count } = badgeFor(href);
+              const showBadge = count > 0;
               return (
                 <Link
                   key={href}
                   href={href}
-                  onClick={onNavigate}
+                  // Тухайн хэсгийг нээхэд "харсан" болгож badge цэвэрлэнэ.
+                  onClick={() => {
+                    markSectionSeen(badgeSection);
+                    onNavigate?.();
+                  }}
                   title={collapsed ? label : undefined}
                   className={cn(
                     'relative flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
@@ -244,10 +281,10 @@ function NavSections({
                     )}
                   </span>
                   {!collapsed && <span className="truncate">{label}</span>}
-                  {/* Expanded үед тоо badge (баруун талд) */}
+                  {/* Expanded үед тоо badge (баруун талд, 99+ хязгаар) */}
                   {showBadge && !collapsed && (
                     <span className="ml-auto rounded-full bg-red-500 px-1.5 text-[10px] font-bold tabular-nums text-white">
-                      {unansweredCount}
+                      {count > 99 ? '99+' : count}
                     </span>
                   )}
                 </Link>

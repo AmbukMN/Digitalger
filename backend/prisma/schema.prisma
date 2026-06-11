@@ -78,6 +78,21 @@ model User {
   lessonAnswers  LessonAnswer[]
   quizAttempts   QuizAttempt[]
   chatConversations ChatConversation[]
+  adminSeens     AdminSeen[]
+}
+
+// Admin sidebar "шинэ/уншаагүй" badge — admin хэсэг бүрийг сүүлд харсан огноо.
+// Badge тоо = тухайн хэсгийн (Order/User/Subscriber/Review/Payment) createdAt > lastSeenAt.
+// Admin хэсэгт орж харахад lastSeenAt=now() болж badge цэвэрлэгдэнэ (Gmail/Facebook шиг).
+model AdminSeen {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  section    String // orders | users | subscribers | reviews | payments
+  lastSeenAt DateTime @default(now())
+
+  @@unique([adminId, section])
+  @@index([adminId])
 }
 
 model Account {
