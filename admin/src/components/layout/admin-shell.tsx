@@ -190,15 +190,12 @@ function NavSections({
   collapsed,
   onNavigate,
   isSuperadmin,
-  initialPermissions,
 }: {
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void;
   /** SUPERADMIN эсэх — superadminOnly цэсүүдийг харуулах эсэхийг шийднэ. */
   isSuperadmin: boolean;
-  /** Server-side урьдчилан татсан permission — refresh-д анивчихгүй. */
-  initialPermissions?: Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
 }) {
   const queryClient = useQueryClient();
   // ── УНШААГҮЙ суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
@@ -226,9 +223,8 @@ function NavSections({
   const { data: myPerms } = useQuery({
     queryKey: ['admin', 'my-permissions'],
     queryFn: () => adminApi.staff.myPermissions(),
-    staleTime: 5 * 60_000,
+    staleTime: 60 * 1000,
     enabled: !isSuperadmin,
-    initialData: initialPermissions ?? undefined, // server-side → анивчихгүй
   });
   // resource-д canView эрхтэй эсэх. SUPERADMIN бүгдэд true; perm ачаалж дуустал
   // (myPerms undefined) НУУНА (анивчиж гарч ирэхээс сэргийлж — аюулгүй default).
@@ -351,22 +347,21 @@ function NavSections({
 // Permission map type.
 type PermMap = Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
 
-// ── localStorage кэш — sidebar анивчилтыг засна (server-side fetch БИШ, navigation
-// удаашруулахгүй). Сүүлд амжилттай татсан profile/permission-ийг хадгалж, дараагийн
-// load дээр шууд initialData болгож өгнө (refresh-д хуучин role-оор шууд render).
-function readCache<T>(key: string): T | undefined {
-  if (typeof window === 'undefined') return undefined;
-  try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : undefined; }
-  catch { return undefined; }
-}
-function writeCache(key: string, val: unknown) {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota */ }
-}
+// ⚠️⚠️ АЮУЛГҮЙ БАЙДАЛ: profile/permission-ийг localStorage-д ХЭЗЭЭ Ч кэшлэхгүй.
+// Өмнө кэшилснээс болж нэг admin гарч өөр admin нэвтрэхэд ХУУЧИН admin-ийн профайл
+// харагдаж байсан (өөр хүний дата задрах ноцтой алдаа). React Query memory cache
+// (queryKey) хангалттай — нэг session дотор navigation хурдан, өөр хэрэглэгчид
+// зориулж дискэнд хадгалахгүй. Хуучин кэш үлдсэн бол анх ачаалахад цэвэрлэнэ.
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const initialProfile = readCache<ProfileData>('dg_admin_profile');
-  const initialPermissions = readCache<PermMap>('dg_admin_perms');
+  // Хуучин (хувилбар) localStorage кэш үлдсэн бол арилгах — аюулгүй байдлын цэвэрлэгээ.
+  useEffect(() => {
+    try {
+      localStorage.removeItem('dg_admin_profile');
+      localStorage.removeItem('dg_admin_perms');
+    } catch { /* ignore */ }
+  }, []);
+
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -384,18 +379,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const { data: publicSettings } = usePublicSettings();
-  // ⚠️ Server-side initialData → refresh-д анивчихгүй (анхнаасаа зөв role).
-  const { data: profile } = useQuery<ProfileData>({
+  // ⚠️ initialData ХЭРЭГЛЭХГҮЙ — кэшээс өөр хэрэглэгчийн профайл задрах эрсдэлтэй.
+  // queryFn алдаа гарвал undefined буцааж (хуурамч role БИШ) — буруу эрх харуулахгүй.
+  const { data: profile } = useQuery<ProfileData | undefined>({
     queryKey: ['admin', 'profile'],
-    queryFn: () => adminApi.profile.get().catch(() => ({ name: null, email: 'admin@digitalger.mn', image: null, role: 'ADMIN', id: '', emailVerified: null, createdAt: '', updatedAt: '' })),
-    staleTime: 5 * 60 * 1000,
-    initialData: initialProfile ?? undefined,
+    queryFn: () => adminApi.profile.get(),
+    staleTime: 60 * 1000,
+    retry: 1,
   });
-
-  // Амжилттай татсан profile-ийг localStorage-д кэшлэх (дараагийн refresh-д анивчихгүй).
-  useEffect(() => {
-    if (profile?.email && profile.role) writeCache('dg_admin_profile', profile);
-  }, [profile]);
 
   // SUPERADMIN бол site-level цэсүүд (Хэрэглэгч/Тохиргоо/SEO/Дараалал/
   // Subscriber/Таталт) харагдана. EDITOR/ADMIN-д зөвхөн контент+scope цэс.
@@ -406,14 +397,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: guardPerms } = useQuery({
     queryKey: ['admin', 'my-permissions'],
     queryFn: () => adminApi.staff.myPermissions(),
-    staleTime: 5 * 60_000,
+    staleTime: 60 * 1000,
     enabled: !!profile && !isSuperadmin, // SUPERADMIN бол guard хэрэггүй
-    initialData: initialPermissions ?? undefined, // localStorage кэш → анивчихгүй
   });
-  // Permission-ийг localStorage-д кэшлэх.
-  useEffect(() => {
-    if (guardPerms) writeCache('dg_admin_perms', guardPerms);
-  }, [guardPerms]);
   useEffect(() => {
     if (!profile || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
     // Route → шалгах төрөл. SUPERADMIN-only route эсвэл resource permission.
@@ -492,7 +478,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <NavSections pathname={pathname} collapsed={collapsed} isSuperadmin={isSuperadmin} initialPermissions={initialPermissions} />
+        <NavSections pathname={pathname} collapsed={collapsed} isSuperadmin={isSuperadmin} />
 
         <div className="border-t border-border p-2">
           <Link
@@ -570,7 +556,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 collapsed={false}
                 onNavigate={() => setMobileOpen(false)}
                 isSuperadmin={isSuperadmin}
-                initialPermissions={initialPermissions}
               />
 
               <div className="border-t border-border p-2">
