@@ -409,6 +409,7 @@ export function LearnClient({ product }: LearnClientProps) {
         autoPlayNext={autoPlayNext}
         onToggleAutoplay={toggleAutoPlay}
         autoStart={autoStartNext}
+        themeOverride={themeMounted ? learnTheme : undefined}
       />
     );
   }

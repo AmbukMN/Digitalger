@@ -140,6 +140,9 @@ export interface PremiumVideoPlayerProps {
   onNext?: () => void;
   /** autoplay-аар (өмнөх хичээл дуусч) шилжсэн бол poster даралгүй шууд тоглоно */
   autoStart?: boolean;
+  /** Controls/menu өнгөний theme override. Заавал биш — өгөгдвөл global theme-ийн
+   *  оронд үүнийг дагана (learn хуудасны ТУСДАА dark/light-тай синк болно). */
+  themeOverride?: 'light' | 'dark';
 }
 
 // Vendor-prefixed (iOS Safari, webkit fullscreen) хэлбэрүүд
@@ -366,6 +369,7 @@ function PremiumVideoPlayerBase({
   onToggleAutoplay,
   onNext,
   autoStart = false,
+  themeOverride,
 }: PremiumVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -385,8 +389,12 @@ function PremiumVideoPlayerBase({
   const [themeReady, setThemeReady] = useState(false);
   useEffect(() => setThemeReady(true), []);
 
-  // Player нь ТУСДАА toggle-гүй — learn хуудсын (сайтын) theme-ийг ШУУД дагана.
-  const isLight = themeReady && resolvedTheme === 'light';
+  // ⚠️ themeOverride өгөгдвөл түүнийг ДАГАНА (learn хуудасны ТУСДАА dark/light-тай синк),
+  // эс бол global сайтын theme-ийг дагана. Learn-д localTheme override хийдэг тул
+  // controls/menu өнгө player доторх dark/light-тай таарна.
+  const isLight = themeOverride
+    ? themeOverride === 'light'
+    : themeReady && resolvedTheme === 'light';
 
   // Callback-уудыг ref-ээр барина — listener-уудыг parent бүр render-д дахин
   // холбохгүйгээр хамгийн сүүлийн утгыг дуудна (stale closure-аас сэргийлнэ).
