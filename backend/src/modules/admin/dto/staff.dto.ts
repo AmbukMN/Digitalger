@@ -49,12 +49,11 @@ export class CreateStaffDto {
   @IsIn(STAFF_ASSIGNABLE_ROLES, { message: 'Эрх нь зөвхөн ADMIN байна' })
   role!: StaffAssignableRole;
 
-  // password байвал bcrypt hash, эс бол нууц үггүй (дараа нь админ тохируулна).
-  @IsOptional()
-  @IsString()
+  // ⚠️ Нууц үг ЗААВАЛ — admin энэ нууц үгээр нэвтэрнэ (нууц үггүй бол нэвтэрч чадахгүй).
+  @IsString({ message: 'Нууц үг шаардлагатай' })
   @MinLength(8, { message: 'Нууц үг хамгийн багадаа 8 тэмдэгт байх ёстой' })
   @MaxLength(72)
-  password?: string;
+  password!: string;
 
   // Resource бүрийн эрх (default: хоосон = эрхгүй).
   @IsOptional()

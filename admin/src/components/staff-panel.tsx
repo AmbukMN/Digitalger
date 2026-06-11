@@ -367,17 +367,22 @@ export function StaffPanel() {
 
   // create dialog-ийн checkbox toggle
   const createMutation = useMutation({
-    mutationFn: () =>
-      adminApi.staff.create({
+    mutationFn: () => {
+      // ⚠️ Нууц үг ЗААВАЛ — admin энэ нууц үгээр нэвтэрнэ.
+      if (password.trim().length < 8) {
+        return Promise.reject(new Error('Нууц үг хамгийн багадаа 8 тэмдэгт байх ёстой'));
+      }
+      return adminApi.staff.create({
         email: email.trim(),
         name: name.trim() || undefined,
         role: 'ADMIN',
-        password: password.trim() || undefined,
+        password: password.trim(),
         // Зөвхөн ямар нэг эрх асаасан resource-уудыг дамжуулна.
         permissions: createPerms.filter(
           (p) => p.canView || p.canCreate || p.canEdit || p.canDelete,
         ),
-      }),
+      });
+    },
     onSuccess: () => {
       invalidate();
       toast.success('Шинэ админ нэмэгдлээ');
@@ -585,13 +590,13 @@ export function StaffPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="staffPassword">Нууц үг (заавал биш)</Label>
+              <Label htmlFor="staffPassword">Нууц үг * <span className="text-xs font-normal text-muted-foreground">(админ үүгээр нэвтэрнэ)</span></Label>
               <Input
                 id="staffPassword"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Хоосон бол автоматаар үүснэ"
+                placeholder="Хамгийн багадаа 8 тэмдэгт"
                 autoComplete="new-password"
               />
             </div>
@@ -605,7 +610,7 @@ export function StaffPanel() {
               Цуцлах
             </Button>
             <Button
-              disabled={createMutation.isPending || !email.trim()}
+              disabled={createMutation.isPending || !email.trim() || password.trim().length < 8}
               onClick={() => createMutation.mutate()}
             >
               {createMutation.isPending ? 'Нэмж байна...' : 'Нэмэх'}

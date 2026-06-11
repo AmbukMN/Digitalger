@@ -918,13 +918,11 @@ export class UsersService {
     if (existing) {
       throw new ConflictException('Энэ имэйл аль хэдийн бүртгэлтэй байна');
     }
-    if (dto.password !== undefined && dto.password !== '' && dto.password.length < 8) {
-      throw new BadRequestException('Нууц үг хамгийн багадаа 8 тэмдэгт байх ёстой');
+    // ⚠️ Нууц үг ЗААВАЛ — admin энэ нууц үгээр нэвтэрнэ.
+    if (!dto.password || dto.password.length < 8) {
+      throw new BadRequestException('Нууц үг шаардлагатай (хамгийн багадаа 8 тэмдэгт)');
     }
-    const passwordHash =
-      dto.password && dto.password.length >= 8
-        ? await bcrypt.hash(dto.password, BCRYPT_ROUNDS)
-        : null;
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
     // Permission-уудыг урьдчилж шүүж/баталгаажуулна (мэдэгдэхгүй resource хасна).
     const permRows = this.sanitizePermissions(dto.permissions);
