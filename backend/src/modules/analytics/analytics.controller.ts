@@ -145,4 +145,22 @@ export class AnalyticsController {
   async getEmail(@Query('days') days?: string) {
     return this.analyticsService.getEmailAnalytics(days ? parseInt(days) : 30);
   }
+
+  // Нэг кампанит ажлын хаяг бүрийн илгээлтийн жагсаалт (modal-д) — admin only.
+  // ⚠️ Email analytics нь site-level — dashboard-д зөвхөн superadmin-д харагддаг
+  // (page.tsx isSuperadmin). Тиймээс @Roles(ADMIN) хэвээр.
+  @Get('email/campaign')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async getEmailCampaign(
+    @Query('key') key: string,
+    @Query('days') days?: string,
+    @Query('page') page?: string,
+  ) {
+    return this.analyticsService.getCampaignRecipients(
+      key ?? 'transactional',
+      days ? parseInt(days) : 30,
+      page ? parseInt(page) : 1,
+    );
+  }
 }

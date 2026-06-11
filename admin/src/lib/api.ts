@@ -36,6 +36,7 @@ import type {
   AdminUserFullDetail,
   DashboardStats,
   EmailCampaignProgress,
+  EmailCampaignRecipient,
   QueueStatus,
   SeoAllowedPathsGrouped,
   SeoOverride,
@@ -818,6 +819,18 @@ export const adminApi = {
       totalUnique: number;
       overallOpenRate: number;
     }>(`/analytics/email?days=${days}`),
+
+  // Нэг кампанит ажлын хаяг бүрийн илгээлтийн жагсаалт (modal-д харуулна).
+  // key === 'transactional' бол нээлт байхгүй (pixel-гүй) — opened=false бүгд.
+  getEmailCampaignRecipients: (key: string, days = 30, page = 1) =>
+    adminFetch<{
+      items: EmailCampaignRecipient[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }>(
+      `/analytics/email/campaign?key=${encodeURIComponent(key)}&days=${days}&page=${page}`,
+    ),
 
   subscribers: {
     list: (params?: {

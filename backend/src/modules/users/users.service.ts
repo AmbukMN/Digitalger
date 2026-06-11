@@ -284,7 +284,7 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw] = await Promise.all([
+    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw, emailLogsRaw, emailOpensRaw] = await Promise.all([
       // Захиалга бүгд (статусаар) + items + product
       this.prisma.order.findMany({
         where: { userId: id },
@@ -385,7 +385,47 @@ export class UsersService {
           },
         },
       }),
+      // Тухайн хэрэглэгч рүү явуулсан имэйлийн түүх (EmailLog) — to=user.email.
+      // @@index([to, createdAt]) бэлэн тул хурдан татна. Кирилл/латин том/жижиг
+      // үсэг ялгахгүйгээр (insensitive) тааруулна.
+      this.prisma.emailLog.findMany({
+        where: { to: { equals: user.email, mode: 'insensitive' } },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          id: true,
+          subject: true,
+          campaign: true,
+          status: true,
+          createdAt: true,
+          deliveredAt: true,
+          bouncedAt: true,
+        },
+      }),
+      // Имэйл нээлт (EmailOpen) — campaign-аар нь нээсэн эсэхийг тааруулна.
+      this.prisma.emailOpen.findMany({
+        where: { email: { equals: user.email, mode: 'insensitive' } },
+        select: { campaign: true, openedAt: true },
+      }),
     ]);
+
+    // ─── Имэйл түүх (EmailLog + EmailOpen) ──────────────────────────────────
+    // Нээлтийг campaign-аар тааруулна: тухайн campaign-д ямар нэг EmailOpen
+    // байвал opened=true. Нарийн (имэйл бүрээр) нээлт боломжгүй тул campaign
+    // түвшинд тооцоолно. campaign=null (гүйлгээний имэйл) → нээлт хэмжихгүй.
+    const openedCampaigns = new Set(
+      emailOpensRaw.map((o) => o.campaign).filter(Boolean) as string[],
+    );
+    const emailHistory = emailLogsRaw.map((e) => ({
+      id: e.id,
+      subject: e.subject,
+      campaign: e.campaign,
+      status: e.status,
+      createdAt: e.createdAt,
+      deliveredAt: e.deliveredAt,
+      bouncedAt: e.bouncedAt,
+      opened: e.campaign ? openedCampaigns.has(e.campaign) : false,
+    }));
 
     // Татсан түүх — DownloadLog.productId → Product (нэр/slug) resolve.
     const dlProductIds = [...new Set(downloadsRaw.map((d) => d.productId).filter(Boolean) as string[])];
@@ -613,6 +653,7 @@ export class UsersService {
       devices,
       auditLogs,
       chatConversations,
+      emailHistory,
       ltv,
       interest,
       chatConversion,

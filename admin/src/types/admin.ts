@@ -32,6 +32,19 @@ export interface EmailCampaignProgress {
   done: boolean;
 }
 
+// Нэг кампанит ажлын хаяг бүрийн илгээлт (имэйл маркетингийн modal-д)
+export interface EmailCampaignRecipient {
+  id: string;
+  to: string; // хүлээн авагчийн хаяг
+  subject: string; // имэйлийн гарчиг
+  status: string; // queued | sent | delivered | bounced | failed
+  createdAt: string; // илгээсэн огноо
+  deliveredAt: string | null;
+  bouncedAt: string | null;
+  opened: boolean; // нээсэн эсэх (pixel)
+  openedAt: string | null;
+}
+
 // Админаас хэрэглэгчид үнэгүй идэвхжүүлсэн бүтээгдэхүүн
 export interface GrantedProduct {
   orderId: string;
@@ -234,6 +247,20 @@ export interface AdminUserFullDetail {
   ltv?: UserDetailLtv;
   interests?: UserDetailInterests;
   chatConversion?: UserDetailChatConversion;
+  // Тухайн хэрэглэгч рүү явуулсан имэйлийн түүх (EmailLog).
+  emailHistory?: UserDetailEmail[];
+}
+
+// Хэрэглэгч рүү явуулсан имэйл (EmailLog + EmailOpen-аар нээлт тааруулсан).
+export interface UserDetailEmail {
+  id: string;
+  subject: string;
+  campaign: string | null; // marketing campaign key; null=гүйлгээний имэйл
+  status: string; // queued | sent | delivered | bounced | complained | failed
+  createdAt: string;
+  deliveredAt: string | null;
+  bouncedAt: string | null;
+  opened: boolean; // campaign-аар тааруулсан нээлт
 }
 
 // ─── Багийн админ (Staff management) — зөвхөн SUPERADMIN ──────────────────────

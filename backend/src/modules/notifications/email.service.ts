@@ -770,6 +770,13 @@ ${pixel}
     const { to, couponCode, discountPercent } = opts;
     const freeUrl = `${this.siteUrl}/products/font-canva-powerpoint-free`;
 
+    // ── Tracking pixel (нээлт хянана) — emailLayout-тай ИЖИЛ pattern.
+    // Энэ template нь тусгай дизайнтай тул emailLayout ашигладаггүй — пиксел/unsubscribe-г
+    // гараар нэмнэ. campaign='welcome' → EmailOpen бүртгэгдэж analytics-д харагдана.
+    const pixel = `<img src="${this.siteUrl.replace('digitalger.mn', 'api.digitalger.mn')}/api/email/open?c=welcome&e=${encodeURIComponent(to)}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`;
+    // Unsubscribe footer (CAN-SPAM) — бусад marketing имэйлтэй ижил.
+    const unsub = `<p style="margin:8px 0 0;font-size:11px;color:#bbb">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(to)}" style="color:#999;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`;
+
     const html = `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px">
@@ -810,9 +817,11 @@ ${pixel}
   </td></tr>
   <tr><td style="background:#f8f9fb;padding:20px 36px;text-align:center;border-top:1px solid #eee">
     <p style="margin:0;font-size:12px;color:#aaa">© ${new Date().getFullYear()} DigitalGer · <a href="${this.siteUrl}" style="color:#aaa;text-decoration:none">digitalger.mn</a></p>
+    ${unsub}
   </td></tr>
 </table>
 </td></tr></table>
+${pixel}
 </body></html>`;
 
     this.logger.log(
@@ -820,10 +829,13 @@ ${pixel}
     );
     // ШУУД илгээнэ (queue биш) — амжилт буцаана. subscribe урсгал имэйл
     // хүчинтэй эсэхийг (явсан/явсангүй) энэ утгаар шийдэж invalid тэмдэглэнэ.
+    // campaign='welcome' → EmailLog.campaign бичигдэж analytics-д "Тавтай морил" харагдана.
     return this.send(
       to,
       `🎁 Тавтай морилно уу — ${discountPercent}% хөнгөлөлт + үнэгүй бэлэг`,
       html,
+      undefined,
+      'welcome',
     );
   }
 

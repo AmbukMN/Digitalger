@@ -593,6 +593,107 @@ export class AnalyticsService {
     };
   }
 
+  /**
+   * Нэг кампанит ажлын (эсвэл transactional) ХААЯГ БҮРИЙН илгээлтийн жагсаалт.
+   * Modal-д харуулна: аль хаяг руу, ямар имэйл, status, хэзээ, нээсэн эсэх.
+   * - campaign filter: key === 'transactional' ? null : key
+   * - since: getEmailAnalytics-тэй ижил логик (SES эхэлсэн огноо vs days дотроос max).
+   * - Нээлт: тухайн хуудасны хаягуудын EmailOpen-ийг email+campaign-аар татаж тааруулна.
+   *   (key === 'transactional' → pixel-гүй тул бүгд opened=false.)
+   */
+  async getCampaignRecipients(
+    key: string,
+    days = 30,
+    page = 1,
+    pageSize = 50,
+  ): Promise<{
+    items: {
+      id: string;
+      to: string;
+      subject: string;
+      status: string;
+      createdAt: Date;
+      deliveredAt: Date | null;
+      bouncedAt: Date | null;
+      opened: boolean;
+      openedAt: Date | null;
+    }[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const isTransactional = key === 'transactional';
+    const campaign = isTransactional ? null : key;
+
+    // getEmailAnalytics-тэй ижил since логик (SES эхэлсэн огноо vs days дотроос max).
+    const periodSince = new Date();
+    periodSince.setDate(periodSince.getDate() - days);
+    const firstLog = await this.prisma.emailLog.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    });
+    const sesStart = firstLog?.createdAt ?? periodSince;
+    const since = sesStart > periodSince ? sesStart : periodSince;
+
+    const safePage = Math.max(1, Math.floor(page) || 1);
+    const safeSize = Math.min(200, Math.max(1, Math.floor(pageSize) || 50));
+    const skip = (safePage - 1) * safeSize;
+
+    const where = { campaign, createdAt: { gte: since } };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.emailLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: safeSize,
+        select: {
+          id: true,
+          to: true,
+          subject: true,
+          status: true,
+          createdAt: true,
+          deliveredAt: true,
+          bouncedAt: true,
+        },
+      }),
+      this.prisma.emailLog.count({ where }),
+    ]);
+
+    // Нээлтийг зөвхөн marketing (pixel-тэй) кампанит ажилд тооцно.
+    // Тухайн хуудасны хаягуудын EmailOpen-ийг татаж, email бүрийн ХАМГИЙН СҮҮЛИЙН нээлтийг авна.
+    const openMap = new Map<string, Date>();
+    if (!isTransactional && rows.length > 0) {
+      const emails = [...new Set(rows.map((r) => r.to))];
+      const opens = await this.prisma.emailOpen.findMany({
+        // isTransactional false тул campaign = key (string, null биш).
+        where: { campaign: key, email: { in: emails } },
+        select: { email: true, openedAt: true },
+      });
+      for (const o of opens) {
+        const prev = openMap.get(o.email);
+        if (!prev || o.openedAt > prev) openMap.set(o.email, o.openedAt);
+      }
+    }
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        to: r.to,
+        subject: r.subject,
+        status: r.status,
+        createdAt: r.createdAt,
+        deliveredAt: r.deliveredAt,
+        bouncedAt: r.bouncedAt,
+        opened: openMap.has(r.to),
+        openedAt: openMap.get(r.to) ?? null,
+      })),
+      total,
+      page: safePage,
+      pageSize: safeSize,
+    };
+  }
+
   // Campaign key-г уншихад ойлгомжтой Монгол нэр болгох (bulk-167... → "Бөөн илгээлт").
   private prettyCampaign(key: string): string {
     if (key === 'transactional') return 'Гүйлгээний имэйл (OTP/баталгаа)';

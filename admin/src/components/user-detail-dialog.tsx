@@ -102,6 +102,32 @@ const AUDIT_FIELD: Record<string, { label: string; icon: typeof Mail }> = {
   password_reset: { label: 'Нууц үг сэргээсэн', icon: Shield },
 };
 
+// Имэйл маркетингийн campaign key → Монгол нэр. broadcast-* (бөөн имэйл) prefix-ээр.
+// campaign=null → гүйлгээний (transactional) имэйл.
+const EMAIL_CAMPAIGN_LABEL: Record<string, string> = {
+  'cart-1h': 'Сагс сануулга',
+  'discount-24h': 'Хөнгөлөлт',
+  'coupon-expiring': 'Купон дуусах',
+  'new-product': 'Шинэ бүтээгдэхүүн',
+  reactivation: 'Эргэн идэвхжүүлэх',
+  welcome: 'Тавтай морил',
+};
+function emailCampaignLabel(campaign: string | null): string {
+  if (!campaign) return 'Гүйлгээний имэйл';
+  if (campaign.startsWith('broadcast')) return 'Бөөн имэйл';
+  return EMAIL_CAMPAIGN_LABEL[campaign] ?? campaign;
+}
+
+// Имэйлийн status → Badge өнгө + Монгол нэр.
+const EMAIL_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'info' }> = {
+  delivered: { label: 'Хүрсэн', variant: 'success' },
+  sent: { label: 'Илгээсэн', variant: 'info' },
+  bounced: { label: 'Буцсан', variant: 'destructive' },
+  complained: { label: 'Гомдол', variant: 'destructive' },
+  failed: { label: 'Амжилтгүй', variant: 'destructive' },
+  queued: { label: 'Дараалалд', variant: 'secondary' },
+};
+
 function DeviceIcon({ device }: { device: string }) {
   if (device === 'mobile') return <Smartphone className="h-4 w-4" />;
   if (device === 'tablet') return <Tablet className="h-4 w-4" />;
@@ -294,6 +320,7 @@ export function UserDetailDialog({ user, onClose }: Props) {
   const ltv = data?.ltv;
   const interests = data?.interests;
   const conversion = data?.chatConversion;
+  const emails = data?.emailHistory ?? [];
 
   return (
     <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
@@ -378,6 +405,9 @@ export function UserDetailDialog({ user, onClose }: Props) {
                 </TabsTrigger>
                 <TabsTrigger value="behavior" className="data-[state=active]:bg-primary/10">
                   Хайлт/Хандалт
+                </TabsTrigger>
+                <TabsTrigger value="email" className="data-[state=active]:bg-primary/10">
+                  <Mail className="mr-1 h-3.5 w-3.5" />Имэйл {emails.length > 0 ? `(${emails.length})` : ''}
                 </TabsTrigger>
                 <TabsTrigger value="account" className="data-[state=active]:bg-primary/10">Аккаунт түүх</TabsTrigger>
               </TabsList>
@@ -725,6 +755,48 @@ export function UserDetailDialog({ user, onClose }: Props) {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* ─── ИМЭЙЛ ТҮҮХ ─── */}
+            <TabsContent value="email" className="m-0 flex-1 overflow-y-auto p-5">
+              {emails.length === 0 ? (
+                <Empty icon={Mail} text="Имэйл илгээгээгүй" />
+              ) : (
+                <div className="space-y-2">
+                  {emails.map((em) => {
+                    const st = EMAIL_STATUS[em.status] ?? { label: em.status, variant: 'secondary' as const };
+                    return (
+                      <div key={em.id} className="rounded-xl border border-border bg-card p-3.5 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 flex-1 text-sm font-semibold leading-snug wrap-break-word">{em.subject}</p>
+                          <Badge variant={st.variant} className="shrink-0">{st.label}</Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline">{emailCampaignLabel(em.campaign)}</Badge>
+                          {/* Нээлт — campaign-аар тааруулсан. Гүйлгээний имэйлд нээлт хэмжихгүй (—). */}
+                          {em.campaign ? (
+                            em.opened ? (
+                              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                <CheckCircle2 className="h-3.5 w-3.5" />Нээсэн
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <X className="h-3.5 w-3.5" />Нээгээгүй
+                              </span>
+                            )
+                          ) : (
+                            <span>—</span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {fmtDateTime(em.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </TabsContent>
 
             {/* ─── АККАУНТ ТҮҮХ ─── */}
