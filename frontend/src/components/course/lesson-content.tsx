@@ -115,10 +115,24 @@ function ResourceRow({
 }
 
 // ─── Хувийн тэмдэглэл (localStorage) ─────────────────────────────────────────
-function PersonalNote({ noteKey }: { noteKey: string }) {
+// onLineCountChange — value өөрчлөгдөх бүрт мөрийн тоог parent-д мэдэгдэнэ
+// (таб badge шууд шинэчлэгдэх — refresh шаардахгүй).
+function PersonalNote({
+  noteKey,
+  onLineCountChange,
+}: {
+  noteKey: string;
+  onLineCountChange?: (lines: number) => void;
+}) {
   const [value, setValue] = useState('');
   const [saved, setSaved] = useState(false);
   const loadedRef = useRef(false);
+
+  // value өөрчлөгдөх бүрт мөрийн тоог parent-д шууд мэдэгдэнэ (badge real-time).
+  useEffect(() => {
+    const lines = value.split('\n').filter((l) => l.trim().length > 0).length;
+    onLineCountChange?.(lines);
+  }, [value, onLineCountChange]);
 
   // localStorage-аас ачаалах (хичээл солих бүрт)
   useEffect(() => {
@@ -332,15 +346,18 @@ export function LessonContent({
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
             Шалгалт
-            {/* Шалгалт өгсөн бол авсан хувь — тэнцсэн ногоон, тэнцээгүй амбер. */}
+            {/* ⚠️ ЗӨВХӨН шалгалт ӨГСӨН (bestAttempt) бол авсан хувь harуулна.
+                Өгөөгүй бол badge ГАРАХГҮЙ (passScore-той андуурахгүй).
+                Тэнцсэн → ✓ ногоон, тэнцээгүй → ✗ амбер (тодорхой). */}
             {quizScore != null && (
               <span
                 className={cn(
-                  'ml-1 rounded-full px-1.5 text-[10px] font-bold tabular-nums',
+                  'ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 text-[10px] font-bold tabular-nums',
                   quizPassed ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white',
                 )}
+                title={quizPassed ? 'Тэнцсэн' : 'Тэнцээгүй — дахин өгөх боломжтой'}
               >
-                {quizScore}%
+                {quizPassed ? '✓' : '✗'} {quizScore}%
               </span>
             )}
           </TabsTrigger>
@@ -463,7 +480,7 @@ export function LessonContent({
 
         {/* Миний тэмдэглэл (localStorage) */}
         <TabsContent value="mynotes" className="mt-4">
-          <PersonalNote noteKey={noteKey} />
+          <PersonalNote noteKey={noteKey} onLineCountChange={setNoteLineCount} />
         </TabsContent>
       </Tabs>
     </motion.div>

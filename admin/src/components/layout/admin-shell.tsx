@@ -180,6 +180,17 @@ function NavSections({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
+  // ── Хариулаагүй суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
+  // 30 сек тутам шинэчилнэ → шинэ асуулт ирэхэд admin-д badge гарна.
+  const { data: unanswered } = useQuery({
+    queryKey: ['admin', 'lessons-questions', 'unanswered-count'],
+    queryFn: () => adminApi.products.questions.list({ onlyUnanswered: true, pageSize: 1 }),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+  const unansweredCount = unanswered?.total ?? 0;
+
   return (
     <nav className="flex-1 overflow-y-auto p-2">
       {navSections.map((section, sectionIdx) => (
@@ -207,6 +218,8 @@ function NavSections({
           <div className="space-y-0.5">
             {section.items.map(({ href, label, icon: Icon }) => {
               const active = isActive(pathname, href);
+              // Суралцагчийн асуулт цэсэнд хариулаагүй асуултын тоо badge.
+              const showBadge = href === '/lessons-questions' && unansweredCount > 0;
               return (
                 <Link
                   key={href}
@@ -214,7 +227,7 @@ function NavSections({
                   onClick={onNavigate}
                   title={collapsed ? label : undefined}
                   className={cn(
-                    'flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
+                    'relative flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
                     active
                       ? 'bg-primary/10 text-primary rounded-l-none'
                       : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -222,8 +235,20 @@ function NavSections({
                   )}
                   style={active ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="relative shrink-0">
+                    <Icon className="h-4 w-4" />
+                    {/* Collapsed үед icon дээр улаан цэг (тоо багтахгүй) */}
+                    {showBadge && collapsed && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-card" />
+                    )}
+                  </span>
                   {!collapsed && <span className="truncate">{label}</span>}
+                  {/* Expanded үед тоо badge (баруун талд) */}
+                  {showBadge && !collapsed && (
+                    <span className="ml-auto rounded-full bg-red-500 px-1.5 text-[10px] font-bold tabular-nums text-white">
+                      {unansweredCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
