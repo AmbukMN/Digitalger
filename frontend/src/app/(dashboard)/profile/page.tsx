@@ -924,30 +924,38 @@ function PhoneVerifySection({
   }
 
   // 3) Утас байгаа + баталгаажаагүй → анхааруулга background + "Баталгаажуулах" товч
+  // ⚠️ Mobile: утас+статус ДЭЭР нэг мөрөнд, товч ДООД талд бүтэн өргөн.
+  //    Desktop (sm+): icon+утас зүүн, товч баруун (хэвтээ).
   return (
     <div className="py-3">
-      <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 dark:border-amber-800/50 dark:bg-amber-950/30">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
-          <Phone className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">{phone}</span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900 dark:text-amber-300">
-              ⚠ Баталгаажаагүй
-            </span>
+      <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 dark:border-amber-800/50 dark:bg-amber-950/30">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* Утас + статус (mobile: дээд мөр) */}
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
+              <Phone className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">{phone}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+                  ⚠ Баталгаажаагүй
+                </span>
+              </div>
+              <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">Утасны дугаараа баталгаажуулна уу</p>
+            </div>
           </div>
-          <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">Утасны дугаараа баталгаажуулна уу</p>
+          {/* Товч (mobile: доод бүтэн өргөн, desktop: баруун auto) */}
+          <Button
+            size="sm"
+            className="w-full sm:w-auto shrink-0 gap-1.5 bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
+            onClick={() => handleRequest(phone)}
+            disabled={requesting}
+          >
+            <Phone className="h-3.5 w-3.5" />
+            {requesting ? 'Түр хүлээнэ үү...' : 'Баталгаажуулах'}
+          </Button>
         </div>
-        <Button
-          size="sm"
-          className="shrink-0 gap-1.5 bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
-          onClick={() => handleRequest(phone)}
-          disabled={requesting}
-        >
-          <Phone className="h-3.5 w-3.5" />
-          {requesting ? 'Түр хүлээнэ үү...' : 'Баталгаажуулах'}
-        </Button>
       </div>
 
       <PhoneVerifyDialog
