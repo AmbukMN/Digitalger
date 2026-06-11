@@ -949,9 +949,12 @@ export class AdminProductsService {
       })),
     );
 
-    // Уншаагүй → хариулаагүй эхэнд онцолно (анхаарал татах эрэмбэ).
+    // Эрэмбэ: уншаагүй → хариулаагүй → ХАМГИЙН СҮҮЛИЙН (шинэ) асуулт эхэнд (createdAt desc).
     mapped.sort(
-      (a, b) => Number(b.unread) - Number(a.unread) || Number(a.answered) - Number(b.answered),
+      (a, b) =>
+        Number(b.unread) - Number(a.unread) ||
+        Number(a.answered) - Number(b.answered) ||
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
     // Нийт уншаагүй тоо (sidebar badge-д). onlyUnanswered үед энэ нь шүүгдсэн тоо.
