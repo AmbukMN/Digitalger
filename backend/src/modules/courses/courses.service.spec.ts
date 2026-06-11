@@ -20,7 +20,10 @@ describe('CoursesService', () => {
       product: { findFirst: jest.fn() },
       lessonProgress: { findMany: jest.fn(), upsert: jest.fn() },
     };
-    storage = { getPresignedUrl: jest.fn().mockResolvedValue('https://r2.signed/video') };
+    storage = {
+      getPresignedUrl: jest.fn().mockResolvedValue('https://r2.signed/video'),
+      getAssetUrl: jest.fn().mockReturnValue('https://r2.signed/video'),
+    };
     stream = {
       configured: true,
       getSignedPlaybackToken: jest.fn().mockResolvedValue('tok-123'),
@@ -28,7 +31,8 @@ describe('CoursesService', () => {
       iframeUrl: jest.fn().mockReturnValue('https://iframe'),
     };
     const config = { get: jest.fn().mockReturnValue('https://digitalger.mn') };
-    service = new CoursesService(prisma as any, storage as any, stream as any, config as any);
+    const email = { sendCertificateIssued: jest.fn() };
+    service = new CoursesService(prisma as any, storage as any, stream as any, config as any, email as any);
   });
 
   describe('getLessonVideoUrl', () => {

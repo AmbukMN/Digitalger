@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
 import { pickActiveOrder } from '../../common/access-expiry';
+import { EmailService } from '../notifications/email.service';
 import { QA_ALLOWED_MIME_TYPES, QA_ATTACHMENT_MAX_SIZE } from './dto/qa.dto';
 
 /** Q&A асуулт/хариултад дамжуулах хавсралтын мета (uploads-аар R2-д хуулсан key). */
@@ -31,6 +32,7 @@ export class CoursesService {
     private readonly storage: StorageService,
     private readonly stream: CloudflareStreamService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {
     this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
   }
@@ -451,7 +453,7 @@ export class CoursesService {
     }
 
     // userId_productId дээр upsert — race үед давхар үүсэхээс хамгаална.
-    return this.prisma.certificate.upsert({
+    const cert = await this.prisma.certificate.upsert({
       where: { userId_productId: { userId, productId: product.id } },
       create: {
         certNo,
@@ -462,6 +464,21 @@ export class CoursesService {
       },
       update: {},
     });
+
+    // Сертификат ШИНЭЭР олгогдсон бол (existing дээр аль хэдийн return хийсэн тул
+    // энд хүрвэл шинэ) баяр хүргэсэн имэйл явуулна. ⚠️ Invalid/guest хаягт явахгүй
+    // (sendCertificateIssued дотор isValidEmail шалгана). Fire-and-forget.
+    if (user?.email) {
+      // sendCertificateIssued нь enqueue хийгээд шууд буцдаг (void) — fire-and-forget.
+      this.email.sendCertificateIssued({
+        to: user.email,
+        userName,
+        courseTitle: product.title,
+        certNo: cert.certNo,
+        productSlug,
+      });
+    }
+    return cert;
   }
 
   /**

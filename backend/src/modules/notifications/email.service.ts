@@ -1236,6 +1236,94 @@ ${pixel}
     this.logger.log(`Contact inquiry имэйл дараалалд → ${to} | from ${email}`);
     // replyTo тавьж хариу шууд илгээгчид очдог болгоно (Resend дэмждэг)
     this.enqueue(() => this.send(to, `📩 Холбоо барих — ${name}`, html, email));
+
+    // ── Хэрэглэгчид auto-reply: "хүсэлтийг хүлээн авлаа" ──
+    // ⚠️ Invalid/guest хаягт явуулахгүй (send() дотор isValidEmail шалгана).
+    this.sendContactReceived({ to: email, name, message });
+  }
+
+  // ─── Contact маягт илгээгчид auto-reply ("хүсэлтийг хүлээн авлаа") ────────────
+  // Хэрэглэгч холбоо барих хүсэлт илгээмэгц баталгаажуулах имэйл явуулна.
+  // ⚠️ Invalid/guest хаягт явуулахгүй (send() дотор шалгана).
+  sendContactReceived(opts: { to: string; name: string; message: string }) {
+    const { to, name, message } = opts;
+    if (!this.isValidEmail(to)) {
+      this.logger.log(`Contact auto-reply алгасав (хүчингүй/зочин хаяг) → ${to}`);
+      return;
+    }
+    const safe = (s: string) =>
+      String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const greeting = name ? `Сайн байна уу, ${safe(name)}!` : 'Сайн байна уу!';
+
+    const html = this.emailLayout({
+      heading: 'Таны хүсэлтийг хүлээн авлаа ✓',
+      preheader: 'Бид удахгүй тантай холбогдоно.',
+      bodyHtml: `
+        <p style="margin:0 0 16px;font-size:15px;color:#555;line-height:1.6">${greeting}</p>
+        <p style="margin:0 0 16px;font-size:15px;color:#555;line-height:1.6">
+          Танаас ирүүлсэн хүсэлт, захидлыг <strong>амжилттай хүлээн авлаа</strong>.
+          Бид ажлын цагаар (Даваа–Баасан, 09:00–18:00) танд аль болох хурдан хариу өгөх болно.
+        </p>
+        <div style="background:#f8f9fb;border-radius:10px;padding:16px 20px;margin:0 0 20px">
+          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px">Таны илгээсэн мессеж</p>
+          <p style="margin:0;font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap">${safe(message)}</p>
+        </div>
+        <p style="margin:0;font-size:13px;color:#888;line-height:1.6">
+          Яаралтай асуудал бол баруун доод буланд байрлах <strong>AI чат зөвлөх</strong>-ээр эсвэл
+          <a href="mailto:info@digitalger.mn" style="color:#022179">info@digitalger.mn</a> хаягаар холбогдоорой.
+        </p>`,
+      ctaText: 'Вэбсайт руу очих',
+      ctaUrl: this.siteUrl,
+    });
+
+    this.logger.log(`Contact auto-reply дараалалд → ${to}`);
+    this.enqueue(() => this.send(to, 'Таны хүсэлтийг хүлээн авлаа — DigitalGer', html));
+  }
+
+  // ─── Сертификат олгогдсон → баяр хүргэх имэйл (татах/харах линктэй) ───────────
+  // Курс 100% дуусаж сертификат ШИНЭЭР олгогдоход явна.
+  // ⚠️ Invalid/guest хаягт явуулахгүй (send() дотор isValidEmail шалгана).
+  sendCertificateIssued(opts: {
+    to: string;
+    userName: string;
+    courseTitle: string;
+    certNo: string;
+    productSlug: string;
+  }) {
+    const { to, userName, courseTitle, certNo, productSlug } = opts;
+    if (!this.isValidEmail(to)) {
+      this.logger.log(`Сертификат имэйл алгасав (хүчингүй/зочин хаяг) → ${to}`);
+      return;
+    }
+    const safe = (s: string) =>
+      String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Хэрэглэгчийн бүх сертификатын хуудас (тэндээс татах/PDF болгох боломжтой).
+    const certUrl = `${this.siteUrl}/certificates`;
+
+    const html = this.emailLayout({
+      heading: '🎓 Баяр хүргэе! Сертификат олгогдлоо',
+      preheader: `${courseTitle} курсыг амжилттай дүүргэлээ.`,
+      bodyHtml: `
+        <p style="margin:0 0 16px;font-size:15px;color:#555;line-height:1.6">Сайн байна уу, ${safe(userName)}!</p>
+        <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
+          Та <strong style="color:#022179">«${safe(courseTitle)}»</strong> курсыг
+          <strong>100% амжилттай дүүргэсэн</strong> тул сертификат олгогдлоо. Танд баяр хүргэе! 🎉
+        </p>
+        <div style="background:linear-gradient(135deg,#022179,#0a3aa0);border-radius:14px;padding:24px;text-align:center;margin:0 0 24px">
+          <p style="margin:0 0 6px;font-size:12px;color:#ffbe00;text-transform:uppercase;letter-spacing:1px;font-weight:700">Сертификатын дугаар</p>
+          <p style="margin:0;font-family:monospace;font-size:26px;font-weight:900;color:#ffffff;letter-spacing:2px">${safe(certNo)}</p>
+        </div>
+        <p style="margin:0;font-size:14px;color:#777;line-height:1.6">
+          Сертификатаа доорх товчоор үзэж, татаж авах (PDF) боломжтой.
+        </p>`,
+      ctaText: 'Сертификатаа үзэх / татах →',
+      ctaUrl: certUrl,
+    });
+
+    this.logger.log(`Сертификат имэйл дараалалд → ${to} | ${certNo} | ${productSlug}`);
+    this.enqueue(() =>
+      this.send(to, `🎓 Баяр хүргэе! «${courseTitle}» сертификат — DigitalGer`, html),
+    );
   }
 
   async sendEmailOtp(opts: {
