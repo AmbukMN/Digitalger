@@ -78,7 +78,7 @@ function CampaignRecipientsDialog({
 
   return (
     <Dialog open={!!campaign} onOpenChange={(o) => { if (!o) { onClose(); setPage(1); } }}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-5xl w-[95vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="h-4 w-4 text-primary" />
@@ -86,7 +86,7 @@ function CampaignRecipientsDialog({
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
             Хаяг бүрийн илгээлт · {total.toLocaleString('mn-MN')} нийт
-            {isTransactional && ' · (Гүйлгээний имэйлд нээлт бүртгэхгүй)'}
+            {isTransactional && ' · ⚠️ Гүйлгээний имэйлд нээлт хянадаггүй (зөвхөн маркетинг имэйлд)'}
           </p>
         </DialogHeader>
 
@@ -105,15 +105,16 @@ function CampaignRecipientsDialog({
           </div>
         ) : (
           <>
-            <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-border">
+            <div className="max-h-[60vh] overflow-auto rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="px-3 py-2 font-medium">Хаяг</th>
                     <th className="px-3 py-2 font-medium">Гарчиг</th>
-                    <th className="px-3 py-2 font-medium">Статус</th>
-                    <th className="px-3 py-2 font-medium text-center">Нээсэн</th>
-                    <th className="px-3 py-2 font-medium text-right">Огноо</th>
+                    <th className="px-3 py-2 font-medium whitespace-nowrap">Статус</th>
+                    {/* Нээсэн багана зөвхөн МАРКЕТИНГ имэйлд (transactional-д pixel байхгүй) */}
+                    {!isTransactional && <th className="px-3 py-2 font-medium text-center whitespace-nowrap">Нээсэн</th>}
+                    <th className="px-3 py-2 font-medium text-right whitespace-nowrap">Огноо</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -121,29 +122,29 @@ function CampaignRecipientsDialog({
                     const sb = statusBadge(r.status);
                     return (
                       <tr key={r.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
-                        <td className="px-3 py-2 font-medium">
-                          <span className="block max-w-45 truncate" title={r.to}>{r.to}</span>
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground">
-                          <span className="block max-w-50 truncate" title={r.subject}>{r.subject}</span>
-                        </td>
+                        {/* Хаяг — бүтэн харуулна (таслахгүй) */}
+                        <td className="px-3 py-2 font-medium whitespace-nowrap">{r.to}</td>
+                        {/* Гарчиг — бүтэн харуулна (таслахгүй); урт бол доош мөр шилжинэ */}
+                        <td className="px-3 py-2 text-muted-foreground min-w-[16rem]">{r.subject}</td>
                         <td className="px-3 py-2">
-                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${sb.cls}`}>
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sb.cls}`}>
                             {sb.label}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-center">
-                          {r.opened ? (
-                            <span
-                              className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"
-                              title={r.openedAt ? fmtDateTime(r.openedAt) : undefined}
-                            >
-                              <Check className="h-4 w-4" />
-                            </span>
-                          ) : (
-                            <X className="mx-auto h-4 w-4 text-muted-foreground/40" />
-                          )}
-                        </td>
+                        {!isTransactional && (
+                          <td className="px-3 py-2 text-center">
+                            {r.opened ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"
+                                title={r.openedAt ? `Нээсэн: ${fmtDateTime(r.openedAt)}` : undefined}
+                              >
+                                <Check className="h-4 w-4" />
+                              </span>
+                            ) : (
+                              <X className="mx-auto h-4 w-4 text-muted-foreground/40" />
+                            )}
+                          </td>
+                        )}
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground whitespace-nowrap">
                           {fmtDateTime(r.createdAt)}
                         </td>
