@@ -400,13 +400,13 @@ export function ChatWidget() {
             </motion.span>
           )}
         </AnimatePresence>
-        {/* ⚠️ Анхаарал татах цэг — тойргийн ИРМЭГ дээр ЯГ 50/50 (45° баруун дээд).
-            Тойрог 64px (h-16), radius 32px. 45° ирмэгийн цэг = төвөөс (22.6, 22.6).
-            Badge 14px (h-3.5), төвийг тэр цэг дээр тавихад булан = top/right 9px:
-            badge төв (top 9+7=16, right 9+7=16) → элемент дотор (48, 16) → төвөөс
-            (16, -16), зай √512≈22.6 = радиус → ЯГ ирмэг дээр (хагас дотор хагас гадна). */}
+        {/* ⚠️ Анхаарал татах цэг — BLUE CIRCLE (chat icon)-ийн ГАДНАХ ИРМЭГ дээр (45° баруун
+            дээд), робот зураг дээр БИШ. Тойрог 64px (h-16), радиус 32px. 45° гаднах ирмэгийн
+            цэг = төв(32,32)-аас (22.6, -22.6) → элемент дотор (54.6, 9.4). Badge 14px (h-3.5),
+            төвийг тэр цэг дээр тавихад булан ≈ top/right 2px (right-0.5 top-0.5) → badge нь
+            blue тойргийн ирмэг дээр хагас дотор хагас гадна анивчина (роботоос хол). */}
         {!open && (
-          <span className="absolute right-[9px] top-[9px] z-10 flex h-3.5 w-3.5">
+          <span className="absolute right-0.5 top-0.5 z-10 flex h-3.5 w-3.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
             <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary ring-2 ring-primary" />
           </span>

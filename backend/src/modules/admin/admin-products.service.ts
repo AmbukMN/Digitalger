@@ -949,12 +949,10 @@ export class AdminProductsService {
       })),
     );
 
-    // Эрэмбэ: уншаагүй → хариулаагүй → ХАМГИЙН СҮҮЛИЙН (шинэ) асуулт эхэнд (createdAt desc).
+    // Эрэмбэ: ХАМГИЙН СҮҮЛД ИРСЭН (шинэ) асуулт ХАМГИЙН ДЭЭР (createdAt desc).
+    // (Чат шиг — сүүлийн идэвх эхэнд. Уншаагүй badge нь онцлох тул эрэмбэ өөрчлөхгүй.)
     mapped.sort(
-      (a, b) =>
-        Number(b.unread) - Number(a.unread) ||
-        Number(a.answered) - Number(b.answered) ||
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
     // Нийт уншаагүй тоо (sidebar badge-д). onlyUnanswered үед энэ нь шүүгдсэн тоо.
