@@ -49,6 +49,10 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   /** Зөвхөн SUPERADMIN-д харагдах цэс (site-level / тохиргоо / staff). */
   superadminOnly?: boolean;
+  /** Granular permission resource — ADMIN-д энэ resource-д canView=false бол цэс
+   *  НУУГДАНА (өөрт хэрэггүй хэсгийг харахгүй). SUPERADMIN бүгдийг харна.
+   *  resource заагаагүй цэс (Хяналтын самбар, Суралцагчийн асуулт) бүгдэд харагдана. */
+  resource?: string;
 }
 
 interface NavSection {
@@ -70,14 +74,14 @@ const navSections: readonly NavSection[] = [
   {
     title: 'Худалдаа',
     items: [
-      { href: '/products', label: 'Бүтээгдэхүүн', icon: Package },
-      { href: '/product-types', label: 'Бүтээгдэхүүний төрөл', icon: Layers },
-      { href: '/categories', label: 'Ангилал', icon: FolderTree },
-      { href: '/orders', label: 'Захиалга', icon: ShoppingCart },
-      { href: '/payments', label: 'Төлбөр', icon: CreditCard },
+      { href: '/products', label: 'Бүтээгдэхүүн', icon: Package, resource: 'products' },
+      { href: '/product-types', label: 'Бүтээгдэхүүний төрөл', icon: Layers, resource: 'product-types' },
+      { href: '/categories', label: 'Ангилал', icon: FolderTree, resource: 'categories' },
+      { href: '/orders', label: 'Захиалга', icon: ShoppingCart, resource: 'orders' },
+      { href: '/payments', label: 'Төлбөр', icon: CreditCard, resource: 'orders' },
       // Таталт нь site-level — зөвхөн SUPERADMIN.
       { href: '/downloads', label: 'Таталт', icon: Download, superadminOnly: true },
-      { href: '/coupons', label: 'Купон', icon: Tag },
+      { href: '/coupons', label: 'Купон', icon: Tag, resource: 'coupons' },
     ],
   },
   {
@@ -87,19 +91,20 @@ const navSections: readonly NavSection[] = [
       { href: '/users', label: 'Хэрэглэгч', icon: Users, superadminOnly: true },
       // Site-level marketing subscriber жагсаалт — зөвхөн SUPERADMIN.
       { href: '/subscribers', label: 'Subscriber', icon: Mail, superadminOnly: true },
-      { href: '/reviews', label: 'Review', icon: Star },
-      { href: '/testimonials', label: 'Testimonial', icon: MessageSquare },
+      { href: '/reviews', label: 'Review', icon: Star, resource: 'reviews' },
+      { href: '/testimonials', label: 'Testimonial', icon: MessageSquare, resource: 'testimonials' },
+      // Суралцагчийн асуулт нь product-той холбоотой — бүгдэд (resource заахгүй).
       { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
     ],
   },
   {
     title: 'Контент',
     items: [
-      { href: '/banners', label: 'Баннер', icon: Images },
-      { href: '/faqs', label: 'FAQ', icon: HelpCircle },
-      { href: '/blog', label: 'Нийтлэл', icon: FileText },
-      { href: '/pages', label: 'Хуудас', icon: FileEdit },
-      { href: '/menu', label: 'Навигац', icon: Navigation },
+      { href: '/banners', label: 'Баннер', icon: Images, resource: 'banners' },
+      { href: '/faqs', label: 'FAQ', icon: HelpCircle, resource: 'faqs' },
+      { href: '/blog', label: 'Нийтлэл', icon: FileText, resource: 'blog' },
+      { href: '/pages', label: 'Хуудас', icon: FileEdit, resource: 'pages' },
+      { href: '/menu', label: 'Навигац', icon: Navigation, resource: 'menu' },
     ],
   },
   {
@@ -213,6 +218,23 @@ function NavSections({
     staleTime: 10_000,
   });
 
+  // ── Нэвтэрсэн админы permission (resource бүрд canView) — цэс шүүхэд ──
+  // ADMIN-д өөрт олгогдсон resource л харна. SUPERADMIN бол шаардлагагүй (бүгд).
+  const { data: myPerms } = useQuery({
+    queryKey: ['admin', 'my-permissions'],
+    queryFn: () => adminApi.staff.myPermissions(),
+    staleTime: 5 * 60_000,
+    enabled: !isSuperadmin,
+  });
+  // resource-д canView эрхтэй эсэх. SUPERADMIN бүгдэд true; perm ачаалж дуустал
+  // (myPerms undefined) НУУНА (анивчиж гарч ирэхээс сэргийлж — аюулгүй default).
+  const canViewResource = (resource?: string): boolean => {
+    if (!resource) return true; // resource заагаагүй цэс бүгдэд (dashboard, асуулт)
+    if (isSuperadmin) return true;
+    if (!myPerms) return false; // ачаалж байх хооронд нуух
+    return myPerms[resource]?.view === true;
+  };
+
   // href → (section нэр, шинэ тоо). lessons-questions нь өөрийн unanswered-аас.
   const badgeFor = (href: string): { section: string | null; count: number } => {
     switch (href) {
@@ -235,12 +257,16 @@ function NavSections({
       .catch(() => {});
   };
 
-  // Role-аар цэс шүүх: superadminOnly цэсүүдийг зөвхөн SUPERADMIN-д үлдээнэ.
-  // Бүх цэс нь нуугдвал тухайн бүлгийг бүхэлд нь хасна.
+  // Цэс шүүх: (1) superadminOnly → зөвхөн SUPERADMIN, (2) resource permission →
+  // ADMIN-д canView=false resource НУУГДАНА (өөрт хэрэггүй хэсгийг харахгүй).
+  // Бүх цэс нуугдвал тухайн бүлгийг бүхэлд нь хасна.
   const visibleSections = navSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => isSuperadmin || !item.superadminOnly),
+      items: section.items.filter(
+        (item) =>
+          (isSuperadmin || !item.superadminOnly) && canViewResource(item.resource),
+      ),
     }))
     .filter((section) => section.items.length > 0);
 

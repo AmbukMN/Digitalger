@@ -472,8 +472,12 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ permissions }),
       }),
-    // Нэвтэрсэн админ өөрийн эрх (resource бүрд canView/Create/Edit/Delete)
-    myPermissions: () => adminFetch<AdminStaffPermission[]>('/admin/me/permissions'),
+    // Нэвтэрсэн админ өөрийн эрх — backend Record<resource, {view,create,edit,delete}>.
+    // SUPERADMIN-д бүх resource true. Sidebar/UI permission filter-д ашиглана.
+    myPermissions: () =>
+      adminFetch<Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }>>(
+        '/admin/me/permissions',
+      ),
   },
 
   settings: {
