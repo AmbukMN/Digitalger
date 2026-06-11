@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminReview } from '@/types/admin';
 
@@ -80,7 +80,7 @@ function EditReviewDialog({
       toast.success('Шинэчлэгдлээ');
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message || 'Алдаа гарлаа'),
+    onError: (e: Error) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   return (
@@ -220,7 +220,7 @@ export default function ReviewsPage() {
       toast.success('Устгагдлаа');
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Устгахад алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа гарлаа')),
   });
 
   const bulkDeleteMut = useMutation({
@@ -231,7 +231,7 @@ export default function ReviewsPage() {
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
     },
-    onError: () => toast.error('Устгахад алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа гарлаа')),
   });
 
   const hasFilter = !!(search || productId || rating);

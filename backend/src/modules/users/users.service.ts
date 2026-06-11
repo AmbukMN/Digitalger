@@ -172,10 +172,12 @@ export class UsersService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
-    // ⚠️ "Хэрэглэгч" жагсаалт = ЗӨВХӨН frontend хэрэглэгч (role=USER). Багийн админ
+    // ⚠️ "Хэрэглэгч" жагсаалт = frontend хэрэглэгч (role=USER). Багийн админ
     // (EDITOR/ADMIN/SUPERADMIN) энд ОРОХГҮЙ — тэд "Багийн админ" хэсэгт удирдагдана.
-    // Хэрэв admin frontend-ээс өөрийн email-ээр худалдан авалт хийсэн ч role=USER биш
-    // тул энд харагдахгүй (тэр нь зөв — admin бол ажилтан, хэрэглэгч биш).
+    // ГЭХДЭЭ: admin panel-аас үүсгэсэн админ хэдий ч frontend-ээс ЖИНХЭНЭ худалдан
+    // авалт (source='PURCHASE') хийсэн бол → тэр нэгэн зэрэг хэрэглэгч ч мөн тул
+    // энэ жагсаалтад ОРНО. (ADMIN_GRANT — админ үнэгүй олгосон — нь худалдан авалт
+    // биш тул хасна.)
     const searchWhere: Prisma.UserWhereInput = query.search
       ? {
           OR: [
@@ -186,7 +188,15 @@ export class UsersService {
         }
       : {};
     const where: Prisma.UserWhereInput = {
-      AND: [searchWhere, { role: 'USER' }],
+      AND: [
+        searchWhere,
+        {
+          OR: [
+            { role: 'USER' },
+            { orders: { some: { source: 'PURCHASE' } } },
+          ],
+        },
+      ],
     };
 
     const [items, total] = await Promise.all([

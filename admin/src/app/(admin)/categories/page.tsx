@@ -18,7 +18,7 @@ import {
 import { CategorySheet } from '@/components/categories/category-sheet';
 import { IconBadge } from '@/components/ui/icon-picker';
 import { Pencil, Trash2 } from 'lucide-react';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import type { AdminCategory } from '@/types/admin';
 
 export default function CategoriesPage() {
@@ -39,7 +39,7 @@ export default function CategoriesPage() {
       toast.success('Устгагдлаа');
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Устгахад алдаа'),
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа')),
   });
 
   const columns: ColumnDef<AdminCategory>[] = [

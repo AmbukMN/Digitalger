@@ -109,7 +109,13 @@ export class AdminController {
         where: { createdAt: { gt: since('users') }, isGuest: false },
       }),
       this.prisma.subscriber.count({ where: { createdAt: { gt: since('subscribers') } } }),
-      this.prisma.review.count({ where: { createdAt: { gt: since('reviews') } } }),
+      // ⚠️ Multi-tenant: ADMIN/EDITOR-д зөвхөн ӨӨРИЙН product-ийн шинэ review тоологдоно.
+      this.prisma.review.count({
+        where: {
+          createdAt: { gt: since('reviews') },
+          ...(isSuperadmin(me) ? {} : { product: { createdByUserId: me.sub } }),
+        },
+      }),
       this.prisma.payment.count({ where: { createdAt: { gt: since('payments') } } }),
     ]);
 
@@ -1233,27 +1239,37 @@ export class AdminController {
 
   @Get('lessons/questions')
   listLessonQuestions(
+    @CurrentUser() me: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('onlyUnanswered') onlyUnanswered?: string,
   ) {
-    return this.adminProducts.listAllQuestions({
-      page: page ? parseInt(page, 10) : undefined,
-      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
-      onlyUnanswered: onlyUnanswered === 'true' || onlyUnanswered === '1',
-    });
+    return this.adminProducts.listAllQuestions(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+        onlyUnanswered: onlyUnanswered === 'true' || onlyUnanswered === '1',
+      },
+      me,
+    );
   }
 
   // Нэг хичээлийн асуултууд (LessonRow модерацид)
   @Get('products/:id/lessons/:lessonId/questions')
-  listOneLessonQuestions(@Param('lessonId') lessonId: string) {
-    return this.adminProducts.listLessonQuestions(lessonId);
+  listOneLessonQuestions(
+    @Param('lessonId') lessonId: string,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.adminProducts.listLessonQuestions(lessonId, me);
   }
 
   // Нэг асуултын дэлгэрэнгүй (conversation) — хавсралт presigned URL-аар.
   @Get('lessons/questions/:questionId')
-  getLessonQuestionDetail(@Param('questionId') questionId: string) {
-    return this.adminProducts.getQuestionDetail(questionId);
+  getLessonQuestionDetail(
+    @Param('questionId') questionId: string,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.adminProducts.getQuestionDetail(questionId, me);
   }
 
   @Post('lessons/questions/:questionId/answers')
@@ -1262,7 +1278,7 @@ export class AdminController {
     @Body() body: AddAnswerDto,
     @CurrentUser() me: JwtPayload,
   ) {
-    return this.adminProducts.answerQuestion(questionId, me.sub, body.answer, {
+    return this.adminProducts.answerQuestion(questionId, me.sub, body.answer, me, {
       attachmentKey: body.attachmentKey,
       attachmentName: body.attachmentName,
       attachmentMimeType: body.attachmentMimeType,
@@ -1274,13 +1290,17 @@ export class AdminController {
   pinLessonQuestion(
     @Param('questionId') questionId: string,
     @Body('isPinned') isPinned: boolean,
+    @CurrentUser() me: JwtPayload,
   ) {
-    return this.adminProducts.pinQuestion(questionId, isPinned);
+    return this.adminProducts.pinQuestion(questionId, isPinned, me);
   }
 
   @Delete('lessons/questions/:questionId')
-  deleteLessonQuestion(@Param('questionId') questionId: string) {
-    return this.adminProducts.deleteQuestion(questionId);
+  deleteLessonQuestion(
+    @Param('questionId') questionId: string,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.adminProducts.deleteQuestion(questionId, me);
   }
 
   @Delete('lessons/answers/:answerId')
@@ -1469,6 +1489,8 @@ export class AdminController {
     const ratingNum = rating ? parseInt(rating, 10) : undefined;
 
     const where: Prisma.ReviewWhereInput = {
+      // ⚠️ Multi-tenant IDOR: ADMIN/EDITOR зөвхөн ӨӨРИЙН product-ийн review.
+      ...(isSuperadmin(me) ? {} : { product: { createdByUserId: me.sub } }),
       ...(productId ? { productId } : {}),
       ...(ratingNum && ratingNum >= 1 && ratingNum <= 5 ? { rating: ratingNum } : {}),
       ...(term
@@ -1511,9 +1533,11 @@ export class AdminController {
     await assertPermission(this.prisma, me, 'reviews', 'edit');
     const existing = await this.prisma.review.findUnique({
       where: { id },
-      select: { productId: true },
+      select: { productId: true, product: { select: { createdByUserId: true } } },
     });
     if (!existing) throw new BadRequestException('Сэтгэгдэл олдсонгүй');
+    // ⚠️ IDOR: зөвхөн өөрийн product-ийн review засна (SUPERADMIN бүгдийг).
+    assertOwner(me, { createdByUserId: existing.product.createdByUserId }, 'засах');
 
     const data: Prisma.ReviewUpdateInput = {};
     if (body.rating !== undefined) {
@@ -1553,9 +1577,11 @@ export class AdminController {
     await assertPermission(this.prisma, me, 'reviews', 'delete');
     const existing = await this.prisma.review.findUnique({
       where: { id },
-      select: { productId: true },
+      select: { productId: true, product: { select: { createdByUserId: true } } },
     });
     if (!existing) throw new BadRequestException('Сэтгэгдэл олдсонгүй');
+    // ⚠️ IDOR: зөвхөн өөрийн product-ийн review устгана (SUPERADMIN бүгдийг).
+    assertOwner(me, { createdByUserId: existing.product.createdByUserId }, 'устгах');
 
     await this.prisma.review.delete({ where: { id } });
     await this.reviews.recalcProductRating(existing.productId);
@@ -1569,14 +1595,21 @@ export class AdminController {
     const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
     if (!ids.length) throw new BadRequestException('Устгах сэтгэгдэл сонгоогүй байна');
 
+    // ⚠️ IDOR: зөвхөн ӨӨРИЙН product-ийн review устгана (бусдынхыг алгасна).
+    const ownerWhere: Prisma.ReviewWhereInput = isSuperadmin(me)
+      ? {}
+      : { product: { createdByUserId: me.sub } };
+
     // нөлөөлсөн product-уудыг урьдчилж олж авна (устгасны дараа recalc хийхэд)
     const affected = await this.prisma.review.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, ...ownerWhere },
       select: { productId: true },
     });
     const productIds = [...new Set(affected.map((r) => r.productId))];
 
-    const result = await this.prisma.review.deleteMany({ where: { id: { in: ids } } });
+    const result = await this.prisma.review.deleteMany({
+      where: { id: { in: ids }, ...ownerWhere },
+    });
 
     // нөлөөлсөн product бүрийн rating/ratingCount-ийг дахин тооцно
     await Promise.all(productIds.map((pid) => this.reviews.recalcProductRating(pid)));

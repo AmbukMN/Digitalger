@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Eye, EyeOff, Images } from 'lucide-react';
 import { Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, ErrorState, Loading } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import type { AdminBanner } from '@/types/admin';
 import { BannerFormDialog } from '@/components/banners/banner-form-dialog';
 
@@ -28,13 +28,14 @@ export default function BannersPage() {
       toast.success('Баннер устгагдлаа');
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Устгахад алдаа'),
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа')),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       adminApi.banners.update(id, { active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'banners'] }),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   const openCreate = () => { setEditing(null); setDialogOpen(true); };

@@ -15,7 +15,7 @@ import {
   Input,
   Label,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import { IconPicker, IconBadge } from '@/components/ui/icon-picker';
 import type { AdminProductTypeConfig } from '@/types/admin';
 
@@ -59,7 +59,7 @@ function TypeFormDialog({
       toast.success(isEdit ? 'Шинэчлэгдлээ' : 'Нэмэгдлээ');
       onOpenChange(false);
     },
-    onError: () => toast.error('Алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   return (
@@ -137,7 +137,7 @@ export default function ProductTypesPage() {
   const toggleActive = useMutation({
     mutationFn: (t: AdminProductTypeConfig) => adminApi.productTypes.update(t.id, { active: !t.active }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'product-types'] }),
-    onError: () => toast.error('Алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   const deleteMut = useMutation({
@@ -147,7 +147,7 @@ export default function ProductTypesPage() {
       toast.success('Устгагдлаа');
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Устгахад алдаа'),
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа')),
   });
 
   return (

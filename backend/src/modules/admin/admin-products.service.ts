@@ -12,7 +12,7 @@ import { N8nService } from '../n8n/n8n.service';
 import { EmailService } from '../notifications/email.service';
 import { ProductsService } from '../products/products.service';
 import { expandQuery } from '../../common/transliterate';
-import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
+import { buildOwnerWhere, assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
 import { assertPermission } from '../../common/permission';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -899,7 +899,15 @@ export class AdminProductsService {
    * @param onlyUnanswered true бол зөвхөн хариулаагүйг буцаана.
    */
   // Нэг хичээлийн асуултууд (LessonRow модерацид) — хариулттай нь.
-  async listLessonQuestions(lessonId: string) {
+  async listLessonQuestions(lessonId: string, me: JwtPayload) {
+    // ⚠️ IDOR: тухайн хичээлийн product эзэн эсэхийг шалгана (SUPERADMIN бүгдийг).
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { course: { select: { product: { select: { createdByUserId: true } } } } },
+    });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    assertOwner(me, { createdByUserId: lesson.course.product.createdByUserId }, 'харах');
+
     return this.prisma.lessonQuestion.findMany({
       where: { lessonId },
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
@@ -913,14 +921,23 @@ export class AdminProductsService {
     });
   }
 
-  async listAllQuestions(query: { page?: number; pageSize?: number; onlyUnanswered?: boolean }) {
+  async listAllQuestions(
+    query: { page?: number; pageSize?: number; onlyUnanswered?: boolean },
+    me: JwtPayload,
+  ) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
-    const where: Prisma.LessonQuestionWhereInput = query.onlyUnanswered
-      ? { answers: { none: {} } }
-      : {};
+    // ⚠️ Multi-tenant IDOR: ADMIN/EDITOR зөвхөн ӨӨРИЙН product-ийн хичээлийн асуулт.
+    const ownerWhere: Prisma.LessonQuestionWhereInput = isSuperadmin(me)
+      ? {}
+      : { lesson: { course: { product: { createdByUserId: me.sub } } } };
+
+    const where: Prisma.LessonQuestionWhereInput = {
+      ...ownerWhere,
+      ...(query.onlyUnanswered ? { answers: { none: {} } } : {}),
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.lessonQuestion.findMany({
@@ -981,8 +998,9 @@ export class AdminProductsService {
     );
 
     // Нийт уншаагүй тоо (sidebar badge-д). onlyUnanswered үед энэ нь шүүгдсэн тоо.
+    // ⚠️ Multi-tenant: зөвхөн ӨӨРИЙН product-ийн уншаагүй асуулт тоологдоно.
     const unreadTotal = await this.prisma.lessonQuestion.count({
-      where: { adminUnread: true },
+      where: { adminUnread: true, ...ownerWhere },
     });
 
     return { items: mapped, total, unreadTotal, page, pageSize };
@@ -992,7 +1010,7 @@ export class AdminProductsService {
    * Нэг асуултын дэлгэрэнгүй (conversation) — асуулт + бүх хариулт + хэрэглэгч/хичээл/бүтээгдэхүүн.
    * Хавсралтыг presigned URL-аар resolve хийж буцаана (admin/багш үзнэ).
    */
-  async getQuestionDetail(questionId: string) {
+  async getQuestionDetail(questionId: string, me: JwtPayload) {
     const q = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
       include: {
@@ -1001,7 +1019,13 @@ export class AdminProductsService {
           select: {
             id: true,
             title: true,
-            course: { select: { product: { select: { id: true, title: true, slug: true } } } },
+            course: {
+              select: {
+                product: {
+                  select: { id: true, title: true, slug: true, createdByUserId: true },
+                },
+              },
+            },
           },
         },
         answers: {
@@ -1011,6 +1035,9 @@ export class AdminProductsService {
       },
     });
     if (!q) throw new NotFoundException('Question not found');
+
+    // ⚠️ IDOR: уншсан болгохоос ӨМНӨ owner шалгана (бусдынхыг уншсан болгохгүй).
+    assertOwner(me, { createdByUserId: q.lesson.course.product.createdByUserId }, 'харах');
 
     // Admin асуултын дэлгэрэнгүйг НЭЭЖ харсан тул уншсан болгоно (badge цэвэрлэгдэнэ).
     if (q.adminUnread) {
@@ -1050,13 +1077,19 @@ export class AdminProductsService {
     questionId: string,
     userId: string,
     answer: string,
+    me: JwtPayload,
     attachment?: QaAttachmentInput,
   ) {
     const question = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
-      select: { id: true },
+      select: {
+        id: true,
+        lesson: { select: { course: { select: { product: { select: { createdByUserId: true } } } } } },
+      },
     });
     if (!question) throw new NotFoundException('Question not found');
+    // ⚠️ IDOR: зөвхөн өөрийн product-ийн асуултад хариулна (SUPERADMIN бүгдийг).
+    assertOwner(me, { createdByUserId: question.lesson.course.product.createdByUserId }, 'хариулах');
 
     const created = await this.prisma.lessonAnswer.create({
       data: {
@@ -1110,12 +1143,17 @@ export class AdminProductsService {
   }
 
   /** Асуултыг онцлох/болиулах (pin). */
-  async pinQuestion(questionId: string, isPinned: boolean) {
+  async pinQuestion(questionId: string, isPinned: boolean, me: JwtPayload) {
     const question = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
-      select: { id: true },
+      select: {
+        id: true,
+        lesson: { select: { course: { select: { product: { select: { createdByUserId: true } } } } } },
+      },
     });
     if (!question) throw new NotFoundException('Question not found');
+    // ⚠️ IDOR: зөвхөн өөрийн product-ийн асуултыг онцолно (SUPERADMIN бүгдийг).
+    assertOwner(me, { createdByUserId: question.lesson.course.product.createdByUserId }, 'онцлох');
     return this.prisma.lessonQuestion.update({
       where: { id: questionId },
       data: { isPinned },
@@ -1123,12 +1161,17 @@ export class AdminProductsService {
   }
 
   /** Асуулт устгах (модерац — хариултууд cascade-аар арилна). */
-  async deleteQuestion(questionId: string) {
+  async deleteQuestion(questionId: string, me: JwtPayload) {
     const question = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
-      select: { id: true },
+      select: {
+        id: true,
+        lesson: { select: { course: { select: { product: { select: { createdByUserId: true } } } } } },
+      },
     });
     if (!question) throw new NotFoundException('Question not found');
+    // ⚠️ IDOR: зөвхөн өөрийн product-ийн асуултыг устгана (SUPERADMIN бүгдийг).
+    assertOwner(me, { createdByUserId: question.lesson.course.product.createdByUserId }, 'устгах');
     return this.prisma.lessonQuestion.delete({ where: { id: questionId } });
   }
 

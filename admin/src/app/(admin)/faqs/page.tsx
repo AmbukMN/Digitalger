@@ -19,7 +19,7 @@ import {
   Label,
   Loading,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 
 interface FAQ {
   id: string;
@@ -61,7 +61,7 @@ function FaqDialog({
         : adminApi.faqs.create(payload);
     },
     onSuccess: () => { toast.success('Хадгалагдлаа'); onSaved(); },
-    onError: () => toast.error('Алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   return (
@@ -127,6 +127,7 @@ export default function FaqsPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => adminApi.faqs.remove(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'faqs'] }); toast.success('Устгагдлаа'); setDeleteTarget(null); },
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа')),
   });
 
   if (isLoading) return <Loading label="FAQ ачаалж байна..." />;

@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
-import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
+import { assertOwner, assertCanDelete, isSuperadmin, buildOwnerWhere } from '../../common/ownership';
 import { assertPermission } from '../../common/permission';
 
 export class CreateFaqDto {
@@ -27,8 +27,13 @@ export class FaqsService {
 
   async findAll(me: JwtPayload, params?: { active?: boolean }) {
     await assertPermission(this.prisma, me, 'faqs', 'view');
+    // ⚠️ Owner scope: ADMIN/EDITOR зөвхөн өөрийн (createdByUserId===me.sub)
+    // FAQ-г харна; SUPERADMIN бүгдийг (buildOwnerWhere={}).
     return this.prisma.fAQ.findMany({
-      where: params?.active !== undefined ? { active: params.active } : {},
+      where: {
+        ...(params?.active !== undefined ? { active: params.active } : {}),
+        ...buildOwnerWhere(me),
+      },
       orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
       include: { _count: { select: { products: true } } },
     });

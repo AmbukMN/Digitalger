@@ -18,7 +18,7 @@ import {
   Loading,
   ErrorState,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
 import { RichEditor } from '@/components/ui/rich-editor';
 
@@ -137,7 +137,7 @@ function BlogDialog({
       onSaved();
     },
     onError: (err: Error) => {
-      const msg = err.message?.includes('slug') ? 'Slug давхардаж байна' : 'Алдаа гарлаа';
+      const msg = err.message?.includes('slug') ? 'Slug давхардаж байна' : errMsg(err, 'Алдаа гарлаа');
       toast.error(msg);
     },
   });
@@ -298,7 +298,7 @@ export default function BlogPage() {
       toast.success('Нийтлэл устгагдлаа');
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   if (isLoading) return <Loading label="Нийтлэлүүд ачаалж байна..." />;

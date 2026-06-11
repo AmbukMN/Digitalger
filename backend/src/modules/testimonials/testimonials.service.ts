@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
-import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
+import { assertOwner, assertCanDelete, isSuperadmin, buildOwnerWhere } from '../../common/ownership';
 import { assertPermission } from '../../common/permission';
 
 export class CreateTestimonialDto {
@@ -83,7 +83,10 @@ export class TestimonialsService {
   // Admin: all testimonials
   async findAll(me: JwtPayload) {
     await assertPermission(this.prisma, me, 'testimonials', 'view');
+    // ⚠️ Owner scope: ADMIN/EDITOR зөвхөн өөрийн (createdByUserId===me.sub)
+    // testimonial-г харна; SUPERADMIN бүгдийг (buildOwnerWhere={}).
     return this.prisma.testimonial.findMany({
+      where: { ...buildOwnerWhere(me) },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { _count: { select: { products: true } } },
     });

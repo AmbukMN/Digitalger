@@ -55,6 +55,31 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * ApiError-оос хэрэглэгчид харуулах мессеж гаргана.
+ * Backend (NestJS) алдааг JSON-оор буцаадаг: { message, error, statusCode }.
+ * adminFetch нь body-г түүхий текстээр ApiError.message-д хийдэг тул эндээс
+ * JSON-г задалж message талбарыг авна (403 ownership/permission монгол текст).
+ * message массив (class-validator) бол эхнийхийг авна. Задрахгүй бол fallback.
+ */
+export function errMsg(e: unknown, fallback: string): string {
+  if (!(e instanceof ApiError)) {
+    return e instanceof Error && e.message ? e.message : fallback;
+  }
+  const raw = e.message?.trim();
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as { message?: unknown };
+    const m = parsed?.message;
+    if (Array.isArray(m) && m.length) return String(m[0]);
+    if (typeof m === 'string' && m.trim()) return m;
+  } catch {
+    // JSON биш — түүхий текстийг шууд харуулна (HTML/plain биш бол)
+    if (!raw.startsWith('<')) return raw;
+  }
+  return fallback;
+}
+
 export async function getAccessToken(): Promise<string | undefined> {
   if (typeof window === 'undefined') {
     const { cookies } = await import('next/headers');

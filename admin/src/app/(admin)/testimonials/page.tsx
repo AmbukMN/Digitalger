@@ -20,7 +20,7 @@ import {
   Label,
   Loading,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
 
 interface Testimonial {
@@ -61,7 +61,7 @@ function TestimonialDialog({
       return item ? adminApi.testimonials.update(item.id, payload) : adminApi.testimonials.create(payload);
     },
     onSuccess: () => { toast.success('Хадгалагдлаа'); onSaved(); },
-    onError: () => toast.error('Алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   const handleUpload = async (file: File) => {
@@ -169,7 +169,7 @@ export default function TestimonialsPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => adminApi.testimonials.remove(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'testimonials'] }); toast.success('Устгагдлаа'); setDeleteTarget(null); },
-    onError: () => toast.error('Устгахад алдаа'),
+    onError: (e) => toast.error(errMsg(e, 'Устгахад алдаа')),
   });
 
   if (isLoading) return <Loading label="Сэтгэгдэл ачаалж байна..." />;

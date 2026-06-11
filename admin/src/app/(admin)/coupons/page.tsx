@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@digitalger/shared/ui';
-import { adminApi } from '@/lib/api';
+import { adminApi, errMsg } from '@/lib/api';
 import type { AdminCoupon } from '@/types/admin';
 import { formatPrice } from '@digitalger/shared';
 
@@ -242,7 +242,7 @@ export default function CouponsPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] });
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Алдаа гарлаа'),
+    onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
   function handleEdit(coupon: AdminCoupon) {
