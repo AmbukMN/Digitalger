@@ -400,12 +400,13 @@ export function ChatWidget() {
             </motion.span>
           )}
         </AnimatePresence>
-        {/* ⚠️ Анхаарал татах цэг — тойргийн ИРМЭГ дээр (45° баруун дээд). Тойрог 64px,
-            radius 32px тул 45°-ийн ирмэгийн цэг ≈ төвөөс (22.6, 22.6). Badge-ийг тэр
-            цэг дээр төвлүүлэхийн тулд top/right ≈ 6px (top-1.5 right-1.5). Button-ийн
-            overflow-hidden-ийг доорх inner span хариуцдаг тул badge таслагдахгүй. */}
+        {/* ⚠️ Анхаарал татах цэг — тойргийн ИРМЭГ дээр ЯГ 50/50 (45° баруун дээд).
+            Тойрог 64px (h-16), radius 32px. 45° ирмэгийн цэг = төвөөс (22.6, 22.6).
+            Badge 14px (h-3.5), төвийг тэр цэг дээр тавихад булан = top/right 9px:
+            badge төв (top 9+7=16, right 9+7=16) → элемент дотор (48, 16) → төвөөс
+            (16, -16), зай √512≈22.6 = радиус → ЯГ ирмэг дээр (хагас дотор хагас гадна). */}
         {!open && (
-          <span className="absolute right-1.5 top-1.5 z-10 flex h-3.5 w-3.5">
+          <span className="absolute right-[9px] top-[9px] z-10 flex h-3.5 w-3.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
             <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary ring-2 ring-primary" />
           </span>
