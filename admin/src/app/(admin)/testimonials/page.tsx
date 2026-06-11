@@ -22,6 +22,7 @@ import {
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
+import { useCurrentAdmin } from '@/hooks/use-current-admin';
 
 interface Testimonial {
   id: string;
@@ -33,6 +34,7 @@ interface Testimonial {
   featured: boolean;
   active: boolean;
   sortOrder: number;
+  createdByUserId?: string | null;
   _count?: { products: number };
 }
 
@@ -160,6 +162,7 @@ export default function TestimonialsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Testimonial | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Testimonial | null>(null);
+  const { canModify } = useCurrentAdmin();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'testimonials'],
@@ -231,15 +234,22 @@ export default function TestimonialsPage() {
                   <Badge variant="outline" className="text-xs">{t._count.products} бүтээгдэхүүнд оноогдсон</Badge>
                 ) : null}
 
-                <div className="flex gap-1 pt-1">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditing(t); setDialogOpen(true); }}>
-                    <Pencil className="mr-1 h-3.5 w-3.5" /> Засах
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive/60 hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setDeleteTarget(t)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                {/* Зөвхөн өөрийн (эсвэл SUPERADMIN) контентод edit/delete */}
+                {canModify(t) ? (
+                  <div className="flex gap-1 pt-1">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditing(t); setDialogOpen(true); }}>
+                      <Pencil className="mr-1 h-3.5 w-3.5" /> Засах
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(t)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="pt-1 text-[10px] italic text-muted-foreground/70" title="Өөр админы контент">
+                    Өөр админы контент
+                  </p>
+                )}
               </CardContent>
             </Card>
           ))}

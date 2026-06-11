@@ -28,19 +28,22 @@ import type { AdminStaff, AdminStaffPermission } from '@/types/admin';
 
 // Permission checkbox-д харагдах resource жагсаалт (Монгол label + бүлэг + дүрс).
 // group — UI-д бүлэглэж харуулна (Худалдаа / Контент / Бусад).
-const PERMISSION_RESOURCES: { resource: string; label: string; group: string }[] = [
-  { resource: 'products', label: 'Бүтээгдэхүүн', group: 'Худалдаа' },
-  { resource: 'categories', label: 'Ангилал', group: 'Худалдаа' },
-  { resource: 'product-types', label: 'Төрөл', group: 'Худалдаа' },
-  { resource: 'coupons', label: 'Купон', group: 'Худалдаа' },
-  { resource: 'orders', label: 'Захиалга', group: 'Худалдаа' },
-  { resource: 'blog', label: 'Нийтлэл', group: 'Контент' },
-  { resource: 'banners', label: 'Баннер', group: 'Контент' },
-  { resource: 'testimonials', label: 'Testimonial', group: 'Контент' },
-  { resource: 'faqs', label: 'FAQ', group: 'Контент' },
-  { resource: 'pages', label: 'Хуудас', group: 'Контент' },
-  { resource: 'menu', label: 'Навигац', group: 'Контент' },
-  { resource: 'reviews', label: 'Review', group: 'Бусад' },
+// shared — SHARED resource (бүх админ БҮГДИЙГ харна, гэхдээ зөвхөн өөрийн мөрийг засна);
+//   shared=false бол PRIVATE (зөвхөн өөрийн үүсгэснийг харна). Зөвхөн UX-ийн тэмдэглэгээ —
+//   жинхэнэ эрх backend талд шийдэгдэнэ.
+const PERMISSION_RESOURCES: { resource: string; label: string; group: string; shared: boolean }[] = [
+  { resource: 'products', label: 'Бүтээгдэхүүн', group: 'Худалдаа', shared: false },
+  { resource: 'categories', label: 'Ангилал', group: 'Худалдаа', shared: true },
+  { resource: 'product-types', label: 'Төрөл', group: 'Худалдаа', shared: true },
+  { resource: 'coupons', label: 'Купон', group: 'Худалдаа', shared: false },
+  { resource: 'orders', label: 'Захиалга', group: 'Худалдаа', shared: false },
+  { resource: 'blog', label: 'Нийтлэл', group: 'Контент', shared: true },
+  { resource: 'banners', label: 'Баннер', group: 'Контент', shared: true },
+  { resource: 'testimonials', label: 'Testimonial', group: 'Контент', shared: true },
+  { resource: 'faqs', label: 'FAQ', group: 'Контент', shared: true },
+  { resource: 'pages', label: 'Хуудас', group: 'Контент', shared: false },
+  { resource: 'menu', label: 'Навигац', group: 'Контент', shared: true },
+  { resource: 'reviews', label: 'Review', group: 'Бусад', shared: false },
 ];
 
 type PermAction = 'canView' | 'canCreate' | 'canEdit' | 'canDelete';
@@ -285,15 +288,34 @@ function PermissionGrid({
                   return (
                     <tr key={r.resource} className="border-b border-border/60 last:border-0 hover:bg-muted/20">
                       <td className="px-3 py-2 whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => toggleRow(r.resource, !rowAll)}
-                          className="font-medium text-foreground hover:text-primary disabled:cursor-default"
-                          title={rowAll ? 'Бүх эрх хасах' : 'Бүх эрх өгөх'}
-                        >
-                          {r.label}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => toggleRow(r.resource, !rowAll)}
+                            className="font-medium text-foreground hover:text-primary disabled:cursor-default"
+                            title={rowAll ? 'Бүх эрх хасах' : 'Бүх эрх өгөх'}
+                          >
+                            {r.label}
+                          </button>
+                          {/* SHARED = бүх админ хооронд хуваалцсан (бүгд харна, зөвхөн өөрийн мөрийг засна).
+                              PRIVATE = зөвхөн өөрийн үүсгэснийг харна. Зөвхөн ойлгомжтой болгох тэмдэг. */}
+                          {r.shared ? (
+                            <span
+                              className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                              title="Бүх админ хооронд хуваалцсан — бүгд харна, гэхдээ зөвхөн өөрийн нэмсэн мөрийг засна"
+                            >
+                              бүгд харна
+                            </span>
+                          ) : (
+                            <span
+                              className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground"
+                              title="Зөвхөн өөрийн үүсгэснийг харж, засна"
+                            >
+                              зөвхөн өөрийн
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {PERM_ACTIONS.map((a) => (
                         <td key={a.key} className="px-2 py-2 text-center">

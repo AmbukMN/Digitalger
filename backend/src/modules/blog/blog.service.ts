@@ -3,7 +3,7 @@ import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, Min } from 'class-v
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
-import { buildOwnerWhere, assertOwner, assertCanDelete } from '../../common/ownership';
+import { assertOwner, assertCanDelete } from '../../common/ownership';
 import { assertPermission } from '../../common/permission';
 
 export class CreateBlogPostDto {
@@ -95,8 +95,10 @@ export class BlogService {
 
   async findAll(me: JwtPayload) {
     await assertPermission(this.prisma, me, 'blog', 'view');
+    // ⚠️ SHARED resource: бүх admin БҮГД blog-ийг ХАРНА (owner scope ХАСав).
+    // Гэхдээ update/remove ownership ХЭВЭЭР (assertOwner) — зөвхөн өөрийнхөө засна/устгана.
     return this.prisma.blogPost.findMany({
-      where: { ...buildOwnerWhere(me) },
+      where: {},
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
   }

@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -796,7 +797,14 @@ export class AdminController {
         }
       : {};
 
-    const where = { ...statusFilter, ...searchFilter };
+    // ── Multi-tenant ownership scope ──
+    //  SUPERADMIN → бүх захиалга; ADMIN/EDITOR → зөвхөн өөрийн product-ыг
+    //  агуулсан захиалга (Order шууд createdByUserId-гүй тул item.product дамжина).
+    const ownerWhere: Prisma.OrderWhereInput = isSuperadmin(me)
+      ? {}
+      : { items: { some: { product: { createdByUserId: me.sub } } } };
+
+    const where = { ...statusFilter, ...searchFilter, ...ownerWhere };
 
     const [items, total] = await Promise.all([
       this.prisma.order.findMany({
@@ -846,6 +854,19 @@ export class AdminController {
   @Get('orders/:id')
   async getOrder(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
     await assertPermission(this.prisma, me, 'orders', 'view');
+    // ── Ownership ── SUPERADMIN биш бол энэ захиалга өөрийн product-ыг
+    //  агуулж байж л харагдана (Order шууд эзэнгүй → item.product.createdByUserId).
+    if (!isSuperadmin(me)) {
+      const owned = await this.prisma.order.count({
+        where: {
+          id,
+          items: { some: { product: { createdByUserId: me.sub } } },
+        },
+      });
+      if (owned === 0) {
+        throw new ForbiddenException('Та энэ захиалгыг харах эрхгүй байна');
+      }
+    }
     return this.orders.findById(id);
   }
 
@@ -947,17 +968,28 @@ export class AdminController {
 
   @Get('payments')
   async listPayments(
+    @CurrentUser() me: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
   ) {
+    // ⚠️ payments resource permission.ts-д байхгүй тул 'orders'-оор хамгаална.
+    await assertPermission(this.prisma, me, 'orders', 'view');
     const p = Math.max(1, page ? parseInt(page, 10) : 1);
     const ps = Math.min(100, pageSize ? parseInt(pageSize, 10) : 20);
     const skip = (p - 1) * ps;
 
-    const where = status && status !== 'ALL'
+    const statusFilter = status && status !== 'ALL'
       ? { status: status as 'PENDING' | 'SUCCESS' | 'FAILED' }
       : {};
+
+    // ── Ownership ── SUPERADMIN биш бол зөвхөн өөрийн product-ыг агуулсан
+    //  захиалгын төлбөр (Payment → order → items → product.createdByUserId).
+    const ownerWhere: Prisma.PaymentWhereInput = isSuperadmin(me)
+      ? {}
+      : { order: { items: { some: { product: { createdByUserId: me.sub } } } } };
+
+    const where: Prisma.PaymentWhereInput = { ...statusFilter, ...ownerWhere };
 
     const [items, total] = await Promise.all([
       this.prisma.payment.findMany({
@@ -979,11 +1011,29 @@ export class AdminController {
     return { items, total, page: p, pageSize: ps };
   }
 
+  /** Payment owner шалгах — SUPERADMIN биш бол энэ payment-ийн захиалга
+   *  өөрийн product-ыг агуулж байх ёстой (Payment → order → items → product). */
+  private async assertPaymentOwner(me: JwtPayload, paymentId: string): Promise<void> {
+    if (isSuperadmin(me)) return;
+    const owned = await this.prisma.payment.count({
+      where: {
+        id: paymentId,
+        order: { items: { some: { product: { createdByUserId: me.sub } } } },
+      },
+    });
+    if (owned === 0) {
+      throw new ForbiddenException('Та энэ төлбөрт хандах эрхгүй байна');
+    }
+  }
+
   @Patch('payments/:id')
-  updatePayment(
+  async updatePayment(
     @Param('id') id: string,
     @Body('status') status: string,
+    @CurrentUser() me: JwtPayload,
   ) {
+    await assertPermission(this.prisma, me, 'orders', 'edit');
+    await this.assertPaymentOwner(me, id);
     return this.prisma.payment.update({
       where: { id },
       data: { status: status as 'PENDING' | 'SUCCESS' | 'FAILED' },
@@ -991,7 +1041,9 @@ export class AdminController {
   }
 
   @Delete('payments/:id')
-  async deletePayment(@Param('id') id: string) {
+  async deletePayment(@Param('id') id: string, @CurrentUser() me: JwtPayload) {
+    await assertPermission(this.prisma, me, 'orders', 'delete');
+    await this.assertPaymentOwner(me, id);
     await this.prisma.payment.delete({ where: { id } });
     return { success: true };
   }
@@ -1313,6 +1365,7 @@ export class AdminController {
   // Хэн (нэвтэрсэн нэр/email эсвэл зочин IP), юу, хаанаас, ямар замаар татсан.
   @Get('downloads')
   async listDownloads(
+    @CurrentUser() me: JwtPayload,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('productId') productId?: string,
@@ -1321,6 +1374,8 @@ export class AdminController {
     @Query('dateTo') dateTo?: string,
     @Query('q') q?: string,
   ) {
+    // ⚠️ downloads resource permission.ts-д байхгүй тул 'orders'-оор хамгаална.
+    await assertPermission(this.prisma, me, 'orders', 'view');
     const p = Math.max(1, page ? parseInt(page, 10) : 1);
     const ps = Math.min(100, Math.max(1, pageSize ? parseInt(pageSize, 10) : 20));
     const skip = (p - 1) * ps;
@@ -1343,7 +1398,15 @@ export class AdminController {
       }
     }
 
+    // ── Ownership ── SUPERADMIN биш бол зөвхөн өөрийн product-ийн татаалт.
+    //  ⚠️ DownloadLog.productId nullable — productId=null лог (эзэнгүй)
+    //  non-superadmin-д харагдахгүй (зөв — зөвхөн SUPERADMIN бүгдийг хардаг).
+    const ownerWhere: Prisma.DownloadLogWhereInput = isSuperadmin(me)
+      ? {}
+      : { product: { createdByUserId: me.sub } };
+
     const where: Prisma.DownloadLogWhereInput = {
+      ...ownerWhere,
       ...(productId ? { productId } : {}),
       ...(src ? { source: src } : {}),
       ...(createdAt.gte || createdAt.lte ? { createdAt } : {}),

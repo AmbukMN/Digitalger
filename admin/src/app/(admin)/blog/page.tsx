@@ -21,6 +21,7 @@ import {
 import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
 import { RichEditor } from '@/components/ui/rich-editor';
+import { useCurrentAdmin } from '@/hooks/use-current-admin';
 
 interface BlogPost {
   id: string;
@@ -35,6 +36,7 @@ interface BlogPost {
   authorName: string;
   sortOrder: number;
   viewCount?: number;
+  createdByUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -285,6 +287,7 @@ export default function BlogPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<BlogPost | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BlogPost | null>(null);
+  const { canModify } = useCurrentAdmin();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'blog'],
@@ -383,24 +386,31 @@ export default function BlogPage() {
                     <span className="text-[10px] text-muted-foreground">уншсан</span>
                   </div>
 
-                  <div className="flex gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      onClick={() => { setEditing(post); setDialogOpen(true); }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => setDeleteTarget(post)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  {/* Зөвхөн өөрийн (эсвэл SUPERADMIN) контентод edit/delete */}
+                  {canModify(post) ? (
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => { setEditing(post); setDialogOpen(true); }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteTarget(post)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="shrink-0 text-[10px] italic text-muted-foreground/70" title="Өөр админы контент">
+                      Өөр админ
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

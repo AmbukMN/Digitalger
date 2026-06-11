@@ -281,6 +281,8 @@ export interface AdminCategory {
   description: string | null;
   icon: string | null;
   sortOrder: number;
+  // Хэн үүсгэсэн — SHARED жагсаалтад зөвхөн өөрийн мөрийн edit/delete идэвхтэй болгоход
+  createdByUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -450,6 +452,8 @@ export interface AdminProductTypeConfig {
   icon: string | null;
   sortOrder: number;
   active: boolean;
+  // Хэн үүсгэсэн — SHARED жагсаалтын per-row эрхэд
+  createdByUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -493,6 +497,7 @@ export interface AdminFaq {
   category?: string | null;
   active: boolean;
   sortOrder: number;
+  createdByUserId?: string | null;
   createdAt: string;
   updatedAt?: string;
   _count?: { products: number };
@@ -508,6 +513,7 @@ export interface AdminTestimonial {
   featured: boolean;
   active: boolean;
   sortOrder: number;
+  createdByUserId?: string | null;
   _count?: { products: number };
 }
 

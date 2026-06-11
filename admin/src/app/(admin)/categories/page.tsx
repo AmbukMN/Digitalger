@@ -19,6 +19,7 @@ import { CategorySheet } from '@/components/categories/category-sheet';
 import { IconBadge } from '@/components/ui/icon-picker';
 import { Pencil, Trash2 } from 'lucide-react';
 import { adminApi, errMsg } from '@/lib/api';
+import { useCurrentAdmin } from '@/hooks/use-current-admin';
 import type { AdminCategory } from '@/types/admin';
 
 export default function CategoriesPage() {
@@ -26,6 +27,7 @@ export default function CategoriesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<AdminCategory | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminCategory | null>(null);
+  const { canModify } = useCurrentAdmin();
 
   const { data = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'categories'],
@@ -58,26 +60,34 @@ export default function CategoriesPage() {
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => { setEditing(row.original); setSheetOpen(true); }}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
-            onClick={() => setDeleteTarget(row.original)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) =>
+        // Зөвхөн өөрийн (эсвэл SUPERADMIN) ангиллын edit/delete
+        canModify(row.original) ? (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={() => { setEditing(row.original); setSheetOpen(true); }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteTarget(row.original)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <span className="text-[10px] italic text-muted-foreground/70" title="Өөр админы контент">
+              Өөр админ
+            </span>
+          </div>
+        ),
     },
   ];
 

@@ -17,6 +17,7 @@ import {
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
 import { IconPicker, IconBadge } from '@/components/ui/icon-picker';
+import { useCurrentAdmin } from '@/hooks/use-current-admin';
 import type { AdminProductTypeConfig } from '@/types/admin';
 
 function TypeFormDialog({
@@ -128,6 +129,7 @@ export default function ProductTypesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminProductTypeConfig | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminProductTypeConfig | null>(null);
+  const { canModify } = useCurrentAdmin();
 
   const { data: types = [], isLoading } = useQuery({
     queryKey: ['admin', 'product-types'],
@@ -191,29 +193,36 @@ export default function ProductTypesPage() {
                 )}
                 <Badge
                   variant={t.active ? 'default' : 'secondary'}
-                  className="cursor-pointer select-none shrink-0"
-                  onClick={() => toggleActive.mutate(t)}
+                  className={`select-none shrink-0 ${canModify(t) ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+                  onClick={() => canModify(t) && toggleActive.mutate(t)}
                 >
                   {t.active ? 'Идэвхтэй' : 'Идэвхгүй'}
                 </Badge>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => { setEditing(t); setDialogOpen(true); }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={() => setDeleteTarget(t)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                {/* Зөвхөн өөрийн (эсвэл SUPERADMIN) төрлийн edit/delete */}
+                {canModify(t) ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => { setEditing(t); setDialogOpen(true); }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => setDeleteTarget(t)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="shrink-0 text-[10px] italic text-muted-foreground/70" title="Өөр админы контент">
+                    Өөр админ
+                  </span>
+                )}
               </div>
             ))}
           </div>

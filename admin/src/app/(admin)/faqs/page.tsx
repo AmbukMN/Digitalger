@@ -20,6 +20,7 @@ import {
   Loading,
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
+import { useCurrentAdmin } from '@/hooks/use-current-admin';
 
 interface FAQ {
   id: string;
@@ -28,6 +29,7 @@ interface FAQ {
   category?: string | null;
   active: boolean;
   sortOrder: number;
+  createdByUserId?: string | null;
   _count?: { products: number };
 }
 
@@ -118,6 +120,7 @@ export default function FaqsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FAQ | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FAQ | null>(null);
+  const { canModify } = useCurrentAdmin();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'faqs'],
@@ -186,17 +189,24 @@ export default function FaqsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{faq.answer}</p>
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => { setEditing(faq); setDialogOpen(true); }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setDeleteTarget(faq)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      {/* Зөвхөн өөрийн (эсвэл SUPERADMIN) контентод edit/delete */}
+                      {canModify(faq) ? (
+                        <div className="flex gap-1 shrink-0">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => { setEditing(faq); setDialogOpen(true); }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteTarget(faq)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="shrink-0 text-[10px] italic text-muted-foreground/70" title="Өөр админы контент">
+                          Өөр админ
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>

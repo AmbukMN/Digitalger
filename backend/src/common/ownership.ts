@@ -12,6 +12,11 @@ import { JwtPayload } from './decorators/current-user.decorator';
  * ⚠️ Аюулгүй байдал: list/get-д buildOwnerWhere, mutation-д assertOwner ЗААВАЛ.
  * Аль нэгийг мартвал "бүгд харагдах" биш "юу ч харагдахгүй" тийш fail хийнэ
  * (buildOwnerWhere үргэлж scope буцаана).
+ *
+ * ⚠️ ОНЦГОЙ — SHARED resource (blog/testimonials/faqs): findAll (list) owner scope
+ * ХЭРЭГЛЭХГҮЙ — бүх admin БҮГДИЙГ харна (where: {}). Гэхдээ update/remove-д
+ * assertOwner ХЭВЭЭР — зөвхөн өөрийнхөө засна/устгана. Дээрх "list-д ЗААВАЛ"
+ * дүрэм SHARED resource-д хамаарахгүй (зөрчилдөхгүй).
  */
 
 export function isSuperadmin(me: JwtPayload | null | undefined): boolean {
