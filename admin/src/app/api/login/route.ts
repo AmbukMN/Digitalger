@@ -19,7 +19,9 @@ export async function POST(req: Request) {
 
   const data = await res.json();
 
-  if (data.user?.role !== 'ADMIN') {
+  // Admin panel-д нэвтрэх боломжтой бүх дүр (multi-tenant: EDITOR/ADMIN/SUPERADMIN).
+  const ADMIN_ROLES = ['EDITOR', 'ADMIN', 'SUPERADMIN'];
+  if (!ADMIN_ROLES.includes(data.user?.role)) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
