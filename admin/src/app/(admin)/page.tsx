@@ -235,7 +235,9 @@ function OrderRow({ order }: { order: AdminOrder }) {
   );
 }
 
-function EmailStatsPanel({ stats }: { stats: EmailStats }) {
+function EmailStatsPanel({ stats }: { stats: EmailStats | null }) {
+  // ⚠️ ADMIN (non-superadmin)-д emailStats нь site-level тул null ирнэ — панель харуулахгүй.
+  if (!stats) return null;
   const provider = stats.provider ?? 'AWS SES';
 
   // ── 24 цагийн (өдрийн) sending quota ──
@@ -519,6 +521,9 @@ export default function DashboardPage() {
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
   const { stats, trends, recentOrders, monthlyRevenue, emailStats, topDownloaded, subscribersBySource } = data;
+  // ⚠️ ADMIN (non-superadmin)-д site-level хэсэг (Subscriber + Имэйл маркетинг + SES)
+  // харагдахгүй — backend isSuperadmin flag-аар шийднэ.
+  const isSuperadmin = (data as { isSuperadmin?: boolean }).isSuperadmin === true;
 
   const statValues: Record<string, number> = {
     users: stats.users,
@@ -711,7 +716,7 @@ export default function DashboardPage() {
       {/* Analytics section — Имэйл хэсэг (3 баганат summary + дэлгэрэнгүй панель)-ийг
           Сайтын аналитикийн ДООР, Хичээлийн ДЭЭР НЭГ section болгож дамжуулна */}
       <AnalyticsSection
-        emailSection={
+        emailSection={!isSuperadmin ? null : (
           <div className="space-y-4">
             {/* 3 баганат: Subscriber + Email Marketing summary + AWS SES */}
             <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr_1.25fr] items-stretch">
@@ -771,7 +776,7 @@ export default function DashboardPage() {
             {/* Имэйл маркетингийн дэлгэрэнгүй (4 summary карт + илгээлт бүрийн хүснэгт, pagination) */}
             <EmailMarketingPanel />
           </div>
-        }
+        )}
       />
 
       {/* Recent orders */}

@@ -3,11 +3,11 @@
 // Admin route segment error boundary (App Router).
 // Admin доторх аль ч segment-д гарсан runtime алдааг барьж авна.
 // reset() нь segment-ийг дахин ачаална.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button } from '@digitalger/shared/ui';
-import { AlertTriangle, RotateCw, LayoutDashboard } from 'lucide-react';
+import { AlertTriangle, RotateCw, LayoutDashboard, LogOut } from 'lucide-react';
 
 export default function AdminError({
   error,
@@ -16,10 +16,28 @@ export default function AdminError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [signingOut, setSigningOut] = useState(false);
   useEffect(() => {
     // TODO(Sentry): DSN тохируулсан үед энд captureException(error) нэмнэ.
     console.error('[admin/error]', error);
   }, [error]);
+
+  // ⚠️ ЧУХАЛ: admin гацвал session-аа цэвэрлэж ДАХИН нэвтрэх боломж. Буруу кэш
+  // (localStorage) эсвэл хүчингүй session-аас болж гацсан бол энэ нь гаргалгаа.
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      // localStorage кэш цэвэрлэх (буруу profile/permission-аас болж гацахаас сэргийлэх).
+      try {
+        localStorage.removeItem('dg_admin_profile');
+        localStorage.removeItem('dg_admin_perms');
+      } catch { /* ignore */ }
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+    } finally {
+      // Session cookie цэвэрлэгдсэн → login руу (hard reload — бүх state шинэчилнэ).
+      window.location.href = '/login';
+    }
+  }
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 px-4 text-center">
@@ -57,6 +75,21 @@ export default function AdminError({
               <LayoutDashboard className="h-4 w-4" />
               Хяналтын самбар
             </Link>
+          </Button>
+        </div>
+
+        {/* ⚠️ Гацсан үед гаргалгаа — session/кэш цэвэрлэж дахин нэвтрэх. */}
+        <div className="flex flex-col items-center gap-1.5 pt-2">
+          <p className="text-xs text-muted-foreground">Дээрх ажиллахгүй бол:</p>
+          <Button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-destructive hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4" />
+            {signingOut ? 'Гарч байна...' : 'Гарах ба дахин нэвтрэх'}
           </Button>
         </div>
       </motion.div>

@@ -348,19 +348,25 @@ function NavSections({
   );
 }
 
-// Permission map type (server/client хуваалцана).
+// Permission map type.
 type PermMap = Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
 
-export function AdminShell({
-  children,
-  initialProfile,
-  initialPermissions,
-}: {
-  children: React.ReactNode;
-  // ⚠️ Server-side урьдчилан татсан profile/permission (sidebar анивчихаас сэргийлэх).
-  initialProfile?: ProfileData | null;
-  initialPermissions?: PermMap;
-}) {
+// ── localStorage кэш — sidebar анивчилтыг засна (server-side fetch БИШ, navigation
+// удаашруулахгүй). Сүүлд амжилттай татсан profile/permission-ийг хадгалж, дараагийн
+// load дээр шууд initialData болгож өгнө (refresh-д хуучин role-оор шууд render).
+function readCache<T>(key: string): T | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : undefined; }
+  catch { return undefined; }
+}
+function writeCache(key: string, val: unknown) {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota */ }
+}
+
+export function AdminShell({ children }: { children: React.ReactNode }) {
+  const initialProfile = readCache<ProfileData>('dg_admin_profile');
+  const initialPermissions = readCache<PermMap>('dg_admin_perms');
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -386,6 +392,11 @@ export function AdminShell({
     initialData: initialProfile ?? undefined,
   });
 
+  // Амжилттай татсан profile-ийг localStorage-д кэшлэх (дараагийн refresh-д анивчихгүй).
+  useEffect(() => {
+    if (profile?.email && profile.role) writeCache('dg_admin_profile', profile);
+  }, [profile]);
+
   // SUPERADMIN бол site-level цэсүүд (Хэрэглэгч/Тохиргоо/SEO/Дараалал/
   // Subscriber/Таталт) харагдана. EDITOR/ADMIN-д зөвхөн контент+scope цэс.
   const isSuperadmin = profile?.role === 'SUPERADMIN';
@@ -397,8 +408,12 @@ export function AdminShell({
     queryFn: () => adminApi.staff.myPermissions(),
     staleTime: 5 * 60_000,
     enabled: !!profile && !isSuperadmin, // SUPERADMIN бол guard хэрэггүй
-    initialData: initialPermissions ?? undefined, // server-side → анивчихгүй
+    initialData: initialPermissions ?? undefined, // localStorage кэш → анивчихгүй
   });
+  // Permission-ийг localStorage-д кэшлэх.
+  useEffect(() => {
+    if (guardPerms) writeCache('dg_admin_perms', guardPerms);
+  }, [guardPerms]);
   useEffect(() => {
     if (!profile || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
     // Route → шалгах төрөл. SUPERADMIN-only route эсвэл resource permission.

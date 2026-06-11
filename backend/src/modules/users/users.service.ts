@@ -172,7 +172,11 @@ export class UsersService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
-    const where: Prisma.UserWhereInput = query.search
+    // ⚠️ "Хэрэглэгч" жагсаалт = ЗӨВХӨН frontend хэрэглэгч (role=USER). Багийн админ
+    // (EDITOR/ADMIN/SUPERADMIN) энд ОРОХГҮЙ — тэд "Багийн админ" хэсэгт удирдагдана.
+    // Хэрэв admin frontend-ээс өөрийн email-ээр худалдан авалт хийсэн ч role=USER биш
+    // тул энд харагдахгүй (тэр нь зөв — admin бол ажилтан, хэрэглэгч биш).
+    const searchWhere: Prisma.UserWhereInput = query.search
       ? {
           OR: [
             { email: { contains: query.search, mode: 'insensitive' } },
@@ -181,6 +185,9 @@ export class UsersService {
           ],
         }
       : {};
+    const where: Prisma.UserWhereInput = {
+      AND: [searchWhere, { role: 'USER' }],
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
