@@ -5,6 +5,22 @@ import { StorageService } from '../../storage/storage.service';
 import { AppCacheService, CacheKeys } from '../../common/cache/app-cache.service';
 import { expandQuery } from '../../common/transliterate';
 
+// adminOnly бүтээгдэхүүн харах scope контекст (owner-aware).
+// undefined → зочин/USER (зөвхөн public). SUPERADMIN → бүгд.
+// ADMIN/EDITOR → public + зөвхөн өөрийн (createdByUserId === userId) adminOnly.
+export type AdminCtx = { role: string; userId?: string };
+
+// Тухайн scope-д тохирох adminOnly Prisma where-ийг буцаана. Бусад where (published
+// гэх мэт)-тэй AND-аар нэгтгэхэд бэлэн (spread хийнэ).
+function adminOnlyWhere(ctx?: AdminCtx): Prisma.ProductWhereInput {
+  // зочин/USER → зөвхөн public (adminOnly=false)
+  if (!ctx) return { adminOnly: false };
+  // SUPERADMIN → шүүлтгүй (бүх adminOnly харагдана)
+  if (ctx.role === 'SUPERADMIN') return {};
+  // ADMIN/EDITOR → public + зөвхөн өөрийн adminOnly
+  return { OR: [{ adminOnly: false }, { adminOnly: true, createdByUserId: ctx.userId }] };
+}
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -68,7 +84,7 @@ export class ProductsService {
       sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
       onSale?: boolean;
     },
-    isAdmin?: boolean,
+    adminCtx?: AdminCtx,
   ) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(48, Math.max(1, query.pageSize ?? 12));
@@ -76,10 +92,10 @@ export class ProductsService {
     // Homepage / жагсаалтын эхний 2 хуудсыг 5 мин cache (хамгийн их хандалттай).
     // 3+ дахь хуудас, ховор тохиолдлуудыг шууд DB-ээс уншина (cache key тэсрэхээс
     // сэргийлж). Admin product өөрчлөгдөхөд бүх products:list:* invalidate болно.
-    // ⚠️ Admin (isAdmin=true) бол adminOnly product-уудыг ч хардаг тул public
-    // cache-тэй холилдохгүйн тулд cache БҮРЭН алгасаж шууд DB-ээс уншина
-    // (admin цөөн хүсэлттэй — ачаалал үл нэмэгдэнэ).
-    if (page <= 2 && isAdmin !== true) {
+    // ⚠️ Админ контекст (adminCtx)-той бол adminOnly product-уудыг ч хардаг тул
+    // public cache-тэй (мөн өөр админы scope-той) холилдохгүйн тулд cache БҮРЭН
+    // алгасаж шууд DB-ээс уншина (админ цөөн хүсэлттэй — ачаалал үл нэмэгдэнэ).
+    if (page <= 2 && !adminCtx) {
       const key =
         CacheKeys.productListPrefix +
         JSON.stringify({
@@ -92,11 +108,11 @@ export class ProductsService {
           o: query.onSale ?? false,
         });
       return this.cache.getOrSet(key, 5 * 60_000, () =>
-        this.computeFindPublished(query, page, pageSize, isAdmin),
+        this.computeFindPublished(query, page, pageSize, adminCtx),
       );
     }
 
-    return this.computeFindPublished(query, page, pageSize, isAdmin);
+    return this.computeFindPublished(query, page, pageSize, adminCtx);
   }
 
   private async computeFindPublished(
@@ -109,7 +125,7 @@ export class ProductsService {
     },
     page: number,
     pageSize: number,
-    isAdmin?: boolean,
+    adminCtx?: AdminCtx,
   ) {
     const skip = (page - 1) * pageSize;
 
@@ -129,11 +145,12 @@ export class ProductsService {
 
     const where: Prisma.ProductWhereInput = {
       published: true,
-      // ⚠️ Admin биш бол adminOnly бүтээгдэхүүн нуугдана. Admin (isAdmin=true)
-      // бол бүгд (adminOnly=true ч) харагдана.
-      ...(isAdmin !== true && { adminOnly: false }),
+      // ⚠️ adminOnly scope + категори шүүлт хоёул OR буцааж болзошгүй тул object key
+      // давхцлаас сэргийлж AND дотор тусад нь нэгтгэнэ.
+      // adminOnly scope: зочин/USER → зөвхөн public, SUPERADMIN → бүгд,
+      // ADMIN/EDITOR → public + зөвхөн өөрийн adminOnly.
+      AND: [adminOnlyWhere(adminCtx), ...(categoryFilter ? [categoryFilter] : [])],
       ...(query.featured !== undefined && { featured: query.featured }),
-      ...(categoryFilter ?? {}),
       ...(query.types && query.types.length > 0 && { type: { in: query.types as any[] } }),
       ...(query.onSale && { compareAtPrice: { not: null } }),
     };
@@ -173,17 +190,28 @@ export class ProductsService {
   // viewCount нэмэгдэх бүрд updatedAt хөдөлж, admin жагсаалт (updatedAt desc)
   // дээш доош үсэрдэг байв. Raw SQL-ээр зөвхөн viewCount нэмж, updatedAt-д хүрэхгүй
   // (updatedAt зөвхөн admin бүтээгдэхүүн засах үед өөрчлөгдөнө).
-  async incrementView(slug: string, isAdmin?: boolean) {
-    const adminFilter = isAdmin === true ? Prisma.empty : Prisma.sql`AND "adminOnly" = false`;
+  async incrementView(slug: string, adminCtx?: AdminCtx) {
+    // adminOnly scope (raw SQL):
+    // - зочин/USER → зөвхөн public (adminOnly=false)
+    // - SUPERADMIN → шүүлтгүй (бүгд)
+    // - ADMIN/EDITOR → public ЭСВЭЛ зөвхөн өөрийн adminOnly
+    let adminFilter: Prisma.Sql;
+    if (!adminCtx) {
+      adminFilter = Prisma.sql`AND "adminOnly" = false`;
+    } else if (adminCtx.role === 'SUPERADMIN') {
+      adminFilter = Prisma.empty;
+    } else {
+      adminFilter = Prisma.sql`AND ("adminOnly" = false OR "createdByUserId" = ${adminCtx.userId})`;
+    }
     await this.prisma
       .$executeRaw`UPDATE "Product" SET "viewCount" = "viewCount" + 1 WHERE "slug" = ${slug} AND "published" = true ${adminFilter}`
       .catch(() => {});
     return { ok: true };
   }
 
-  async findBySlug(slug: string, isAdmin?: boolean) {
+  async findBySlug(slug: string, adminCtx?: AdminCtx) {
     const product = await this.prisma.product.findFirst({
-      where: { slug, published: true, ...(isAdmin !== true && { adminOnly: false }) },
+      where: { slug, published: true, ...adminOnlyWhere(adminCtx) },
       include: {
         category: true,
         images: { orderBy: { sortOrder: 'asc' } },
@@ -273,7 +301,7 @@ export class ProductsService {
     };
   }
 
-  async search(q: string, page = 1, pageSize = 12, isAdmin?: boolean) {
+  async search(q: string, page = 1, pageSize = 12, adminCtx?: AdminCtx) {
     const skip = (Math.max(1, page) - 1) * Math.min(48, pageSize);
 
     // Build expanded terms: original + cross-script transliteration
@@ -315,8 +343,10 @@ export class ProductsService {
 
     const where: Prisma.ProductWhereInput = {
       published: true,
-      // Admin биш бол adminOnly бүтээгдэхүүн хайлтаас нуугдана.
-      ...(isAdmin !== true && { adminOnly: false }),
+      // adminOnly scope: зочин/USER нуугдана, SUPERADMIN бүгд, ADMIN/EDITOR өөрийн.
+      // ⚠️ adminOnlyWhere нь OR буцааж болно (ADMIN/EDITOR), хайлтын нэр хайх OR-той
+      // мөргөлдөхгүйн тулд AND дотор тусад нь нэгтгэнэ (object key давхцлаас сэргийлж).
+      AND: [adminOnlyWhere(adminCtx)],
       OR: terms.flatMap(termClauses),
     };
 
@@ -343,22 +373,23 @@ export class ProductsService {
     };
   }
 
-  async findSuggested(slug: string, count = 8, isAdmin?: boolean) {
+  async findSuggested(slug: string, count = 8, adminCtx?: AdminCtx) {
     // Suggested products ховор өөрчлөгддөг ч product detail бүрд уншигддаг,
     // муу тохиолдолд 4 дараалсан query ажилладаг. 10 мин cache → DB ачаалал бараг тэг.
-    // ⚠️ Admin (isAdmin=true) adminOnly product-уудыг ч хардаг тул public cache-тэй
-    // холилдохгүйн тулд cache БҮРЭН алгасаж шууд тооцоолно (admin цөөн хүсэлттэй).
-    if (isAdmin === true) {
-      return this.computeSuggested(slug, count, isAdmin);
+    // ⚠️ Админ контекст (adminCtx)-той бол adminOnly product-уудыг ч хардаг тул public
+    // cache-тэй (мөн өөр админы scope-той) холилдохгүйн тулд cache БҮРЭН алгасаж
+    // шууд тооцоолно (админ цөөн хүсэлттэй).
+    if (adminCtx) {
+      return this.computeSuggested(slug, count, adminCtx);
     }
     return this.cache.getOrSet(`suggested:${slug}:${count}`, 10 * 60_000, () =>
-      this.computeSuggested(slug, count, isAdmin),
+      this.computeSuggested(slug, count, adminCtx),
     );
   }
 
-  private async computeSuggested(slug: string, count: number, isAdmin?: boolean) {
-    // Admin биш бол adminOnly бүтээгдэхүүн санал болгох жагсаалтаас нуугдана.
-    const adminOnlyFilter = isAdmin !== true ? { adminOnly: false } : {};
+  private async computeSuggested(slug: string, count: number, adminCtx?: AdminCtx) {
+    // adminOnly scope: зочин/USER → public, SUPERADMIN → бүгд, ADMIN/EDITOR → өөрийн.
+    const adminOnlyFilter = adminOnlyWhere(adminCtx);
     const product = await this.prisma.product.findFirst({
       where: { slug, published: true, ...adminOnlyFilter },
       select: { id: true, categoryId: true, type: true },

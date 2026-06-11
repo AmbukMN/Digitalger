@@ -152,15 +152,20 @@ export const authOptions: NextAuthOptions = {
 };
 
 /**
- * Server component-д ADMIN-ийн accessToken-ийг авах туслах.
- * ⚠️ Зөвхөн ADMIN role-той хэрэглэгчид token буцаана — энгийн хэрэглэгч/зочинд
- * undefined буцаана. Ингэснээр productsApi-д дамжуулахад зөвхөн админд adminOnly
- * бүтээгдэхүүн харагдана (энгийн SSR хэвээр public/нуугдсан).
+ * Server component-д админ эрхтэй хэрэглэгчийн accessToken-ийг авах туслах.
+ * ⚠️ Зөвхөн ADMIN/SUPERADMIN/EDITOR role-той хэрэглэгчид token буцаана — энгийн
+ * хэрэглэгч/зочинд undefined буцаана. Ингэснээр productsApi-д дамжуулахад зөвхөн
+ * админд adminOnly бүтээгдэхүүн харагдана (энгийн SSR хэвээр public/нуугдсан).
+ * Backend нь token доторх role+userId-аар scope шийднэ: SUPERADMIN бүх adminOnly,
+ * ADMIN/EDITOR зөвхөн өөрийн оруулсан adminOnly бүтээгдэхүүнийг харна.
  */
 export async function getAdminAccessToken(): Promise<string | undefined> {
   try {
     const session = await getServerSession(authOptions);
-    if (session?.user?.role === 'ADMIN' && session.accessToken) {
+    if (
+      ['ADMIN', 'SUPERADMIN', 'EDITOR'].includes(session?.user?.role as string) &&
+      session?.accessToken
+    ) {
       return session.accessToken;
     }
   } catch {

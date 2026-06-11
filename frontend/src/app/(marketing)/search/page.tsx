@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Search, FileText, Tag } from 'lucide-react';
 import { productsApi, blogApi } from '@/lib/api';
+import { getAdminAccessToken } from '@/lib/auth';
 import { applySeoOverride } from '@/lib/page-metadata';
 import { ProductCard } from '@/components/products/product-card';
 import { formatPrice } from '@digitalger/shared';
@@ -82,9 +83,12 @@ export default async function SearchPage({
   let productsTotal = 0;
 
   if (q.trim()) {
+    // ADMIN/SUPERADMIN/EDITOR нэвтэрсэн бол token дамжуулна — хайлтад adminOnly
+    // бүтээгдэхүүн (scope-аар) багтана. Энгийн хэрэглэгч/зочинд undefined → public.
+    const adminToken = await getAdminAccessToken();
     const [prodRes, blogRes] = await Promise.all([
       productsApi
-        .search(q.trim(), page, SEARCH_PAGE_SIZE)
+        .search(q.trim(), page, SEARCH_PAGE_SIZE, adminToken)
         .catch(() => ({ items: [] as ProductSummary[], total: 0 })),
       blogApi.search(q.trim()).catch(() => [] as BlogPost[]),
     ]);

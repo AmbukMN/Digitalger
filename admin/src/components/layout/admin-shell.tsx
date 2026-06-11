@@ -81,7 +81,7 @@ const navSections: readonly NavSection[] = [
       { href: '/payments', label: 'Төлбөр', icon: CreditCard, resource: 'orders' },
       // Таталт нь site-level — зөвхөн SUPERADMIN.
       { href: '/downloads', label: 'Таталт', icon: Download, superadminOnly: true },
-      { href: '/coupons', label: 'Купон', icon: Tag, resource: 'coupons' },
+      { href: '/coupons', label: 'Купон', icon: Tag, superadminOnly: true },
     ],
   },
   {
@@ -100,11 +100,12 @@ const navSections: readonly NavSection[] = [
   {
     title: 'Контент',
     items: [
-      { href: '/banners', label: 'Баннер', icon: Images, resource: 'banners' },
+      // Banner/Хуудас/Навигац — зөвхөн SUPERADMIN (admin-д эрх олгодоггүй).
+      { href: '/banners', label: 'Баннер', icon: Images, superadminOnly: true },
       { href: '/faqs', label: 'FAQ', icon: HelpCircle, resource: 'faqs' },
       { href: '/blog', label: 'Нийтлэл', icon: FileText, resource: 'blog' },
-      { href: '/pages', label: 'Хуудас', icon: FileEdit, resource: 'pages' },
-      { href: '/menu', label: 'Навигац', icon: Navigation, resource: 'menu' },
+      { href: '/pages', label: 'Хуудас', icon: FileEdit, superadminOnly: true },
+      { href: '/menu', label: 'Навигац', icon: Navigation, superadminOnly: true },
     ],
   },
   {
@@ -403,19 +404,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!profile || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
     // Route → шалгах төрөл. SUPERADMIN-only route эсвэл resource permission.
-    const SUPERADMIN_ROUTES = ['/users', '/subscribers', '/downloads', '/staff', '/settings', '/seo', '/queue', '/theme', '/media'];
+    const SUPERADMIN_ROUTES = ['/users', '/subscribers', '/downloads', '/staff', '/settings', '/seo', '/queue', '/theme', '/media', '/coupons', '/banners', '/pages', '/menu'];
+    // ⚠️ coupons/banners/pages/menu энд БАЙХГҮЙ — тэдгээр SUPERADMIN_ROUTES-д (зөвхөн superadmin).
     const ROUTE_RESOURCE: { prefix: string; resource: string }[] = [
       { prefix: '/products', resource: 'products' },
       { prefix: '/product-types', resource: 'product-types' },
       { prefix: '/categories', resource: 'categories' },
       { prefix: '/orders', resource: 'orders' },
       { prefix: '/payments', resource: 'orders' },
-      { prefix: '/coupons', resource: 'coupons' },
-      { prefix: '/banners', resource: 'banners' },
       { prefix: '/faqs', resource: 'faqs' },
       { prefix: '/blog', resource: 'blog' },
-      { prefix: '/pages', resource: 'pages' },
-      { prefix: '/menu', resource: 'menu' },
       { prefix: '/reviews', resource: 'reviews' },
       { prefix: '/testimonials', resource: 'testimonials' },
     ];

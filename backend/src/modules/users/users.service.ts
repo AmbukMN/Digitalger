@@ -174,10 +174,19 @@ export class UsersService {
 
     // ⚠️ "Хэрэглэгч" жагсаалт = frontend хэрэглэгч (role=USER). Багийн админ
     // (EDITOR/ADMIN/SUPERADMIN) энд ОРОХГҮЙ — тэд "Багийн админ" хэсэгт удирдагдана.
-    // ГЭХДЭЭ: admin panel-аас үүсгэсэн админ хэдий ч frontend-ээс ЖИНХЭНЭ худалдан
-    // авалт (source='PURCHASE') хийсэн бол → тэр нэгэн зэрэг хэрэглэгч ч мөн тул
-    // энэ жагсаалтад ОРНО. (ADMIN_GRANT — админ үнэгүй олгосон — нь худалдан авалт
-    // биш тул хасна.)
+    // ГЭХДЭЭ: admin panel-аас үүсгэсэн админ хэдий ч frontend-ээс ЖИНХЭНЭ ИДЭВХ
+    // хийсэн бол → тэр нэгэн зэрэг хэрэглэгч ч мөн тул энэ жагсаалтад ОРНО.
+    // Frontend идэвхийн НАЙДВАРТАЙ дохио (admin panel login энд тоологдохгүй,
+    // учир нь frontend ба admin login backend дээр ИЖИЛ /auth/login → lastLoginAt
+    // ялгахгүй тул БҮҮ ашигла):
+    //   • oauthProvider != null — Google-ээр frontend-ээс нэвтэрсэн
+    //   • orders source='PURCHASE' — ЖИНХЭНЭ худалдан авалт (ADMIN_GRANT хасна)
+    //   • productEvents — бараа үзсэн
+    //   • pageViews — хуудас үзсэн
+    //   • searchEvents — хайлт хийсэн
+    //   • downloadLogs — файл татсан
+    // Зөвхөн admin panel-д ажилладаг (frontend идэвхгүй) админ → ОРОХГҮЙ.
+    // createStaff нь oauthProvider/идэвх тавьдаггүй тул шинэ цэвэр админ энд гарахгүй.
     const searchWhere: Prisma.UserWhereInput = query.search
       ? {
           OR: [
@@ -194,6 +203,11 @@ export class UsersService {
           OR: [
             { role: 'USER' },
             { orders: { some: { source: 'PURCHASE' } } },
+            { oauthProvider: { not: null } },
+            { productEvents: { some: {} } },
+            { pageViews: { some: {} } },
+            { searchEvents: { some: {} } },
+            { downloadLogs: { some: {} } },
           ],
         },
       ],

@@ -31,19 +31,19 @@ import type { AdminStaff, AdminStaffPermission } from '@/types/admin';
 // shared — SHARED resource (бүх админ БҮГДИЙГ харна, гэхдээ зөвхөн өөрийн мөрийг засна);
 //   shared=false бол PRIVATE (зөвхөн өөрийн үүсгэснийг харна). Зөвхөн UX-ийн тэмдэглэгээ —
 //   жинхэнэ эрх backend талд шийдэгдэнэ.
+// ⚠️ ЗӨВХӨН ЭНЭ resource-ууд admin-д эрх олгогддог. Banner/Навигац/Хуудас/Купон нь
+// ЗӨВХӨН SUPERADMIN-д хамаатай тул энд ОРОХГҮЙ (admin-д эрх олгох шаардлагагүй).
+//   SHARED (shared:true): бүх админ БҮГДИЙГ харна, гэхдээ зөвхөн ӨӨРИЙН мөрийг edit/delete.
+//   PRIVATE (shared:false): зөвхөн ӨӨРИЙН product-тэй холбоотойг л харна/удирдана.
 const PERMISSION_RESOURCES: { resource: string; label: string; group: string; shared: boolean }[] = [
   { resource: 'products', label: 'Бүтээгдэхүүн', group: 'Худалдаа', shared: false },
   { resource: 'categories', label: 'Ангилал', group: 'Худалдаа', shared: true },
   { resource: 'product-types', label: 'Төрөл', group: 'Худалдаа', shared: true },
-  { resource: 'coupons', label: 'Купон', group: 'Худалдаа', shared: false },
   { resource: 'orders', label: 'Захиалга', group: 'Худалдаа', shared: false },
+  { resource: 'reviews', label: 'Review', group: 'Худалдаа', shared: false },
   { resource: 'blog', label: 'Нийтлэл', group: 'Контент', shared: true },
-  { resource: 'banners', label: 'Баннер', group: 'Контент', shared: true },
   { resource: 'testimonials', label: 'Testimonial', group: 'Контент', shared: true },
   { resource: 'faqs', label: 'FAQ', group: 'Контент', shared: true },
-  { resource: 'pages', label: 'Хуудас', group: 'Контент', shared: false },
-  { resource: 'menu', label: 'Навигац', group: 'Контент', shared: true },
-  { resource: 'reviews', label: 'Review', group: 'Бусад', shared: false },
 ];
 
 type PermAction = 'canView' | 'canCreate' | 'canEdit' | 'canDelete';
@@ -77,15 +77,15 @@ const PERMISSION_PRESETS: {
   {
     key: 'product-manager',
     label: 'Бүтээгдэхүүн менежер',
-    desc: 'Бүтээгдэхүүн, ангилал, төрөл, купон бүрэн + захиалга харах',
-    resources: ['products', 'categories', 'product-types', 'coupons'],
+    desc: 'Бүтээгдэхүүн, ангилал, төрөл бүрэн + захиалга, review',
+    resources: ['products', 'categories', 'product-types', 'orders', 'reviews'],
     actions: ['canView', 'canCreate', 'canEdit', 'canDelete'],
   },
   {
     key: 'content-manager',
     label: 'Контент менежер',
-    desc: 'Нийтлэл, баннер, testimonial, FAQ, хуудас бүрэн',
-    resources: ['blog', 'banners', 'testimonials', 'faqs', 'pages', 'menu'],
+    desc: 'Нийтлэл, testimonial, FAQ бүрэн',
+    resources: ['blog', 'testimonials', 'faqs'],
     actions: ['canView', 'canCreate', 'canEdit', 'canDelete'],
   },
   {

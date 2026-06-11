@@ -161,9 +161,12 @@ export const productsApi = {
     return request<PaginatedProducts>(`/products${query}`, { token });
   },
 
-  search: (q: string, page = 1, pageSize = 12) =>
+  // token (optional) — ADMIN/SUPERADMIN/EDITOR бол хайлтад adminOnly бүтээгдэхүүн
+  // (SUPERADMIN бүгд, ADMIN/EDITOR зөвхөн өөрийн) багтана. Token-гүй бол public.
+  search: (q: string, page = 1, pageSize = 12, token?: string) =>
     request<PaginatedProducts>(
       `/products/search${qs({ q, page, pageSize })}`,
+      { token },
     ),
 
   // token (optional) — ADMIN бол adminOnly бүтээгдэхүүний detail-ийг харна

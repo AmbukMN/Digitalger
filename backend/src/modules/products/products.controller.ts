@@ -4,8 +4,18 @@ import { ProductsService } from './products.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
-// Нэвтэрсэн хэрэглэгч ADMIN role-той эсэх (adminOnly бүтээгдэхүүн харах эрх).
-const isAdminUser = (user?: JwtPayload | null) => user?.role === 'ADMIN';
+// adminOnly бүтээгдэхүүн харах scope контекст (owner-aware).
+// - зочин/USER → undefined (зөвхөн public)
+// - SUPERADMIN → бүх adminOnly бүтээгдэхүүн (хэн оруулснаас үл хамаарна)
+// - ADMIN/EDITOR → зөвхөн ӨӨРИЙН оруулсан adminOnly бүтээгдэхүүн (userId scope)
+const adminCtx = (
+  user?: JwtPayload | null,
+): { role: string; userId?: string } | undefined => {
+  if (!user) return undefined;
+  if (user.role === 'SUPERADMIN') return { role: 'SUPERADMIN' };
+  if (['ADMIN', 'EDITOR'].includes(user.role)) return { role: 'ADMIN', userId: user.sub };
+  return undefined;
+};
 
 @Controller('products')
 export class ProductsController {
@@ -19,7 +29,7 @@ export class ProductsController {
   @Post(':slug/view')
   @HttpCode(HttpStatus.OK)
   incrementView(@Param('slug') slug: string, @CurrentUser() user?: JwtPayload) {
-    return this.productsService.incrementView(slug, isAdminUser(user));
+    return this.productsService.incrementView(slug, adminCtx(user));
   }
 
   @UseGuards(OptionalJwtAuthGuard)
@@ -50,7 +60,7 @@ export class ProductsController {
         sortBy: (sortBy as any) ?? undefined,
         onSale: onSale === 'true' ? true : undefined,
       },
-      isAdminUser(user),
+      adminCtx(user),
     );
   }
 
@@ -66,7 +76,7 @@ export class ProductsController {
       q ?? '',
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 12,
-      isAdminUser(user),
+      adminCtx(user),
     );
   }
 
@@ -80,13 +90,13 @@ export class ProductsController {
     return this.productsService.findSuggested(
       slug,
       count ? parseInt(count, 10) : 8,
-      isAdminUser(user),
+      adminCtx(user),
     );
   }
 
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':slug')
   bySlug(@Param('slug') slug: string, @CurrentUser() user?: JwtPayload) {
-    return this.productsService.findBySlug(slug, isAdminUser(user));
+    return this.productsService.findBySlug(slug, adminCtx(user));
   }
 }
