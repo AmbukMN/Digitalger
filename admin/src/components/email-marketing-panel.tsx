@@ -15,7 +15,7 @@ import {
 import { adminApi } from '@/lib/api';
 
 // Нэг хуудсанд харуулах кампанит мөрийн тоо.
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 // Modal доторх хаягийн жагсаалтын нэг хуудасны тоо (backend pageSize=50).
 const RECIPIENT_PAGE_SIZE = 50;
 
