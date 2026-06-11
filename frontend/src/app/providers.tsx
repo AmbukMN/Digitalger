@@ -16,7 +16,7 @@ import { useCouponStore } from '@/store/coupon';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
 import { setAnalyticsUserId, backfillSessionTracking } from '@/lib/analytics';
-import { restoreTransferState } from '@/lib/browser-switch';
+import { restoreTransferState, consumePendingCartMerge } from '@/lib/browser-switch';
 import { BrowserSwitchHost } from '@/components/browser-switch-host';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
@@ -90,14 +90,39 @@ function StoreHydration() {
     if (ran.current) return;
     ran.current = true;
 
-    const rehydrateAll = () => {
-      useCartStore.persist.rehydrate();
-      useWishlistStore.persist.rehydrate();
-      useCouponStore.persist.rehydrate();
+    // Нэг store-ийг rehydrate хийнэ. Бохир дата унагавал тухайн store-ийн
+    // localStorage key-г устгаад дахин эхэлнэ — нэг store-ийн алдаа бусдыг
+    // (болон бүх сайтыг) унагахгүй.
+    const safeRehydrate = (
+      store: { persist: { rehydrate: () => void | Promise<void> } },
+      key: string,
+    ) => {
+      try {
+        store.persist.rehydrate();
+      } catch (e) {
+        console.error(`[StoreHydration] rehydrate failed (${key}), cleaning up`, e);
+        try {
+          if (typeof window !== 'undefined') localStorage.removeItem(key);
+        } catch { /* ignore */ }
+        // Цэвэрхэн (хоосон) state-ээр дахин оролдоно.
+        try { store.persist.rehydrate(); } catch { /* ignore */ }
+      }
     };
 
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('t');
+    const rehydrateAll = () => {
+      safeRehydrate(useCartStore, 'digitalger-cart');
+      safeRehydrate(useWishlistStore, 'digitalger-wishlist');
+      safeRehydrate(useCouponStore, 'digitalger-coupons');
+    };
+
+    let params: URLSearchParams;
+    let token: string | null = null;
+    try {
+      params = new URLSearchParams(window.location.search);
+      token = params.get('t');
+    } catch {
+      params = new URLSearchParams();
+    }
     if (token) {
       restoreTransferState(token)
         .then((ok) => {
@@ -111,11 +136,22 @@ function StoreHydration() {
         .catch(() => false)
         .finally(() => {
           rehydrateAll();
+          // rehydrate (Safari-д өмнө байсан сагс) дууссаны ДАРАА FB-ээс дамжсан
+          // сагсыг нэгтгэнэ — FB-гийнх ЭХЭНД, давхардалгүй.
+          try {
+            consumePendingCartMerge();
+          } catch (e) {
+            console.error('[StoreHydration] cart merge failed', e);
+          }
           // ?t=token-ийг URL-аас цэвэрлэнэ (refresh-д дахин сэргээхгүй, цэвэр URL)
-          params.delete('t');
-          const qs = params.toString();
-          const clean = window.location.pathname + (qs ? `?${qs}` : '');
-          window.history.replaceState({}, '', clean);
+          try {
+            params.delete('t');
+            const qs = params.toString();
+            const clean = window.location.pathname + (qs ? `?${qs}` : '');
+            window.history.replaceState({}, '', clean);
+          } catch (e) {
+            console.error('[StoreHydration] URL cleanup failed', e);
+          }
         });
     } else {
       rehydrateAll();

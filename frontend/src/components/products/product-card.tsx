@@ -50,7 +50,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const isPurchased =
     mounted && !!purchased?.some((p) => p.product.id === product.id && p.isExpired !== true);
   const inWishlist = mounted && inWishlistRaw;
-  const inCart = mounted && cartItems.some((i) => i.productId === product.id);
+  const inCart = mounted && (cartItems ?? []).some((i) => i.productId === product.id);
 
   const handleAddToCart = () => {
     if (isPurchased) return;

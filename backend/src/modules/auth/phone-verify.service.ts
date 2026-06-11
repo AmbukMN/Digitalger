@@ -47,21 +47,35 @@ export class PhoneVerifyService {
       throw new ConflictException('Энэ утасны дугаар өөр хэрэглэгчид бүртгэлтэй байна');
     }
 
-    // ── Cooldown (SMS cost хамгаалал): сүүлийн pending session 60с дотор бол алдаа ──
-    const lastPending = await this.prisma.phoneVerifySession.findFirst({
-      where: { userId, status: 'pending' },
+    // ── Хуучин pending session байвал ДАХИН АШИГЛАХ (cooldown алдаа шидэхгүй) ──
+    // Хэрэглэгч буруу даргаад Dialog хаагаад дахин дарвал — ижил утас + хугацаа
+    // дуусаагүй pending session байвал тэр кодыг буцаана (шинэ SMS зардал гарахгүй,
+    // 'X секунд хүлээ' алдаа гарахгүй). UX шуурхай.
+    const reusable = await this.prisma.phoneVerifySession.findFirst({
+      where: {
+        userId,
+        phone,
+        status: 'pending',
+        expiresAt: { gt: new Date() },
+      },
       orderBy: { createdAt: 'desc' },
     });
-    if (lastPending) {
-      const secondsSince =
-        (Date.now() - lastPending.createdAt.getTime()) / 1000;
-      if (secondsSince < PHONE_VERIFY_COOLDOWN_SECONDS) {
-        const wait = Math.ceil(PHONE_VERIFY_COOLDOWN_SECONDS - secondsSince);
-        throw new BadRequestException(`${wait} секундын дараа дахин оролдоно уу`);
-      }
+    if (reusable) {
+      // verify.mn-ийн одоо байгаа session-ий мэдээллийг дахин угсарч буцаана.
+      const smsBody = `${reusable.code}`;
+      const sc = this.config.get<string>('verifyMn.shortcode') ?? '144773';
+      return {
+        sessionId: reusable.verifyMnSessionId,
+        code: reusable.code,
+        shortcode: sc,
+        smsUri: `sms:${sc}?body=${encodeURIComponent(smsBody)}`,
+        displayInstruction: `${sc} дугаарт "${reusable.code}" гэж SMS илгээнэ үү`,
+        expiresAt: reusable.expiresAt.toISOString(),
+      };
     }
 
     // Хуучин pending session-уудыг expired болгоно (нэг идэвхтэй session л байна).
+    // (ӨӨР утас руу солих эсвэл хугацаа дууссан тохиолдол.)
     await this.prisma.phoneVerifySession.updateMany({
       where: { userId, status: 'pending' },
       data: { status: 'expired' },

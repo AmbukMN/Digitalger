@@ -34,7 +34,7 @@ function CheckoutContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const items = useCartStore((s) => s.items);
+  const items = useCartStore((s) => s.items ?? []);
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
   const updateThumbnail = useCartStore((s) => s.updateThumbnail);

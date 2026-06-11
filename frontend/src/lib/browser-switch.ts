@@ -3,6 +3,58 @@
 import { isIOS, isAndroid } from '@/lib/download-helper';
 import { transferApi } from '@/lib/api';
 import { resetBackfillFlag } from '@/lib/analytics';
+import { useCartStore } from '@/store/cart';
+
+interface RawCartItem {
+  productId?: unknown;
+  slug?: unknown;
+  title?: unknown;
+  price?: unknown;
+  compareAtPrice?: unknown;
+  thumbnailUrl?: unknown;
+  couponCodes?: unknown;
+  couponDiscount?: unknown;
+}
+
+// FB-ээс дамжсан cart дата нь Zustand persist wrapper ({ state: { items }, version })
+// эсвэл шууд { items } байж магадгүй — хоёуланг шалгаж items массивыг гаргана.
+// Буруу/бохир бол хоосон массив.
+function extractCartItems(raw: unknown): RawCartItem[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const obj = raw as Record<string, unknown>;
+  // persist wrapper: { state: { items: [...] }, version }
+  const state = obj.state && typeof obj.state === 'object' ? (obj.state as Record<string, unknown>) : obj;
+  const items = (state as Record<string, unknown>).items;
+  if (!Array.isArray(items)) return [];
+  return items.filter(
+    (i): i is RawCartItem =>
+      !!i && typeof i === 'object' && typeof (i as RawCartItem).productId === 'string',
+  );
+}
+
+// FB-ээс дамжсан, нэгтгэхээр хүлээгдэж буй сагсны items. restoreTransferState
+// бэлдэж тавьна, rehydrate дууссаны дараа consumePendingCartMerge ажиллуулна.
+type StoreCartItem = Parameters<ReturnType<typeof useCartStore.getState>['mergeFront']>[0][number];
+let pendingCartMerge: StoreCartItem[] | null = null;
+
+/**
+ * rehydrate дууссаны ДАРАА дуудна. FB-ээс дамжсан сагсыг (хадгалагдсан бол)
+ * одоогийн (rehydrate хийгдсэн) сагстай нэгтгэнэ — FB-гийнх ЭХЭНД, давхардлыг
+ * productId-аар арилгана. Store action ашигладаг тул аюулгүй (бохир дата биш).
+ */
+export function consumePendingCartMerge(): void {
+  if (!pendingCartMerge || !pendingCartMerge.length) {
+    pendingCartMerge = null;
+    return;
+  }
+  try {
+    useCartStore.getState().mergeFront(pendingCartMerge);
+  } catch (e) {
+    console.error('[consumePendingCartMerge] failed', e);
+  } finally {
+    pendingCartMerge = null;
+  }
+}
 
 // ─── FB/IG → системийн браузар руу state дамжуулж шилжих ────────────────────
 //
@@ -116,9 +168,29 @@ export async function restoreTransferState(token: string): Promise<boolean> {
         try { localStorage.setItem(k, v); } catch { /* ignore */ }
       }
     };
-    // Сагс/wishlist/coupon: FB-ийх тэргүүлнэ (дарж бичнэ) — хэрэглэгч FB-д
-    // сүүлд сагсалсан тул түүнийг хүссэн гэж үзнэ.
-    write('digitalger-cart', data.cart);
+    // Сагс: FB-гийн сагсыг ДАРЖ БИЧИХГҮЙ, НЭГТГЭНЭ. FB-гийнхийг ЭХЭНД тавьж,
+    // Safari-д өмнө байсан (FB-д байхгүй) бүтээгдэхүүнийг араас нь хадгална.
+    // ⚠️ Энд cart-ийг localStorage-д шууд бичихгүй — rehydrate (StoreHydration
+    // finally) ДАРААНЬ ажилладаг тул FB items-ийг түр хадгалж, rehydrate
+    // дууссаны дараа mergeFront action-аар нэгтгэнэ (доорх consumePendingCartMerge).
+    try {
+      const fbItems = extractCartItems(data.cart);
+      if (fbItems.length) {
+        pendingCartMerge = fbItems.map((i) => ({
+          productId: String(i.productId),
+          slug: typeof i.slug === 'string' ? i.slug : '',
+          title: typeof i.title === 'string' ? i.title : '',
+          price: Number(i.price) || 0,
+          compareAtPrice:
+            i.compareAtPrice == null ? null : Number(i.compareAtPrice) || null,
+          thumbnailUrl: typeof i.thumbnailUrl === 'string' ? i.thumbnailUrl : null,
+          ...(Array.isArray(i.couponCodes) ? { couponCodes: i.couponCodes as string[] } : {}),
+          ...(typeof i.couponDiscount === 'number' ? { couponDiscount: i.couponDiscount } : {}),
+        }));
+      }
+    } catch (e) {
+      console.error('[restoreTransferState] cart merge prepare failed', e);
+    }
     write('digitalger-wishlist', data.wishlist);
     write('digitalger-coupons', data.coupons);
     write('dg-chat-history', data.chatHistory);

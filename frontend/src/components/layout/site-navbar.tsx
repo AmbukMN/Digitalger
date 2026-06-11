@@ -282,8 +282,8 @@ export function SiteNavbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const cartCount = useCartStore((s) => s.items.length);
-  const wishCount = useWishlistStore((s) => s.items.length);
+  const cartCount = useCartStore((s) => (s.items ?? []).length);
+  const wishCount = useWishlistStore((s) => (s.items ?? []).length);
   const [cartShake, setCartShake] = useState(false);
   const prevCartCount = useRef(cartCount);
   const shakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

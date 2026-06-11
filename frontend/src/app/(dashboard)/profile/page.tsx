@@ -729,7 +729,12 @@ function PhoneVerifySection({
             toast.success('Утас амжилттай баталгаажлаа!');
             onVerifiedRef.current();
           }
-          setTimeout(() => setOpen(false), 1500);
+          // Dialog + "Дугаар солих" input ХОЁУЛАНГ хаана (verified болсон тул).
+          setTimeout(() => {
+            setOpen(false);
+            setChanging(false);
+            phoneForm.reset({ phone: '' });
+          }, 1500);
         } else if (res.status === 'expired') {
           clearPoll();
           setStatus('expired');
@@ -762,10 +767,14 @@ function PhoneVerifySection({
       setOpen(true);
     } catch (err: any) {
       const msg = err?.message ?? '';
-      if (msg.includes('already') || msg.includes('баталгаажсан'))
+      // Cooldown (60с): backend "X секундын дараа дахин оролдоно уу" буцаана —
+      // тэр мессежийг шууд харуулна (хэрэглэгч хэр удаан хүлээхээ мэдэх).
+      if (msg.includes('секунд') || msg.includes('дараа дахин'))
+        toast.error(msg);
+      else if (msg.includes('already') || msg.includes('баталгаажсан'))
         toast.error('Утас аль хэдийн баталгаажсан байна');
       else if (msg.includes('use') || msg.includes('бүртгэлтэй'))
-        toast.error('Энэ утас өөр бүртгэлд хэрэглэгдсэн байна');
+        toast.error('Энэ утас өөр бүртгэлд бүртгэлтэй байна');
       else toast.error('Хүсэлт илгээхэд алдаа гарлаа. Дахин оролдоно уу.');
     } finally {
       setRequesting(false);
