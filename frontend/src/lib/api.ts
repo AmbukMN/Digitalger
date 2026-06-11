@@ -574,6 +574,8 @@ export interface LessonQuiz {
   title: string;
   passScore: number;
   questions: QuizQuestion[];
+  // Хэрэглэгчийн өмнөх хамгийн сайн оролдлого (badge-д ашиглана) — байхгүй бол null.
+  bestAttempt?: { score: number; passed: boolean; createdAt: string } | null;
 }
 
 export interface QuizSubmitResult {

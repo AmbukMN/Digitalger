@@ -58,13 +58,18 @@ export function LearnClient({ product }: LearnClientProps) {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const token = session?.accessToken;
-  // Learn хуудсыг бүхэлд нь (header/sidebar/content/player) light↔dark солих.
-  // learn-client/sidebar/content shadcn token-той тул theme автомат дагана.
-  const { resolvedTheme, setTheme } = useTheme();
-  // ⚠️ resolvedTheme нь SSR-д undefined, client дээр light/dark — hydration
-  // mismatch (React #418)-аас сэргийлж зөвхөн mount-ийн дараа icon render хийнэ.
+  // ⚠️ Learn хуудасны theme нь ТУСДАА (global сайтын theme-ийг өөрчлөхгүй).
+  // Хэрэглэгч learn дотор dark/light солиход зөвхөн ЭНЭ хуудас солигдоно, нүүр/бусад
+  // хуудас өөрчлөгдөхгүй. localTheme=null бол global theme-ийг дагана (анхны default).
+  const { resolvedTheme: globalTheme } = useTheme();
+  const [localTheme, setLocalTheme] = useState<'light' | 'dark' | null>(null);
+  // ⚠️ SSR-д theme undefined — hydration mismatch (React #418)-аас сэргийлж
+  // зөвхөн mount-ийн дараа theme-зависимый зүйлс render хийнэ.
   const [themeMounted, setThemeMounted] = useState(false);
   useEffect(() => setThemeMounted(true), []);
+  // Идэвхтэй theme: local override байвал тэр, эс бол global-ыг дагана.
+  const learnTheme: 'light' | 'dark' = localTheme ?? (globalTheme === 'dark' ? 'dark' : 'light');
+  const toggleLearnTheme = () => setLocalTheme(learnTheme === 'dark' ? 'light' : 'dark');
   const sessionLoading = status === 'loading';
 
   const modules: CourseSidebarModule[] = useMemo(() => product.course?.modules ?? [], [product.course]);
@@ -409,7 +414,14 @@ export function LearnClient({ product }: LearnClientProps) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground lg:h-dvh lg:overflow-hidden">
+    // ⚠️ learnTheme class зөвхөн ЭНЭ wrapper-т — global html.dark-аас тусдаа.
+    // mount хүртэл global-ыг дагана (themeMounted=false бол class нэмэхгүй → SSR-тэй таарна).
+    <div
+      className={cn(
+        'flex min-h-dvh flex-col bg-background text-foreground lg:h-dvh lg:overflow-hidden',
+        themeMounted && (learnTheme === 'dark' ? 'dark' : 'light'),
+      )}
+    >
       {/* ─── Дээд бар (бүх өргөн) ─── */}
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
         <Link
@@ -424,17 +436,17 @@ export function LearnClient({ product }: LearnClientProps) {
           {product.title}
         </p>
         <div className="flex items-center gap-2">
-          {/* Бүхэл learn хуудсыг light↔dark солих (header/sidebar/content/player).
+          {/* ⚠️ ЗӨВХӨН learn хуудсыг light↔dark солино (global сайт өөрчлөгдөхгүй).
               themeMounted-ийн дараа л render — SSR hydration mismatch (#418)-аас сэргийлнэ. */}
           {themeMounted && (
             <button
               type="button"
-              onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              onClick={toggleLearnTheme}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title={resolvedTheme === 'dark' ? 'Цайвар горим' : 'Бараан горим'}
+              title={learnTheme === 'dark' ? 'Цайвар горим (зөвхөн энэ хуудас)' : 'Бараан горим (зөвхөн энэ хуудас)'}
               aria-label="Гэрэл/бараан горим солих"
             >
-              {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {learnTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
           )}
           {/* Mobile: sidebar нээх */}
@@ -457,20 +469,23 @@ export function LearnClient({ product }: LearnClientProps) {
               ~60%-аар хязгаарлаж, 16:9-ийн дагуу өргөнийг тааруулна → max-w-[106.66vh]).
               Видео контент black хэвээр. */}
           <div className="bg-background px-0 lg:px-4 lg:pt-4">
-            <div className="relative mx-auto aspect-video w-full max-h-[60vh] max-w-full shrink-0 overflow-hidden bg-black lg:max-w-[calc(60vh*16/9)] lg:rounded-xl">
+            {/* Гадна wrapper: aspect/overflow/радиусыг хариуцна (message states absolute inset-0).
+                Дотор player rounded-[inherit]-ээр энэ радиусыг дагана → давхар rounded зөрүүгүй,
+                player border control bar-тай таарна (desktop + mobile). */}
+            <div className="relative mx-auto aspect-video max-h-[60vh] w-full max-w-full shrink-0 overflow-hidden bg-black lg:max-w-[calc(60vh*16/9)] lg:rounded-xl">
               {renderPlayer()}
             </div>
           </div>
 
           {/* Player доорх удирдлага */}
           <div className="border-b border-border bg-card px-4 py-4 lg:mx-4 lg:mt-4 lg:rounded-xl lg:border">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2 sm:gap-3">
+            <div className="min-w-0 flex-1">
               <h1 className="text-base font-semibold text-foreground sm:text-lg">
                 {currentLesson?.title ?? product.title}
               </h1>
-              {/* Хичээлийн дугаар + хугацаа + явц */}
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {/* Хичээлийн дугаар + хугацаа + явц — mobile-д нягт (gap бага) */}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground sm:gap-x-3 sm:gap-y-1">
                 {currentIndex >= 0 && totalLessons > 0 && (
                   <span className="tabular-nums">
                     Хичээл {currentIndex + 1} / {totalLessons}
@@ -482,32 +497,34 @@ export function LearnClient({ product }: LearnClientProps) {
                     {formatLessonDuration(currentLesson.durationSec)}
                   </span>
                 ) : null}
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 tabular-nums">
                   <CheckCircle2 className="h-3 w-3 text-[#ffbe00]" />
-                  Үзсэн {watchedPct}% · {completedCount}/{totalLessons} дууссан
+                  {watchedPct}% · {completedCount}/{totalLessons}
                 </span>
               </div>
             </div>
 
-            {/* Autoplay toggle */}
+            {/* Autoplay toggle — mobile-д жижиг (текст нуугдана, зөвхөн switch). */}
             <button
               type="button"
               role="switch"
               aria-checked={autoPlayNext}
               onClick={toggleAutoPlay}
-              className="flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+              title="Дараагийн хичээл авто тоглуулах"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted sm:gap-2 sm:px-3 sm:py-2 sm:text-xs"
             >
-              <span>Дараагийнх авто</span>
+              <span className="hidden sm:inline">Дараагийнх авто</span>
+              <span className="sm:hidden">Авто</span>
               <span
                 className={cn(
-                  'relative h-5 w-9 rounded-full transition-colors',
+                  'relative h-4 w-7 rounded-full transition-colors sm:h-5 sm:w-9',
                   autoPlayNext ? 'bg-[#ffbe00]' : 'bg-muted-foreground/30',
                 )}
               >
                 <span
                   className={cn(
-                    'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
-                    autoPlayNext ? 'left-[1.125rem]' : 'left-0.5',
+                    'absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all sm:h-4 sm:w-4',
+                    autoPlayNext ? 'left-3.5 sm:left-4.5' : 'left-0.5',
                   )}
                 />
               </span>

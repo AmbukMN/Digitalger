@@ -724,8 +724,20 @@ export default function LessonsQuestionsPage() {
             variant={onlyUnanswered ? 'default' : 'outline'}
             size="sm"
             onClick={() => setOnlyUnanswered(true)}
+            className="gap-1.5"
           >
             Хариулаагүй
+            {/* Хариулаагүй асуулт байвал улаан тоо badge (анхааруулга). */}
+            {unansweredCount > 0 && (
+              <span
+                className={cn(
+                  'rounded-full px-1.5 text-[10px] font-bold tabular-nums',
+                  onlyUnanswered ? 'bg-white/25 text-white' : 'bg-red-500 text-white',
+                )}
+              >
+                {unansweredCount}
+              </span>
+            )}
           </Button>
         </div>
       </div>

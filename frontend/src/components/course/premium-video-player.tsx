@@ -291,7 +291,7 @@ function CustomRange({
 function ExternalPlayer({ url, title }: { url: string; title?: string }) {
   const embed = getEmbedUrl(url);
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+    <div className="relative h-full w-full overflow-hidden rounded-[inherit] bg-black">
       {embed ? (
         <iframe
           src={embed}
@@ -1018,7 +1018,9 @@ function PremiumVideoPlayerBase({
       onTouchStart={showControls}
       onContextMenu={(e) => e.preventDefault()}
       className={cn(
-        'group relative aspect-video w-full select-none overflow-hidden rounded-2xl bg-black outline-none',
+        // h-full w-full — эцэг wrapper (aspect-video)-ийг дүүргэнэ; rounded-[inherit]-ээр
+        // эцгийн радиусыг дагана. Давхар aspect/rounded зөрүүгээс сэргийлж border таарна.
+        'group relative h-full w-full select-none overflow-hidden rounded-[inherit] bg-black outline-none',
         'ring-offset-2 focus-visible:ring-2 focus-visible:ring-[#ffbe00]',
         !effectiveVisible && playing && 'cursor-none',
       )}

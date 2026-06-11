@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardCheck,
   Download,
@@ -22,6 +23,7 @@ import {
   StickyNote,
 } from 'lucide-react';
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@digitalger/shared/ui';
+import { cn } from '@digitalger/shared';
 import { coursesApi } from '@/lib/api';
 import type { LessonResource } from '@/lib/api';
 import type { CourseLesson } from '@/types/api';
@@ -250,6 +252,38 @@ export function LessonContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson.id]);
 
+  // ── Таб badge-ийн тоонууд (хөнгөн count query — locked/token-гүй бол алгасна) ──
+  // Асуулт хариулт: ХАРИУЛААГҮЙ асуултын тоо (answers хоосон) badge.
+  const { data: qaList } = useQuery({
+    queryKey: ['lesson-qa', productSlug, lesson.id],
+    queryFn: () => coursesApi.questions.list(token!, productSlug, lesson.id),
+    enabled: !!token && !locked,
+    staleTime: 20_000,
+  });
+  const unansweredCount = useMemo(
+    () => (qaList ?? []).filter((q) => (q.answers?.length ?? 0) === 0).length,
+    [qaList],
+  );
+
+  // Шалгалт: хэрэглэгчийн авсан хувь (bestAttempt) badge.
+  const { data: quizData } = useQuery({
+    queryKey: ['lesson-quiz', productSlug, lesson.id],
+    queryFn: () => coursesApi.quiz.get(token!, productSlug, lesson.id).catch(() => null),
+    enabled: !!token && !locked,
+    staleTime: 20_000,
+  });
+  const quizScore = quizData?.bestAttempt?.score ?? null;
+  const quizPassed = quizData?.bestAttempt?.passed ?? false;
+
+  // Миний тэмдэглэл: localStorage-д бичсэн мөрийн тоо (хоосон мөр тооцохгүй).
+  const [noteLineCount, setNoteLineCount] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = localStorage.getItem(noteKey) ?? '';
+    const lines = raw.split('\n').filter((l) => l.trim().length > 0).length;
+    setNoteLineCount(lines);
+  }, [noteKey, lesson.id]);
+
   return (
     <motion.div
       key={lesson.id}
@@ -285,6 +319,12 @@ export function LessonContent({
           >
             <MessageCircleQuestion className="h-3.5 w-3.5" />
             Асуулт хариулт
+            {/* Хариулаагүй асуулт байвал улаан анхааруулга badge (тоотой). */}
+            {unansweredCount > 0 && (
+              <span className="ml-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold tabular-nums text-white">
+                {unansweredCount}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger
             value="quiz"
@@ -292,6 +332,17 @@ export function LessonContent({
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
             Шалгалт
+            {/* Шалгалт өгсөн бол авсан хувь — тэнцсэн ногоон, тэнцээгүй амбер. */}
+            {quizScore != null && (
+              <span
+                className={cn(
+                  'ml-1 rounded-full px-1.5 text-[10px] font-bold tabular-nums',
+                  quizPassed ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white',
+                )}
+              >
+                {quizScore}%
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger
             value="mynotes"
@@ -299,6 +350,12 @@ export function LessonContent({
           >
             <NotebookPen className="h-3.5 w-3.5" />
             Миний тэмдэглэл
+            {/* Тэмдэглэл бичсэн бол мөрийн тоо badge. */}
+            {noteLineCount > 0 && (
+              <span className="ml-1 rounded-full bg-foreground/15 px-1.5 text-[10px] font-bold tabular-nums">
+                {noteLineCount}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 

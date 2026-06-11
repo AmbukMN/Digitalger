@@ -357,9 +357,10 @@ export function ChatWidget() {
         // хаахгүйн тулд bottom-32). Бусад хуудсанд ердийн доод (bottom-5).
         // Desktop: ямар ч хуудсанд доод буланд хэвээр (md:bottom-6).
         className={cn(
-          // ⚠️ shrink-0 + aspect-square + overflow-hidden — Lottie ачаалагдах хооронд
-          // launcher тойрог хэвээр (гонзгой/буруу хэлбэртэй болохоос сэргийлнэ).
-          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
+          // ⚠️ shrink-0 + aspect-square — Lottie ачаалагдах хооронд launcher тойрог хэвээр.
+          // overflow-hidden-ийг ЭНДЭЭС авав (badge булан дээр гадна гарахын тулд) — Lottie/icon
+          // тойрог хэлбэрийг доорх inner span-ийн overflow-hidden хариуцна.
+          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
         whileHover={{ scale: 1.08 }}
@@ -378,7 +379,7 @@ export function ChatWidget() {
           ) : (
             <motion.span
               key="bot"
-              className="flex h-full w-full items-center justify-center"
+              className="flex h-full w-full items-center justify-center overflow-hidden rounded-full"
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.6, opacity: 0 }}
@@ -399,11 +400,13 @@ export function ChatWidget() {
             </motion.span>
           )}
         </AnimatePresence>
-        {/* Анхаарал татах цэг (нээгээгүй үед) */}
+        {/* ⚠️ Анхаарал татах цэг — button-ийн БУЛАН ДЭЭР (гадна). Button-ийн overflow-hidden-ийг
+            арилгаж, Lottie/icon-ийг доорх .overflow-hidden span-д орооно (тойрог хэлбэр хадгална),
+            тэгснээр энэ badge таслагдахгүй гадна гарна (-top-1 -right-1). */}
         {!open && (
-          <span className="absolute right-0.5 top-0.5 flex h-3.5 w-3.5">
+          <span className="absolute -right-1 -top-1 z-10 flex h-3.5 w-3.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
-            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary" />
+            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary ring-2 ring-background" />
           </span>
         )}
       </motion.button>
