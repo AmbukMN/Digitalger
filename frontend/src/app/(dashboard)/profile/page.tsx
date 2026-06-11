@@ -623,10 +623,22 @@ const PHONE_VERIFY_SMS_NUMBER = '144773';
 
 type PhoneSession = {
   sessionId: string;
+  // ⚠️ Backend одоо кодыг ШУУД буцаадаг (regex match хэрэггүй).
+  code: string;
+  shortcode: string;
   smsUri: string;
   displayInstruction: string;
   expiresAt: string;
 };
+
+// Шинэ утас баталгаажуулах inline формын Zod
+const phoneChangeSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9]{8,15}$/, 'Утасны дугаар бүтэн оруулна уу (8-15 орон)'),
+});
+type PhoneChangeValues = z.infer<typeof phoneChangeSchema>;
 
 function PhoneVerifySection({
   phone,
@@ -636,7 +648,8 @@ function PhoneVerifySection({
   onEditProfile,
 }: {
   phone: string | null | undefined;
-  phoneVerified: Date | null | undefined;
+  // ⚠️ API string ирнэ (Date биш) — шууд string|null|undefined.
+  phoneVerified: string | null | undefined;
   token: string;
   onVerified: () => void;
   onEditProfile: () => void;
@@ -646,7 +659,28 @@ function PhoneVerifySection({
   const [session, setSession] = useState<PhoneSession | null>(null);
   const [status, setStatus] = useState<'idle' | 'pending' | 'verified' | 'expired'>('idle');
   const [remaining, setRemaining] = useState(0); // секунд (countdown)
+  // Сүүлд хүсэлт илгээсэн дугаар (expired → "Дахин эхлэх"-д ашиглана)
+  const [targetPhone, setTargetPhone] = useState('');
+  // Баталгаажсан хэдий ч дугаараа солих inline формыг нээх state
+  const [changing, setChanging] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ⚠️ onVerified-г ref-д хадгална → polling useEffect-ийн dependency-д
+  // onVerified орохгүй (parent дахин render хийхэд polling дахин эхлэхгүй,
+  // олон toast гарахгүй).
+  const onVerifiedRef = useRef(onVerified);
+  useEffect(() => {
+    onVerifiedRef.current = onVerified;
+  }, [onVerified]);
+
+  // verified toast-ийг НЭГ Л УДАА гаргах guard
+  const verifiedFiredRef = useRef(false);
+
+  // Шинэ дугаар солих inline форм
+  const phoneForm = useForm<PhoneChangeValues>({
+    resolver: zodResolver(phoneChangeSchema),
+    defaultValues: { phone: '' },
+  });
 
   const clearPoll = () => {
     if (pollRef.current) {
@@ -674,18 +708,26 @@ function PhoneVerifySection({
     return () => clearInterval(t);
   }, [open, session, status]);
 
-  // Polling — 3 секунд тутамд status шалгана (≥3с заавал: verify.mn 429 хязгаар)
+  // Polling — status шалгана. Эхний шалгалтыг ШУУД нэг удаа (хүлээхгүй),
+  // дараа нь 3с тутамд (≥3с заавал: verify.mn 429 хязгаар).
   useEffect(() => {
     if (!open || !session || status !== 'pending') return;
     clearPoll();
-    pollRef.current = setInterval(async () => {
+
+    let cancelled = false;
+    const check = async () => {
       try {
         const res = await authApi.phoneVerifyStatus(token, session.sessionId);
+        if (cancelled) return;
         if (res.status === 'verified') {
           clearPoll();
           setStatus('verified');
-          toast.success('Утас амжилттай баталгаажлаа!');
-          onVerified();
+          // ⚠️ Нэг л удаа toast + onVerified (guard).
+          if (!verifiedFiredRef.current) {
+            verifiedFiredRef.current = true;
+            toast.success('Утас амжилттай баталгаажлаа!');
+            onVerifiedRef.current();
+          }
           setTimeout(() => setOpen(false), 1500);
         } else if (res.status === 'expired') {
           clearPoll();
@@ -694,15 +736,26 @@ function PhoneVerifySection({
       } catch {
         /* түр алдаа — дараагийн poll дээр дахин оролдоно */
       }
-    }, 3000);
-    return () => clearPoll();
-  }, [open, session, status, token, onVerified]);
+    };
 
-  const handleRequest = async () => {
-    if (!phone) return;
+    // Эхний шалгалтыг шуурхай (callback аль хэдийн verified болсон бол хүлээхгүй)
+    void check();
+    pollRef.current = setInterval(check, 3000);
+    return () => {
+      cancelled = true;
+      clearPoll();
+    };
+    // onVerified ref-д тул dependency-д ОРУУЛАХГҮЙ (давхар polling/toast болохгүй)
+  }, [open, session, status, token]);
+
+  // Хүсэлт илгээх — verifyPhone заавал дамжуулна (одоогийн эсвэл шинэ дугаар).
+  const handleRequest = async (verifyPhone: string) => {
+    if (!verifyPhone) return;
     setRequesting(true);
     try {
-      const s = await authApi.requestPhoneVerify(token, phone);
+      const s = await authApi.requestPhoneVerify(token, verifyPhone);
+      verifiedFiredRef.current = false; // шинэ session → guard reset
+      setTargetPhone(verifyPhone);
       setSession(s);
       setStatus('pending');
       setOpen(true);
@@ -718,6 +771,11 @@ function PhoneVerifySection({
     }
   };
 
+  // Шинэ дугаар оруулах формоос → тэр дугаараар verify эхлүүлнэ.
+  const onPhoneChangeSubmit = (values: PhoneChangeValues) => {
+    void handleRequest(values.phone.trim());
+  };
+
   const handleClose = (val: boolean) => {
     if (!val) {
       clearPoll();
@@ -727,9 +785,9 @@ function PhoneVerifySection({
     setOpen(val);
   };
 
-  // verify.mn руу илгээх кодыг displayInstruction-аас салгаж авах (copy-д).
-  // Зааврын текстээс эхний урт тоог олно (код ихэвчлэн 6 орон).
-  const code = session?.displayInstruction.match(/\b\d{4,8}\b/)?.[0] ?? '';
+  // ⚠️ Кодыг backend ШУУД буцаадаг (regex match хэрэггүй).
+  const code = session?.code ?? '';
+  const shortcode = session?.shortcode ?? PHONE_VERIFY_SMS_NUMBER;
 
   const copy = async (text: string, label: string) => {
     try {
@@ -742,18 +800,97 @@ function PhoneVerifySection({
 
   const mmss = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
 
-  // 1) Баталгаажсан → ногоон badge
+  // Дугаар солих inline формыг нээх/хаах туслах
+  const openChange = () => {
+    phoneForm.reset({ phone: '' });
+    setChanging(true);
+  };
+  const closeChange = () => {
+    setChanging(false);
+    phoneForm.reset({ phone: '' });
+  };
+
+  // Шинэ дугаар оруулах inline форм (verified үед "Дугаар солих", эсвэл
+  // expired/дахин flow-д ашиглана).
+  const phoneChangeForm = (
+    <form
+      onSubmit={phoneForm.handleSubmit(onPhoneChangeSubmit)}
+      className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start"
+    >
+      <div className="flex-1">
+        <Input
+          type="tel"
+          placeholder="Шинэ дугаар (99001122)"
+          autoFocus
+          {...phoneForm.register('phone')}
+        />
+        <FieldError message={phoneForm.formState.errors.phone?.message} />
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <Button type="submit" size="sm" className="gap-1.5" disabled={requesting}>
+          <Phone className="h-3.5 w-3.5" />
+          {requesting ? 'Түр хүлээнэ үү...' : 'Баталгаажуулах'}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={closeChange}>
+          Болих
+        </Button>
+      </div>
+    </form>
+  );
+
+  // 1) Баталгаажсан → ногоон badge + "Дугаар солих"
   if (phoneVerified) {
     return (
-      <div className="flex items-center gap-2 py-3">
-        <span className="text-sm text-muted-foreground">Утас</span>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm font-medium">{phone}</span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
-            <Check className="h-3 w-3" />
-            Баталгаажсан
-          </span>
+      <div className="py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Утас</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm font-medium">{phone}</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
+              <Check className="h-3 w-3" />
+              Баталгаажсан
+            </span>
+            {!changing && (
+              <button
+                type="button"
+                onClick={openChange}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <Pencil className="h-3 w-3" />
+                Дугаар солих
+              </button>
+            )}
+          </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {changing && (
+            <motion.div
+              key="change"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              {phoneChangeForm}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <PhoneVerifyDialog
+          open={open}
+          status={status}
+          session={session}
+          code={code}
+          shortcode={shortcode}
+          remaining={remaining}
+          mmss={mmss}
+          requesting={requesting}
+          onRequest={() => handleRequest(targetPhone || phone || '')}
+          onClose={handleClose}
+          copy={copy}
+        />
       </div>
     );
   }
@@ -793,7 +930,7 @@ function PhoneVerifySection({
           variant="outline"
           size="sm"
           className="shrink-0 gap-1.5"
-          onClick={handleRequest}
+          onClick={() => handleRequest(phone)}
           disabled={requesting}
         >
           <Phone className="h-3.5 w-3.5" />
@@ -801,7 +938,52 @@ function PhoneVerifySection({
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={handleClose}>
+      <PhoneVerifyDialog
+        open={open}
+        status={status}
+        session={session}
+        code={code}
+        shortcode={shortcode}
+        remaining={remaining}
+        mmss={mmss}
+        requesting={requesting}
+        onRequest={() => handleRequest(phone)}
+        onClose={handleClose}
+        copy={copy}
+      />
+    </div>
+  );
+}
+
+// Утас баталгаажуулах Dialog (pending/verified/expired төлвүүд).
+// PhoneVerifySection-ийн 2 газраас (баталгаажсан/баталгаажаагүй) дуудагдана.
+function PhoneVerifyDialog({
+  open,
+  status,
+  session,
+  code,
+  shortcode,
+  remaining,
+  mmss,
+  requesting,
+  onRequest,
+  onClose,
+  copy,
+}: {
+  open: boolean;
+  status: 'idle' | 'pending' | 'verified' | 'expired';
+  session: PhoneSession | null;
+  code: string;
+  shortcode: string;
+  remaining: number;
+  mmss: string;
+  requesting: boolean;
+  onRequest: () => void;
+  onClose: (val: boolean) => void;
+  copy: (text: string, label: string) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Утас баталгаажуулах</DialogTitle>
@@ -838,7 +1020,7 @@ function PhoneVerifySection({
                 <Button
                   size="sm"
                   className="w-full gap-1.5"
-                  onClick={handleRequest}
+                  onClick={onRequest}
                   disabled={requesting}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -864,7 +1046,7 @@ function PhoneVerifySection({
                     className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
                   >
                     <Send className="h-4 w-4" />
-                    {PHONE_VERIFY_SMS_NUMBER} руу илгээх
+                    {shortcode} руу илгээх
                   </Button>
                 </a>
 
@@ -872,7 +1054,7 @@ function PhoneVerifySection({
                 {code && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-sm">
                     <p className="text-xs text-muted-foreground text-center">
-                      Эсвэл гараар: дараах кодыг {PHONE_VERIFY_SMS_NUMBER} руу илгээнэ үү
+                      Эсвэл гараар: дараах кодыг {shortcode} руу илгээнэ үү
                     </p>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-muted-foreground">Код:</span>
@@ -889,10 +1071,10 @@ function PhoneVerifySection({
                       <span className="text-muted-foreground">Дугаар:</span>
                       <button
                         type="button"
-                        onClick={() => copy(PHONE_VERIFY_SMS_NUMBER, 'Дугаар')}
+                        onClick={() => copy(shortcode, 'Дугаар')}
                         className="inline-flex items-center gap-1.5 font-mono font-semibold hover:text-primary"
                       >
-                        {PHONE_VERIFY_SMS_NUMBER}
+                        {shortcode}
                         <Copy className="h-3 w-3" />
                       </button>
                     </div>
@@ -906,7 +1088,7 @@ function PhoneVerifySection({
                   {remaining > 0 && <span className="font-mono">{mmss}</span>}
                 </div>
 
-                <Button variant="ghost" size="sm" className="w-full" onClick={() => handleClose(false)}>
+                <Button variant="ghost" size="sm" className="w-full" onClick={() => onClose(false)}>
                   Болих
                 </Button>
               </motion.div>
@@ -914,7 +1096,6 @@ function PhoneVerifySection({
           </AnimatePresence>
         </DialogContent>
       </Dialog>
-    </div>
   );
 }
 
@@ -1028,7 +1209,9 @@ export default function ProfilePage() {
   const isGuest = user?.isGuest ?? session.user?.email?.endsWith('@guest.digitalger.mn') ?? false;
   const provider = user?.oauthProvider ?? (session.user as any)?.oauthProvider ?? null;
   const emailVerified: Date | null = user?.emailVerified ? new Date(user.emailVerified as any) : null;
-  const phoneVerified: Date | null = user?.phoneVerified ? new Date(user.phoneVerified as any) : null;
+  // ⚠️ phoneVerified-г string хэвээр дамжуулна (Date болгож хувиргахгүй) —
+  // PhoneVerifySection нь зөвхөн truthy/falsy шалгадаг.
+  const phoneVerified: string | null | undefined = user?.phoneVerified;
   const canEditEmail = isGuest || !provider;
   const displayName = user?.name ?? (isGuest ? 'Зочин' : session.user?.email ?? '—');
 
@@ -1276,8 +1459,11 @@ export default function ProfilePage() {
               phoneVerified={phoneVerified}
               token={token}
               onEditProfile={() => setEditMode(true)}
-              onVerified={() => {
-                queryClient.invalidateQueries({ queryKey: ['me'] });
+              onVerified={async () => {
+                // ⚠️ Badge ногоон болохын тулд me query-г заавал шинэчилнэ
+                // (backend USER_SELECT одоо phoneVerified буцаадаг).
+                await queryClient.invalidateQueries({ queryKey: ['me'] });
+                await queryClient.refetchQueries({ queryKey: ['me'] });
               }}
             />
           )}

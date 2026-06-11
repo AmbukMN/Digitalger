@@ -33,6 +33,8 @@ const USER_SELECT = {
   blocked: true,
   oauthProvider: true,
   emailVerified: true,
+  phoneVerified: true,
+  pendingPhone: true,
   createdAt: true,
   updatedAt: true,
 } as const;

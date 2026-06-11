@@ -179,6 +179,7 @@ export interface AuthUser {
   oauthProvider?: string | null;
   emailVerified?: string | null;
   phoneVerified?: string | null;
+  pendingPhone?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

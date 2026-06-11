@@ -106,6 +106,8 @@ export class PhoneVerifyService {
 
     return {
       sessionId: session.sessionId, // polling-д (b endpoint) ашиглана
+      code, // ⚠️ Хэрэглэгч 144773 руу илгээх КОД (frontend regex биш, шууд буцаана).
+      shortcode: this.config.get<string>('verifyMn.shortcode') ?? '144773',
       smsUri: session.smsUri,
       displayInstruction: session.displayInstruction,
       expiresAt: session.expiresAt,

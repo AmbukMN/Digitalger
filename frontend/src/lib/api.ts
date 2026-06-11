@@ -264,6 +264,8 @@ export const authApi = {
   requestPhoneVerify: (token: string, phone: string) =>
     request<{
       sessionId: string;
+      code: string;
+      shortcode: string;
       smsUri: string;
       displayInstruction: string;
       expiresAt: string;
