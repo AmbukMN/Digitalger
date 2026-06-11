@@ -930,6 +930,8 @@ export class AdminProductsService {
         createdAt: q.createdAt,
         answerCount: q.answers.length,
         answered: q.answers.length > 0,
+        // Admin уншаагүй (хэрэглэгчээс шинэ асуулт/хариулт) — badge онцлоход.
+        unread: q.adminUnread,
         user: q.user,
         lesson: {
           id: q.lesson.id,
@@ -947,10 +949,17 @@ export class AdminProductsService {
       })),
     );
 
-    // Хариулаагүйг эхэнд онцолно (онцлох эрэмбэ).
-    mapped.sort((a, b) => Number(a.answered) - Number(b.answered));
+    // Уншаагүй → хариулаагүй эхэнд онцолно (анхаарал татах эрэмбэ).
+    mapped.sort(
+      (a, b) => Number(b.unread) - Number(a.unread) || Number(a.answered) - Number(b.answered),
+    );
 
-    return { items: mapped, total, page, pageSize };
+    // Нийт уншаагүй тоо (sidebar badge-д). onlyUnanswered үед энэ нь шүүгдсэн тоо.
+    const unreadTotal = await this.prisma.lessonQuestion.count({
+      where: { adminUnread: true },
+    });
+
+    return { items: mapped, total, unreadTotal, page, pageSize };
   }
 
   /**
@@ -977,6 +986,13 @@ export class AdminProductsService {
     });
     if (!q) throw new NotFoundException('Question not found');
 
+    // Admin асуултын дэлгэрэнгүйг НЭЭЖ харсан тул уншсан болгоно (badge цэвэрлэгдэнэ).
+    if (q.adminUnread) {
+      await this.prisma.lessonQuestion
+        .update({ where: { id: questionId }, data: { adminUnread: false } })
+        .catch(() => null);
+    }
+
     return {
       id: q.id,
       question: q.question,
@@ -984,6 +1000,7 @@ export class AdminProductsService {
       createdAt: q.createdAt,
       answerCount: q.answers.length,
       answered: q.answers.length > 0,
+      unread: false,
       user: q.user,
       lesson: {
         id: q.lesson.id,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, ClipboardCheck, Loader2, RotateCcw, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +18,7 @@ export function LessonQuiz({
   lessonId: string;
   token?: string;
 }) {
+  const queryClient = useQueryClient();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
@@ -69,6 +71,9 @@ export function LessonQuiz({
       const payload = quiz.questions.map((q) => answers[q.id]);
       const res = await coursesApi.quiz.submit(token, productSlug, lessonId, payload);
       setResult(res);
+      // ⚠️ Таб badge (lesson-content) шинэ оноог шууд авна — bestAttempt cache-ийг
+      // invalidate хийж refetch → "✗ 50%" → "✓ 100%" real-time солигдоно.
+      queryClient.invalidateQueries({ queryKey: ['lesson-quiz', productSlug, lessonId] });
       if (res.passed) toast.success(`Та тэнцлээ! Оноо: ${res.score}`);
       else toast.error(`Дахин оролдоно уу. Оноо: ${res.score}`);
     } catch {
@@ -76,7 +81,7 @@ export function LessonQuiz({
     } finally {
       setSubmitting(false);
     }
-  }, [quiz, token, submitting, allAnswered, answers, productSlug, lessonId]);
+  }, [quiz, token, submitting, allAnswered, answers, productSlug, lessonId, queryClient]);
 
   // ── Ачаалж байна ──
   if (loading) {

@@ -280,6 +280,18 @@ function ConversationDialog({
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [answers.length]);
 
+  // ⚠️ Dialog нээгдэхэд асуултыг УНШСАН болгоно (backend adminUnread=false) → sidebar
+  // + жагсаалтын badge цэвэрлэгдэнэ. Зөвхөн уншаагүй үед дуудна (дэмий хүсэлтгүй).
+  useEffect(() => {
+    if (!open || question.unread !== true) return;
+    adminApi.products.questions
+      .detail(question.id)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['admin', 'lessons-questions'] });
+      })
+      .catch(() => {});
+  }, [open, question.id, question.unread, queryClient]);
+
   const previewUrl = useMemo(
     () => (file && isImage(file.type, file.name) ? URL.createObjectURL(file) : null),
     [file],
@@ -491,6 +503,7 @@ function QuestionRow({ question }: { question: AdminLessonQuestion }) {
   const [open, setOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const answered = isAnswered(question);
+  const unread = question.unread === true; // admin уншаагүй (шинэ)
   const hasAttachment = !!question.attachment?.url;
 
   const invalidate = () =>
@@ -520,6 +533,8 @@ function QuestionRow({ question }: { question: AdminLessonQuestion }) {
         className={cn(
           'group flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-primary/40 hover:bg-muted/40',
           question.isPinned && 'ring-1 ring-secondary/40',
+          // Уншаагүй (шинэ) бол онцлох — зүүн талд улаан зураас + бага зэрэг өнгөтэй.
+          unread && 'border-l-4 border-l-red-500 bg-red-50/40 dark:bg-red-950/10',
         )}
         onClick={() => setOpen(true)}
       >
@@ -574,6 +589,16 @@ function QuestionRow({ question }: { question: AdminLessonQuestion }) {
 
         {/* Status + actions */}
         <div className="flex shrink-0 flex-col items-end gap-2">
+          {/* Уншаагүй (шинэ) — анхаарал татах badge (анивчина). */}
+          {unread && (
+            <Badge className="h-5 gap-0.5 bg-red-500 px-1.5 py-0 text-[11px] text-white hover:bg-red-500">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+              </span>
+              Шинэ
+            </Badge>
+          )}
           {answered ? (
             <Badge variant="success" className="h-5 gap-0.5 px-1.5 py-0 text-[11px]">
               <CheckCircle2 className="h-3 w-3" />Хариулсан

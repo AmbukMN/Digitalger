@@ -1323,6 +1323,14 @@ export class CoursesService {
       include: { user: { select: { id: true, name: true, image: true } } },
     });
 
+    // ⚠️ Хэрэглэгчийн (isInstructor=false) шинэ хариулт ирэхэд admin-д уншаагүй болгоно.
+    // Admin/багшийн өөрийн хариулт adminUnread-д нөлөөлөхгүй (тэр аль хэдийн харсан).
+    if (!isInstructor) {
+      await this.prisma.lessonQuestion
+        .update({ where: { id: questionId }, data: { adminUnread: true } })
+        .catch(() => null);
+    }
+
     return {
       id: created.id,
       answer: created.answer,

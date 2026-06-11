@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CornerDownRight,
@@ -441,6 +442,7 @@ export function LessonQA({
   lessonId: string;
   token?: string;
 }) {
+  const queryClient = useQueryClient();
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -512,19 +514,23 @@ export function LessonQA({
       setText('');
       setFile(null);
       setProgress(0);
+      // Таб badge (хариулаагүй тоо) real-time шинэчилнэ.
+      queryClient.invalidateQueries({ queryKey: ['lesson-qa', productSlug, lessonId] });
       toast.success('Асуулт илгээгдлээ');
     } catch {
       toast.error(file ? 'Хавсралт/асуулт илгээж чадсангүй' : 'Асуулт илгээж чадсангүй');
     } finally {
       setAsking(false);
     }
-  }, [text, file, token, asking, productSlug, lessonId]);
+  }, [text, file, token, asking, productSlug, lessonId, queryClient]);
 
   const handleAnswered = useCallback((questionId: string, answer: LessonAnswer) => {
     setQuestions((prev) =>
       prev.map((q) => (q.id === questionId ? { ...q, answers: [...q.answers, answer] } : q)),
     );
-  }, []);
+    // Хариулсан → таб badge (хариулаагүй тоо) real-time шинэчилнэ.
+    queryClient.invalidateQueries({ queryKey: ['lesson-qa', productSlug, lessonId] });
+  }, [queryClient, productSlug, lessonId]);
 
   return (
     <div className="space-y-4">

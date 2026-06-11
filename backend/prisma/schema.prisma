@@ -325,6 +325,10 @@ model LessonQuestion {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   question  String           @db.Text
   isPinned  Boolean          @default(false)
+  // ⚠️ Admin уншаагүй мэдэгдэл: хэрэглэгч асуулт асуух / хэрэглэгчийн (isInstructor=false)
+  // шинэ хариулт ирэхэд true. Admin тухайн асуултыг НЭЭЖ харахад false болгоно.
+  // Sidebar + жагсаалтын "шинэ/уншаагүй" badge энэ талбараас тоологдоно.
+  adminUnread Boolean        @default(true)
   // Хавсралт (image/file) — R2 key, нийтэд presigned URL-аар үзүүлнэ.
   attachmentKey      String?
   attachmentName     String?
@@ -334,6 +338,7 @@ model LessonQuestion {
   answers   LessonAnswer[]
 
   @@index([lessonId, createdAt])
+  @@index([adminUnread])
 }
 
 model LessonAnswer {

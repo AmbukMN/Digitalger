@@ -596,6 +596,8 @@ export interface AdminLessonQuestion {
   // Backend жагсаалт буцаах туслах талбарууд
   answered?: boolean;
   answerCount?: number;
+  // Admin уншаагүй (хэрэглэгчээс шинэ асуулт/хариулт) — badge онцлоход.
+  unread?: boolean;
   user?: { id: string; name: string | null; email?: string | null; image?: string | null } | null;
   answers: AdminLessonAnswer[];
   // Аль хичээл / бүтээгдэхүүний асуулт болохыг танихад
@@ -608,6 +610,8 @@ export interface AdminLessonQuestion {
 export interface AdminLessonQuestionsList {
   items: AdminLessonQuestion[];
   total: number;
+  // Admin уншаагүй нийт асуултын тоо (sidebar/жагсаалт badge-д).
+  unreadTotal?: number;
   page: number;
   pageSize: number;
 }

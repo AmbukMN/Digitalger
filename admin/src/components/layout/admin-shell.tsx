@@ -180,16 +180,17 @@ function NavSections({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
-  // ── Хариулаагүй суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
-  // 30 сек тутам шинэчилнэ → шинэ асуулт ирэхэд admin-д badge гарна.
-  const { data: unanswered } = useQuery({
-    queryKey: ['admin', 'lessons-questions', 'unanswered-count'],
-    queryFn: () => adminApi.products.questions.list({ onlyUnanswered: true, pageSize: 1 }),
+  // ── УНШААГҮЙ суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
+  // unreadTotal = admin хараагүй (хэрэглэгчээс шинэ асуулт/хариулт). 30 сек poll →
+  // шинэ асуулт ирэхэд admin-д улаан badge гарна, нээж харахад цэвэрлэгдэнэ.
+  const { data: qStats } = useQuery({
+    queryKey: ['admin', 'lessons-questions', 'unread-count'],
+    queryFn: () => adminApi.products.questions.list({ pageSize: 1 }),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     staleTime: 10_000,
   });
-  const unansweredCount = unanswered?.total ?? 0;
+  const unansweredCount = qStats?.unreadTotal ?? 0;
 
   return (
     <nav className="flex-1 overflow-y-auto p-2">

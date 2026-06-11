@@ -296,6 +296,9 @@ export const adminApi = {
               : { answer },
           ),
         }),
+      // Асуултын дэлгэрэнгүй — нээж харахад backend adminUnread=false болгоно (badge цэвэрлэнэ).
+      detail: (questionId: string) =>
+        adminFetch<AdminLessonQuestion>(`/admin/lessons/questions/${questionId}`),
       pin: (questionId: string, isPinned: boolean) =>
         adminFetch<void>(`/admin/lessons/questions/${questionId}/pin`, {
           method: 'PATCH',

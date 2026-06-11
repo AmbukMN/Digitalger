@@ -400,13 +400,14 @@ export function ChatWidget() {
             </motion.span>
           )}
         </AnimatePresence>
-        {/* ⚠️ Анхаарал татах цэг — button-ийн БУЛАН ДЭЭР (гадна). Button-ийн overflow-hidden-ийг
-            арилгаж, Lottie/icon-ийг доорх .overflow-hidden span-д орооно (тойрог хэлбэр хадгална),
-            тэгснээр энэ badge таслагдахгүй гадна гарна (-top-1 -right-1). */}
+        {/* ⚠️ Анхаарал татах цэг — тойргийн ИРМЭГ дээр (45° баруун дээд). Тойрог 64px,
+            radius 32px тул 45°-ийн ирмэгийн цэг ≈ төвөөс (22.6, 22.6). Badge-ийг тэр
+            цэг дээр төвлүүлэхийн тулд top/right ≈ 6px (top-1.5 right-1.5). Button-ийн
+            overflow-hidden-ийг доорх inner span хариуцдаг тул badge таслагдахгүй. */}
         {!open && (
-          <span className="absolute -right-1 -top-1 z-10 flex h-3.5 w-3.5">
+          <span className="absolute right-1.5 top-1.5 z-10 flex h-3.5 w-3.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
-            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary ring-2 ring-background" />
+            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary ring-2 ring-primary" />
           </span>
         )}
       </motion.button>

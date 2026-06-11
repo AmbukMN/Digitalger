@@ -448,53 +448,65 @@ export class AnalyticsService {
           where: { openedAt: { gte: since } },
           _count: { id: true },
         }),
-        // 3) Илгээсэн (sent) — EmailLog-оос campaign бүрийн нийт илгээлт
+        // 3) Илгээсэн (sent) — EmailLog-оос БҮХ илгээлт (transactional ч багтана).
+        // campaign=null (OTP/cancel/contact/certificate г.м) → 'transactional' бүлэг.
         this.prisma.emailLog.groupBy({
           by: ['campaign'],
-          where: { campaign: { not: null }, createdAt: { gte: since } },
+          where: { createdAt: { gte: since } },
           _count: { id: true },
         }),
         // 4) Хүргэгдсэн (delivered)
         this.prisma.emailLog.groupBy({
           by: ['campaign'],
-          where: { campaign: { not: null }, deliveredAt: { gte: since } },
+          where: { deliveredAt: { gte: since } },
           _count: { id: true },
         }),
         // 5) Буцсан (bounced)
         this.prisma.emailLog.groupBy({
           by: ['campaign'],
-          where: { campaign: { not: null }, bouncedAt: { gte: since } },
+          where: { bouncedAt: { gte: since } },
           _count: { id: true },
         }),
         // 6) Unique хүлээн авагч — (campaign+to) distinct. Open rate-ийн ХУВААРЬ.
         // ⚠️ Нэг хаяг руу 2 имэйл явсан ч 1 хүн = 1 хүлээн авагч (open rate зөв болно).
         this.prisma.emailLog.groupBy({
           by: ['campaign', 'to'],
-          where: { campaign: { not: null }, createdAt: { gte: since } },
+          where: { createdAt: { gte: since } },
           _count: { id: true },
         }),
       ]);
+
+    // campaign=null → 'transactional' key (бүлэглэхэд). Нээлт байхгүй тул open rate 0.
+    const TRANSACTIONAL = 'transactional';
+    const campKey = (c: string | null): string => c ?? TRANSACTIONAL;
 
     const openMap = new Map(opensGrouped.map((o) => [o.campaign, o._count.id]));
     const uniqueMap = new Map<string, number>();
     for (const u of uniqueGrouped) {
       uniqueMap.set(u.campaign, (uniqueMap.get(u.campaign) ?? 0) + 1);
     }
-    const sentMap = new Map(
-      sentGrouped.map((s) => [s.campaign as string, s._count.id]),
-    );
+    // sent/delivered/bounced — campaign=null-ийг 'transactional' key-д нэгтгэнэ.
+    const sentMap = new Map<string, number>();
+    for (const s of sentGrouped) {
+      const k = campKey(s.campaign);
+      sentMap.set(k, (sentMap.get(k) ?? 0) + s._count.id);
+    }
     // Unique хүлээн авагчийн тоо (campaign бүрд) — open rate-ийн хуваарь
     const recipientMap = new Map<string, number>();
     for (const r of recipientGrouped) {
-      const k = r.campaign as string;
+      const k = campKey(r.campaign);
       recipientMap.set(k, (recipientMap.get(k) ?? 0) + 1);
     }
-    const deliveredMap = new Map(
-      deliveredGrouped.map((s) => [s.campaign as string, s._count.id]),
-    );
-    const bouncedMap = new Map(
-      bouncedGrouped.map((s) => [s.campaign as string, s._count.id]),
-    );
+    const deliveredMap = new Map<string, number>();
+    for (const s of deliveredGrouped) {
+      const k = campKey(s.campaign);
+      deliveredMap.set(k, (deliveredMap.get(k) ?? 0) + s._count.id);
+    }
+    const bouncedMap = new Map<string, number>();
+    for (const s of bouncedGrouped) {
+      const k = campKey(s.campaign);
+      bouncedMap.set(k, (bouncedMap.get(k) ?? 0) + s._count.id);
+    }
 
     // redis нийт тоолуур (best-effort, fail-open)
     const redisTotals = await Promise.all(
@@ -559,23 +571,31 @@ export class AnalyticsService {
     const totalOpensPeriod = campaigns.reduce((s, c) => s + c.openedPeriod, 0);
     const totalUnique = campaigns.reduce((s, c) => s + c.uniqueOpens, 0);
     // ⚠️ Нийт open rate = нээсэн ХҮН / хүлээн авсан ХҮН (хаягийн түвшинд, дээд 100%)
-    const denom = totalRecipients || totalSent || 0;
+    // ⚠️ Open rate-ийг ЗӨВХӨН marketing (pixel-тэй)-аар тооцно. Transactional
+    // (OTP/cancel/contact/certificate) нь pixel-гүй тул нээлт 0 — хуваарьт оруулбал
+    // нийт open rate хиймэл буурна. Тиймээс transactional-ийн recipient-ийг хасна.
+    const txRecipients = campaigns
+      .filter((c) => c.key === 'transactional')
+      .reduce((s, c) => s + c.recipients, 0);
+    const marketingRecipients = Math.max(0, totalRecipients - txRecipients);
+    const denom = marketingRecipients || 0;
     const overallOpenRate =
       denom > 0 ? Math.min(100, Math.round((totalUnique / denom) * 1000) / 10) : 0;
 
     return {
       campaigns,
-      totalSent,
+      totalSent, // БҮХ илгээсэн (marketing + transactional)
       totalDelivered,
       totalRecipients,
       totalOpensPeriod,
       totalUnique,
-      overallOpenRate,
+      overallOpenRate, // зөвхөн marketing-ийн нээлтийн хувь
     };
   }
 
   // Campaign key-г уншихад ойлгомжтой Монгол нэр болгох (bulk-167... → "Бөөн илгээлт").
   private prettyCampaign(key: string): string {
+    if (key === 'transactional') return 'Гүйлгээний имэйл (OTP/баталгаа)';
     if (key.startsWith('bulk-') || key.startsWith('broadcast-')) {
       return 'Бөөн имэйл (Marketing)';
     }
