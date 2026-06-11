@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -140,6 +141,35 @@ export class StorageService {
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
+  }
+
+  /**
+   * R2 bucket дахь БҮХ object-ийг (key + LastModified) жагсаана (pagination-тай).
+   * Orphan cleanup-д ашиглана. prefix өгвөл зөвхөн тэр хавтаснаас.
+   * ⚠️ Том bucket-д хэдэн арван мянган key байж болно — cron дотор л дуудна.
+   */
+  async listAllKeys(
+    prefix?: string,
+  ): Promise<{ key: string; lastModified?: Date; size?: number }[]> {
+    if (!this.client) return [];
+    const out: { key: string; lastModified?: Date; size?: number }[] = [];
+    let token: string | undefined = undefined;
+    do {
+      const res: import('@aws-sdk/client-s3').ListObjectsV2CommandOutput =
+        await this.client.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket,
+            Prefix: prefix,
+            ContinuationToken: token,
+            MaxKeys: 1000,
+          }),
+        );
+      for (const o of res.Contents ?? []) {
+        if (o.Key) out.push({ key: o.Key, lastModified: o.LastModified, size: o.Size });
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return out;
   }
 
   // Variant-уудыг зэрэг R2-д хуулна

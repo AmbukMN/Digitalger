@@ -1066,3 +1066,18 @@ model TransferState {
 
   @@index([expiresAt])
 }
+
+// R2 orphan файлын "хогийн сав" — R2-д байгаа ч DB-д холбоогүй файлыг шууд устгахгүй,
+// эхэлж энд бүртгэж (firstSeenAt) GRACE хугацаа (3 хоног) хүлээнэ. Тэр хугацаанд DB-д
+// дахин холбогдвол энэ бүртгэлээс хасна (хамгаалагдана). 3 хоног orphan хэвээр байвал
+// л R2-аас бодитоор устгана. (2 шатлалт soft→hard delete — санамсаргүй устгахаас сэргийлэх.)
+model OrphanCandidate {
+  id          String   @id @default(cuid())
+  key         String   @unique // R2 object key
+  size        Int? // байт (лог/статистикт)
+  firstSeenAt DateTime @default(now()) // эхэлж orphan гэж илрүүлсэн огноо (grace эхлэл)
+  lastSeenAt  DateTime @default(now()) // сүүлд orphan хэвээр байсныг баталгаажуулсан
+  createdAt   DateTime @default(now())
+
+  @@index([firstSeenAt])
+}
