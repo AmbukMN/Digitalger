@@ -873,12 +873,12 @@ export class UsersService {
 
   /** Бүх admin (EDITOR/ADMIN/SUPERADMIN) жагсаалт. End-user (USER) хасна. */
   async listStaff() {
-    const items = await this.prisma.user.findMany({
+    // ⚠️ Array шууд буцаана (frontend AdminStaff[] хүлээдэг — { items } биш).
+    return this.prisma.user.findMany({
       where: { role: { in: ['EDITOR', 'ADMIN', 'SUPERADMIN'] } },
       orderBy: [{ role: 'desc' }, { createdAt: 'desc' }],
       select: this.STAFF_SELECT,
     });
-    return { items };
   }
 
   /** Шинэ admin (EDITOR|ADMIN) үүсгэх. Email давхцал шалгана. password байвал
