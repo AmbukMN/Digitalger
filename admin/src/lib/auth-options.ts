@@ -85,7 +85,9 @@ export const authOptions: NextAuthOptions = {
           refreshToken: string;
         };
 
-        if (data.user.role !== 'ADMIN') return null;
+        // Admin panel-д нэвтрэх боломжтой бүх дүр (multi-tenant Phase 4).
+        const ADMIN_ROLES = ['EDITOR', 'ADMIN', 'SUPERADMIN'];
+        if (!ADMIN_ROLES.includes(data.user.role)) return null;
 
         return {
           id: data.user.id,

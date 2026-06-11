@@ -46,6 +46,8 @@ interface NavItem {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
+  /** Зөвхөн SUPERADMIN-д харагдах цэс (site-level / тохиргоо / staff). */
+  superadminOnly?: boolean;
 }
 
 interface NavSection {
@@ -72,15 +74,18 @@ const navSections: readonly NavSection[] = [
       { href: '/categories', label: 'Ангилал', icon: FolderTree },
       { href: '/orders', label: 'Захиалга', icon: ShoppingCart },
       { href: '/payments', label: 'Төлбөр', icon: CreditCard },
-      { href: '/downloads', label: 'Таталт', icon: Download },
+      // Таталт нь site-level — зөвхөн SUPERADMIN.
+      { href: '/downloads', label: 'Таталт', icon: Download, superadminOnly: true },
       { href: '/coupons', label: 'Купон', icon: Tag },
     ],
   },
   {
     title: 'Хэрэглэгч',
     items: [
-      { href: '/users', label: 'Хэрэглэгч', icon: Users },
-      { href: '/subscribers', label: 'Subscriber', icon: Mail },
+      // Staff management — зөвхөн SUPERADMIN.
+      { href: '/users', label: 'Хэрэглэгч', icon: Users, superadminOnly: true },
+      // Site-level marketing subscriber жагсаалт — зөвхөн SUPERADMIN.
+      { href: '/subscribers', label: 'Subscriber', icon: Mail, superadminOnly: true },
       { href: '/reviews', label: 'Review', icon: Star },
       { href: '/testimonials', label: 'Testimonial', icon: MessageSquare },
       { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
@@ -99,9 +104,10 @@ const navSections: readonly NavSection[] = [
   {
     title: 'Тохиргоо',
     items: [
-      { href: '/settings', label: 'Тохиргоо', icon: Settings },
-      { href: '/seo', label: 'SEO', icon: Globe },
-      { href: '/queue', label: 'Дараалал', icon: Activity },
+      // Site-level тохиргоо / SEO / queue — зөвхөн SUPERADMIN.
+      { href: '/settings', label: 'Тохиргоо', icon: Settings, superadminOnly: true },
+      { href: '/seo', label: 'SEO', icon: Globe, superadminOnly: true },
+      { href: '/queue', label: 'Дараалал', icon: Activity, superadminOnly: true },
     ],
   },
 ] as const;
@@ -175,10 +181,13 @@ function NavSections({
   pathname,
   collapsed,
   onNavigate,
+  isSuperadmin,
 }: {
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void;
+  /** SUPERADMIN эсэх — superadminOnly цэсүүдийг харуулах эсэхийг шийднэ. */
+  isSuperadmin: boolean;
 }) {
   const queryClient = useQueryClient();
   // ── УНШААГҮЙ суралцагчийн асуултын тоо (sidebar badge мэдэгдэл) ──
@@ -223,9 +232,18 @@ function NavSections({
       .catch(() => {});
   };
 
+  // Role-аар цэс шүүх: superadminOnly цэсүүдийг зөвхөн SUPERADMIN-д үлдээнэ.
+  // Бүх цэс нь нуугдвал тухайн бүлгийг бүхэлд нь хасна.
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => isSuperadmin || !item.superadminOnly),
+    }))
+    .filter((section) => section.items.length > 0);
+
   return (
     <nav className="flex-1 overflow-y-auto p-2">
-      {navSections.map((section, sectionIdx) => (
+      {visibleSections.map((section, sectionIdx) => (
         <div
           key={section.title}
           className={cn(
@@ -317,6 +335,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: publicSettings } = usePublicSettings();
   const { data: profile } = useAdminProfile();
 
+  // SUPERADMIN бол site-level цэсүүд (Хэрэглэгч/Тохиргоо/SEO/Дараалал/
+  // Subscriber/Таталт) харагдана. EDITOR/ADMIN-д зөвхөн контент+scope цэс.
+  const isSuperadmin = profile?.role === 'SUPERADMIN';
+
   const siteName = publicSettings?.siteName ?? 'DigitalGer';
   const logoUrl = publicSettings?.logoUrl ?? null;
   const userName = profile?.name ?? 'Admin';
@@ -362,7 +384,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <NavSections pathname={pathname} collapsed={collapsed} />
+        <NavSections pathname={pathname} collapsed={collapsed} isSuperadmin={isSuperadmin} />
 
         <div className="border-t border-border p-2">
           <Link
@@ -439,6 +461,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 collapsed={false}
                 onNavigate={() => setMobileOpen(false)}
+                isSuperadmin={isSuperadmin}
               />
 
               <div className="border-t border-border p-2">

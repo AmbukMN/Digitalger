@@ -18,14 +18,18 @@ export async function middleware(req: NextRequest) {
     } catch {}
   }
 
+  // Admin panel-д нэвтрэх боломжтой бүх дүр (multi-tenant Phase 4).
+  const ADMIN_ROLES = ['EDITOR', 'ADMIN', 'SUPERADMIN'];
+  const isAdmin = !!payload?.role && ADMIN_ROLES.includes(payload.role);
+
   if (pathname.startsWith('/login')) {
-    if (payload?.role === 'ADMIN') {
+    if (isAdmin) {
       return NextResponse.redirect(new URL('/', req.url));
     }
     return NextResponse.next();
   }
 
-  if (!payload || payload.role !== 'ADMIN') {
+  if (!isAdmin) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 

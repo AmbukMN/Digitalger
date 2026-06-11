@@ -23,10 +23,15 @@ import {
   SelectTrigger,
   SelectValue,
   Separator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from '@digitalger/shared/ui';
-import { Ban, Download, Gift, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2 } from 'lucide-react';
+import { Ban, Download, Gift, Pencil, Search, ShoppingCart, Shield, Trash2, User, CheckCircle2, Users, UserCog } from 'lucide-react';
 import { GrantProductsDialog } from '@/components/grant-products-dialog';
 import { UserDetailDialog } from '@/components/user-detail-dialog';
+import { StaffPanel } from '@/components/staff-panel';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import type { AdminUser } from '@/types/admin';
@@ -69,7 +74,50 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+// SUPERADMIN эсэхийг тодорхойлоход профайл (role) ашиглана — admin-shell-тэй ижил
+// query key (['admin','profile']) дахин ашиглаж кэшээс шууд авна.
+function useIsSuperadmin() {
+  const { data } = useQuery({
+    queryKey: ['admin', 'profile'],
+    queryFn: () => adminApi.profile.get(),
+    staleTime: 5 * 60 * 1000,
+  });
+  // role нь UserRole ('ADMIN'|'USER') гэж typed боловч backend SUPERADMIN-ийг ч
+  // буцаадаг тул string-ээр харьцуулна (admin-shell-тэй ижил зарчим).
+  return (data?.role as string | undefined) === 'SUPERADMIN';
+}
+
 export default function UsersPage() {
+  const isSuperadmin = useIsSuperadmin();
+
+  // Энгийн ADMIN/EDITOR-т зөвхөн "Хэрэглэгч" таб харагдана (Багийн админ нуугдана).
+  if (!isSuperadmin) {
+    return <UserListTab />;
+  }
+
+  return (
+    <Tabs defaultValue="users" className="space-y-5">
+      <TabsList>
+        <TabsTrigger value="users" className="gap-1.5">
+          <Users className="h-4 w-4" />
+          Хэрэглэгч
+        </TabsTrigger>
+        <TabsTrigger value="staff" className="gap-1.5">
+          <UserCog className="h-4 w-4" />
+          Багийн админ
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="users">
+        <UserListTab />
+      </TabsContent>
+      <TabsContent value="staff">
+        <StaffPanel />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function UserListTab() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);

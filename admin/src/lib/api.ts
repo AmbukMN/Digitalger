@@ -26,6 +26,7 @@ import type {
   AdminProductTypeConfig,
   AdminProfile,
   AdminReview,
+  AdminStaff,
   AdminSubscriber,
   AdminSubscriberCategory,
   AdminTestimonial,
@@ -442,6 +443,26 @@ export const adminApi = {
       adminFetch<{ success: boolean }>(`/admin/users/${id}/granted-products/${productId}`, {
         method: 'DELETE',
       }),
+  },
+
+  // ─── Багийн админ (Staff management) — зөвхөн SUPERADMIN ──────────────────
+  // EDITOR/ADMIN дүртэй админ ажилтнуудыг үүсгэх/эрх солих/блоклох/устгах.
+  staff: {
+    list: () => adminFetch<AdminStaff[]>('/admin/staff'),
+    create: (body: { email: string; name?: string; role: 'EDITOR' | 'ADMIN'; password?: string }) =>
+      adminFetch<AdminStaff>('/admin/staff', { method: 'POST', body: JSON.stringify(body) }),
+    updateRole: (id: string, role: 'EDITOR' | 'ADMIN') =>
+      adminFetch<AdminStaff>(`/admin/staff/${id}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      }),
+    block: (id: string, blocked: boolean) =>
+      adminFetch<AdminStaff>(`/admin/staff/${id}/block`, {
+        method: 'PATCH',
+        body: JSON.stringify({ blocked }),
+      }),
+    remove: (id: string) =>
+      adminFetch<void>(`/admin/staff/${id}`, { method: 'DELETE' }),
   },
 
   settings: {

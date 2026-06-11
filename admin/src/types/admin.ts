@@ -236,6 +236,19 @@ export interface AdminUserFullDetail {
   chatConversion?: UserDetailChatConversion;
 }
 
+// ─── Багийн админ (Staff management) — зөвхөн SUPERADMIN ──────────────────────
+// EDITOR/ADMIN дүртэй админ ажилтан. SUPERADMIN-ийг ч жагсаалтад буцааж болох тул
+// role-ийг өргөн (string) авна; UI талд role/block/delete товчийг нуудаг.
+export interface AdminStaff {
+  id: string;
+  email: string;
+  name: string | null;
+  role: 'EDITOR' | 'ADMIN' | 'SUPERADMIN' | string;
+  blocked: boolean;
+  image: string | null;
+  createdAt: string;
+}
+
 export interface AdminCategory {
   id: string;
   name: string;
