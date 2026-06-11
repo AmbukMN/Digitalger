@@ -462,7 +462,7 @@ function MonthlyRevenuePanel({ data }: { data: { month: string; revenue: number 
           <p className="py-8 text-center text-sm text-muted-foreground">Орлогын мэдээлэл алга байна</p>
         ) : (
           <div className="h-52 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">

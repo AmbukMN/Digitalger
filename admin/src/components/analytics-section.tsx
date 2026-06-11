@@ -147,7 +147,7 @@ export function AnalyticsSection({ emailSection }: { emailSection?: React.ReactN
             <div className="lg:col-span-2 rounded-xl border border-border bg-card p-4">
               <p className="text-sm font-semibold mb-4">Өдөр тутмын зочлолт</p>
               {data.dailyViews.length > 0 ? (
-                <ResponsiveContainer width="100%" height={180}>
+                <ResponsiveContainer width="100%" minWidth={0} height={180}>
                   <AreaChart data={data.dailyViews} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="viewsGrad" x1="0" y1="0" x2="0" y2="1">
@@ -188,7 +188,7 @@ export function AnalyticsSection({ emailSection }: { emailSection?: React.ReactN
               </div>
               {data.deviceStats.length > 0 ? (
                 <>
-                  <ResponsiveContainer width="100%" height={130}>
+                  <ResponsiveContainer width="100%" minWidth={0} height={130}>
                     <PieChart>
                       <Pie data={data.deviceStats} dataKey="count" nameKey="device" cx="50%" cy="50%" outerRadius={55} strokeWidth={0}>
                         {data.deviceStats.map((_, i) => (
@@ -281,7 +281,7 @@ export function AnalyticsSection({ emailSection }: { emailSection?: React.ReactN
                 <Search className="h-4 w-4 text-muted-foreground" />Хайлтын үгс
               </p>
               {data.topSearches.length > 0 ? (
-                <ResponsiveContainer width="100%" height={160}>
+                <ResponsiveContainer width="100%" minWidth={0} height={160}>
                   <BarChart data={data.topSearches.slice(0, 6)} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
                     <XAxis type="number" tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="query" tick={{ fontSize: 10 }} width={80} />
@@ -332,7 +332,7 @@ export function AnalyticsSection({ emailSection }: { emailSection?: React.ReactN
           <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
             <p className="text-sm font-semibold mb-4">Курс дуусгалт</p>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <ResponsiveContainer width="100%" height={140}>
+              <ResponsiveContainer width="100%" minWidth={0} height={140}>
                 <PieChart>
                   <Pie
                     data={[
@@ -379,7 +379,7 @@ export function AnalyticsSection({ emailSection }: { emailSection?: React.ReactN
               </span>
             </div>
             {lessons.topDropoff.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" minWidth={0} height={220}>
                 <BarChart data={lessons.topDropoff} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
                   <XAxis
