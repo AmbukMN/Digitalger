@@ -188,6 +188,9 @@ export class AdminController {
       subscribersThisMonth,
       subscribersBySourceRaw,
       reputationStats,
+      // ── SMS (утас баталгаажуулалт) нь SITE-LEVEL → non-superadmin-д 0 ──
+      phoneVerifiedTotal,
+      phoneVerifiedThisMonth,
     ] = await Promise.all([
       // user.count нь SITE-LEVEL (бүх хэрэглэгч) — non-superadmin-д хамааралгүй → 0
       sa ? this.prisma.user.count() : Promise.resolve(0),
@@ -300,6 +303,15 @@ export class AdminController {
         : Promise.resolve([] as { source: string | null; _count: { _all: number } }[]),
       // SES reputation (bounce/complaint rate) нь SITE-LEVEL → non-superadmin-д хоосон
       sa ? this.reputation.getReputationStats() : Promise.resolve(null),
+      // ── SMS утас баталгаажуулалт (verify.mn) нь SITE-LEVEL → non-superadmin-д 0 ──
+      // verifiedTotal: User.phoneVerified тэмдэглэгдсэн нийт хэрэглэгч
+      sa
+        ? this.prisma.user.count({ where: { phoneVerified: { not: null } } })
+        : Promise.resolve(0),
+      // verifiedThisMonth: энэ сард баталгаажсан
+      sa
+        ? this.prisma.user.count({ where: { phoneVerified: { gte: startOfMonth } } })
+        : Promise.resolve(0),
     ]);
 
     // Subscriber тоонуудыг задлах (Promise.all-ийн сүүлийн 3 утга)
@@ -375,6 +387,11 @@ export class AdminController {
         revenueThisMonth,
         subscribersTotal,
         subscribersThisMonth,
+        // SMS утас баталгаажуулалт (SITE-LEVEL, non-superadmin-д 0)
+        smsStats: {
+          verifiedTotal: phoneVerifiedTotal,
+          verifiedThisMonth: phoneVerifiedThisMonth,
+        },
       },
       subscribersBySource: subBySource,
       trends,

@@ -30,6 +30,7 @@ import {
   LogIn,
   Mail,
   MessageCircle,
+  MessageSquare,
   MessagesSquare,
   MonitorSmartphone,
   MousePointerClick,
@@ -126,6 +127,13 @@ const EMAIL_STATUS: Record<string, { label: string; variant: 'success' | 'warnin
   complained: { label: 'Гомдол', variant: 'destructive' },
   failed: { label: 'Амжилтгүй', variant: 'destructive' },
   queued: { label: 'Дараалалд', variant: 'secondary' },
+};
+
+// Утас баталгаажуулалтын status → Badge өнгө + Монгол нэр (verify.mn).
+const SMS_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'info' }> = {
+  verified: { label: 'Баталгаажсан', variant: 'success' },
+  pending: { label: 'Хүлээж байна', variant: 'info' },
+  expired: { label: 'Хугацаа дууссан', variant: 'secondary' },
 };
 
 function DeviceIcon({ device }: { device: string }) {
@@ -321,10 +329,11 @@ export function UserDetailDialog({ user, onClose }: Props) {
   const interests = data?.interests;
   const conversion = data?.chatConversion;
   const emails = data?.emailHistory ?? [];
+  const sms = data?.smsHistory ?? [];
 
   return (
     <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex h-[88vh] max-h-[88vh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[88vh] max-h-[88vh] w-[95vw] max-w-5xl flex-col gap-0 overflow-hidden p-0">
         {/* ─── Толгой: хэрэглэгчийн профайл ─── */}
         <div className="relative shrink-0 border-b border-border bg-gradient-to-br from-primary/8 via-card to-card px-6 py-5">
           <button
@@ -364,6 +373,15 @@ export function UserDetailDialog({ user, onClose }: Props) {
                   <span className="flex items-center gap-1.5">
                     <Phone className="h-3.5 w-3.5 shrink-0" />
                     {u?.phone ?? user?.phone}
+                    {u?.phoneVerified
+                      ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      : <span className="text-[10px] text-amber-600 dark:text-amber-400">(баталгаажаагүй)</span>}
+                  </span>
+                )}
+                {u?.pendingPhone && (
+                  <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <Clock className="h-3.5 w-3.5 shrink-0" />
+                    Утас солих хүсэлт: {u.pendingPhone}
                   </span>
                 )}
                 {u?.pendingEmail && (
@@ -408,6 +426,9 @@ export function UserDetailDialog({ user, onClose }: Props) {
                 </TabsTrigger>
                 <TabsTrigger value="email" className="data-[state=active]:bg-primary/10">
                   <Mail className="mr-1 h-3.5 w-3.5" />Имэйл {emails.length > 0 ? `(${emails.length})` : ''}
+                </TabsTrigger>
+                <TabsTrigger value="sms" className="data-[state=active]:bg-primary/10">
+                  <MessageSquare className="mr-1 h-3.5 w-3.5" />SMS {sms.length > 0 ? `(${sms.length})` : ''}
                 </TabsTrigger>
                 <TabsTrigger value="account" className="data-[state=active]:bg-primary/10">Аккаунт түүх</TabsTrigger>
               </TabsList>
@@ -790,6 +811,49 @@ export function UserDetailDialog({ user, onClose }: Props) {
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {fmtDateTime(em.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ─── SMS / УТАС БАТАЛГААЖУУЛАЛТ (verify.mn) ─── */}
+            <TabsContent value="sms" className="m-0 flex-1 overflow-y-auto p-5">
+              {sms.length === 0 ? (
+                <Empty icon={MessageSquare} text="Утас баталгаажуулаагүй" />
+              ) : (
+                <div className="space-y-2">
+                  {sms.map((sm) => {
+                    const st = SMS_STATUS[sm.status] ?? { label: sm.status, variant: 'secondary' as const };
+                    return (
+                      <div key={sm.id} className="rounded-xl border border-border bg-card p-3.5 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold leading-snug">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            {sm.phone}
+                          </p>
+                          <Badge variant={st.variant} className="shrink-0">{st.label}</Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {/* Баталгаажсан огноо */}
+                          {sm.verifiedAt ? (
+                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Баталгаажсан: {fmtDateTime(sm.verifiedAt)}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <X className="h-3.5 w-3.5" />
+                              Баталгаажаагүй
+                            </span>
+                          )}
+                          {/* Эхэлсэн огноо */}
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Эхэлсэн: {fmtDateTime(sm.createdAt)}
                           </span>
                         </div>
                       </div>

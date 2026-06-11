@@ -278,13 +278,15 @@ export class UsersService {
         oauthProvider: true,
         emailVerified: true,
         pendingEmail: true,
+        phoneVerified: true,
+        pendingPhone: true,
         createdAt: true,
         updatedAt: true,
       },
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw, emailLogsRaw, emailOpensRaw] = await Promise.all([
+    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw, emailLogsRaw, emailOpensRaw, smsSessionsRaw] = await Promise.all([
       // Захиалга бүгд (статусаар) + items + product
       this.prisma.order.findMany({
         where: { userId: id },
@@ -407,7 +409,32 @@ export class UsersService {
         where: { email: { equals: user.email, mode: 'insensitive' } },
         select: { campaign: true, openedAt: true },
       }),
+      // Утас баталгаажуулалтын түүх (verify.mn) — PhoneVerifySession.
+      // status: pending | verified | expired. Сүүлийн 50 оролдлого.
+      this.prisma.phoneVerifySession.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          phone: true,
+          status: true,
+          createdAt: true,
+          verifiedAt: true,
+          expiresAt: true,
+        },
+      }),
     ]);
+
+    // ─── SMS / утас баталгаажуулалтын түүх (verify.mn) ──────────────────────
+    const smsHistory = smsSessionsRaw.map((s) => ({
+      id: s.id,
+      phone: s.phone,
+      status: s.status,
+      createdAt: s.createdAt,
+      verifiedAt: s.verifiedAt,
+      expiresAt: s.expiresAt,
+    }));
 
     // ─── Имэйл түүх (EmailLog + EmailOpen) ──────────────────────────────────
     // Нээлтийг campaign-аар тааруулна: тухайн campaign-д ямар нэг EmailOpen
@@ -654,6 +681,7 @@ export class UsersService {
       auditLogs,
       chatConversations,
       emailHistory,
+      smsHistory,
       ltv,
       interest,
       chatConversion,

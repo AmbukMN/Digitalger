@@ -26,6 +26,7 @@ import {
   MailOpen,
   Eye,
   Send,
+  Smartphone,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -599,8 +600,8 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* This month mini stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* This month mini stats — superadmin бол SMS карттай 4 багана, бусдад 3 багана */}
+      <div className={`grid gap-4 ${isSuperadmin ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
         <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
           <div className="rounded-lg bg-amber-100 dark:bg-amber-900/40 p-2 shrink-0">
             <ShoppingCart className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -635,6 +636,27 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">48ц+ хүлээгдэж буй захиалга</p>
           </div>
         </Link>
+        {/* SMS — утас баталгаажуулалт (SITE-LEVEL: зөвхөн superadmin) */}
+        {isSuperadmin && (
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+            <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/40 p-2 shrink-0">
+              <Smartphone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xl font-bold tabular-nums">
+                {(stats.smsStats?.verifiedTotal ?? 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Баталгаажсан утас
+                {(stats.smsStats?.verifiedThisMonth ?? 0) > 0 && (
+                  <span className="ml-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                    Энэ сар +{(stats.smsStats?.verifiedThisMonth ?? 0).toLocaleString()}
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}

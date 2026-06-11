@@ -79,6 +79,8 @@ export interface DashboardStats {
     revenueThisMonth: number;
     subscribersTotal: number;
     subscribersThisMonth: number;
+    // SMS утас баталгаажуулалт (SITE-LEVEL — non-superadmin-д 0)
+    smsStats?: { verifiedTotal: number; verifiedThisMonth: number };
   };
   // Өмнөх сартай харьцуулсан өсөлтийн хувь (null = өмнөх өгөгдөлгүй)
   trends: {
@@ -217,6 +219,8 @@ export interface AdminUserFullDetail {
     oauthProvider: string | null;
     emailVerified: string | null;
     pendingEmail: string | null;
+    phoneVerified?: string | null;
+    pendingPhone?: string | null;
     createdAt: string;
     updatedAt: string;
   };
@@ -249,6 +253,18 @@ export interface AdminUserFullDetail {
   chatConversion?: UserDetailChatConversion;
   // Тухайн хэрэглэгч рүү явуулсан имэйлийн түүх (EmailLog).
   emailHistory?: UserDetailEmail[];
+  // Утас баталгаажуулалтын түүх (verify.mn — PhoneVerifySession).
+  smsHistory?: UserDetailSms[];
+}
+
+// Утас баталгаажуулалтын нэг оролдлого (PhoneVerifySession).
+export interface UserDetailSms {
+  id: string;
+  phone: string;
+  status: string; // pending | verified | expired
+  createdAt: string;
+  verifiedAt: string | null;
+  expiresAt: string;
 }
 
 // Хэрэглэгч рүү явуулсан имэйл (EmailLog + EmailOpen-аар нээлт тааруулсан).
