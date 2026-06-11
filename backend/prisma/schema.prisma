@@ -91,6 +91,25 @@ model User {
   ownedBanners      Banner[]            @relation("ContentOwner")
   ownedPages        Page[]              @relation("ContentOwner")
   ownedCoupons      Coupon[]            @relation("ContentOwner")
+  permissions       AdminPermission[]
+}
+
+// Granular permission — admin (ADMIN role) бүрд resource тус бүрээр эрх (Notion/Linear).
+// ⚠️ SUPERADMIN-д энэ хүснэгт ХАМААРАХГҮЙ (бүх эрх автомат). ADMIN-д resource бүрд
+// canView/Create/Edit/Delete. Бичлэг байхгүй resource = тэр resource-д хандах эрхгүй.
+// Ownership хэвээр (өөрийн л дата) — permission нь "ямар resource-д хүрэх" хязгаар.
+model AdminPermission {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource  String // products|categories|product-types|blog|banners|testimonials|faqs|coupons|pages|menu|orders|reviews
+  canView   Boolean @default(true)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  @@unique([userId, resource])
+  @@index([userId])
 }
 
 // Admin sidebar "шинэ/уншаагүй" badge — admin хэсэг бүрийг сүүлд харсан огноо.

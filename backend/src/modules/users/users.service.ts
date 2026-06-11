@@ -4,6 +4,21 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
 import { computeOrderExpiresAt } from '../../common/access-expiry';
+import type { Resource } from '../../common/permission';
+
+// Granular permission олгох боломжтой resource-ууд (permission.ts Resource-тэй ижил).
+const ALLOWED_RESOURCES: readonly Resource[] = [
+  'products', 'categories', 'product-types', 'blog', 'banners',
+  'testimonials', 'faqs', 'coupons', 'pages', 'menu', 'orders', 'reviews',
+] as const;
+
+type StaffPermissionInput = {
+  resource: string;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+};
 
 const BCRYPT_ROUNDS = 12;
 
@@ -881,15 +896,22 @@ export class UsersService {
     });
   }
 
-  /** Шинэ admin (EDITOR|ADMIN) үүсгэх. Email давхцал шалгана. password байвал
-   * bcrypt hash, эс бол null (нууц үггүй — дараа нь админ тохируулна). */
+  /** Шинэ admin (зөвхөн ADMIN) үүсгэх. Email давхцал шалгана. password байвал
+   * bcrypt hash, эс бол null (нууц үггүй — дараа нь админ тохируулна).
+   * permissions өгсөн бол resource бүрд granular эрх хадгална (default: хоосон). */
   async createStaff(
-    dto: { email: string; name?: string; role: 'EDITOR' | 'ADMIN'; password?: string },
+    dto: {
+      email: string;
+      name?: string;
+      role: 'ADMIN';
+      password?: string;
+      permissions?: StaffPermissionInput[];
+    },
     adminId: string,
   ) {
-    // ⚠️ SUPERADMIN үүсгэхгүй (нэг л superadmin).
-    if (dto.role !== 'EDITOR' && dto.role !== 'ADMIN') {
-      throw new BadRequestException('Эрх нь зөвхөн EDITOR эсвэл ADMIN байна');
+    // ⚠️ Зөвхөн ADMIN үүсгэнэ (SUPERADMIN/EDITOR хийхгүй).
+    if (dto.role !== 'ADMIN') {
+      throw new BadRequestException('Эрх нь зөвхөн ADMIN байна');
     }
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
@@ -904,6 +926,9 @@ export class UsersService {
         ? await bcrypt.hash(dto.password, BCRYPT_ROUNDS)
         : null;
 
+    // Permission-уудыг урьдчилж шүүж/баталгаажуулна (мэдэгдэхгүй resource хасна).
+    const permRows = this.sanitizePermissions(dto.permissions);
+
     const created = await this.prisma.user.create({
       data: {
         email,
@@ -913,6 +938,21 @@ export class UsersService {
         // Админаар үүсгэсэн тул имэйл баталгаажсан гэж үзнэ (зочин биш).
         emailVerified: new Date(),
         isGuest: false,
+        ...(permRows.length
+          ? {
+              permissions: {
+                createMany: {
+                  data: permRows.map((p) => ({
+                    resource: p.resource,
+                    canView: p.canView,
+                    canCreate: p.canCreate,
+                    canEdit: p.canEdit,
+                    canDelete: p.canDelete,
+                  })),
+                },
+              },
+            }
+          : {}),
       },
       select: this.STAFF_SELECT,
     });
@@ -921,6 +961,101 @@ export class UsersService {
       { userId: created.id, field: 'role', oldValue: null, newValue: dto.role, actor: 'admin', actorId: adminId },
     ]);
     return created;
+  }
+
+  /** Permission жагсаалтыг шүүнэ: зөвхөн зөвшөөрөгдсөн resource, нэг resource нэг
+   * мөр (давхардлыг сүүлчийнхээр дарна). Үл мэдэгдэх resource-ийг алгасна. */
+  private sanitizePermissions(
+    permissions: StaffPermissionInput[] | undefined,
+  ): StaffPermissionInput[] {
+    if (!Array.isArray(permissions) || !permissions.length) return [];
+    const allowed = new Set<string>(ALLOWED_RESOURCES);
+    const map = new Map<string, StaffPermissionInput>();
+    for (const p of permissions) {
+      if (!p || !allowed.has(p.resource)) continue;
+      map.set(p.resource, {
+        resource: p.resource,
+        canView: !!p.canView,
+        canCreate: !!p.canCreate,
+        canEdit: !!p.canEdit,
+        canDelete: !!p.canDelete,
+      });
+    }
+    return [...map.values()];
+  }
+
+  /** Нэг admin-ийн БҮХ resource permission (frontend permission засах форм-д).
+   * Resource бүрд бичлэг (байхгүй бол бүгд false) буцаана. SUPERADMIN бол бүрэн эрх. */
+  async getStaffPermissions(id: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+    if (!target) throw new NotFoundException('Админ олдсонгүй');
+    if (target.role === 'SUPERADMIN') {
+      return ALLOWED_RESOURCES.map((resource) => ({
+        resource, canView: true, canCreate: true, canEdit: true, canDelete: true,
+      }));
+    }
+    const rows = await this.prisma.adminPermission.findMany({
+      where: { userId: id },
+      select: { resource: true, canView: true, canCreate: true, canEdit: true, canDelete: true },
+    });
+    const map = new Map(rows.map((r) => [r.resource, r]));
+    return ALLOWED_RESOURCES.map((resource) => {
+      const p = map.get(resource);
+      return {
+        resource,
+        canView: !!p?.canView,
+        canCreate: !!p?.canCreate,
+        canEdit: !!p?.canEdit,
+        canDelete: !!p?.canDelete,
+      };
+    });
+  }
+
+  /** Admin-ийн resource permission-уудыг шинэчлэх (upsert). SUPERADMIN target бол
+   * хориглоно (бүрэн эрхтэй, permission table-гүй). */
+  async updateStaffPermissions(id: string, permissions: StaffPermissionInput[], adminId: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+    if (!target) throw new NotFoundException('Админ олдсонгүй');
+    if (target.role === 'SUPERADMIN') {
+      throw new ForbiddenException('SUPERADMIN-ийн эрхийг өөрчлөх боломжгүй');
+    }
+    if (target.role === 'USER') {
+      throw new BadRequestException('Энэ хэрэглэгч admin биш байна');
+    }
+
+    const permRows = this.sanitizePermissions(permissions);
+    await this.prisma.$transaction(
+      permRows.map((p) =>
+        this.prisma.adminPermission.upsert({
+          where: { userId_resource: { userId: id, resource: p.resource } },
+          create: {
+            userId: id,
+            resource: p.resource,
+            canView: p.canView,
+            canCreate: p.canCreate,
+            canEdit: p.canEdit,
+            canDelete: p.canDelete,
+          },
+          update: {
+            canView: p.canView,
+            canCreate: p.canCreate,
+            canEdit: p.canEdit,
+            canDelete: p.canDelete,
+          },
+        }),
+      ),
+    );
+
+    await this.writeAudit([
+      { userId: id, field: 'permissions', oldValue: null, newValue: `${permRows.length} resource`, actor: 'admin', actorId: adminId },
+    ]);
+    return this.getStaffPermissions(id);
   }
 
   /** Тухайн admin-ийг олж, staff үйлдэл хийх боломжтой эсэхийг шалгана.
@@ -937,10 +1072,11 @@ export class UsersService {
     return target;
   }
 
-  /** Admin-ийн эрх солих (зөвхөн EDITOR|ADMIN). SUPERADMIN болгож upgrade хийхгүй. */
-  async updateStaffRole(id: string, role: 'EDITOR' | 'ADMIN', adminId: string) {
-    if (role !== 'EDITOR' && role !== 'ADMIN') {
-      throw new BadRequestException('Эрх нь зөвхөн EDITOR эсвэл ADMIN байна');
+  /** Admin-ийн эрх солих (зөвхөн ADMIN). SUPERADMIN болгож upgrade хийхгүй.
+   * (EDITOR ашиглахаа больсон — бүх staff ADMIN, granular permission-аар ялгана.) */
+  async updateStaffRole(id: string, role: 'ADMIN', adminId: string) {
+    if (role !== 'ADMIN') {
+      throw new BadRequestException('Эрх нь зөвхөн ADMIN байна');
     }
     const target = await this.getStaffTarget(id, adminId, 'эрхийг өөрчлөх');
     if (target.role === 'USER') {

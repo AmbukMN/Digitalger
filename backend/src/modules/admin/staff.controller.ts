@@ -15,7 +15,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { UsersService } from '../users/users.service';
-import { CreateStaffDto, UpdateStaffRoleDto, BlockStaffDto } from './dto/staff.dto';
+import {
+  CreateStaffDto,
+  UpdateStaffRoleDto,
+  UpdateStaffPermissionsDto,
+  BlockStaffDto,
+} from './dto/staff.dto';
 
 // ─── Phase 4: STAFF MANAGEMENT ──────────────────────────────────────────────
 // ⚠️ ЗӨВХӨН SUPERADMIN хандана (@Roles(Role.SUPERADMIN) — RolesGuard-д ADMIN
@@ -42,7 +47,7 @@ export class StaffController {
     return this.users.createStaff(dto, me.sub);
   }
 
-  /** Admin-ийн эрх солих (EDITOR|ADMIN). */
+  /** Admin-ийн эрх солих (зөвхөн ADMIN). */
   @Patch(':id/role')
   updateRole(
     @Param('id') id: string,
@@ -50,6 +55,22 @@ export class StaffController {
     @CurrentUser() me: JwtPayload,
   ) {
     return this.users.updateStaffRole(id, dto.role, me.sub);
+  }
+
+  /** Тухайн admin-ийн БҮХ resource permission (засах формд). */
+  @Get(':id/permissions')
+  getPermissions(@Param('id') id: string) {
+    return this.users.getStaffPermissions(id);
+  }
+
+  /** Тухайн admin-ийн resource permission-уудыг шинэчлэх (upsert). */
+  @Patch(':id/permissions')
+  updatePermissions(
+    @Param('id') id: string,
+    @Body() dto: UpdateStaffPermissionsDto,
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.users.updateStaffPermissions(id, dto.permissions, me.sub);
   }
 
   /** Admin-ийг блоклох/нээх. */

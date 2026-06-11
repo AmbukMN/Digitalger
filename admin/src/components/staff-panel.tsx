@@ -1,12 +1,12 @@
 'use client';
 
 // ─── Багийн админ (Staff management) — зөвхөн SUPERADMIN ──────────────────────
-// EDITOR/ADMIN дүртэй админ ажилтнуудыг үүсгэх / эрх солих / блоклох / устгах.
-// Backend бүх endpoint нь зөвхөн SUPERADMIN-д нээлттэй; UI талд ч SUPERADMIN
-// мөрийг онцолж, түүн дээр role/block/delete товчийг нуудаг.
+// Бүх шинэ ажилтан ADMIN дүртэй; харин resource (products/orders/...) тус бүрд
+// View/Create/Edit/Delete эрхийг тусад нь тохируулна (granular permission).
+// SUPERADMIN мөрийг онцолж, түүн дээр block/delete/эрх засах товчийг нуудаг.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Badge,
@@ -20,18 +20,62 @@ import {
   Input,
   Label,
   Loading,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Separator,
 } from '@digitalger/shared/ui';
-import { Ban, CheckCircle2, Crown, Plus, Shield, ShieldCheck, Trash2, UserCog } from 'lucide-react';
+import { Ban, CheckCircle2, Crown, Plus, Shield, ShieldCheck, ShieldQuestion, Trash2, UserCog } from 'lucide-react';
 import { adminApi, ApiError } from '@/lib/api';
-import type { AdminStaff } from '@/types/admin';
+import type { AdminStaff, AdminStaffPermission } from '@/types/admin';
 
-type StaffRole = 'EDITOR' | 'ADMIN';
+// Permission checkbox-д харагдах resource жагсаалт (Монгол label-тай).
+const PERMISSION_RESOURCES: { resource: string; label: string }[] = [
+  { resource: 'products', label: 'Бүтээгдэхүүн' },
+  { resource: 'categories', label: 'Ангилал' },
+  { resource: 'product-types', label: 'Төрөл' },
+  { resource: 'blog', label: 'Нийтлэл' },
+  { resource: 'banners', label: 'Баннер' },
+  { resource: 'testimonials', label: 'Testimonial' },
+  { resource: 'faqs', label: 'FAQ' },
+  { resource: 'coupons', label: 'Купон' },
+  { resource: 'pages', label: 'Хуудас' },
+  { resource: 'menu', label: 'Навигац' },
+  { resource: 'orders', label: 'Захиалга' },
+  { resource: 'reviews', label: 'Review' },
+];
+
+type PermAction = 'canView' | 'canCreate' | 'canEdit' | 'canDelete';
+const PERM_ACTIONS: { key: PermAction; label: string }[] = [
+  { key: 'canView', label: 'Харах' },
+  { key: 'canCreate', label: 'Нэмэх' },
+  { key: 'canEdit', label: 'Засах' },
+  { key: 'canDelete', label: 'Устгах' },
+];
+
+// resource бүрд бүх эрх унтраалттай хоосон тогтоол үүсгэнэ.
+function emptyPermissions(): AdminStaffPermission[] {
+  return PERMISSION_RESOURCES.map((r) => ({
+    resource: r.resource,
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false,
+  }));
+}
+
+// Backend-ээс ирсэн permission-уудыг бүрэн resource жагсаалттай нийлүүлнэ
+// (буцаагаагүй resource-ийг хоосон гэж тооцно).
+function mergePermissions(loaded: AdminStaffPermission[]): AdminStaffPermission[] {
+  const map = new Map(loaded.map((p) => [p.resource, p]));
+  return PERMISSION_RESOURCES.map((r) => {
+    const found = map.get(r.resource);
+    return {
+      resource: r.resource,
+      canView: found?.canView ?? false,
+      canCreate: found?.canCreate ?? false,
+      canEdit: found?.canEdit ?? false,
+      canDelete: found?.canDelete ?? false,
+    };
+  });
+}
 
 function StaffAvatar({ staff }: { staff: AdminStaff }) {
   const initials = (staff.name ?? staff.email).charAt(0).toUpperCase();
@@ -61,17 +105,58 @@ function RoleBadge({ role }: { role: string }) {
       </Badge>
     );
   }
-  if (role === 'ADMIN') {
-    return (
-      <Badge variant="info" className="gap-1">
-        <ShieldCheck className="h-3 w-3" />Админ
-      </Badge>
-    );
-  }
   return (
-    <Badge variant="secondary" className="gap-1">
-      <Shield className="h-3 w-3" />Засварлагч
+    <Badge variant="info" className="gap-1">
+      <ShieldCheck className="h-3 w-3" />Админ
     </Badge>
+  );
+}
+
+// resource бүрийн checkbox мөр (View/Create/Edit/Delete). Дахин ашиглагдах тул
+// create болон edit dialog хоёулаа энэ grid-ийг хуваалцана.
+function PermissionGrid({
+  permissions,
+  onToggle,
+  disabled,
+}: {
+  permissions: AdminStaffPermission[];
+  onToggle: (resource: string, action: PermAction, value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+            <th className="px-3 py-2 font-medium">Хэсэг</th>
+            {PERM_ACTIONS.map((a) => (
+              <th key={a.key} className="px-2 py-2 font-medium text-center">{a.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {permissions.map((p) => (
+            <tr key={p.resource} className="border-b border-border last:border-0">
+              <td className="px-3 py-2 font-medium whitespace-nowrap">
+                {PERMISSION_RESOURCES.find((r) => r.resource === p.resource)?.label ?? p.resource}
+              </td>
+              {PERM_ACTIONS.map((a) => (
+                <td key={a.key} className="px-2 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer accent-primary align-middle"
+                    checked={p[a.key]}
+                    disabled={disabled}
+                    onChange={(e) => onToggle(p.resource, a.key, e.target.checked)}
+                    aria-label={`${p.resource} ${a.label}`}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -80,10 +165,13 @@ export function StaffPanel() {
   const [createOpen, setCreateOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<StaffRole>('EDITOR');
   const [password, setPassword] = useState('');
+  const [createPerms, setCreatePerms] = useState<AdminStaffPermission[]>(emptyPermissions());
   const [blockTarget, setBlockTarget] = useState<AdminStaff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminStaff | null>(null);
+  // Эрх засах dialog
+  const [permTarget, setPermTarget] = useState<AdminStaff | null>(null);
+  const [editPerms, setEditPerms] = useState<AdminStaffPermission[]>(emptyPermissions());
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'staff'],
@@ -91,6 +179,20 @@ export function StaffPanel() {
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
+
+  // Эрх засах dialog нээгдэхэд тухайн админы permission-ийг ачаална.
+  const { data: loadedPerms, isFetching: permsLoading } = useQuery({
+    queryKey: ['admin', 'staff', permTarget?.id, 'permissions'],
+    queryFn: () => adminApi.staff.getPermissions(permTarget!.id),
+    enabled: !!permTarget,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (permTarget && loadedPerms) {
+      setEditPerms(mergePermissions(loadedPerms));
+    }
+  }, [permTarget, loadedPerms]);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['admin', 'staff'] });
@@ -100,13 +202,30 @@ export function StaffPanel() {
     return e instanceof ApiError && e.message ? e.message : fallback;
   }
 
+  // create dialog-ийн checkbox toggle
+  function toggleCreatePerm(resource: string, action: PermAction, value: boolean) {
+    setCreatePerms((prev) =>
+      prev.map((p) => (p.resource === resource ? { ...p, [action]: value } : p)),
+    );
+  }
+  // edit dialog-ийн checkbox toggle
+  function toggleEditPerm(resource: string, action: PermAction, value: boolean) {
+    setEditPerms((prev) =>
+      prev.map((p) => (p.resource === resource ? { ...p, [action]: value } : p)),
+    );
+  }
+
   const createMutation = useMutation({
     mutationFn: () =>
       adminApi.staff.create({
         email: email.trim(),
         name: name.trim() || undefined,
-        role,
+        role: 'ADMIN',
         password: password.trim() || undefined,
+        // Зөвхөн ямар нэг эрх асаасан resource-уудыг дамжуулна.
+        permissions: createPerms.filter(
+          (p) => p.canView || p.canCreate || p.canEdit || p.canDelete,
+        ),
       }),
     onSuccess: () => {
       invalidate();
@@ -114,8 +233,8 @@ export function StaffPanel() {
       setCreateOpen(false);
       setEmail('');
       setName('');
-      setRole('EDITOR');
       setPassword('');
+      setCreatePerms(emptyPermissions());
     },
     onError: (e) => {
       const raw = errMsg(e, '').toLowerCase();
@@ -125,14 +244,14 @@ export function StaffPanel() {
     },
   });
 
-  const roleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: StaffRole }) =>
-      adminApi.staff.updateRole(id, role),
+  const savePermsMutation = useMutation({
+    mutationFn: () => adminApi.staff.updatePermissions(permTarget!.id, editPerms),
     onSuccess: () => {
-      invalidate();
-      toast.success('Эрх шинэчлэгдлээ');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'staff', permTarget?.id, 'permissions'] });
+      toast.success('Эрх хадгалагдлаа');
+      setPermTarget(null);
     },
-    onError: (e) => toast.error(errMsg(e, 'Эрх солиход алдаа гарлаа')),
+    onError: (e) => toast.error(errMsg(e, 'Эрх хадгалахад алдаа гарлаа')),
   });
 
   const blockMutation = useMutation({
@@ -169,7 +288,7 @@ export function StaffPanel() {
             Багийн админ
           </h2>
           <p className="text-sm text-muted-foreground">
-            Нийт {staff.length} админ ажилтан (EDITOR / ADMIN)
+            Нийт {staff.length} админ ажилтан · resource бүрд эрх тусад нь
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="gap-2 w-fit">
@@ -193,7 +312,7 @@ export function StaffPanel() {
             {staff.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                  Багийн админ алга. "Шинэ админ нэмэх" товчоор нэмнэ үү.
+                  Багийн админ алга. &quot;Шинэ админ нэмэх&quot; товчоор нэмнэ үү.
                 </td>
               </tr>
             )}
@@ -218,23 +337,7 @@ export function StaffPanel() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {isSuper ? (
-                      <RoleBadge role={s.role} />
-                    ) : (
-                      <Select
-                        value={s.role}
-                        onValueChange={(v) => roleMutation.mutate({ id: s.id, role: v as StaffRole })}
-                        disabled={roleMutation.isPending}
-                      >
-                        <SelectTrigger className="h-8 w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="EDITOR">Засварлагч</SelectItem>
-                          <SelectItem value="ADMIN">Админ</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <RoleBadge role={s.role} />
                   </td>
                   <td className="px-4 py-3">
                     {s.blocked ? (
@@ -260,6 +363,16 @@ export function StaffPanel() {
                         <span className="text-xs text-muted-foreground italic pr-1">Эзэн — өөрчлөх боломжгүй</span>
                       ) : (
                         <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 text-xs text-primary/80 hover:text-primary hover:bg-primary/10"
+                            onClick={() => setPermTarget(s)}
+                            title="Эрх засах"
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                            Эрх засах
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -295,11 +408,11 @@ export function StaffPanel() {
 
       {/* Шинэ админ нэмэх dialog */}
       <Dialog open={createOpen} onOpenChange={(o) => !o && setCreateOpen(false)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Шинэ админ нэмэх</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-1.5">
               <Label htmlFor="staffEmail">И-мэйл *</Label>
               <Input
@@ -321,18 +434,6 @@ export function StaffPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Эрх</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as StaffRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EDITOR">Засварлагч (EDITOR)</SelectItem>
-                  <SelectItem value="ADMIN">Админ (ADMIN)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="staffPassword">Нууц үг (заавал биш)</Label>
               <Input
                 id="staffPassword"
@@ -342,6 +443,10 @@ export function StaffPanel() {
                 placeholder="Хоосон бол автоматаар үүснэ"
                 autoComplete="new-password"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Эрх (хэсэг бүрээр)</Label>
+              <PermissionGrid permissions={createPerms} onToggle={toggleCreatePerm} />
             </div>
           </div>
           <DialogFooter>
@@ -353,6 +458,49 @@ export function StaffPanel() {
               onClick={() => createMutation.mutate()}
             >
               {createMutation.isPending ? 'Нэмж байна...' : 'Нэмэх'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Эрх засах dialog */}
+      <Dialog open={!!permTarget} onOpenChange={(o) => !o && setPermTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldQuestion className="h-5 w-5 text-primary" />
+              Эрх засах
+            </DialogTitle>
+          </DialogHeader>
+          {permTarget && (
+            <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-4 py-3">
+              <StaffAvatar staff={permTarget} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{permTarget.name ?? 'Нэргүй'}</p>
+                <p className="text-xs text-muted-foreground truncate">{permTarget.email}</p>
+              </div>
+            </div>
+          )}
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            {permsLoading ? (
+              <Loading label="Эрх ачаалж байна..." />
+            ) : (
+              <PermissionGrid
+                permissions={editPerms}
+                onToggle={toggleEditPerm}
+                disabled={savePermsMutation.isPending}
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPermTarget(null)}>
+              Цуцлах
+            </Button>
+            <Button
+              disabled={savePermsMutation.isPending || permsLoading}
+              onClick={() => savePermsMutation.mutate()}
+            >
+              {savePermsMutation.isPending ? 'Хадгалж байна...' : 'Хадгалах'}
             </Button>
           </DialogFooter>
         </DialogContent>

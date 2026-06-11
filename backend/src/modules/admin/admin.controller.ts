@@ -27,6 +27,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
+import { getMyPermissions } from '../../common/permission';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { ReviewsService } from '../reviews/reviews.service';
@@ -388,6 +389,13 @@ export class AdminController {
   @Get('ai/status')
   getAiStatus() {
     return { enabled: this.adminAi.isEnabled() };
+  }
+
+  // ─── Нэвтэрсэн admin өөрийн permission (frontend sidebar/UI эрхээр харуулах) ──
+  // Бүх admin role (SUPERADMIN/ADMIN) хандана. SUPERADMIN бол бүх resource бүрэн эрх.
+  @Get('me/permissions')
+  myPermissions(@CurrentUser() me: JwtPayload) {
+    return getMyPermissions(this.prisma, me);
   }
 
   // AI generate

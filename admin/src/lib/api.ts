@@ -27,6 +27,7 @@ import type {
   AdminProfile,
   AdminReview,
   AdminStaff,
+  AdminStaffPermission,
   AdminSubscriber,
   AdminSubscriberCategory,
   AdminTestimonial,
@@ -449,7 +450,7 @@ export const adminApi = {
   // EDITOR/ADMIN дүртэй админ ажилтнуудыг үүсгэх/эрх солих/блоклох/устгах.
   staff: {
     list: () => adminFetch<AdminStaff[]>('/admin/staff'),
-    create: (body: { email: string; name?: string; role: 'EDITOR' | 'ADMIN'; password?: string }) =>
+    create: (body: { email: string; name?: string; role?: 'ADMIN'; password?: string; permissions?: AdminStaffPermission[] }) =>
       adminFetch<AdminStaff>('/admin/staff', { method: 'POST', body: JSON.stringify(body) }),
     updateRole: (id: string, role: 'EDITOR' | 'ADMIN') =>
       adminFetch<AdminStaff>(`/admin/staff/${id}/role`, {
@@ -463,6 +464,16 @@ export const adminApi = {
       }),
     remove: (id: string) =>
       adminFetch<void>(`/admin/staff/${id}`, { method: 'DELETE' }),
+    // ── Granular permission (resource бүрээр) ──
+    getPermissions: (id: string) =>
+      adminFetch<AdminStaffPermission[]>(`/admin/staff/${id}/permissions`),
+    updatePermissions: (id: string, permissions: AdminStaffPermission[]) =>
+      adminFetch<AdminStaffPermission[]>(`/admin/staff/${id}/permissions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ permissions }),
+      }),
+    // Нэвтэрсэн админ өөрийн эрх (resource бүрд canView/Create/Edit/Delete)
+    myPermissions: () => adminFetch<AdminStaffPermission[]>('/admin/me/permissions'),
   },
 
   settings: {

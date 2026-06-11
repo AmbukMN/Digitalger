@@ -27,6 +27,7 @@ import {
   Navigation,
   Package,
   Settings,
+  Shield,
   ShoppingCart,
   Star,
   Tag,
@@ -104,6 +105,8 @@ const navSections: readonly NavSection[] = [
   {
     title: 'Тохиргоо',
     items: [
+      // Багийн админ (staff management + granular permission) — зөвхөн SUPERADMIN.
+      { href: '/staff', label: 'Багийн админ', icon: Shield, superadminOnly: true },
       // Site-level тохиргоо / SEO / queue — зөвхөн SUPERADMIN.
       { href: '/settings', label: 'Тохиргоо', icon: Settings, superadminOnly: true },
       { href: '/seo', label: 'SEO', icon: Globe, superadminOnly: true },

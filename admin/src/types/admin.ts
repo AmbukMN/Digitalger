@@ -249,6 +249,31 @@ export interface AdminStaff {
   createdAt: string;
 }
 
+// ─── Granular permission (resource бүрээр) ───────────────────────────────────
+// Админ ажилтан бүрд resource (products/orders/...) тус бүрд View/Create/Edit/
+// Delete эрхийг тусад нь тохируулна. Backend нь resource string-ээр хадгална.
+export type AdminPermissionResource =
+  | 'products'
+  | 'categories'
+  | 'product-types'
+  | 'blog'
+  | 'banners'
+  | 'testimonials'
+  | 'faqs'
+  | 'coupons'
+  | 'pages'
+  | 'menu'
+  | 'orders'
+  | 'reviews';
+
+export interface AdminStaffPermission {
+  resource: AdminPermissionResource | string;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
 export interface AdminCategory {
   id: string;
   name: string;
