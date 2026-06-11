@@ -23,7 +23,7 @@ describe('OrdersService.createPending', () => {
   beforeEach(() => {
     prisma = {
       product: { findMany: jest.fn() },
-      order: { findFirst: jest.fn(), create: jest.fn(), count: jest.fn() },
+      order: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn(), count: jest.fn() },
       coupon: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       user: { update: jest.fn(), findUnique: jest.fn() },
     };
@@ -36,6 +36,8 @@ describe('OrdersService.createPending', () => {
 
     // default: duplicate guard-д PENDING олдохгүй
     prisma.order.findFirst.mockResolvedValue(null);
+    // default: аль хэдийн PAID эзэмшсэн бүтээгдэхүүн байхгүй
+    prisma.order.findMany.mockResolvedValue([]);
     prisma.user.update.mockResolvedValue({});
     prisma.user.findUnique.mockResolvedValue({ email: 'u@test.mn', name: 'Test' });
     prisma.coupon.update.mockResolvedValue({});
@@ -69,6 +71,56 @@ describe('OrdersService.createPending', () => {
     await expect(
       service.createPending('user-1', { productIds: ['p1', 'p2'] } as any),
     ).rejects.toThrow('One or more products are unavailable');
+  });
+
+  it('аль хэдийн PAID (идэвхтэй) эзэмшсэн бүтээгдэхүүн → BadRequestException', async () => {
+    // p1-ийг идэвхтэй (expiresAt null = насан туршийн) эзэмшсэн
+    prisma.order.findMany.mockResolvedValue([
+      { expiresAt: null, items: [{ productId: 'p1' }] },
+    ]);
+
+    await expect(
+      service.createPending('user-1', { productIds: ['p1'] } as any),
+    ).rejects.toThrow('аль хэдийн худалдаж авсан');
+    // эзэмшсэн тул бүтээгдэхүүн query, order create огт дуудагдахгүй
+    expect(prisma.order.create).not.toHaveBeenCalled();
+  });
+
+  it('cart-д хэсэгчилсэн эзэмшил → зөвхөн ШИНЭ бүтээгдэхүүнийг үлдээнэ', async () => {
+    // p1 идэвхтэй эзэмшсэн, p2 шинэ
+    prisma.order.findMany.mockResolvedValue([
+      { expiresAt: null, items: [{ productId: 'p1' }] },
+    ]);
+    prisma.product.findMany.mockResolvedValue([makeProduct('p2', 500)]);
+    prisma.order.create.mockImplementation(async ({ data }: any) => ({
+      id: 'order-x', ...data, items: [],
+    }));
+
+    await service.createPending('user-1', { productIds: ['p1', 'p2'] } as any);
+
+    // product query зөвхөн p2-оор хийгдэх ёстой (p1 хасагдсан)
+    const prodWhere = prisma.product.findMany.mock.calls[0][0].where;
+    expect(prodWhere.id.in).toEqual(['p2']);
+    // order зөвхөн p2-той үүснэ
+    const createArg = prisma.order.create.mock.calls[0][0];
+    expect(createArg.data.items.create).toHaveLength(1);
+    expect(createArg.data.items.create[0].productId).toBe('p2');
+  });
+
+  it('хугацаа ДУУССАН (expired) эрхийг дахин худалдаж авч болно', async () => {
+    // p1-ийг өмнө авсан ч expiresAt өнгөрсөн → дахин авах боломжтой
+    prisma.order.findMany.mockResolvedValue([
+      { expiresAt: new Date('2020-01-01'), items: [{ productId: 'p1' }] },
+    ]);
+    prisma.product.findMany.mockResolvedValue([makeProduct('p1', 1000)]);
+    prisma.order.create.mockImplementation(async ({ data }: any) => ({
+      id: 'order-y', ...data, items: [],
+    }));
+
+    const order: any = await service.createPending('user-1', {
+      productIds: ['p1'],
+    } as any);
+    expect(order.id).toBe('order-y'); // блоклогдоогүй
   });
 
   it('PERCENT coupon → discount тооцож total-аас хасна', async () => {

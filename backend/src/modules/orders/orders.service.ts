@@ -8,7 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { computeOrderExpiresAt } from '../../common/access-expiry';
+import { computeOrderExpiresAt, isActiveOrder } from '../../common/access-expiry';
 
 @Injectable()
 export class OrdersService {
@@ -73,7 +73,38 @@ export class OrdersService {
   }
 
   async createPending(userId: string, dto: CreateOrderDto) {
-    const productIds = [...new Set(dto.productIds)]; // deduplicate input
+    const requestedIds = [...new Set(dto.productIds)]; // deduplicate input
+
+    // ── Аль хэдийн эзэмшсэн (PAID + идэвхтэй) бүтээгдэхүүнийг хасах ──────────────
+    // ⚠️ Нэг хэрэглэгч нэг бүтээгдэхүүнийг ЗӨВХӨН НЭГ УДАА авна. Аль хэдийн PAID
+    // болж, хандалт нь ИДЭВХТЭЙ (expiresAt null эсвэл ирээдүйд) бол дахин захиалахыг
+    // зөвшөөрөхгүй. Хугацаа дууссан (expired) эрхийг л дахин худалдаж авч болно.
+    const paidOrders = await this.prisma.order.findMany({
+      where: {
+        userId,
+        status: OrderStatus.PAID,
+        items: { some: { productId: { in: requestedIds } } },
+      },
+      select: {
+        expiresAt: true,
+        items: { select: { productId: true } },
+      },
+    });
+    const activeOwnedIds = new Set<string>();
+    for (const o of paidOrders) {
+      if (!isActiveOrder(o)) continue; // зөвхөн идэвхтэй эзэмшил давхардал болно
+      for (const it of o.items) {
+        if (requestedIds.includes(it.productId)) activeOwnedIds.add(it.productId);
+      }
+    }
+    // Эзэмшсэнийг хасч зөвхөн ШИНЭ бүтээгдэхүүнийг үлдээнэ (cart-д хэсэгчилсэн
+    // эзэмшил байж болно — эзэмшсэнийг чимээгүй хасна, бусдыг үргэлжлүүлнэ).
+    const productIds = requestedIds.filter((id) => !activeOwnedIds.has(id));
+    if (productIds.length === 0) {
+      throw new BadRequestException(
+        'Та эдгээр бүтээгдэхүүнийг аль хэдийн худалдаж авсан байна',
+      );
+    }
 
     const products = await this.prisma.product.findMany({
       where: {
