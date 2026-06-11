@@ -184,7 +184,8 @@ export class UsersService {
           blocked: true,
           oauthProvider: true,
           createdAt: true,
-          _count: { select: { orders: true, downloads: true } },
+          // downloads (file-level) + downloadLogs (бодит татах түүх) хоёуланг.
+          _count: { select: { orders: true, downloads: true, downloadLogs: true } },
         },
       }),
       this.prisma.user.count({ where }),
@@ -198,7 +199,7 @@ export class UsersService {
       where: { id },
       select: {
         ...USER_SELECT,
-        _count: { select: { orders: true, reviews: true, downloads: true } },
+        _count: { select: { orders: true, reviews: true, downloads: true, downloadLogs: true } },
       },
     });
 
@@ -265,11 +266,15 @@ export class UsersService {
           },
         },
       }),
-      // Татсан файлууд (хэзээ)
-      this.prisma.download.findMany({
+      // Татсан файлууд (хэзээ) — DownloadLog-оос (бодит татах түүх).
+      // ⚠️ Download (fileId) хүснэгт биш DownloadLog ашиглана: зарим бүтээгдэхүүн
+      // ProductFile-гүй, зөвхөн downloadFileKey (бэлэн zip)-тэй тул Download-д
+      // юу ч бичигдэхгүй. DownloadLog нь productId/source-тэй, paid/free/bundle
+      // бүх татаалтыг бүртгэдэг тул хэрэглэгчийн "Татсан" түүхэнд бүрэн эх сурвалж.
+      this.prisma.downloadLog.findMany({
         where: { userId: id },
         orderBy: { createdAt: 'desc' },
-        select: { id: true, fileId: true, createdAt: true },
+        select: { id: true, productId: true, fileName: true, source: true, createdAt: true },
         take: 200,
       }),
       // Үзсэн / дарсан (ProductEvent userId-аар)
@@ -336,27 +341,24 @@ export class UsersService {
       }),
     ]);
 
-    // Татсан файлуудын нэр + бүтээгдэхүүнийг resolve (Download.fileId → ProductFile)
-    const fileIds = [...new Set(downloadsRaw.map((d) => d.fileId))];
-    const files = fileIds.length
-      ? await this.prisma.productFile.findMany({
-          where: { id: { in: fileIds } },
-          select: {
-            id: true,
-            fileName: true,
-            product: { select: { id: true, title: true, slug: true } },
-          },
+    // Татсан түүх — DownloadLog.productId → Product (нэр/slug) resolve.
+    const dlProductIds = [...new Set(downloadsRaw.map((d) => d.productId).filter(Boolean) as string[])];
+    const dlProducts = dlProductIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: dlProductIds } },
+          select: { id: true, title: true, slug: true },
         })
       : [];
-    const fileMap = new Map(files.map((f) => [f.id, f]));
+    const dlProdMap = new Map(dlProducts.map((p) => [p.id, p]));
     const downloads = downloadsRaw.map((d) => {
-      const f = fileMap.get(d.fileId);
+      const p = d.productId ? dlProdMap.get(d.productId) : null;
       return {
         id: d.id,
-        fileId: d.fileId,
-        fileName: f?.fileName ?? '(устсан файл)',
-        productTitle: f?.product?.title ?? null,
-        productSlug: f?.product?.slug ?? null,
+        // fileName байхгүй бол product нэрийг ашиглана (бэлэн zip татсан тохиолдол).
+        fileName: d.fileName ?? (p?.title ? `${p.title} (бүх файл)` : '(файл)'),
+        productTitle: p?.title ?? null,
+        productSlug: p?.slug ?? null,
+        source: d.source, // paid | free | bundle
         createdAt: d.createdAt,
       };
     });

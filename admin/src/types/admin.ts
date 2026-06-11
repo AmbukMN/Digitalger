@@ -121,10 +121,10 @@ export interface UserDetailOrder {
 }
 export interface UserDetailDownload {
   id: string;
-  fileId: string;
   fileName: string;
   productTitle: string | null;
   productSlug: string | null;
+  source: 'paid' | 'free' | 'bundle' | string;
   createdAt: string;
 }
 export interface UserDetailEvent {

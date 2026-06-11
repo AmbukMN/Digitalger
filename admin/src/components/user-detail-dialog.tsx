@@ -565,9 +565,18 @@ export function UserDetailDialog({ user, onClose }: Props) {
                         <Download className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{d.fileName}</p>
-                        {d.productTitle && <p className="truncate text-xs text-muted-foreground">{d.productTitle}</p>}
+                        <p className="truncate text-sm font-medium">{d.productTitle ?? d.fileName}</p>
+                        {d.productTitle && <p className="truncate text-xs text-muted-foreground">{d.fileName}</p>}
                       </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        d.source === 'paid'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400'
+                          : d.source === 'bundle'
+                            ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-400'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400'
+                      }`}>
+                        {d.source === 'paid' ? 'Төлбөртэй' : d.source === 'bundle' ? 'Багц' : 'Үнэгүй'}
+                      </span>
                       <p className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(d.createdAt)}</p>
                     </div>
                   ))}

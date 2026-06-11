@@ -1,6 +1,8 @@
-import { Controller, Get, Headers, Ip, Param, Post } from '@nestjs/common';
+import { Controller, Get, Headers, Ip, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { DownloadsService } from './downloads.service';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
 /**
  * ҮНЭГҮЙ бүтээгдэхүүний нийтийн (auth-гүй) download endpoint-ууд.
@@ -19,36 +21,43 @@ import { DownloadsService } from './downloads.service';
 export class PublicDownloadsController {
   constructor(private readonly downloadsService: DownloadsService) {}
 
-  /** Ганц файл татах (үнэгүй product-ийн). @Ip — татах тоолуурын dedup-д ашиглана. */
+  /** Ганц файл татах (үнэгүй product-ийн). @Ip — татах тоолуурын dedup-д ашиглана.
+   *  OptionalJwtAuthGuard — нэвтэрсэн бол userId гаргаж "Татсан" түүхэд бүртгэнэ. */
+  @UseGuards(OptionalJwtAuthGuard)
   @Post(':productId/file/:fileId')
   freeFile(
     @Param('productId') productId: string,
     @Param('fileId') fileId: string,
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
-    return this.downloadsService.freeFileUrl(productId, fileId, ip, { ip, userAgent });
+    return this.downloadsService.freeFileUrl(productId, fileId, ip, { userId: user?.sub ?? null, ip, userAgent });
   }
 
   /** Бэлэн zip (downloadFileKey) шууд татах */
+  @UseGuards(OptionalJwtAuthGuard)
   @Post(':productId/download-file')
   freeDownloadFile(
     @Param('productId') productId: string,
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
-    return this.downloadsService.freeProductDownloadFileUrl(productId, ip, { ip, userAgent });
+    return this.downloadsService.freeProductDownloadFileUrl(productId, ip, { userId: user?.sub ?? null, ip, userAgent });
   }
 
   /** Бүх файлыг zip болгох queue — job үүсгэдэг тул бага limit */
+  @UseGuards(OptionalJwtAuthGuard)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post(':productId/zip')
   freeZip(
     @Param('productId') productId: string,
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
-    return this.downloadsService.enqueueFreeProductZip(productId, ip, { ip, userAgent });
+    return this.downloadsService.enqueueFreeProductZip(productId, ip, { userId: user?.sub ?? null, ip, userAgent });
   }
 
   /** Zip job-ийн статус — polling тул өндөр limit */

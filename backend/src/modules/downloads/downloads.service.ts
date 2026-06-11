@@ -557,6 +557,9 @@ export class DownloadsService {
       ip: meta?.ip ?? identifier,
       userAgent: meta?.userAgent,
     });
+    // Нэвтэрсэн хэрэглэгч бол хэрэглэгчийн "Татсан" түүхэд (Download) ч бүртгэнэ —
+    // эс бол үнэгүй татвал admin хэрэглэгч дэлгэцэд "Татсан: 0" буруу харагдана.
+    await this.recordDownloads(meta?.userId, [file.id]);
     const url = await this.storage.getPresignedUrl(file.fileKey, 300, 'get');
     return {
       fileId: file.id,
@@ -589,7 +592,10 @@ export class DownloadsService {
   ) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, slug: true, title: true, price: true, published: true, downloadFileKey: true },
+      select: {
+        id: true, slug: true, title: true, price: true, published: true, downloadFileKey: true,
+        files: { select: { id: true } },
+      },
     });
     if (!product || !product.published) throw new NotFoundException('Product not found');
     if (product.price != null && Number(product.price) > 0) {
@@ -608,6 +614,8 @@ export class DownloadsService {
       ip: meta?.ip ?? identifier,
       userAgent: meta?.userAgent,
     });
+    // Нэвтэрсэн хэрэглэгч бол product-ийн файлуудыг "Татсан" түүхэд (Download) бүртгэнэ.
+    await this.recordDownloads(meta?.userId, product.files.map((f) => f.id));
     return { url, fileName };
   }
 
@@ -646,6 +654,9 @@ export class DownloadsService {
     );
     const allFileIds = [...new Set([...flatFileIds, ...bundleFileIds])];
     if (!allFileIds.length) throw new NotFoundException('No files');
+
+    // Нэвтэрсэн хэрэглэгч бол бүх файлыг "Татсан" түүхэд (Download) бүртгэнэ.
+    await this.recordDownloads(meta?.userId, allFileIds);
 
     // Үнэгүй product-ийн нийтийн zip кэш — зөвхөн product засагдсанаас ХОЙШ
     // үүссэн бол ашиглана (admin файл нэмэхэд хуучин дутуу zip татахаас сэргийлнэ).
