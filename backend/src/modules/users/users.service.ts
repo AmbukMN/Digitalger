@@ -93,7 +93,7 @@ export class UsersService {
     // Normalize empty string phone to null
     const phone = dto.phone === '' ? null : dto.phone;
 
-    // Phone uniqueness check (утас verify шаарддаггүй — шууд солино)
+    // Phone uniqueness check (утас verify шаарддаггүй — шууд солино, гэхдээ доош verify)
     if (phone) {
       const existing = await this.prisma.user.findUnique({ where: { phone } });
       if (existing && existing.id !== userId) {
@@ -101,12 +101,18 @@ export class UsersService {
       }
     }
 
+    // ⚠️ Утас СОЛИГДВОЛ хуучин баталгаажуулалт ХҮЧИНГҮЙ — phoneVerified=null болгож,
+    // профайлын доод хэсэгт "⚠ Баталгаажаагүй" + "Баталгаажуулах" дахин идэвхжүүлнэ.
+    // (Шинэ дугаарыг дахин verify хийх хүртэл баталгаажаагүй.)
+    const phoneChanged = dto.phone !== undefined && phone !== user.phone;
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(dto.name !== undefined && { name: dto.name || null }),
         ...(dto.image !== undefined && { image: dto.image }),
         ...(dto.phone !== undefined && { phone }),
+        ...(phoneChanged && { phoneVerified: null, pendingPhone: null }),
         // email-ийг ЗОРИУДААР оруулахгүй — verify flow-р л солино
       },
       select: USER_SELECT,

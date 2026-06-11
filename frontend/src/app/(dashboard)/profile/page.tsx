@@ -327,7 +327,8 @@ function PasswordDialog({
                 />
                 <span className="text-xs leading-relaxed text-amber-900 dark:text-amber-200">
                   Та зочин статустай хэрэглэгчид нууц үг тохируулж байгаа тул энэ
-                  хэрэглэгч нь тусдаа шинэ хэрэглэгч болж үүсэхийг зөвшөөрч байна.
+                  хэрэглэгч нь тусдаа шинэ хэрэглэгч болж үүсэх ба та мэйл, нууц үг
+                  ашиглан нэвтрээрэй!
                 </span>
               </label>
               <div className="flex gap-2 pt-1">
