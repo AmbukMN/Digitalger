@@ -7,6 +7,7 @@ import { siteSettingsApi, getNavbarData } from '@/lib/api';
 import type { Theme } from '@digitalger/shared/ui';
 import { WebVitalsReporter } from '@/lib/web-vitals';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
+import { ServiceWorkerRegister } from '@/components/service-worker-register';
 // Chat widget-ийг client wrapper дотор dynamic(ssr:false) хийж анхны JS
 // bundle-аас гаргасан (ssr:false нь server component-д зөвшөөрөгдөхгүй).
 import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
@@ -222,6 +223,7 @@ export default async function RootLayout({
           <ChatWidgetLazy />
         </Providers>
         <WebVitalsReporter />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

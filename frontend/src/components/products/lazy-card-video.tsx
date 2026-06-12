@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 
 /**
  * Жагсаалтын карт дээрх видеог LAZY ачаална: зөвхөн дэлгэц дээр харагдах үед л
@@ -43,7 +44,7 @@ export function LazyCardVideo({
     <>
       {/* Poster зураг — видео ачааллахаас өмнө/харагдахгүй үед (CLS-гүй) */}
       {posterUrl && !visible && (
-        <Image src={posterUrl} alt={alt} fill className="object-cover" sizes="(max-width: 768px) 50vw, 20vw" />
+        <Image src={posterUrl} alt={alt} fill className="object-cover" sizes="(max-width: 768px) 50vw, 20vw" placeholder="blur" blurDataURL={BLUR_DATA_URL} />
       )}
       <video
         ref={ref}

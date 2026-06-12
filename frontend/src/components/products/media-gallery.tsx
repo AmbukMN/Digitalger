@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Play, ImageIcon, X, Maximize2 } from 'lucide-react';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 
 const isSvg = (url?: string | null) => url?.split('?')[0].toLowerCase().endsWith('.svg') ?? false;
 
@@ -323,7 +324,7 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
     if (thumbnailUrl) {
       return (
         <div className="relative w-full overflow-hidden rounded-2xl bg-muted" style={{ aspectRatio: '4/3' }}>
-          <Image src={thumbnailUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 60vw" unoptimized={isSvg(thumbnailUrl)} />
+          <Image src={thumbnailUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 60vw" placeholder="blur" blurDataURL={BLUR_DATA_URL} unoptimized={isSvg(thumbnailUrl)} />
         </div>
       );
     }
@@ -348,6 +349,8 @@ export function MediaGallery({ items, title, thumbnailUrl, mainVideoUrl }: Media
               className="object-cover cursor-zoom-in"
               priority
               sizes="(max-width: 768px) 100vw, 60vw"
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
               onClick={() => openLightbox(activeIndex)}
               unoptimized={isSvg(active.url)}
             />

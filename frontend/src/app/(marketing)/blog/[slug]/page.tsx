@@ -13,6 +13,7 @@ import type { BlogPost, ProductSummary } from '@/types/api';
 import { BlogShareButton } from '@/components/blog/blog-share-button';
 import { formatDate } from '@/lib/format';
 import { applySeoOverride } from '@/lib/page-metadata';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -182,6 +183,8 @@ export default async function BlogDetailPage({ params }: Props) {
                   fill
                   className="object-cover"
                   priority
+                  placeholder="blur"
+                  blurDataURL={BLUR_DATA_URL}
                   sizes="(max-width: 1024px) 100vw, 65vw"
                 />
               </div>

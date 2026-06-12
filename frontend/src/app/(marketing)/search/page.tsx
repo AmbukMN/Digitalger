@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Search, FileText, Tag } from 'lucide-react';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 import { productsApi, blogApi } from '@/lib/api';
 import { getAdminAccessToken } from '@/lib/auth';
 import { applySeoOverride } from '@/lib/page-metadata';
@@ -43,6 +44,8 @@ function BlogResultCard({ post }: { post: BlogPost }) {
             fill
             className="object-cover"
             sizes="(max-width: 640px) 96px, 128px"
+            placeholder="blur"
+            blurDataURL={BLUR_DATA_URL}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

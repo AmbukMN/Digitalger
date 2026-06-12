@@ -17,6 +17,7 @@ import { useWishlistStore } from '@/store/wishlist';
 import { downloadsApi, wishlistApi } from '@/lib/api';
 import { trackProductClick, trackAddToCart, trackAddToWishlist } from '@/lib/analytics';
 import { LazyCardVideo } from '@/components/products/lazy-card-video';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
@@ -115,6 +116,8 @@ export function ProductCard({ product }: { product: ProductSummary }) {
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
               unoptimized={product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
             />
           ) : (

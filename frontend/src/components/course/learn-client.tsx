@@ -25,10 +25,23 @@ import { toast } from 'sonner';
 import { Button, Skeleton, useTheme } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import { Sun, Moon } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { coursesApi, downloadsApi } from '@/lib/api';
 import type { LessonProgress, LessonVideoResult } from '@/lib/api';
 import type { CourseLesson, ProductDetail } from '@/types/api';
-import { PremiumVideoPlayer } from '@/components/course/premium-video-player';
+// hls.js хүнд + client-only тул player-ийг next/dynamic(ssr:false)-аар lazy ачаална.
+// Анхны bundle багасч, player зөвхөн хичээл үзэх үед л татагдана.
+const PremiumVideoPlayer = dynamic(
+  () => import('@/components/course/premium-video-player').then((m) => m.PremiumVideoPlayer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 flex items-center justify-center bg-black">
+        <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+      </div>
+    ),
+  },
+);
 import {
   CourseSidebar,
   type CourseSidebarModule,

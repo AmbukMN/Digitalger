@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@digitalger/shared/ui';
 import type { Banner } from '@/types/api';
@@ -45,6 +46,8 @@ function BannerMedia({ banner }: { banner: Banner }) {
           fill
           className="object-cover sm:hidden"
           priority
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
           sizes="100vw"
         />
       )}
@@ -56,6 +59,8 @@ function BannerMedia({ banner }: { banner: Banner }) {
           fill
           className="object-cover hidden sm:block"
           priority
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
           sizes="100vw"
         />
       )}

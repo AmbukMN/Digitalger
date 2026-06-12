@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { CalendarDays, User, Tag, Loader2 } from 'lucide-react';
+import { BLUR_DATA_URL } from '@/lib/image-blur';
 import { Badge, Skeleton } from '@digitalger/shared/ui';
 import { blogApi } from '@/lib/api';
 import type { BlogPost } from '@/types/api';
@@ -42,6 +43,8 @@ export function BlogCard({ post }: { post: BlogPost }) {
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-linear-to-br from-primary/10 to-accent/10">
