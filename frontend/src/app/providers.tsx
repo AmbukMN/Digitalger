@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart';
 import { useWishlistStore } from '@/store/wishlist';
 import { useCouponStore } from '@/store/coupon';
+import { useRecentlyViewedStore } from '@/store/recently-viewed';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
 import { setAnalyticsUserId, backfillSessionTracking } from '@/lib/analytics';
@@ -113,6 +114,7 @@ function StoreHydration() {
       safeRehydrate(useCartStore, 'digitalger-cart');
       safeRehydrate(useWishlistStore, 'digitalger-wishlist');
       safeRehydrate(useCouponStore, 'digitalger-coupons');
+      safeRehydrate(useRecentlyViewedStore, 'digitalger-recently-viewed');
     };
 
     let params: URLSearchParams;

@@ -12,6 +12,7 @@ import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
 import { pickActiveOrder } from '../../common/access-expiry';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { QA_ALLOWED_MIME_TYPES, QA_ATTACHMENT_MAX_SIZE } from './dto/qa.dto';
 
 /** Q&A асуулт/хариултад дамжуулах хавсралтын мета (uploads-аар R2-д хуулсан key). */
@@ -33,6 +34,7 @@ export class CoursesService {
     private readonly stream: CloudflareStreamService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
   ) {
     this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://digitalger.mn';
   }
@@ -478,6 +480,17 @@ export class CoursesService {
         productSlug,
       });
     }
+
+    // In-app мэдэгдэл (navbar 🔔) — fire-and-forget.
+    this.notifications
+      .create(userId, {
+        title: 'Сертификат олгогдлоо',
+        body: `Та "${product.title}" курсыг амжилттай дүүргэж сертификат авлаа.`,
+        type: 'certificate',
+        link: '/certificates',
+      })
+      .catch(() => null);
+
     return cert;
   }
 

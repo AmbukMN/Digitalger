@@ -30,6 +30,7 @@ import { ViewingNow } from '@/components/products/viewing-now';
 import { formatPrice } from '@digitalger/shared';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { ProductTracker } from '@/components/products/product-tracker';
+import { RecentlyViewedSection } from '@/components/products/recently-viewed-section';
 import { FreeSubscribeModal } from '@/components/products/free-subscribe-modal';
 import { AdminOnlyBadge } from '@/components/products/admin-only-badge';
 
@@ -176,16 +177,69 @@ export default async function ProductDetailPage({ params }: Props) {
     })),
   } : null;
 
+  // Course JSON-LD — зөвхөн сургалт (LESSON) төрлийн бүтээгдэхүүнд.
+  // Google Course rich result: name, description, provider ЗААВАЛ; offers/aggregateRating optional.
+  // courseWorkload — хичээлийн нийт хугацааг ISO 8601 duration (PT#H#M) хэлбэрээр (байвал).
+  const isLessonCourse = product.type === 'LESSON';
+  const totalDurationSec = allLessons.reduce((sum, l) => sum + (l.durationSec ?? 0), 0);
+  let courseWorkload: string | null = null;
+  if (totalDurationSec > 0) {
+    const hours = Math.floor(totalDurationSec / 3600);
+    const minutes = Math.round((totalDurationSec % 3600) / 60);
+    courseWorkload = `PT${hours > 0 ? `${hours}H` : ''}${minutes > 0 ? `${minutes}M` : ''}` || 'PT0M';
+  }
+  const courseDescription = (stripHtmlForMeta(
+    (product as { seoDescription?: string }).seoDescription ?? product.description,
+  )).slice(0, 500);
+  const courseJsonLd = isLessonCourse ? {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: product.title,
+    description: courseDescription,
+    ...(product.thumbnailUrl ? { image: product.thumbnailUrl } : {}),
+    url: canonicalUrl,
+    provider: { '@type': 'Organization', name: 'DigitalGer', url: SITE_URL },
+    hasCourseInstance: {
+      '@type': 'CourseInstance',
+      courseMode: 'online',
+      ...(courseWorkload ? { courseWorkload } : {}),
+    },
+    offers: {
+      '@type': 'Offer',
+      price: Number(product.price) || 0,
+      priceCurrency: 'MNT',
+      availability: 'https://schema.org/InStock',
+      url: canonicalUrl,
+    },
+    ...(product.ratingCount > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: product.rating.toFixed(1),
+        reviewCount: product.ratingCount,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
+  } : null;
+
   const isFree = product.price == null || Number(product.price) === 0;
 
   return (
     <>
-      <ProductTracker productId={product.id} productSlug={product.slug} price={Number(product.price) || 0} />
+      <ProductTracker
+        productId={product.id}
+        productSlug={product.slug}
+        price={Number(product.price) || 0}
+        title={product.title}
+        compareAtPrice={product.compareAtPrice != null ? Number(product.compareAtPrice) : null}
+        thumbnailUrl={product.thumbnailUrl}
+      />
       {/* Үнэгүй бүтээгдэхүүн дээр 2 сек дараа имэйл subscribe popup (7 хоногт 1 удаа) */}
       {isFree && <FreeSubscribeModal slug={product.slug} />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
+      {courseJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(courseJsonLd) }} />}
 
       {/* Breadcrumb */}
       <div className="border-b border-border bg-muted/30">
@@ -504,6 +558,9 @@ export default async function ProductDetailPage({ params }: Props) {
           </div>
         )}
       </div>
+
+      {/* Таны саяхан үзсэн — localStorage (одоогийн product-ийг хасна, хоосон бол харагдахгүй) */}
+      <RecentlyViewedSection excludeId={product.id} />
 
       {/* Mobile sticky bottom bar */}
       <MobileBuyBar product={product} />

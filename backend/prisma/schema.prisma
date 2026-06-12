@@ -573,8 +573,15 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   body      String
+  // info | order | lesson | coupon | certificate — UI-д icon/өнгө сонгоход
+  type      String   @default("info")
+  // Дарахад очих route (ж /library, /orders). null бол зүгээр уншина.
+  link      String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 model ThemeSetting {

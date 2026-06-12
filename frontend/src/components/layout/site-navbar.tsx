@@ -10,6 +10,7 @@ import {
   ThemeToggle,
 } from '@digitalger/shared/ui';
 import { SearchAutocomplete } from '@/components/layout/search-autocomplete';
+import { NotificationBell } from '@/components/layout/notification-bell';
 import { cn, formatPrice } from '@digitalger/shared';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -497,6 +498,9 @@ export function SiteNavbar() {
                 )}
               </Link>
             </Button>
+
+            {/* Мэдэгдэл (🔔) — зөвхөн нэвтэрсэн хэрэглэгчид (доторх логик нуудаг) */}
+            <NotificationBell />
 
             {/* Account dropdown */}
             <div className="relative" ref={menuRef}>

@@ -146,6 +146,8 @@ export const productsApi = {
       types?: string;
       sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
       onSale?: boolean;
+      minPrice?: number;
+      maxPrice?: number;
     },
     token?: string,
   ) => {
@@ -156,6 +158,8 @@ export const productsApi = {
       featured: params?.featured,
       sortBy: params?.sortBy,
       onSale: params?.onSale,
+      minPrice: params?.minPrice,
+      maxPrice: params?.maxPrice,
       ...(params?.types ? { types: params.types } : { type: params?.type }),
     });
     return request<PaginatedProducts>(`/products${query}`, { token });
@@ -175,6 +179,18 @@ export const productsApi = {
     request<{ ok: boolean }>(`/products/${slug}/view`, { method: 'POST' }).catch(() => null),
   suggested: (slug: string, count = 4, token?: string) =>
     request<ProductSummary[]>(`/products/${slug}/suggested?count=${count}`, { token }),
+
+  // "Танд санал болгох" (personalized). token (optional) → нэвтэрсэн бол userId-аар
+  // (view+худалдан авалт). viewedIds (optional) → зочны localStorage-ийн саяхан үзсэн
+  // productId-ууд (category/type тогтооход). 2-уулаа байж болно (нэвтэрсэн + viewedIds).
+  recommended: (token?: string, viewedIds?: string[], limit = 8) =>
+    request<ProductSummary[]>(
+      `/products/recommended${qs({
+        viewedIds: viewedIds && viewedIds.length ? viewedIds.join(',') : undefined,
+        limit,
+      })}`,
+      { token },
+    ),
 };
 
 // —— Categories ——
@@ -741,6 +757,37 @@ export const coursesApi = {
         body: JSON.stringify({ answers }),
       }),
   },
+};
+
+// —— Notifications (in-app, navbar 🔔) ——
+export interface NotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  // info | order | lesson | coupon | certificate
+  type: string;
+  // Дарахад очих route (байхгүй бол null)
+  link: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export const notificationsApi = {
+  // Сүүлийн N мэдэгдэл (dropdown)
+  list: (token: string, limit = 10) =>
+    request<NotificationItem[]>(`/notifications${qs({ limit })}`, { token }),
+
+  // Уншаагүй тоо (badge) — polling-д ашиглана
+  unreadCount: (token: string) =>
+    request<{ count: number }>('/notifications/unread-count', { token }),
+
+  // Нэг уншсан болгох
+  markRead: (token: string, id: string) =>
+    request<{ ok: boolean }>(`/notifications/${id}/read`, { method: 'POST', token }),
+
+  // Бүгдийг уншсан болгох
+  markAllRead: (token: string) =>
+    request<{ ok: boolean; count: number }>('/notifications/read-all', { method: 'POST', token }),
 };
 
 // —— Pages ——

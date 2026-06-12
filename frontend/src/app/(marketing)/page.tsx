@@ -12,6 +12,8 @@ import { applySeoOverride } from '@/lib/page-metadata';
 import type { Banner, BlogPost, Testimonial } from '@/types/api';
 import { Shield, Zap, Download, Star } from 'lucide-react';
 import { CategoryStrip } from '@/components/home/category-strip';
+import { RecommendedSection } from '@/components/products/recommended-section';
+import { RecentlyViewedSection } from '@/components/products/recently-viewed-section';
 import { SITE_NAME, SITE_URL } from '@/lib/constants';
 
 function ProductSectionSkeleton() {
@@ -163,6 +165,12 @@ export default async function HomePage() {
       <Suspense fallback={<ProductSectionSkeleton />}>
         <ProductSection title="Хамгийн Их Хямдарсан" href="/products?onSale=true&sortBy=discount" onSale sortBy="discount" swiper pageSize={4} swiperMobileRows={2} />
       </Suspense>
+
+      {/* Танд санал болгох (personalized) — нэвтэрсэн userId эсвэл зочны localStorage viewedIds */}
+      <RecommendedSection />
+
+      {/* Таны саяхан үзсэн — localStorage (хоосон бол харагдахгүй) */}
+      <RecentlyViewedSection />
 
       {/* Testimonials */}
       {testimonials.length > 0 && <TestimonialsSection testimonials={testimonials} />}

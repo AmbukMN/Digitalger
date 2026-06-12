@@ -11,6 +11,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { N8nService } from '../n8n/n8n.service';
 import { computeOrderExpiresAt } from '../../common/access-expiry';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -33,6 +34,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly n8n: N8nService,
+    private readonly notifications: NotificationCenterService,
   ) {}
 
   isQPayConfigured(): boolean {
@@ -414,6 +416,16 @@ export class PaymentsService {
       .findUnique({ where: { id: orderId }, select: { userId: true } })
       .then((o) => {
         if (o?.userId) {
+          // In-app мэдэгдэл (navbar 🔔) — fire-and-forget. Зочин (guest)
+          // хэрэглэгчид ч userId байгаа тул бичигдэнэ (login хийвэл харагдана).
+          this.notifications
+            .create(o.userId, {
+              title: 'Захиалга амжилттай',
+              body: 'Таны төлбөр баталгаажлаа. Худалдан авсан бүтээгдэхүүнээ "Миний сан"-аас үзнэ үү.',
+              type: 'order',
+              link: '/library',
+            })
+            .catch(() => null);
           return this.prisma.user.update({
             where: { id: o.userId },
             data: { lastOrderAt: new Date() },

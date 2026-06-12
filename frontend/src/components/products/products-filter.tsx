@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, Tag, X } from 'lucide-react';
-import { Badge, Button, Sheet, SheetContent, SheetTrigger } from '@digitalger/shared/ui';
+import { Badge, Button, Input, Sheet, SheetContent, SheetTrigger } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import type { Category } from '@/types/api';
 import type { ProductTypeConfig } from '@/lib/api';
@@ -17,6 +17,85 @@ const SORT_OPTIONS = [
 ] as const;
 
 const COLLAPSE_AT = 5;
+
+// Үнийн бэлэн хязгаарууд (₮) — нэг товчоор хурдан шүүх
+const PRICE_PRESETS: { label: string; min?: number; max?: number }[] = [
+  { label: 'Үнэгүй', min: 0, max: 0 },
+  { label: '10,000₮ хүртэл', max: 10000 },
+  { label: '10,000–50,000₮', min: 10000, max: 50000 },
+  { label: '50,000₮+', min: 50000 },
+];
+
+// Үнийн range шүүлт — доод/дээд input + бэлэн chip + Хэрэглэх/Цэвэрлэх
+function PriceFilter({
+  currentMin,
+  currentMax,
+  onApply,
+}: {
+  currentMin: string;
+  currentMax: string;
+  onApply: (min: string | null, max: string | null) => void;
+}) {
+  const [min, setMin] = useState(currentMin);
+  const [max, setMax] = useState(currentMax);
+
+  const apply = () => {
+    const minVal = min.trim() === '' ? null : min.trim();
+    const maxVal = max.trim() === '' ? null : max.trim();
+    onApply(minVal, maxVal);
+  };
+
+  const presetActive = (p: { min?: number; max?: number }) =>
+    String(p.min ?? '') === currentMin && String(p.max ?? '') === currentMax;
+
+  return (
+    <div className="space-y-3 pt-1 pb-1">
+      <div className="flex flex-wrap gap-1.5">
+        {PRICE_PRESETS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => onApply(p.min !== undefined ? String(p.min) : null, p.max !== undefined ? String(p.max) : null)}
+            className={cn(
+              'rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
+              presetActive(p)
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border text-foreground/70 hover:border-primary/40 hover:text-foreground',
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          placeholder="Доод ₮"
+          value={min}
+          onChange={(e) => setMin(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && apply()}
+          className="h-8 text-xs"
+        />
+        <span className="text-muted-foreground text-xs">–</span>
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          placeholder="Дээд ₮"
+          value={max}
+          onChange={(e) => setMax(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && apply()}
+          className="h-8 text-xs"
+        />
+      </div>
+      <Button type="button" size="sm" onClick={apply} className="h-8 w-full text-xs">
+        Хэрэглэх
+      </Button>
+    </div>
+  );
+}
 
 interface Props {
   categories: Category[];
@@ -124,6 +203,8 @@ function FilterContent({ categories, productTypes, total, onClose }: Props & { o
   const currentSort = sp.get('sortBy') ?? '';
   const currentOnSale = sp.get('onSale') === 'true';
   const currentFeatured = sp.get('featured') === 'true';
+  const currentMin = sp.get('minPrice') ?? '';
+  const currentMax = sp.get('maxPrice') ?? '';
 
   const push = useCallback(
     (updates: Record<string, string | null>) => {
@@ -139,7 +220,7 @@ function FilterContent({ categories, productTypes, total, onClose }: Props & { o
     [router, sp, onClose],
   );
 
-  const activeCount = [currentCategory, currentType, currentSort, currentOnSale, currentFeatured].filter(Boolean).length;
+  const activeCount = [currentCategory, currentType, currentSort, currentOnSale, currentFeatured, currentMin, currentMax].filter(Boolean).length;
   const clearAll = () => { router.push('/products'); onClose?.(); };
 
   return (
@@ -182,6 +263,16 @@ function FilterContent({ categories, productTypes, total, onClose }: Props & { o
         <FilterBtn active={currentFeatured} onClick={() => push({ featured: currentFeatured ? null : 'true' })} emoji="⭐">
           Онцлох
         </FilterBtn>
+      </FilterSection>
+
+      {/* Үнэ */}
+      <FilterSection label="Үнэ">
+        <PriceFilter
+          key={`${currentMin}-${currentMax}`}
+          currentMin={currentMin}
+          currentMax={currentMax}
+          onApply={(min, max) => push({ minPrice: min, maxPrice: max })}
+        />
       </FilterSection>
 
       {/* Product types */}
@@ -245,7 +336,9 @@ export function ProductsFilterMobile(props: Props) {
   const currentSort = sp.get('sortBy') ?? '';
   const currentOnSale = sp.get('onSale') === 'true';
   const currentFeatured = sp.get('featured') === 'true';
-  const activeCount = [currentCategory, currentType, currentSort, currentOnSale, currentFeatured].filter(Boolean).length;
+  const currentMin = sp.get('minPrice') ?? '';
+  const currentMax = sp.get('maxPrice') ?? '';
+  const activeCount = [currentCategory, currentType, currentSort, currentOnSale, currentFeatured, currentMin, currentMax].filter(Boolean).length;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

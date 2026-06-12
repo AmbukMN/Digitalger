@@ -45,6 +45,8 @@ type SearchParams = {
   types?: string;
   sortBy?: string;
   onSale?: string;
+  minPrice?: string;
+  maxPrice?: string;
 };
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -54,6 +56,14 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const sortBy = (params.sortBy as 'newest' | 'discount' | 'rating' | 'downloads' | undefined) ?? undefined;
   const onSale = params.onSale === 'true' ? true : undefined;
   const featured = params.featured === 'true' ? true : undefined;
+  // Үнийн range — тоо болгож parse (буруу/сөрөг утга алгасна)
+  const parsePrice = (v?: string): number | undefined => {
+    if (!v) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const minPrice = parsePrice(params.minPrice);
+  const maxPrice = parsePrice(params.maxPrice);
 
   // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүн ч жагсаалтад харагдана
   const adminToken = await getAdminAccessToken();
@@ -68,6 +78,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       type: params.type,
       sortBy,
       onSale,
+      minPrice,
+      maxPrice,
     }, adminToken).catch(() => ({ items: [] as ProductSummary[], total: 0, page: 1, pageSize: 24 })),
     productTypesApi.list().catch(() => []),
     categoriesApi.list().catch(() => []),
@@ -97,7 +109,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     heading = { title: 'Бүтээгдэхүүн', desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн' };
   }
 
-  const activeCount = [params.category, typesKey, sortBy, onSale, featured].filter(Boolean).length;
+  const activeCount = [params.category, typesKey, sortBy, onSale, featured, minPrice, maxPrice].filter(
+    (v) => v !== undefined && v !== '',
+  ).length;
 
   const collectionJsonLd = {
     '@context': 'https://schema.org',
@@ -162,6 +176,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
                     if (sortBy) sp.set('sortBy', sortBy);
                     if (params.onSale) sp.set('onSale', params.onSale);
                     if (params.featured) sp.set('featured', params.featured);
+                    if (minPrice !== undefined) sp.set('minPrice', String(minPrice));
+                    if (maxPrice !== undefined) sp.set('maxPrice', String(maxPrice));
                     const s = sp.toString();
                     return `/products${s ? `?${s}` : ''}`;
                   }}

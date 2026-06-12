@@ -83,6 +83,8 @@ export class ProductsService {
       types?: string[];
       sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
       onSale?: boolean;
+      minPrice?: number;
+      maxPrice?: number;
     },
     adminCtx?: AdminCtx,
   ) {
@@ -106,6 +108,8 @@ export class ProductsService {
           t: (query.types ?? []).slice().sort(),
           s: query.sortBy ?? 'newest',
           o: query.onSale ?? false,
+          mn: query.minPrice ?? '',
+          mx: query.maxPrice ?? '',
         });
       return this.cache.getOrSet(key, 5 * 60_000, () =>
         this.computeFindPublished(query, page, pageSize, adminCtx),
@@ -122,6 +126,8 @@ export class ProductsService {
       types?: string[];
       sortBy?: 'newest' | 'discount' | 'rating' | 'downloads';
       onSale?: boolean;
+      minPrice?: number;
+      maxPrice?: number;
     },
     page: number,
     pageSize: number,
@@ -153,6 +159,14 @@ export class ProductsService {
       ...(query.featured !== undefined && { featured: query.featured }),
       ...(query.types && query.types.length > 0 && { type: { in: query.types as any[] } }),
       ...(query.onSale && { compareAtPrice: { not: null } }),
+      // Үнийн range шүүлт — price (Prisma Decimal) дээр gte/lte. minPrice/maxPrice
+      // аль нэг нь л байж болно. Бусад шүүлттэй AND-аар зэрэгцэн ажиллана.
+      ...((query.minPrice !== undefined || query.maxPrice !== undefined) && {
+        price: {
+          ...(query.minPrice !== undefined && { gte: query.minPrice }),
+          ...(query.maxPrice !== undefined && { lte: query.maxPrice }),
+        },
+      }),
     };
 
     const orderBy: Prisma.ProductOrderByWithRelationInput =
@@ -441,6 +455,114 @@ export class ProductsService {
         where: { published: true, ...adminOnlyFilter, id: { notIn: [...existingIds] } },
         take: count - items.length,
         orderBy: { rating: 'desc' },
+        include,
+      });
+      items = [...items, ...extra];
+    }
+
+    return items.map((p) => this.mapProduct(p));
+  }
+
+  /**
+   * "Танд санал болгох" (personalized) — хэрэглэгчийн зан төлөвт суурилсан санал.
+   *
+   * Логик:
+   * - Нэвтэрсэн (userId): тухайн хэрэглэгчийн ProductEvent(view) + Order(PAID авсан)-аас
+   *   үзсэн/авсан бүтээгдэхүүний categoryId/type цуглуулна.
+   * - Зочин (viewedIds frontend localStorage): тэр productId-уудаас category/type тогтооно.
+   * - Эдгээр category/type-ийн published, adminOnly=false бүтээгдэхүүнээс хэрэглэгчийн
+   *   ХУДАЛДАЖ АВСАН + ҮЗСЭН/localStorage жагсаалтад БАЙХГҮЙ-г санал болгоно.
+   * - Дата бага бол → fallback (хамгийн их таталттай/шинэ) бүтээгдэхүүн.
+   *
+   * ⚠️ adminOnly=false зөвхөн — recommended нь зөвхөн public discovery-д зориулагдсан
+   *    (админ scope энд хэрэггүй).
+   */
+  async getRecommended(userId?: string, viewedIds: string[] = [], limit = 8) {
+    const include = {
+      category: { select: { id: true, name: true, slug: true } },
+      images: { orderBy: { sortOrder: 'asc' as const }, include: { variants: { select: { size: true, fileKey: true } } } },
+      course: { select: { _count: { select: { lessons: true } } } },
+    };
+
+    // 1. Сонирхлын дохио (signal): үзсэн/авсан бүтээгдэхүүний id-ууд.
+    const seedIds = new Set<string>(viewedIds.filter((s) => typeof s === 'string' && s));
+    // Худалдаж авсан product id-ууд (үр дүнгээс хасна — дахин санал болгохгүй).
+    const purchasedIds = new Set<string>();
+
+    if (userId) {
+      // Нэвтэрсэн: сүүлийн үзэлт (ProductEvent) + бүх PAID захиалга.
+      const [viewEvents, paidOrders] = await Promise.all([
+        this.prisma.productEvent.findMany({
+          where: { userId, type: 'view' },
+          select: { productId: true },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        this.prisma.order.findMany({
+          where: { userId, status: 'PAID' },
+          select: { items: { select: { productId: true } } },
+        }),
+      ]);
+      for (const e of viewEvents) if (e.productId) seedIds.add(e.productId);
+      for (const o of paidOrders) {
+        for (const it of o.items) {
+          seedIds.add(it.productId);
+          purchasedIds.add(it.productId);
+        }
+      }
+    }
+
+    // 2. Seed бүтээгдэхүүнүүдээс category/type тогтооно.
+    let categoryIds: string[] = [];
+    let types: string[] = [];
+    if (seedIds.size > 0) {
+      const seedProducts = await this.prisma.product.findMany({
+        where: { id: { in: [...seedIds] } },
+        select: { categoryId: true, type: true },
+      });
+      categoryIds = [...new Set(seedProducts.map((p) => p.categoryId).filter((c): c is string => !!c))];
+      types = [...new Set(seedProducts.map((p) => p.type))];
+    }
+
+    // Үр дүнгээс хасах бүх id (үзсэн + авсан).
+    const excludeIds = [...new Set([...seedIds, ...purchasedIds])];
+
+    const baseWhere: Prisma.ProductWhereInput = {
+      published: true,
+      adminOnly: false,
+      ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
+    };
+
+    let items: Prisma.ProductGetPayload<{ include: typeof include }>[] = [];
+
+    // 3. Сонирхолд тулгуурласан санал: ижил category ЭСВЭЛ ижил type.
+    if (categoryIds.length > 0 || types.length > 0) {
+      items = await this.prisma.product.findMany({
+        where: {
+          ...baseWhere,
+          OR: [
+            ...(categoryIds.length > 0 ? [{ categoryId: { in: categoryIds } }] : []),
+            ...(types.length > 0 ? [{ type: { in: types as any[] } }] : []),
+          ],
+        },
+        take: limit,
+        // Их таталттай → шинэ. Алдартай контентыг түрүүлж санал болгоно.
+        orderBy: [{ downloadCount: 'desc' }, { createdAt: 'desc' }],
+        include,
+      });
+    }
+
+    // 4. Fallback — дата бага / хүрэлцэхгүй бол хамгийн их таталттай шинэ бүтээгдэхүүн.
+    if (items.length < limit) {
+      const haveIds = new Set([...excludeIds, ...items.map((i) => i.id)]);
+      const extra = await this.prisma.product.findMany({
+        where: {
+          published: true,
+          adminOnly: false,
+          ...(haveIds.size > 0 ? { id: { notIn: [...haveIds] } } : {}),
+        },
+        take: limit - items.length,
+        orderBy: [{ downloadCount: 'desc' }, { createdAt: 'desc' }],
         include,
       });
       items = [...items, ...extra];

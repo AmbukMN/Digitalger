@@ -32,7 +32,8 @@ describe('CoursesService', () => {
     };
     const config = { get: jest.fn().mockReturnValue('https://digitalger.mn') };
     const email = { sendCertificateIssued: jest.fn() };
-    service = new CoursesService(prisma as any, storage as any, stream as any, config as any, email as any);
+    const notifications = { create: jest.fn().mockResolvedValue(undefined) };
+    service = new CoursesService(prisma as any, storage as any, stream as any, config as any, email as any, notifications as any);
   });
 
   describe('getLessonVideoUrl', () => {

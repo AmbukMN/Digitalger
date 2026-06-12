@@ -45,7 +45,8 @@ describe('PaymentsService', () => {
       emitPaymentPaid: jest.fn().mockResolvedValue(undefined),
       emitPaymentFailed: jest.fn().mockResolvedValue(undefined),
     };
-    service = new PaymentsService(prisma as any, config as any, n8n as any);
+    const notifications = { create: jest.fn().mockResolvedValue(undefined) };
+    service = new PaymentsService(prisma as any, config as any, n8n as any, notifications as any);
 
     prisma.order.findUnique.mockResolvedValue({ userId: 'user-1' });
     prisma.user.update.mockResolvedValue({});
