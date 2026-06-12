@@ -17,6 +17,22 @@ import { BLUR_DATA_URL } from '@/lib/image-blur';
 
 type Props = { params: Promise<{ slug: string }> };
 
+// ── First-visit хурд: нийтлэлийн detail-ийг STATIC ISR болгов ──
+// blog дата бараг өөрчлөгддөггүй тул 10 мин revalidate. Token/cookies ашигладаггүй
+// тул бүрэн static болно.
+export const revalidate = 600;
+
+// Сүүлийн нийтлэлүүдийн slug-уудыг build-д урьдчилан render (SSG). Бусад нь
+// on-demand ISR-ээр үүснэ.
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  try {
+    const data = await blogApi.list({ pageSize: 50 });
+    return data.items.map((p) => ({ slug: p.slug }));
+  } catch {
+    return [];
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {

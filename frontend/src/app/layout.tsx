@@ -12,14 +12,22 @@ import { ServiceWorkerRegister } from '@/components/service-worker-register';
 // bundle-аас гаргасан (ssr:false нь server component-д зөвшөөрөгдөхгүй).
 import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
 
+// display:'swap' → FOIT (текст харагдахгүй) сэргийлж, fallback фонтоор шууд
+// харуулаад фонт ачаалагдмагц солино (first-paint хурдан).
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
+  display: 'swap',
+  preload: true,
 });
 
+// Mono фонт нь зөвхөн код/тоонд хааяа хэрэглэгддэг тул preload хийхгүй
+// (анхны ачаалал дээр илүүдэл фонт татахаас сэргийлж first-visit хурдасгана).
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+  display: 'swap',
+  preload: false,
 });
 
 export const viewport: Viewport = {

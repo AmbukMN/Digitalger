@@ -37,7 +37,7 @@ import {
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Separator, ThemeToggle } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
 import { API_URL } from '@/lib/constants';
@@ -349,6 +349,44 @@ function NavSections({
 type PermMap = Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
 
 /**
+ * 🔁 Дахин ашиглагдах dropdown hook — нээлттэй (open) үед:
+ *   1) ref-ийн ГАДНА дарахад (mousedown/touchstart) хаах,
+ *   2) Escape дарахад хаах.
+ *
+ * mousedown/touchstart (click БИШ) сонсох нь илүү найдвартай: dropdown доторх
+ * товч дарж амжихаас өмнө хаахгүй (товчны onClick эхэлж ажиллана), мобайл touch-д
+ * ч ажиллана. Тусдаа overlay div шаардлагагүй — z-index зөрчилгүй.
+ *
+ * @param open    dropdown нээлттэй эсэх
+ * @param onClose хаах callback (setOpen(false))
+ * @returns       dropdown-ийн үндсэн контейнерт залгах ref (товч + меню багтсан)
+ */
+function useDropdownDismiss<T extends HTMLElement>(open: boolean, onClose: () => void) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (!open) return;
+    // Гадуур дарах: ref дотор биш бол хаах. mousedown+touchstart хоёуланг.
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = ref.current;
+      if (el && !el.contains(e.target as Node)) onClose();
+    };
+    // Escape: хаах.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('touchstart', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('touchstart', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+  return ref;
+}
+
+/**
  * 🔔 Мэдэгдлийн төв (Bell dropdown) — тусдаа Notification model БИШ, одоо байгаа
  * sidebar-badges (Захиалга/Хэрэглэгч/Subscriber/Review) + lessons-questions
  * (уншаагүй суралцагчийн асуулт) дата-г бодит цаг-д НЭГТГЭН харуулна.
@@ -359,10 +397,12 @@ type PermMap = Record<string, { view: boolean; create: boolean; edit: boolean; d
  * - Хоосон бол "Шинэ мэдэгдэл алга".
  * - Гадагш дарахад хаах — account dropdown-ийн pattern (overlay + outside click).
  */
-function NotificationBell() {
+function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const setOpen = onOpenChange;
+  // Гадуур дарах + Escape-д хаах (дахин ашиглагдах hook). ref-ийг wrapper-т залгана.
+  const wrapRef = useDropdownDismiss<HTMLDivElement>(open, () => onOpenChange(false));
 
   // ── Sidebar badge тоонууд (Захиалга/Хэрэглэгч/Subscriber/Review/Төлбөр) ──
   const { data: sidebarBadges } = useQuery({
@@ -416,12 +456,12 @@ function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <Button
         variant="ghost"
         size="icon"
         aria-label="Мэдэгдэл"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(!open)}
         className="relative"
       >
         <Bell className="h-4 w-4" />
@@ -433,13 +473,7 @@ function NotificationBell() {
       </Button>
 
       {open && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setOpen(false)}
-            aria-hidden
-          />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-popover p-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-popover p-1 shadow-lg">
             <div className="flex items-center justify-between px-3 py-2">
               <p className="text-sm font-semibold text-foreground">Мэдэгдэл</p>
               {total > 0 && (
@@ -477,8 +511,7 @@ function NotificationBell() {
                 })}
               </div>
             )}
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -503,7 +536,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Account dropdown — гадуур дарах + Escape-д хаах (notify-той ижил hook).
+  const menuRef = useDropdownDismiss<HTMLDivElement>(menuOpen, () => setMenuOpen(false));
+
+  // Нэг dropdown нээхэд нөгөөг хаах (хоёр зэрэг нээгдэхгүй — цэвэр UX).
+  const openNotify = (open: boolean) => {
+    setNotifyOpen(open);
+    if (open) setMenuOpen(false);
+  };
+  const openMenu = (open: boolean) => {
+    setMenuOpen(open);
+    if (open) setNotifyOpen(false);
+  };
 
   // Замбараа солигдоход mobile drawer хаах
   useEffect(() => {
@@ -740,17 +787,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1" />
 
-          <NotificationBell />
+          <NotificationBell open={notifyOpen} onOpenChange={openNotify} />
 
           <ThemeToggle />
 
           <Separator orientation="vertical" className="h-6" />
 
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setMenuOpen((o) => !o)}
+              onClick={() => openMenu(!menuOpen)}
               className="gap-2"
             >
               {userImage ? (
@@ -763,12 +810,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <span className="hidden max-w-30 truncate sm:inline text-sm">{userName}</span>
             </Button>
             {menuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setMenuOpen(false)}
-                  aria-hidden
-                />
                 <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-border bg-popover p-1 shadow-lg">
                   <div className="flex items-center gap-2.5 px-3 py-2">
                     {userImage ? (
@@ -801,7 +842,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     Гарах
                   </button>
                 </div>
-              </>
             )}
           </div>
         </header>

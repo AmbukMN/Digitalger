@@ -1,16 +1,13 @@
-export const dynamic = 'force-dynamic'; // search params дээр тулгуурладаг тул dynamic үлдэх ёстой
-
+// force-dynamic ХАСав — filter СОЛИХ үед client-side (TanStack Query) шилжинэ.
+// searchParams нь async тул хуудас автоматаар dynamic байх ба анхны load SSR хэвээр
+// (SEO + first paint). Filter навигац server re-render хийхгүй → skeleton дээр гацахгүй.
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
-import { ProductGrid } from '@/components/products/product-grid';
-import { ProductsFilter } from '@/components/products/products-filter';
 import { productsApi, productTypesApi, categoriesApi, siteSettingsApi } from '@/lib/api';
 import { applySeoOverride } from '@/lib/page-metadata';
 import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
 import type { ProductSummary } from '@/types/api';
-import { PageHeader } from '@/components/ui/page-header';
-import { PagePagination } from '@/components/ui/page-pagination';
+import { ProductsClient } from '@/components/products/products-client';
 
 export async function generateMetadata(): Promise<Metadata> {
   let ogImageUrl: string | null = null;
@@ -49,6 +46,33 @@ type SearchParams = {
   maxPrice?: string;
 };
 
+const PAGE_SIZE = 24;
+
+// products-client.tsx-ийн filterKey-тэй ЯГ ИЖИЛ дараалал/формат байх ёстой —
+// ингэснээр client анхны URL дээр server датаг (initialData) дахин fetch
+// хийхгүйгээр шууд ашиглана (SSR first paint).
+function buildInitialKey(params: SearchParams): string {
+  const page = Number(params.page) || 1;
+  const parsePrice = (v?: string): number | undefined => {
+    if (!v) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const sortBy = (params.sortBy as 'newest' | 'discount' | 'rating' | 'downloads' | undefined) ?? undefined;
+  const minPrice = parsePrice(params.minPrice);
+  const maxPrice = parsePrice(params.maxPrice);
+  return JSON.stringify([
+    page,
+    params.category ?? '',
+    params.types ?? params.type ?? '',
+    sortBy ?? '',
+    params.onSale === 'true' ? 1 : 0,
+    params.featured === 'true' ? 1 : 0,
+    minPrice ?? '',
+    maxPrice ?? '',
+  ]);
+}
+
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const page = Number(params.page) || 1;
@@ -65,13 +89,16 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const minPrice = parsePrice(params.minPrice);
   const maxPrice = parsePrice(params.maxPrice);
 
-  // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүн ч жагсаалтад харагдана
+  // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүн ч жагсаалтад харагдана.
+  // (Client-side filter дээр token нь useSession-аас дахин уншигдана.)
   const adminToken = await getAdminAccessToken();
 
+  // SSR анхны хуудас + filter options — first paint + SEO. Filter СОЛИХ үед
+  // дахин энд орохгүй, client-side TanStack Query шилжинэ.
   const [productsData, productTypeConfigs, categories] = await Promise.all([
     productsApi.list({
       page,
-      pageSize: 24,
+      pageSize: PAGE_SIZE,
       category: params.category,
       featured,
       types: params.types,
@@ -80,114 +107,49 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       onSale,
       minPrice,
       maxPrice,
-    }, adminToken).catch(() => ({ items: [] as ProductSummary[], total: 0, page: 1, pageSize: 24 })),
+    }, adminToken).catch(() => ({ items: [] as ProductSummary[], total: 0, page: 1, pageSize: PAGE_SIZE })),
     productTypesApi.list().catch(() => []),
     categoriesApi.list().catch(() => []),
   ]);
 
-  const products = productsData.items;
-  const total = productsData.total;
-
-  let heading: { title: string; desc: string };
+  // SEO heading (JSON-LD) — server дээр тооцоолно
+  let title = 'Бүтээгдэхүүн';
+  let desc = 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн';
   if (typesKey) {
     const typeValues = typesKey.split(',');
     if (typeValues.length === 1) {
       const found = productTypeConfigs.find((t) => t.value === typeValues[0]);
-      heading = found
-        ? { title: found.label, desc: found.description ?? `${found.label} бүтээгдэхүүн` }
-        : { title: typeValues[0], desc: 'Дижитал бүтээгдэхүүн' };
+      if (found) { title = found.label; desc = found.description ?? `${found.label} бүтээгдэхүүн`; }
+      else { title = typeValues[0]; desc = 'Дижитал бүтээгдэхүүн'; }
     } else {
-      const labels = typeValues.map((v) => productTypeConfigs.find((t) => t.value === v)?.label ?? v);
-      heading = { title: labels.join(' & '), desc: 'Дижитал бүтээгдэхүүн' };
+      title = typeValues.map((v) => productTypeConfigs.find((t) => t.value === v)?.label ?? v).join(' & ');
+      desc = 'Дижитал бүтээгдэхүүн';
     }
   } else if (params.category) {
     const cat = categories.find((c) => c.slug === params.category);
-    heading = cat
-      ? { title: cat.name, desc: cat.description ?? `${cat.name} ангиллын бүтээгдэхүүнүүд` }
-      : { title: 'Бүтээгдэхүүн', desc: 'Дижитал бүтээгдэхүүн' };
-  } else {
-    heading = { title: 'Бүтээгдэхүүн', desc: 'Файл, загвар, хичээл болон бусад дижитал бүтээгдэхүүн' };
+    if (cat) { title = cat.name; desc = cat.description ?? `${cat.name} ангиллын бүтээгдэхүүнүүд`; }
   }
-
-  const activeCount = [params.category, typesKey, sortBy, onSale, featured, minPrice, maxPrice].filter(
-    (v) => v !== undefined && v !== '',
-  ).length;
 
   const collectionJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: heading.title,
-    description: heading.desc,
+    name: title,
+    description: desc,
     url: `${SITE_URL}/products${params.category ? `?category=${params.category}` : ''}`,
-    numberOfItems: total,
+    numberOfItems: productsData.total,
   };
 
   return (
     <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex gap-8">
-        {/* Desktop sidebar */}
-        <aside className="hidden lg:block w-56 shrink-0">
-          <div className="sticky top-24 rounded-2xl border border-border bg-card p-4 dark:bg-card">
-            <Suspense>
-              <ProductsFilter
-                categories={categories}
-                productTypes={productTypeConfigs}
-                total={total}
-              />
-            </Suspense>
-          </div>
-        </aside>
-
-        {/* Main */}
-        <div className="flex-1 min-w-0">
-          <PageHeader title={heading.title} description={heading.desc} className="mb-6" />
-          {/* Mobile filter bar */}
-          <div className="mb-4 flex items-center justify-between lg:hidden">
-            <p className="text-sm text-muted-foreground">{total.toLocaleString()} бүтээгдэхүүн</p>
-            <Suspense>
-              <ProductsFilter
-                categories={categories}
-                productTypes={productTypeConfigs}
-                total={total}
-              />
-            </Suspense>
-          </div>
-
-          {products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <p className="text-lg font-semibold">Бүтээгдэхүүн олдсонгүй</p>
-              <p className="mt-1 text-sm text-muted-foreground">Шүүлтүүрийг өөрчилж дахин хайна уу</p>
-            </div>
-          ) : (
-            <>
-              <ProductGrid products={products} cols="three" />
-              <div className="mt-8">
-                <PagePagination
-                  page={page}
-                  total={total}
-                  pageSize={24}
-                  buildUrl={(p) => {
-                    const sp = new URLSearchParams();
-                    if (p > 1) sp.set('page', String(p));
-                    if (params.category) sp.set('category', params.category);
-                    if (typesKey) sp.set('types', typesKey);
-                    if (sortBy) sp.set('sortBy', sortBy);
-                    if (params.onSale) sp.set('onSale', params.onSale);
-                    if (params.featured) sp.set('featured', params.featured);
-                    if (minPrice !== undefined) sp.set('minPrice', String(minPrice));
-                    if (maxPrice !== undefined) sp.set('maxPrice', String(maxPrice));
-                    const s = sp.toString();
-                    return `/products${s ? `?${s}` : ''}`;
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
+      <ProductsClient
+        categories={categories}
+        productTypes={productTypeConfigs}
+        initialData={productsData}
+        // adminToken байвал client дахин (token-той) fetch хийнэ — admin-only
+        // бүтээгдэхүүн зөрчилгүй харагдана; зочин/энгийн үед SSR дата шууд.
+        initialKey={adminToken ? '__admin__' : buildInitialKey(params)}
+      />
     </>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useTransition } from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, Tag, X } from 'lucide-react';
 import { Badge, Button, Input, Sheet, SheetContent, SheetTrigger } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
@@ -197,6 +197,7 @@ function CollapseList<T>({
 function FilterContent({ categories, productTypes, total, onClose }: Props & { onClose?: () => void }) {
   const router = useRouter();
   const sp = useSearchParams();
+  const [, startTransition] = useTransition();
 
   const currentCategory = sp.get('category') ?? '';
   const currentType = sp.get('type') ?? sp.get('types') ?? '';
@@ -206,6 +207,9 @@ function FilterContent({ categories, productTypes, total, onClose }: Props & { o
   const currentMin = sp.get('minPrice') ?? '';
   const currentMax = sp.get('maxPrice') ?? '';
 
+  // Filter солих → URL replace (history спам багасгана, scroll хадгална). Дата нь
+  // URL биш ProductsClient-ийн TanStack Query-ээс (keepPreviousData) тул skeleton
+  // дээр гацахгүй, навигац INSTANT. startTransition — UI хариу хурдан.
   const push = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(sp.toString());
@@ -214,14 +218,20 @@ function FilterContent({ categories, productTypes, total, onClose }: Props & { o
         if (v === null || v === '') params.delete(k);
         else params.set(k, v);
       }
-      router.push(`/products?${params.toString()}`);
+      const s = params.toString();
+      startTransition(() => {
+        router.replace(`/products${s ? `?${s}` : ''}`, { scroll: false });
+      });
       onClose?.();
     },
     [router, sp, onClose],
   );
 
   const activeCount = [currentCategory, currentType, currentSort, currentOnSale, currentFeatured, currentMin, currentMax].filter(Boolean).length;
-  const clearAll = () => { router.push('/products'); onClose?.(); };
+  const clearAll = () => {
+    startTransition(() => router.replace('/products', { scroll: false }));
+    onClose?.();
+  };
 
   return (
     <div className="space-y-0">

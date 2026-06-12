@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { ProductGrid } from '@/components/products/product-grid';
 import { ProductSwiper } from '@/components/products/product-swiper';
 import { productsApi } from '@/lib/api';
-import { getAdminAccessToken } from '@/lib/auth';
 import { ArrowRight } from 'lucide-react';
 import type { ProductSummary } from '@/types/api';
 
@@ -33,9 +32,10 @@ export async function ProductSection({
   let items: ProductSummary[] = [];
   try {
     const pageSize = pageSizeProp ?? (swiper ? 48 : 8);
-    // ADMIN бол token дамжуулна → adminOnly бүтээгдэхүүн ч багтана (бусдад нуугдсан)
-    const adminToken = await getAdminAccessToken();
-    const data = await productsApi.list({ pageSize, featured, type, types, sortBy, onSale }, adminToken);
+    // ⚠️ Token-гүй public fetch — home хуудсыг STATIC ISR байлгахын тулд cookies/
+    // getServerSession дуудахгүй. adminOnly бүтээгдэхүүн нь home-ийн discovery
+    // section-д харагдах шаардлагагүй (зөвхөн public бүтээгдэхүүн).
+    const data = await productsApi.list({ pageSize, featured, type, types, sortBy, onSale });
     items = data.items;
   } catch {
     items = [];

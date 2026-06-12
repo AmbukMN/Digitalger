@@ -35,6 +35,10 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
     // signal дамжуулаагүй бол default 15сек timeout — API удаан/унавал
     // хязгааргүй хүлээж UI гацахаас сэргийлнэ
     signal: signal ?? AbortSignal.timeout(15000),
+    // ⚠️ Next 15: тохиргоогүй fetch default no-store. ISR static хуудсанд
+    // (revalidate export-той) no-store fetch route-ийг dynamic болгож болзошгүй.
+    // `next: { revalidate }` дамжуулсан үед тухайн fetch-ийг cache-лэх боломжтой
+    // болж page нь жинхэнэ static ISR хэвээр үлдэнэ (доорх `next` дамжуулалт).
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -162,7 +166,11 @@ export const productsApi = {
       maxPrice: params?.maxPrice,
       ...(params?.types ? { types: params.types } : { type: params?.type }),
     });
-    return request<PaginatedProducts>(`/products${query}`, { token });
+    // Public (token-гүй) жагсаалтыг ISR хуудсанд cache-лэх (home/section/static params).
+    return request<PaginatedProducts>(`/products${query}`, {
+      token,
+      ...(token ? {} : { next: { revalidate: 60 } }),
+    });
   },
 
   // token (optional) — ADMIN/SUPERADMIN/EDITOR бол хайлтад adminOnly бүтээгдэхүүн
@@ -173,12 +181,21 @@ export const productsApi = {
       { token },
     ),
 
-  // token (optional) — ADMIN бол adminOnly бүтээгдэхүүний detail-ийг харна
-  bySlug: (slug: string, token?: string) => request<ProductDetail>(`/products/${slug}`, { token }),
+  // token (optional) — ADMIN бол adminOnly бүтээгдэхүүний detail-ийг харна.
+  // token-гүй (public) дуудалтыг ISR static хуудсанд cache-лэхийн тулд revalidate
+  // тавина (token-той админ preview-д cache хийхгүй — шинэ дата харагдана).
+  bySlug: (slug: string, token?: string) =>
+    request<ProductDetail>(`/products/${slug}`, {
+      token,
+      ...(token ? {} : { next: { revalidate: 300 } }),
+    }),
   incrementView: (slug: string) =>
     request<{ ok: boolean }>(`/products/${slug}/view`, { method: 'POST' }).catch(() => null),
   suggested: (slug: string, count = 4, token?: string) =>
-    request<ProductSummary[]>(`/products/${slug}/suggested?count=${count}`, { token }),
+    request<ProductSummary[]>(`/products/${slug}/suggested?count=${count}`, {
+      token,
+      ...(token ? {} : { next: { revalidate: 300 } }),
+    }),
 
   // "Танд санал болгох" (personalized). token (optional) → нэвтэрсэн бол userId-аар
   // (view+худалдан авалт). viewedIds (optional) → зочны localStorage-ийн саяхан үзсэн
@@ -195,7 +212,7 @@ export const productsApi = {
 
 // —— Categories ——
 export const categoriesApi = {
-  list: () => request<Category[]>('/categories'),
+  list: () => request<Category[]>('/categories', { next: { revalidate: 300 } }),
   bySlug: (slug: string) => request<Category & { products?: PaginatedProducts['items'] }>(`/categories/${slug}`),
 };
 
@@ -422,7 +439,7 @@ export const usersApi = {
 
 // —— Banners ——
 export const bannersApi = {
-  list: () => request<Banner[]>('/banners'),
+  list: () => request<Banner[]>('/banners', { next: { revalidate: 60 } }),
 };
 
 // —— Menu ——
@@ -432,7 +449,7 @@ export const menuApi = {
 
 // —— Testimonials ——
 export const testimonialsApi = {
-  listActive: () => request<Testimonial[]>('/testimonials'),
+  listActive: () => request<Testimonial[]>('/testimonials', { next: { revalidate: 300 } }),
 };
 
 // —— Wishlist ——
@@ -456,11 +473,14 @@ export const blogApi = {
     if (params?.pageSize) q.set('pageSize', String(params.pageSize));
     if (params?.tag) q.set('tag', params.tag);
     const queryStr = q.toString();
-    return request<{ items: BlogPost[]; total: number; page: number; pageSize: number }>(`/blog${queryStr ? `?${queryStr}` : ''}`);
+    return request<{ items: BlogPost[]; total: number; page: number; pageSize: number }>(
+      `/blog${queryStr ? `?${queryStr}` : ''}`,
+      { next: { revalidate: 600 } },
+    );
   },
-  latest: (count = 3) => request<BlogPost[]>(`/blog/latest?count=${count}`),
+  latest: (count = 3) => request<BlogPost[]>(`/blog/latest?count=${count}`, { next: { revalidate: 300 } }),
   search: (q: string) => request<BlogPost[]>(`/blog/search?q=${encodeURIComponent(q)}`),
-  bySlug: (slug: string) => request<BlogPost>(`/blog/${slug}`),
+  bySlug: (slug: string) => request<BlogPost>(`/blog/${slug}`, { next: { revalidate: 600 } }),
   incrementView: (slug: string) =>
     request<{ ok: boolean }>(`/blog/${slug}/view`, { method: 'POST' }).catch(() => null),
 };
@@ -802,7 +822,7 @@ export interface PageData {
 }
 
 export const pagesApi = {
-  bySlug: (slug: string) => request<PageData | null>(`/pages/${slug}`),
+  bySlug: (slug: string) => request<PageData | null>(`/pages/${slug}`, { next: { revalidate: 300 } }),
 };
 
 // —— Public Site Settings ——
@@ -825,7 +845,7 @@ export interface PublicSiteSettings {
 }
 
 export const siteSettingsApi = {
-  getPublic: () => request<PublicSiteSettings>('/settings/public'),
+  getPublic: () => request<PublicSiteSettings>('/settings/public', { next: { revalidate: 300 } }),
 };
 
 // —— SEO override (тогтмол хуудсуудын custom OG meta) ——
@@ -841,7 +861,7 @@ export const seoApi = {
    * Override байвал {title?,description?,ogImageUrl?}, байхгүй бол null.
    */
   getOverride: (path: string) =>
-    request<SeoOverride | null>(`/seo/override${qs({ path })}`),
+    request<SeoOverride | null>(`/seo/override${qs({ path })}`, { next: { revalidate: 300 } }),
 };
 
 // —— Subscribers (newsletter) ——

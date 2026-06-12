@@ -42,6 +42,15 @@
   to { width: 100%; }
 }
 
+/* /products filter навигацын top progress bar (keepPreviousData fetch) */
+@keyframes dgProgressIndeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.dg-progress-indeterminate {
+  animation: dgProgressIndeterminate 1s ease-in-out infinite;
+}
+
 /* Editor HTML output-ийн table style */
 .prose table { border-collapse: collapse; width: 100%; }
 .prose th, .prose td {

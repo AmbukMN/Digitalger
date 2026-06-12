@@ -6,9 +6,21 @@ interface PagePaginationProps {
   total: number;
   pageSize: number;
   buildUrl: (page: number) => string;
+  // Optional — өгвөл client-side navigation (router.replace) хийнэ. SSR full
+  // navigation-ийн оронд instant. href нь SEO/shareable тул хадгална.
+  onNavigate?: (page: number) => void;
 }
 
-export function PagePagination({ page, total, pageSize, buildUrl }: PagePaginationProps) {
+export function PagePagination({ page, total, pageSize, buildUrl, onNavigate }: PagePaginationProps) {
+  const handleClick = (p: number) =>
+    onNavigate
+      ? (e: React.MouseEvent) => {
+          // Modifier (шинэ таб) бол default Link зан үлдээнэ
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          onNavigate(p);
+        }
+      : undefined;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (totalPages <= 1) return null;
 
@@ -35,6 +47,7 @@ export function PagePagination({ page, total, pageSize, buildUrl }: PagePaginati
         {page > 1 ? (
           <Link
             href={buildUrl(page - 1)}
+            onClick={handleClick(page - 1)}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -59,6 +72,7 @@ export function PagePagination({ page, total, pageSize, buildUrl }: PagePaginati
               <Link
                 key={p}
                 href={buildUrl(p)}
+                onClick={handleClick(p)}
                 className="inline-flex items-center justify-center rounded-md border border-border bg-background w-8 h-8 text-sm font-medium hover:bg-muted transition-colors"
               >
                 {p}
@@ -74,6 +88,7 @@ export function PagePagination({ page, total, pageSize, buildUrl }: PagePaginati
         {page < totalPages ? (
           <Link
             href={buildUrl(page + 1)}
+            onClick={handleClick(page + 1)}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
           >
             Дараах
