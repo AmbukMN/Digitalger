@@ -32,7 +32,8 @@ describe('OrdersService.createPending', () => {
       sendOrderConfirmation: jest.fn().mockResolvedValue(undefined),
       sendPaymentConfirmation: jest.fn().mockResolvedValue(undefined),
     };
-    service = new OrdersService(prisma as any, storage as any, email as any);
+    const notifications = { create: jest.fn().mockResolvedValue(undefined) };
+    service = new OrdersService(prisma as any, storage as any, email as any, notifications as any);
 
     // default: duplicate guard-д PENDING олдохгүй
     prisma.order.findFirst.mockResolvedValue(null);

@@ -8,11 +8,13 @@ import { PhoneVerifyService } from './phone-verify.service';
 import { VerifyMnService } from './verify-mn.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { NotificationCenterModule } from '../notification-center/notification-center.module';
 import { SubscribersModule } from '../subscribers/subscribers.module';
 
 @Module({
   imports: [
     NotificationsModule,
+    NotificationCenterModule,
     SubscribersModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

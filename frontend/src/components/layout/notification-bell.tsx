@@ -16,6 +16,8 @@ import {
   Bell,
   BookOpen,
   CheckCheck,
+  Megaphone,
+  Shield,
   Ticket,
   ShoppingCart,
   Sparkles,
@@ -37,6 +39,10 @@ function NotifIcon({ type }: { type: string }) {
       return <BookOpen className={cls} />;
     case 'coupon':
       return <Ticket className={cls} />;
+    case 'security':
+      return <Shield className={cls} />;
+    case 'marketing':
+      return <Megaphone className={cls} />;
     default:
       return <Sparkles className={cls} />;
   }

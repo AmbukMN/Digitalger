@@ -10,6 +10,7 @@ import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
 import { N8nService } from '../n8n/n8n.service';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { ProductsService } from '../products/products.service';
 import { expandQuery } from '../../common/transliterate';
 import { buildOwnerWhere, assertOwner, assertCanDelete, isSuperadmin } from '../../common/ownership';
@@ -32,6 +33,7 @@ export class AdminProductsService {
     private readonly stream: CloudflareStreamService,
     private readonly n8n: N8nService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
     private readonly products: ProductsService,
   ) {}
 
@@ -1084,7 +1086,18 @@ export class AdminProductsService {
       where: { id: questionId },
       select: {
         id: true,
-        lesson: { select: { course: { select: { product: { select: { createdByUserId: true } } } } } },
+        // ⚠️ Асуулт асуусан хэрэглэгч → түүн рүү in-app мэдэгдэл явуулна.
+        userId: true,
+        lesson: {
+          select: {
+            title: true,
+            course: {
+              select: {
+                product: { select: { createdByUserId: true, title: true, slug: true } },
+              },
+            },
+          },
+        },
       },
     });
     if (!question) throw new NotFoundException('Question not found');
@@ -1101,6 +1114,20 @@ export class AdminProductsService {
       },
       include: { user: { select: { id: true, name: true, image: true } } },
     });
+
+    // In-app мэдэгдэл (navbar 🔔) — асуулт асуусан хэрэглэгчид. Fire-and-forget.
+    // ⚠️ Багш өөрийнхөө асуултад хариулсан бол (userId === асуултын эзэн) мэдэгдэхгүй.
+    if (question.userId && question.userId !== userId) {
+      const product = question.lesson.course.product;
+      this.notifications
+        .create(question.userId, {
+          title: 'Хичээлийн асуултад хариулсан',
+          body: `"${product.title}" курсын "${question.lesson.title}" хичээлийн таны асуултад хариу ирлээ.`,
+          type: 'lesson',
+          link: `/learn/${product.slug}`,
+        })
+        .catch(() => null);
+    }
 
     return { ...created, attachment: await this.resolveQaAttachment(created) };
   }

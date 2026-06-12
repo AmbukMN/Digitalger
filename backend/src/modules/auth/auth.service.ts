@@ -15,6 +15,7 @@ import { ValidateDto } from './dto/validate.dto';
 import { OAuthDto } from './dto/oauth.dto';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { SubscribersService } from '../subscribers/subscribers.service';
 
 const BCRYPT_ROUNDS = 12;
@@ -47,6 +48,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
     private readonly subscribers: SubscribersService,
   ) {}
 
@@ -359,6 +361,16 @@ export class AuthService {
 
     // Шинэ (баталгаажсан) имэйлийг "Веб-д бүртгүүлсэн" subscriber-д нэмнэ.
     this.subscribers.ensureWebRegister(pending, userId, updated.name ?? undefined);
+
+    // In-app аюулгүй байдлын мэдэгдэл (navbar 🔔) — fire-and-forget.
+    this.notifications
+      .create(userId, {
+        title: 'Имэйл шинэчлэгдлээ',
+        body: `Таны имэйл хаяг "${pending}" болж шинэчлэгдлээ. Хэрэв та өөрчлөөгүй бол бидэнтэй холбогдоно уу.`,
+        type: 'security',
+        link: '/profile',
+      })
+      .catch(() => null);
 
     return { message: 'Email changed', user: this.sanitizeUser(updated) };
   }

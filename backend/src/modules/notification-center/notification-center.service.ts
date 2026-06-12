@@ -3,7 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 // Аппликейшн доторх (in-app) мэдэгдэл — navbar 🔔 bell-д харагдана.
 // ⚠️ Энэ нь имэйлийн NotificationsModule-аас ТУСДАА (in-app зөвхөн).
-export type NotificationType = 'info' | 'order' | 'lesson' | 'coupon' | 'certificate';
+export type NotificationType =
+  | 'info'
+  | 'order'
+  | 'lesson'
+  | 'coupon'
+  | 'certificate'
+  | 'security'
+  | 'marketing';
 
 export interface CreateNotificationInput {
   title: string;

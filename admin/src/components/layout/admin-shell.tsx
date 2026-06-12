@@ -348,6 +348,142 @@ function NavSections({
 // Permission map type.
 type PermMap = Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> | null;
 
+/**
+ * 🔔 Мэдэгдлийн төв (Bell dropdown) — тусдаа Notification model БИШ, одоо байгаа
+ * sidebar-badges (Захиалга/Хэрэглэгч/Subscriber/Review) + lessons-questions
+ * (уншаагүй суралцагчийн асуулт) дата-г бодит цаг-д НЭГТГЭН харуулна.
+ *
+ * - Bell дээр нийт шинэ зүйлийн нийлбэр badge.
+ * - Дарахад dropdown нээгдэж шинэ зүйл бүрийг мөр болгон жагсаана.
+ * - Мөр дарахад → тухайн хэсэг рүү navigate + markSeen (sidebar-seen).
+ * - Хоосон бол "Шинэ мэдэгдэл алга".
+ * - Гадагш дарахад хаах — account dropdown-ийн pattern (overlay + outside click).
+ */
+function NotificationBell() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  // ── Sidebar badge тоонууд (Захиалга/Хэрэглэгч/Subscriber/Review/Төлбөр) ──
+  const { data: sidebarBadges } = useQuery({
+    queryKey: ['admin', 'sidebar-badges'],
+    queryFn: () => adminApi.sidebar.getBadges(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+
+  // ── Уншаагүй суралцагчийн асуултын тоо ──
+  const { data: qStats } = useQuery({
+    queryKey: ['admin', 'lessons-questions', 'unread-count'],
+    queryFn: () => adminApi.products.questions.list({ pageSize: 1 }),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+
+  // Бүх эх сурвалжаас нэгтгэсэн мэдэгдлийн жагсаалт. Тоо > 0 бичлэгүүд л харагдана.
+  // section: sidebar-seen markSeen-д дамжуулах нэр (null бол markSeen хийхгүй).
+  const items: {
+    key: string;
+    icon: typeof ShoppingCart;
+    label: string;
+    count: number;
+    href: string;
+    section: string | null;
+  }[] = [
+    { key: 'orders', icon: ShoppingCart, label: 'Шинэ захиалга', count: sidebarBadges?.orders ?? 0, href: '/orders', section: 'orders' },
+    { key: 'users', icon: Users, label: 'Шинэ хэрэглэгч', count: sidebarBadges?.users ?? 0, href: '/users', section: 'users' },
+    { key: 'reviews', icon: Star, label: 'Шинэ review', count: sidebarBadges?.reviews ?? 0, href: '/reviews', section: 'reviews' },
+    { key: 'subscribers', icon: Mail, label: 'Шинэ subscriber', count: sidebarBadges?.subscribers ?? 0, href: '/subscribers', section: 'subscribers' },
+    { key: 'payments', icon: CreditCard, label: 'Шинэ төлбөр', count: sidebarBadges?.payments ?? 0, href: '/payments', section: 'payments' },
+    { key: 'questions', icon: MessagesSquare, label: 'Уншаагүй суралцагчийн асуулт', count: qStats?.unreadTotal ?? 0, href: '/lessons-questions', section: null },
+  ];
+
+  const visible = items.filter((i) => i.count > 0);
+  const total = visible.reduce((sum, i) => sum + i.count, 0);
+
+  // Мөр дарах: navigate + markSeen (lessons-questions нь дэлгэц нээхэд өөрөө цэвэрлэгддэг).
+  const handleClick = (item: (typeof items)[number]) => {
+    setOpen(false);
+    if (item.section) {
+      adminApi.sidebar
+        .markSeen(item.section)
+        .then(() => queryClient.invalidateQueries({ queryKey: ['admin', 'sidebar-badges'] }))
+        .catch(() => {});
+    }
+    router.push(item.href);
+  };
+
+  return (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Мэдэгдэл"
+        onClick={() => setOpen((o) => !o)}
+        className="relative"
+      >
+        <Bell className="h-4 w-4" />
+        {total > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold tabular-nums text-white ring-2 ring-background">
+            {total > 99 ? '99+' : total}
+          </span>
+        )}
+      </Button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-popover p-1 shadow-lg">
+            <div className="flex items-center justify-between px-3 py-2">
+              <p className="text-sm font-semibold text-foreground">Мэдэгдэл</p>
+              {total > 0 && (
+                <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-bold tabular-nums text-white">
+                  {total > 99 ? '99+' : total}
+                </span>
+              )}
+            </div>
+            <Separator className="my-1" />
+            {visible.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+                <Bell className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">Шинэ мэдэгдэл алга</p>
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {visible.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => handleClick(item)}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-foreground">{item.label}</span>
+                      <span className="shrink-0 rounded-full bg-red-500 px-1.5 text-[10px] font-bold tabular-nums text-white">
+                        {item.count > 99 ? '99+' : item.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ⚠️⚠️ АЮУЛГҮЙ БАЙДАЛ: profile/permission-ийг localStorage-д ХЭЗЭЭ Ч кэшлэхгүй.
 // Өмнө кэшилснээс болж нэг admin гарч өөр admin нэвтрэхэд ХУУЧИН admin-ийн профайл
 // харагдаж байсан (өөр хүний дата задрах ноцтой алдаа). React Query memory cache
@@ -604,9 +740,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1" />
 
-          <Button variant="ghost" size="icon" aria-label="Мэдэгдэл">
-            <Bell className="h-4 w-4" />
-          </Button>
+          <NotificationBell />
 
           <ThemeToggle />
 

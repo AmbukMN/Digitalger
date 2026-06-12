@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CouponType, OrderStatus, SubscriberStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -38,6 +39,7 @@ export class MarketingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
   ) {}
 
   /**
@@ -128,6 +130,15 @@ export class MarketingService {
             })),
             total: Number(order.total),
           });
+          // In-app мэдэгдэл (navbar 🔔) — сагсаа дуусгаагүй сануулга. Fire-and-forget.
+          this.notifications
+            .create(order.userId, {
+              title: 'Сагсаа дуусгаарай',
+              body: 'Танд дуусгаагүй захиалга байна. Худалдан авалтаа үргэлжлүүлээрэй.',
+              type: 'order',
+              link: '/checkout',
+            })
+            .catch(() => null);
           sent++;
         }
       } catch (e: any) {
@@ -180,6 +191,15 @@ export class MarketingService {
             couponCode: PUBLIC_COUPON_CODE,
             discountPercent: PUBLIC_COUPON_PERCENT,
           });
+          // In-app мэдэгдэл (navbar 🔔) — хөнгөлөлтийн coupon. Fire-and-forget.
+          this.notifications
+            .create(order.user.id, {
+              title: 'Танд хөнгөлөлт байна',
+              body: `${PUBLIC_COUPON_PERCENT}% хөнгөлөлт авах "${PUBLIC_COUPON_CODE}" код таныг хүлээж байна.`,
+              type: 'coupon',
+              link: '/checkout',
+            })
+            .catch(() => null);
           sent++;
         }
       } catch (e: any) {
@@ -255,6 +275,9 @@ export class MarketingService {
               expiresAt: coupon.expiresAt as Date,
               couponId: coupon.id,
             });
+            // ⚠️ In-app мэдэгдэл ЭНД нэмэхгүй — энэ нь БҮХ active subscriber-т
+            // (email-ээр, userId-гүй) масс илгээдэг тул хэт олон мэдэгдэл (спам)
+            // болохоос сэргийлж зөвхөн имэйлээр үлдээв.
             sent++;
           } catch (e: any) {
             this.logger.error(
@@ -326,6 +349,15 @@ export class MarketingService {
               couponCode: REACTIVATION_COUPON_CODE,
               discountLabel: REACTIVATION_COUPON_LABEL,
             });
+            // In-app мэдэгдэл (navbar 🔔) — буцаан татах coupon. Fire-and-forget.
+            this.notifications
+              .create(user.id, {
+                title: 'Таныг санаж байна',
+                body: `Эргэн тавтай морил! "${REACTIVATION_COUPON_CODE}" кодоор ${REACTIVATION_COUPON_LABEL} аваарай.`,
+                type: 'coupon',
+                link: '/products',
+              })
+              .catch(() => null);
             sent++;
           }
         } catch (e: any) {

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 
 const PENDING_EXPIRE_HOURS = 48;
 
@@ -13,6 +14,7 @@ export class OrderCleanupService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -30,6 +32,7 @@ export class OrderCleanupService {
       },
       select: {
         id: true,
+        userId: true,
         couponCode: true,
         total: true,
         user: { select: { email: true, name: true } },
@@ -73,6 +76,16 @@ export class OrderCleanupService {
       // Цуцлагдсан захиалга бүрт имэйл мэдэгдэл (invalid/guest хаягт явахгүй —
       // sendOrderCancelled дотор isValidEmail шалгана). Fire-and-forget.
       for (const o of expiring) {
+        // In-app мэдэгдэл (navbar 🔔) — захиалга автоматаар цуцлагдсан. Fire-and-forget.
+        this.notifications
+          .create(o.userId, {
+            title: 'Захиалга цуцлагдлаа',
+            body: `Таны төлбөр хүлээгдэж байсан захиалга (${o.total}₮) хугацаа дуусч автоматаар цуцлагдлаа.`,
+            type: 'order',
+            link: '/orders',
+          })
+          .catch(() => null);
+
         if (!o.user?.email) continue;
         this.email
           .sendOrderCancelled({

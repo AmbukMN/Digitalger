@@ -7,6 +7,7 @@ import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { computeOrderExpiresAt, isActiveOrder } from '../../common/access-expiry';
 
@@ -16,6 +17,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
   ) {}
 
   async findUserOrders(userId: string, page = 1, pageSize = 20) {
@@ -317,6 +319,17 @@ export class OrdersService {
         })
         .catch(() => null);
     }
+
+    // In-app мэдэгдэл (navbar 🔔) — захиалга цуцлагдсан. Fire-and-forget.
+    this.notifications
+      .create(userId, {
+        title: 'Захиалга цуцлагдлаа',
+        body: `Таны захиалга (${order.total}₮) цуцлагдлаа.`,
+        type: 'order',
+        link: '/orders',
+      })
+      .catch(() => null);
+
     return cancelled;
   }
 

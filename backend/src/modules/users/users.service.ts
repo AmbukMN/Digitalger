@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { computeOrderExpiresAt } from '../../common/access-expiry';
 import type { Resource } from '../../common/permission';
 
@@ -44,6 +45,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
   ) {}
 
   // Аккаунтын өөрчлөлтийн түүх бичих (email/phone/name/password/role/blocked).
@@ -172,6 +174,15 @@ export class UsersService {
     await this.writeAudit([
       { userId, field: 'password', oldValue: null, newValue: 'Шинэчилсэн', actor: 'self' },
     ]);
+    // In-app аюулгүй байдлын мэдэгдэл (navbar 🔔) — fire-and-forget.
+    this.notifications
+      .create(userId, {
+        title: 'Нууц үг солигдлоо',
+        body: 'Таны нууц үг амжилттай шинэчлэгдлээ. Хэрэв та өөрчлөөгүй бол шууд бидэнтэй холбогдоно уу.',
+        type: 'security',
+        link: '/profile',
+      })
+      .catch(() => null);
     return result;
   }
 

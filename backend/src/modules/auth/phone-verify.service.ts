@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { VerifyMnService } from './verify-mn.service';
 
 // SMS cost хамгаалах: нэг хэрэглэгчийн сүүлийн pending session 60с дотор бол
@@ -26,6 +27,7 @@ export class PhoneVerifyService {
     private readonly config: ConfigService,
     private readonly verifyMn: VerifyMnService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationCenterService,
   ) {}
 
   /**
@@ -265,6 +267,16 @@ export class PhoneVerifyService {
           this.logger.warn(`sendPhoneVerified алдаа (${user.email}): ${err}`),
         );
     }
+
+    // In-app аюулгүй байдлын мэдэгдэл (navbar 🔔) — fire-and-forget.
+    this.notifications
+      .create(local.userId, {
+        title: 'Утас баталгаажлаа',
+        body: `Таны "${local.phone}" дугаар амжилттай баталгаажлаа.`,
+        type: 'security',
+        link: '/profile',
+      })
+      .catch(() => null);
 
     this.logger.log(`Утас баталгаажлаа → user ${local.userId} | ${local.phone}`);
   }
