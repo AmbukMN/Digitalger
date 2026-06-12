@@ -21,7 +21,8 @@ export function RecentlyViewedSection({ excludeId }: { excludeId?: string }) {
   const viewed = (excludeId ? items.filter((i) => i.productId !== excludeId) : items).slice(0, 12);
   if (viewed.length === 0) return null;
 
-  // RecentlyViewedItem → ProductSummary (ProductCard дахин ашиглах).
+  // RecentlyViewedItem → ProductSummary (нэг л ProductCard дизайн дахин ашиглах,
+  // бүх badge талбар хадгалсан дата-аас дамуулна — нүүр хуудастай ИЖИЛ харагдана).
   const products: ProductSummary[] = viewed.map((v) => ({
     id: v.productId,
     title: v.title,
@@ -29,22 +30,24 @@ export function RecentlyViewedSection({ excludeId }: { excludeId?: string }) {
     description: '',
     price: v.price,
     compareAtPrice: v.compareAtPrice ?? null,
-    type: 'FILE',
-    featured: false,
-    rating: 0,
-    ratingCount: 0,
-    downloadCount: 0,
+    type: v.type ?? 'FILE',
+    featured: v.featured ?? false,
+    rating: v.rating ?? 0,
+    ratingCount: v.ratingCount ?? 0,
+    downloadCount: v.downloadCount ?? 0,
     thumbnailUrl: v.thumbnailUrl,
   }));
 
   return (
     <section className="py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header — нүүр хуудасны ProductSection-тэй ЯГ ижил (босоо primary зураас) */}
         <div className="mb-6 flex items-center gap-3">
-          <Clock className="h-6 w-6 text-primary shrink-0" />
+          <div className="h-6 w-1 rounded-full bg-primary shrink-0" aria-hidden="true" />
+          <Clock className="h-5 w-5 text-primary shrink-0" />
           <h2 className="text-2xl font-bold">Таны саяхан үзсэн</h2>
         </div>
-        <ProductSwiper products={products} />
+        <ProductSwiper products={products} mobileRows={2} />
       </div>
     </section>
   );

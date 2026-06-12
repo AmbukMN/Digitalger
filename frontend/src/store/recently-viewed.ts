@@ -12,6 +12,13 @@ export interface RecentlyViewedItem {
   price: number;
   compareAtPrice?: number | null;
   thumbnailUrl: string | null;
+  // ⚠️ ProductCard-ийн badge-д хэрэгтэй талбарууд (нүүр хуудасны card-тай ИЖИЛ
+  // харагдахын тулд) — type, featured, rating, downloadCount.
+  type?: string;
+  featured?: boolean;
+  rating?: number;
+  ratingCount?: number;
+  downloadCount?: number;
 }
 
 const MAX_VIEWED = 12;
@@ -54,6 +61,12 @@ export const useRecentlyViewedStore = create<RecentlyViewedState>()(
           compareAtPrice:
             item.compareAtPrice != null ? Number(item.compareAtPrice) || null : null,
           thumbnailUrl: item.thumbnailUrl ?? null,
+          // Badge талбарууд (нүүр хуудасны card-тай ИЖИЛ харагдах).
+          type: item.type ?? 'FILE',
+          featured: item.featured ?? false,
+          rating: Number(item.rating) || 0,
+          ratingCount: Number(item.ratingCount) || 0,
+          downloadCount: Number(item.downloadCount) || 0,
         };
         set((s) => {
           const existing = (s.items ?? []).filter((i) => i.productId !== clean.productId);
@@ -70,7 +83,9 @@ export const useRecentlyViewedStore = create<RecentlyViewedState>()(
     {
       name: 'digitalger-recently-viewed',
       skipHydration: true,
-      version: 1,
+      // v2: badge талбар (type/featured/rating/downloadCount) нэмэгдсэн — хуучин v1
+      // кэш (badge-гүй) цэвэрлэгдэж, шинээр үзсэн product бүрэн дата хадгална.
+      version: 2,
       // Хуучин схем/бохир датаг rehydrate хийхэд цэвэрлэнэ.
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<RecentlyViewedState>;

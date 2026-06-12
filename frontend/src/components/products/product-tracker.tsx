@@ -12,14 +12,25 @@ export function ProductTracker({
   title,
   compareAtPrice,
   thumbnailUrl,
+  type,
+  featured,
+  rating,
+  ratingCount,
+  downloadCount,
 }: {
   productId: string;
   productSlug: string;
   price?: number;
-  // Саяхан үзсэн carousel-д шаардлагатай нэмэлт талбарууд (localStorage-д хадгална).
+  // Саяхан үзсэн carousel-д шаардлагатай нэмэлт талбарууд (localStorage-д хадгална —
+  // нүүр хуудасны card-тай ИЖИЛ badge харагдахын тулд бүх талбар).
   title?: string;
   compareAtPrice?: number | null;
   thumbnailUrl?: string | null;
+  type?: string;
+  featured?: boolean;
+  rating?: number;
+  ratingCount?: number;
+  downloadCount?: number;
 }) {
   const viewedRef = useRef<string | null>(null);
   const addViewed = useRecentlyViewedStore((s) => s.addViewed);
@@ -39,9 +50,14 @@ export function ProductTracker({
         price: price ?? 0,
         compareAtPrice: compareAtPrice ?? null,
         thumbnailUrl: thumbnailUrl ?? null,
+        type,
+        featured,
+        rating,
+        ratingCount,
+        downloadCount,
       });
     }
-  }, [productId, productSlug, price, title, compareAtPrice, thumbnailUrl, addViewed]);
+  }, [productId, productSlug, price, title, compareAtPrice, thumbnailUrl, type, featured, rating, ratingCount, downloadCount, addViewed]);
 
   return null;
 }

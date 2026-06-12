@@ -35,8 +35,10 @@ export function RecommendedSection() {
   return (
     <section className="py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header — нүүр хуудасны ProductSection-тэй ЯГ ижил (босоо primary зураас) */}
         <div className="mb-6 flex items-center gap-3">
-          <Sparkles className="h-6 w-6 text-secondary shrink-0" />
+          <div className="h-6 w-1 rounded-full bg-primary shrink-0" aria-hidden="true" />
+          <Sparkles className="h-5 w-5 text-primary shrink-0" />
           <h2 className="text-2xl font-bold">Танд санал болгох</h2>
         </div>
         <ProductSwiper products={products} mobileRows={2} />

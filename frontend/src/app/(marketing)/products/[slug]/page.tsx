@@ -233,6 +233,11 @@ export default async function ProductDetailPage({ params }: Props) {
         title={product.title}
         compareAtPrice={product.compareAtPrice != null ? Number(product.compareAtPrice) : null}
         thumbnailUrl={product.thumbnailUrl}
+        type={product.type}
+        featured={product.featured}
+        rating={product.rating}
+        ratingCount={product.ratingCount}
+        downloadCount={product.downloadCount}
       />
       {/* Үнэгүй бүтээгдэхүүн дээр 2 сек дараа имэйл subscribe popup (7 хоногт 1 удаа) */}
       {isFree && <FreeSubscribeModal slug={product.slug} />}
