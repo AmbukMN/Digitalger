@@ -82,6 +82,29 @@ export function errMsg(e: unknown, fallback: string): string {
   return fallback;
 }
 
+// ─── Client-side accessToken кэш (/api/me давхардал арилгах) ───────────────
+// Өмнө adminFetch БҮРД `/api/me` дуудаж (refresh бүрд 4-5 query × 2 = 8-10 round-trip)
+// sidebar маш удаан render хийдэг байв. Шийдэл: модуль түвшний 2 давхар хамгаалалт —
+//   1) inflight promise dedupe — нэг зэрэг олон adminFetch ажиллахад НЭГ л /api/me;
+//   2) богино TTL (30с) кэш — дараалсан дуудлагад дахин fetch хийхгүй.
+// ⚠️ Token хуучирвал (401/logout) кэш цэвэрлэнэ (clearTokenCache) — аюулгүйн тулд TTL богино.
+const TOKEN_TTL_MS = 30_000;
+let tokenCache: { value: string | undefined; ts: number } | null = null;
+let tokenInflight: Promise<string | undefined> | null = null;
+
+async function fetchTokenFromApi(): Promise<string | undefined> {
+  const res = await fetch('/api/me');
+  if (!res.ok) return undefined;
+  const data = await res.json();
+  return data.accessToken as string | undefined;
+}
+
+/** Token хуучирсан/logout үед кэш цэвэрлэх (401 эсвэл гарахад). */
+export function clearTokenCache(): void {
+  tokenCache = null;
+  tokenInflight = null;
+}
+
 export async function getAccessToken(): Promise<string | undefined> {
   if (typeof window === 'undefined') {
     const { cookies } = await import('next/headers');
@@ -95,10 +118,23 @@ export async function getAccessToken(): Promise<string | undefined> {
       return payload.accessToken as string;
     } catch { return undefined; }
   }
-  const res = await fetch('/api/me');
-  if (!res.ok) return undefined;
-  const data = await res.json();
-  return data.accessToken;
+
+  // Кэш фреш (30с дотор) бол шууд буцаах — /api/me дуудахгүй.
+  if (tokenCache && Date.now() - tokenCache.ts < TOKEN_TTL_MS) {
+    return tokenCache.value;
+  }
+  // Аль хэдийн нэг fetch явж байвал түүнийг дахин ашиглах (dedupe).
+  if (tokenInflight) return tokenInflight;
+
+  tokenInflight = fetchTokenFromApi()
+    .then((value) => {
+      tokenCache = { value, ts: Date.now() };
+      return value;
+    })
+    .finally(() => {
+      tokenInflight = null;
+    });
+  return tokenInflight;
 }
 
 export async function adminFetch<T>(
@@ -119,6 +155,9 @@ export async function adminFetch<T>(
   });
 
   if (!res.ok) {
+    // 401 — token хүчингүй/хугацаа дууссан байж магадгүй. Кэшлэсэн token-оо
+    // цэвэрлэж дараагийн дуудлага /api/me-ээс шинэ token авна (stale token-д гацахгүй).
+    if (res.status === 401) clearTokenCache();
     const body = await res.text().catch(() => '');
     throw new ApiError(body || res.statusText, res.status);
   }

@@ -149,14 +149,6 @@ function usePublicSettings() {
 
 interface ProfileData { name: string | null; email: string; image: string | null; role: string }
 
-function useAdminProfile() {
-  return useQuery<ProfileData>({
-    queryKey: ['admin', 'profile'],
-    queryFn: () => adminApi.profile.get().catch(() => ({ name: null, email: 'admin@digitalger.mn', image: null, role: 'ADMIN', id: '', emailVerified: null, createdAt: '', updatedAt: '' })),
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 function SiteLogo({ logoUrl, siteName, collapsed }: { logoUrl: string | null; siteName: string; collapsed: boolean }) {
   if (logoUrl) {
     return (
@@ -549,7 +541,15 @@ function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange:
 // (queryKey) хангалттай — нэг session дотор navigation хурдан, өөр хэрэглэгчид
 // зориулж дискэнд хадгалахгүй. Хуучин кэш үлдсэн бол анх ачаалахад цэвэрлэнэ.
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  children,
+  initialRole = null,
+}: {
+  children: React.ReactNode;
+  /** Server-side cookie JWT-ээс задарсан role (layout.tsx-ээс). profile query
+   *  ирэхээс ӨМНӨ sidebar зөв цэс рендэрлэхэд ашиглана (flicker арилгана). */
+  initialRole?: string | null;
+}) {
   // Хуучин (хувилбар) localStorage кэш үлдсэн бол арилгах — аюулгүй байдлын цэвэрлэгээ.
   useEffect(() => {
     try {
@@ -590,28 +590,42 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   const { data: publicSettings } = usePublicSettings();
   // ⚠️ initialData ХЭРЭГЛЭХГҮЙ — кэшээс өөр хэрэглэгчийн профайл задрах эрсдэлтэй.
-  // queryFn алдаа гарвал undefined буцааж (хуурамч role БИШ) — буруу эрх харуулахгүй.
+  // queryFn алдаа гарвал (undefined биш) role алдагдахгүйн тулд initialRole-той
+  // default буцаана — /users/me эсвэл /api/me түр fail хийсэн ч цэс алга болохгүй.
   const { data: profile } = useQuery<ProfileData | undefined>({
     queryKey: ['admin', 'profile'],
-    queryFn: () => adminApi.profile.get(),
+    queryFn: () =>
+      adminApi.profile
+        .get()
+        .catch(() =>
+          initialRole
+            ? ({ name: null, email: '', image: null, role: initialRole } as ProfileData)
+            : undefined,
+        ),
     staleTime: 60 * 1000,
     retry: 1,
   });
 
   // SUPERADMIN бол site-level цэсүүд (Хэрэглэгч/Тохиргоо/SEO/Дараалал/
   // Subscriber/Таталт) харагдана. EDITOR/ADMIN-д зөвхөн контент+scope цэс.
-  const isSuperadmin = profile?.role === 'SUPERADMIN';
+  // ⚠️ profile ирэхээс ӨМНӨ initialRole (server cookie JWT)-аар шууд мэднэ —
+  // эхний render-д л SUPERADMIN цэс гарна (цэс хожуу нэмэгдэх flicker арилна).
+  const effectiveRole = profile?.role ?? initialRole;
+  const isSuperadmin = effectiveRole === 'SUPERADMIN';
 
   // ── PAGE-LEVEL GUARD: ADMIN эрхгүй page-д шууд URL-аар орвол → /(dashboard) redirect ──
   // sidebar нуусан ч URL шууд бичих/bookmark-аас хамгаална (backend ч 403 хийнэ).
+  // effectiveRole (profile ?? initialRole) — initialRole байгаа ADMIN үед profile
+  // хүлээлгүй permission ачаалж guard-ийг хурдан идэвхжүүлнэ.
+  const knownRole = !!effectiveRole;
   const { data: guardPerms } = useQuery({
     queryKey: ['admin', 'my-permissions'],
     queryFn: () => adminApi.staff.myPermissions(),
     staleTime: 60 * 1000,
-    enabled: !!profile && !isSuperadmin, // SUPERADMIN бол guard хэрэггүй
+    enabled: knownRole && !isSuperadmin, // SUPERADMIN бол guard хэрэггүй
   });
   useEffect(() => {
-    if (!profile || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
+    if (!knownRole || isSuperadmin) return; // SUPERADMIN бүх хуудсанд хандана
     // Route → шалгах төрөл. SUPERADMIN-only route эсвэл resource permission.
     const SUPERADMIN_ROUTES = ['/users', '/subscribers', '/downloads', '/staff', '/settings', '/seo', '/queue', '/theme', '/media', '/coupons', '/banners', '/pages', '/menu'];
     // ⚠️ coupons/banners/pages/menu энд БАЙХГҮЙ — тэдгээр SUPERADMIN_ROUTES-д (зөвхөн superadmin).
@@ -638,13 +652,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     if (match && guardPerms && guardPerms[match.resource]?.view !== true) {
       router.replace('/'); // эрхгүй resource → dashboard
     }
-  }, [pathname, profile, isSuperadmin, guardPerms, router]);
+  }, [pathname, knownRole, isSuperadmin, guardPerms, router]);
 
   const siteName = publicSettings?.siteName ?? 'DigitalGer';
   const logoUrl = publicSettings?.logoUrl ?? null;
   const userName = profile?.name ?? 'Admin';
   const userInitial = (profile?.name ?? profile?.email ?? 'A').charAt(0).toUpperCase();
   const userImage = profile?.image ?? null;
+  // profile (нэр/зураг) хараахан ирээгүй бол avatar/нэрний оронд skeleton харуулна
+  // (цэс нь initialRole-аар аль хэдийн зөв рендэрлэгдсэн — энэ зөвхөн хувийн мэдээлэл).
+  const profileLoading = !profile;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -700,7 +717,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             )}
             style={pathname === '/account' ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
           >
-            {userImage ? (
+            {profileLoading ? (
+              <div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-muted" />
+            ) : userImage ? (
               <Image
                 src={userImage}
                 alt={userName}
@@ -826,14 +845,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               onClick={() => openMenu(!menuOpen)}
               className="gap-2"
             >
-              {userImage ? (
+              {profileLoading ? (
+                <div className="h-5 w-5 shrink-0 animate-pulse rounded-full bg-muted" />
+              ) : userImage ? (
                 <Image src={userImage} alt={userName} width={20} height={20} className="h-5 w-5 rounded-full object-cover shrink-0" unoptimized />
               ) : (
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary shrink-0">
                   {userInitial}
                 </div>
               )}
-              <span className="hidden max-w-30 truncate sm:inline text-sm">{userName}</span>
+              {profileLoading ? (
+                <span className="hidden h-4 w-20 animate-pulse rounded bg-muted sm:inline" />
+              ) : (
+                <span className="hidden max-w-30 truncate sm:inline text-sm">{userName}</span>
+              )}
             </Button>
             {menuOpen && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-border bg-popover p-1 shadow-lg">
