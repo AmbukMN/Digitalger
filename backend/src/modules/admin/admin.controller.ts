@@ -86,6 +86,12 @@ export class AdminController {
     'subscribers',
     'reviews',
     'payments',
+    // ── Шинэ count-based event-үүд ──
+    'payments-failed', // Амжилтгүй (FAILED) төлбөр
+    'high-value-orders', // Том дүнтэй (>=500k) төлсөн захиалга
+    'cancelled-orders', // Цуцлагдсан захиалга
+    'email-issues', // Email bounce/complaint (site-level → зөвхөн superadmin)
+    'testimonials', // Шинэ testimonial
   ] as const;
 
   @Get('sidebar-badges')
@@ -103,7 +109,26 @@ export class AdminController {
     const fallback = new Date();
     const since = (section: string) => seenMap.get(section) ?? fallback;
 
-    const [orders, users, subscribers, reviews, payments] = await Promise.all([
+    // ── Multi-tenant scope (dashboard-тай ижил pattern) ──
+    //   SUPERADMIN → бүх дата; ADMIN/EDITOR → зөвхөн өөрийн product-той холбоотой.
+    const sa = isSuperadmin(me);
+    // Order/Payment шууд эзэнгүй тул ДАМ — order доторх item-ийн product эзэн.
+    const orderOwnerWhere: Prisma.OrderWhereInput = sa
+      ? {}
+      : { items: { some: { product: { createdByUserId: me.sub } } } };
+
+    const [
+      orders,
+      users,
+      subscribers,
+      reviews,
+      payments,
+      paymentsFailed,
+      highValueOrders,
+      cancelledOrders,
+      emailIssues,
+      testimonialsNew,
+    ] = await Promise.all([
       this.prisma.order.count({ where: { createdAt: { gt: since('orders') } } }),
       // Зочин (isGuest) бус жинхэнэ шинэ бүртгэл
       this.prisma.user.count({
@@ -114,13 +139,63 @@ export class AdminController {
       this.prisma.review.count({
         where: {
           createdAt: { gt: since('reviews') },
-          ...(isSuperadmin(me) ? {} : { product: { createdByUserId: me.sub } }),
+          ...(sa ? {} : { product: { createdByUserId: me.sub } }),
         },
       }),
       this.prisma.payment.count({ where: { createdAt: { gt: since('payments') } } }),
+      // ── ШИНЭ EVENT-үүд ──
+      // 1. Амжилтгүй (FAILED) төлбөр — Payment → order → items → product эзнээр scope.
+      this.prisma.payment.count({
+        where: {
+          status: PaymentStatus.FAILED,
+          createdAt: { gt: since('payments-failed') },
+          ...(sa ? {} : { order: orderOwnerWhere }),
+        },
+      }),
+      // 2. Том дүнтэй (>=500k) ТӨЛСӨН захиалга.
+      this.prisma.order.count({
+        where: {
+          status: OrderStatus.PAID,
+          total: { gte: 500000 },
+          createdAt: { gt: since('high-value-orders') },
+          ...orderOwnerWhere,
+        },
+      }),
+      // 3. Цуцлагдсан захиалга.
+      this.prisma.order.count({
+        where: {
+          status: OrderStatus.CANCELLED,
+          createdAt: { gt: since('cancelled-orders') },
+          ...orderOwnerWhere,
+        },
+      }),
+      // 4. Email bounce/complaint — SITE-LEVEL → зөвхөн superadmin.
+      sa
+        ? this.prisma.emailSuppression.count({
+            where: { createdAt: { gt: since('email-issues') } },
+          })
+        : Promise.resolve(0),
+      // 5. Шинэ testimonial — ADMIN зөвхөн өөрийн createdByUserId.
+      this.prisma.testimonial.count({
+        where: {
+          createdAt: { gt: since('testimonials') },
+          ...(sa ? {} : { createdByUserId: me.sub }),
+        },
+      }),
     ]);
 
-    return { orders, users, subscribers, reviews, payments };
+    return {
+      orders,
+      users,
+      subscribers,
+      reviews,
+      payments,
+      paymentsFailed,
+      highValueOrders,
+      cancelledOrders,
+      emailIssues,
+      testimonialsNew,
+    };
   }
 
   @Post('sidebar-seen/:section')
@@ -138,6 +213,64 @@ export class AdminController {
       update: { lastSeenAt },
     });
     return { success: true, lastSeenAt };
+  }
+
+  // ─── Холбоо барих мессеж (ContactMessage) — SITE-LEVEL → зөвхөн SUPERADMIN ───
+  // Contact form-оос ирсэн мессежүүд (DB-д хадгалагдсан). Multi-tenant scope
+  // хэрэггүй (эзэнгүй site-level дата) тул зөвхөн SUPERADMIN харна/удирдана.
+  @Get('contact-messages')
+  async contactMessages(
+    @CurrentUser() me: JwtPayload,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('read') read?: string,
+  ) {
+    if (!isSuperadmin(me)) throw new ForbiddenException('Зөвхөн SUPERADMIN');
+    const p = Math.max(1, Number(page) || 1);
+    const ps = Math.min(100, Math.max(1, Number(pageSize) || 20));
+    const where: Prisma.ContactMessageWhereInput = {};
+    if (read === 'true') where.read = true;
+    else if (read === 'false') where.read = false;
+    const [items, total] = await Promise.all([
+      this.prisma.contactMessage.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * ps,
+        take: ps,
+      }),
+      this.prisma.contactMessage.count({ where }),
+    ]);
+    return { items, total, page: p, pageSize: ps };
+  }
+
+  @Get('contact-messages/unread-count')
+  async contactMessagesUnreadCount(@CurrentUser() me: JwtPayload) {
+    if (!isSuperadmin(me)) return { count: 0 };
+    const count = await this.prisma.contactMessage.count({ where: { read: false } });
+    return { count };
+  }
+
+  @Post('contact-messages/:id/read')
+  async contactMessageMarkRead(
+    @CurrentUser() me: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    if (!isSuperadmin(me)) throw new ForbiddenException('Зөвхөн SUPERADMIN');
+    await this.prisma.contactMessage.update({
+      where: { id },
+      data: { read: true },
+    });
+    return { success: true };
+  }
+
+  @Delete('contact-messages/:id')
+  async contactMessageDelete(
+    @CurrentUser() me: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    if (!isSuperadmin(me)) throw new ForbiddenException('Зөвхөн SUPERADMIN');
+    await this.prisma.contactMessage.delete({ where: { id } });
+    return { success: true };
   }
 
   @Get('dashboard')

@@ -1172,3 +1172,19 @@ model OrphanCandidate {
 
   @@index([firstSeenAt])
 }
+
+// Холбоо барих (contact form) мессеж — өмнө зөвхөн имэйлд явдаг байсныг DB-д бас
+// хадгална (алдагдахаас сэргийлж admin-д жагсаалт + notify). Имэйл явуулалт хэвээр.
+model ContactMessage {
+  id        String    @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String?
+  message   String    @db.Text
+  read      Boolean   @default(false)
+  repliedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([read, createdAt])
+}

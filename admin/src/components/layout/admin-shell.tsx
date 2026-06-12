@@ -6,11 +6,15 @@ import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Ban,
   Bell,
   ChevronLeft,
   ChevronRight,
   CreditCard,
   Download,
+  MailWarning,
+  TrendingUp,
+  XCircle,
   FileEdit,
   FileText,
   FolderTree,
@@ -22,6 +26,7 @@ import {
   LogOut,
   Mail,
   Menu,
+  MessageCircle,
   MessageSquare,
   MessagesSquare,
   Navigation,
@@ -95,6 +100,8 @@ const navSections: readonly NavSection[] = [
       { href: '/testimonials', label: 'Testimonial', icon: MessageSquare, resource: 'testimonials' },
       // Суралцагчийн асуулт нь product-той холбоотой — бүгдэд (resource заахгүй).
       { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
+      // Холбоо барих (contact form) мессеж — site-level → зөвхөн SUPERADMIN.
+      { href: '/contact-messages', label: 'Холбоо барих', icon: MessageCircle, superadminOnly: true },
     ],
   },
   {
@@ -422,6 +429,16 @@ function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange:
     staleTime: 10_000,
   });
 
+  // ── Шинэ "Холбоо барих" мессежийн тоо (ТУСДАА query — sidebar-badges-аас хамааралгүй,
+  // lessons-questions шиг өөрийн endpoint). non-superadmin-д backend count=0 буцаана. ──
+  const { data: contactStats } = useQuery({
+    queryKey: ['admin', 'contact-messages', 'unread-count'],
+    queryFn: () => adminApi.contactMessages.unreadCount(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+
   // Бүх эх сурвалжаас нэгтгэсэн мэдэгдлийн жагсаалт. Тоо > 0 бичлэгүүд л харагдана.
   // section: sidebar-seen markSeen-д дамжуулах нэр (null бол markSeen хийхгүй).
   const items: {
@@ -437,7 +454,16 @@ function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange:
     { key: 'reviews', icon: Star, label: 'Шинэ review', count: sidebarBadges?.reviews ?? 0, href: '/reviews', section: 'reviews' },
     { key: 'subscribers', icon: Mail, label: 'Шинэ subscriber', count: sidebarBadges?.subscribers ?? 0, href: '/subscribers', section: 'subscribers' },
     { key: 'payments', icon: CreditCard, label: 'Шинэ төлбөр', count: sidebarBadges?.payments ?? 0, href: '/payments', section: 'payments' },
+    // ── Шинэ count-based event-үүд ──
+    { key: 'payments-failed', icon: XCircle, label: 'Амжилтгүй төлбөр', count: sidebarBadges?.paymentsFailed ?? 0, href: '/payments', section: 'payments-failed' },
+    { key: 'high-value-orders', icon: TrendingUp, label: 'Том дүнтэй захиалга', count: sidebarBadges?.highValueOrders ?? 0, href: '/orders', section: 'high-value-orders' },
+    { key: 'cancelled-orders', icon: Ban, label: 'Цуцлагдсан захиалга', count: sidebarBadges?.cancelledOrders ?? 0, href: '/orders', section: 'cancelled-orders' },
+    // Email асуудал — site-level (зөвхөн superadmin), non-superadmin-д count=0 тул өөрөө нуугдана.
+    { key: 'email-issues', icon: MailWarning, label: 'Email хүргэлтийн асуудал', count: sidebarBadges?.emailIssues ?? 0, href: '/settings', section: 'email-issues' },
+    { key: 'testimonials', icon: MessageSquare, label: 'Шинэ testimonial', count: sidebarBadges?.testimonialsNew ?? 0, href: '/testimonials', section: 'testimonials' },
     { key: 'questions', icon: MessagesSquare, label: 'Уншаагүй суралцагчийн асуулт', count: qStats?.unreadTotal ?? 0, href: '/lessons-questions', section: null },
+    // Холбоо барих — section: null (өөрийн query, page нээхэд markRead болдог).
+    { key: 'contact', icon: MessageCircle, label: 'Шинэ холбоо барих мессеж', count: contactStats?.count ?? 0, href: '/contact-messages', section: null },
   ];
 
   const visible = items.filter((i) => i.count > 0);

@@ -5,6 +5,7 @@ import type {
   AdminBundle,
   AdminBundleItem,
   AdminCategory,
+  AdminContactMessage,
   AdminCoupon,
   AdminDownloadLog,
   AdminFaq,
@@ -141,6 +142,11 @@ export const adminApi = {
         subscribers: number;
         reviews: number;
         payments: number;
+        paymentsFailed: number;
+        highValueOrders: number;
+        cancelledOrders: number;
+        emailIssues: number;
+        testimonialsNew: number;
       }>('/admin/sidebar-badges'),
     // Хэсэгт орж харахад → lastSeenAt=now → тухайн badge цэвэрлэгдэнэ.
     markSeen: (section: string) =>
@@ -148,6 +154,26 @@ export const adminApi = {
         `/admin/sidebar-seen/${section}`,
         { method: 'POST' },
       ),
+  },
+
+  // ─── Холбоо барих мессеж (ContactMessage) — site-level, зөвхөн SUPERADMIN ───
+  contactMessages: {
+    list: (params?: { page?: number; pageSize?: number; read?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+      if (params?.read !== undefined) q.set('read', String(params.read));
+      const qs = q.toString();
+      return adminFetch<{ items: AdminContactMessage[]; total: number; page: number; pageSize: number }>(
+        `/admin/contact-messages${qs ? `?${qs}` : ''}`,
+      );
+    },
+    markRead: (id: string) =>
+      adminFetch<{ success: boolean }>(`/admin/contact-messages/${id}/read`, { method: 'POST' }),
+    unreadCount: () =>
+      adminFetch<{ count: number }>('/admin/contact-messages/unread-count'),
+    remove: (id: string) =>
+      adminFetch<{ success: boolean }>(`/admin/contact-messages/${id}`, { method: 'DELETE' }),
   },
 
   profile: {

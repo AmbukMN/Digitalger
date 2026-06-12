@@ -113,7 +113,18 @@ export class ContactController {
       throw new BadRequestException('Баталгаажуулалт буруу байна. Тооцооллыг дахин шалгана уу.');
     }
 
-    await this.email.sendContactInquiry({ name, email, phone: phone || undefined, message });
+    // ── DB-д хадгална (имэйл явуулалтаас ӨМНӨ) — алдагдахаас сэргийлэх ЧУХАЛ хэсэг.
+    // create алдвал submit бүхэлдээ амжилтгүй болж хэрэглэгч дахин оролдоно
+    // (fire-and-forget биш — мессеж заавал хадгалагдсан байх ёстой).
+    await this.prisma.contactMessage.create({
+      data: { name, email, phone: phone || null, message },
+    });
+
+    // Имэйл явуулалт ХЭВЭЭР (auto-reply + admin-д мэдэгдэл). Имэйл алдсан ч мессеж
+    // DB-д аль хэдийн хадгалагдсан тул admin панелаас харж болно.
+    await this.email
+      .sendContactInquiry({ name, email, phone: phone || undefined, message })
+      .catch(() => {});
     return { success: true };
   }
 }

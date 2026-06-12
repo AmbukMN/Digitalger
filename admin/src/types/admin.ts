@@ -546,6 +546,19 @@ export interface AdminFaq {
   _count?: { products: number };
 }
 
+// Холбоо барих (contact form) мессеж — DB-д хадгалагдсан, admin панелд харна.
+export interface AdminContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  subject?: string | null;
+  message: string;
+  read: boolean;
+  repliedAt?: string | null;
+  createdAt: string;
+}
+
 export interface AdminTestimonial {
   id: string;
   name: string;
