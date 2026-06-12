@@ -325,8 +325,12 @@ export class AdminController {
       phoneVerifiedTotal,
       phoneVerifiedThisMonth,
     ] = await Promise.all([
-      // user.count нь SITE-LEVEL (бүх хэрэглэгч) — non-superadmin-д хамааралгүй → 0
-      sa ? this.prisma.user.count() : Promise.resolve(0),
+      // ⚠️ "Нийт бүртгэлтэй хэрэглэгч" = ЖИНХЭНЭ frontend хэрэглэгч (role=USER,
+      // isGuest=false). Зочин (guest) болон admin (EDITOR/ADMIN/SUPERADMIN) ХАСНА —
+      // эс бол 47 (бүгд) харагдана, бодит хэрэглэгч 21. SITE-LEVEL → non-sa нь 0.
+      sa
+        ? this.prisma.user.count({ where: { role: 'USER', isGuest: false } })
+        : Promise.resolve(0),
       this.prisma.product.count({ where: productOwnerWhere }),
       this.prisma.order.count({ where: orderOwnerWhere }),
       this.prisma.order.aggregate({
@@ -360,10 +364,11 @@ export class AdminController {
       this.prisma.order.count({
         where: { createdAt: { gte: startOfMonth }, status: 'PAID', ...orderOwnerWhere },
       }),
-      // newUsersThisMonth нь SITE-LEVEL → non-superadmin-д 0
+      // newUsersThisMonth нь SITE-LEVEL → non-superadmin-д 0. Жинхэнэ хэрэглэгч
+      // (role=USER, isGuest=false) — зочин/admin хасна (usersCount-той тууштай).
       sa
         ? this.prisma.user.count({
-            where: { createdAt: { gte: startOfMonth } },
+            where: { createdAt: { gte: startOfMonth }, role: 'USER', isGuest: false },
           })
         : Promise.resolve(0),
       this.prisma.order.groupBy({
@@ -408,10 +413,10 @@ export class AdminController {
           ...orderOwnerWhere,
         },
       }),
-      // usersPrevMonth нь SITE-LEVEL → non-superadmin-д 0
+      // usersPrevMonth нь SITE-LEVEL → non-superadmin-д 0. Жинхэнэ хэрэглэгч (тренд тууштай).
       sa
         ? this.prisma.user.count({
-            where: { createdAt: { gte: startOfPrevMonth, lt: startOfMonth } },
+            where: { createdAt: { gte: startOfPrevMonth, lt: startOfMonth }, role: 'USER', isGuest: false },
           })
         : Promise.resolve(0),
       this.prisma.order.aggregate({

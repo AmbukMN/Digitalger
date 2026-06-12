@@ -452,7 +452,8 @@ function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange:
     { key: 'cancelled-orders', icon: Ban, label: 'Цуцлагдсан захиалга', count: sidebarBadges?.cancelledOrders ?? 0, href: '/orders', section: 'cancelled-orders' },
     // Email асуудал — site-level (зөвхөн superadmin), non-superadmin-д count=0 тул өөрөө нуугдана.
     { key: 'email-issues', icon: MailWarning, label: 'Email хүргэлтийн асуудал', count: sidebarBadges?.emailIssues ?? 0, href: '/settings', section: 'email-issues' },
-    { key: 'testimonials', icon: MessageSquare, label: 'Шинэ testimonial', count: sidebarBadges?.testimonialsNew ?? 0, href: '/testimonials', section: 'testimonials' },
+    // ⚠️ Testimonial-ийг notify-аас ХАСав — admin өөрөө нэмдэг тул мэдэгдэл хэрэггүй.
+    // Review (хэрэглэгчийн сэтгэгдэл/comment) нь дээр байгаа (admin мэдэх чухал).
     { key: 'questions', icon: MessagesSquare, label: 'Уншаагүй суралцагчийн асуулт', count: qStats?.unreadTotal ?? 0, href: '/lessons-questions', section: null },
     // Холбоо барих — section: null (өөрийн query, page нээхэд markRead болдог).
     { key: 'contact', icon: MessageCircle, label: 'Шинэ холбоо барих мессеж', count: contactStats?.count ?? 0, href: '/contact-messages', section: null },
