@@ -316,6 +316,8 @@ export class UsersService {
           currency: true,
           status: true,
           source: true,
+          cancelledBy: true,
+          cancelledAt: true,
           couponCode: true,
           createdAt: true,
           updatedAt: true,

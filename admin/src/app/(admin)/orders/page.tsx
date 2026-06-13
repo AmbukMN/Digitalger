@@ -23,9 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@digitalger/shared/ui';
-import { CheckCircle2, Package, Pencil, Search, Tag, Trash2, XCircle, Clock, RotateCcw, Ban, Gift } from 'lucide-react';
+import { Package, Pencil, Search, Tag, Trash2 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
+import { OrderStatusBadge } from '@/components/order-status-badge';
 import type { AdminOrder } from '@/types/admin';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -42,49 +43,6 @@ const STATUSES: { value: OrderStatus | 'ALL'; label: string; color?: string }[] 
 function formatMoney(value: number | string) {
   const n = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('mn-MN').format(n) + ' ₮';
-}
-
-// Цуцлалтын эх сурвалжийн монгол шошго
-const CANCELLED_BY_LABEL: Record<string, string> = {
-  USER:   'Хэрэглэгч',
-  SYSTEM: 'Систем',
-  ADMIN:  'Админ',
-};
-
-function StatusBadge({ order }: { order: Pick<AdminOrder, 'status' | 'source' | 'cancelledBy'> }) {
-  const { status, source, cancelledBy } = order;
-
-  // PAID + ADMIN_GRANT → "Admin gift" (нил ягаан онцгой өнгө)
-  if (status === 'PAID' && source === 'ADMIN_GRANT') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-        <Gift className="h-3 w-3" />Төлсөн (Admin gift)
-      </span>
-    );
-  }
-
-  // CANCELLED → цуцалсан эх сурвалж тодотгол
-  if (status === 'CANCELLED') {
-    const by = cancelledBy ? CANCELLED_BY_LABEL[cancelledBy] : null;
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-muted-foreground">
-        <Ban className="h-3 w-3" />Цуцалсан{by ? ` (${by})` : ''}
-      </span>
-    );
-  }
-
-  const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    PAID:      { label: 'Төлсөн',            cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   icon: <CheckCircle2 className="h-3 w-3" /> },
-    PENDING:   { label: 'Хүлээгдэж байна',   cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',   icon: <Clock className="h-3 w-3" /> },
-    FAILED:    { label: 'Амжилтгүй',         cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',           icon: <XCircle className="h-3 w-3" /> },
-    REFUNDED:  { label: 'Буцаасан',          cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',       icon: <RotateCcw className="h-3 w-3" /> },
-  };
-  const s = map[status] ?? { label: status, cls: 'bg-muted text-muted-foreground', icon: <Ban className="h-3 w-3" /> };
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${s.cls}`}>
-      {s.icon}{s.label}
-    </span>
-  );
 }
 
 function UserCell({ name, email, image }: { name: string | null; email: string; image?: string | null }) {
@@ -341,7 +299,13 @@ export default function OrdersPage() {
       id: 'status',
       header: 'Төлөв',
       size: 170,
-      cell: ({ row }) => <StatusBadge order={row.original} />,
+      cell: ({ row }) => (
+        <OrderStatusBadge
+          status={row.original.status}
+          source={row.original.source}
+          cancelledBy={row.original.cancelledBy}
+        />
+      ),
     },
     {
       accessorKey: 'createdAt',

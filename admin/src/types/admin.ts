@@ -128,6 +128,9 @@ export interface UserDetailOrder {
   currency: string;
   status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELLED';
   source: string;
+  // Цуцлалтын эх сурвалж (USER/SYSTEM/ADMIN) — status badge-д тодотгол
+  cancelledBy?: string | null;
+  cancelledAt?: string | null;
   couponCode: string | null;
   createdAt: string;
   updatedAt: string;
@@ -426,6 +429,9 @@ export interface AdminPaymentRow {
   order: {
     id: string;
     status: string;
+    // Захиалгын статус badge-д (gift / цуцлалтын эх сурвалж)
+    source?: OrderSource | string | null;
+    cancelledBy?: OrderCancelledBy | string | null;
     user: { id: string; email: string; name: string | null; image?: string | null };
   };
 }

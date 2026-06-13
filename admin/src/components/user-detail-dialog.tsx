@@ -22,7 +22,6 @@ import {
   CreditCard,
   Download,
   Eye,
-  Gift,
   Globe,
   Heart,
   History,
@@ -49,6 +48,7 @@ import {
   X,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { OrderStatusBadge } from '@/components/order-status-badge';
 import type {
   AdminUser,
   AdminUserFullDetail,
@@ -77,15 +77,6 @@ function fmtTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' });
 }
-
-// Захиалгын статус → Badge өнгө + Монгол нэр
-const ORDER_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'info' }> = {
-  PAID: { label: 'Төлсөн', variant: 'success' },
-  PENDING: { label: 'Хүлээгдэж буй', variant: 'warning' },
-  CANCELLED: { label: 'Цуцалсан', variant: 'destructive' },
-  FAILED: { label: 'Амжилтгүй', variant: 'destructive' },
-  REFUNDED: { label: 'Буцаасан', variant: 'secondary' },
-};
 
 // Аккаунт өөрчлөлтийн талбар → Монгол нэр + icon
 const AUDIT_FIELD: Record<string, { label: string; icon: typeof Mail }> = {
@@ -173,16 +164,14 @@ function Empty({ icon: Icon, text }: { icon: typeof Package; text: string }) {
 
 // ─── Захиалгын карт ────────────────────────────────────────────────────────
 function OrderRow({ order }: { order: UserDetailOrder }) {
-  const st = ORDER_STATUS[order.status] ?? { label: order.status, variant: 'secondary' as const };
-  const isGrant = order.source === 'ADMIN_GRANT';
   const lastPayment = order.payments[0];
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={st.variant}>{st.label}</Badge>
-            {isGrant && <Badge variant="info"><Gift className="mr-1 h-3 w-3" />Админ бэлэглэсэн</Badge>}
+            {/* НЭГ эх сурвалжтай захиалгын статус badge (gift / цуцлалтын эх сурвалж дотроо) */}
+            <OrderStatusBadge status={order.status} source={order.source} cancelledBy={order.cancelledBy} />
             {order.couponCode && <Badge variant="outline">Купон: {order.couponCode}</Badge>}
           </div>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

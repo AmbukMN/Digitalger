@@ -5,21 +5,18 @@ import {
   AlertCircle,
   ArrowRight,
   ArrowUpRight,
-  Ban,
   CheckCircle2,
   Clock,
   DollarSign,
   Download,
   Mail,
   Package,
-  RotateCcw,
   ShoppingCart,
   TrendingUp,
   TrendingDown,
   Minus,
   Users,
   UserPlus,
-  XCircle,
   Zap,
   Gauge,
   Activity,
@@ -44,6 +41,7 @@ import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
 import { EmailMarketingPanel } from '@/components/email-marketing-panel';
+import { OrderStatusBadge } from '@/components/order-status-badge';
 
 // ── Захиалагчийн эх сурвалжийн нэрийг Монголоор харуулах ──
 const SUBSCRIBER_SOURCE_LABELS: Record<string, string> = {
@@ -84,15 +82,6 @@ function TrendBadge({ value }: { value: number | null }) {
     </span>
   );
 }
-
-type StatusInfo = { label: string; cls: string; icon: React.ReactNode };
-const STATUS_MAP: Record<string, StatusInfo> = {
-  PAID:      { label: 'Төлсөн',           cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   icon: <CheckCircle2 className="h-3 w-3" /> },
-  PENDING:   { label: 'Хүлээгдэж байна',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',   icon: <Clock className="h-3 w-3" /> },
-  FAILED:    { label: 'Амжилтгүй',        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',           icon: <XCircle className="h-3 w-3" /> },
-  REFUNDED:  { label: 'Буцаасан',         cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',       icon: <RotateCcw className="h-3 w-3" /> },
-  CANCELLED: { label: 'Цуцалсан',         cls: 'bg-muted text-muted-foreground',                                          icon: <Ban className="h-3 w-3" /> },
-};
 
 function formatMoney(value: number | string) {
   const n = typeof value === 'string' ? parseFloat(value) : value;
@@ -166,7 +155,6 @@ function OrderRow({ order }: { order: AdminOrder }) {
   const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
-  const statusInfo = STATUS_MAP[order.status] ?? STATUS_MAP.CANCELLED;
 
   return (
     <Link
@@ -222,9 +210,7 @@ function OrderRow({ order }: { order: AdminOrder }) {
 
       {/* Status */}
       <div className="shrink-0 w-28 flex justify-start">
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${statusInfo.cls}`}>
-          {statusInfo.icon}{statusInfo.label}
-        </span>
+        <OrderStatusBadge status={order.status} source={order.source} cancelledBy={order.cancelledBy} size="sm" />
       </div>
 
       {/* Date */}

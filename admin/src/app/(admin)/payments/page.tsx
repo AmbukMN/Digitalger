@@ -24,6 +24,7 @@ import {
 import { CheckCircle2, Clock, Pencil, Trash2, XCircle, CreditCard } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
+import { OrderStatusBadge } from '@/components/order-status-badge';
 import type { AdminPaymentRow } from '@/types/admin';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -48,25 +49,6 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${s.cls}`}>
       {s.icon}{s.label}
-    </span>
-  );
-}
-
-// Захиалгын төлөв — Payment-ийн төлөвтэй зэрэгцүүлж харуулна (зөрүү эсэхийг
-// admin шууд хармагц ойлгоно; одоо backend синк хийдэг тул ихэвчлэн таарна).
-const ORDER_STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  PAID:      { label: 'Төлсөн',           cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-  PENDING:   { label: 'Хүлээгдэж байна',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-  CANCELLED: { label: 'Цуцалсан',         cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  FAILED:    { label: 'Амжилтгүй',        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  REFUNDED:  { label: 'Буцаасан',         cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-};
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const s = ORDER_STATUS_MAP[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' };
-  return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${s.cls}`}>
-      Захиалга: {s.label}
     </span>
   );
 }
@@ -221,7 +203,12 @@ export default function PaymentsPage() {
             #{row.original.order.id.slice(-8).toUpperCase()}
           </span>
           <div>
-            <OrderStatusBadge status={row.original.order.status} />
+            <OrderStatusBadge
+              status={row.original.order.status}
+              source={row.original.order.source}
+              cancelledBy={row.original.order.cancelledBy}
+              size="sm"
+            />
           </div>
           <p className="text-[10px] text-muted-foreground font-mono">
             {row.original.id.slice(-10).toUpperCase()}
