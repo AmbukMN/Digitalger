@@ -27,6 +27,7 @@ import { cn } from '@digitalger/shared';
 import { Sun, Moon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { coursesApi, downloadsApi } from '@/lib/api';
+import { trackLessonStarted, trackLessonCompleted, trackLessonProgress } from '@/lib/analytics';
 import type { LessonProgress, LessonVideoResult } from '@/lib/api';
 import type { CourseLesson, ProductDetail } from '@/types/api';
 // hls.js хүнд + client-only тул player-ийг next/dynamic(ssr:false)-аар lazy ачаална.
@@ -241,6 +242,19 @@ export function LearnClient({ product }: LearnClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLessonId, purchased, token]);
 
+  // ── Аналитик: хичээл эхэлсэн event (LessonEvent) ──
+  // ⚠️ Энэ нь LessonProgress (хэрэглэгчийн бодит явц)-аас ТУСДАА — анонимаар ч
+  // илгээгдэх ёстой (admin "Хичээлийн аналитик" funnel/dropoff үүн дээр суурилдаг).
+  // lessonId бүрд НЭГ удаа л started илгээхийн тулд илгээснийг ref-д тэмдэглэнэ.
+  const startedSentRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentLesson) return;
+    if (startedSentRef.current.has(currentLesson.id)) return;
+    startedSentRef.current.add(currentLesson.id);
+    trackLessonStarted(currentLesson.id, product.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLessonId]);
+
   // ── Progress хадгалах (throttle 10сек) ──
   const lastSavedRef = useRef(0);
   const saveProgress = useCallback(
@@ -276,6 +290,10 @@ export function LearnClient({ product }: LearnClientProps) {
         watchedSeconds: Math.floor(cur),
         durationSec: Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : undefined,
       });
+      // Аналитик: явцын event (dropoff/watch-duration шинжилгээнд)
+      if (Number.isFinite(dur) && dur > 0) {
+        trackLessonProgress(currentLesson.id, product.id, cur, dur);
+      }
     },
     [currentLesson, saveProgress],
   );
@@ -294,6 +312,7 @@ export function LearnClient({ product }: LearnClientProps) {
     [router, product.slug, searchParams],
   );
 
+  const completedSentRef = useRef<Set<string>>(new Set());
   const handleEnded = useCallback(() => {
     if (!currentLesson) return;
     // 90%+ → backend completed гэж тэмдэглэнэ
@@ -302,6 +321,17 @@ export function LearnClient({ product }: LearnClientProps) {
       durationSec: currentLesson.durationSec ?? undefined,
       completed: true,
     });
+    // Аналитик: хичээл дуусгасан event (курс дуусгалт % үүн дээр суурилдаг).
+    // lessonId бүрд НЭГ удаа л completed илгээнэ.
+    if (!completedSentRef.current.has(currentLesson.id)) {
+      completedSentRef.current.add(currentLesson.id);
+      trackLessonCompleted(
+        currentLesson.id,
+        product.id,
+        currentLesson.durationSec ?? 0,
+        currentLesson.durationSec ?? 0,
+      );
+    }
     // Autoplay ON бол дараагийн хичээл рүү шилжээд ШУУД тоглоно (autoStart=true).
     if (autoPlayNext && nextLesson) {
       goToLesson(nextLesson, true);
