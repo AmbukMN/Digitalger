@@ -48,6 +48,7 @@ import { TagInput } from '@/components/ui/tag-input';
 import { RichEditor } from '@/components/ui/rich-editor';
 import { SimpleDropdown, SimpleDropdownItem } from '@/components/ui/simple-dropdown';
 import { Pagination } from '@/components/ui/pagination';
+import { EMAIL_TEMPLATES } from '@/lib/email-templates';
 import type { AdminSubscriber, AdminSubscriberCategory } from '@/types/admin';
 
 // Захиалагчийн эх сурвалжууд (filter + илгээлтэд) — Монгол нэртэйгээр
@@ -538,6 +539,33 @@ function EmailComposeDialog({
                 )}
                 <p className="text-[11px] text-muted-foreground">
                   Орхисон (захиалга цуцалсан) хаягууд руу автоматаар илгээгдэхгүй.
+                </p>
+              </div>
+
+              {/* ── Бэлэн template ── нэг товчоор subject+body бөглөнө (давтан бичихгүй) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Бэлэн загвар сонгох (заавал биш)</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {EMAIL_TEMPLATES.map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => {
+                        setSubject(t.subject);
+                        setBody(t.body);
+                        setShowPreview(false);
+                        toast.success(`"${t.label}" загвар орууллаа — засаад илгээнэ үү`);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                      title={t.subject}
+                    >
+                      <span>{t.emoji}</span>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Загвар дарвал гарчиг, агуулга автоматаар бөглөгдөнө. Дараа нь засаж болно.
                 </p>
               </div>
 
