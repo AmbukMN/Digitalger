@@ -464,31 +464,10 @@ function FacebookIcon() {
 
 function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string }) {
   const cb = callbackUrl ?? '/';
-  // FB/IG доторх браузарт Google OAuth-ийг "disallowed_useragent" гэж блоклодог
-  // (Facebook OAuth ч өөрийн webview-д найдваргүй). Тиймээс FB/IG webview илэрвэл
-  // OAuth товчуудыг НУУНА — оронд нь имэйл/нууц үгээр нэвтрэх заавар харуулна.
-  // (Имэйл/нууц үг + зочин нэвтрэлт FB-д хэвийн ажиллана.)
-  const [inApp, setInApp] = useState(false);
-  useEffect(() => {
-    setInApp(isInAppBrowser());
-  }, []);
-
-  if (inApp) {
-    return (
-      <div className="pt-1">
-        <div className="flex items-center gap-3 pb-2.5">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs text-muted-foreground">эсвэл</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-center text-xs text-muted-foreground leading-relaxed">
-          Энэ орчинд Google/Facebook-ээр нэвтрэх боломжгүй. Дээрх имэйл/нууц үгээрээ
-          нэвтэрнэ үү. (Google/Facebook нэвтрэлт ашиглах бол баруун дээд цэснээс
-          системийн браузараар нээнэ үү.)
-        </p>
-      </div>
-    );
-  }
+  // OAuth товчуудыг бүх орчинд (FB/IG webview-д ч) харуулна. ⚠️ Анхаар: Google нь
+  // in-app browser-аас "disallowed_useragent" гаргадаг (Google-ийн дүрэм) тул FB
+  // orчинд Google ажиллахгүй байж магадгүй — Facebook OAuth нь FB өөрийн webview-д
+  // ихэвчлэн ажиллана. Email/password + зочин нэвтрэлт бүх орчинд хэвийн.
 
   return (
     <div className="space-y-2.5 pt-1">
