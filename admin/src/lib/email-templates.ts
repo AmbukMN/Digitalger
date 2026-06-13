@@ -11,6 +11,12 @@ export interface EmailTemplate {
   body: string; // HTML
 }
 
+// CTA товч — имэйлд (Gmail/Outlook) найдвартай харагдах inline-style товч.
+// primary өнгө (#022179 navy brand), center, padding-тай. Линкийн оронд энэ ашиглана.
+function ctaButton(text: string, href: string): string {
+  return `<p style="text-align:center;margin:24px 0;"><a href="${href}" style="display:inline-block;background:#022179;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:8px;">${text}</a></p>`;
+}
+
 export const EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     key: 'coupon-10',
@@ -22,7 +28,7 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
 <p>Бид танд <strong>10% хөнгөлөлтийн купон</strong> бэлэглэж байна. Дараах кодыг ашиглан дуртай бүтээгдэхүүнээ хямдхан аваарай:</p>
 <p style="text-align:center;"><strong style="font-size:20px;">SAVE10</strong></p>
 <p>Худалдан авалт хийхдээ энэ кодыг оруулаарай. Яараарай — урамшуулал хязгаартай!</p>
-<p><a href="https://digitalger.mn/products">Бүтээгдэхүүн үзэх →</a></p>`,
+${ctaButton('Бүтээгдэхүүн үзэх', 'https://digitalger.mn/products')}`,
   },
   {
     key: 'new-product',
@@ -32,7 +38,7 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     body: `<h2>Шинэ бүтээгдэхүүнтэй танилцаарай ✨</h2>
 <p>Сайн байна уу!</p>
 <p>Бид танд зориулж <strong>шинэ бүтээгдэхүүн</strong> нэмлээ. Чанартай, бэлэн загвар, файлуудыг шууд татаж ашиглаарай.</p>
-<p><a href="https://digitalger.mn/products?sortBy=newest">Шинэ бүтээгдэхүүн үзэх →</a></p>
+${ctaButton('Шинэ бүтээгдэхүүн үзэх', 'https://digitalger.mn/products?sortBy=newest')}
 <p>Танд таалагдана гэдэгт итгэлтэй байна!</p>`,
   },
   {
@@ -44,7 +50,7 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
 <p>Сайн байна уу!</p>
 <p>Зөвхөн хязгаарлагдмал хугацаанд <strong>бүх бүтээгдэхүүн дээр онцгой хямдрал</strong> зарлаж байна.</p>
 <p>Хүсэн хүлээсэн бүтээгдэхүүнээ хамгийн хямд үнээр авах боломж — бүү алдаарай!</p>
-<p><a href="https://digitalger.mn/products?onSale=true">Хямдралтай бүтээгдэхүүн →</a></p>`,
+${ctaButton('Хямдралтай бүтээгдэхүүн', 'https://digitalger.mn/products?onSale=true')}`,
   },
   {
     key: 'reactivation',
@@ -55,7 +61,7 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
 <p>Сайн байна уу!</p>
 <p>Уртхан хугацаанд тантай уулзаагүй байна. Энэ хооронд бид олон <strong>шинэ бүтээгдэхүүн, хямдрал</strong> нэмсэн.</p>
 <p>Эргэж ирээд шинэ зүйлстэй танилцаарай — танд тусгай урамшуулал хүлээж байна!</p>
-<p><a href="https://digitalger.mn/products">Дэлгүүр үзэх →</a></p>`,
+${ctaButton('Дэлгүүр үзэх', 'https://digitalger.mn/products')}`,
   },
   {
     key: 'thank-you',
@@ -78,6 +84,6 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
 <p>Танд дараах чухал мэдээллийг хүргэж байна:</p>
 <p>[Энд мэдээллээ бичнэ үү]</p>
 <p>Дэлгэрэнгүй мэдээллийг манай вэбсайтаас аваарай.</p>
-<p><a href="https://digitalger.mn">Вэбсайт үзэх →</a></p>`,
+${ctaButton('Вэбсайт үзэх', 'https://digitalger.mn')}`,
   },
 ];
