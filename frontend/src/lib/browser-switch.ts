@@ -1,9 +1,14 @@
 'use client';
 
+import { getSession, signIn } from 'next-auth/react';
 import { isIOS, isAndroid } from '@/lib/download-helper';
 import { transferApi } from '@/lib/api';
 import { resetBackfillFlag } from '@/lib/analytics';
 import { useCartStore } from '@/store/cart';
+import { useWishlistStore } from '@/store/wishlist';
+import { useCouponStore } from '@/store/coupon';
+import type { AppliedCoupon } from '@/store/coupon';
+import type { ProductSummary } from '@/types/api';
 
 interface RawCartItem {
   productId?: unknown;
@@ -32,6 +37,35 @@ function extractCartItems(raw: unknown): RawCartItem[] {
   );
 }
 
+// FB-ээс дамжсан wishlist (Zustand persist wrapper эсвэл шууд)-аас items массивыг
+// гаргана. Бохир/буруу элементийг (id-гүй) хасна — crash сэргийлнэ.
+function extractWishlistItems(raw: unknown): ProductSummary[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const obj = raw as Record<string, unknown>;
+  const state = obj.state && typeof obj.state === 'object' ? (obj.state as Record<string, unknown>) : obj;
+  const items = (state as Record<string, unknown>).items;
+  if (!Array.isArray(items)) return [];
+  return items.filter(
+    (i): i is ProductSummary =>
+      !!i && typeof i === 'object' && typeof (i as ProductSummary).id === 'string',
+  );
+}
+
+// FB-ээс дамжсан coupon map (Zustand persist wrapper эсвэл шууд)-аас
+// Record<productId, AppliedCoupon[]>-ийг гаргана. Бохир бол хоосон объект.
+function extractCouponMap(raw: unknown): Record<string, AppliedCoupon[]> {
+  if (!raw || typeof raw !== 'object') return {};
+  const obj = raw as Record<string, unknown>;
+  const state = obj.state && typeof obj.state === 'object' ? (obj.state as Record<string, unknown>) : obj;
+  const coupons = (state as Record<string, unknown>).coupons;
+  if (!coupons || typeof coupons !== 'object' || Array.isArray(coupons)) return {};
+  const out: Record<string, AppliedCoupon[]> = {};
+  for (const [k, v] of Object.entries(coupons as Record<string, unknown>)) {
+    if (Array.isArray(v)) out[k] = v as AppliedCoupon[];
+  }
+  return out;
+}
+
 // FB-ээс дамжсан, нэгтгэхээр хүлээгдэж буй сагсны items. restoreTransferState
 // бэлдэж тавьна, rehydrate дууссаны дараа consumePendingCartMerge ажиллуулна.
 type StoreCartItem = Parameters<ReturnType<typeof useCartStore.getState>['mergeFront']>[0][number];
@@ -56,6 +90,41 @@ export function consumePendingCartMerge(): void {
   }
 }
 
+// FB-ээс дамжсан, нэгтгэхээр хүлээгдэж буй wishlist/coupon. Cart-тай адил
+// rehydrate дууссаны ДАРАА consume хийнэ (дарж бичихгүй, нэгтгэнэ).
+let pendingWishlistMerge: ProductSummary[] | null = null;
+let pendingCouponMerge: Record<string, AppliedCoupon[]> | null = null;
+
+/** rehydrate-ийн ДАРАА: FB wishlist-ийг одоогийнхтой нэгтгэнэ (FB-гийнх ЭХЭНД). */
+export function consumePendingWishlistMerge(): void {
+  if (!pendingWishlistMerge || !pendingWishlistMerge.length) {
+    pendingWishlistMerge = null;
+    return;
+  }
+  try {
+    useWishlistStore.getState().mergeFront(pendingWishlistMerge);
+  } catch (e) {
+    console.error('[consumePendingWishlistMerge] failed', e);
+  } finally {
+    pendingWishlistMerge = null;
+  }
+}
+
+/** rehydrate-ийн ДАРАА: FB coupon-ийг одоогийнхтой нэгтгэнэ (FB-гийнх ЭХЭНД). */
+export function consumePendingCouponMerge(): void {
+  if (!pendingCouponMerge || !Object.keys(pendingCouponMerge).length) {
+    pendingCouponMerge = null;
+    return;
+  }
+  try {
+    useCouponStore.getState().mergeFront(pendingCouponMerge);
+  } catch (e) {
+    console.error('[consumePendingCouponMerge] failed', e);
+  } finally {
+    pendingCouponMerge = null;
+  }
+}
+
 // ─── FB/IG → системийн браузар руу state дамжуулж шилжих ────────────────────
 //
 // FB/IG доторх браузар нь тусдаа cookie/storage орчинтой + файл татаж чаддаггүй.
@@ -63,8 +132,9 @@ export function consumePendingCartMerge(): void {
 // Хэрэглэгчийн сагс/wishlist/coupon/guest-ийг backend-д түр хадгалж token авна,
 // системийн браузар тэр token-оор state-ээ сэргээнэ — дахин сагслах шаардлагагүй.
 
-// localStorage-аас бүх шилжүүлэх state-ийг цуглуулна.
-function collectState(): Record<string, unknown> {
+// localStorage-аас бүх шилжүүлэх state + нэвтэрсэн session token-ийг цуглуулна.
+// async — NextAuth session-ийг getSession()-аар авах тул.
+async function collectState(): Promise<Record<string, unknown>> {
   if (typeof localStorage === 'undefined') return {};
   const read = (k: string) => {
     try {
@@ -89,6 +159,17 @@ function collectState(): Record<string, unknown> {
   let analyticsSid: string | null = null;
   try { analyticsSid = sessionStorage.getItem('dg_sid'); } catch { /* ignore */ }
 
+  // ── SESSION TOKEN: FB webview-д нэвтэрсэн бол refreshToken-ийг дамжуулна. ──
+  // Системийн браузар энэ refreshToken-оор автомат нэвтэрнэ (дахин нэвтрэхгүй).
+  // ⚠️ Аюулгүй: refreshToken backend TransferState (30мин TTL)-д хадгалагдана,
+  // URL-д ил гарахгүй (?t=transferToken л явна). Браузарт нэвтрэхэд /auth/refresh
+  // дуудагдаж шинэ token rotate хийгдэнэ (хуучин нь хүчингүй болно).
+  let refreshToken: string | null = null;
+  try {
+    const session = await getSession();
+    refreshToken = (session as { refreshToken?: string } | null)?.refreshToken ?? null;
+  } catch { /* нэвтрээгүй эсвэл session авч чадсангүй — token-гүй дамжина */ }
+
   return {
     cart: read('digitalger-cart'),
     wishlist: read('digitalger-wishlist'),
@@ -99,6 +180,7 @@ function collectState(): Record<string, unknown> {
     chatHistory: trimmedChat,                // AI чатын сүүлийн 15 мессеж
     theme: raw('digitalger-theme'),          // сонгосон өнгөний горим
     analyticsSid,                            // FB-ийн analytics sessionId (tracking backfill-д)
+    refreshToken,                            // нэвтэрсэн session token (auto re-login)
   };
 }
 
@@ -127,7 +209,7 @@ export async function buildTransferUrl(targetPath: string): Promise<string> {
     (typeof window !== 'undefined' ? window.location.origin : 'https://digitalger.mn');
   let token = '';
   try {
-    const res = await transferApi.save(collectState());
+    const res = await transferApi.save(await collectState());
     token = res.token;
   } catch {
     // backend амжилтгүй — token-гүй ч шилжүүлнэ (state дамжихгүй ч)
@@ -191,8 +273,26 @@ export async function restoreTransferState(token: string): Promise<boolean> {
     } catch (e) {
       console.error('[restoreTransferState] cart merge prepare failed', e);
     }
-    write('digitalger-wishlist', data.wishlist);
-    write('digitalger-coupons', data.coupons);
+
+    // Wishlist: cart-тай адил ДАРЖ БИЧИХГҮЙ, НЭГТГЭНЭ. FB-гийн favourite-ийг
+    // ЭХЭНД тавьж, браузарт өмнө байсан (FB-д байхгүй) wishlist-ийг хадгална.
+    // localStorage-д шууд бичихгүй — rehydrate ДАРААНЬ ажилладаг тул түр хадгалж,
+    // rehydrate дууссаны дараа mergeFront action-аар нэгтгэнэ.
+    try {
+      const fbWishlist = extractWishlistItems(data.wishlist);
+      if (fbWishlist.length) pendingWishlistMerge = fbWishlist;
+    } catch (e) {
+      console.error('[restoreTransferState] wishlist merge prepare failed', e);
+    }
+
+    // Coupon: мөн адил НЭГТГЭНЭ (product тус бүрд FB код ЭХЭНД, давхардалгүй).
+    try {
+      const fbCoupons = extractCouponMap(data.coupons);
+      if (Object.keys(fbCoupons).length) pendingCouponMerge = fbCoupons;
+    } catch (e) {
+      console.error('[restoreTransferState] coupon merge prepare failed', e);
+    }
+
     write('dg-chat-history', data.chatHistory);
     writeRaw('dg-chat-session', data.chatSession);
     writeRaw('digitalger-theme', data.theme);
@@ -217,6 +317,26 @@ export async function restoreTransferState(token: string): Promise<boolean> {
     try { hasLocalGuest = !!localStorage.getItem('digitalger-guest'); } catch { /* ignore */ }
     if (!hasLocalGuest) {
       write('digitalger-guest', data.guest);
+    }
+
+    // ── SESSION TOKEN: refreshToken дамжсан бол автомат нэвтрүүлнэ (дахин нэвтрэхгүй) ──
+    // ⚠️ Системийн браузарт АЛЬ ХЭДИЙН нэвтэрсэн (өөр) хэрэглэгч байвал ДАРЖ
+    // нэвтрэхгүй — түүний session-ийг хадгална (guest conflict логиктой адил).
+    // Зөвхөн нэвтрээгүй (зочин) үед л FB-ийн session-ийг сэргээнэ.
+    if (typeof data.refreshToken === 'string' && data.refreshToken) {
+      try {
+        const current = await getSession();
+        if (!current?.accessToken) {
+          // CredentialsProvider-ийн "transfer" режим — refreshToken-оор session
+          // гаргана (password шаардахгүй). redirect:false — SPA-д хэвээр үлдэнэ.
+          await signIn('credentials', {
+            transferRefreshToken: data.refreshToken,
+            redirect: false,
+          });
+        }
+      } catch (e) {
+        console.error('[restoreTransferState] auto re-login failed', e);
+      }
     }
 
     // Theme-ийг DOM-д ШУУД хэрэглэнэ — ThemeProvider mount-д аль хэдийн уншсан

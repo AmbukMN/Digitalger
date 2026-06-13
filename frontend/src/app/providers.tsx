@@ -17,7 +17,12 @@ import { useRecentlyViewedStore } from '@/store/recently-viewed';
 import { downloadsApi, wishlistApi, usersApi } from '@/lib/api';
 import type { NavbarPrefetch } from '@/lib/api';
 import { setAnalyticsUserId, backfillSessionTracking } from '@/lib/analytics';
-import { restoreTransferState, consumePendingCartMerge } from '@/lib/browser-switch';
+import {
+  restoreTransferState,
+  consumePendingCartMerge,
+  consumePendingWishlistMerge,
+  consumePendingCouponMerge,
+} from '@/lib/browser-switch';
 import { BrowserSwitchHost } from '@/components/browser-switch-host';
 
 const VERIFY_TOAST_KEY = 'dg-verify-toast-shown';
@@ -138,12 +143,14 @@ function StoreHydration() {
         .catch(() => false)
         .finally(() => {
           rehydrateAll();
-          // rehydrate (Safari-д өмнө байсан сагс) дууссаны ДАРАА FB-ээс дамжсан
-          // сагсыг нэгтгэнэ — FB-гийнх ЭХЭНД, давхардалгүй.
+          // rehydrate (Safari-д өмнө байсан state) дууссаны ДАРАА FB-ээс дамжсан
+          // сагс/wishlist/coupon-ийг нэгтгэнэ — FB-гийнх ЭХЭНД, давхардалгүй.
           try {
             consumePendingCartMerge();
+            consumePendingWishlistMerge();
+            consumePendingCouponMerge();
           } catch (e) {
-            console.error('[StoreHydration] cart merge failed', e);
+            console.error('[StoreHydration] state merge failed', e);
           }
           // ?t=token-ийг URL-аас цэвэрлэнэ (refresh-д дахин сэргээхгүй, цэвэр URL)
           try {

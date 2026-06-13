@@ -21,6 +21,8 @@ interface CouponState {
   getAll: (productId: string) => AppliedCoupon[];
   getTotalDiscount: (productId: string) => number;
   getFinalPrice: (productId: string, basePrice: number) => number;
+  // FB/IG → системийн браузар шилжихэд: дамжсан coupon-ийг нэгтгэнэ (дарж бичихгүй).
+  mergeFront: (incoming: Record<string, AppliedCoupon[]>) => void;
 }
 
 // rehydrate хийсэн дата бохир (coupons объект биш) байвал цэвэрлэнэ.
@@ -68,6 +70,23 @@ export const useCouponStore = create<CouponState>()(
 
       getFinalPrice: (productId, basePrice) =>
         Math.max(0, basePrice - ((get().coupons ?? {})[productId] ?? []).reduce((sum, c) => sum + c.discount, 0)),
+
+      mergeFront: (incoming) =>
+        set((s) => {
+          // FB-гийн coupon-ийг ЭХЭНД, өмнө байсан (FB-д байхгүй кодыг) араас нь.
+          // Product тус бүрд code-аар давхардлыг хасна, MAX 3 хязгаар хадгална.
+          const clean = sanitizeCoupons(incoming);
+          if (!Object.keys(clean).length) return s;
+          const existing = s.coupons ?? {};
+          const next: Record<string, AppliedCoupon[]> = { ...existing };
+          for (const [productId, fbCoupons] of Object.entries(clean)) {
+            const prev = existing[productId] ?? [];
+            const fbCodes = new Set(fbCoupons.map((c) => c.code));
+            const merged = [...fbCoupons, ...prev.filter((c) => !fbCodes.has(c.code))];
+            next[productId] = merged.slice(0, MAX_COUPONS_PER_PRODUCT);
+          }
+          return { coupons: next };
+        }),
     }),
     {
       name: 'digitalger-coupons',

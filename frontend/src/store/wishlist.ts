@@ -10,6 +10,8 @@ interface WishlistState {
   has: (productId: string) => boolean;
   // нэвтрэхэд backend-тэй sync хийхэд ашиглана
   mergeFromBackend: (backendItems: ProductSummary[]) => void;
+  // FB/IG → системийн браузар шилжихэд: дамжсан wishlist-ийг ЭХЭНД нэгтгэнэ (дарж бичихгүй).
+  mergeFront: (newItems: ProductSummary[]) => void;
   // нэвтрэхэд localStorage-аас backend руу sync хийх үед pending items буцаана
   getPendingIds: () => string[];
 }
@@ -41,6 +43,17 @@ export const useWishlistStore = create<WishlistState>()(
           const backendIds = new Set(backendItems.map((i) => i.id));
           const localOnly = (s.items ?? []).filter((i) => !backendIds.has(i.id));
           return { items: [...backendItems, ...localOnly] };
+        }),
+      mergeFront: (newItems) =>
+        set((s) => {
+          // FB-гийн wishlist-ийг ЭХЭНД, өмнө байсан (FB-д байхгүй) бүтээгдэхүүнийг араас нь.
+          const incoming = sanitizeItems(newItems);
+          if (!incoming.length) return s;
+          const existing = s.items ?? [];
+          const incomingIds = new Set(incoming.map((i) => i.id));
+          return {
+            items: [...incoming, ...existing.filter((i) => !incomingIds.has(i.id))],
+          };
         }),
       getPendingIds: () => (get().items ?? []).map((i) => i.id),
     }),

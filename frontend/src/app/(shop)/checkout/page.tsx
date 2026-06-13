@@ -16,8 +16,6 @@ import { MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import { SiteNavbar } from '@/components/layout/site-navbar';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { QPayCheckout } from '@/components/payment/qpay-checkout';
-import { BrowserSwitchModal } from '@/components/browser-switch-modal';
-import { isInAppBrowser } from '@/lib/download-helper';
 import { ProductRowItem } from '@/components/ui/product-row-item';
 import { TrustBadges } from '@/components/products/trust-badges';
 import type { PaymentInitiateResult } from '@/types/api';
@@ -41,8 +39,6 @@ function CheckoutContent() {
 
   const [paying, setPaying] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  // FB/IG доторх браузар илрэхэд системийн браузар руу шилжүүлэх modal
-  const [switchOpen, setSwitchOpen] = useState(false);
   const [qpayResult, setQpayResult] = useState<PaymentInitiateResult | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const autoPayTriggered = useRef(false);
@@ -166,13 +162,9 @@ function CheckoutContent() {
   }, [session?.accessToken, searchParams, items.length]);
 
   const handlePay = async () => {
-    // FB/IG доторх браузар нь төлбөр/татах боломжгүй + тусдаа орчинтой. Тиймээс
-    // төлбөр эхлэхээс ӨМНӨ системийн браузар (Safari/Chrome) руу шилжүүлнэ —
-    // сагс/купон бүгд дамжина. (?t=token-оор шинэ браузарт state сэргэнэ.)
-    if (isInAppBrowser()) {
-      setSwitchOpen(true);
-      return;
-    }
+    // FB/IG доторх браузарт ч QPay ШУУД эхэлнэ — QR (base64 зураг) харагдана,
+    // банкны deeplink (khanbank:// г.м.) банкны апп руу үсэрнэ. Тиймээс системийн
+    // браузар руу шилжүүлэх шаардлагагүй (conversion алдахгүй).
     if (!session?.accessToken) {
       setAuthOpen(true);
       return;
@@ -467,16 +459,6 @@ function CheckoutContent() {
         onClose={() => setAuthOpen(false)}
         defaultTab="login"
         callbackUrl="/checkout?autopay=1"
-      />
-
-      {/* FB/IG доторх браузараас системийн браузар руу шилжих (төлбөрийн өмнө).
-          autopay=1: нэвтэрсэн бол шинэ браузарт төлбөр автомат эхэлнэ.
-          showAuth=1: нэвтрээгүй бол эхлээд login modal автомат нээгдэж, нэвтэрсний
-          дараа autopay ажиллана — хэрэглэгчийн "худалдан авах" intent үргэлжилнэ. */}
-      <BrowserSwitchModal
-        open={switchOpen}
-        onClose={() => setSwitchOpen(false)}
-        targetPath="/checkout?autopay=1&showAuth=1"
       />
 
       {qpayResult && session?.accessToken && (

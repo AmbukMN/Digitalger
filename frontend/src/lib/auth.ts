@@ -40,8 +40,34 @@ export const authOptions: NextAuthOptions = {
         phone: { label: 'Утас', type: 'text' },
         userId: { label: 'User ID', type: 'text' },
         password: { label: 'Нууц үг', type: 'password' },
+        // FB/IG → системийн браузар шилжихэд: нууц үггүйгээр (дахин нэвтрэхгүй)
+        // refreshToken-оор session сэргээх тусгай "transfer" режим. refreshToken
+        // backend TransferState (30мин TTL)-аас ирнэ, URL-д ил гарахгүй.
+        transferRefreshToken: { label: 'Transfer', type: 'text' },
       },
       async authorize(credentials) {
+        // ── Transfer режим: refreshToken-оор шинэ session гаргана (password шаардахгүй) ──
+        if (credentials?.transferRefreshToken) {
+          try {
+            const data = await authApi.refresh(credentials.transferRefreshToken);
+            return {
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.name ?? data.user.email,
+              image: data.user.image,
+              role: data.user.role,
+              phone: (data.user as any).phone ?? null,
+              isGuest: (data.user as any).isGuest ?? false,
+              oauthProvider: (data.user as any).oauthProvider ?? null,
+              emailVerified: (data.user as any).emailVerified ?? null,
+              accessToken: data.accessToken,
+              refreshToken: data.refreshToken,
+            };
+          } catch {
+            return null;
+          }
+        }
+
         if (!credentials?.password) return null;
         if (!credentials.email && !credentials.phone && !credentials.userId) return null;
 

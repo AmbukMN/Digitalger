@@ -17,7 +17,6 @@ import {
   clearGuestSession,
 } from '@/lib/guest-session';
 import { OtpInput } from './otp-input';
-import { BrowserSwitchModal } from '@/components/browser-switch-modal';
 import { isInAppBrowser } from '@/lib/download-helper';
 
 // "Зочноор нэвтрэх"-ийн үр дүн: амжилттай нэвтэрсэн эсэх.
@@ -465,7 +464,31 @@ function FacebookIcon() {
 
 function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string }) {
   const cb = callbackUrl ?? '/';
-  const verb = tab === 'login' ? 'нэвтрэх' : 'бүртгүүлэх';
+  // FB/IG доторх браузарт Google OAuth-ийг "disallowed_useragent" гэж блоклодог
+  // (Facebook OAuth ч өөрийн webview-д найдваргүй). Тиймээс FB/IG webview илэрвэл
+  // OAuth товчуудыг НУУНА — оронд нь имэйл/нууц үгээр нэвтрэх заавар харуулна.
+  // (Имэйл/нууц үг + зочин нэвтрэлт FB-д хэвийн ажиллана.)
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => {
+    setInApp(isInAppBrowser());
+  }, []);
+
+  if (inApp) {
+    return (
+      <div className="pt-1">
+        <div className="flex items-center gap-3 pb-2.5">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">эсвэл</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-center text-xs text-muted-foreground leading-relaxed">
+          Энэ орчинд Google/Facebook-ээр нэвтрэх боломжгүй. Дээрх имэйл/нууц үгээрээ
+          нэвтэрнэ үү. (Google/Facebook нэвтрэлт ашиглах бол баруун дээд цэснээс
+          системийн браузараар нээнэ үү.)
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2.5 pt-1">
@@ -499,25 +522,16 @@ function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string })
 export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: AuthModalProps) {
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  // FB/IG доторх браузар нь нэвтрэлт/төлбөрт тохиромжгүй (тусдаа орчин). Нэвтрэх
-  // modal нээгдэхэд FB илэрвэл системийн браузар руу шилжүүлэх modal-руу шилжүүлнэ.
-  const [switchOpen, setSwitchOpen] = useState(false);
 
+  // FB/IG доторх браузарт ч нэвтрэх форм (имэйл/нууц үг + зочин) ХЭВИЙН харагдана.
+  // Зөвхөн Google/Facebook OAuth товчийг SocialButtons дотор нууж заавар өгдөг.
   useEffect(() => {
     if (open) {
-      if (isInAppBrowser()) {
-        // FB/IG → нэвтрэх форм биш, шилжүүлэх modal харуулна
-        setSwitchOpen(true);
-      } else {
-        setTab(defaultTab);
-        setShowForgotPassword(false);
-      }
+      setTab(defaultTab);
+      setShowForgotPassword(false);
     }
   }, [open, defaultTab]);
 
-  // ⚠️ React hooks дүрэм: БҮХ hook нь ямар ч early return-аас ӨМНӨ дуудагдах
-  // ёстой. Тиймээс Escape listener-ийг доорх switchOpen early return-аас ӨМНӨ
-  // байрлуулна (эс бол FB-д switchOpen=true болоход hook count буурч крэш болно).
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -526,24 +540,6 @@ export function AuthModal({ open, onClose, defaultTab = 'login', callbackUrl }: 
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
-
-  // FB/IG илэрсэн бол нэвтрэх форм биш — шилжүүлэх modal л харуулна.
-  // Intent: шинэ браузарт нэвтрэх modal АВТОМАТ нээгдэх ёстой (хэрэглэгч нэвтрэх
-  // гэж байсан). targetPath-д ?showAuth=1 нэмж дамжуулна — providers тэр query-г
-  // уншиж AuthModal-ийг автомат нээнэ. callbackUrl байвал нэвтэрсний дараа тийш
-  // (autopay гэх мэт), эс бол одоо байгаа хуудсанд буцаж нэвтрэх modal нээнэ.
-  if (open && switchOpen) {
-    const base = callbackUrl ?? (typeof window !== 'undefined' ? window.location.pathname : '/');
-    const sep = base.includes('?') ? '&' : '?';
-    const switchTarget = `${base}${sep}showAuth=1`;
-    return (
-      <BrowserSwitchModal
-        open
-        onClose={() => { setSwitchOpen(false); onClose(); }}
-        targetPath={switchTarget}
-      />
-    );
-  }
 
   return (
     <AnimatePresence>
