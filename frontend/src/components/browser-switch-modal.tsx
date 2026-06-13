@@ -84,8 +84,8 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
               <ExternalLink className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold leading-tight">Браузерт үргэлжлүүлнэ үү</h3>
-              <p className="text-xs text-muted-foreground">{browser} цонхонд төлбөр хийх боломжгүй</p>
+              <h3 className="text-base font-bold leading-tight">Файл татахын тулд браузерт нээнэ үү</h3>
+              <p className="text-xs text-muted-foreground">{browser} цонхонд файл татах боломжгүй</p>
             </div>
           </div>
           <button
@@ -97,11 +97,11 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
           </button>
         </div>
 
-        {/* FB/IG доторх цонхны хязгаарлалтыг тайлбарлах (нэвтрэх/төлбөр ажиллахгүй) */}
+        {/* FB/IG доторх цонхонд файл татах боломжгүй (page-not-found) тул browser шилжинэ */}
         <div className="mb-4 flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 dark:bg-amber-950/30">
           <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-            {browser} доторх цонхонд <span className="font-semibold">нэвтрэх болон төлбөр хийх боломжгүй</span> тул гадаад браузераар нээнэ үү.
+            {browser} доторх цонхонд <span className="font-semibold">файл татах боломжгүй</span> тул гадаад браузераар нээж татна уу. Нэвтрэлт, сагс, бусад бүх зүйл хадгалагдана.
           </p>
         </div>
 
