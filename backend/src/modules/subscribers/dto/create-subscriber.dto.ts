@@ -1,6 +1,6 @@
 import { IsEmail, IsOptional, IsString, IsArray, IsInt, IsEnum, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SubscriberSex } from '@prisma/client';
+import { SubscriberSex, SubscriberStatus } from '@prisma/client';
 
 export class CreateSubscriberDto {
   @IsEmail()
@@ -28,6 +28,10 @@ export class CreateSubscriberDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsEnum(SubscriberStatus)
+  status?: SubscriberStatus;
 
   @IsOptional()
   @IsString()

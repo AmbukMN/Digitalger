@@ -87,6 +87,8 @@ export class SubscribersService {
         age: dto.age ?? null,
         sex: dto.sex ?? null,
         phone: dto.phone?.trim() || null,
+        status: dto.status ?? 'ACTIVE',
+        isActive: (dto.status ?? 'ACTIVE') === 'ACTIVE',
         source: dto.source || 'admin',
         categoryId: dto.categoryId || null,
         tags: dto.tags ?? [],
