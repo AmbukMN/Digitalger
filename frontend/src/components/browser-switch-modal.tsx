@@ -84,17 +84,21 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
         }, 1500);
         return;
       }
-      // Android: intent ихэвчлэн нэг товшилтоор ажиллана. Хэрэв 2с-ийн дараа
-      // хуудас энд хэвээр (intent блоклогдсон ховор тохиолдол) бол линк хуулж
-      // өгнө (UI өөрчлөхгүй, зүгээр "хуулагдлаа" төлөв) — хэрэглэгч гацахгүй.
+      // Android: intent туршигдсан. Ажиллавал default browser нээгдэж энэ хуудас
+      // орхигдоно. ⚠️ Гэхдээ intent FB webview-д ажиллах нь БАТАЛГААГҮЙ тул iOS-тэй
+      // ИЖИЛ: 1.5с дараа хуудас энд хэвээр бол заавар (··· → Open in browser) тод
+      // харуулна + линк хуулна. Intent ажиллавал заавар гарахгүй (хуудас орхигдсон).
       setTimeout(async () => {
+        setShowGuide(true);
         const ok = await copyLinkRobust(url);
         if (ok) {
           setCopied(true);
           setTimeout(() => setCopied(false), 4000);
+        } else {
+          setShowRawLink(true);
         }
         setSwitching(false);
-      }, 2000);
+      }, 1500);
       return;
     } finally {
       setSwitching(false);
@@ -150,12 +154,13 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
           </p>
         </div>
 
-        {/* iOS заавар — товч дарж scheme унасны ДАРАА л тод гарна (showGuide).
-            scheme дэмждэг iPhone (шинэ iOS) дээр огт гарахгүй — илүүц UI байхгүй. */}
-        {isIOS() && showGuide && (
+        {/* Заавар — товч дарж scheme/intent унасны ДАРАА л тод гарна (showGuide).
+            scheme/intent ажилладаг утсан дээр огт гарахгүй (хуудас орхигдсон) —
+            илүүц UI байхгүй. iOS+Android хоёуланд (FB-ийн "Open in browser"). */}
+        {showGuide && (
           <div className="mb-3 rounded-xl border-2 border-primary/30 bg-muted/40 p-4">
             <p className="mb-2.5 text-sm font-bold text-foreground">
-              📲 Safari-д нээж татна уу:
+              📲 Браузерт нээж татна уу:
             </p>
             <div className="space-y-2">
               <p className="flex items-start gap-2 text-sm leading-relaxed">
@@ -171,7 +176,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
               <p className="flex items-start gap-2 text-sm leading-relaxed">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
                 <span>
-                  <span className="font-semibold">"Open in external browser"</span> сонгоно → нэвтрэлт хадгалагдан Safari нээгдэнэ
+                  <span className="font-semibold">"Open in external browser"</span> сонгоно → нэвтрэлт хадгалагдан браузер нээгдэнэ
                 </span>
               </p>
             </div>
@@ -201,35 +206,10 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
         )}
         {!copied && <div className="mb-2" />}
 
-        {/* FALLBACK заавар: Android-д "Нээгдэхгүй бол" (iOS-д дээр аль хэдийн гарсан
-            тул давхардуулахгүй — зөвхөн линк хуулах товч үлдээнэ). */}
+        {/* Линк хуулах — заавар (showGuide) аль хэдийн дээр гарсан тул энд зөвхөн
+            нэмэлт "Линк хуулах" товч (scheme/intent + заавар ч ажиллахгүй аварга). */}
         <div className="rounded-xl bg-muted/40 p-4">
-          {!isIOS() && (
-            <>
-              <p className="mb-2.5 text-xs font-medium text-muted-foreground">
-                Нээгдэхгүй бол:
-              </p>
-              <div className="space-y-2">
-                <p className="flex items-start gap-2 text-sm leading-relaxed">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
-                  <span>
-                    Баруун дээд{' '}
-                    <span className="inline-flex items-center justify-center rounded-md border border-border bg-background px-1.5 py-0.5 align-middle">
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </span>{' '}
-                    товч дарна
-                  </span>
-                </p>
-                <p className="flex items-start gap-2 text-sm leading-relaxed">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
-                  <span>
-                    <span className="font-semibold">"Open in external browser"</span> сонгоно
-                  </span>
-                </p>
-              </div>
-            </>
-          )}
-          <Button variant="outline" className={`w-full gap-2${isIOS() ? '' : ' mt-3'}`} onClick={copyLink}>
+          <Button variant="outline" className="w-full gap-2" onClick={copyLink}>
             {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
             {copied ? 'Хуулагдлаа!' : 'Линк хуулах'}
           </Button>
