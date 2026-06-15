@@ -28,7 +28,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
   // clipboard 3 түвшний fallback ч унавал линкийг дэлгэцэнд харуулна (гар сонголт).
   const [showRawLink, setShowRawLink] = useState(false);
   // iOS-д заавар (··· → Open external) АНХНААСАА биш, товч дарж scheme унасны
-  // ДАРАА л тод гарна — ингэснээр scheme ажилладаг iPhone (iOS16+) дээр илүүц
+  // ДАРАА л тод гарна — ингэснээр scheme дэмждэг iPhone (шинэ iOS) дээр илүүц
   // UI харагдахгүй, зөвхөн шаардлагатай (iOS15) үед заавар тодорно.
   const [showGuide, setShowGuide] = useState(false);
 
@@ -67,7 +67,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
     try {
       const url = await switchToSystemBrowser(targetPath);
       setTransferUrl(url);
-      // iOS: scheme туршигдсан. iOS16+ (iPhone14/15/16) дээр Safari нээгдэж энэ
+      // iOS: scheme туршигдсан. scheme дэмждэг iOS (шинэ iPhone) дээр Safari нээгдэж энэ
       // хуудас орхигдоно (заавар гарахгүй). iOS15 (iPhone7) дээр scheme унаж
       // хуудас энд хэвээр → 1.5с дараа заавар тод гарна + линк хуулна.
       if (isIOS()) {
@@ -151,7 +151,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
         </div>
 
         {/* iOS заавар — товч дарж scheme унасны ДАРАА л тод гарна (showGuide).
-            scheme ажилладаг iPhone (iOS16+) дээр огт гарахгүй — илүүц UI байхгүй. */}
+            scheme дэмждэг iPhone (шинэ iOS) дээр огт гарахгүй — илүүц UI байхгүй. */}
         {isIOS() && showGuide && (
           <div className="mb-3 rounded-xl border-2 border-primary/30 bg-muted/40 p-4">
             <p className="mb-2.5 text-sm font-bold text-foreground">
