@@ -199,13 +199,12 @@ function openSystemBrowser(url: string) {
     return;
   }
   if (isIOS()) {
-    // iOS-д "default browser руу шилжих" албан ёсны scheme БАЙХГҮЙ. x-safari- нь
-    // Apple-д блоклогддог, найдваргүй. Тиймээс зүгээр шинэ цонхоор нээхийг
-    // оролдоно — FB/IG webview ихэвчлэн "Open in browser" асууна. Ажиллахгүй
-    // бол modal-ийн гар заавар (··· → Open in external browser) + линк хуулах
-    // fallback нь хэрэглэгчийг гацаахгүй (доорх copyLinkRobust).
-    window.open(url, '_blank');
-    window.location.href = url;
+    // iPhone бүрт SAFARI байдаг тул Safari руу шууд шилжүүлнэ. FB/IG webview-аас
+    // Safari руу гаргах хамгийн найдвартай нь `x-safari-https://...` scheme —
+    // энэ нь FB/IG in-app browser-аас Safari-г НЭГ ТОВШИЛТООР нээдэг (window.open
+    // нь FB webview-д блоклогддог тул "Нээж байна" гээд гацдаг). Энэ scheme
+    // ажиллахгүй ховор тохиолдолд modal-ийн линк fallback хэрэглэгчийг гацаахгүй.
+    window.location.href = `x-safari-${url}`;
     return;
   }
   window.location.href = url;
