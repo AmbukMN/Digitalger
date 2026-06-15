@@ -76,6 +76,26 @@ export class StreamCleanupService implements OnModuleDestroy {
         if (l.videoStreamId) linked.add(l.videoStreamId);
       }
 
+      // ⚠️ КАТАСТРОФ ХАМГААЛАЛТ: DB-д videoStreamId-тэй lesson ОГТ байхгүй мөртөө
+      // Cloudflare-д олон видео байвал — DB хоосорсон/migration алдаа/prisma тасарсан
+      // байж магадгүй. Энэ үед БҮХ видеог "orphan" гэж андуурч устгана (R2 cleanup-ийн
+      // 558MB устгасан осолтой яг адил). Тиймээс ЗОГСООНО + alert илгээнэ.
+      if (linked.size === 0 && videos.length > 5) {
+        this.logger.warn(
+          `Stream orphan cleanup: DB-д холбоотой видео=0 ч Cloudflare-д ${videos.length} видео байна — ` +
+            `DB хоосорсон байж магадгүй тул ХАМГААЛАЛТААР ЗОГСООВ (бүгдийг устгахаас сэргийлэв)`,
+        );
+        await this.n8n
+          .emitAlert({
+            level: 'warning',
+            title: 'Stream cleanup хамгаалалтаар зогссон',
+            message: `DB-д холбоотой видео 0, Cloudflare-д ${videos.length} — устгал зогсоов.`,
+            source: 'stream-cleanup',
+          })
+          .catch(() => {});
+        return;
+      }
+
       // 3) Cloudflare дээр байгаа ч DB-д холбогдоогүй (orphan) + 2+ цагийн өмнөх
       const cutoff = Date.now() - this.DELETE_AFTER_HOURS * 60 * 60 * 1000;
       let deleted = 0;

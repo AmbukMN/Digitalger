@@ -17,7 +17,11 @@ git pull origin main
 
 if [ "$SERVICE" = "all" ]; then
   $COMPOSE up -d --build
-elif [ "$SERVICE" = "backend" ] || [ "$SERVICE" = "frontend" ] || [ "$SERVICE" = "admin" ]; then
+elif [ "$SERVICE" = "backend" ]; then
+  # ⚠️ Backend кодыг (email/queue/processor) зассан тохиолдолд zip-worker
+  # ХУУЧИН код дээр үлдвэл bulk email гацдаг тул ЗААВАЛ хамт rebuild хийнэ.
+  $COMPOSE up -d --build backend zip-worker
+elif [ "$SERVICE" = "frontend" ] || [ "$SERVICE" = "admin" ]; then
   $COMPOSE up -d --build "$SERVICE"
 else
   echo "Unknown service: $SERVICE"
@@ -26,7 +30,13 @@ else
 fi
 
 echo "[$(date)] Waiting for services to be healthy..."
-sleep 10
+sleep 12
+
+# ⚠️ nginx нь upstream container-ийн IP-г ачаалах үед кэшэлдэг. Аливаа service-ийг
+# rebuild хийхэд тэр шинэ IP авдаг тул nginx restart хийхгүй бол 502 гарна.
+# Тиймээс deploy бүрийн дараа nginx-ийг ЗААВАЛ restart хийж шинэ IP-г аваачина.
+echo "[$(date)] Restarting nginx (upstream IP refresh — 502-аас сэргийлнэ)..."
+$COMPOSE restart nginx
 
 # Health check
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/api/health || echo "000")
@@ -35,7 +45,12 @@ if [ "$HTTP_CODE" = "200" ]; then
 else
   echo "[$(date)] ❌ Backend health check failed (HTTP $HTTP_CODE)"
   $COMPOSE logs --tail=50 backend
+  exit 1
 fi
+
+# Сайтын гадаад хүртээмж шалгах (nginx → frontend 502 эсэхийг баталгаажуулна)
+SITE_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://digitalger.mn || echo "000")
+echo "[$(date)] Site (https://digitalger.mn): HTTP $SITE_CODE"
 
 echo "[$(date)] Deploy complete"
 $COMPOSE ps
