@@ -205,7 +205,21 @@ function MobileFeaturedProducts({ onClose }: { onClose: () => void }) {
       </div>
     );
   }
-  if (!products.length) return null;
+  // Ачаалж чадаагүй (iPhone7 удаан сүлжээ/алдаа) ч хэсэг АЛГА болгохгүй —
+  // "Бүгдийг үзэх" линк үлдээж, хэрэглэгч жагсаалт руу орох боломжтой.
+  if (!products.length) {
+    return (
+      <div className="border-t border-border pt-4 pb-2">
+        <Link
+          href="/products?featured=true"
+          onClick={onClose}
+          className="flex items-center justify-between px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+        >
+          Онцлох бүтээгдэхүүн <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="border-t border-border pt-4 pb-2">
@@ -275,7 +289,19 @@ function MobileLatestPosts({ onClose }: { onClose: () => void }) {
       </div>
     );
   }
-  if (!posts.length) return null;
+  if (!posts.length) {
+    return (
+      <div className="border-t border-border pt-4 pb-2">
+        <Link
+          href="/blog"
+          onClick={onClose}
+          className="flex items-center justify-between px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+        >
+          Нийтлэл <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="border-t border-border pt-4 pb-2">
