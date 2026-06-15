@@ -68,9 +68,14 @@ const FALLBACK_MENU: MenuItem[] = [
   { id: 'f-about', label: 'Бидний тухай', url: '/about', pageSlug: null, target: '_self', openInNew: false },
 ];
 
-// Public fetch-д timeout — API удаан/унавал хязгааргүй хүлээж гацахаас сэргийлнэ
+// Public fetch-д timeout — API удаан/унавал хязгааргүй хүлээж гацахаас сэргийлнэ.
+// ⚠️ AbortSignal.timeout нь iOS15/iPhone7-д БАЙХГҮЙ тул AbortController polyfill.
 async function fetchWithTimeout(url: string, ms = 6000): Promise<Response> {
-  return fetch(url, { signal: AbortSignal.timeout(ms) });
+  const AS = AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal };
+  if (typeof AS.timeout === 'function') return fetch(url, { signal: AS.timeout(ms) });
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
 }
 
 
@@ -463,9 +468,9 @@ export function SiteNavbar() {
               style={{
                 height: '64px',
                 paddingTop: 'env(safe-area-inset-top, 0px)',
-                background: 'color-mix(in oklch, var(--primary) 8%, var(--background))',
+                background: 'var(--card)',
                 backdropFilter: 'blur(12px)',
-                borderBottom: '1px solid color-mix(in oklch, var(--primary) 20%, transparent)',
+                borderBottom: '1px solid var(--border)',
               }}
             >
               <button
@@ -542,14 +547,17 @@ export function SiteNavbar() {
               <Search className="h-5 w-5" />
             </Button>
 
-            {/* Theme toggle */}
-            <ThemeToggle />
+            {/* Theme toggle — mobile-д НУУНА (hamburger дотор бий, icon багтахгүй
+                болж hamburger тастагдахаас сэргийлнэ). Зөвхөн md+ дээр. */}
+            <span className="hidden md:inline-flex">
+              <ThemeToggle />
+            </span>
 
             <Button variant="ghost" size="icon" asChild>
               <Link href="/wishlist" className="relative">
                 <Heart className="h-5 w-5" />
                 {wishCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: 'oklch(0.847 0.178 85.87)', color: 'oklch(0.1 0.04 264)' }}>
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ backgroundColor: '#ffbe00', color: '#022179' }}>
                     {wishCount}
                   </span>
                 )}
@@ -559,7 +567,7 @@ export function SiteNavbar() {
               <Link href="/checkout" className="relative">
                 <ShoppingCart className={cn('h-5 w-5 transition-transform', cartShake && 'cart-shake')} />
                 {cartCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: 'oklch(0.847 0.178 85.87)', color: 'oklch(0.1 0.04 264)' }}>
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ backgroundColor: '#ffbe00', color: '#022179' }}>
                     {cartCount}
                   </span>
                 )}

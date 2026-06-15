@@ -28,13 +28,28 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * ⚠️ AbortSignal.timeout() нь iOS Safari 16+, хуучин Android-д БАЙХГҮЙ.
+ * iPhone 7 (iOS 15.x) дээр энэ нь `is not a function` алдаа өгч БҮХ API
+ * хүсэлтийг шууд унагаадаг байсан (Миний сан/захиалга/Google нэвтрэлт бүгд
+ * "Ачаалж чадсангүй"). Тиймээс байгаа бол ашиглана, эс бол AbortController +
+ * setTimeout-аар найдвартай polyfill хийнэ (бүх браузерт ажиллана).
+ */
+function timeoutSignal(ms: number): AbortSignal {
+  const AS = AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal };
+  if (typeof AS.timeout === 'function') return AS.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 async function request<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { token, headers, signal, ...rest } = options;
   const res = await fetch(`${API_URL}/api${path}`, {
     ...rest,
     // signal дамжуулаагүй бол default 15сек timeout — API удаан/унавал
-    // хязгааргүй хүлээж UI гацахаас сэргийлнэ
-    signal: signal ?? AbortSignal.timeout(15000),
+    // хязгааргүй хүлээж UI гацахаас сэргийлнэ (iOS15-д polyfill ашиглана)
+    signal: signal ?? timeoutSignal(15000),
     // ⚠️ Next 15: тохиргоогүй fetch default no-store. ISR static хуудсанд
     // (revalidate export-той) no-store fetch route-ийг dynamic болгож болзошгүй.
     // `next: { revalidate }` дамжуулсан үед тухайн fetch-ийг cache-лэх боломжтой
@@ -986,7 +1001,7 @@ export async function getNavbarData(): Promise<NavbarPrefetch> {
     try {
       const res = await fetch(`${apiBase}/api${path}`, {
         next: { revalidate: 60 },
-        signal: AbortSignal.timeout(2500),
+        signal: timeoutSignal(2500),
       });
       if (!res.ok) return null;
       return (await res.json()) as T;
