@@ -49,7 +49,7 @@ export default function DashboardLayout({
                   className={cn(
                     'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                     active
-                      ? 'bg-primary/10 text-primary'
+                      ? 'bg-muted/70 text-primary'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >
@@ -90,7 +90,7 @@ export default function DashboardLayout({
               >
                 <div className={cn(
                   'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-                  active && 'bg-primary/15',
+                  active && 'bg-muted',
                 )}>
                   <Icon className={cn('h-5 w-5', active ? 'text-primary' : 'text-foreground/50')} />
                 </div>

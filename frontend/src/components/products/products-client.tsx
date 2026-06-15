@@ -165,7 +165,7 @@ export function ProductsClient({ categories, productTypes, initialData, initialK
 
           {/* Top progress bar — placeholder дата дээр шинэ ачаалж байгааг харуулна */}
           {showOverlay && (
-            <div className="relative -mt-2 mb-2 h-0.5 w-full overflow-hidden rounded-full bg-primary/10">
+            <div className="relative -mt-2 mb-2 h-0.5 w-full overflow-hidden rounded-full bg-muted/70">
               <div className="dg-progress-indeterminate absolute inset-y-0 left-0 w-1/3 rounded-full bg-primary" />
             </div>
           )}

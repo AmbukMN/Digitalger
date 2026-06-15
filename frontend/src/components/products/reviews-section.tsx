@@ -126,7 +126,7 @@ function ReviewRow({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold">{review.user.name ?? 'Нэргүй'}</span>
           {isMine && (
-            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-primary">
               Таны үнэлгээ
             </span>
           )}

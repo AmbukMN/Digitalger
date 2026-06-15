@@ -126,7 +126,7 @@ function BundleSection({
               tabIndex={0}
               onClick={() => setOpen((p) => ({ ...p, [bundle.id]: !p[bundle.id] }))}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((p) => ({ ...p, [bundle.id]: !p[bundle.id] })); } }}
-              className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer select-none"
+              className="flex items-center gap-3 px-4 py-2.5 bg-muted hover:bg-muted/70 transition-colors cursor-pointer select-none"
             >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                 {bi + 1}
@@ -159,13 +159,13 @@ function BundleSection({
                         <span className="text-xs text-muted-foreground w-6 shrink-0 text-right">{ii + 1}.</span>
                         <span className="flex-1 truncate font-medium">{item.name}</span>
                         {item.label && (
-                          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
+                          <span className="shrink-0 rounded-full bg-muted/70 px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
                         )}
                         {itemFileIds.length === 1 && (
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 shrink-0 text-primary hover:text-primary hover:bg-primary/10"
+                            className="h-7 w-7 shrink-0 text-primary hover:text-primary hover:bg-muted/70"
                             disabled={downloading === itemFileIds[0]}
                             onClick={() => onFileDownload(itemFileIds[0], item.name)}
                             aria-label="Татах"
@@ -186,7 +186,7 @@ function BundleSection({
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-6 w-6 shrink-0 text-primary hover:text-primary hover:bg-primary/10"
+                                className="h-6 w-6 shrink-0 text-primary hover:text-primary hover:bg-muted/70"
                                 disabled={downloading === fid}
                                 onClick={() => onFileDownload(fid, `${item.name}_${fi + 1}`)}
                                 aria-label="Татах"
@@ -653,7 +653,7 @@ export default function LibraryPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="shrink-0 h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                              className="shrink-0 h-8 w-8 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                               disabled={downloading === file.id}
                               onClick={() => handleDownload(file.id, file.fileName)}
                               aria-label="Татах"
@@ -681,7 +681,7 @@ export default function LibraryPage() {
                     header-ийн товчоор хангалттай ч, мэдээлэл өгөхөөр мөр нэмнэ */}
                 {!showFlatFiles && !hasBundles && hasZip && (
                   <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/70">
                       <DownloadCloud className="h-4 w-4 text-primary" />
                     </div>
                     <span className="flex-1 text-sm text-muted-foreground">

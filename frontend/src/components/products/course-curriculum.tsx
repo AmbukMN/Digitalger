@@ -258,7 +258,7 @@ function LessonRow({
                   ? 'bg-muted text-muted-foreground/70'
                   : lesson.isFreePreview
                     ? 'bg-secondary/20 text-primary ring-1 ring-secondary/50'
-                    : 'bg-primary/10 text-primary'
+                    : 'bg-muted/70 text-primary'
             }`}
         >
           {completed ? (
@@ -429,7 +429,7 @@ function ModuleSection({
         {/* Модулийн дугаар badge */}
         <span
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold tabular-nums transition-colors ${
-            isOpen ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+            isOpen ? 'bg-primary text-primary-foreground' : 'bg-muted/70 text-primary'
           }`}
         >
           {String(moduleNumber).padStart(2, '0')}
@@ -691,7 +691,7 @@ export function CourseCurriculum({
             <button
               type="button"
               onClick={allOpen ? collapseAll : expandAll}
-              className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-muted/70"
             >
               {allOpen ? 'Бүгдийг хаах' : 'Бүгдийг нээх'}
             </button>
@@ -723,7 +723,7 @@ export function CourseCurriculum({
           type="button"
           onClick={() => openLesson(resumeLesson!)}
           disabled={loadingLessonId === resumeLesson.id}
-          className="mb-4 flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-left transition-colors hover:bg-primary/10 disabled:opacity-60"
+          className="mb-4 flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-muted px-4 py-3 text-left transition-colors hover:bg-muted/70 disabled:opacity-60"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
             {loadingLessonId === resumeLesson.id ? (

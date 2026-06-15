@@ -181,13 +181,13 @@ export function NotificationBell() {
                       onClick={() => handleClick(n)}
                       className={cn(
                         'flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted',
-                        !n.read && 'bg-primary/5',
+                        !n.read && 'bg-muted',
                       )}
                     >
                       <span
                         className={cn(
                           'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-                          n.read ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary',
+                          n.read ? 'bg-muted text-muted-foreground' : 'bg-muted text-primary',
                         )}
                       >
                         <NotifIcon type={n.type} />

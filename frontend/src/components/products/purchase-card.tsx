@@ -131,7 +131,7 @@ function PurchasedCard({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                       onClick={() => handleDownloadOne(file.id, file.fileName)}
                       disabled={downloading === file.id}
                     >
@@ -244,7 +244,7 @@ function FreeCard({ product }: { product: ProductDetail }) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                       onClick={() => handleDownloadOne(file.id, file.fileName)}
                       disabled={downloading === file.id}
                     >
@@ -734,7 +734,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                     onClick={() => handleDownloadOne(file.id, file.fileName)}
                     disabled={downloading === file.id}
                   >
@@ -829,7 +829,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-primary/10 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
                     onClick={() => handleDownloadOne(file.id, file.fileName)}
                     disabled={downloading === file.id}
                   >

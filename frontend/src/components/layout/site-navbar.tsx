@@ -476,7 +476,7 @@ export function SiteNavbar() {
               <button
                 type="button"
                 onClick={() => setMobileSearchOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10 transition-colors"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary hover:bg-muted/70 transition-colors"
                 aria-label="Хаах"
               >
                 <X className="h-5 w-5" />

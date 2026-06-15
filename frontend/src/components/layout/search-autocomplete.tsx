@@ -133,7 +133,7 @@ export function SearchAutocomplete({ placeholder = 'Хайх...', className, inp
                         {p.thumbnailUrl ? (
                           <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover" sizes="40px" />
                         ) : (
-                          <div className="h-full w-full bg-primary/10" />
+                          <div className="h-full w-full bg-muted/70" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -173,7 +173,7 @@ export function SearchAutocomplete({ placeholder = 'Хайх...', className, inp
               <button
                 type="button"
                 onClick={submit}
-                className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-sm text-primary hover:bg-primary/5 transition-colors font-medium"
+                className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-sm text-primary hover:bg-muted transition-colors font-medium"
               >
                 <Search className="h-3.5 w-3.5" />
                 "{query}" -г бүгдийг харах

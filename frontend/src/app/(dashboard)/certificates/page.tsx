@@ -46,7 +46,7 @@ function CertificateCard({ cert, index }: { cert: MyCertificate; index: number }
       className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card"
     >
       {/* Thumbnail / brand banner */}
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-primary/5">
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
         {cert.productThumbnail ? (
           <Image
             src={cert.productThumbnail}
@@ -115,7 +115,7 @@ function CertificateCard({ cert, index }: { cert: MyCertificate; index: number }
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+            className="gap-1.5 border-primary/30 text-primary hover:bg-muted/70 hover:text-primary"
             onClick={openPrint}
             aria-label="PDF татах / Хэвлэх"
           >

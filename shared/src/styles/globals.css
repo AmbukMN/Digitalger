@@ -86,64 +86,62 @@
     --success-foreground: #061206;
   }
 
-  /* ── OKLCH progressive enhancement (шинэ браузер: илүү нарийн өнгө) ──
-     iPhone 7 гэх мэт хуучин утас энэ блокийг алгасч, дээрх HEX-ийг хэвээр
-     ашиглана. Шинэ браузер OKLCH-ийг уншиж wide-gamut өнгө гаргана. */
-  @supports (color: oklch(0.5 0.1 180)) {
-    :root {
-      --background: oklch(1 0 0);
-      --foreground: oklch(0.141 0.005 285.823);
-      --card: oklch(1 0 0);
-      --card-foreground: oklch(0.141 0.005 285.823);
-      --popover: oklch(1 0 0);
-      --popover-foreground: oklch(0.141 0.005 285.823);
-      --primary: oklch(0.228 0.148 264.052);
-      --primary-foreground: oklch(1 0 0);
-      --secondary: oklch(0.847 0.178 85.87);
-      --secondary-foreground: oklch(0.228 0.148 264.052);
-      --muted: oklch(0.967 0.004 264);
-      --muted-foreground: oklch(0.38 0.012 264);
-      --accent: oklch(0.46 0.19 264.052);
-      --accent-foreground: oklch(1 0 0);
-      --destructive: oklch(0.577 0.245 27.325);
-      --destructive-foreground: oklch(1 0 0);
-      --border: oklch(0.92 0.004 264);
-      --input: oklch(0.92 0.004 264);
-      --ring: oklch(0.46 0.19 264.052);
-      --warning: oklch(0.828 0.189 84.429);
-      --warning-foreground: oklch(0.2 0.05 84.429);
-      --success: oklch(0.527 0.154 150.069);
-      --success-foreground: oklch(1 0 0);
-    }
+  /* ── OKLCH progressive enhancement (CSS cascade fallback) ──
+     ⚠️ @supports-ийн оронд cascade ашиглана: эхний мөр HEX (дээр :root-д),
+     дараагийн мөр oklch. Хуучин браузер (iPhone7) oklch() мөрийг ОЙЛГОХГҮЙ тул
+     алгасаад HEX хэвээр үлдэнэ; шинэ браузер хоёуланг уншаад сүүлийн oklch-ийг
+     авна. Энэ нь @supports-аас цэвэр, найдвартай (хэрэглэгчийн санал). */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.141 0.005 285.823);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.141 0.005 285.823);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.141 0.005 285.823);
+    --primary: oklch(0.228 0.148 264.052);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.847 0.178 85.87);
+    --secondary-foreground: oklch(0.228 0.148 264.052);
+    --muted: oklch(0.967 0.004 264);
+    --muted-foreground: oklch(0.38 0.012 264);
+    --accent: oklch(0.46 0.19 264.052);
+    --accent-foreground: oklch(1 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(1 0 0);
+    --border: oklch(0.92 0.004 264);
+    --input: oklch(0.92 0.004 264);
+    --ring: oklch(0.46 0.19 264.052);
+    --warning: oklch(0.828 0.189 84.429);
+    --warning-foreground: oklch(0.2 0.05 84.429);
+    --success: oklch(0.527 0.154 150.069);
+    --success-foreground: oklch(1 0 0);
+  }
 
-    .dark {
-      /* ── Backgrounds: Deep blue — тодорхой elevation шатлал ──
-         Surface hierarchy:  bg(L11.5) → card(L16.5) → popover(L21.5) → secondary(L24.5)
-         Hue 240 (truer blue) + higher chroma → deep-blue premium feel.      ── */
-      --background: oklch(0.185 0.068 255);
-      --foreground: oklch(0.955 0.005 247.839);
-      --card: oklch(0.225 0.072 255);
-      --card-foreground: oklch(0.955 0.005 247.839);
-      --popover: oklch(0.265 0.076 255);
-      --popover-foreground: oklch(0.955 0.005 247.839);
-      --primary: oklch(0.847 0.178 85.87);
-      --primary-foreground: oklch(0.1 0.04 264.052);
-      --secondary: oklch(0.295 0.080 255);
-      --secondary-foreground: oklch(0.88 0.01 255);
-      --muted: oklch(0.235 0.070 255);
-      --muted-foreground: oklch(0.675 0.015 255);
-      --accent: oklch(0.52 0.185 240);
-      --accent-foreground: oklch(1 0 0);
-      --destructive: oklch(0.65 0.22 22.216);
-      --destructive-foreground: oklch(1 0 0);
-      --border: oklch(1 0 0 / 13%);
-      --input: oklch(1 0 0 / 17%);
-      --ring: oklch(0.847 0.178 85.87);
-      --warning: oklch(0.854 0.178 84.429);
-      --warning-foreground: oklch(0.15 0.05 84.429);
-      --success: oklch(0.65 0.15 150);
-      --success-foreground: oklch(0.08 0.03 150);
-    }
+  .dark {
+    /* ── Backgrounds: Deep blue elevation шатлал ── */
+    --background: oklch(0.185 0.068 255);
+    --foreground: oklch(0.955 0.005 247.839);
+    --card: oklch(0.225 0.072 255);
+    --card-foreground: oklch(0.955 0.005 247.839);
+    --popover: oklch(0.265 0.076 255);
+    --popover-foreground: oklch(0.955 0.005 247.839);
+    --primary: oklch(0.847 0.178 85.87);
+    --primary-foreground: oklch(0.1 0.04 264.052);
+    --secondary: oklch(0.295 0.080 255);
+    --secondary-foreground: oklch(0.88 0.01 255);
+    --muted: oklch(0.235 0.070 255);
+    --muted-foreground: oklch(0.675 0.015 255);
+    --accent: oklch(0.52 0.185 240);
+    --accent-foreground: oklch(1 0 0);
+    --destructive: oklch(0.65 0.22 22.216);
+    --destructive-foreground: oklch(1 0 0);
+    --border: oklch(1 0 0 / 13%);
+    --input: oklch(1 0 0 / 17%);
+    --ring: oklch(0.847 0.178 85.87);
+    --warning: oklch(0.854 0.178 84.429);
+    --warning-foreground: oklch(0.15 0.05 84.429);
+    --success: oklch(0.65 0.15 150);
+    --success-foreground: oklch(0.08 0.03 150);
   }
 
   * {

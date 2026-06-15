@@ -161,7 +161,7 @@ export function LessonQuiz({
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col items-center gap-4 rounded-2xl border border-primary/30 bg-primary/6 p-8 text-center"
       >
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <ClipboardCheck className="h-7 w-7 text-primary" />
         </span>
         <div>
@@ -214,7 +214,7 @@ export function LessonQuiz({
                     className={
                       'flex w-full items-center gap-3 rounded-xl border px-4 py-2.5 text-left text-sm transition-colors ' +
                       (selected
-                        ? 'border-primary bg-primary/10 text-foreground'
+                        ? 'border-primary bg-muted/70 text-foreground'
                         : 'border-border bg-background text-foreground/80 hover:bg-muted')
                     }
                   >

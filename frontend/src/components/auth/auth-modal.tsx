@@ -301,7 +301,7 @@ function SignupOtpScreen({ email, password, onSuccess, onBack, callbackUrl }: Si
   return (
     <div className="space-y-5">
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 mx-auto">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-muted/70 mx-auto">
           <Mail className="h-7 w-7 text-primary" />
         </div>
         <h3 className="font-bold text-lg">И-мэйл баталгаажуулах</h3>

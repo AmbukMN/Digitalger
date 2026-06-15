@@ -11,7 +11,7 @@ export function PageHeader({ title, description, badge, className }: PageHeaderP
   return (
     <div className={cn('mb-10', className)}>
       {badge && (
-        <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary mb-3">
+        <span className="inline-flex items-center rounded-full bg-muted/70 px-3 py-1 text-xs font-semibold text-primary mb-3">
           {badge}
         </span>
       )}

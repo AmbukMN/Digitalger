@@ -99,7 +99,7 @@ function FeaturedProductCard({ product }: { product: ProductSummary }) {
         {product.thumbnailUrl ? (
           <SmartImage src={product.thumbnailUrl} alt={product.title} fill className="object-cover" sizes="56px" />
         ) : (
-          <div className="flex h-full items-center justify-center bg-primary/10">
+          <div className="flex h-full items-center justify-center bg-muted/70">
             <Tag className="h-4 w-4 text-primary/40" />
           </div>
         )}

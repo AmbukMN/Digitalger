@@ -88,7 +88,7 @@ export function OtpInput({ length = 6, value, onChange, onComplete, disabled, au
             'border-border bg-background text-foreground',
             'focus:border-primary focus:ring-2 focus:ring-primary/20',
             'disabled:opacity-50 disabled:cursor-not-allowed',
-            digits[i] ? 'border-primary/60 bg-primary/5' : '',
+            digits[i] ? 'border-primary/60 bg-muted' : '',
           )}
           style={{ height: '52px', fontSize: '22px' }}
         />
