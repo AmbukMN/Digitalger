@@ -278,7 +278,7 @@ function CheckoutContent() {
                         <button
                           type="button"
                           onClick={() => remove(item.productId)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-red-50 dark:bg-red-950/40 hover:text-destructive transition-colors"
                           aria-label="Хасах"
                         >
                           <X className="h-4 w-4" />

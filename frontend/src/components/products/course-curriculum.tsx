@@ -245,7 +245,7 @@ function LessonRow({
       <div
         className={`relative flex items-center gap-3 py-2.5 pl-12 pr-3 transition-colors sm:pl-14 sm:pr-4
           ${hasDesc ? 'cursor-pointer' : ''}
-          ${isExpanded ? 'bg-primary/4' : 'hover:bg-muted/50'}`}
+          ${isExpanded ? 'bg-muted' : 'hover:bg-muted/50'}`}
         onClick={() => hasDesc && onRowClick(lesson)}
       >
         {/* Зүүн status icon — lock / preview play / play / completed ТОД ЯЛГАНА */}
@@ -257,7 +257,7 @@ function LessonRow({
                 : locked
                   ? 'bg-muted text-muted-foreground/70'
                   : lesson.isFreePreview
-                    ? 'bg-secondary/20 text-primary ring-1 ring-secondary/50'
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-primary ring-1 ring-secondary/50'
                     : 'bg-muted/70 text-primary'
             }`}
         >
@@ -282,7 +282,7 @@ function LessonRow({
             </p>
             {/* Үнэгүй preview badge — gold accent, ТОД ялгарна */}
             {lesson.isFreePreview && hasVideo && (
-              <span className="shrink-0 rounded-full bg-secondary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-primary">
+              <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-primary">
                 Preview
               </span>
             )}
@@ -305,7 +305,7 @@ function LessonRow({
               type="button"
               onClick={(e) => onPlayClick(e, lesson)}
               disabled={isLoadingThis}
-              className="flex items-center gap-1 rounded-md border border-secondary/50 bg-secondary/10 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-secondary/25 disabled:opacity-60"
+              className="flex items-center gap-1 rounded-md border border-secondary/50 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-amber-100 dark:bg-amber-900/30 disabled:opacity-60"
             >
               {isLoadingThis ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -323,7 +323,7 @@ function LessonRow({
               type="button"
               onClick={(e) => onPlayClick(e, lesson)}
               disabled={isLoadingThis}
-              className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+              className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary disabled:opacity-60"
             >
               {isLoadingThis ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -420,7 +420,7 @@ function ModuleSection({
         type="button"
         onClick={onToggle}
         className={`relative flex w-full items-center gap-3 px-3 py-3.5 text-left transition-colors sm:px-4 ${
-          isOpen ? 'bg-primary/6' : 'hover:bg-muted/50'
+          isOpen ? 'bg-muted' : 'hover:bg-muted/50'
         }`}
       >
         {/* Зүүн navy accent зураас — нээлттэй модулийг ТОД ялгана */}
@@ -458,7 +458,7 @@ function ModuleSection({
               </span>
             ) : (
               previewCount > 0 && (
-                <span className="rounded-full bg-secondary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-primary">
+                <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-primary">
                   {previewCount} preview
                 </span>
               )

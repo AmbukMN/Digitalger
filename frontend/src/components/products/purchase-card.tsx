@@ -113,7 +113,7 @@ function PurchasedCard({
             zipName={`${purchase.product.slug}.zip`}
             variant="default"
             label={hasFiles ? `Бүх файлыг татах (${files.length})` : 'Бүх файлыг татах'}
-            className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+            className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
           />
           {hasFiles && (
             <>
@@ -131,7 +131,7 @@ function PurchasedCard({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-amber-50 dark:bg-amber-950/40"
                       onClick={() => handleDownloadOne(file.id, file.fileName)}
                       disabled={downloading === file.id}
                     >
@@ -226,7 +226,7 @@ function FreeCard({ product }: { product: ProductDetail }) {
             variant="default"
             free
             label={hasFiles ? `Бүх файлыг татах (${files.length})` : 'Бүх файлыг татах'}
-            className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+            className="w-full justify-center font-semibold bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
           />
           {hasFiles && (
             <>
@@ -244,7 +244,7 @@ function FreeCard({ product }: { product: ProductDetail }) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                      className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-amber-50 dark:bg-amber-950/40"
                       onClick={() => handleDownloadOne(file.id, file.fileName)}
                       disabled={downloading === file.id}
                     >
@@ -517,7 +517,7 @@ export function PurchaseCard({ product }: { product: ProductDetail }) {
         />
       ) : (
         comparePrice && comparePrice > finalPrice && (
-          <div className="flex items-center gap-2 rounded-lg bg-secondary/90 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2">
             <Flame className="h-4 w-4 shrink-0 text-secondary-foreground" />
             <span className="text-xs font-bold text-secondary-foreground">Хязгаарлагдмал хямдрал</span>
             <span className="ml-auto rounded-full bg-secondary-foreground/15 px-2 py-0.5 text-xs font-bold text-secondary-foreground">
@@ -734,7 +734,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-amber-50 dark:bg-amber-950/40"
                     onClick={() => handleDownloadOne(file.id, file.fileName)}
                     disabled={downloading === file.id}
                   >
@@ -784,7 +784,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                 variant="default"
                 free
                 label="Бүх файлыг татах"
-                className="shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+                className="shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
               />
             )}
           </div>
@@ -829,7 +829,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                    className="h-6 px-2 text-xs gap-1 shrink-0 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-amber-50 dark:bg-amber-950/40"
                     onClick={() => handleDownloadOne(file.id, file.fileName)}
                     disabled={downloading === file.id}
                   >
@@ -888,7 +888,7 @@ export function MobileBuyBar({ product }: { product: ProductDetail }) {
                 zipName={`${purchase.product.slug}.zip`}
                 variant="default"
                 label="Бүх файлыг татах"
-                className="shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+                className="shrink-0 text-xs bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
               />
             ) : (
               <Button asChild variant="outline" size="sm" className="shrink-0 text-xs h-8 text-muted-foreground hover:text-foreground">

@@ -192,7 +192,7 @@ function SummaryCard({ label, value, sub, icon, valueClass }: {
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-3 rounded-lg bg-primary/10 p-2 w-fit text-primary">{icon}</div>
+      <div className="mb-3 rounded-lg bg-muted p-2 w-fit text-primary">{icon}</div>
       <p className={`text-2xl font-bold tracking-tight tabular-nums ${valueClass ?? ''}`}>
         {typeof value === 'number' ? value.toLocaleString('mn-MN') : value}
       </p>

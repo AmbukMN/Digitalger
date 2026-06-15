@@ -48,7 +48,7 @@ function UserAvatar({ user, size = 8 }: { user: AdminUser; size?: number }) {
     );
   }
   return (
-    <div className={`${sz} flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary ring-1 ring-primary/20`}>
+    <div className={`${sz} flex shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-primary ring-1 ring-primary/20`}>
       {initials}
     </div>
   );
@@ -57,7 +57,7 @@ function UserAvatar({ user, size = 8 }: { user: AdminUser; size?: number }) {
 function RoleBadge({ role }: { role: string }) {
   if (role === 'ADMIN') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-primary">
         <Shield className="h-3 w-3" />Админ
       </span>
     );
@@ -187,7 +187,7 @@ function UserListTab() {
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold truncate leading-tight group-hover:text-primary transition-colors">{u.name ?? <span className="text-muted-foreground font-normal">Нэргүй</span>}</p>
                 {u.blocked && (
-                  <span className="inline-flex rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive shrink-0">Хаагдсан</span>
+                  <span className="inline-flex rounded-full bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 text-[10px] font-medium text-destructive shrink-0">Хаагдсан</span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground truncate">{u.email}</p>
@@ -267,7 +267,7 @@ function UserListTab() {
                 (худалдсан үеийн харагдацыг шалгах, test хийх). */}
             <Button
               variant="ghost" size="icon"
-              className="h-7 w-7 text-primary/70 hover:text-primary hover:bg-primary/10"
+              className="h-7 w-7 text-primary/70 hover:text-primary hover:bg-muted/70"
               onClick={() => setGrantTarget(u)}
               title={isAdmin ? 'Өөртөө бүтээгдэхүүн идэвхжүүлэх (тест)' : 'Бүтээгдэхүүн идэвхжүүлэх'}
             >
@@ -291,7 +291,7 @@ function UserListTab() {
                 </Button>
                 <Button
                   variant="ghost" size="icon"
-                  className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                  className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
                   onClick={() => setDeleteTarget(u)} title="Устгах"
                 >
                   <Trash2 className="h-3.5 w-3.5" />

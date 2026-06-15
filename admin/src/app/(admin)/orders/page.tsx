@@ -53,7 +53,7 @@ function UserCell({ name, email, image }: { name: string | null; email: string; 
         // eslint-disable-next-line @next/next/no-img-element
         <img src={image} alt={name ?? email} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
       ) : (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary ring-1 ring-primary/20">
           {initials}
         </div>
       )}
@@ -181,7 +181,7 @@ function OrderActions({ order }: { order: AdminOrder }) {
         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => setEditOpen(true)} title="Засах">
           <Pencil className="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteOpen(true)} title="Устгах">
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40" onClick={() => setDeleteOpen(true)} title="Устгах">
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>

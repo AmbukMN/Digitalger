@@ -159,7 +159,7 @@ export function LessonQuiz({
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center gap-4 rounded-2xl border border-primary/30 bg-primary/6 p-8 text-center"
+        className="flex flex-col items-center gap-4 rounded-2xl border border-primary/30 bg-muted p-8 text-center"
       >
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <ClipboardCheck className="h-7 w-7 text-primary" />

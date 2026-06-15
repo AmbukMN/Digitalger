@@ -103,7 +103,7 @@ function AdminAvatar({ profile, onUploaded }: { profile: AdminProfile; onUploade
           unoptimized
         />
       ) : (
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/20 text-3xl font-bold text-primary ring-4 ring-background">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted text-3xl font-bold text-primary ring-4 ring-background">
           {(profile.name ?? profile.email).charAt(0).toUpperCase()}
         </div>
       )}
@@ -111,7 +111,7 @@ function AdminAvatar({ profile, onUploaded }: { profile: AdminProfile; onUploade
         type="button"
         disabled={uploading}
         onClick={() => fileRef.current?.click()}
-        className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition-colors disabled:opacity-60"
+        className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary transition-colors disabled:opacity-60"
         title="Зураг солих"
       >
         <Camera className="h-3.5 w-3.5" />

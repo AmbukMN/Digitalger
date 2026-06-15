@@ -135,7 +135,7 @@ function BundleDownloadButton({
     <Button
       size="sm"
       variant="default"
-      className="h-7 px-2.5 text-xs gap-1 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+      className="h-7 px-2.5 text-xs gap-1 shrink-0 bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
       onClick={handleClick}
       disabled={busy}
     >
@@ -321,7 +321,7 @@ export function BundleList({
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); showMore(bundle.id); }}
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-primary dark:text-secondary hover:bg-muted dark:hover:bg-secondary/10 transition-colors border-t border-border"
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-primary dark:text-secondary hover:bg-muted dark:hover:bg-amber-50 dark:bg-amber-950/40 transition-colors border-t border-border"
                     >
                       <span className="flex flex-col items-center -space-y-1.5">
                         <ChevronsDown className="h-3.5 w-3.5 animate-bounce" />

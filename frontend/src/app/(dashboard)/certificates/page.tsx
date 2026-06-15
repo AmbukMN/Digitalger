@@ -106,7 +106,7 @@ function CertificateCard({ cert, index }: { cert: MyCertificate; index: number }
         <div className="flex items-center gap-2 pt-1">
           <Button
             size="sm"
-            className="flex-1 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="flex-1 gap-1.5 bg-primary text-primary-foreground hover:bg-primary"
             onClick={openView}
           >
             <ExternalLink className="h-3.5 w-3.5" />

@@ -520,7 +520,7 @@ export function SiteNavbar() {
                   target={item.openInNew ? '_blank' : undefined}
                   rel={item.openInNew ? 'noopener noreferrer' : undefined}
                   className={cn(
-                    'rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent/10',
+                    'rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted',
                     active ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
@@ -617,7 +617,7 @@ export function SiteNavbar() {
                   <div className="my-1 h-px bg-border" />
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-red-50 dark:bg-red-950/40"
                     onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: pathname }); }}
                   >
                     <LogOut className="h-4 w-4" />

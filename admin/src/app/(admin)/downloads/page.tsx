@@ -22,7 +22,7 @@ import type { AdminDownloadLog } from '@/types/admin';
 function SourceBadge({ source }: { source: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     free: { label: 'Үнэгүй', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
-    paid: { label: 'Төлбөртэй', cls: 'bg-primary/10 text-primary border-primary/20' },
+    paid: { label: 'Төлбөртэй', cls: 'bg-muted text-primary border-primary/20' },
     bundle: { label: 'Багц', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
   };
   const m = map[source] ?? { label: source, cls: 'bg-muted text-muted-foreground border-border' };

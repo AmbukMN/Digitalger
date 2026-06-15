@@ -40,7 +40,7 @@ function JobRow({ job, type }: { job: QueueJobSummary; type: 'failed' | 'complet
   const payload = job.data as { zipName?: string; fileIds?: string[]; jobId?: string };
 
   return (
-    <div className={cn('rounded-lg border p-3 text-sm', type === 'failed' ? 'border-destructive/30 bg-destructive/5' : 'border-border')}>
+    <div className={cn('rounded-lg border p-3 text-sm', type === 'failed' ? 'border-destructive/30 bg-red-50 dark:bg-red-950/30' : 'border-border')}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-mono text-xs text-muted-foreground">Bull #{job.id}</p>

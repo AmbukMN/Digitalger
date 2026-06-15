@@ -163,7 +163,7 @@ function UserAvatar({
     />
   ) : (
     <div
-      className={`flex ${dim} items-center justify-center rounded-full bg-primary/20 ${initSize} font-bold text-primary ring-4 ring-background`}
+      className={`flex ${dim} items-center justify-center rounded-full bg-muted ${initSize} font-bold text-primary ring-4 ring-background`}
     >
       {name ? name.charAt(0).toUpperCase() : '?'}
     </div>
@@ -178,7 +178,7 @@ function UserAvatar({
             type="button"
             disabled={uploading}
             onClick={() => fileRef.current?.click()}
-            className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition-colors disabled:opacity-60"
+            className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary transition-colors disabled:opacity-60"
             title="Зураг солих"
           >
             <Camera className="h-3.5 w-3.5" />
@@ -1500,7 +1500,7 @@ export default function ProfilePage() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+            className="gap-2 text-destructive hover:bg-red-50 dark:bg-red-950/40 hover:text-destructive border-destructive/30"
             onClick={() => signOut({ callbackUrl: '/' })}
           >
             <LogOut className="h-3.5 w-3.5" />

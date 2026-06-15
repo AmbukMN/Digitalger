@@ -122,7 +122,7 @@ export default function BannersPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                      className="h-8 w-8 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
                       onClick={() => setDeleteTarget(banner)}
                     >
                       <Trash2 className="h-4 w-4" />

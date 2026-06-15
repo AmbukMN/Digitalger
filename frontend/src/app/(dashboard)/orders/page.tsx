@@ -176,7 +176,7 @@ function OrderCard({
             <Button
               size="sm"
               variant="outline"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+              className="text-destructive hover:bg-red-50 dark:bg-red-950/40 hover:text-destructive border-destructive/30"
               disabled={cancelMut.isPending}
               onClick={() => cancelMut.mutate()}
             >

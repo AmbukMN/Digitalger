@@ -137,7 +137,7 @@ export default function ContactMessagesPage() {
                       onClick={() => openDetail(m)}
                       className={
                         'cursor-pointer border-b border-border transition-colors hover:bg-muted/50 ' +
-                        (m.read ? '' : 'bg-primary/5 font-medium')
+                        (m.read ? '' : 'bg-muted font-medium')
                       }
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{m.name}</td>
@@ -170,7 +170,7 @@ export default function ContactMessagesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-destructive hover:bg-destructive/10"
+                          className="text-destructive hover:bg-red-50 dark:bg-red-950/40"
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeleteTarget(m);

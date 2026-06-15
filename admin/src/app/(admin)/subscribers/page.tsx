@@ -462,7 +462,7 @@ function EmailComposeDialog({
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-primary" />
                   <Label className="text-sm font-semibold">Хүлээн авагч</Label>
-                  <div className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  <div className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-primary">
                     {countLoading ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
@@ -479,7 +479,7 @@ function EmailComposeDialog({
                       type="button"
                       onClick={() => setMode('selected')}
                       className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        mode === 'selected' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'
+                        mode === 'selected' ? 'border-primary bg-muted text-primary' : 'border-border hover:bg-muted'
                       }`}
                     >
                       Сонгосон ({selectedIds.length})
@@ -489,7 +489,7 @@ function EmailComposeDialog({
                     type="button"
                     onClick={() => setMode('filter')}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      mode === 'filter' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'
+                      mode === 'filter' ? 'border-primary bg-muted text-primary' : 'border-border hover:bg-muted'
                     }`}
                   >
                     <Layers className="h-3.5 w-3.5" /> Шүүлтээр
@@ -556,7 +556,7 @@ function EmailComposeDialog({
                         setShowPreview(false);
                         toast.success(`"${t.label}" загвар орууллаа — засаад илгээнэ үү`);
                       }}
-                      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-muted px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted/70"
                       title={t.subject}
                     >
                       <span>{t.emoji}</span>
@@ -952,7 +952,7 @@ export default function SubscribersPage() {
       {/* Table */}
       {/* Bulk action bar — сонгосон захиалагч дээр үйлдэл */}
       {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-muted px-4 py-2.5">
           <span className="text-sm font-medium">{selectedIds.size} сонгогдсон</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Select value="" onValueChange={(v) => bulkAssignMut.mutate(v === 'none' ? null : v)}>
@@ -1005,7 +1005,7 @@ export default function SubscribersPage() {
                 </thead>
                 <tbody>
                   {items.map((s) => (
-                    <tr key={s.id} className={`border-b border-border/50 hover:bg-muted/30 ${selectedIds.has(s.id) ? 'bg-primary/5' : ''}`}>
+                    <tr key={s.id} className={`border-b border-border/50 hover:bg-muted/30 ${selectedIds.has(s.id) ? 'bg-muted' : ''}`}>
                       <td className="px-4 py-2.5">
                         <input
                           type="checkbox"

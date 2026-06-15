@@ -133,7 +133,7 @@ export function GrantProductsDialog({ user, onClose }: Props) {
                     type="button"
                     onClick={() => revokeMutation.mutate(g.productId)}
                     disabled={revokeMutation.isPending}
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-destructive/70 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                    className="flex h-4 w-4 items-center justify-center rounded-full text-destructive/70 hover:bg-red-50 dark:bg-red-950/40 hover:text-destructive disabled:opacity-50"
                     title="Цуцлах"
                   >
                     <X className="h-3 w-3" />
@@ -179,7 +179,7 @@ export function GrantProductsDialog({ user, onClose }: Props) {
                       alreadyGranted
                         ? 'cursor-not-allowed border-transparent opacity-50'
                         : isSel
-                          ? 'border-primary bg-primary/5'
+                          ? 'border-primary bg-muted'
                           : 'border-transparent hover:bg-muted/50'
                     }`}
                   >

@@ -118,7 +118,7 @@ function ThemeTab({
                   onClick={() => setDefaultTheme(value)}
                   className={`relative flex flex-col gap-2 rounded-xl border-2 p-4 text-left transition-all ${
                     selected
-                      ? 'border-primary bg-primary/5'
+                      ? 'border-primary bg-muted'
                       : 'border-border hover:border-primary/40 hover:bg-muted/40'
                   }`}
                 >

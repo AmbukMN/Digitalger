@@ -279,7 +279,7 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
 
               {/* Error */}
               {error && (
-                <p className="text-center text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>
+                <p className="text-center text-xs text-destructive bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>
               )}
             </div>
           )}
@@ -292,7 +292,7 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
             <PaymentStepsMobile />
 
             <Button
-              className="w-full gap-2 h-11 text-sm font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
+              className="w-full gap-2 h-11 text-sm font-semibold bg-primary hover:bg-primary text-primary-foreground shadow-md"
               onClick={() => checkPayment(false)}
               disabled={checking}
             >

@@ -107,7 +107,7 @@ function Avatar({
       className={cn(
         'flex shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1',
         instructor
-          ? 'bg-primary/15 text-primary ring-primary/25'
+          ? 'bg-muted text-primary ring-primary/25'
           : 'bg-muted text-muted-foreground ring-border',
       )}
       style={{ width: size, height: size }}
@@ -662,7 +662,7 @@ function QuestionRow({ question }: { question: AdminLessonQuestion }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+                className="h-7 w-7 text-destructive/60 hover:bg-red-50 dark:bg-red-950/40 hover:text-destructive"
                 onClick={() => setConfirmDelete(true)}
                 title="Асуулт устгах"
               >

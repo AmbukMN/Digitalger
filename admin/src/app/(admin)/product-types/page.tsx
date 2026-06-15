@@ -106,7 +106,7 @@ function TypeFormDialog({
               <button
                 type="button"
                 onClick={() => setActive((a) => !a)}
-                className={`flex h-9 w-full items-center justify-center gap-2 rounded-md border text-sm font-medium transition-colors ${active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground'}`}
+                className={`flex h-9 w-full items-center justify-center gap-2 rounded-md border text-sm font-medium transition-colors ${active ? 'border-primary bg-muted text-primary' : 'border-border bg-muted text-muted-foreground'}`}
               >
                 {active ? <><Check className="h-3.5 w-3.5" /> Идэвхтэй</> : <><X className="h-3.5 w-3.5" /> Идэвхгүй</>}
               </button>
@@ -244,7 +244,7 @@ export default function ProductTypesPage() {
             <p className="text-sm text-muted-foreground">
               <code className="text-xs bg-muted px-1 rounded">{deleteTarget?.value}</code> — &quot;{deleteTarget?.label}&quot; төрлийг устгана.
             </p>
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-lg border border-destructive/30 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-destructive">
               ⚠️ Энэ төрлийг сонгосон бүтээгдэхүүнүүд <strong>төрөлгүй</strong> болно. Бүтээгдэхүүнүүдийг урьдчилан шилжүүлэхийг зөвлөж байна.
             </div>
           </div>

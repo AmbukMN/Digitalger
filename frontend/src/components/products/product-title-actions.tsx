@@ -82,7 +82,7 @@ export function ProductTitleActions({ product }: ProductTitleActionsProps) {
         onClick={handleWishlist}
         className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
           inWishlist
-            ? 'bg-muted/70 text-primary hover:bg-primary/20 dark:bg-muted'
+            ? 'bg-muted/70 text-primary hover:bg-muted dark:bg-muted'
             : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
         }`}
         aria-label={inWishlist ? 'Хадгалсанаас хасах' : 'Хадгалах'}

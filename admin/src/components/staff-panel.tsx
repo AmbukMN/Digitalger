@@ -134,7 +134,7 @@ function StaffAvatar({ staff }: { staff: AdminStaff }) {
     );
   }
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary ring-1 ring-primary/20">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-primary ring-1 ring-primary/20">
       {initials}
     </div>
   );
@@ -232,7 +232,7 @@ function PermissionGrid({
             disabled={disabled}
             onClick={() => applyPreset(preset)}
             title={preset.desc}
-            className="rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+            className="rounded-full border border-primary/30 bg-muted px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-muted/70 disabled:opacity-50"
           >
             + {preset.label}
           </button>
@@ -544,7 +544,7 @@ export function StaffPanel() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 gap-1 text-xs text-primary/80 hover:text-primary hover:bg-primary/10"
+                            className="h-7 gap-1 text-xs text-primary/80 hover:text-primary hover:bg-muted/70"
                             onClick={() => setPermTarget(s)}
                             title="Эрх засах"
                           >
@@ -567,7 +567,7 @@ export function StaffPanel() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                            className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
                             onClick={() => setDeleteTarget(s)}
                             title="Устгах"
                           >

@@ -314,7 +314,7 @@ function NavSections({
                   className={cn(
                     'relative flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
                     active
-                      ? 'bg-primary/10 text-primary rounded-l-none'
+                      ? 'bg-muted text-primary rounded-l-none'
                       : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
                     collapsed ? 'justify-center px-2' : 'px-3',
                   )}
@@ -518,7 +518,7 @@ function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange:
                       onClick={() => handleClick(item)}
                       className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1 truncate text-foreground">{item.label}</span>
@@ -712,7 +712,7 @@ export function AdminShell({
             className={cn(
               'flex items-center gap-3 rounded-r-lg py-2 text-sm font-medium transition-colors',
               pathname === '/account'
-                ? 'bg-primary/10 text-primary rounded-l-none'
+                ? 'bg-muted text-primary rounded-l-none'
                 : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
               collapsed ? 'justify-center px-2' : 'px-3',
             )}
@@ -730,7 +730,7 @@ export function AdminShell({
                 unoptimized
               />
             ) : (
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary">
                 {userInitial}
               </div>
             )}
@@ -792,7 +792,7 @@ export function AdminShell({
                   className={cn(
                     'flex items-center gap-3 rounded-r-lg px-3 py-2 text-sm font-medium transition-colors',
                     pathname === '/account'
-                      ? 'bg-primary/10 text-primary rounded-l-none'
+                      ? 'bg-muted text-primary rounded-l-none'
                       : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                   style={pathname === '/account' ? { borderLeft: '3px solid #ffbe00' } : undefined}
@@ -807,7 +807,7 @@ export function AdminShell({
                       unoptimized
                     />
                   ) : (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary">
                       {userInitial}
                     </div>
                   )}
@@ -851,7 +851,7 @@ export function AdminShell({
               ) : userImage ? (
                 <Image src={userImage} alt={userName} width={20} height={20} className="h-5 w-5 rounded-full object-cover shrink-0" unoptimized />
               ) : (
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary shrink-0">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary shrink-0">
                   {userInitial}
                 </div>
               )}
@@ -867,7 +867,7 @@ export function AdminShell({
                     {userImage ? (
                       <Image src={userImage} alt={userName} width={32} height={32} className="h-8 w-8 rounded-full object-cover shrink-0" unoptimized />
                     ) : (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-primary">
                         {userInitial}
                       </div>
                     )}
@@ -887,7 +887,7 @@ export function AdminShell({
                   </Link>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-red-50 dark:bg-red-950/40"
                     onClick={() => { setMenuOpen(false); void handleSignOut(); }}
                   >
                     <LogOut className="h-4 w-4" />

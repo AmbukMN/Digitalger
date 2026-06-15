@@ -196,7 +196,7 @@ function Section({
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
               <Icon className="h-4 w-4 text-primary" />
             </div>
             <div>

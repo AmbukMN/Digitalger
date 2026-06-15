@@ -147,7 +147,7 @@ export default function ProductsPage() {
               </div>
             )}
             {row.original.featured && (
-              <div className="absolute top-0.5 right-0.5 rounded-full bg-secondary/90 p-0.5 shadow-sm">
+              <div className="absolute top-0.5 right-0.5 rounded-full bg-secondary p-0.5 shadow-sm">
                 <Star className="h-2.5 w-2.5 text-secondary-foreground fill-current" />
               </div>
             )}
@@ -298,7 +298,7 @@ export default function ProductsPage() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+            className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
             onClick={() => setDeleteTarget(row.original)}
           >
             <XCircle className="h-3.5 w-3.5" />

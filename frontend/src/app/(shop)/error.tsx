@@ -18,7 +18,7 @@ export default function ShopError({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/40">
         <AlertCircle className="h-8 w-8 text-destructive" />
       </div>
       <div>

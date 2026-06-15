@@ -137,7 +137,7 @@ function BundleSection({
               {hasBundleFiles && (
                 <Button
                   size="sm"
-                  className="h-6 px-2 text-xs gap-1 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+                  className="h-6 px-2 text-xs gap-1 shrink-0 bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
                   disabled={bBusy}
                   onClick={(e) => { e.stopPropagation(); onBundleZip(bundleKey, productId, bundle.id, bundle.title, bundle.downloadFileKey); }}
                 >
@@ -557,7 +557,7 @@ export default function LibraryPage() {
                     <Button
                       asChild
                       size="sm"
-                      className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary"
                     >
                       <Link href={`/products/${entry.product.slug}`}>
                         <RefreshCw className="h-3.5 w-3.5" />
@@ -567,7 +567,7 @@ export default function LibraryPage() {
                   ) : canDownloadAll && (
                     <Button
                       size="sm"
-                      className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+                      className="shrink-0 gap-1.5 hidden sm:flex bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
                       disabled={zipBusy}
                       onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey, singleFileId, singleFileName)}
                     >
@@ -599,7 +599,7 @@ export default function LibraryPage() {
                     <Button
                       asChild
                       size="sm"
-                      className="shrink-0 gap-1.5 w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="shrink-0 gap-1.5 w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary"
                     >
                       <Link href={`/products/${entry.product.slug}`}>
                         <RefreshCw className="h-3.5 w-3.5" />
@@ -653,7 +653,7 @@ export default function LibraryPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="shrink-0 h-8 w-8 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-secondary/10"
+                              className="shrink-0 h-8 w-8 text-primary hover:text-primary hover:bg-muted/70 dark:text-secondary dark:hover:text-secondary dark:hover:bg-amber-50 dark:bg-amber-950/40"
                               disabled={downloading === file.id}
                               onClick={() => handleDownload(file.id, file.fileName)}
                               aria-label="Татах"
@@ -695,7 +695,7 @@ export default function LibraryPage() {
                   <div className="px-4 py-2.5 border-t border-border/50 sm:hidden">
                     <Button
                       size="sm"
-                      className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/90"
+                      className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
                       disabled={zipBusy}
                       onClick={() => handleDownloadAll(entryKey, entry.product.id, zipName, entry.product.downloadFileKey, singleFileId, singleFileName)}
                     >

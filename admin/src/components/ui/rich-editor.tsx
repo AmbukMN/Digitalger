@@ -261,7 +261,7 @@ function ToolbarButton({
       onClick={onClick}
       className={cn(
         'rounded p-1.5 transition-colors hover:bg-muted',
-        active && 'bg-primary/15 text-primary',
+        active && 'bg-muted text-primary',
         disabled && 'opacity-30 cursor-not-allowed',
       )}
     >

@@ -47,7 +47,7 @@ export default function AdminError({
         transition={{ duration: 0.35, ease: 'easeOut' }}
         className="flex flex-col items-center gap-6"
       >
-        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-destructive/10">
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-red-50 dark:bg-red-950/40">
           <AlertTriangle className="h-10 w-10 text-destructive" />
         </div>
 

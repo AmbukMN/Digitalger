@@ -143,7 +143,7 @@ function UserAvatar({ user }: { user: AdminOrder['user'] }) {
     );
   }
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary ring-1 ring-primary/20">
       {initials}
     </div>
   );
@@ -296,13 +296,13 @@ function EmailStatsPanel({ stats }: { stats: EmailStats | null }) {
         {/* ── Reputation: bounce / complaint rate ── */}
         {(bouncePct != null || complaintPct != null) && (
           <div className="grid grid-cols-2 gap-2">
-            <div className={`rounded-lg border p-2 ${bounceDanger ? 'border-destructive/40 bg-destructive/5' : bounceWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
+            <div className={`rounded-lg border p-2 ${bounceDanger ? 'border-destructive/40 bg-red-50 dark:bg-red-950/30' : bounceWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
               <p className="text-[10px] text-muted-foreground">Bounce</p>
               <p className={`text-base font-bold tabular-nums ${bounceDanger ? 'text-destructive' : bounceWarn ? 'text-amber-600' : 'text-foreground'}`}>
                 {bouncePct != null ? `${bouncePct.toFixed(2)}%` : '—'}
               </p>
             </div>
-            <div className={`rounded-lg border p-2 ${complaintDanger ? 'border-destructive/40 bg-destructive/5' : complaintWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
+            <div className={`rounded-lg border p-2 ${complaintDanger ? 'border-destructive/40 bg-red-50 dark:bg-red-950/30' : complaintWarn ? 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/20' : 'border-border bg-muted/40'}`}>
               <p className="text-[10px] text-muted-foreground">Гомдол</p>
               <p className={`text-base font-bold tabular-nums ${complaintDanger ? 'text-destructive' : complaintWarn ? 'text-amber-600' : 'text-foreground'}`}>
                 {complaintPct != null ? `${complaintPct.toFixed(3)}%` : '—'}
@@ -322,7 +322,7 @@ function EmailStatsPanel({ stats }: { stats: EmailStats | null }) {
             ].map((m) => (
               <div
                 key={m.label}
-                className={`rounded-lg p-2 text-center ${m.highlight ? 'border border-primary/20 bg-primary/10' : 'bg-muted/40'}`}
+                className={`rounded-lg p-2 text-center ${m.highlight ? 'border border-primary/20 bg-muted' : 'bg-muted/40'}`}
               >
                 <p className={`text-sm font-bold tabular-nums ${m.highlight ? 'text-primary' : 'text-foreground'}`}>
                   {m.value.toLocaleString()}
@@ -375,7 +375,7 @@ function EmailMarketingSummary() {
         <div className="flex flex-1 flex-col gap-3 p-4">
           {/* Гол хос: илгээсэн + нээлтийн хувь */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-primary/10 p-2.5">
+            <div className="rounded-lg bg-muted p-2.5">
               <p className="flex items-center gap-1 text-[10px] text-muted-foreground"><Send className="h-3 w-3" />Илгээсэн</p>
               <p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{data.totalSent.toLocaleString('mn-MN')}</p>
             </div>
@@ -434,7 +434,7 @@ function MonthlyRevenuePanel({ data }: { data: { month: string; revenue: number 
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-primary/10 p-1.5">
+          <div className="rounded-lg bg-muted p-1.5">
             <TrendingUp className="h-4 w-4 text-primary" />
           </div>
           <h2 className="font-semibold">Сарын орлого</h2>
@@ -612,7 +612,7 @@ export default function DashboardPage() {
             (stats.pendingExpiredCount ?? 0) > 0 ? 'border-destructive/30' : 'border-border'
           }`}
         >
-          <div className={`rounded-lg p-2 shrink-0 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'bg-destructive/10' : 'bg-muted'}`}>
+          <div className={`rounded-lg p-2 shrink-0 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'bg-red-50 dark:bg-red-950/40' : 'bg-muted'}`}>
             <Clock className={`h-4 w-4 ${(stats.pendingExpiredCount ?? 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
           </div>
           <div>
@@ -654,7 +654,7 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
             <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-primary/10 p-1.5">
+              <div className="rounded-lg bg-muted p-1.5">
                 <Download className="h-4 w-4 text-primary" />
               </div>
               <h2 className="font-semibold">Бодит таталт</h2>

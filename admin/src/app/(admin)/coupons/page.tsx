@@ -362,7 +362,7 @@ export default function CouponsPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                              className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
                               onClick={() => setDeleteTarget(coupon)}
                               disabled={deleteMut.isPending}
                             >

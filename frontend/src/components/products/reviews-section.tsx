@@ -116,7 +116,7 @@ function ReviewRow({
     <div
       className={cn(
         'flex gap-3 border-b border-border pb-4 last:border-0',
-        isMine && 'rounded-xl border border-primary/30 bg-primary/4 p-4 last:border last:border-primary/30',
+        isMine && 'rounded-xl border border-primary/30 bg-muted p-4 last:border last:border-primary/30',
       )}
     >
       <div className="shrink-0">

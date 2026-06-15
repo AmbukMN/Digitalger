@@ -215,7 +215,7 @@ function FaqAssignTab({
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">Энэ бүтээгдэхүүнд харагдуулах FAQ-уудыг сонгоно уу.</p>
         {selectedCount > 0 && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{selectedCount} сонгосон</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-primary">{selectedCount} сонгосон</span>
         )}
       </div>
       {Object.entries(byCategory).map(([cat, faqs]) => (
@@ -226,7 +226,7 @@ function FaqAssignTab({
           </div>
           <div className="space-y-1.5">
             {faqs.map((faq) => (
-              <label key={faq.id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(faq.id) ? 'border-primary bg-primary/5' : 'border-border'}`}>
+              <label key={faq.id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(faq.id) ? 'border-primary bg-muted' : 'border-border'}`}>
                 <input
                   type="checkbox"
                   className="mt-0.5 h-4 w-4 accent-primary shrink-0"
@@ -270,7 +270,7 @@ function TestimonialAssignTab({
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">Бүтээгдэхүүний дэлгэрэнгүй хуудаст харагдуулах сэтгэгдлүүдийг сонгоно уу.</p>
       {allTestimonials.map((t: AdminTestimonial) => (
-        <label key={t.id} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(t.id) ? 'border-primary bg-primary/5' : 'border-border'}`}>
+        <label key={t.id} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(t.id) ? 'border-primary bg-muted' : 'border-border'}`}>
           <input
             type="checkbox"
             className="mt-1 h-4 w-4 accent-primary shrink-0"
@@ -282,7 +282,7 @@ function TestimonialAssignTab({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={t.avatar} alt={t.name} className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
             ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-primary">
                 {t.name.charAt(0)}
               </div>
             )}
@@ -455,7 +455,7 @@ function BundleTab({ productId }: { productId?: string }) {
                     <span className="text-xs text-muted-foreground w-5 shrink-0">{ii + 1}.</span>
                     <span className="flex-1 text-sm">{item.name}</span>
                     {item.label && (
-                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
                     )}
                     {item.description && (
                       <span className="text-xs text-muted-foreground truncate max-w-24 hidden sm:block">{item.description}</span>
@@ -1121,7 +1121,7 @@ function VideoUploadInput({
               <span><b>Үнэгүй хичээл</b> → R2 storage-д хадгалагдана (хямд, үзэлтэд төлбөргүй).</span>
             </div>
           ) : (
-            <div className="flex items-start gap-1.5 rounded-md bg-primary/5 px-2 py-1.5 text-[10px] text-primary/80">
+            <div className="flex items-start gap-1.5 rounded-md bg-muted px-2 py-1.5 text-[10px] text-primary/80">
               <Lock className="h-3 w-3 shrink-0 mt-px" />
               <span><b>Үнэтэй хичээл</b> → хамгаалалттай Cloudflare Stream-д хадгалагдана (signed).</span>
             </div>
@@ -1480,7 +1480,7 @@ function LessonQuizBuilder({ productId, lessonId }: { productId: string; lessonI
         <span className="text-[11px] font-semibold text-muted-foreground flex-1">
           Шалгалт (Quiz)
           {hasQuiz && (
-            <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-primary">
               {questionCount} асуулт · тэнцэх {quiz?.passScore}%
             </span>
           )}
@@ -1689,7 +1689,7 @@ function LessonQuestions({ productId, lessonId }: { productId: string; lessonId:
         <span className="text-[11px] font-semibold text-muted-foreground flex-1">
           Асуултууд (Q&A)
           {open && questions.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-primary">
               {questions.length}
             </span>
           )}
@@ -1750,7 +1750,7 @@ function LessonQuestions({ productId, lessonId }: { productId: string; lessonId:
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[11px] font-semibold">{authorName(a.user)}</span>
                               {a.isInstructor && (
-                                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
+                                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
                                   Багш
                                 </span>
                               )}
@@ -2005,7 +2005,7 @@ function LessonRow({
               )}
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {hasStream ? (
-                  <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  <span className="flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                     <Play className="h-2.5 w-2.5" />Stream
                   </span>
                 ) : videoLabel ? (
@@ -2268,7 +2268,7 @@ function ModuleSection({
   return (
     <div className="rounded-xl border border-border overflow-hidden">
       {/* Module header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 bg-primary/5 border-b border-border">
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-muted border-b border-border">
         <button type="button" onClick={() => setOpen((p) => !p)} className="shrink-0">
           <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
         </button>
@@ -2525,7 +2525,7 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
   if (!productId) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5">
+        <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/40 bg-muted px-4 py-2.5">
           <div className="flex items-center gap-2 text-sm">
             <GraduationCap className="h-4 w-4 text-primary" />
             <span className="text-muted-foreground">Курс төгсөгчдөд олгох сертификатын загвар</span>
@@ -2552,7 +2552,7 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
   return (
     <div className="space-y-4">
       {/* 🎓 Сертификат загвар үзэх — demo дата-аар backend preview-г шинэ tab-д нээнэ */}
-      <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5">
+      <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/40 bg-muted px-4 py-2.5">
         <div className="flex items-center gap-2 text-sm">
           <GraduationCap className="h-4 w-4 text-primary" />
           <span className="text-muted-foreground">Курс төгсөгчдөд олгох сертификатын загвар</span>
@@ -2609,7 +2609,7 @@ function CourseTab({ productId, productTitle }: { productId?: string; productTit
 
       {/* Add module form */}
       {addingModule ? (
-        <div className="rounded-lg border border-dashed border-primary/40 p-3 space-y-2 bg-primary/5">
+        <div className="rounded-lg border border-dashed border-primary/40 p-3 space-y-2 bg-muted">
           <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
             <FolderPlus className="h-3.5 w-3.5" /> Шинэ модуль
           </p>
@@ -2867,7 +2867,7 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
         </div>
         <div className="p-3 space-y-2">
           {product?.downloadFileKey ? (
-            <div className="flex items-center gap-2 rounded-md bg-primary/5 border border-primary/15 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md bg-muted border border-primary/15 px-3 py-2">
               <FileText className="h-4 w-4 shrink-0 text-primary" />
               <span className="text-xs flex-1 truncate font-medium text-muted-foreground">{product.downloadFileKey.split('/').pop()}</span>
               <Button
@@ -3065,7 +3065,7 @@ function FilesTab({ productId, product: productProp }: { productId?: string; pro
                       {linkedFiles.length > 0 && (
                         <div className="ml-5 space-y-1">
                           {linkedFiles.map((lf) => (
-                            <div key={lf.id} className="flex items-center gap-2 rounded-md bg-primary/5 border border-primary/15 px-2 py-1.5">
+                            <div key={lf.id} className="flex items-center gap-2 rounded-md bg-muted border border-primary/15 px-2 py-1.5">
                               <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
                               <span className="text-xs flex-1 truncate font-medium">{lf.fileName}</span>
                               <span className="text-xs text-muted-foreground shrink-0">{formatSize(lf.sizeBytes)}</span>
@@ -3847,7 +3847,7 @@ export function ProductFormDialog({
                   <button
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, accessType: 'LIFETIME', accessDays: '' }))}
-                    className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${form.accessType === 'LIFETIME' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}
+                    className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${form.accessType === 'LIFETIME' ? 'border-primary bg-muted' : 'border-border hover:bg-muted/50'}`}
                   >
                     <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${form.accessType === 'LIFETIME' ? 'border-primary' : 'border-input'}`}>
                       {form.accessType === 'LIFETIME' && <div className="h-2 w-2 rounded-full bg-primary" />}
@@ -3860,7 +3860,7 @@ export function ProductFormDialog({
                   <button
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, accessType: 'DAYS', accessDays: f.accessDays || '365' }))}
-                    className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${form.accessType === 'DAYS' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}
+                    className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${form.accessType === 'DAYS' ? 'border-primary bg-muted' : 'border-border hover:bg-muted/50'}`}
                   >
                     <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${form.accessType === 'DAYS' ? 'border-primary' : 'border-input'}`}>
                       {form.accessType === 'DAYS' && <div className="h-2 w-2 rounded-full bg-primary" />}
@@ -4034,7 +4034,7 @@ export function ProductFormDialog({
                 <div className="space-y-2">
                   {form.howToUseSteps.map((step, i) => (
                     <div key={i} className="group flex gap-3 rounded-lg border border-border bg-muted/20 p-3 hover:bg-muted/40 transition-colors">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary mt-0.5">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary mt-0.5">
                         {i + 1}
                       </span>
                       <div className="flex-1 space-y-1.5 min-w-0">
@@ -4208,7 +4208,7 @@ export function ProductFormDialog({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={form.proofImageUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-border" referrerPolicy="no-referrer" />
                   ) : (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-bold text-primary">
                       {form.proofAuthorName ? form.proofAuthorName.charAt(0) : '?'}
                     </div>
                   )}

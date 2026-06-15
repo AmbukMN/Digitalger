@@ -220,7 +220,7 @@ function ChatConversationCard({ conv }: { conv: UserDetailChatConversation }) {
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
             isFb
               ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400'
-              : 'bg-primary/10 text-primary'
+              : 'bg-muted text-primary'
           }`}
         >
           {isFb ? <MessagesSquare className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
@@ -265,7 +265,7 @@ function ChatConversationCard({ conv }: { conv: UserDetailChatConversation }) {
                   return (
                     <div key={i} className={`flex items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
                       {!isUser && (
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
                           <Bot className="h-3.5 w-3.5" />
                         </div>
                       )}
@@ -338,7 +338,7 @@ export function UserDetailDialog({ user, onClose }: Props) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={user.image} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-border" referrerPolicy="no-referrer" />
             ) : (
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary ring-2 ring-primary/20">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted text-2xl font-bold text-primary ring-2 ring-primary/20">
                 {(user?.name ?? user?.email ?? '?').charAt(0).toUpperCase()}
               </div>
             )}
@@ -397,29 +397,29 @@ export function UserDetailDialog({ user, onClose }: Props) {
             {/* Tab сонголтууд */}
             <div className="shrink-0 border-b border-border px-4 pt-3">
               <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-                <TabsTrigger value="overview" className="data-[state=active]:bg-primary/10">Тойм</TabsTrigger>
-                <TabsTrigger value="orders" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="overview" className="data-[state=active]:bg-muted">Тойм</TabsTrigger>
+                <TabsTrigger value="orders" className="data-[state=active]:bg-muted">
                   Захиалга {s ? `(${s.ordersTotal})` : ''}
                 </TabsTrigger>
-                <TabsTrigger value="downloads" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="downloads" className="data-[state=active]:bg-muted">
                   Татсан {s ? `(${s.downloadsTotal})` : ''}
                 </TabsTrigger>
-                <TabsTrigger value="chat" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="chat" className="data-[state=active]:bg-muted">
                   💬 Чат {chats.length > 0 ? `(${chats.length})` : ''}
                 </TabsTrigger>
-                <TabsTrigger value="activity" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="activity" className="data-[state=active]:bg-muted">
                   Үзсэн/Дарсан
                 </TabsTrigger>
-                <TabsTrigger value="behavior" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="behavior" className="data-[state=active]:bg-muted">
                   Хайлт/Хандалт
                 </TabsTrigger>
-                <TabsTrigger value="email" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="email" className="data-[state=active]:bg-muted">
                   <Mail className="mr-1 h-3.5 w-3.5" />Имэйл {emails.length > 0 ? `(${emails.length})` : ''}
                 </TabsTrigger>
-                <TabsTrigger value="sms" className="data-[state=active]:bg-primary/10">
+                <TabsTrigger value="sms" className="data-[state=active]:bg-muted">
                   <MessageSquare className="mr-1 h-3.5 w-3.5" />SMS {sms.length > 0 ? `(${sms.length})` : ''}
                 </TabsTrigger>
-                <TabsTrigger value="account" className="data-[state=active]:bg-primary/10">Аккаунт түүх</TabsTrigger>
+                <TabsTrigger value="account" className="data-[state=active]:bg-muted">Аккаунт түүх</TabsTrigger>
               </TabsList>
             </div>
 
@@ -529,7 +529,7 @@ export function UserDetailDialog({ user, onClose }: Props) {
               )}
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <StatCard icon={ShoppingCart} label="Нийт захиалга" value={s?.ordersTotal ?? 0} tone="bg-primary/10 text-primary" />
+                <StatCard icon={ShoppingCart} label="Нийт захиалга" value={s?.ordersTotal ?? 0} tone="bg-muted text-primary" />
                 <StatCard icon={CheckCircle2} label="Төлсөн" value={s?.paidOrders ?? 0} tone="bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400" />
                 <StatCard icon={Clock} label="Хүлээгдэж буй" value={s?.pendingOrders ?? 0} tone="bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400" />
                 <StatCard icon={Download} label="Татсан файл" value={s?.downloadsTotal ?? 0} tone="bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400" />
@@ -881,7 +881,7 @@ export function UserDetailDialog({ user, onClose }: Props) {
                             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                               {log.oldValue && <span className="rounded bg-muted px-1.5 py-0.5 line-through">{log.oldValue}</span>}
                               {log.oldValue && log.newValue && <span>→</span>}
-                              {log.newValue && <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-foreground">{log.newValue}</span>}
+                              {log.newValue && <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">{log.newValue}</span>}
                             </p>
                           )}
                           {log.field === 'password' && (

@@ -263,7 +263,7 @@ export default function TestimonialsPage() {
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditing(t); setDialogOpen(true); }}>
                       <Pencil className="mr-1 h-3.5 w-3.5" /> Засах
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                    <Button variant="ghost" size="sm" className="text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
                       onClick={() => setDeleteTarget(t)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

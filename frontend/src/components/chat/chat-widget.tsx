@@ -381,7 +381,7 @@ export function ChatWidget() {
           // overflow-hidden-ийг ЭНДЭЭС авав (badge булан дээр гадна гарахын тулд) — Lottie/icon
           // тойрог хэлбэрийг доорх inner span-ийн overflow-hidden хариуцна.
           // touch-none — drag үед хуудас scroll болохгүй (зөвхөн товч хөдөлнө).
-          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6 touch-none',
+          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary md:bottom-6 md:right-6 touch-none',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
         // ── Зөвхөн БОСОО чирэх (хэвтээ swiper/carousel-д нөлөөлөхгүй) ──
@@ -551,7 +551,7 @@ export function ChatWidget() {
                   type="submit"
                   disabled={!input.trim() || loading}
                   aria-label="Илгээх"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" />
                 </button>

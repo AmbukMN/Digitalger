@@ -320,7 +320,7 @@ export default function ReviewsPage() {
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-muted px-4 py-2.5">
           <span className="text-sm font-medium">{selectedIds.size} сонгогдсон</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
@@ -367,7 +367,7 @@ export default function ReviewsPage() {
                   {items.map((r) => (
                     <tr
                       key={r.id}
-                      className={`border-b border-border/50 hover:bg-muted/30 ${selectedIds.has(r.id) ? 'bg-primary/5' : ''}`}
+                      className={`border-b border-border/50 hover:bg-muted/30 ${selectedIds.has(r.id) ? 'bg-muted' : ''}`}
                     >
                       <td className="px-4 py-2.5">
                         <input

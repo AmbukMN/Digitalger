@@ -49,7 +49,7 @@ function StatCard({ label, value, sub, icon, trend }: {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-start justify-between mb-3">
-        <div className="rounded-lg bg-primary/10 p-2 text-primary">{icon}</div>
+        <div className="rounded-lg bg-muted p-2 text-primary">{icon}</div>
         {trend != null && (
           <span className={`flex items-center gap-0.5 text-xs font-semibold ${trend > 0 ? 'text-green-600 dark:text-green-400' : trend < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
             {trend > 0 ? <TrendingUp className="h-3 w-3" /> : trend < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}

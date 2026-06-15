@@ -400,7 +400,7 @@ export default function BlogPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                        className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-red-50 dark:bg-red-950/40"
                         onClick={() => setDeleteTarget(post)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
