@@ -199,12 +199,21 @@ function openSystemBrowser(url: string) {
     return;
   }
   if (isIOS()) {
-    // iPhone бүрт SAFARI байдаг тул Safari руу шууд шилжүүлнэ. FB/IG webview-аас
-    // Safari руу гаргах хамгийн найдвартай нь `x-safari-https://...` scheme —
-    // энэ нь FB/IG in-app browser-аас Safari-г НЭГ ТОВШИЛТООР нээдэг (window.open
-    // нь FB webview-д блоклогддог тул "Нээж байна" гээд гацдаг). Энэ scheme
-    // ажиллахгүй ховор тохиолдолд modal-ийн линк fallback хэрэглэгчийг гацаахгүй.
-    window.location.href = `x-safari-${url}`;
+    // iPhone бүрт SAFARI байдаг. FB/IG webview-аас Safari руу гаргах scheme нь
+    // iOS хувилбараар ялгаатай:
+    //  - iOS 16+ (iPhone 14/15/16): `x-safari-https://...` ажиллана.
+    //  - iOS 15 (iPhone 7 г.м): x-safari- нь "Open app?" гэж асуугаад блоклодог.
+    //    Тэдгээрт `com-apple-mobilesafari-tab:` scheme илүү найдвартай.
+    // Хоёуланг дараалуулна: эхлээд mobilesafari-tab, амжилтгүй бол x-safari-.
+    // Аль нэг нь ажиллавал Safari нээгдэж энэ хуудас орхигдоно. Хоёул унавал
+    // modal-ийн гар заавар (··· → Open in browser) + линк fallback гацаахгүй.
+    try {
+      window.location.href = `com-apple-mobilesafari-tab:${url}`;
+    } catch { /* доош унана */ }
+    setTimeout(() => {
+      // 400ms-ийн дараа хуудас энд хэвээр (Safari нээгдээгүй) бол x-safari- туршина.
+      try { window.location.href = `x-safari-${url}`; } catch { /* modal fallback */ }
+    }, 400);
     return;
   }
   window.location.href = url;
