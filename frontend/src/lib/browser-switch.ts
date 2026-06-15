@@ -200,17 +200,16 @@ function openSystemBrowser(url: string) {
     return;
   }
   if (isIOS()) {
-    // iOS scheme нь хувилбараас хамаарч ажиллах/ажиллахгүй (баталгаатай: шинэ iOS-д
-    // (iPhone16 Pro) АЖИЛЛАНА → шууд Safari; iOS15/iPhone7-д "Open app?" асуугаад
-    // НЭЭХГҮЙ). Тиймээс scheme-ийг туршина — ажиллавал нэг товшилтоор шилжинэ,
-    // ажиллахгүй бол modal handleSwitch 1.5с дараа зааврыг (··· → Open external)
-    // тод харуулна. Хоёр тал найдвартай.
+    // ⚠️ Гүн судалгаа (101-agent фактчек): iOS-д гадаад browser-т гарах НАЙДВАРТАЙ
+    // scheme БАЙХГҮЙ (Apple-ийн DTS инженер баталсан). Хувилбараар ялгаатай:
+    //  - x-safari- : iOS 15/17/18-д заримд ажиллана, iOS 16-д унана.
+    //  - com-apple-mobilesafari-tab: : iOS 16-д "invalid address" АЛДААТАЙ хуудас
+    //    нээж ХЭРЭГЛЭГЧИЙГ ТӨӨРӨЛДҮҮЛДЭГ тул ХАСАВ (2 scheme = 2 алдаа).
+    // ЗӨВХӨН x-safari- туршина — ажиллавал нэг товшилтоор шилжинэ, ажиллахгүй бол
+    // modal-ийн заавар (··· → Open external) руу унана (iOS-ийн цорын ганц найдвартай).
     try {
-      window.location.href = `com-apple-mobilesafari-tab:${url}`;
-    } catch { /* доош унана */ }
-    setTimeout(() => {
-      try { window.location.href = `x-safari-${url}`; } catch { /* modal fallback */ }
-    }, 400);
+      window.location.href = `x-safari-${url}`;
+    } catch { /* modal handleSwitch заавар руу унана */ }
     return;
   }
   window.location.href = url;

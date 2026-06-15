@@ -71,6 +71,9 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
       // хуудас орхигдоно (заавар гарахгүй). iOS15 (iPhone7) дээр scheme унаж
       // хуудас энд хэвээр → 1.5с дараа заавар тод гарна + линк хуулна.
       if (isIOS()) {
+        // 0.8с: x-safari- ажилладаг iOS дээр энэ хугацаанд Safari нээгдэж хуудас
+        // орхигдоно (заавар гарахгүй). Ажиллахгүй iOS (iPhone7)-д ХУРДАН заавар
+        // гарна — 1.5с удаан хүлээлгэхгүй (хэрэглэгч гацсан мэт мэдрэхгүй).
         setTimeout(async () => {
           setShowGuide(true);
           const ok = await copyLinkRobust(url);
@@ -81,7 +84,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
             setShowRawLink(true);
           }
           setSwitching(false);
-        }, 1500);
+        }, 800);
         return;
       }
       // Android: intent туршигдсан. Ажиллавал default browser нээгдэж энэ хуудас
