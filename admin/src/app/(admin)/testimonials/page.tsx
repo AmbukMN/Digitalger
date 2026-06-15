@@ -19,6 +19,7 @@ import {
   Input,
   Label,
   Loading,
+  Avatar,
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
@@ -178,9 +179,15 @@ export default function TestimonialsPage() {
   if (isLoading) return <Loading label="Сэтгэгдэл ачаалж байна..." />;
   if (isError) return <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />;
 
+  // Нийт тоон статистик (дээд талд жагсаалт уртассан ч хурдан харагдана)
+  const total = data?.length ?? 0;
+  const activeCount = data?.filter((t) => t.active).length ?? 0;
+  const featuredCount = data?.filter((t) => t.featured).length ?? 0;
+  const withAvatar = data?.filter((t) => !!t.avatar).length ?? 0;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Гэрчилгээ / Сэтгэгдэл</h1>
           <p className="text-muted-foreground">Хэрэглэгчийн сэтгэгдлүүдийг удирдах</p>
@@ -189,6 +196,28 @@ export default function TestimonialsPage() {
           <Plus className="mr-2 h-4 w-4" /> Сэтгэгдэл нэмэх
         </Button>
       </div>
+
+      {/* Нийт тоон самбар — жагсаалт урт болоход хэдэн ширхэг байгааг шууд харна */}
+      {total > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Card><CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Нийт</p>
+            <p className="text-2xl font-bold tabular-nums">{total}</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Идэвхтэй</p>
+            <p className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">{activeCount}</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Онцлох</p>
+            <p className="text-2xl font-bold tabular-nums text-secondary-foreground">{featuredCount}</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Зурагтай</p>
+            <p className="text-2xl font-bold tabular-nums">{withAvatar}<span className="text-sm font-normal text-muted-foreground">/{total}</span></p>
+          </CardContent></Card>
+        </div>
+      )}
 
       {!data?.length ? (
         <Card>
@@ -206,13 +235,7 @@ export default function TestimonialsPage() {
             <Card key={t.id} className="overflow-hidden">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                  {t.avatar ? (
-                    <Image src={t.avatar} alt={t.name} width={40} height={40} className="h-10 w-10 rounded-full object-cover shrink-0" unoptimized />
-                  ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-                      {t.name.charAt(0)}
-                    </div>
-                  )}
+                  <Avatar src={t.avatar} name={t.name} size={40} />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate">{t.name}</p>
                     {t.role && <p className="text-xs text-muted-foreground truncate">{t.role}</p>}
@@ -261,13 +284,7 @@ export default function TestimonialsPage() {
           <DialogHeader><DialogTitle>Сэтгэгдэл устгах уу?</DialogTitle></DialogHeader>
           {deleteTarget && (
             <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
-              {deleteTarget.avatar ? (
-                <Image src={deleteTarget.avatar} alt={deleteTarget.name} width={36} height={36} className="h-9 w-9 rounded-full object-cover shrink-0" unoptimized />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                  {deleteTarget.name.charAt(0)}
-                </div>
-              )}
+              <Avatar src={deleteTarget.avatar} name={deleteTarget.name} size={36} />
               <div className="min-w-0">
                 <p className="text-sm font-medium">{deleteTarget.name}</p>
                 <p className="text-xs text-muted-foreground line-clamp-1">{deleteTarget.content}</p>
