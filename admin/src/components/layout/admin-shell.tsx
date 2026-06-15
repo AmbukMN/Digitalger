@@ -318,7 +318,7 @@ function NavSections({
                       : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
                     collapsed ? 'justify-center px-2' : 'px-3',
                   )}
-                  style={active ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
+                  style={active ? { borderLeft: '3px solid #ffbe00' } : undefined}
                 >
                   <span className="relative shrink-0">
                     <Icon className="h-4 w-4" />
@@ -716,7 +716,7 @@ export function AdminShell({
                 : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
               collapsed ? 'justify-center px-2' : 'px-3',
             )}
-            style={pathname === '/account' ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
+            style={pathname === '/account' ? { borderLeft: '3px solid #ffbe00' } : undefined}
           >
             {profileLoading ? (
               <div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-muted" />
@@ -795,7 +795,7 @@ export function AdminShell({
                       ? 'bg-primary/10 text-primary rounded-l-none'
                       : 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
-                  style={pathname === '/account' ? { borderLeft: '3px solid oklch(0.847 0.178 85.87)' } : undefined}
+                  style={pathname === '/account' ? { borderLeft: '3px solid #ffbe00' } : undefined}
                 >
                   {userImage ? (
                     <Image

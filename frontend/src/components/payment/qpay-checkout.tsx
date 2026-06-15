@@ -231,8 +231,26 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
             </div>
           ) : (
             <div className="p-5 space-y-4">
-              {/* ── MOBILE: банкны апп ЭХЭНД (утсан дээр QR скан хийх боломжгүй,
-                   хэрэглэгч шууд аппаа сонгоно). QR-г доор жижиг харуулна. ── */}
+              {/* QR code — desktop ТОМ (скан), mobile ЖИЖИГ. ДЭЭД талд (хэвээр). */}
+              {qrImageSrc && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="rounded-xl border-2 border-primary/20 p-2 bg-white shadow-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={qrImageSrc}
+                      alt="QPay QR код"
+                      className="h-32 w-32 sm:h-48 sm:w-48 object-contain"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    QR хүчинтэй хугацаа: 15 минут
+                  </p>
+                </div>
+              )}
+
+              {/* ── MOBILE: банкны апп (QR-ийн ДООР). Утсан дээр QR скан хийх
+                   боломжгүй тул хэрэглэгч аппаа дарж төлнө. ── */}
               {bankUrls.length > 0 && (
                 <div className="sm:hidden">
                   <p className="text-sm font-semibold text-foreground mb-1">Банкны аппаа сонгоно уу</p>
@@ -248,27 +266,6 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
                       />
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* QR code — desktop ТОМ (скан), mobile ЖИЖИГ (өөр төхөөрөмжөөс скан) */}
-              {qrImageSrc && (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="sm:hidden text-[11px] font-medium text-muted-foreground self-start">
-                    Эсвэл өөр төхөөрөмжөөс QR-ийг уншуулна уу:
-                  </p>
-                  <div className="rounded-xl border-2 border-primary/20 p-2 bg-white shadow-sm">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={qrImageSrc}
-                      alt="QPay QR код"
-                      className="h-32 w-32 sm:h-48 sm:w-48 object-contain"
-                    />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-                    QR хүчинтэй хугацаа: 15 минут
-                  </p>
                 </div>
               )}
 
