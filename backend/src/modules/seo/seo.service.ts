@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, ValidateIf } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // ⚠️ Зөвхөн БОДИТ жагсаалтын хуудас (Page model-гүй). Page хуудсууд
@@ -29,11 +29,18 @@ export interface AllowedPathsGrouped {
   blog: AllowedPath[];
 }
 
+// ⚠️ Frontend нь хоосон талбарыг null илгээдэг (form.title.trim() || null).
+// @IsString() нь null дээр унаж 400 Bad Request өгдөг тул @ValidateIf-ээр
+// null/undefined үед validation алгасна (upsert дотор ?? null болгоно).
 export class UpsertSeoDto {
+  // Frontend PUT-д бүх body-г (id-тэй хамт) илгээдэг. forbidNonWhitelisted нь
+  // DTO-д байхгүй талбарт 400 өгдөг тул id-г энд зөвшөөрнө (upsert path-аар л
+  // ажилладаг, id-г ашигладаггүй).
+  @IsOptional() @IsString() id?: string;
   @IsString() path!: string;
-  @IsOptional() @IsString() title?: string;
-  @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsString() ogImageUrl?: string;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() title?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() description?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() ogImageUrl?: string | null;
 }
 
 @Injectable()
