@@ -364,6 +364,7 @@ export function ProductDetailView({
                 bundles={product.bundles}
                 productId={product.id}
                 productFiles={product.files ?? []}
+                productType={product.type}
                 isFree={product.price == null || Number(product.price) === 0}
               />
             )}

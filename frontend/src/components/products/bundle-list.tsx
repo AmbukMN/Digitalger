@@ -8,6 +8,7 @@ import { Button } from '@digitalger/shared/ui';
 import { useFileDownload } from '@/hooks/use-file-download';
 import { triggerFileDownload } from '@/lib/download-helper';
 import { downloadsApi } from '@/lib/api';
+import { useProductTypeLabel } from '@/hooks/use-product-types';
 import { toast } from 'sonner';
 
 interface BundleItem {
@@ -154,14 +155,21 @@ export function BundleList({
   bundles,
   productFiles,
   productId,
+  productType,
   isFree = false,
 }: {
   bundles: Bundle[];
   productFiles?: FileInfo[];
   productId: string;
+  productType?: string;
   isFree?: boolean;
 }) {
   const { data: session } = useSession();
+  // "N зүйл" label-ыг бүтээгдэхүүний төрлийн ЖИНХЭНЭ нэрээр (DB ProductTypeConfig:
+  // Ном/Төсөл/Файл/Загвар...) харуулна. Hardcode биш — admin label өөрчилбөл
+  // автоматаар шинэчлэгдэнэ. type байхгүй бол "зүйл" (default).
+  const typeLabel = useProductTypeLabel(productType ?? '');
+  const noun = productType ? typeLabel.toLowerCase() : 'зүйл';
   // Эхний бүлэг 15-аас БАГА зүйлстэй бол default нээлттэй (expand) —
   // 15+ зүйлстэй (том багц) бол бүх бүлэг хаалттай (collapse) эхэлнэ.
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
@@ -232,7 +240,7 @@ export function BundleList({
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {bundle.items.length} зүйл
+                  {bundle.items.length} {noun}
                 </span>
 
                 {/* "Бүлгээр татах" — ЗӨВХӨН admin бэлэн ZIP (downloadFileKey)
@@ -326,7 +334,7 @@ export function BundleList({
                       <span className="flex flex-col items-center -space-y-1.5">
                         <ChevronsDown className="h-3.5 w-3.5 animate-bounce" />
                       </span>
-                      {hiddenCount} зүйл харах
+                      {hiddenCount} {noun} харах
                     </button>
                   )}
                 </>
