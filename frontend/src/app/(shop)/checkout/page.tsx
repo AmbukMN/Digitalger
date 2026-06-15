@@ -352,8 +352,7 @@ function CheckoutContent() {
 
               {/* Coupon input section */}
               <div
-                className="rounded-xl border border-primary/20 p-3 space-y-2.5"
-                style={{ background: 'color-mix(in oklch, var(--primary) 5%, var(--card))' }}
+                className="rounded-xl border border-primary/20 p-3 space-y-2.5 bg-muted/40"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">

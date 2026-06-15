@@ -87,7 +87,7 @@ export async function SiteFooter() {
   ) : null;
 
   return (
-    <footer className="bg-muted/30" style={{ borderTop: '2px solid oklch(0.847 0.178 85.87)' }}>
+    <footer className="bg-muted/30" style={{ borderTop: '2px solid #ffbe00' }}>
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
 
         {/* Mobile layout */}

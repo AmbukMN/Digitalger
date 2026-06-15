@@ -59,8 +59,8 @@ function CertificateCard({ cert, index }: { cert: MyCertificate; index: number }
           <div
             className="flex h-full w-full items-center justify-center"
             style={{
-              background:
-                'linear-gradient(135deg, color-mix(in oklch, var(--primary) 90%, black) 0%, var(--primary) 100%)',
+              // color-mix iPhone7-д унана → HEX navy gradient (90% primary+black ≈ #011a5f)
+              background: 'linear-gradient(135deg, #011a5f 0%, #022179 100%)',
             }}
           >
             <GraduationCap className="h-12 w-12 text-secondary" />

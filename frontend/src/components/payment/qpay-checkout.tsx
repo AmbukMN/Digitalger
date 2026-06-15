@@ -110,7 +110,7 @@ function PaymentStepsDesktop() {
 
 function PaymentStepsMobile() {
   return (
-    <div className="sm:hidden rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+    <div className="sm:hidden rounded-xl border border-primary/20 bg-muted/40 px-4 py-3">
       <div className="flex items-start gap-2.5">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground mt-0.5">!</span>
         <div>
@@ -231,28 +231,12 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
             </div>
           ) : (
             <div className="p-5 space-y-4">
-              {/* QR code — desktop + mobile */}
-              {qrImageSrc && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="rounded-xl border-2 border-primary/20 p-2 bg-white shadow-sm">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={qrImageSrc}
-                      alt="QPay QR код"
-                      className="h-48 w-48 object-contain"
-                    />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-                    QR хүчинтэй хугацаа: 15 минут
-                  </p>
-                </div>
-              )}
-
-              {/* Mobile: bank apps */}
+              {/* ── MOBILE: банкны апп ЭХЭНД (утсан дээр QR скан хийх боломжгүй,
+                   хэрэглэгч шууд аппаа сонгоно). QR-г доор жижиг харуулна. ── */}
               {bankUrls.length > 0 && (
                 <div className="sm:hidden">
-                  <p className="text-xs font-semibold text-foreground mb-2">Банкны аппаа сонгоно уу</p>
+                  <p className="text-sm font-semibold text-foreground mb-1">Банкны аппаа сонгоно уу</p>
+                  <p className="text-[11px] text-muted-foreground mb-2.5">Аппаа дарвал шууд төлбөрийн хуудас нээгдэнэ</p>
                   <div className="grid grid-cols-4 gap-2">
                     {bankUrls.map((url) => (
                       <BankAppButton
@@ -264,6 +248,27 @@ export function QPayCheckout({ payment, token, onSuccess, onClose }: QPayCheckou
                       />
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* QR code — desktop ТОМ (скан), mobile ЖИЖИГ (өөр төхөөрөмжөөс скан) */}
+              {qrImageSrc && (
+                <div className="flex flex-col items-center gap-2">
+                  <p className="sm:hidden text-[11px] font-medium text-muted-foreground self-start">
+                    Эсвэл өөр төхөөрөмжөөс QR-ийг уншуулна уу:
+                  </p>
+                  <div className="rounded-xl border-2 border-primary/20 p-2 bg-white shadow-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={qrImageSrc}
+                      alt="QPay QR код"
+                      className="h-32 w-32 sm:h-48 sm:w-48 object-contain"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    QR хүчинтэй хугацаа: 15 минут
+                  </p>
                 </div>
               )}
 

@@ -68,9 +68,11 @@ export default function DashboardLayout({
       <nav
         className="fixed inset-x-0 bottom-0 z-40 md:hidden"
         style={{
-          background: 'color-mix(in oklch, var(--primary) 6%, var(--background))',
-          borderTop: '1.5px solid color-mix(in oklch, var(--primary) 28%, transparent)',
-          boxShadow: '0 -4px 24px color-mix(in oklch, var(--primary) 12%, transparent)',
+          // ⚠️ color-mix(in oklch) iPhone7-д унаж bottom nav бүтэн navy болдог.
+          // var(--card) дэвсгэр (HEX fallback-тай) + navy border (rgba).
+          background: 'var(--card)',
+          borderTop: '1.5px solid rgba(2, 33, 121, 0.28)',
+          boxShadow: '0 -4px 24px rgba(2, 33, 121, 0.12)',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
