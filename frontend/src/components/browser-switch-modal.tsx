@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@digitalger/shared/ui';
 import { ArrowRight, Check, Copy, ExternalLink, MoreHorizontal, ShieldCheck, X } from 'lucide-react';
 import { inAppBrowserName, isIOS } from '@/lib/download-helper';
-import { buildTransferUrl, switchToSystemBrowser } from '@/lib/browser-switch';
+import { buildTransferUrl, switchToSystemBrowser, copyLinkRobust } from '@/lib/browser-switch';
 
 interface Props {
   open: boolean;
@@ -25,6 +25,8 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
   const [copied, setCopied] = useState(false);
   const [transferUrl, setTransferUrl] = useState('');
   const [switching, setSwitching] = useState(false);
+  // clipboard 3 түвшний fallback ч унавал линкийг дэлгэцэнд харуулна (гар сонголт).
+  const [showRawLink, setShowRawLink] = useState(false);
 
   // Modal нээгдэхэд transfer URL-ийг урьдчилан бэлдэнэ (хуулах товчид бэлэн байх)
   useEffect(() => {
@@ -43,15 +45,17 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
     try {
       const url = await switchToSystemBrowser(targetPath);
       setTransferUrl(url);
-      // iOS x-safari scheme нь олон тохиолдолд блоклогддог тул "товч ажиллаагүй"
-      // мэт харагдана. Тиймээс iOS дээр зэрэг clipboard-д хуулж "хуулагдлаа"
-      // төлөв харуулна — scheme ажиллахгүй бол хэрэглэгч шууд ··· → буулгана.
+      // iOS scheme блоклогдвол "товч ажиллаагүй" мэт харагдана. Тиймээс iOS дээр
+      // зэрэг линкийг хуулна (3 түвшний fallback) — хэрэглэгч шууд буулгаж болно.
       if (isIOS()) {
-        try {
-          await navigator.clipboard.writeText(url);
+        const ok = await copyLinkRobust(url);
+        if (ok) {
           setCopied(true);
           setTimeout(() => setCopied(false), 4000);
-        } catch { /* clipboard амжилтгүй — заавар хэвээр */ }
+        } else {
+          // clipboard бүрэн унасан — линкийг дэлгэцэнд харуулна (гар сонголт)
+          setShowRawLink(true);
+        }
       }
     } finally {
       setSwitching(false);
@@ -59,12 +63,14 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
   };
 
   const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(transferUrl || (await buildTransferUrl(targetPath)));
+    const url = transferUrl || (await buildTransferUrl(targetPath));
+    const ok = await copyLinkRobust(url);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-    } catch {
-      /* clipboard амжилтгүй */
+    } else {
+      // clipboard 3 түвшин унасан — линкийг харуулж хэрэглэгч гараар сонгоно
+      setShowRawLink(true);
     }
   };
 
@@ -155,6 +161,23 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
             {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
             {copied ? 'Хуулагдлаа!' : 'Линк хуулах'}
           </Button>
+
+          {/* clipboard бүрэн унасан — линкийг гар аргаар сонгож хуулах боломж
+              (хэрэглэгч линкгүй гацахаас сэргийлнэ). Урт дармал → автомат сонгогдоно. */}
+          {showRawLink && transferUrl && (
+            <div className="mt-2.5">
+              <p className="mb-1 text-[11px] text-muted-foreground">
+                Дарж сонгоод хуулна уу:
+              </p>
+              <input
+                readOnly
+                value={transferUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                onClick={(e) => e.currentTarget.select()}
+                className="w-full select-all rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

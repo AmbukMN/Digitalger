@@ -184,18 +184,63 @@ async function collectState(): Promise<Record<string, unknown>> {
   };
 }
 
-// Системийн браузар руу URL-ийг нээхийг оролдоно (iOS x-safari / Android intent).
+// Системийн браузар руу URL-ийг нээхийг оролдоно.
+// ⚠️ Тодорхой апп (Chrome/Safari) ЗААХГҮЙ — хэрэглэгчийн DEFAULT browser автоматаар
+// сонгогдоно (Chrome байхгүй ч Samsung Internet/Firefox-оор нээгдэнэ).
 function openSystemBrowser(url: string) {
-  if (isIOS()) {
-    window.location.href = `x-safari-${url}`;
+  if (isAndroid()) {
+    // Android intent — package ЗААХГҮЙ тул систем default browser-ийг сонгоно.
+    // S.browser_fallback_url — intent ажиллахгүй бол энгийн URL руу унана.
+    const noScheme = url.replace(/^https?:\/\//, '');
+    const fallback = encodeURIComponent(url);
+    window.location.href =
+      `intent://${noScheme}#Intent;scheme=https;` +
+      `S.browser_fallback_url=${fallback};end`;
     return;
   }
-  if (isAndroid()) {
-    const noScheme = url.replace(/^https?:\/\//, '');
-    window.location.href = `intent://${noScheme}#Intent;scheme=https;package=com.android.chrome;end`;
+  if (isIOS()) {
+    // iOS-д "default browser руу шилжих" албан ёсны scheme БАЙХГҮЙ. x-safari- нь
+    // Apple-д блоклогддог, найдваргүй. Тиймээс зүгээр шинэ цонхоор нээхийг
+    // оролдоно — FB/IG webview ихэвчлэн "Open in browser" асууна. Ажиллахгүй
+    // бол modal-ийн гар заавар (··· → Open in external browser) + линк хуулах
+    // fallback нь хэрэглэгчийг гацаахгүй (доорх copyLinkRobust).
+    window.open(url, '_blank');
+    window.location.href = url;
     return;
   }
   window.location.href = url;
+}
+
+// ── Линк хуулах — 3 түвшний fallback (FB webview/iOS15-д clipboard унадаг) ──
+// 1) navigator.clipboard (орчин үеийн), 2) document.execCommand('copy') (хуучин),
+// 3) хоёул унавал false → дуудагч линкийг дэлгэцэнд харуулж гар сонголт өгнө.
+// Ингэснээр ЯМАР Ч тохиолдолд хэрэглэгч линкгүй гацахгүй.
+export async function copyLinkRobust(text: string): Promise<boolean> {
+  // 1) Орчин үеийн API (HTTPS + permission)
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* доош унана */ }
+  // 2) Хуучин execCommand (FB webview/iOS15-д ажилладаг)
+  try {
+    if (typeof document !== 'undefined') {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.setAttribute('readonly', '');
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length); // iOS-д заавал
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) return true;
+    }
+  } catch { /* доош унана */ }
+  // 3) Хоёул унасан — дуудагч линкийг харуулна
+  return false;
 }
 
 /**
