@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { getAuthSecret } from '@/lib/secret';
+import { ADMIN_ROLES } from '@/lib/constants';
 
 const API_URL = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -19,9 +20,8 @@ export async function POST(req: Request) {
 
   const data = await res.json();
 
-  // Admin panel-д нэвтрэх боломжтой бүх дүр (multi-tenant: EDITOR/ADMIN/SUPERADMIN).
-  const ADMIN_ROLES = ['EDITOR', 'ADMIN', 'SUPERADMIN'];
-  if (!ADMIN_ROLES.includes(data.user?.role)) {
+  // Admin panel-д нэвтрэх боломжтой бүх дүр — shared constant-аас (нэг эх сурвалж).
+  if (!(ADMIN_ROLES as readonly string[]).includes(data.user?.role)) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 

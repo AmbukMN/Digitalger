@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getAuthSecret } from '@/lib/secret';
+import { ADMIN_ROLES } from '@/lib/constants';
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -18,9 +19,8 @@ export async function middleware(req: NextRequest) {
     } catch {}
   }
 
-  // Admin panel-д нэвтрэх боломжтой бүх дүр (multi-tenant Phase 4).
-  const ADMIN_ROLES = ['EDITOR', 'ADMIN', 'SUPERADMIN'];
-  const isAdmin = !!payload?.role && ADMIN_ROLES.includes(payload.role);
+  // Admin panel-д нэвтрэх боломжтой бүх дүр — shared constant-аас (нэг эх сурвалж).
+  const isAdmin = !!payload?.role && (ADMIN_ROLES as readonly string[]).includes(payload.role);
 
   if (pathname.startsWith('/login')) {
     if (isAdmin) {

@@ -1,3 +1,21 @@
+const DEV_JWT_SECRET = 'dev-jwt-secret-change-me';
+const DEV_REFRESH_SECRET = 'dev-refresh-secret-change-me';
+
+// ⚠️ НУУЦЛАЛЫН FAIL-FAST: production-д JWT secret тохируулаагүй бол default
+// (нийтэд мэдэгдсэн) secret-ээр токен гарын үсэг зурвал хэн ч хуурамч токен
+// үүсгэж нэвтрэх боломжтой болно. Тиймээс production-д dev-default илэрвэл
+// backend-ийг АСАХ ҮЕД ЗОГСООНО (чимээгүй эмзэг болохоос сэргийлнэ).
+const jwtSecret = process.env.JWT_SECRET ?? DEV_JWT_SECRET;
+const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET ?? DEV_REFRESH_SECRET;
+if (process.env.NODE_ENV === 'production') {
+  if (jwtSecret === DEV_JWT_SECRET || jwtRefreshSecret === DEV_REFRESH_SECRET) {
+    throw new Error(
+      '🔴 АЮУЛГҮЙ БАЙДАЛ: Production-д JWT_SECRET / JWT_REFRESH_SECRET тохируулаагүй байна. ' +
+        '.env.production-д жинхэнэ нууц утга (32+ тэмдэгт) оруулна уу.',
+    );
+  }
+}
+
 export default () => ({
   port: parseInt(process.env.PORT ?? '4000', 10),
   nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -8,9 +26,8 @@ export default () => ({
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
   jwt: {
-    secret: process.env.JWT_SECRET ?? 'dev-jwt-secret-change-me',
-    refreshSecret:
-      process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret-change-me',
+    secret: jwtSecret,
+    refreshSecret: jwtRefreshSecret,
     expiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
