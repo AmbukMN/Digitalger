@@ -1,5 +1,6 @@
-import Image from 'next/image';
 import Link from 'next/link';
+import { SmartImage } from '@/components/ui/smart-image';
+import { Avatar } from '@digitalger/shared/ui';
 import { productsApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
 import { PurchaseCard, MobileBuyBar } from '@/components/products/purchase-card';
@@ -423,12 +424,12 @@ export function ProductDetailView({
 
             {/* Social proof — at the very bottom, below FAQ */}
             {hasProof && (
-              <section className="rounded-2xl overflow-hidden border border-border bg-linear-to-br from-primary/5 via-card to-primary/3 shadow-sm">
+              <section className="rounded-2xl overflow-hidden border border-border bg-card shadow-sm">
                 <div className="flex flex-row gap-0">
                   {product.proofImageUrl && (
                     <div className="w-36 sm:w-44 shrink-0">
                       <div className="relative h-full min-h-40 sm:min-h-48 overflow-hidden bg-muted">
-                        <Image
+                        <SmartImage
                           src={product.proofImageUrl}
                           alt={product.proofAuthorName ?? 'Social proof'}
                           fill
@@ -453,9 +454,7 @@ export function ProductDetailView({
                     {(product.proofAuthorName || product.proofAuthorRole) && (
                       <div className="flex items-center gap-2 mt-1">
                         {!product.proofImageUrl && (
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-                            {product.proofAuthorName?.charAt(0) ?? '?'}
-                          </div>
+                          <Avatar name={product.proofAuthorName} size={32} />
                         )}
                         <div>
                           {product.proofAuthorName && (

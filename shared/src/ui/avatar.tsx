@@ -37,10 +37,20 @@ export function Avatar({ src, name, size = 40, className, priority }: AvatarProp
   return (
     <span
       className={cn(
-        'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 font-bold text-primary',
+        'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold',
         className,
       )}
-      style={{ width: size, height: size, fontSize: Math.max(11, Math.round(size * 0.4)) }}
+      // ⚠️ Өнгийг INLINE HEX-ээр өгнө (Tailwind-ийн bg-primary/15 opacity нь
+      // хуучин iOS Safari дээр унаж, navy дугуй дээр navy үсэг = ҮЛ ҮЗЭГДЭХ
+      // "хоосон цэнхэр дугуй" болдог байсан). Gold дэвсгэр + navy үсэг —
+      // ямар ч браузерт уншигдана, brand өнгөтэй.
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.max(11, Math.round(size * 0.4)),
+        backgroundColor: '#ffe9a6',
+        color: '#022179',
+      }}
       aria-hidden={!name}
     >
       {showImg ? (
