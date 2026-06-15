@@ -28,7 +28,14 @@ function StarRow({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }
       {[1, 2, 3, 4, 5].map((s) => (
         <Star
           key={s}
-          className={`${cls} ${s <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`}
+          className={cls}
+          // ⚠️ opacity (text-muted-foreground/30) iPhone7-д унаж хоосон од нь
+          // дүүрсэн шиг харагддаг → дүүрсэн=gold, хоосон=саарал INLINE HEX.
+          style={
+            s <= rating
+              ? { fill: '#facc15', color: '#facc15' }
+              : { fill: '#d4d4d8', color: '#d4d4d8' }
+          }
         />
       ))}
     </div>

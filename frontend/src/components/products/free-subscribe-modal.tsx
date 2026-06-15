@@ -114,8 +114,12 @@ export function FreeSubscribeModal({ slug }: { slug?: string }) {
             role="dialog"
             aria-modal
           >
-            {/* Толгой — gold/navy banner */}
-            <div className="relative bg-gradient-to-br from-[#022179] to-[#0a3aa0] px-6 pb-6 pt-7 text-center">
+            {/* Толгой — navy banner. ⚠️ gradient/arbitrary өнгө iPhone7-д унаж
+                цагаан болж, цагаан текст үл үзэгдэх болдог тул INLINE navy. */}
+            <div
+              className="relative px-6 pb-6 pt-7 text-center"
+              style={{ background: 'linear-gradient(135deg, #022179 0%, #0a3aa0 100%)', backgroundColor: '#022179' }}
+            >
               <button
                 type="button"
                 onClick={close}

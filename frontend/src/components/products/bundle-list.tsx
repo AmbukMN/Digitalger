@@ -276,7 +276,10 @@ export function BundleList({
                             )}
                             <span className="flex-1 font-medium">{item.name}</span>
                             {item.label && (
-                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{item.label}</span>
+                              <span
+                                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                style={{ backgroundColor: '#ffe9a6', color: '#022179' }}
+                              >{item.label}</span>
                             )}
                             {item.description && (
                               <span className="text-xs text-muted-foreground hidden sm:block">{item.description}</span>
