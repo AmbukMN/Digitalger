@@ -65,12 +65,48 @@ export class R2CleanupService implements OnModuleDestroy {
    * нь orphan. ⚠️ Эх сурвалж бүрийг бүрэн оруулна — дутуу бол бодит файл orphan гэж
    * андуурна. http(s):// (гадаад URL) нь R2 key БИШ.
    */
+  /**
+   * Аливаа DB утгыг (key ЭСВЭЛ бүтэн URL) → R2 key болгож нормчилно.
+   * ⚠️ КРИТИК: DB-д зургийн зам хоёр хэлбэрээр хадгалагддаг:
+   *   1) key шууд: "uploads/X.jpg"
+   *   2) бүтэн URL: "https://pub-xxx.r2.dev/uploads/X.jpg" эсвэл
+   *      "https://assets.digitalger.mn/uploads/X.jpg"
+   * Өмнө нь http(s):// эхэлсэн утгыг "гадаад URL" гэж АЛГАСдаг байсан → бодит
+   * зургуудыг orphan гэж андуурч 352 файл (≈558MB) устгасан (BlogPost/Banner/
+   * Testimonial — бүгд URL хэлбэртэй). Одоо URL-ээс key (path) задлаж авна.
+   * R2-аас ГАДНАХ домэйн (Cloudflare Stream, YouTube г.м) бол null → алгасна.
+   */
+  private toR2Key(v: string | null | undefined): string | null {
+    if (!v) return null;
+    const s = v.trim();
+    if (!s) return null;
+    if (!s.startsWith('http://') && !s.startsWith('https://')) {
+      return s.replace(/^\//, ''); // аль хэдийн key
+    }
+    let u: URL;
+    try {
+      u = new URL(s);
+    } catch {
+      return null;
+    }
+    const host = u.hostname.toLowerCase();
+    // ЗӨВХӨН R2 өөрийн (асет) домэйнуудаас key задлана. Бусад гадаад домэйн
+    // (videodelivery.net, youtube г.м) нь R2 объект БИШ тул алгасна.
+    const isR2Host =
+      host.endsWith('.r2.dev') ||
+      host.endsWith('.r2.cloudflarestorage.com') ||
+      host === 'assets.digitalger.mn' ||
+      host === 'cdn.digitalger.mn';
+    if (!isR2Host) return null;
+    const path = decodeURIComponent(u.pathname).replace(/^\//, '');
+    return path || null;
+  }
+
   private async collectLinkedKeys(): Promise<Set<string>> {
     const keys = new Set<string>();
     const add = (v: string | null | undefined) => {
-      if (!v) return;
-      if (v.startsWith('http://') || v.startsWith('https://')) return;
-      keys.add(v.replace(/^\//, ''));
+      const key = this.toR2Key(v);
+      if (key) keys.add(key);
     };
 
     const [
@@ -86,10 +122,11 @@ export class R2CleanupService implements OnModuleDestroy {
       banners,
       bundles,
       blogPosts,
+      testimonials,
       zipJobs,
     ] = await Promise.all([
       this.prisma.user.findMany({ select: { image: true } }),
-      this.prisma.product.findMany({ select: { downloadFileKey: true, videoUrl: true } }),
+      this.prisma.product.findMany({ select: { downloadFileKey: true, videoUrl: true, proofImageUrl: true } }),
       this.prisma.productFile.findMany({ select: { fileKey: true } }),
       this.prisma.productImage.findMany({ select: { fileKey: true, videoUrl: true } }),
       this.prisma.imageVariant.findMany({ select: { fileKey: true } }),
@@ -97,14 +134,15 @@ export class R2CleanupService implements OnModuleDestroy {
       this.prisma.lessonResource.findMany({ select: { fileKey: true } }),
       this.prisma.lessonQuestion.findMany({ select: { attachmentKey: true } }),
       this.prisma.lessonAnswer.findMany({ select: { attachmentKey: true } }),
-      this.prisma.banner.findMany({ select: { imageUrl: true, videoUrl: true } }),
+      this.prisma.banner.findMany({ select: { imageUrl: true, videoUrl: true, desktopImageUrl: true, mobileImageUrl: true } }),
       this.prisma.productBundle.findMany({ select: { downloadFileKey: true } }),
       this.prisma.blogPost.findMany({ select: { coverImageUrl: true } }),
+      this.prisma.testimonial.findMany({ select: { avatar: true } }),
       this.prisma.zipJob.findMany({ select: { zipKey: true } }),
     ]);
 
     for (const u of users) add(u.image);
-    for (const p of products) { add(p.downloadFileKey); add(p.videoUrl); }
+    for (const p of products) { add(p.downloadFileKey); add(p.videoUrl); add(p.proofImageUrl); }
     for (const f of productFiles) add(f.fileKey);
     for (const i of productImages) { add(i.fileKey); add(i.videoUrl); }
     for (const v of imageVariants) add(v.fileKey);
@@ -112,9 +150,10 @@ export class R2CleanupService implements OnModuleDestroy {
     for (const r of lessonResources) add(r.fileKey);
     for (const q of lessonQuestions) add(q.attachmentKey);
     for (const a of lessonAnswers) add(a.attachmentKey);
-    for (const b of banners) { add(b.imageUrl); add(b.videoUrl); }
+    for (const b of banners) { add(b.imageUrl); add(b.videoUrl); add(b.desktopImageUrl); add(b.mobileImageUrl); }
     for (const b of bundles) add(b.downloadFileKey);
     for (const b of blogPosts) add(b.coverImageUrl);
+    for (const t of testimonials) add(t.avatar);
     for (const z of zipJobs) add(z.zipKey);
 
     return keys;
