@@ -87,7 +87,7 @@ function AnalyticsUserSync() {
 // FB/IG → системийн браузар шилжсэн бол URL-д ?t=token байна. Эхлээд тэр
 // token-оор state-ийг (сагс/wishlist/coupon/guest) localStorage-д сэргээж,
 // ДАРАА нь rehydrate хийнэ — ингэснээр хэрэглэгчийн дата шинэ браузарт дамжина.
-function StoreHydration() {
+function StoreHydration({ onTransferDone }: { onTransferDone?: () => void }) {
   // StrictMode/давхар mount-д useEffect 2 удаа ажиллахаас сэргийлнэ — эс бол
   // transfer token хоёр удаа consume хийгдэж болзошгүй (одоо token нэг удаагийн
   // биш ч давхардлаас хамгаалах нь цэвэр).
@@ -161,10 +161,13 @@ function StoreHydration() {
           } catch (e) {
             console.error('[StoreHydration] URL cleanup failed', e);
           }
+          // Restore + auto re-login дууссан — overlay-г хаана (session орж ирсэн).
+          onTransferDone?.();
         });
     } else {
       rehydrateAll();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
 }
@@ -278,11 +281,33 @@ export function Providers({ children, defaultTheme = 'system', navbar }: Provide
     return client;
   });
 
+  // FB/IG-аас шилжсэн (?t=token) бол session/state сэргээгдтэл бүх дэлгэцийг
+  // loading overlay-аар хучна — эс бол "Худалдаж авах" товч (нэвтрээгүй мэт)
+  // гарч, дараа нь session орж ирээд "Авсан" болж ҮСРЭХ буруу UI гардаг.
+  // ?t= байгаа эсэхийг анхны render-д л шалгана (SSR-д false тул mismatch-гүй).
+  const [transferRestoring, setTransferRestoring] = useState(false);
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('t')) {
+        setTransferRestoring(true);
+        // Аюулгүйн backstop: 6с-ийн дараа ямар ч тохиолдолд хаана (гацахгүй).
+        const t = setTimeout(() => setTransferRestoring(false), 6000);
+        return () => clearTimeout(t);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme={defaultTheme} storageKey="digitalger-theme">
-          <StoreHydration />
+          <StoreHydration onTransferDone={() => setTransferRestoring(false)} />
+          {transferRestoring && (
+            <div className="fixed inset-0 z-200 flex flex-col items-center justify-center gap-4 bg-background">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+              <p className="text-sm font-medium text-muted-foreground">Таны мэдээллийг сэргээж байна...</p>
+            </div>
+          )}
           <SessionSyncEffect />
           <AuthWatcher />
           <AnalyticsUserSync />

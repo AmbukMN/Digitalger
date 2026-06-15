@@ -186,7 +186,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
         >
           {switching ? 'Нээж байна...' : (
             <>
-              {isIOS() ? 'Шууд нээхийг оролдох' : 'Браузерт нээх'}
+              Браузерт нээх
               <ArrowRight className="h-5 w-5" />
             </>
           )}

@@ -174,6 +174,7 @@ async function collectState(): Promise<Record<string, unknown>> {
     cart: read('digitalger-cart'),
     wishlist: read('digitalger-wishlist'),
     coupons: read('digitalger-coupons'),
+    recentlyViewed: read('digitalger-recently-viewed'), // "Таны саяхан үзсэн"
     guest: read('digitalger-guest'),
     // FB браузарт хэрэглэгчийн үүсгэсэн бусад чухал state:
     chatSession: raw('dg-chat-session'),     // AI чатын session ID
@@ -349,6 +350,15 @@ export async function restoreTransferState(token: string): Promise<boolean> {
     write('dg-chat-history', data.chatHistory);
     writeRaw('dg-chat-session', data.chatSession);
     writeRaw('digitalger-theme', data.theme);
+    // "Таны саяхан үзсэн" — FB-д үзсэн бүтээгдэхүүн шинэ браузарт дамжина.
+    // localStorage-д өмнө байхгүй (шинэ браузар) бол шууд бичнэ; rehydrate
+    // дараа нь уншина. (Merge хийхгүй — recently-viewed нь түр түүх тул дарж бичнэ.)
+    if (data.recentlyViewed != null) {
+      try {
+        const existing = localStorage.getItem('digitalger-recently-viewed');
+        if (!existing) localStorage.setItem('digitalger-recently-viewed', JSON.stringify(data.recentlyViewed));
+      } catch { /* ignore */ }
+    }
 
     // FB-ийн analytics sessionId-ийг системийн браузарт хадгална (sessionStorage).
     // Ингэснээр энд нэвтрэхэд backfill нь FB-д хийсэн бүх үзэлт/дарсныг (тэр
