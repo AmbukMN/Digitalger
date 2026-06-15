@@ -78,8 +78,13 @@ export function FreeSubscribeModal({ slug }: { slug?: string }) {
     try {
       // Dynamic source — ирээдүйд олон free product analytics-д ялгаатай харагдана
       const source = slug ? `free-product-${slug}` : 'free-ppt';
-      await subscribersApi.subscribe({ email: value, source });
-      toast.success('Амжилттай бүртгэгдлээ! 🎁 Таны мэйл рүү 10% хөнгөлөлтийн купон болон ҮНЭГҮЙ бүтээгдэхүүний мэдээлэл илгээлээ. Мэйлээ шалгаарай!');
+      const res = await subscribersApi.subscribe({ email: value, source });
+      // Өмнө аль хэдийн бүртгүүлсэн бол тусдаа мессеж (давхар бүртгэхгүй).
+      if (res?.alreadySubscribed) {
+        toast.info('Энэ и-мэйл аль хэдийн бүртгэгдсэн байна 📩 Урамшууллын мэдээллийг тогтмол хүлээж аваарай!');
+      } else {
+        toast.success('Амжилттай бүртгэгдлээ! 🎁 Таны мэйл рүү 10% хөнгөлөлтийн купон болон ҮНЭГҮЙ бүтээгдэхүүний мэдээлэл илгээлээ. Мэйлээ шалгаарай!');
+      }
       writeStore({ subscribed: true }); // дахин ХЭЗЭЭ Ч харуулахгүй
       setOpen(false);
     } catch {

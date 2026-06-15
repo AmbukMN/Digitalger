@@ -882,7 +882,7 @@ export const seoApi = {
 // —— Subscribers (newsletter) ——
 export const subscribersApi = {
   subscribe: (body: { email: string; source?: string }) =>
-    request<{ ok: boolean }>('/subscribers/subscribe', {
+    request<{ success: boolean; alreadySubscribed?: boolean }>('/subscribers/subscribe', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

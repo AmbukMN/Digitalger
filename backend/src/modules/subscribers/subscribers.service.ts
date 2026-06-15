@@ -12,6 +12,30 @@ const WEB_REGISTER_CATEGORY = 'Веб-д бүртгүүлсэн';
 // Newsletter subscribe үед илгээх 10% хөнгөлөлтийн купон (admin DB-д үүсгэсэн).
 const WELCOME_COUPON_CODE = 'SUBSCRIBER10';
 
+// Хатуу имэйл format (RFC-ийн энгийн хувилбар — local@domain.tld).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// Түгээмэл буруу бичсэн (typo) домэйн — эдгээр БОДИТООР байдаггүй тул имэйл
+// хүрэхгүй. gnail.com (gmail typo) гэх мэт. Subscribe үед урьдчилан таслана.
+const TYPO_DOMAINS = new Set([
+  'gnail.com', 'gmial.com', 'gmai.com', 'gmail.co', 'gmal.com', 'gmail.cm',
+  'gmaill.com', 'gmail.con', 'gmial.com', 'gamil.com', 'gmaul.com', 'gmil.com',
+  'yaho.com', 'yahooo.com', 'yahoo.co', 'yhaoo.com', 'hotmial.com', 'hotmai.com',
+  'outlok.com', 'outloo.com', 'iclod.com', 'iclould.com',
+]);
+
+// Имэйл хүчинтэй эсэх (format + typo домэйн шалгалт). Буруу бол алдааны мессеж буцаана.
+function validateEmail(email: string): string | null {
+  if (!email || !EMAIL_RE.test(email) || email.length > 254) {
+    return 'Имэйл хаяг буруу байна';
+  }
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (domain && TYPO_DOMAINS.has(domain)) {
+    return `"${domain}" домэйн буруу байна. Зөв бичсэн эсэхээ шалгана уу`;
+  }
+  return null;
+}
+
 @Injectable()
 export class SubscribersService {
   constructor(
@@ -132,8 +156,10 @@ export class SubscribersService {
   // ─── PUBLIC: имэйл захиалах (homepage/free-ppt/checkout/popup) ─────────────
   async subscribe(emailRaw: string, source?: string) {
     const email = (emailRaw ?? '').toLowerCase().trim();
-    if (!email || !email.includes('@') || email.length > 254) {
-      throw new BadRequestException('Имэйл хаяг буруу байна');
+    // Хатуу format + typo домэйн (gnail гэх мэт) шалгалт — буруу хаяг бүртгэхгүй.
+    const invalidMsg = validateEmail(email);
+    if (invalidMsg) {
+      throw new BadRequestException(invalidMsg);
     }
     // Homepage-аас бүртгүүлбэл "Нүүр хуудас" категори (home) руу зүүнэ.
     const categoryId = source === 'homepage' ? await this.getHomeCategoryId() : null;
