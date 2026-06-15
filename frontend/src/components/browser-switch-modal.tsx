@@ -67,9 +67,9 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
     try {
       const url = await switchToSystemBrowser(targetPath);
       setTransferUrl(url);
-      // iOS: scheme ажиллавал Safari нээгдэж энэ хуудас орхигдоно. Хэрэв 1.5с-ийн
-      // дараа ХУУДАС ЭНД ХЭВЭЭР байвал (scheme унасан = iOS15/iPhone7) → заавар
-      // тод харуулна + линк хуулна. iOS16+ дээр scheme ажиллавал заавар гарахгүй.
+      // iOS: scheme туршигдсан. iOS16+ (iPhone14/15/16) дээр Safari нээгдэж энэ
+      // хуудас орхигдоно (заавар гарахгүй). iOS15 (iPhone7) дээр scheme унаж
+      // хуудас энд хэвээр → 1.5с дараа заавар тод гарна + линк хуулна.
       if (isIOS()) {
         setTimeout(async () => {
           setShowGuide(true);
@@ -82,7 +82,7 @@ export function BrowserSwitchModal({ open, onClose, targetPath }: Props) {
           }
           setSwitching(false);
         }, 1500);
-        return; // switching-ийг timeout дотор reset хийнэ
+        return;
       }
       // Android: intent ихэвчлэн нэг товшилтоор ажиллана. Хэрэв 2с-ийн дараа
       // хуудас энд хэвээр (intent блоклогдсон ховор тохиолдол) бол линк хуулж
