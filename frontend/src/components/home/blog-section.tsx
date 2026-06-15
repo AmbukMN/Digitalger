@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, Tag } from 'lucide-react';
-import { BLUR_DATA_URL } from '@/lib/image-blur';
+import { SmartImage } from '@/components/ui/smart-image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@digitalger/shared/ui';
 import { cn } from '@digitalger/shared';
@@ -26,14 +25,12 @@ function BlogCard({ post }: { post: BlogPost }) {
       <article className="h-full rounded-2xl border border-border bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
         <div className="relative aspect-video bg-muted overflow-hidden">
           {post.coverImageUrl ? (
-            <Image
+            <SmartImage
               src={post.coverImageUrl}
               alt={post.title}
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              placeholder="blur"
-              blurDataURL={BLUR_DATA_URL}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-linear-to-br from-primary/10 to-accent/10">

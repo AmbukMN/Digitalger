@@ -83,6 +83,24 @@ async function getFallbackImageData(): Promise<string> {
   }
 }
 
+/**
+ * Thumbnail-ийг сервер дээр урьдчилан татаж data URI болгоно (R2 удвал FB цагаан
+ * preview авахаас сэргийлнэ — blog OG-тэй ижил логик). Амжилтгүй бол null → текст OG.
+ */
+async function fetchImageAsDataUri(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(3500), next: { revalidate: 3600 } });
+    if (!res.ok) return null;
+    const type = res.headers.get('content-type') ?? 'image/jpeg';
+    if (!type.startsWith('image/')) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength === 0 || buf.byteLength > 6_000_000) return null;
+    return `data:${type};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
 type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
@@ -105,24 +123,28 @@ export default async function Image({ params }: Props) {
     }
   }
 
-  // Thumbnail байвал letterbox: blur background + contain foreground
-  // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй
+  // Thumbnail байвал letterbox: blur background + contain foreground.
+  // Урьдчилан data URI болгож татна (R2 удвал FB цагаан авахаас сэргийлнэ).
+  // Татаж чадахгүй бол доорх текст OG руу унана (цагаан биш).
   if (product?.thumbnailUrl) {
-    return new ImageResponse(
-      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: NAVY }}>
-        {/* Blur background layer — fill the gaps with the same image */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={product.thumbnailUrl} alt="" width={1200} height={630}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
-        {/* Dark overlay to improve contrast */}
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
-        {/* Main image — cover, fills full 1200x630 */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={product.thumbnailUrl} alt={product.title} width={1200} height={630}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-      </div>,
-      { ...size },
-    );
+    const thumbData = await fetchImageAsDataUri(product.thumbnailUrl);
+    if (thumbData) {
+      return new ImageResponse(
+        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: NAVY }}>
+          {/* Blur background layer — fill the gaps with the same image */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={thumbData} alt="" width={1200} height={630}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
+          {/* Dark overlay to improve contrast */}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
+          {/* Main image — contain, fills full 1200x630 */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={thumbData} alt={product.title} width={1200} height={630}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+        </div>,
+        { ...size },
+      );
+    }
   }
 
   const title = product?.title ?? 'Дижитал бүтээгдэхүүн';

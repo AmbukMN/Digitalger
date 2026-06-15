@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Star, ChevronLeft, ChevronRight, Quote } from 'lucide-react';
-import Image from 'next/image';
+import { Avatar } from '@digitalger/shared/ui';
 import type { Testimonial } from '@/types/api';
 
 interface Props {
@@ -21,13 +21,7 @@ function TestimonialCard({ t }: { t: Testimonial }) {
       </div>
       <p className="flex-1 text-sm leading-relaxed text-foreground sm:text-base">&ldquo;{t.content}&rdquo;</p>
       <div className="flex items-center gap-3 pt-3 border-t border-border">
-        {t.avatar ? (
-          <Image src={t.avatar} alt={t.name} width={40} height={40} className="h-10 w-10 rounded-full object-cover shrink-0" />
-        ) : (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-            {t.name.charAt(0)}
-          </div>
-        )}
+        <Avatar src={t.avatar} name={t.name} size={40} />
         <div>
           <p className="font-semibold text-sm">{t.name}</p>
           {t.role && <p className="text-xs text-muted-foreground">{t.role}</p>}

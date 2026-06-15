@@ -66,6 +66,28 @@ async function getFallbackImageData(): Promise<string> {
   }
 }
 
+/**
+ * Cover зургийг сервер дээр урьдчилан татаж data URI болгоно.
+ * ⚠️ Яагаад: ImageResponse дотор шууд <img src={R2_URL}> өгвөл next/og нь FB
+ * crawl хийх агшинд R2 руу fetch хийдэг — R2 удаан/тасарвал OG зураг бүхэлдээ
+ * ҮҮСЭХГҮЙ, Facebook ЦАГААН preview авдаг (SS5 facebook алдаа).
+ * Тиймээс эндээ timeout-той татаж, АМЖИЛТТАЙ бол data URI (FB найдвартай авна),
+ * амжилтгүй бол null → текст OG руу аюулгүй уналт хийнэ.
+ */
+async function fetchImageAsDataUri(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(3500), next: { revalidate: 3600 } });
+    if (!res.ok) return null;
+    const type = res.headers.get('content-type') ?? 'image/jpeg';
+    if (!type.startsWith('image/')) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength === 0 || buf.byteLength > 6_000_000) return null; // хоосон/хэт том → текст OG
+    return `data:${type};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
 type Props = { params: Promise<{ slug: string }> };
 
 export default async function Image({ params }: Props) {
@@ -89,20 +111,26 @@ export default async function Image({ params }: Props) {
   }
 
   // Cover image байвал letterbox: blur background + contain foreground
-  // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй
+  // → ямар ч aspect ratio-д бүх агуулга харагдана, crop болохгүй.
+  // Cover-ийг урьдчилан data URI болгож татна (R2 удаан байвал FB цагаан авахаас
+  // сэргийлж). Татаж чадвал зурагтай OG, чадахгүй бол доорх текст OG руу унана.
   if (post?.coverImageUrl) {
-    return new ImageResponse(
-      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: NAVY }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={post.coverImageUrl} alt="" width={1200} height={630}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={post.coverImageUrl} alt={post.title} width={1200} height={630}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-      </div>,
-      { ...size },
-    );
+    const coverData = await fetchImageAsDataUri(post.coverImageUrl);
+    if (coverData) {
+      return new ImageResponse(
+        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: NAVY }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={coverData} alt="" width={1200} height={630}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55) saturate(1.2)', transform: 'scale(1.08)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(2,33,121,0.35)', display: 'flex' }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={coverData} alt={post.title} width={1200} height={630}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+        </div>,
+        { ...size },
+      );
+    }
+    // coverData=null → доорх текст (brand) OG руу унана (цагаан биш!)
   }
 
   const title = post?.title ?? 'DigitalGer блог';

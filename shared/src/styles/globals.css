@@ -1,94 +1,149 @@
 @layer base {
+  /* ════════════════════════════════════════════════════════════════════════
+     ⚠️ ХУУЧИН БРАУЗЕР FALLBACK (iPhone 7 / iOS < 15.4 / хуучин Android)
+     ────────────────────────────────────────────────────────────────────────
+     OKLCH өнгийг зөвхөн iOS Safari 15.4+, Chrome 111+ дэмждэг. Хуучин утсан
+     дээр oklch() утга УНАЖ, өнгө transparent/inherit болж буруу background
+     гаргадаг (gold badge→navy, avatar fallback→буруу гэх мэт).
+     Тиймээс ЭХЛЭЭД HEX утга өгнө (бүх браузер ойлгоно), ДАРАА нь @supports
+     дотор OKLCH-ийг давхар бичиж шинэ браузерт өнгөний нарийвчлал өгнө.
+     HEX-ийг OKLCH-аас тооцоолж гаргасан — brand navy/gold нь exact утга.
+     ════════════════════════════════════════════════════════════════════════ */
   :root {
-    --background: oklch(1 0 0);
     /* iOS safe-area fallbacks */
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-right: env(safe-area-inset-right, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
-    --foreground: oklch(0.141 0.005 285.823);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.141 0.005 285.823);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.141 0.005 285.823);
+
+    --background: #ffffff;
+    --foreground: #09090b;
+    --card: #ffffff;
+    --card-foreground: #09090b;
+    --popover: #ffffff;
+    --popover-foreground: #09090b;
 
     /* DigitalGer brand — navy blue primary */
-    --primary: oklch(0.228 0.148 264.052);
-    --primary-foreground: oklch(1 0 0);
+    --primary: #022179;
+    --primary-foreground: #ffffff;
 
     /* Golden yellow secondary */
-    --secondary: oklch(0.847 0.178 85.87);
-    --secondary-foreground: oklch(0.228 0.148 264.052);
+    --secondary: #ffbe00;
+    --secondary-foreground: #022179;
 
-    --muted: oklch(0.967 0.004 264);
-    --muted-foreground: oklch(0.38 0.012 264);
+    --muted: #f3f4f7;
+    --muted-foreground: #3f4249;
 
     /* Medium blue accent */
-    --accent: oklch(0.46 0.19 264.052);
-    --accent-foreground: oklch(1 0 0);
+    --accent: #1d4bc0;
+    --accent-foreground: #ffffff;
 
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: oklch(1 0 0);
-    --border: oklch(0.92 0.004 264);
-    --input: oklch(0.92 0.004 264);
-    --ring: oklch(0.46 0.19 264.052);
-    --warning: oklch(0.828 0.189 84.429);
-    --warning-foreground: oklch(0.2 0.05 84.429);
+    --destructive: #e7000b;
+    --destructive-foreground: #ffffff;
+    --border: #e3e4e7;
+    --input: #e3e4e7;
+    --ring: #1d4bc0;
+    --warning: #ffb900;
+    --warning-foreground: #2b2300;
     /* Emerald success */
-    --success: oklch(0.527 0.154 150.069);
-    --success-foreground: oklch(1 0 0);
+    --success: #008236;
+    --success-foreground: #ffffff;
     --radius: 0.625rem;
   }
 
   .dark {
-    /* ── Backgrounds: Deep blue — тодорхой elevation шатлал ──
-       Surface hierarchy:  bg(L11.5) → card(L16.5) → popover(L21.5) → secondary(L24.5)
-       Hue 240 (truer blue) + higher chroma → deep-blue premium feel.      ── */
-    --background: oklch(0.185 0.068 255);
-    --foreground: oklch(0.955 0.005 247.839);
+    --background: #001130;
+    --foreground: #eef0f3;
+    --card: #011b3c;
+    --card-foreground: #eef0f3;
+    --popover: #062549;
+    --popover-foreground: #eef0f3;
 
-    /* Card: background-аас +5% L */
-    --card: oklch(0.225 0.072 255);
-    --card-foreground: oklch(0.955 0.005 247.839);
+    /* Primary: GOLD — харанхуйд логоны алтан өнгө */
+    --primary: #ffbe00;
+    --primary-foreground: #07101f;
 
-    /* Popover / modal: card-аас +5% L */
-    --popover: oklch(0.265 0.076 255);
-    --popover-foreground: oklch(0.955 0.005 247.839);
+    --secondary: #0c2c53;
+    --secondary-foreground: #d3d8de;
 
-    /* ── Primary: GOLD — харанхуйд логоны алтан өнгө ── */
-    --primary: oklch(0.847 0.178 85.87);
-    --primary-foreground: oklch(0.1 0.04 264.052);
+    --muted: #031e3e;
+    --muted-foreground: #9197a0;
 
-    /* ── Secondary: hover / pressed surface — popover-оос +3% L ── */
-    --secondary: oklch(0.295 0.080 255);
-    --secondary-foreground: oklch(0.88 0.01 255);
+    --accent: #0070c6;
+    --accent-foreground: #ffffff;
 
-    /* ── Muted: subtle background (chip, tag, skeleton) ── */
-    --muted: oklch(0.235 0.070 255);
-    --muted-foreground: oklch(0.675 0.015 255);
+    --destructive: #f93f4d;
+    --destructive-foreground: #ffffff;
 
-    /* ── Accent: medium-bright blue ── */
-    --accent: oklch(0.52 0.185 240);
-    --accent-foreground: oklch(1 0 0);
+    /* Borders & inputs — rgba (alpha) хуучин браузерт мөн ажиллана */
+    --border: rgba(255, 255, 255, 0.13);
+    --input: rgba(255, 255, 255, 0.17);
 
-    /* ── Destructive ── */
-    --destructive: oklch(0.65 0.22 22.216);
-    --destructive-foreground: oklch(1 0 0);
+    --ring: #ffbe00;
+    --warning: #ffc300;
+    --warning-foreground: #1f1900;
+    --success: #3aa85b;
+    --success-foreground: #061206;
+  }
 
-    /* ── Borders & inputs: харагдахуйц, хэт тод биш ──
-       border 13% → харагдана   input 17% → focus ring тодорхой  ── */
-    --border: oklch(1 0 0 / 13%);
-    --input: oklch(1 0 0 / 17%);
+  /* ── OKLCH progressive enhancement (шинэ браузер: илүү нарийн өнгө) ──
+     iPhone 7 гэх мэт хуучин утас энэ блокийг алгасч, дээрх HEX-ийг хэвээр
+     ашиглана. Шинэ браузер OKLCH-ийг уншиж wide-gamut өнгө гаргана. */
+  @supports (color: oklch(0.5 0.1 180)) {
+    :root {
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.141 0.005 285.823);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.141 0.005 285.823);
+      --popover: oklch(1 0 0);
+      --popover-foreground: oklch(0.141 0.005 285.823);
+      --primary: oklch(0.228 0.148 264.052);
+      --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.847 0.178 85.87);
+      --secondary-foreground: oklch(0.228 0.148 264.052);
+      --muted: oklch(0.967 0.004 264);
+      --muted-foreground: oklch(0.38 0.012 264);
+      --accent: oklch(0.46 0.19 264.052);
+      --accent-foreground: oklch(1 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --destructive-foreground: oklch(1 0 0);
+      --border: oklch(0.92 0.004 264);
+      --input: oklch(0.92 0.004 264);
+      --ring: oklch(0.46 0.19 264.052);
+      --warning: oklch(0.828 0.189 84.429);
+      --warning-foreground: oklch(0.2 0.05 84.429);
+      --success: oklch(0.527 0.154 150.069);
+      --success-foreground: oklch(1 0 0);
+    }
 
-    /* ── Ring: gold focus ring ── */
-    --ring: oklch(0.847 0.178 85.87);
-
-    /* ── Warning ── */
-    --warning: oklch(0.854 0.178 84.429);
-    --warning-foreground: oklch(0.15 0.05 84.429);
-    /* ── Success ── */
-    --success: oklch(0.65 0.15 150);
-    --success-foreground: oklch(0.08 0.03 150);
+    .dark {
+      /* ── Backgrounds: Deep blue — тодорхой elevation шатлал ──
+         Surface hierarchy:  bg(L11.5) → card(L16.5) → popover(L21.5) → secondary(L24.5)
+         Hue 240 (truer blue) + higher chroma → deep-blue premium feel.      ── */
+      --background: oklch(0.185 0.068 255);
+      --foreground: oklch(0.955 0.005 247.839);
+      --card: oklch(0.225 0.072 255);
+      --card-foreground: oklch(0.955 0.005 247.839);
+      --popover: oklch(0.265 0.076 255);
+      --popover-foreground: oklch(0.955 0.005 247.839);
+      --primary: oklch(0.847 0.178 85.87);
+      --primary-foreground: oklch(0.1 0.04 264.052);
+      --secondary: oklch(0.295 0.080 255);
+      --secondary-foreground: oklch(0.88 0.01 255);
+      --muted: oklch(0.235 0.070 255);
+      --muted-foreground: oklch(0.675 0.015 255);
+      --accent: oklch(0.52 0.185 240);
+      --accent-foreground: oklch(1 0 0);
+      --destructive: oklch(0.65 0.22 22.216);
+      --destructive-foreground: oklch(1 0 0);
+      --border: oklch(1 0 0 / 13%);
+      --input: oklch(1 0 0 / 17%);
+      --ring: oklch(0.847 0.178 85.87);
+      --warning: oklch(0.854 0.178 84.429);
+      --warning-foreground: oklch(0.15 0.05 84.429);
+      --success: oklch(0.65 0.15 150);
+      --success-foreground: oklch(0.08 0.03 150);
+    }
   }
 
   * {
@@ -261,6 +316,15 @@
 }
 .animate-search-slide-down {
   animation: search-slide-down 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Notification bell dropdown (зөөлөн scale/fade) ──────── */
+@keyframes notif-dropdown {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+.animate-notif-dropdown {
+  animation: notif-dropdown 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* ─── Themed scrollbar — dark mode дотор харанхуй scrollbar ─ */

@@ -8,6 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
   ThemeToggle,
+  Avatar,
 } from '@digitalger/shared/ui';
 import { SearchAutocomplete } from '@/components/layout/search-autocomplete';
 import { NotificationBell } from '@/components/layout/notification-bell';
@@ -30,6 +31,7 @@ import {
   X,
 } from 'lucide-react';
 import Image from 'next/image';
+import { SmartImage } from '@/components/ui/smart-image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
@@ -121,7 +123,9 @@ function useFeaturedProducts() {
     queryFn: () => productsApi.list({ featured: true, pageSize: 6 }).then((r) => r.items),
     staleTime: 5 * 60 * 1000,
     select: (items) => items.slice(0, 3),
-    retry: 1,
+    // Удаан/тогтворгүй сүлжээнд гацахгүйн тулд 3 удаа эскпонентаар дахин оролдоно
+    retry: 3,
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
   });
 }
 
@@ -130,7 +134,8 @@ function useLatestPosts() {
     queryKey: ['public', 'latest-posts-menu'],
     queryFn: () => blogApi.latest(3),
     staleTime: 5 * 60 * 1000,
-    retry: 1,
+    retry: 3,
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
   });
 }
 
@@ -145,30 +150,19 @@ function UserAvatar({
   isGuest?: boolean;
   size?: 'sm' | 'md';
 }) {
-  const s = size === 'sm' ? 'h-7 w-7 text-xs' : 'h-8 w-8 text-sm';
+  const px = size === 'sm' ? 28 : 32;
   if (isGuest) {
     return (
-      <div className={`flex ${s} items-center justify-center rounded-full bg-muted text-muted-foreground`}>
+      <div
+        className="flex items-center justify-center rounded-full bg-muted text-muted-foreground"
+        style={{ width: px, height: px }}
+      >
         <Ghost className="h-4 w-4" />
       </div>
     );
   }
-  if (image) {
-    return (
-      <Image
-        src={image}
-        alt={name ?? 'User'}
-        width={32}
-        height={32}
-        className={`${s} rounded-full object-cover`}
-      />
-    );
-  }
-  return (
-    <div className={`flex ${s} items-center justify-center rounded-full bg-primary/20 font-bold text-primary`}>
-      {name ? name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
-    </div>
-  );
+  // Avatar — onError fallback + raw <img> (OAuth/R2 optimizer timeout-аас сэргийлнэ)
+  return <Avatar src={image} name={name} size={px} priority />;
 }
 
 const ACCOUNT_MENU = [
@@ -206,7 +200,7 @@ function MobileFeaturedProducts({ onClose }: { onClose: () => void }) {
             >
               <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
                 {p.thumbnailUrl ? (
-                  <Image src={p.thumbnailUrl} alt={p.title} fill className="object-cover" sizes="40px" />
+                  <SmartImage src={p.thumbnailUrl} alt={p.title} fill className="object-cover" sizes="40px" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <Star className="h-4 w-4 text-muted-foreground/40" />
@@ -258,7 +252,7 @@ function MobileLatestPosts({ onClose }: { onClose: () => void }) {
           >
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
               {(post as any).coverImageUrl ? (
-                <Image src={(post as any).coverImageUrl} alt={post.title} fill className="object-cover" sizes="40px" />
+                <SmartImage src={(post as any).coverImageUrl} alt={post.title} fill className="object-cover" sizes="40px" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <BookOpen className="h-4 w-4 text-muted-foreground/40" />

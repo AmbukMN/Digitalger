@@ -29,7 +29,11 @@ export function ProductSwiper({
   const calcLayout = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const w = el.clientWidth;
+    // ⚠️ clientWidth заримдаа эхний render/hidden үед 0 болдог → энэ үед
+    // viewport өргөнөөс таамаглаж padding хасна (mobile 1 багана болж унахаас сэргийлнэ).
+    const w = el.clientWidth || (typeof window !== 'undefined' ? window.innerWidth - 32 : 0);
+    if (w <= 0) return; // бодит хэмжээ ирэх хүртэл хүлээнэ (cardW 0 хэвээр)
+    // Mobile ВСЕГДА 2 багана (зарим утсан дээр 1 болж унахгүй). ≥1024 desktop 4.
     const cols = w >= 1024 ? 4 : 2;
     const r = (cols === 2 && mobileRows === 2) ? 2 : 1;
     setRows(r);
@@ -68,9 +72,13 @@ export function ProductSwiper({
 
   useEffect(() => {
     calcLayout();
+    // clientWidth эхний frame-д 0 байх тохиолдол — дараагийн frame + 200ms-д давтаж
+    // тооцоолно (layout тогтсоны дараа cardW зөв гарна, 1 багана болж унахгүй).
+    const raf = requestAnimationFrame(calcLayout);
+    const t = setTimeout(calcLayout, 200);
     const ro = new ResizeObserver(() => { calcLayout(); sync(); });
     if (wrapRef.current) ro.observe(wrapRef.current);
-    return () => ro.disconnect();
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); ro.disconnect(); };
   }, [calcLayout, sync]);
 
   useEffect(() => {

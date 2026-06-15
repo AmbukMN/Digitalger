@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { BLUR_DATA_URL } from '@/lib/image-blur';
+import { SmartImage } from '@/components/ui/smart-image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@digitalger/shared/ui';
 import type { Banner } from '@/types/api';
@@ -40,28 +39,26 @@ function BannerMedia({ banner }: { banner: Banner }) {
     <>
       {/* Mobile ≤767px */}
       {mobileSrc && (
-        <Image
+        <SmartImage
           src={mobileSrc}
           alt={banner.title}
           fill
           className="object-cover sm:hidden"
           priority
-          placeholder="blur"
-          blurDataURL={BLUR_DATA_URL}
           sizes="100vw"
+          fallbackClassName="sm:hidden"
         />
       )}
       {/* Desktop ≥768px */}
       {desktopSrc && (
-        <Image
+        <SmartImage
           src={desktopSrc}
           alt={banner.title}
           fill
           className="object-cover hidden sm:block"
           priority
-          placeholder="blur"
-          blurDataURL={BLUR_DATA_URL}
           sizes="100vw"
+          fallbackClassName="hidden sm:flex"
         />
       )}
     </>

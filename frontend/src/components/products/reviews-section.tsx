@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import Image from 'next/image';
+import { Avatar } from '@digitalger/shared/ui';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -99,7 +99,6 @@ function ReviewRow({
   onDelete?: () => void;
   deleting?: boolean;
 }) {
-  const initial = (review.user.name ?? 'U').charAt(0).toUpperCase();
   const date = review.createdAt
     ? new Intl.DateTimeFormat('mn-MN', { year: 'numeric', month: 'short', day: 'numeric' }).format(
         new Date(review.createdAt),
@@ -114,19 +113,7 @@ function ReviewRow({
       )}
     >
       <div className="shrink-0">
-        {review.user.image ? (
-          <Image
-            src={review.user.image}
-            alt={review.user.name ?? 'User'}
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-full object-cover"
-          />
-        ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-            {initial}
-          </div>
-        )}
+        <Avatar src={review.user.image} name={review.user.name} size={36} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">

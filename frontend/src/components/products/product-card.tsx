@@ -3,7 +3,6 @@
 import { Badge, Button, Card, CardContent, CardFooter, productTypeBadgeVariant } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
 import { BookOpen, CheckCircle, Download, Flame, Heart, Lock, ShoppingCart, Star } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +16,7 @@ import { useWishlistStore } from '@/store/wishlist';
 import { downloadsApi, wishlistApi } from '@/lib/api';
 import { trackProductClick, trackAddToCart, trackAddToWishlist } from '@/lib/analytics';
 import { LazyCardVideo } from '@/components/products/lazy-card-video';
-import { BLUR_DATA_URL } from '@/lib/image-blur';
+import { SmartImage } from '@/components/ui/smart-image';
 import type { ProductSummary } from '@/types/api';
 
 export function ProductCard({ product }: { product: ProductSummary }) {
@@ -110,14 +109,12 @@ export function ProductCard({ product }: { product: ProductSummary }) {
               alt={product.title}
             />
           ) : product.thumbnailUrl ? (
-            <Image
+            <SmartImage
               src={product.thumbnailUrl}
               alt={product.title}
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              placeholder="blur"
-              blurDataURL={BLUR_DATA_URL}
               unoptimized={product.thumbnailUrl.split('?')[0].toLowerCase().endsWith('.svg')}
             />
           ) : (
