@@ -204,6 +204,22 @@ export function ChatWidget() {
   const isProductDetail = /^\/products\/[^/]+$/.test(pathname || '');
 
   const [open, setOpen] = useState(false);
+
+  // ── Floating товчийг ЗӨВХӨН БОСОО (дээш/доош) чирж зөөх боломж ──
+  // ⚠️ Бусад зүйлд (swiper/card/hover/drag) ОГТ нөлөөлөхгүй: Framer drag="y" нь
+  // pointer event-ийг ЗӨВХӨН энэ товчинд хязгаарлана (бусад элемент сонсохгүй).
+  // Хэвтээ хөдөлгөөнгүй (drag="y") тул хэвтээ swiper-т нөлөөлөхгүй. Хадгалсан
+  // байрлалыг localStorage-д (dragY = доош шилжсэн пиксел, сөрөг=дээш).
+  const DRAG_KEY = 'dg-chat-launcher-y';
+  const [dragY, setDragY] = useState(0);
+  const draggedRef = useRef(false); // drag хийсэн бол click-ийг (чат нээх) блоклоно
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(DRAG_KEY);
+      if (v) setDragY(Number(v) || 0);
+    } catch { /* алгасна */ }
+  }, []);
+
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -352,7 +368,11 @@ export function ChatWidget() {
       <motion.button
         type="button"
         aria-label="AI туслахтай чатлах"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          // Чирсэн бол click-ийг үл тоомсорло (зөв байрлалд тавихад чат нээгдэхгүй).
+          if (draggedRef.current) { draggedRef.current = false; return; }
+          setOpen((o) => !o);
+        }}
         // Mobile: product details хуудсанд л дээш (худалдан авах bar + discount-ийг
         // хаахгүйн тулд bottom-32). Бусад хуудсанд ердийн доод (bottom-5).
         // Desktop: ямар ч хуудсанд доод буланд хэвээр (md:bottom-6).
@@ -360,13 +380,32 @@ export function ChatWidget() {
           // ⚠️ shrink-0 + aspect-square — Lottie ачаалагдах хооронд launcher тойрог хэвээр.
           // overflow-hidden-ийг ЭНДЭЭС авав (badge булан дээр гадна гарахын тулд) — Lottie/icon
           // тойрог хэлбэрийг доорх inner span-ийн overflow-hidden хариуцна.
-          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6',
+          // touch-none — drag үед хуудас scroll болохгүй (зөвхөн товч хөдөлнө).
+          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary/90 md:bottom-6 md:right-6 touch-none',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
+        // ── Зөвхөн БОСОО чирэх (хэвтээ swiper/carousel-д нөлөөлөхгүй) ──
+        // dragConstraints — дэлгэцээс гарахгүй (дээш 70vh, доош 20vh хязгаар).
+        drag="y"
+        dragMomentum={false}
+        dragElastic={0.04}
+        dragConstraints={{
+          top: typeof window !== 'undefined' ? -window.innerHeight * 0.7 : -500,
+          bottom: typeof window !== 'undefined' ? window.innerHeight * 0.2 : 120,
+        }}
+        onDragStart={() => { draggedRef.current = true; }}
+        onDragEnd={(_e, info) => {
+          // Шинэ Y = одоогийн + чирсэн зай. localStorage-д хадгална.
+          setDragY((prev) => {
+            const next = prev + info.offset.y;
+            try { localStorage.setItem(DRAG_KEY, String(Math.round(next))); } catch { /* алгасна */ }
+            return next;
+          });
+        }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.94 }}
-        initial={{ scale: 0, opacity: 1 }}
-        animate={{ scale: 1, opacity: 1 }}
+        initial={{ scale: 0, opacity: 1, y: dragY }}
+        animate={{ scale: 1, opacity: 1, y: dragY }}
         transition={{ type: 'spring', stiffness: 260, damping: 20 }}
         // Hover үед робот тоглоно
         onMouseEnter={playBot}
