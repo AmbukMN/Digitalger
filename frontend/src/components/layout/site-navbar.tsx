@@ -161,7 +161,18 @@ function UserAvatar({
       </div>
     );
   }
-  // Avatar — onError fallback + raw <img> (OAuth/R2 optimizer timeout-аас сэргийлнэ)
+  // Login хийгээгүй (зураг ч нэр ч байхгүй) → default User icon (НЭ "U" үсэг).
+  if (!image && !name) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-full bg-muted text-muted-foreground"
+        style={{ width: px, height: px }}
+      >
+        <User className="h-4 w-4" />
+      </div>
+    );
+  }
+  // Нэвтэрсэн — Avatar (onError fallback + raw <img>, OAuth/R2 timeout-аас сэргийлнэ)
   return <Avatar src={image} name={name} size={px} priority />;
 }
 
@@ -173,7 +184,27 @@ const ACCOUNT_MENU = [
 ];
 
 function MobileFeaturedProducts({ onClose }: { onClose: () => void }) {
-  const { data: products = [] } = useFeaturedProducts();
+  const { data: products = [], isLoading } = useFeaturedProducts();
+
+  // Ачаалж байх үед skeleton (хэсэг бүрэн алга болж "гацсан" мэт харагдахаас сэргийлнэ).
+  if (isLoading) {
+    return (
+      <div className="border-t border-border pt-4 pb-2">
+        <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Онцлох</p>
+        <div className="space-y-1 px-1">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
+              <div className="h-10 w-10 shrink-0 rounded-md bg-muted animate-pulse" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 w-3/4 rounded bg-muted animate-pulse" />
+                <div className="h-3 w-1/3 rounded bg-muted animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (!products.length) return null;
 
   return (
@@ -227,7 +258,23 @@ function MobileFeaturedProducts({ onClose }: { onClose: () => void }) {
 }
 
 function MobileLatestPosts({ onClose }: { onClose: () => void }) {
-  const { data: posts = [] } = useLatestPosts();
+  const { data: posts = [], isLoading } = useLatestPosts();
+
+  if (isLoading) {
+    return (
+      <div className="border-t border-border pt-4 pb-2">
+        <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Нийтлэл</p>
+        <div className="space-y-1 px-1">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
+              <div className="h-10 w-10 shrink-0 rounded-md bg-muted animate-pulse" />
+              <div className="h-3 flex-1 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (!posts.length) return null;
 
   return (

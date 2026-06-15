@@ -220,7 +220,7 @@ export function BundleList({
                 tabIndex={0}
                 onClick={() => toggle(bundle.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(bundle.id); } }}
-                className="w-full flex items-center gap-2 bg-primary/5 px-4 py-3 border-b border-border hover:bg-primary/10 transition-colors text-left cursor-pointer select-none"
+                className="w-full flex items-center gap-2 bg-muted px-4 py-3 border-b border-border hover:bg-muted/70 transition-colors text-left cursor-pointer select-none"
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                   {bi + 1}
