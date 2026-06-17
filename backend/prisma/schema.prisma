@@ -955,11 +955,19 @@ model ChatConversation {
   user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   userName  String? // FB/IG-ийн нэр (n8n profile-аас)
   lastMessageAt DateTime  @default(now())
+  // ── Admin human-handoff (gar hariu) талбарууд ──
+  // adminUnread: хэрэглэгч шинэ мессеж бичсэн → admin уншаагүй (sidebar badge).
+  adminUnread     Boolean @default(false)
+  // handedOff: admin "чатыг авсан" → AI хариулахаа болино, зөвхөн admin хариулна.
+  handedOff       Boolean @default(false)
+  // userUnreadCount: admin бичсэн, хэрэглэгч хараагүй мессежийн тоо (floating badge).
+  userUnreadCount Int     @default(0)
   createdAt DateTime      @default(now())
   messages  ChatMessage[]
 
   @@index([userId, lastMessageAt])
   @@index([channel, lastMessageAt])
+  @@index([adminUnread, lastMessageAt])
 }
 
 model ChatMessage {

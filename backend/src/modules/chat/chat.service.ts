@@ -72,17 +72,23 @@ export class ChatService {
 
     // sessionId unique тул upsert — байхгүй бол create, байвал lastMessageAt
     // шинэчилж, userName/userId өгсөн бол set хийнэ (хуучин утгыг устгахгүй).
+    // Хэрэглэгчийн (user) шинэ мессеж → admin уншаагүй (sidebar badge асна).
+    // assistant (AI) мессеж adminUnread болгохгүй (зөвхөн хэрэглэгч бичсэнд анхаарна).
+    const markAdminUnread = role === 'user';
+
     const conversation = await this.prisma.chatConversation.upsert({
       where: { sessionId },
       create: {
         channel,
         sessionId,
         lastMessageAt: now,
+        adminUnread: markAdminUnread,
         ...(userName ? { userName } : {}),
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
       update: {
         lastMessageAt: now,
+        ...(markAdminUnread ? { adminUnread: true } : {}),
         ...(userName ? { userName } : {}),
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
@@ -134,5 +140,145 @@ export class ChatService {
       this.logger.warn(`linkSession failed: ${(e as Error).message}`);
       return { ok: true, linked: 0 };
     }
+  }
+
+  // ─── ХЭРЭГЛЭГЧ ТАЛД (frontend polling) ───────────────────────────────────────
+
+  /**
+   * Хэрэглэгчийн чат цонх нээлттэй үед polling — sessionId-ийн ШИНЭ мессежүүдийг
+   * (after огнооноос хойш) татна. Ингэснээр admin гар хариу бичихэд хэрэглэгч
+   * харна. handedOff төлөв + admin мессеж (role='admin')-ийг ялгаж буцаана.
+   * Polling татах үед userUnreadCount=0 болгоно (хэрэглэгч харсан гэж үзнэ).
+   */
+  async getMessagesForUser(sessionId: string, afterIso?: string) {
+    const sid = (sessionId ?? '').trim();
+    if (!sid) return { handedOff: false, messages: [] };
+    const conv = await this.prisma.chatConversation.findUnique({
+      where: { sessionId: sid },
+      select: { id: true, handedOff: true },
+    });
+    if (!conv) return { handedOff: false, messages: [] };
+
+    const after = afterIso ? new Date(afterIso) : null;
+    const messages = await this.prisma.chatMessage.findMany({
+      where: {
+        conversationId: conv.id,
+        ...(after && !Number.isNaN(after.getTime()) ? { createdAt: { gt: after } } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+      select: { id: true, role: true, text: true, products: true, createdAt: true },
+    });
+
+    // Хэрэглэгч шинэ мессеж татсан = admin-ийн хариуг харсан → userUnread тэглэнэ.
+    if (messages.some((m) => m.role === 'admin')) {
+      await this.prisma.chatConversation
+        .update({ where: { id: conv.id }, data: { userUnreadCount: 0 } })
+        .catch(() => null);
+    }
+    return { handedOff: conv.handedOff, messages };
+  }
+
+  /** Floating badge — хэрэглэгчид хэдэн уншаагүй admin мессеж байгаа (chat хаалттай үед). */
+  async getUserUnread(sessionId: string) {
+    const sid = (sessionId ?? '').trim();
+    if (!sid) return { unread: 0, handedOff: false };
+    const conv = await this.prisma.chatConversation.findUnique({
+      where: { sessionId: sid },
+      select: { userUnreadCount: true, handedOff: true },
+    });
+    return { unread: conv?.userUnreadCount ?? 0, handedOff: conv?.handedOff ?? false };
+  }
+
+  // ─── ADMIN ТАЛД ──────────────────────────────────────────────────────────────
+
+  /** Admin: бүх чат жагсаалт (pagination + уншаагүй/handedoff filter). */
+  async listConversations(opts: { page?: number; pageSize?: number; onlyUnread?: boolean }) {
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
+    const where = opts.onlyUnread ? { adminUnread: true } : {};
+    const [items, total, unreadTotal] = await Promise.all([
+      this.prisma.chatConversation.findMany({
+        where,
+        orderBy: { lastMessageAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true, channel: true, sessionId: true, userName: true,
+          adminUnread: true, handedOff: true, lastMessageAt: true,
+          user: { select: { id: true, name: true, email: true, image: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { role: true, text: true, createdAt: true },
+          },
+          _count: { select: { messages: true } },
+        },
+      }),
+      this.prisma.chatConversation.count({ where }),
+      this.prisma.chatConversation.count({ where: { adminUnread: true } }),
+    ]);
+    return { items, total, unreadTotal, page, pageSize };
+  }
+
+  /** Admin: нэг чат дэлгэрэнгүй (нээхэд adminUnread=false). */
+  async getConversation(id: string) {
+    const conv = await this.prisma.chatConversation.findUnique({
+      where: { id },
+      select: {
+        id: true, channel: true, sessionId: true, userName: true,
+        adminUnread: true, handedOff: true, lastMessageAt: true,
+        user: { select: { id: true, name: true, email: true, image: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 200,
+          select: { id: true, role: true, text: true, products: true, createdAt: true },
+        },
+      },
+    });
+    if (!conv) return null;
+    // Нээхэд уншсан болгоно (badge цэвэрлэх).
+    if (conv.adminUnread) {
+      await this.prisma.chatConversation
+        .update({ where: { id }, data: { adminUnread: false } })
+        .catch(() => null);
+    }
+    return conv;
+  }
+
+  /**
+   * Admin: гар хариу бичих (role='admin'). userUnreadCount++ (хэрэглэгч badge),
+   * adminUnread=false (admin хариулсан). Дуудагч (controller) хэрэглэгчид
+   * email/in-app notification илгээнэ (энд биш — DB логик л).
+   */
+  async adminReply(id: string, text: string) {
+    const t = (text ?? '').trim().slice(0, MAX_TEXT_LENGTH);
+    if (!t) return null;
+    const conv = await this.prisma.chatConversation.findUnique({
+      where: { id },
+      select: { id: true, sessionId: true, userId: true },
+    });
+    if (!conv) return null;
+    const msg = await this.prisma.chatMessage.create({
+      data: { conversationId: id, role: 'admin', text: t },
+      select: { id: true, role: true, text: true, createdAt: true },
+    });
+    await this.prisma.chatConversation.update({
+      where: { id },
+      data: {
+        lastMessageAt: new Date(),
+        adminUnread: false,
+        userUnreadCount: { increment: 1 },
+      },
+    });
+    return { message: msg, sessionId: conv.sessionId, userId: conv.userId };
+  }
+
+  /** Admin: чат авах/AI-д буцаах toggle (handedOff). true=admin авна, AI унтарна. */
+  async setHandoff(id: string, handedOff: boolean) {
+    await this.prisma.chatConversation
+      .update({ where: { id }, data: { handedOff, ...(handedOff ? { adminUnread: false } : {}) } })
+      .catch(() => null);
+    return { ok: true, handedOff };
   }
 }

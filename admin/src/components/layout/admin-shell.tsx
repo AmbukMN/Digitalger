@@ -100,6 +100,8 @@ const navSections: readonly NavSection[] = [
       { href: '/testimonials', label: 'Testimonial', icon: MessageSquare, resource: 'testimonials' },
       // Суралцагчийн асуулт нь product-той холбоотой — бүгдэд (resource заахгүй).
       { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
+      // AI чат — хэрэглэгчийн чат харах + гар хариулах (бүгдэд).
+      { href: '/chat', label: 'AI Чат', icon: MessageCircle },
       // Холбоо барих (contact form) мессеж — site-level → зөвхөн SUPERADMIN.
       { href: '/contact-messages', label: 'Холбоо барих', icon: MessageCircle, superadminOnly: true },
     ],
@@ -208,6 +210,16 @@ function NavSections({
   });
   const unansweredCount = qStats?.unreadTotal ?? 0;
 
+  // ── УНШААГҮЙ AI чатын тоо (sidebar badge) ──
+  const { data: chatStats } = useQuery({
+    queryKey: ['admin', 'chat', 'unread-count'],
+    queryFn: () => adminApi.chat.unreadCount(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+  const chatUnreadCount = chatStats?.unreadTotal ?? 0;
+
   // ── Бусад хэсгийн "шинэ" badge (Захиалга/Хэрэглэгч/Subscriber/Review/Төлбөр) ──
   // admin сүүлд харснаас хойш үүссэн шинэ бичлэгийн тоо. 30 сек poll + focus.
   const { data: sidebarBadges } = useQuery({
@@ -244,6 +256,7 @@ function NavSections({
       case '/reviews': return { section: 'reviews', count: sidebarBadges?.reviews ?? 0 };
       case '/payments': return { section: 'payments', count: sidebarBadges?.payments ?? 0 };
       case '/lessons-questions': return { section: null, count: unansweredCount };
+      case '/chat': return { section: null, count: chatUnreadCount };
       default: return { section: null, count: 0 };
     }
   };

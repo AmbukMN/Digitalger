@@ -5,6 +5,8 @@ import type {
   AdminBundle,
   AdminBundleItem,
   AdminCategory,
+  AdminChatList,
+  AdminChatConversationDetail,
   AdminContactMessage,
   AdminCoupon,
   AdminDownloadLog,
@@ -171,6 +173,30 @@ export async function adminFetch<T>(
 
 export const adminApi = {
   dashboard: () => adminFetch<DashboardStats>('/admin/dashboard'),
+
+  // ── AI чат human-handoff (admin гар хариу) ──
+  chat: {
+    list: (params?: { page?: number; pageSize?: number; onlyUnread?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+      if (params?.onlyUnread) q.set('onlyUnread', '1');
+      const qs = q.toString();
+      return adminFetch<AdminChatList>(`/admin/chat/conversations${qs ? `?${qs}` : ''}`);
+    },
+    unreadCount: () => adminFetch<{ unreadTotal: number }>('/admin/chat/unread-count'),
+    detail: (id: string) => adminFetch<AdminChatConversationDetail>(`/admin/chat/conversations/${id}`),
+    reply: (id: string, text: string) =>
+      adminFetch<{ ok: boolean }>(`/admin/chat/conversations/${id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }),
+    handoff: (id: string, handedOff: boolean) =>
+      adminFetch<{ ok: boolean; handedOff: boolean }>(`/admin/chat/conversations/${id}/handoff`, {
+        method: 'POST',
+        body: JSON.stringify({ handedOff }),
+      }),
+  },
 
   // Sidebar "шинэ" badge — хэсэг бүрт admin сүүлд харснаас хойш үүссэн шинэ бичлэгийн тоо.
   sidebar: {

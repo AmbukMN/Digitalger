@@ -899,6 +899,28 @@ export const chatApi = {
       token,
       body: JSON.stringify({ sessionId }),
     }),
+
+  // Polling — чат нээлттэй үед шинэ мессеж (admin гар хариу) татах.
+  // after = сүүлийн мессежийн ISO цаг (зөвхөн шинийг авна). handedOff төлөв ирнэ.
+  getMessages: (sessionId: string, after?: string) =>
+    request<{
+      handedOff: boolean;
+      messages: { id: string; role: string; text: string; products?: unknown; createdAt: string }[];
+    }>(`/chat/messages?sessionId=${encodeURIComponent(sessionId)}${after ? `&after=${encodeURIComponent(after)}` : ''}`),
+
+  // Floating badge — хэдэн уншаагүй admin мессеж (chat хаалттай үед polling).
+  getUnread: (sessionId: string) =>
+    request<{ unread: number; handedOff: boolean }>(
+      `/chat/unread?sessionId=${encodeURIComponent(sessionId)}`,
+    ),
+
+  // Handoff үед хэрэглэгчийн мессежийг backend-д хадгалах (n8n руу явахгүй,
+  // admin polling-оор харна). role='user'.
+  saveMessage: (sessionId: string, role: 'user', text: string) =>
+    request<{ ok: boolean }>('/chat/save', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, role, text, channel: 'web' }),
+    }),
 };
 
 // —— Reviews (бүтээгдэхүүний сэтгэгдэл/үнэлгээ) ——

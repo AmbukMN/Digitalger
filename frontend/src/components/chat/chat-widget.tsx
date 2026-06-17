@@ -23,7 +23,7 @@ interface ChatProduct {
 }
 interface ChatMessage {
   id: string;
-  role: 'user' | 'bot';
+  role: 'user' | 'bot' | 'admin'; // admin = багийн гишүүний гар хариу
   text: string;
   products?: ChatProduct[];
 }
@@ -204,6 +204,13 @@ export function ChatWidget() {
   const isProductDetail = /^\/products\/[^/]+$/.test(pathname || '');
 
   const [open, setOpen] = useState(false);
+  // ── Admin human-handoff (гар хариу) ──
+  // handedOff: admin чатыг авсан → AI хариулахгүй, "Та багтай ярьж байна" баннер.
+  const [handedOff, setHandedOff] = useState(false);
+  // unreadAdmin: chat ХААЛТТАЙ үед admin хэдэн мессеж бичсэн (floating badge).
+  const [unreadAdmin, setUnreadAdmin] = useState(0);
+  // Polling-д сүүлийн авсан мессежийн ISO цаг (зөвхөн шинийг татна).
+  const lastMsgAtRef = useRef<string | null>(null);
 
   // ── Floating товчийг ЗӨВХӨН БОСОО (дээш/доош) чирж зөөх боломж ──
   // ⚠️ Бусад зүйлд (swiper/card/hover/drag) ОГТ нөлөөлөхгүй: Framer drag="y" нь
@@ -309,6 +316,59 @@ export function ChatWidget() {
     };
   }, [open]);
 
+  // ── POLLING ──────────────────────────────────────────────────────────────
+  // Chat НЭЭЛТТЭЙ үед: 6с тутам шинэ мессеж (admin гар хариу) татна + handedOff
+  // төлөв шинэчилнэ. Шинэ admin/bot мессеж ирвэл UI-д нэмж, badge тэглэнэ.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    const poll = async () => {
+      try {
+        const res = await chatApi.getMessages(getSessionId(), lastMsgAtRef.current ?? undefined);
+        if (!alive) return;
+        setHandedOff(res.handedOff);
+        if (res.messages.length) {
+          lastMsgAtRef.current = res.messages[res.messages.length - 1].createdAt;
+          // role map: backend 'assistant'→'bot', 'admin'→'admin', 'user'→'user'
+          const incoming = res.messages
+            .filter((m) => m.role === 'admin') // зөвхөн admin гар хариу (bot аль хэдийн send-д нэмэгдсэн)
+            .map((m) => ({
+              id: m.id,
+              role: 'admin' as const,
+              text: m.text,
+              products: Array.isArray(m.products) ? (m.products as ChatProduct[]) : undefined,
+            }));
+          if (incoming.length) {
+            setMessages((prev) => {
+              const ids = new Set(prev.map((p) => p.id));
+              const fresh = incoming.filter((m) => !ids.has(m.id));
+              return fresh.length ? [...prev, ...fresh] : prev;
+            });
+          }
+        }
+        setUnreadAdmin(0); // нээлттэй тул уншсан
+      } catch { /* алгасна */ }
+    };
+    poll();
+    const id = setInterval(poll, 6000);
+    return () => { alive = false; clearInterval(id); };
+  }, [open]);
+
+  // Chat ХААЛТТАЙ үед: 20с тутам уншаагүй admin мессежийн тоо (floating badge).
+  useEffect(() => {
+    if (open) return;
+    let alive = true;
+    const checkUnread = async () => {
+      try {
+        const r = await chatApi.getUnread(getSessionId());
+        if (alive) { setUnreadAdmin(r.unread); setHandedOff(r.handedOff); }
+      } catch { /* алгасна */ }
+    };
+    checkUnread();
+    const id = setInterval(checkUnread, 20000);
+    return () => { alive = false; clearInterval(id); };
+  }, [open]);
+
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -323,6 +383,18 @@ export function ChatWidget() {
     setMessages((m) => [...m, userMsg]);
     setInput('');
     setLoading(true);
+
+    // ⚠️ HANDOFF: admin чатыг авсан бол AI (n8n) хариулахгүй — хэрэглэгчийн
+    // мессежийг зөвхөн backend-д хадгалж, admin polling-оор харж гар хариулна.
+    // Хэрэглэгч admin хариуг доорх polling-оор автоматаар авна.
+    if (handedOff) {
+      try {
+        await chatApi.saveMessage(getSessionId(), 'user', text);
+      } catch { /* алдаа гарвал ч UI-д харагдсан хэвээр */ }
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch(CHAT_WEBHOOK_URL, {
         method: 'POST',
@@ -444,12 +516,21 @@ export function ChatWidget() {
             цэг = төв(32,32)-аас (22.6, -22.6) → элемент дотор (54.6, 9.4). Badge 14px (h-3.5),
             төвийг тэр цэг дээр тавихад булан ≈ top/right 2px (right-0.5 top-0.5) → badge нь
             blue тойргийн ирмэг дээр хагас дотор хагас гадна анивчина (роботоос хол). */}
-        {!open && (
+        {/* Admin гар хариу ирсэн бол — уншаагүй ТОО (улаан badge, сэгсэрнэ).
+            Эс бол ердийн анхаарал татах цэг (gold ping). */}
+        {!open && unreadAdmin > 0 ? (
+          <span
+            className="absolute -right-1 -top-1 z-10 flex h-5 min-w-5 animate-bounce items-center justify-center rounded-full px-1 text-[11px] font-bold ring-2 ring-primary"
+            style={{ backgroundColor: '#e11d48', color: '#fff' }}
+          >
+            {unreadAdmin > 9 ? '9+' : unreadAdmin}
+          </span>
+        ) : !open ? (
           <span className="absolute right-0.5 top-0.5 z-10 flex h-3.5 w-3.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
             <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-secondary ring-2 ring-primary" />
           </span>
-        )}
+        ) : null}
       </motion.button>
 
       {/* Чат цонх */}
@@ -476,10 +557,10 @@ export function ChatWidget() {
                   <Bot className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold leading-tight">DigitalGer AI</p>
+                  <p className="text-sm font-bold leading-tight">{handedOff ? 'DigitalGer Багийн гишүүн' : 'DigitalGer AI'}</p>
                   <p className="flex items-center gap-1 text-[11px] text-primary-foreground/80">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
-                    Онлайн · хариу өгөхөд бэлэн
+                    {handedOff ? 'Шууд хариулж байна' : 'Онлайн · хариу өгөхөд бэлэн'}
                   </p>
                 </div>
               </div>
@@ -495,24 +576,43 @@ export function ChatWidget() {
 
             {/* Мессежүүд */}
             <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-muted/30 px-3 py-4">
-              {messages.map((m) => (
-                <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-                  <div className={cn('max-w-[85%] space-y-2', m.role === 'user' ? '' : 'w-full')}>
-                    <div
-                      className={cn(
-                        'whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
-                        m.role === 'user'
-                          ? 'rounded-br-md bg-primary text-primary-foreground'
-                          : 'rounded-bl-md border border-border bg-background text-foreground',
-                      )}
-                    >
-                      {m.role === 'bot' ? renderRichText(m.text) : m.text}
-                    </div>
-                    {/* Бүтээгдэхүүн carousel (back/forward сумтай, зураг 4:3) */}
-                    {m.products && m.products.length > 0 && <ProductCarousel products={m.products} />}
-                  </div>
+              {/* HANDOFF баннер — admin чатыг авсан үед (AI-аас ялгах) */}
+              {handedOff && (
+                <div className="rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-center text-xs font-medium text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400">
+                  ✅ Та одоо манай багийн гишүүнтэй шууд ярьж байна
                 </div>
-              ))}
+              )}
+              {messages.map((m) => {
+                const isUser = m.role === 'user';
+                const isAdmin = m.role === 'admin';
+                return (
+                  <div key={m.id} className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
+                    <div className={cn('max-w-[85%] space-y-2', isUser ? '' : 'w-full')}>
+                      {/* Admin (багийн гишүүн) мессежид нэрийн тэмдэг */}
+                      {isAdmin && (
+                        <p className="flex items-center gap-1 px-1 text-[10px] font-semibold text-green-600 dark:text-green-400">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                          Багийн гишүүн
+                        </p>
+                      )}
+                      <div
+                        className={cn(
+                          'whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
+                          isUser
+                            ? 'rounded-br-md bg-primary text-primary-foreground'
+                            : isAdmin
+                              ? 'rounded-bl-md border border-green-300 bg-green-50 text-foreground dark:border-green-800 dark:bg-green-900/20'
+                              : 'rounded-bl-md border border-border bg-background text-foreground',
+                        )}
+                      >
+                        {m.role === 'bot' || isAdmin ? renderRichText(m.text) : m.text}
+                      </div>
+                      {/* Бүтээгдэхүүн carousel (back/forward сумтай, зураг 4:3) */}
+                      {m.products && m.products.length > 0 && <ProductCarousel products={m.products} />}
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Typing indicator */}
               {loading && (

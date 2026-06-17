@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   Post,
+  Query,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -69,5 +71,24 @@ export class ChatController {
     @CurrentUser() me: JwtPayload,
   ) {
     return this.chat.linkSession(body?.sessionId ?? '', me.sub);
+  }
+
+  /**
+   * ХЭРЭГЛЭГЧ ТАЛД (frontend polling) — чат нээлттэй үед sessionId-ийн ШИНЭ
+   * мессеж (after-аас хойш) татна. Admin гар хариу (role='admin')-ийг харуулна.
+   * Auth-гүй (зочин ч ажиллана) — sessionId нь нууц биш, зөвхөн өөрийн чат.
+   * Throttle: 120/мин (5-7с polling-д хангалттай).
+   */
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Get('messages')
+  async messages(@Query('sessionId') sessionId?: string, @Query('after') after?: string) {
+    return this.chat.getMessagesForUser(sessionId ?? '', after);
+  }
+
+  /** Floating товч badge — хэдэн уншаагүй admin мессеж (chat хаалттай үед polling). */
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Get('unread')
+  async unread(@Query('sessionId') sessionId?: string) {
+    return this.chat.getUserUnread(sessionId ?? '');
   }
 }

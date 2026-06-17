@@ -198,6 +198,45 @@ export interface UserDetailChatConversation {
   messages: UserDetailChatMessage[];
 }
 
+// ── Admin chat human-handoff (/admin/chat) ──
+export interface AdminChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'admin';
+  text: string;
+  products?: ChatMessageProduct[] | null;
+  createdAt: string;
+}
+export interface AdminChatListItem {
+  id: string;
+  channel: 'web' | 'facebook' | 'instagram';
+  sessionId: string;
+  userName?: string | null;
+  adminUnread: boolean;
+  handedOff: boolean;
+  lastMessageAt: string;
+  user?: { id: string; name: string | null; email: string; image: string | null } | null;
+  messages: { role: string; text: string; createdAt: string }[];
+  _count: { messages: number };
+}
+export interface AdminChatList {
+  items: AdminChatListItem[];
+  total: number;
+  unreadTotal: number;
+  page: number;
+  pageSize: number;
+}
+export interface AdminChatConversationDetail {
+  id: string;
+  channel: 'web' | 'facebook' | 'instagram';
+  sessionId: string;
+  userName?: string | null;
+  adminUnread: boolean;
+  handedOff: boolean;
+  lastMessageAt: string;
+  user?: { id: string; name: string | null; email: string; image: string | null } | null;
+  messages: AdminChatMessage[];
+}
+
 // Хэрэглэгчийн LTV (нийт зарцуулсан / худалдан авалт)
 export interface UserDetailLtv {
   totalSpent: number | string;
