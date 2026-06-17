@@ -11,6 +11,7 @@ import type {
   AdminCoupon,
   AdminDownloadLog,
   AdminFaq,
+  AdminHelpVideo,
   AdminLesson,
   AdminLessonResource,
   AdminLessonAnswer,
@@ -640,12 +641,22 @@ export const adminApi = {
 
   faqs: {
     list: () => adminFetch<AdminFaq[]>('/admin/faqs'),
-    create: (body: { question: string; answer: string; category?: string; sortOrder?: number; active?: boolean }) =>
+    create: (body: { question: string; answer: string; category?: string; sortOrder?: number; active?: boolean; showInHelp?: boolean }) =>
       adminFetch<AdminFaq>('/admin/faqs', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: Partial<AdminFaq>) =>
       adminFetch<AdminFaq>(`/admin/faqs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) => adminFetch<void>(`/admin/faqs/${id}`, { method: 'DELETE' }),
     getProductIds: (faqId: string) => adminFetch<string[]>(`/admin/faqs/${faqId}/product-ids`),
+  },
+
+  // ─── Help Video (Туслах самбарын видео заавар) ───────────────────────────
+  helpVideos: {
+    list: () => adminFetch<AdminHelpVideo[]>('/admin/help-videos'),
+    create: (body: Partial<AdminHelpVideo>) =>
+      adminFetch<AdminHelpVideo>('/admin/help-videos', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<AdminHelpVideo>) =>
+      adminFetch<AdminHelpVideo>(`/admin/help-videos/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => adminFetch<void>(`/admin/help-videos/${id}`, { method: 'DELETE' }),
   },
 
   // ─── Review / Сэтгэгдэл (бүтээгдэхүүний үнэлгээ) ──────────────────────────

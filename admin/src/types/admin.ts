@@ -594,11 +594,28 @@ export interface AdminFaq {
   answer: string;
   category?: string | null;
   active: boolean;
+  showInHelp?: boolean;
   sortOrder: number;
   createdByUserId?: string | null;
   createdAt: string;
   updatedAt?: string;
   _count?: { products: number };
+}
+
+export interface AdminHelpVideo {
+  id: string;
+  title: string;
+  description: string | null;
+  videoUrl: string | null;       // YouTube/Vimeo гадаад
+  videoKey: string | null;       // R2 public URL (upload)
+  videoStreamId: string | null;  // Cloudflare Stream
+  posterKey: string | null;      // Thumbnail URL
+  durationLabel: string | null;  // "0:30" г.м
+  sortOrder: number;
+  active: boolean;
+  createdByUserId?: string | null;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 // Холбоо барих (contact form) мессеж — DB-д хадгалагдсан, admin панелд харна.

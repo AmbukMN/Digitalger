@@ -28,12 +28,13 @@ interface FAQ {
   answer: string;
   category?: string | null;
   active: boolean;
+  showInHelp?: boolean;
   sortOrder: number;
   createdByUserId?: string | null;
   _count?: { products: number };
 }
 
-const emptyForm = { question: '', answer: '', category: '', sortOrder: 0, active: true };
+const emptyForm = { question: '', answer: '', category: '', sortOrder: 0, active: true, showInHelp: false };
 
 function FaqDialog({
   open, faq, onClose, onSaved,
@@ -43,7 +44,7 @@ function FaqDialog({
   useEffect(() => {
     if (open) {
       setForm(faq
-        ? { question: faq.question, answer: faq.answer, category: faq.category ?? '', sortOrder: faq.sortOrder, active: faq.active }
+        ? { question: faq.question, answer: faq.answer, category: faq.category ?? '', sortOrder: faq.sortOrder, active: faq.active, showInHelp: faq.showInHelp ?? false }
         : emptyForm
       );
     }
@@ -57,6 +58,7 @@ function FaqDialog({
         category: form.category || undefined,
         sortOrder: form.sortOrder,
         active: form.active,
+        showInHelp: form.showInHelp,
       };
       return faq
         ? adminApi.faqs.update(faq.id, payload)
@@ -100,10 +102,17 @@ function FaqDialog({
             />
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.active} onChange={(e) => setForm(f => ({ ...f, active: e.target.checked }))} />
-            <span className="text-sm">Идэвхтэй</span>
-          </label>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm(f => ({ ...f, active: e.target.checked }))} />
+              <span className="text-sm">Идэвхтэй</span>
+            </label>
+            {/* Help Assistant самбарын FAQ tab-д харуулах эсэх */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.showInHelp} onChange={(e) => setForm(f => ({ ...f, showInHelp: e.target.checked }))} />
+              <span className="text-sm">Туслах самбарт (Help) харуулах</span>
+            </label>
+          </div>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>Болих</Button>
@@ -183,6 +192,9 @@ export default function FaqsPage() {
                           <Badge variant={faq.active ? 'default' : 'secondary'} className="text-xs shrink-0">
                             {faq.active ? 'Идэвхтэй' : 'Идэвхгүй'}
                           </Badge>
+                          {faq.showInHelp ? (
+                            <Badge variant="outline" className="text-xs shrink-0 border-primary/40 text-primary">Help</Badge>
+                          ) : null}
                           {faq._count?.products ? (
                             <Badge variant="outline" className="text-xs shrink-0">{faq._count.products} бүтээгдэхүүн</Badge>
                           ) : null}

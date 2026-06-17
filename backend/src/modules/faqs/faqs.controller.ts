@@ -17,6 +17,17 @@ export class FaqsPublicController {
   }
 }
 
+// Public: Help Assistant panel-ийн FAQ tab (showInHelp=true)
+@Controller('help/faqs')
+export class HelpFaqsPublicController {
+  constructor(private readonly faqs: FaqsService) {}
+
+  @Get()
+  list() {
+    return this.faqs.findForHelp();
+  }
+}
+
 // Admin: full CRUD + product assignment
 @Controller('admin/faqs')
 @UseGuards(JwtAuthGuard, RolesGuard)

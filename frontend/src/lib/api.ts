@@ -923,6 +923,29 @@ export const chatApi = {
     }),
 };
 
+// —— Help Assistant (туслах самбар: видео заавар + FAQ) ——
+export interface HelpVideoItem {
+  id: string;
+  title: string;
+  description: string | null;
+  videoUrl: string | null;      // YouTube/Vimeo
+  videoKey: string | null;      // R2 public URL
+  videoStreamId: string | null; // Cloudflare Stream
+  posterKey: string | null;     // thumbnail
+  durationLabel: string | null;
+}
+export interface HelpFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: string | null;
+}
+
+export const helpApi = {
+  videos: () => request<HelpVideoItem[]>('/help/videos'),
+  faqs: () => request<HelpFaqItem[]>('/help/faqs'),
+};
+
 // —— Reviews (бүтээгдэхүүний сэтгэгдэл/үнэлгээ) ——
 export interface ReviewItem {
   id: string;

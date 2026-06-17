@@ -91,6 +91,7 @@ model User {
   ownedFaqs         FAQ[]               @relation("ContentOwner")
   ownedBlogPosts    BlogPost[]          @relation("ContentOwner")
   ownedBanners      Banner[]            @relation("ContentOwner")
+  ownedHelpVideos   HelpVideo[]         @relation("ContentOwner")
   ownedPages        Page[]              @relation("ContentOwner")
   ownedCoupons      Coupon[]            @relation("ContentOwner")
   permissions       AdminPermission[]
@@ -675,12 +676,38 @@ model FAQ {
   answer    String       @db.Text
   category  String?
   active    Boolean      @default(true)
+  // Help Assistant panel-ийн FAQ tab-д харуулах эсэх (admin checkbox-оор сонгоно)
+  showInHelp Boolean     @default(false)
   sortOrder Int          @default(0)
   createdByUserId String?
   createdBy       User?    @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   products  ProductFAQ[]
+
+  @@index([active, sortOrder])
+  @@index([showInHelp, active])
+  @@index([createdByUserId])
+}
+
+// ── HelpVideo: Help Assistant panel-ийн "Видео заавар" tab-ийн контент ──
+// Видео эх сурвалж 3 хувилбар (Lesson-той ижил): videoUrl (YouTube/гадаад),
+// videoKey (R2 public), videoStreamId (Cloudflare Stream). posterKey = thumbnail.
+model HelpVideo {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?   @db.Text
+  videoUrl        String?   // YouTube/Vimeo гадаад линк
+  videoKey        String?   // R2 public URL (admin upload)
+  videoStreamId   String?   // Cloudflare Stream uid
+  posterKey       String?   // Thumbnail зураг (R2 эсвэл гадаад URL)
+  durationLabel   String?   // "0:30", "1:20" гэх мэт харуулах шошго
+  sortOrder       Int       @default(0)
+  active          Boolean   @default(true)
+  createdByUserId String?
+  createdBy       User?     @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([active, sortOrder])
   @@index([createdByUserId])

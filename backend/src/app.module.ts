@@ -26,6 +26,7 @@ import { BannersModule } from './modules/banners/banners.module';
 import { MenuModule } from './modules/menu/menu.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { FaqsModule } from './modules/faqs/faqs.module';
+import { HelpVideosModule } from './modules/help-videos/help-videos.module';
 import { TestimonialsModule } from './modules/testimonials/testimonials.module';
 import { BundlesModule } from './modules/bundles/bundles.module';
 import { BlogModule } from './modules/blog/blog.module';
@@ -92,6 +93,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     MenuModule,
     WishlistModule,
     FaqsModule,
+    HelpVideosModule,
     TestimonialsModule,
     BundlesModule,
     BlogModule,

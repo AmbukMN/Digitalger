@@ -11,6 +11,7 @@ import type { DotLottie } from '@lottiefiles/dotlottie-react';
 import { cn } from '@digitalger/shared';
 import { chatApi } from '@/lib/api';
 import { CHAT_WEBHOOK_URL } from '@/lib/constants';
+import { useChatUi } from '@/store/chat-ui';
 
 // ── Төрлүүд ──
 interface ChatProduct {
@@ -204,6 +205,16 @@ export function ChatWidget() {
   const isProductDetail = /^\/products\/[^/]+$/.test(pathname || '');
 
   const [open, setOpen] = useState(false);
+  // ── Help Assistant самбараас ГАДНААС нээх сигнал ──
+  // "AI Туслах" таб дарахад help панель хаагдаж, chat widget автоматаар нээгдэнэ.
+  const chatOpenSignal = useChatUi((s) => s.openSignal);
+  const lastOpenSignalRef = useRef(0);
+  useEffect(() => {
+    if (chatOpenSignal > 0 && chatOpenSignal !== lastOpenSignalRef.current) {
+      lastOpenSignalRef.current = chatOpenSignal;
+      setOpen(true);
+    }
+  }, [chatOpenSignal]);
   // ── Admin human-handoff (гар хариу) ──
   // handedOff: admin чатыг авсан → AI хариулахгүй, "Та багтай ярьж байна" баннер.
   const [handedOff, setHandedOff] = useState(false);

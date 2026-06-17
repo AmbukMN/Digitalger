@@ -11,6 +11,7 @@ export class CreateFaqDto {
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsNumber() sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() showInHelp?: boolean;
 }
 
 export class UpdateFaqDto {
@@ -19,6 +20,7 @@ export class UpdateFaqDto {
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsNumber() sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() showInHelp?: boolean;
 }
 
 @Injectable()
@@ -76,6 +78,15 @@ export class FaqsService {
       }
     }
     return this.prisma.fAQ.delete({ where: { id } });
+  }
+
+  // Help Assistant panel-ийн FAQ tab — showInHelp=true + active (нийтийн, auth-гүй)
+  findForHelp() {
+    return this.prisma.fAQ.findMany({
+      where: { active: true, showInHelp: true },
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
+      select: { id: true, question: true, answer: true, category: true },
+    });
   }
 
   // Get FAQs assigned to a product (for public product detail)

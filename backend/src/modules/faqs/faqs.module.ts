@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
 import { FaqsService } from './faqs.service';
-import { FaqsAdminController, FaqsPublicController } from './faqs.controller';
+import {
+  FaqsAdminController,
+  FaqsPublicController,
+  HelpFaqsPublicController,
+} from './faqs.controller';
 
 @Module({
-  controllers: [FaqsPublicController, FaqsAdminController],
+  controllers: [FaqsPublicController, HelpFaqsPublicController, FaqsAdminController],
   providers: [FaqsService],
   exports: [FaqsService],
 })

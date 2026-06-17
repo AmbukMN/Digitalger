@@ -39,6 +39,7 @@ import {
   User,
   Users,
   Activity,
+  Video,
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -112,6 +113,8 @@ const navSections: readonly NavSection[] = [
       // Banner/Хуудас/Навигац — зөвхөн SUPERADMIN (admin-д эрх олгодоггүй).
       { href: '/banners', label: 'Баннер', icon: Images, superadminOnly: true },
       { href: '/faqs', label: 'FAQ', icon: HelpCircle, resource: 'faqs' },
+      // Туслах самбарын видео заавар — site-level → зөвхөн SUPERADMIN.
+      { href: '/help-videos', label: 'Видео заавар', icon: Video, superadminOnly: true },
       { href: '/blog', label: 'Нийтлэл', icon: FileText, resource: 'blog' },
       { href: '/pages', label: 'Хуудас', icon: FileEdit, superadminOnly: true },
       { href: '/menu', label: 'Навигац', icon: Navigation, superadminOnly: true },

@@ -11,6 +11,7 @@ import { ServiceWorkerRegister } from '@/components/service-worker-register';
 // Chat widget-ийг client wrapper дотор dynamic(ssr:false) хийж анхны JS
 // bundle-аас гаргасан (ssr:false нь server component-д зөвшөөрөгдөхгүй).
 import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
+import { HelpAssistantLazy } from '@/components/help/help-assistant-lazy';
 
 // display:'swap' → FOIT (текст харагдахгүй) сэргийлж, fallback фонтоор шууд
 // харуулаад фонт ачаалагдмагц солино (first-paint хурдан).
@@ -229,6 +230,7 @@ export default async function RootLayout({
           <AnalyticsTracker />
           {children}
           <ChatWidgetLazy />
+          <HelpAssistantLazy />
         </Providers>
         <WebVitalsReporter />
         <ServiceWorkerRegister />
