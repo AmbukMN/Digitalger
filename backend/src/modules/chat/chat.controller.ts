@@ -49,11 +49,7 @@ export class ChatController {
     // n8n webhook аль хэдийн нийтийн тул нэмэлт secret хүндрэл үүсгэдэг.
     // [DEBUG-PRODUCTS] n8n products дамжуулалт шалгах түр лог (дараа устгана)
     // eslint-disable-next-line no-console
-    console.log('[chat/save DEBUG]', JSON.stringify({
-      role: body.role,
-      productsType: Array.isArray(body.products) ? 'array' : typeof body.products,
-      productsLen: Array.isArray(body.products) ? body.products.length : null,
-    }));
+    console.log('[chat/save RAW]', JSON.stringify(body).slice(0, 500));
     return this.chat.saveMessage({
       channel: body.channel ?? 'web',
       sessionId: body.sessionId ?? '',
