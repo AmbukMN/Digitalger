@@ -47,9 +47,6 @@ export class ChatController {
     // ⚠️ Secret шалгахгүй — chat save нь эмзэг бус (зөвхөн яриа лог). Throttle
     // (240/мин) + sessionId шаардлага + текст таслалт спамаас хамгаална.
     // n8n webhook аль хэдийн нийтийн тул нэмэлт secret хүндрэл үүсгэдэг.
-    // [DEBUG-PRODUCTS] n8n products дамжуулалт шалгах түр лог (дараа устгана)
-    // eslint-disable-next-line no-console
-    console.log('[chat/save RAW]', JSON.stringify(body).slice(0, 500));
     return this.chat.saveMessage({
       channel: body.channel ?? 'web',
       sessionId: body.sessionId ?? '',
@@ -59,6 +56,52 @@ export class ChatController {
       userId: body.userId,
       products: body.products,
     });
+  }
+
+  /**
+   * n8n web chat — нэг дуудлагаар user + assistant мессеж + products нэгэн зэрэг.
+   * ⚠️ ЯАГААД ТУСДАА ENDPOINT: n8n 2.x task-runner-ийн Code node доторх
+   *    this.helpers.httpRequest() body-д workflow-д урьдчилан мэдэгдээгүй (динамик)
+   *    талбарыг (products массив г.м) main процесс руу дамжуулахдаа АЛГАСДАГ.
+   *    Тиймээс products огт хүрэхгүй байв. Шийдэл: Code node-оос биш, n8n native
+   *    HTTP Request node-оор (main процессд ажилладаг, proxy-гүй) ЭНЭ endpoint руу
+   *    нэг payload илгээнэ → products найдвартай хүрнэ.
+   */
+  @Throttle({ default: { limit: 240, ttl: 60000 } })
+  @Post('ingest')
+  async ingest(
+    @Body()
+    body: {
+      sessionId?: string;
+      userText?: string;
+      assistantText?: string;
+      products?: unknown; // assistant санал болгосон card массив
+      userName?: string;
+    },
+  ) {
+    const sessionId = (body.sessionId ?? '').trim();
+    if (!sessionId) return { ok: true, skipped: true };
+    // user мессеж (adminUnread асаана)
+    if (body.userText?.trim()) {
+      await this.chat.saveMessage({
+        channel: 'web',
+        sessionId,
+        role: 'user',
+        text: body.userText,
+        userName: body.userName,
+      });
+    }
+    // assistant мессеж + products
+    if (body.assistantText?.trim()) {
+      await this.chat.saveMessage({
+        channel: 'web',
+        sessionId,
+        role: 'assistant',
+        text: body.assistantText,
+        products: body.products,
+      });
+    }
+    return { ok: true };
   }
 
   /**
