@@ -404,7 +404,7 @@ export class UsersService {
           messages: {
             orderBy: { createdAt: 'desc' },
             take: 50,
-            select: { id: true, role: true, text: true, createdAt: true },
+            select: { id: true, role: true, text: true, products: true, createdAt: true },
           },
         },
       }),
@@ -562,6 +562,7 @@ export class UsersService {
         id: m.id,
         role: m.role,
         text: m.text,
+        products: m.products ?? null, // AI санал болгосон card (хэрэглэгчийн харсан)
         createdAt: m.createdAt,
       })),
     }));

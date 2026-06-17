@@ -279,6 +279,38 @@ function ChatConversationCard({ conv }: { conv: UserDetailChatConversation }) {
                         >
                           {m.text}
                         </div>
+                        {/* AI санал болгосон бүтээгдэхүүний card — хэрэглэгчид харагдсаныг
+                            ЯГ ижлээр (нэр/үнэ/хямдрал/зураг). Зүгээр текст биш бүрэн. */}
+                        {!isUser && Array.isArray(m.products) && m.products.length > 0 && (
+                          <div className="mt-1.5 flex max-w-full gap-2 overflow-x-auto pb-1">
+                            {m.products.map((p, pi) => (
+                              <a
+                                key={p.id ?? pi}
+                                href={p.url ?? '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex w-32 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-primary/40"
+                              >
+                                <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                                  {p.imageUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={p.imageUrl} alt={p.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Bot className="h-5 w-5" /></div>
+                                  )}
+                                </div>
+                                <div className="flex flex-1 flex-col gap-0.5 p-1.5">
+                                  <p className="line-clamp-2 min-h-7 text-[11px] font-semibold text-foreground">{p.title}</p>
+                                  {p.salePrice != null ? (
+                                    <span className="text-xs font-bold text-primary">{Math.round(p.salePrice).toLocaleString()}₮</span>
+                                  ) : p.price != null ? (
+                                    <span className="text-xs font-bold text-primary">{Math.round(p.price).toLocaleString()}₮</span>
+                                  ) : null}
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         <span className="mt-1 px-1 text-[10px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
                       </div>
                       {isUser && (

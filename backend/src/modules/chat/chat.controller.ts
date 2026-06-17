@@ -39,6 +39,7 @@ export class ChatController {
       text?: string;
       userName?: string;
       userId?: string;
+      products?: unknown; // assistant мессеж дээр AI санал болгосон card
     },
   ) {
     // ⚠️ Secret шалгахгүй — chat save нь эмзэг бус (зөвхөн яриа лог). Throttle
@@ -51,6 +52,7 @@ export class ChatController {
       text: body.text ?? '',
       userName: body.userName,
       userId: body.userId,
+      products: body.products,
     });
   }
 

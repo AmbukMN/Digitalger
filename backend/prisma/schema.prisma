@@ -968,6 +968,10 @@ model ChatMessage {
   conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String // user | assistant
   text           String           @db.Text
+  // AI бот санал болгосон бүтээгдэхүүний card (carousel) — хэрэглэгчид харагдсан
+  // яг тэр products. Admin чатыг ЯГ хэрэглэгчийн харсанчлан (card-тай) харна.
+  // n8n assistant мессеж дээр дамжуулна. ChatProduct[]: {id,title,price,salePrice,imageUrl,url}
+  products       Json?
   createdAt      DateTime         @default(now())
 
   @@index([conversationId, createdAt])

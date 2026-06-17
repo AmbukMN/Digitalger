@@ -175,9 +175,19 @@ export interface UserDetailPageView {
   createdAt: string;
 }
 // ─── Чат (web/facebook AI чатбот) ────────────────────────────────────────────
+// AI бот санал болгосон бүтээгдэхүүний card (хэрэглэгчийн харсан)
+export interface ChatMessageProduct {
+  id: string | null;
+  title: string;
+  price: number | null;
+  salePrice: number | null;
+  imageUrl: string | null;
+  url: string | null;
+}
 export interface UserDetailChatMessage {
   role: 'user' | 'assistant';
   text: string;
+  products?: ChatMessageProduct[] | null;
   createdAt: string;
 }
 export interface UserDetailChatConversation {

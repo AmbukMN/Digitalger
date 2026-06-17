@@ -17,6 +17,8 @@ export interface SaveChatInput {
   text: string;
   userName?: string;
   userId?: string;
+  // AI бот санал болгосон бүтээгдэхүүний card (assistant мессеж дээр n8n дамжуулна).
+  products?: unknown;
 }
 
 @Injectable()
@@ -87,11 +89,19 @@ export class ChatService {
       select: { id: true },
     });
 
+    // Products card — зөвхөн assistant мессеж дээр, массив бол (дээд 12, спам хязгаар).
+    // Хэрэглэгчид харагдсан card-ийг ЯГ хадгална → admin ижлээр харна.
+    let products: unknown[] | undefined;
+    if (role === 'assistant' && Array.isArray(input.products) && input.products.length) {
+      products = input.products.slice(0, 12);
+    }
+
     await this.prisma.chatMessage.create({
       data: {
         conversationId: conversation.id,
         role,
         text,
+        ...(products ? { products: products as object } : {}),
       },
     });
 
