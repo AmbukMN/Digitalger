@@ -47,6 +47,13 @@ export class ChatController {
     // ⚠️ Secret шалгахгүй — chat save нь эмзэг бус (зөвхөн яриа лог). Throttle
     // (240/мин) + sessionId шаардлага + текст таслалт спамаас хамгаална.
     // n8n webhook аль хэдийн нийтийн тул нэмэлт secret хүндрэл үүсгэдэг.
+    // [DEBUG-PRODUCTS] n8n products дамжуулалт шалгах түр лог (дараа устгана)
+    // eslint-disable-next-line no-console
+    console.log('[chat/save DEBUG]', JSON.stringify({
+      role: body.role,
+      productsType: Array.isArray(body.products) ? 'array' : typeof body.products,
+      productsLen: Array.isArray(body.products) ? body.products.length : null,
+    }));
     return this.chat.saveMessage({
       channel: body.channel ?? 'web',
       sessionId: body.sessionId ?? '',

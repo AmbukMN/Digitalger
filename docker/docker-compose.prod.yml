@@ -115,6 +115,11 @@ services:
     env_file:
       - /opt/DigitalGer/.env.production
     command: ["node", "dist/src/worker.js"]
+    # ⚠️ Worker нь backend image хуваалцдаг (Dockerfile HTTP HEALTHCHECK port 4000).
+    # Гэхдээ worker нь HTTP server БИШ (зөвхөн BullMQ queue consumer) тул port 4000
+    # байхгүй → "unhealthy" ХУУРАМЧ харагдана (email/zip хэвийн ажиллана). Disable.
+    healthcheck:
+      disable: true
     networks:
       - internal
     depends_on:

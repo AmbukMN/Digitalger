@@ -448,12 +448,15 @@ export function ChatWidget() {
         // Mobile: product details хуудсанд л дээш (худалдан авах bar + discount-ийг
         // хаахгүйн тулд bottom-32). Бусад хуудсанд ердийн доод (bottom-5).
         // Desktop: ямар ч хуудсанд доод буланд хэвээр (md:bottom-6).
+        // ⚠️ Тогтмол 64×64px ТОЙРОГ — inline style-ээр min/max бэхлэв. Зарим үед
+        // flex/badge/animation icon-ийг ЗУУВАН (гонзгой) болгодог байсан тул
+        // width/height-ийг хатуу заана (aspect-ratio класс хангалтгүй байсан).
+        style={{ width: 64, height: 64, minWidth: 64, minHeight: 64, flex: '0 0 64px' }}
         className={cn(
-          // ⚠️ shrink-0 + aspect-square — Lottie ачаалагдах хооронд launcher тойрог хэвээр.
           // overflow-hidden-ийг ЭНДЭЭС авав (badge булан дээр гадна гарахын тулд) — Lottie/icon
           // тойрог хэлбэрийг доорх inner span-ийн overflow-hidden хариуцна.
           // touch-none — drag үед хуудас scroll болохгүй (зөвхөн товч хөдөлнө).
-          'fixed right-5 z-[60] flex h-16 w-16 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary md:bottom-6 md:right-6 touch-none',
+          'fixed right-5 z-[60] flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary md:bottom-6 md:right-6 touch-none',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
         // ── Зөвхөн БОСОО чирэх (хэвтээ swiper/carousel-д нөлөөлөхгүй) ──
@@ -474,11 +477,16 @@ export function ChatWidget() {
             return next;
           });
         }}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.94 }}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.96 }}
         initial={{ scale: 0, opacity: 1, y: dragY }}
         animate={{ scale: 1, opacity: 1, y: dragY }}
-        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        // ⚠️ scale-д spring overshoot ХАСав (spring нь scaleX/scaleY-г зөрүүлж icon-ийг
+        // ЗУУВАН болгодог байсан). scale=tween (overshoot-гүй), y/opacity=spring.
+        transition={{
+          scale: { type: 'tween', duration: 0.2, ease: 'easeOut' },
+          default: { type: 'spring', stiffness: 260, damping: 20 },
+        }}
         // Hover үед робот тоглоно
         onMouseEnter={playBot}
       >
