@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  HelpCircle, X, Play, ChevronRight, Bot, PlayCircle, ChevronLeft,
+  HelpCircle, X, Play, ChevronRight, Bot, PlayCircle,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -136,6 +136,17 @@ export function HelpAssistant() {
     if (open) requestCloseChat();
   }, [open, requestCloseChat]);
 
+  // Esc — эхлээд видео lightbox, дараа нь panel хаах
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setPlaying((p) => { if (p) return null; setOpen(false); return p; });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   // Chat launcher-тай давхцахгүйн тулд: product detail mobile-д дээш (chat bottom-32).
   const isProductDetail = /^\/products\/[^/]+$/.test(pathname || '');
 
@@ -229,17 +240,21 @@ export function HelpAssistant() {
             />
             <motion.div
               className={cn(
-                'fixed z-[62] flex flex-col overflow-hidden border border-border bg-background shadow-2xl',
-                // Mobile (<md): доороос бүтэн өргөн bottom sheet
-                'max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[88dvh] max-md:rounded-t-2xl',
-                // Desktop (≥md): ? icon-ийн дэргэд БАРУУН доод хөвөгч panel
-                // (chat цонх md:bottom-24, ? icon md:bottom-[6.25rem] — panel доороос дээш)
-                'md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-8rem))] md:w-[400px] md:rounded-2xl',
+                'fixed z-[62] flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl',
+                // ⚠️ Panel нь ? icon-ийн ДЭЭД талаас гарна (icon-ийг дарахгүй).
+                // ? icon: mobile bottom-[5.75rem]≈92px + h-52px = орой ≈144px;
+                //         desktop md:bottom-[6.25rem]≈100px + 52px = орой ≈152px.
+                // Panel-ийн доод ирмэгийг icon оройноос ДЭЭШ тавина (bottom-[10rem]=160px).
+                // Баруун талдаа icon-той зэрэгцэнэ (right-5 / md:right-6).
+                'bottom-[10rem] right-3 left-3 max-h-[calc(100dvh-12rem)]',
+                'md:bottom-[10.5rem] md:right-6 md:left-auto md:w-[400px] md:h-[min(560px,calc(100dvh-13rem))]',
               )}
-              initial={{ opacity: 0, y: 40, scale: 0.98 }}
+              // ? icon (доод-баруун) талаас дэлбээрэн нээгдэх — origin доод-баруун
+              style={{ transformOrigin: 'bottom right' }}
+              initial={{ opacity: 0, y: 16, scale: 0.92 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 40, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              exit={{ opacity: 0, y: 16, scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
             >
               {/* Header */}
               <div className="flex items-center justify-between gap-2 bg-gradient-to-br from-[#022179] to-[#1e40af] px-4 py-3.5 text-white">
@@ -252,18 +267,8 @@ export function HelpAssistant() {
                 </button>
               </div>
 
-              {/* Видео тоглуулж байгаа бол player дээр гарна */}
-              {playing ? (
-                <div className="flex flex-1 flex-col overflow-y-auto p-4">
-                  <button onClick={() => setPlaying(null)} className="mb-3 flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground">
-                    <ChevronLeft className="h-4 w-4" /> Буцах
-                  </button>
-                  <VideoPlayer video={playing} />
-                  <p className="mt-3 text-sm font-semibold">{playing.title}</p>
-                  {playing.description && <p className="mt-1 text-xs text-muted-foreground">{playing.description}</p>}
-                </div>
-              ) : (
-                <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="flex flex-1 flex-col overflow-hidden">
+              {/* Tabs — видео дарахад тусдаа fullscreen lightbox нээгдэнэ (доор) */}
+              <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="flex flex-1 flex-col overflow-hidden">
                   <TabsList className="mx-4 mt-3 grid w-auto grid-cols-3">
                     <TabsTrigger value="videos">Видео заавар</TabsTrigger>
                     <TabsTrigger value="faq">FAQ</TabsTrigger>
@@ -336,9 +341,42 @@ export function HelpAssistant() {
                     </button>
                   </TabsContent>
                 </Tabs>
-              )}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Видео Lightbox — БҮТЭН ДЭЛГЭЦ том player (тусдаа overlay) ── */}
+      {/* Background эсвэл X дарахад хаагдана. Help panel-ээс ДЭЭГҮҮР (z-[80]). */}
+      <AnimatePresence>
+        {playing && (
+          <motion.div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setPlaying(null)} // background дарахад хаах
+          >
+            <button
+              onClick={() => setPlaying(null)}
+              aria-label="Хаах"
+              className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/25"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <motion.div
+              className="w-full max-w-4xl"
+              initial={{ scale: 0.94, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              onClick={(e) => e.stopPropagation()} // player дотор дарахад хаагдахгүй
+            >
+              <VideoPlayer video={playing} />
+              <div className="mt-3 text-white">
+                <p className="text-base font-semibold">{playing.title}</p>
+                {playing.description && <p className="mt-1 text-sm text-white/70">{playing.description}</p>}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>
