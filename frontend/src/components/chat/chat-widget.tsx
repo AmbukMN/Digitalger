@@ -124,7 +124,7 @@ function ProductCarousel({ products }: { products: ChatProduct[] }) {
             href={p.url || '#'}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex w-40 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors hover:border-primary/40"
+            className="group flex w-40 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors hover:border-primary"
           >
             <div className="relative aspect-4/3 w-full overflow-hidden bg-muted">
               {p.imageUrl ? (
@@ -482,7 +482,7 @@ export function ChatWidget() {
           // overflow-hidden-ийг ЭНДЭЭС авав (badge булан дээр гадна гарахын тулд) — Lottie/icon
           // тойрог хэлбэрийг доорх inner span-ийн overflow-hidden хариуцна.
           // touch-none — drag үед хуудас scroll болохгүй (зөвхөн товч хөдөлнө).
-          'fixed right-5 z-[60] flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-[bottom] duration-300 hover:bg-primary md:bottom-6 md:right-6 touch-none',
+          'fixed right-5 z-[60] flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-[bottom] duration-300 hover:bg-primary md:bottom-6 md:right-6 touch-none',
           isProductDetail ? 'bottom-32' : 'bottom-5',
         )}
         // ── Зөвхөн БОСОО чирэх (хэвтээ swiper/carousel-д нөлөөлөхгүй) ──

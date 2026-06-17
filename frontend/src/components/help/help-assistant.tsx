@@ -58,7 +58,7 @@ function VideoPlayer({ video }: { video: HelpVideoItem }) {
     return (
       <a href={video.videoUrl} target="_blank" rel="noopener noreferrer"
         className="flex aspect-video w-full items-center justify-center rounded-xl bg-muted text-sm text-primary underline">
-        Видео нээх ↗
+        Видео нээх &#8599;
       </a>
     );
   }
@@ -80,21 +80,35 @@ function VideoPlayer({ video }: { video: HelpVideoItem }) {
 
 // ── Видео жагсаалтын мөр ──
 function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void }) {
+  // ⚠️ Хуучин утас (iOS<15.4): opacity utility (/70,/40,/10) → color-mix() → УНАНА.
+  // Тиймээс энгийн theme класс (HEX fallback-тай) + rgba inline ашиглана.
+  // Thumbnail: poster зураг байвал тэр, эс бол upload видеоны ЭХНИЙ FRAME
+  // (<video preload=metadata #t=0.1>), эс бол PlayCircle placeholder.
+  const poster = video.posterKey;
+  const videoSrc = video.videoKey || video.videoUrl;
   return (
     <button
       onClick={onPlay}
-      className="group flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card p-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+      className="group flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-muted"
     >
       <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-        {video.posterKey ? (
+        {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={video.posterKey} alt={video.title} className="h-full w-full object-cover" />
+          <img src={poster} alt={video.title} className="h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+        ) : videoSrc ? (
+          // Upload видеоны эхний frame preview (тоглуулахгүй, зөвхөн poster болгож)
+          <video src={`${videoSrc}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-primary/10">
+          <div className="flex h-full w-full items-center justify-center" style={{ background: 'rgba(2,33,121,0.10)' }}>
             <PlayCircle className="h-5 w-5 text-primary" />
           </div>
         )}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+        <span
+          className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+          style={{ background: 'rgba(0,0,0,0.35)' }}
+        >
           <Play className="h-5 w-5 fill-white text-white" />
         </span>
       </div>
@@ -107,7 +121,7 @@ function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void 
       {video.durationLabel && (
         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{video.durationLabel}</span>
       )}
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
     </button>
   );
 }
@@ -187,14 +201,19 @@ export function HelpAssistant() {
         type="button"
         aria-label="Тусламж"
         onClick={() => { if (!draggedRef.current) setOpen((v) => !v); }}
-        style={{ width: 52, height: 52, minWidth: 52, minHeight: 52 }}
+        style={{
+          width: 64, height: 64, minWidth: 64, minHeight: 64,
+          // gradient inline (iOS<15.4 найдвартай HEX, bg-gradient utility oklch-д унадаг)
+          background: 'linear-gradient(135deg, #022179 0%, #1e40af 100%)',
+          boxShadow: '0 10px 25px rgba(2,33,121,0.3)',
+        }}
         className={cn(
-          'fixed right-[26px] z-[59] flex items-center justify-center rounded-full text-white shadow-lg transition-[bottom] duration-300 touch-none',
-          // Brand gradient (navy → medium blue), ? icon
-          'bg-gradient-to-br from-[#022179] to-[#1e40af] shadow-[#022179]/30 hover:shadow-xl',
-          // Chat launcher (h-16=64px, bottom-5/6) дээр 76px зайтай
-          isProductDetail ? 'bottom-[12.5rem]' : 'bottom-[5.75rem]',
-          'md:bottom-[6.25rem] md:right-[30px]',
+          // ⚠️ Chat launcher-тэй ИЖИЛ 64×64. Chat: right-5/md:right-6, bottom-5/md:bottom-6.
+          // Help нь chat-ийн ДЭЭР (chat өндөр 64 + 5(bottom)=69px орчим → help-ийг
+          // chat дээр ~80px зайтай: bottom 5rem+ ).
+          'fixed right-5 z-[59] flex items-center justify-center rounded-full text-white transition-[bottom] duration-300 touch-none md:right-6',
+          isProductDetail ? 'bottom-[13rem]' : 'bottom-[6.5rem]',
+          'md:bottom-[7rem]',
         )}
         drag="y"
         dragMomentum={false}
@@ -218,11 +237,11 @@ export function HelpAssistant() {
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
             <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }}>
-              <X className="h-5 w-5" />
+              <X className="h-6 w-6" />
             </motion.span>
           ) : (
             <motion.span key="q" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }}>
-              <HelpCircle className="h-6 w-6" />
+              <HelpCircle className="h-7 w-7" />
             </motion.span>
           )}
         </AnimatePresence>
@@ -234,7 +253,8 @@ export function HelpAssistant() {
           <>
             {/* Mobile backdrop */}
             <motion.div
-              className="fixed inset-0 z-[61] bg-black/40 md:hidden"
+              className="fixed inset-0 z-[61] md:hidden"
+              style={{ background: 'rgba(0,0,0,0.4)' }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
             />
@@ -246,8 +266,8 @@ export function HelpAssistant() {
                 //         desktop md:bottom-[6.25rem]≈100px + 52px = орой ≈152px.
                 // Panel-ийн доод ирмэгийг icon оройноос ДЭЭШ тавина (bottom-[10rem]=160px).
                 // Баруун талдаа icon-той зэрэгцэнэ (right-5 / md:right-6).
-                'bottom-[10rem] right-3 left-3 max-h-[calc(100dvh-12rem)]',
-                'md:bottom-[10.5rem] md:right-6 md:left-auto md:w-[400px] md:h-[min(560px,calc(100dvh-13rem))]',
+                'bottom-[11rem] right-3 left-3 max-h-[calc(100dvh-13rem)]',
+                'md:bottom-[11.5rem] md:right-6 md:left-auto md:w-[400px] md:h-[min(560px,calc(100dvh-14rem))]',
               )}
               // ? icon (доод-баруун) талаас дэлбээрэн нээгдэх — origin доод-баруун
               style={{ transformOrigin: 'bottom right' }}
@@ -256,13 +276,16 @@ export function HelpAssistant() {
               exit={{ opacity: 0, y: 16, scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between gap-2 bg-gradient-to-br from-[#022179] to-[#1e40af] px-4 py-3.5 text-white">
+              {/* Header — gradient inline (iOS<15.4 найдвартай HEX) */}
+              <div
+                className="flex items-center justify-between gap-2 px-4 py-3.5 text-white"
+                style={{ background: 'linear-gradient(135deg, #022179 0%, #1e40af 100%)' }}
+              >
                 <div>
                   <p className="flex items-center gap-1.5 text-base font-bold">👋 Сайн байна уу!</p>
-                  <p className="text-xs text-white/80">Юугаар туслах вэ?</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.8)' }}>Юугаар туслах вэ?</p>
                 </div>
-                <button onClick={() => setOpen(false)} aria-label="Хаах" className="rounded-full p-1.5 transition-colors hover:bg-white/15">
+                <button onClick={() => setOpen(false)} aria-label="Хаах" className="rounded-full p-1.5 transition-colors hover:bg-[#1e40af]">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -299,7 +322,7 @@ export function HelpAssistant() {
                         {faqs.map((f: HelpFaqItem) => {
                           const expanded = openFaq === f.id;
                           return (
-                            <div key={f.id} className="overflow-hidden rounded-xl border border-border/70 bg-card">
+                            <div key={f.id} className="overflow-hidden rounded-xl border border-border bg-card">
                               <button
                                 onClick={() => setOpenFaq(expanded ? null : f.id)}
                                 className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left"
@@ -326,7 +349,7 @@ export function HelpAssistant() {
 
                   {/* AI Туслах — дарвал панель хаагдаж AI chat нээгдэнэ */}
                   <TabsContent value="ai" className="mt-0 flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#022179] to-[#1e40af] text-white">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full text-white" style={{ background: 'linear-gradient(135deg, #022179 0%, #1e40af 100%)' }}>
                       <Bot className="h-8 w-8" />
                     </div>
                     <div>
@@ -335,7 +358,8 @@ export function HelpAssistant() {
                     </div>
                     <button
                       onClick={goToAi}
-                      className="rounded-xl bg-gradient-to-br from-[#022179] to-[#1e40af] px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"
+                      className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"
+                      style={{ background: 'linear-gradient(135deg, #022179 0%, #1e40af 100%)' }}
                     >
                       AI туслахтай ярих →
                     </button>
@@ -351,14 +375,16 @@ export function HelpAssistant() {
       <AnimatePresence>
         {playing && (
           <motion.div
-            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.85)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setPlaying(null)} // background дарахад хаах
           >
             <button
               onClick={() => setPlaying(null)}
               aria-label="Хаах"
-              className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/25"
+              className="absolute right-4 top-4 z-10 rounded-full p-2 text-white transition-colors"
+              style={{ background: 'rgba(255,255,255,0.12)' }}
             >
               <X className="h-6 w-6" />
             </button>
@@ -373,7 +399,7 @@ export function HelpAssistant() {
               <VideoPlayer video={playing} />
               <div className="mt-3 text-white">
                 <p className="text-base font-semibold">{playing.title}</p>
-                {playing.description && <p className="mt-1 text-sm text-white/70">{playing.description}</p>}
+                {playing.description && <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{playing.description}</p>}
               </div>
             </motion.div>
           </motion.div>

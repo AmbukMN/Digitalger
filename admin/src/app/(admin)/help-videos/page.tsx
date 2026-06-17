@@ -48,17 +48,39 @@ function HelpVideoDialog({
     }
   }, [open, video?.id]);
 
+  // Видео файлын хугацааг client дээр унших (upload-аас өмнө) → "1:23" формат
+  const readDuration = (file: File): Promise<string | null> =>
+    new Promise((resolve) => {
+      try {
+        const v = document.createElement('video');
+        v.preload = 'metadata';
+        v.onloadedmetadata = () => {
+          URL.revokeObjectURL(v.src);
+          const sec = Math.round(v.duration);
+          if (!sec || !isFinite(sec)) return resolve(null);
+          const m = Math.floor(sec / 60);
+          const s = sec % 60;
+          resolve(`${m}:${String(s).padStart(2, '0')}`);
+        };
+        v.onerror = () => resolve(null);
+        v.src = URL.createObjectURL(file);
+      } catch { resolve(null); }
+    });
+
   const handleUpload = async (file: File, field: 'video' | 'poster') => {
     setUploading(field);
     try {
-      const res = await uploadWithProgress(file, 'help-videos');
+      // Видео бол хугацааг ЗЭРЭГ уншина (upload-той зэрэгцүүлэн)
+      const durPromise = field === 'video' ? readDuration(file) : Promise.resolve(null);
+      const [res, dur] = await Promise.all([uploadWithProgress(file, 'help-videos'), durPromise]);
       if (field === 'video') {
-        // Файл upload хийвэл videoKey-д хадгална (videoUrl-ийг цэвэрлэнэ)
-        setForm((f) => ({ ...f, videoKey: res.url, videoUrl: '' }));
+        // Файл upload хийвэл videoKey-д хадгална (videoUrl-ийг цэвэрлэнэ).
+        // durationLabel-ийг автомат бөглөнө (хэрэглэгч гараар оруулахгүй).
+        setForm((f) => ({ ...f, videoKey: res.url, videoUrl: '', durationLabel: dur || f.durationLabel }));
       } else {
         setForm((f) => ({ ...f, posterKey: res.url }));
       }
-      toast.success('Байршуулсан');
+      toast.success(field === 'video' && dur ? `Байршуулсан (${dur})` : 'Байршуулсан');
     } catch (e) {
       toast.error(errMsg(e, 'Байршуулахад алдаа'));
     } finally {
@@ -86,7 +108,7 @@ function HelpVideoDialog({
     onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
-  const hasVideo = !!(form.videoUrl || form.videoKey);
+  const hasVideo = !!form.videoKey;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -94,15 +116,15 @@ function HelpVideoDialog({
         <DialogHeader>
           <DialogTitle>{video ? 'Видео заавар засах' : 'Видео заавар нэмэх'}</DialogTitle>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!hasVideo) { toast.error('Видео файл эсвэл YouTube холбоос оруулна уу'); return; } mutation.mutate(); }}>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!hasVideo) { toast.error('Видео файл байршуулна уу'); return; } mutation.mutate(); }}>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2 col-span-2">
               <Label>Гарчиг *</Label>
               <Input value={form.title} onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Жишээ: Бүтээгдэхүүн хэрхэн авах вэ?" required />
             </div>
             <div className="space-y-2">
-              <Label>Үргэлжлэх хугацаа (шошго)</Label>
-              <Input value={form.durationLabel} onChange={(e) => setForm(f => ({ ...f, durationLabel: e.target.value }))} placeholder="0:30" />
+              <Label>Үргэлжлэх хугацаа</Label>
+              <Input value={form.durationLabel} onChange={(e) => setForm(f => ({ ...f, durationLabel: e.target.value }))} placeholder="Авто (видеоноос)" />
             </div>
             <div className="space-y-2">
               <Label>Дараалал</Label>
@@ -120,7 +142,7 @@ function HelpVideoDialog({
             />
           </div>
 
-          {/* Видео эх сурвалж — файл upload ЭСВЭЛ YouTube холбоос */}
+          {/* Видео эх сурвалж — файл upload (R2) */}
           <div className="space-y-2 rounded-lg border border-border p-3">
             <Label className="text-xs font-semibold uppercase text-muted-foreground">Видео эх сурвалж</Label>
 
@@ -138,15 +160,7 @@ function HelpVideoDialog({
                 Видео файл байршуулах (MP4/WebM)
               </Button>
             )}
-
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span className="h-px flex-1 bg-border" />эсвэл<span className="h-px flex-1 bg-border" /></div>
-
-            <Input
-              value={form.videoUrl}
-              onChange={(e) => setForm(f => ({ ...f, videoUrl: e.target.value, videoKey: e.target.value ? '' : f.videoKey }))}
-              placeholder="YouTube / Vimeo холбоос (https://...)"
-              disabled={!!form.videoKey}
-            />
+            <p className="text-[11px] text-muted-foreground">Видео байршуулахад үргэлжлэх хугацаа автоматаар тооцогдоно.</p>
           </div>
 
           {/* Thumbnail (poster) — заавал биш */}
@@ -236,11 +250,13 @@ export default function HelpVideosPage() {
             <Card key={v.id} className="transition-colors hover:border-primary/40">
               <CardContent className="flex items-center gap-3 p-3">
                 <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40" />
-                {/* thumbnail */}
+                {/* thumbnail — poster зураг, эс бол видеоны эхний frame */}
                 <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-muted">
                   {v.posterKey ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={v.posterKey} alt={v.title} className="h-full w-full object-cover" />
+                  ) : (v.videoKey || v.videoUrl) ? (
+                    <video src={`${v.videoKey || v.videoUrl}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center"><Play className="h-4 w-4 text-muted-foreground" /></div>
                   )}
