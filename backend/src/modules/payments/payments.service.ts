@@ -80,34 +80,27 @@ export class PaymentsService {
       };
     }
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        orderId: order.id,
-        amount: order.total,
-        status: PaymentStatus.PENDING,
-      },
-    });
-
+    // ── DEV mode (QPay тохируулаагүй) — payment үүсгээд шууд complete ──
     if (!this.isQPayConfigured()) {
-      this.logger.warn('QPay not configured — auto-completing payment (dev mode)');
-      await this.completePayment(order.id, payment.id, {
-        devMode: true,
-        qpayPaymentId: `dev-${payment.id}`,
+      const devPayment = await this.prisma.payment.create({
+        data: { orderId: order.id, amount: order.total, status: PaymentStatus.PENDING },
       });
-
+      this.logger.warn('QPay not configured — auto-completing payment (dev mode)');
+      await this.completePayment(order.id, devPayment.id, {
+        devMode: true,
+        qpayPaymentId: `dev-${devPayment.id}`,
+      });
       return {
         devMode: true,
         orderId: order.id,
-        paymentId: payment.id,
+        paymentId: devPayment.id,
         status: PaymentStatus.SUCCESS,
         message: 'Payment auto-completed in development mode',
       };
     }
 
     const qpay = this.config.get('qpay');
-    const token = await this.getQPayToken();
     const identifier = `DG-${order.id}`;
-
     const invoiceBody = {
       invoice_code: qpay.invoiceCode,
       sender_invoice_no: identifier,
@@ -117,34 +110,47 @@ export class PaymentsService {
       callback_url: qpay.callbackUrl,
     };
 
-    const response = await fetch('https://merchant.qpay.mn/v2/invoice', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(invoiceBody),
-    });
+    // ⚠️ QPay invoice — token cache хүчингүй болсон (NO_CREDENTIALS/401) бол token-ийг
+    // ШИНЭЭР авч НЭГ удаа дахин оролдоно. Энэ нь "NO_CREDENTIALS — Хандах эрхгүй" гэж
+    // хэрэглэгч QR авч чадахгүй байсан гол bug-ийг засна (cache хуучин token барьдаг).
+    const callInvoice = async (token: string) =>
+      fetch('https://merchant.qpay.mn/v2/invoice', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceBody),
+      });
+
+    let response = await callInvoice(await this.getQPayToken());
+    if (response.status === 401 || response.status === 403) {
+      this.tokenCache = null; // хүчингүй token-ийг цэвэрлэж шинээр авна
+      response = await callInvoice(await this.getQPayToken());
+    }
 
     if (!response.ok) {
       const text = await response.text();
       this.logger.error(`QPay invoice failed: ${text}`);
+      // ⚠️ Invoice АМЖИЛТГҮЙ бол payment бичлэг ҮҮСГЭХГҮЙ (өмнө амжилтгүй ч
+      // payment.create хийгээд NULL хог хуримтлуулдаг байсан — нэг order дээр
+      // 15 NULL payment үүссэн). Одоо зөвхөн амжилттай invoice-д payment үүснэ.
       throw new BadRequestException('Failed to create QPay invoice');
     }
 
     const invoice = (await response.json()) as QPayInvoiceResponse;
 
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: { qpayIdentifier: identifier },
-    });
-
-    await this.prisma.payment.update({
-      where: { id: payment.id },
+    // ✅ Invoice амжилттай — ОДОО payment бичлэг үүсгэнэ (qpayPaymentId-тэй).
+    const payment = await this.prisma.payment.create({
       data: {
+        orderId: order.id,
+        amount: order.total,
+        status: PaymentStatus.PENDING,
         qpayPaymentId: invoice.invoice_id,
         rawPayload: invoice as object,
       },
+    });
+
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: { qpayIdentifier: identifier },
     });
 
     return {
@@ -243,19 +249,24 @@ export class PaymentsService {
   private async verifyPaymentWithQpay(qpayPaymentId: string): Promise<boolean> {
     if (!this.isQPayConfigured()) return false;
     try {
-      const token = await this.getQPayToken();
-      const res = await fetch('https://merchant.qpay.mn/v2/payment/check', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          object_type: 'INVOICE',
-          object_id: qpayPaymentId,
-          offset: { page_number: 1, page_limit: 100 },
-        }),
+      const checkBody = JSON.stringify({
+        object_type: 'INVOICE',
+        object_id: qpayPaymentId,
+        offset: { page_number: 1, page_limit: 100 },
       });
+      const callCheck = async (token: string) =>
+        fetch('https://merchant.qpay.mn/v2/payment/check', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: checkBody,
+        });
+      // Token cache хүчингүй (401/403) бол шинээр авч дахин шалгана — эс бол
+      // БОДИТООР ТӨЛСӨН хэрэглэгч "хүлээгдэж байна" дээр гацна.
+      let res = await callCheck(await this.getQPayToken());
+      if (res.status === 401 || res.status === 403) {
+        this.tokenCache = null;
+        res = await callCheck(await this.getQPayToken());
+      }
       if (!res.ok) return false;
       const result = await res.json();
       return (
@@ -510,11 +521,32 @@ export class PaymentsService {
     }
 
     const data = (await response.json()) as QPayTokenResponse;
-    this.tokenCache = {
-      token: data.access_token,
-      expiresAt: Date.now() + (data.expires_in - 60) * 1000,
-    };
 
+    // ⚠️ КРИТИК bug засвар: QPay-ийн expires_in нь "хэдэн секундын дараа" БИШ,
+    // харин Unix TIMESTAMP (epoch секунд, жиш 1781784158) буцаадаг. Хуучин код
+    // `Date.now() + expires_in*1000` гэж бодсон тул cache 50,000 жил хүчинтэй
+    // болж, QPay талд token бодитоор дуусахад (≈24ц) хүчингүй token-оор invoice
+    // дуудсаар "NO_CREDENTIALS — Хандах эрхгүй" гарч ХЭРЭГЛЭГЧ ТӨЛЖ ЧАДАХГҮЙ байв.
+    // Засвар: expires_in timestamp мөн эсэхийг танин зөв expiry тооцно.
+    const now = Date.now();
+    const raw = Number(data.expires_in) || 0;
+    let expiresAtMs: number;
+    if (raw > 1_000_000_000 && raw < 100_000_000_000) {
+      // 10 оронтой = Unix timestamp (секунд) → ms болгож, 60с буфер хасна
+      expiresAtMs = raw * 1000 - 60_000;
+    } else if (raw > 0) {
+      // Энгийн "хэдэн секундын дараа" (хэрэв QPay өөрчилбөл)
+      expiresAtMs = now + (raw - 60) * 1000;
+    } else {
+      // Утга байхгүй/буруу → аюулгүй талд 1 цаг cache (дараа дахин авна)
+      expiresAtMs = now + 60 * 60 * 1000;
+    }
+    // ⚠️ Хэт хол ирээдүй (буруу) бол дээд хязгаар 12 цаг тавина (QPay token
+    // ихэвчлэн ≤24ц — хэзээ ч дуусдаггүй cache үүсгэхгүй).
+    const MAX = now + 12 * 60 * 60 * 1000;
+    if (expiresAtMs > MAX || expiresAtMs <= now) expiresAtMs = MAX;
+
+    this.tokenCache = { token: data.access_token, expiresAt: expiresAtMs };
     return data.access_token;
   }
 }
