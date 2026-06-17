@@ -211,6 +211,7 @@ export function ChatWidget() {
   const chatOpenSignal = useChatUi((s) => s.openSignal);
   const closeChatSignal = useChatUi((s) => s.closeChatSignal);
   const requestCloseHelp = useChatUi((s) => s.requestCloseHelp);
+  const setChatOpen = useChatUi((s) => s.setChatOpen);
   const lastOpenSignalRef = useRef(0);
   const lastCloseSignalRef = useRef(0);
   useEffect(() => {
@@ -226,10 +227,11 @@ export function ChatWidget() {
       setOpen(false);
     }
   }, [closeChatSignal]);
-  // Chat нээгдэх бүрд help-ийг хаа (харилцан хаах)
+  // Chat нээгдэх бүрд help-ийг хаа + store-д төлөв мэдэгдэх (bubble давхцахгүй)
   useEffect(() => {
     if (open) requestCloseHelp();
-  }, [open, requestCloseHelp]);
+    setChatOpen(open);
+  }, [open, requestCloseHelp, setChatOpen]);
   // ── Admin human-handoff (гар хариу) ──
   // handedOff: admin чатыг авсан → AI хариулахгүй, "Та багтай ярьж байна" баннер.
   const [handedOff, setHandedOff] = useState(false);

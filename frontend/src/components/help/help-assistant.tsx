@@ -135,6 +135,8 @@ export function HelpAssistant() {
   const requestOpenChat = useChatUi((s) => s.requestOpenChat);
   const requestCloseChat = useChatUi((s) => s.requestCloseChat);
   const closeHelpSignal = useChatUi((s) => s.closeHelpSignal);
+  const openHelpSignal = useChatUi((s) => s.openHelpSignal);
+  const setHelpOpen = useChatUi((s) => s.setHelpOpen);
 
   // ── Chat ↔ Help ХАРИЛЦАН ХААХ ──
   // Chat нээгдэв → help хаа (store-аас closeHelpSignal сигнал)
@@ -145,10 +147,19 @@ export function HelpAssistant() {
       setOpen(false);
     }
   }, [closeHelpSignal]);
-  // Help нээгдэх бүрд chat-ийг хаа
+  // Help bubble → help panel нээх сигнал
+  const lastOpenHelpRef = useRef(0);
+  useEffect(() => {
+    if (openHelpSignal > 0 && openHelpSignal !== lastOpenHelpRef.current) {
+      lastOpenHelpRef.current = openHelpSignal;
+      setOpen(true);
+    }
+  }, [openHelpSignal]);
+  // Help нээгдэх бүрд chat-ийг хаа + store-д төлөв мэдэгдэх (bubble давхцахгүй)
   useEffect(() => {
     if (open) requestCloseChat();
-  }, [open, requestCloseChat]);
+    setHelpOpen(open);
+  }, [open, requestCloseChat, setHelpOpen]);
 
   // Esc — эхлээд видео lightbox, дараа нь panel хаах
   useEffect(() => {
