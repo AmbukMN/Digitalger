@@ -118,7 +118,23 @@ export function HelpAssistant() {
   const [tab, setTab] = useState<'videos' | 'faq' | 'ai'>('videos');
   const [playing, setPlaying] = useState<HelpVideoItem | null>(null);
   const [openFaq, setOpenFaq] = useState<string | null>(null);
-  const requestOpenChat = useChatUi((s) => s.requestOpen);
+  const requestOpenChat = useChatUi((s) => s.requestOpenChat);
+  const requestCloseChat = useChatUi((s) => s.requestCloseChat);
+  const closeHelpSignal = useChatUi((s) => s.closeHelpSignal);
+
+  // ── Chat ↔ Help ХАРИЛЦАН ХААХ ──
+  // Chat нээгдэв → help хаа (store-аас closeHelpSignal сигнал)
+  const lastCloseHelpRef = useRef(0);
+  useEffect(() => {
+    if (closeHelpSignal > 0 && closeHelpSignal !== lastCloseHelpRef.current) {
+      lastCloseHelpRef.current = closeHelpSignal;
+      setOpen(false);
+    }
+  }, [closeHelpSignal]);
+  // Help нээгдэх бүрд chat-ийг хаа
+  useEffect(() => {
+    if (open) requestCloseChat();
+  }, [open, requestCloseChat]);
 
   // Chat launcher-тай давхцахгүйн тулд: product detail mobile-д дээш (chat bottom-32).
   const isProductDetail = /^\/products\/[^/]+$/.test(pathname || '');
@@ -214,10 +230,11 @@ export function HelpAssistant() {
             <motion.div
               className={cn(
                 'fixed z-[62] flex flex-col overflow-hidden border border-border bg-background shadow-2xl',
-                // Desktop: баруун доод хөвөгч panel
-                'md:bottom-6 md:right-6 md:h-[min(640px,calc(100dvh-6rem))] md:w-[400px] md:rounded-2xl',
-                // Mobile: доороос бүтэн өргөн bottom sheet
-                'inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl md:inset-x-auto',
+                // Mobile (<md): доороос бүтэн өргөн bottom sheet
+                'max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[88dvh] max-md:rounded-t-2xl',
+                // Desktop (≥md): ? icon-ийн дэргэд БАРУУН доод хөвөгч panel
+                // (chat цонх md:bottom-24, ? icon md:bottom-[6.25rem] — panel доороос дээш)
+                'md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-8rem))] md:w-[400px] md:rounded-2xl',
               )}
               initial={{ opacity: 0, y: 40, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

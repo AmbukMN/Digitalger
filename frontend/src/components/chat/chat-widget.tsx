@@ -205,16 +205,31 @@ export function ChatWidget() {
   const isProductDetail = /^\/products\/[^/]+$/.test(pathname || '');
 
   const [open, setOpen] = useState(false);
-  // ── Help Assistant самбараас ГАДНААС нээх сигнал ──
+  // ── Help Assistant ↔ Chat ХАРИЛЦАН ТӨЛӨВ ──
   // "AI Туслах" таб дарахад help панель хаагдаж, chat widget автоматаар нээгдэнэ.
+  // Мөн хоёр нь ЗЭРЭГ нээгдэхгүй: chat нээгдэхэд help-ийг хаана, эсрэгээр.
   const chatOpenSignal = useChatUi((s) => s.openSignal);
+  const closeChatSignal = useChatUi((s) => s.closeChatSignal);
+  const requestCloseHelp = useChatUi((s) => s.requestCloseHelp);
   const lastOpenSignalRef = useRef(0);
+  const lastCloseSignalRef = useRef(0);
   useEffect(() => {
     if (chatOpenSignal > 0 && chatOpenSignal !== lastOpenSignalRef.current) {
       lastOpenSignalRef.current = chatOpenSignal;
       setOpen(true);
     }
   }, [chatOpenSignal]);
+  // Help нээгдэв → chat хаа
+  useEffect(() => {
+    if (closeChatSignal > 0 && closeChatSignal !== lastCloseSignalRef.current) {
+      lastCloseSignalRef.current = closeChatSignal;
+      setOpen(false);
+    }
+  }, [closeChatSignal]);
+  // Chat нээгдэх бүрд help-ийг хаа (харилцан хаах)
+  useEffect(() => {
+    if (open) requestCloseHelp();
+  }, [open, requestCloseHelp]);
   // ── Admin human-handoff (гар хариу) ──
   // handedOff: admin чатыг авсан → AI хариулахгүй, "Та багтай ярьж байна" баннер.
   const [handedOff, setHandedOff] = useState(false);

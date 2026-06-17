@@ -2,16 +2,28 @@
 
 import { create } from 'zustand';
 
-// Chat widget-ийг ГАДНААС нээх/хаах сигнал store (persist хэрэггүй — зүгээр UI төлөв).
-// Help Assistant самбарын "AI Туслах" таб → chat нээх зорилгоор ашиглана.
-// chat-widget.tsx нь openSignal-ийг сонсож, нэмэгдэх бүрд цонхоо нээнэ.
+// Chat widget + Help Assistant-ийн ХАРИЛЦАН ТӨЛӨВ store (persist хэрэггүй).
+// Зорилго: хоёр нь ЗЭРЭГ нээгдэхгүй — нэгийг нээхэд нөгөө нь автоматаар хаагдана.
+//   - openSignal: Help "AI Туслах" таб → chat widget нээх сигнал (counter)
+//   - closeChatSignal: Help нээгдэх үед chat-ийг хаах сигнал
+//   - closeHelpSignal: Chat нээгдэх үед help-ийг хаах сигнал
 interface ChatUiState {
-  // Нэмэгдэх тоолуур — өөрчлөгдөх бүрд chat widget цонхоо нээнэ (subscribe)
   openSignal: number;
-  requestOpen: () => void;
+  closeChatSignal: number;
+  closeHelpSignal: number;
+  // Help → chat нээ (help-ийг хаахыг chat өөрөө onOpen дээр requestCloseHelp дуудна)
+  requestOpenChat: () => void;
+  // Chat нээгдлээ → help хаа
+  requestCloseHelp: () => void;
+  // Help нээгдлээ → chat хаа
+  requestCloseChat: () => void;
 }
 
 export const useChatUi = create<ChatUiState>((set) => ({
   openSignal: 0,
-  requestOpen: () => set((s) => ({ openSignal: s.openSignal + 1 })),
+  closeChatSignal: 0,
+  closeHelpSignal: 0,
+  requestOpenChat: () => set((s) => ({ openSignal: s.openSignal + 1 })),
+  requestCloseHelp: () => set((s) => ({ closeHelpSignal: s.closeHelpSignal + 1 })),
+  requestCloseChat: () => set((s) => ({ closeChatSignal: s.closeChatSignal + 1 })),
 }));
