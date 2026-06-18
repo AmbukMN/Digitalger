@@ -143,7 +143,8 @@ export class StorageService {
     );
   }
 
-  // R2-аас файлыг Buffer болгож татах (worker HLS хөрвүүлэлтэд raw видео авна).
+  // R2-аас файлыг Buffer болгож татах (ЖИЖИГ файлд — memory). Том видеонд
+  // downloadToFile ашигла (246MB+ memory-д татвал worker OOM).
   async downloadBuffer(key: string): Promise<Buffer> {
     if (!this.client) throw new Error('Storage client not configured');
     const res = await this.client.send(
@@ -155,6 +156,18 @@ export class StorageService {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     return Buffer.concat(chunks);
+  }
+
+  // R2-аас файлыг ДИСК рүү stream-ээр татах (том видео — memory дүүргэхгүй,
+  // OOM-аас сэргийлнэ). worker HLS хөрвүүлэлтэд 246MB+ raw видеонд ашиглана.
+  async downloadToFile(key: string, destPath: string): Promise<void> {
+    if (!this.client) throw new Error('Storage client not configured');
+    const { createWriteStream } = await import('fs');
+    const { pipeline } = await import('stream/promises');
+    const res = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    await pipeline(res.Body as NodeJS.ReadableStream, createWriteStream(destPath));
   }
 
   /**

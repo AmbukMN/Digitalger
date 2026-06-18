@@ -35,7 +35,9 @@ export class VideoHlsService {
 
   constructor(private readonly storage: StorageService) {}
 
-  async convertAndUpload(input: Buffer, folder = 'videos'): Promise<HlsResult> {
+  // R2 key-аас шууд (raw видеог ДИСК рүү stream-ээр татаж, memory дүүргэхгүй).
+  // ⚠️ Том видео (246MB+) Buffer-д татвал worker OOM (512MB limit) → restart loop.
+  async convertKeyAndUpload(rawKey: string, folder = 'videos'): Promise<HlsResult> {
     const uuid = randomUUID();
     const tmpDir = path.join(os.tmpdir(), `hls_${uuid}`);
     await fs.mkdir(tmpDir, { recursive: true });
@@ -45,7 +47,8 @@ export class VideoHlsService {
     const posterPath = path.join(tmpDir, 'poster.jpg');
 
     try {
-      await fs.writeFile(inputPath, input);
+      // 0) R2 → диск (stream, memory-гүй)
+      await this.storage.downloadToFile(rawKey, inputPath);
 
       // 1) Үргэлжлэх хугацаа (ffprobe)
       const durationSec = await this.probeDuration(inputPath);
@@ -56,23 +59,23 @@ export class VideoHlsService {
       // 3) Poster (эхний frame, 1 секунд)
       await this.makePoster(inputPath, posterPath).catch(() => null);
 
-      // 4) Бүх гаралт файлыг (m3u8 + .ts + poster) цуглуулж R2-руу
+      // 4) Гаралт файлуудыг R2-руу — ⚠️ НЭГ НЭГЭЭР (segment бүрийг уншиж upload
+      // хийгээд buffer чөлөөлнө). Бүгдийг зэрэг memory-д цуглуулвал том видеонд
+      // (246MB → бүх segment) OOM болно. Дискнээс уншиж, тус тусд нь явуулна.
       const files = await fs.readdir(tmpDir);
       const r2Prefix = `${folder}/${uuid}`;
-      const uploads: { key: string; buffer: Buffer; contentType: string }[] = [];
       let segmentCount = 0;
 
       for (const name of files) {
         if (name === 'input') continue; // raw input upload хийхгүй
-        const buf = await fs.readFile(path.join(tmpDir, name));
         let contentType = 'application/octet-stream';
         if (name.endsWith('.m3u8')) contentType = 'application/vnd.apple.mpegurl';
         else if (name.endsWith('.ts')) { contentType = 'video/mp2t'; segmentCount++; }
         else if (name.endsWith('.jpg')) contentType = 'image/jpeg';
-        uploads.push({ key: `${r2Prefix}/${name}`, buffer: buf, contentType });
+        const buf = await fs.readFile(path.join(tmpDir, name));
+        await this.storage.upload(`${r2Prefix}/${name}`, buf, contentType);
+        // buf scope-оос гарч GC цэвэрлэнэ (дараагийн iteration-д memory чөлөөтэй)
       }
-
-      await this.storage.uploadMany(uploads);
 
       return {
         playlistKey: `${r2Prefix}/${playlistName}`,

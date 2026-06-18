@@ -24,11 +24,9 @@ export class VideoProcessor {
     this.logger.log(`HLS хөрвүүлэлт эхэллээ: ${target}/${targetId} (${rawKey})`);
 
     try {
-      // 1) R2-аас raw видео татах
-      const raw = await this.storage.downloadBuffer(rawKey);
-
-      // 2) HLS (m3u8 + ts) болгож R2-руу (чанар хадгална — -c copy)
-      const result = await this.hls.convertAndUpload(raw, folder);
+      // 1+2) R2 raw → диск (stream, memory-гүй) → HLS (m3u8+ts, -c copy чанар хадгална)
+      // → R2. ⚠️ Том видео (246MB) memory-д татвал OOM тул key-аар шууд stream.
+      const result = await this.hls.convertKeyAndUpload(rawKey, folder);
 
       // 3) Entity шинэчлэх — videoKey=m3u8 public URL, poster, статус ready
       const playlistUrl = this.storage.getAssetUrl(result.playlistKey);
