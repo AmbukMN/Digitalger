@@ -89,7 +89,7 @@ function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void 
   return (
     <button
       onClick={onPlay}
-      className="group flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-muted"
+      className="group flex w-full items-start gap-3 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-muted"
     >
       <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
         {poster ? (
@@ -113,15 +113,18 @@ function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void 
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{video.title}</p>
+        {/* Title БҮТЭН харагдана (таслахгүй wrap) */}
+        <p className="text-sm font-semibold leading-snug wrap-break-word">{video.title}</p>
         {video.description && (
-          <p className="truncate text-xs text-muted-foreground">{video.description}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{video.description}</p>
         )}
       </div>
-      {video.durationLabel && (
-        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{video.durationLabel}</span>
-      )}
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
+        {video.durationLabel && (
+          <span className="text-[11px] tabular-nums text-muted-foreground">{video.durationLabel}</span>
+        )}
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </div>
     </button>
   );
 }
