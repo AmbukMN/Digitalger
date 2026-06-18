@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Plus, Pencil, Trash2, Video, Upload, Loader2, Play, GripVertical,
+  Plus, Pencil, Trash2, Video, Upload, Loader2, Play, GripVertical, Eye,
 } from 'lucide-react';
 import {
   Badge, Button, Card, CardContent, Dialog, DialogContent, DialogHeader,
@@ -283,6 +283,10 @@ export default function HelpVideosPage() {
                       <Badge variant={v.active ? 'default' : 'secondary'} className="text-xs shrink-0">{v.active ? 'Идэвхтэй' : 'Идэвхгүй'}</Badge>
                     )}
                     {v.durationLabel && <span className="shrink-0 text-[11px] text-muted-foreground">{v.durationLabel}</span>}
+                    {/* Хэдэн удаа үзсэн */}
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground" title="Үзэлт">
+                      <Eye className="h-3 w-3" /> {v._count?.views ?? 0}
+                    </span>
                   </div>
                   {v.description && <p className="truncate text-xs text-muted-foreground">{v.description}</p>}
                 </div>

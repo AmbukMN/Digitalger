@@ -63,10 +63,12 @@ export class HelpVideosService {
     });
   }
 
-  // Admin: бүгд (SHARED resource — бүх admin харна, edit/delete ownership)
+  // Admin: бүгд (SHARED resource — бүх admin харна, edit/delete ownership).
+  // _count.views — тухайн видеог хэдэн удаа үзсэн (admin жагсаалтын column).
   findAll() {
     return this.prisma.helpVideo.findMany({
       orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { views: true } } },
     });
   }
 

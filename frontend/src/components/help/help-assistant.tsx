@@ -166,12 +166,33 @@ function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void 
   );
 }
 
+// Chat-тай ижил sessionId (зочин үзэлтийг login-д backfill хийнэ).
+function getHelpSessionId(): string | undefined {
+  try { return localStorage.getItem('dg-chat-session') || undefined; } catch { return undefined; }
+}
+
 export function HelpAssistant() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'videos' | 'faq' | 'ai'>('videos');
   const [playing, setPlaying] = useState<HelpVideoItem | null>(null);
   const [openFaq, setOpenFaq] = useState<string | null>(null);
+  // Үзэлт давхар бүртгэхгүйн тулд (нэг session-д нэг видео/FAQ нэг л удаа).
+  const trackedRef = useRef<Set<string>>(new Set());
+  const playVideo = (v: HelpVideoItem) => {
+    setPlaying(v);
+    if (!trackedRef.current.has('v:' + v.id)) {
+      trackedRef.current.add('v:' + v.id);
+      helpApi.trackVideoView(v.id, getHelpSessionId());
+    }
+  };
+  const openFaqItem = (f: HelpFaqItem, expanded: boolean) => {
+    setOpenFaq(expanded ? null : f.id);
+    if (!expanded && !trackedRef.current.has('f:' + f.id)) {
+      trackedRef.current.add('f:' + f.id);
+      helpApi.trackFaqView(f.id, getHelpSessionId());
+    }
+  };
   const requestOpenChat = useChatUi((s) => s.requestOpenChat);
   const requestCloseChat = useChatUi((s) => s.requestCloseChat);
   const closeHelpSignal = useChatUi((s) => s.closeHelpSignal);
@@ -268,12 +289,14 @@ export function HelpAssistant() {
           boxShadow: '0 10px 25px rgba(2,33,121,0.3)',
         }}
         className={cn(
-          // ⚠️ Chat launcher-тэй ИЖИЛ 64×64. Chat: right-5/md:right-6, bottom-5/md:bottom-6.
-          // Help нь chat-ийн ДЭЭР (chat өндөр 64 + 5(bottom)=69px орчим → help-ийг
-          // chat дээр ~80px зайтай: bottom 5rem+ ).
+          // ⚠️ Chat launcher-тэй ИЖИЛ 64×64. Help нь chat-ийн ДЭЭР (chat орой + 12px зай).
+          // Chat: mobile bottom-5(20)/product bottom-32(128), desktop md:bottom-6(24).
+          // Chat өндөр 64. Help = chat орой + 12: бусад 96px(bottom-24), product 204px,
+          // desktop 100px. ⚠️ Product detail desktop-д chat md:bottom-6 хэвээр тул
+          // help desktop ТОГТМОЛ (зөвхөн mobile product detail дээр дээш).
           'fixed right-5 z-[59] flex items-center justify-center rounded-full text-white transition-[bottom] duration-300 touch-none md:right-6',
-          isProductDetail ? 'bottom-[13rem]' : 'bottom-[6.5rem]',
-          'md:bottom-[7rem]',
+          isProductDetail ? 'bottom-[12.75rem]' : 'bottom-24',
+          'md:bottom-[6.25rem]',
         )}
         drag="y"
         dragMomentum={false}
@@ -372,7 +395,7 @@ export function HelpAssistant() {
                       <p className="py-10 text-center text-sm text-muted-foreground">Видео заавар одоогоор алга</p>
                     ) : (
                       <div className="space-y-2">
-                        {videos.map((v) => <VideoRow key={v.id} video={v} onPlay={() => setPlaying(v)} />)}
+                        {videos.map((v) => <VideoRow key={v.id} video={v} onPlay={() => playVideo(v)} />)}
                       </div>
                     )}
                   </TabsContent>
@@ -390,7 +413,7 @@ export function HelpAssistant() {
                           return (
                             <div key={f.id} className="overflow-hidden rounded-xl border border-border bg-card">
                               <button
-                                onClick={() => setOpenFaq(expanded ? null : f.id)}
+                                onClick={() => openFaqItem(f, expanded)}
                                 className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left"
                               >
                                 <span className="text-sm font-medium">{f.question}</span>

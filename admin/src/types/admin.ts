@@ -309,6 +309,8 @@ export interface AdminUserFullDetail {
   emailHistory?: UserDetailEmail[];
   // Утас баталгаажуулалтын түүх (verify.mn — PhoneVerifySession).
   smsHistory?: UserDetailSms[];
+  helpVideoViews?: { id: string; title: string; viewedAt: string; device?: string | null }[];
+  faqViews?: { id: string; question: string; viewedAt: string; device?: string | null }[];
 }
 
 // Утас баталгаажуулалтын нэг оролдлого (PhoneVerifySession).
@@ -619,6 +621,7 @@ export interface AdminHelpVideo {
   createdByUserId?: string | null;
   createdAt: string;
   updatedAt?: string;
+  _count?: { views: number };    // хэдэн удаа үзсэн
 }
 
 // Холбоо барих (contact form) мессеж — DB-д хадгалагдсан, admin панелд харна.

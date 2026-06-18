@@ -77,6 +77,8 @@ model User {
   auditLogs     UserAuditLog[]
   lessonProgress LessonProgress[]
   lessonEvents  LessonEvent[]
+  helpVideoViews HelpVideoView[]
+  faqViews       FAQView[]
   certificates   Certificate[]
   lessonQuestions LessonQuestion[]
   lessonAnswers  LessonAnswer[]
@@ -684,10 +686,43 @@ model FAQ {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   products  ProductFAQ[]
+  views     FAQView[]
 
   @@index([active, sortOrder])
   @@index([showInHelp, active])
   @@index([createdByUserId])
+}
+
+// Help video / FAQ үзэлт лог (LessonEvent-тэй ижил pattern — userId/sessionId,
+// device, viewedAt). Counter биш лог хүснэгт: хэрэглэгчээр + нийт үзэлт тоолно.
+model HelpVideoView {
+  id        String    @id @default(cuid())
+  videoId   String
+  video     HelpVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  userId    String?   // null = зочин (анонимо)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId String?   // зочин tracking (login үед userId-д backfill)
+  device    String?   // mobile | desktop | tablet
+  viewedAt  DateTime  @default(now())
+
+  @@index([videoId, viewedAt])
+  @@index([userId, viewedAt])
+  @@index([sessionId])
+}
+
+model FAQView {
+  id        String   @id @default(cuid())
+  faqId     String
+  faq       FAQ      @relation(fields: [faqId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId String?
+  device    String?
+  viewedAt  DateTime @default(now())
+
+  @@index([faqId, viewedAt])
+  @@index([userId, viewedAt])
+  @@index([sessionId])
 }
 
 // ── HelpVideo: Help Assistant panel-ийн "Видео заавар" tab-ийн контент ──
@@ -710,6 +745,7 @@ model HelpVideo {
   createdBy       User?     @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  views           HelpVideoView[]
 
   @@index([active, sortOrder])
   @@index([createdByUserId])

@@ -944,6 +944,17 @@ export interface HelpFaqItem {
 export const helpApi = {
   videos: () => request<HelpVideoItem[]>('/help/videos'),
   faqs: () => request<HelpFaqItem[]>('/help/faqs'),
+  // Үзэлт бүртгэх — fire-and-forget (алдаа гарвал залгина, UI-д нөлөөлөхгүй).
+  trackVideoView: (videoId: string, sessionId?: string) =>
+    request('/analytics/help-video-view', {
+      method: 'POST',
+      body: JSON.stringify({ videoId, sessionId }),
+    }).catch(() => null),
+  trackFaqView: (faqId: string, sessionId?: string) =>
+    request('/analytics/faq-view', {
+      method: 'POST',
+      body: JSON.stringify({ faqId, sessionId }),
+    }).catch(() => null),
 };
 
 // —— Reviews (бүтээгдэхүүний сэтгэгдэл/үнэлгээ) ——

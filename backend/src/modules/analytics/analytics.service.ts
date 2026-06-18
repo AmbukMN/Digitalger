@@ -77,10 +77,40 @@ export class AnalyticsService {
           where: { sessionId, userId: null },
           data: { userId: safe },
         }),
+        this.prisma.helpVideoView.updateMany({
+          where: { sessionId, userId: null },
+          data: { userId: safe },
+        }),
+        this.prisma.fAQView.updateMany({
+          where: { sessionId, userId: null },
+          data: { userId: safe },
+        }),
       ]);
     } catch {
       // backfill амжилтгүй болсон ч нэвтрэлтэд нөлөөлөхгүй (best-effort).
     }
+  }
+
+  // Help video үзэлт бүртгэх (LessonEvent pattern). userId эсвэл зочин sessionId.
+  async trackHelpVideoView(data: {
+    videoId: string;
+    sessionId?: string;
+    userId?: string;
+    device?: string;
+  }) {
+    const userId = await this.safeUserId(data.userId);
+    return this.prisma.helpVideoView.create({ data: { ...data, userId } });
+  }
+
+  // FAQ үзэлт бүртгэх.
+  async trackFaqView(data: {
+    faqId: string;
+    sessionId?: string;
+    userId?: string;
+    device?: string;
+  }) {
+    const userId = await this.safeUserId(data.userId);
+    return this.prisma.fAQView.create({ data: { ...data, userId } });
   }
 
   async trackPageView(data: {

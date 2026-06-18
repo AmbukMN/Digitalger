@@ -95,6 +95,32 @@ export class AnalyticsController {
     return { ok: true };
   }
 
+  // Help video үзэлт (help panel видео тоглуулахад дуудна). Public, throttle.
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Post('help-video-view')
+  async trackHelpVideoView(
+    @Body() body: { videoId: string; sessionId?: string; userId?: string },
+    @Req() req: Request,
+  ) {
+    const ua = req.headers['user-agent'] ?? '';
+    if (isBot(ua) || !body?.videoId) return { ok: true };
+    await this.analyticsService.trackHelpVideoView({ ...body, device: detectDevice(ua) });
+    return { ok: true };
+  }
+
+  // FAQ үзэлт (help panel FAQ дэлгэхэд дуудна). Public, throttle.
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Post('faq-view')
+  async trackFaqView(
+    @Body() body: { faqId: string; sessionId?: string; userId?: string },
+    @Req() req: Request,
+  ) {
+    const ua = req.headers['user-agent'] ?? '';
+    if (isBot(ua) || !body?.faqId) return { ok: true };
+    await this.analyticsService.trackFaqView({ ...body, device: detectDevice(ua) });
+    return { ok: true };
+  }
+
   // Нэвтрэх агшинд frontend дуудна: тухайн session-ийн зочин үед бичигдсэн (userId-
   // гүй) бүх үзэлт/дарсныг нэвтэрсэн хэрэглэгчид холбоно. userId-ийг token-оос авна
   // (body-оос биш — өөр хэрэглэгчийн event-ийг булаахаас сэргийлж).

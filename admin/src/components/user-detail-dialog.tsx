@@ -351,6 +351,8 @@ export function UserDetailDialog({ user, onClose }: Props) {
   const conversion = data?.chatConversion;
   const emails = data?.emailHistory ?? [];
   const sms = data?.smsHistory ?? [];
+  const helpViews: { id: string; title: string; viewedAt: string; device?: string | null }[] = data?.helpVideoViews ?? [];
+  const faqViews: { id: string; question: string; viewedAt: string; device?: string | null }[] = data?.faqViews ?? [];
 
   return (
     <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
@@ -450,6 +452,9 @@ export function UserDetailDialog({ user, onClose }: Props) {
                 </TabsTrigger>
                 <TabsTrigger value="sms" className="data-[state=active]:bg-muted">
                   <MessageSquare className="mr-1 h-3.5 w-3.5" />SMS {sms.length > 0 ? `(${sms.length})` : ''}
+                </TabsTrigger>
+                <TabsTrigger value="help" className="data-[state=active]:bg-muted">
+                  Тусламж {(helpViews.length + faqViews.length) > 0 ? `(${helpViews.length + faqViews.length})` : ''}
                 </TabsTrigger>
                 <TabsTrigger value="account" className="data-[state=active]:bg-muted">Аккаунт түүх</TabsTrigger>
               </TabsList>
@@ -882,6 +887,42 @@ export function UserDetailDialog({ user, onClose }: Props) {
                   })}
                 </div>
               )}
+            </TabsContent>
+
+            {/* ─── ТУСЛАМЖ (Help video / FAQ үзэлт) ─── */}
+            <TabsContent value="help" className="m-0 flex-1 overflow-y-auto p-5 space-y-5">
+              <div>
+                <p className="mb-2.5 text-sm font-semibold">Видео заавар үзсэн ({helpViews.length})</p>
+                {helpViews.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Үзэлт алга</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {helpViews.map((v) => (
+                      <div key={v.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{v.title}</span>
+                        {v.device && <span className="shrink-0 text-[11px] text-muted-foreground">{v.device}</span>}
+                        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(v.viewedAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="mb-2.5 text-sm font-semibold">FAQ үзсэн ({faqViews.length})</p>
+                {faqViews.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Үзэлт алга</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {faqViews.map((f) => (
+                      <div key={f.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{f.question}</span>
+                        {f.device && <span className="shrink-0 text-[11px] text-muted-foreground">{f.device}</span>}
+                        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(f.viewedAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             {/* ─── АККАУНТ ТҮҮХ ─── */}

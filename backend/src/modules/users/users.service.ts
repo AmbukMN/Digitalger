@@ -305,7 +305,7 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw, emailLogsRaw, emailOpensRaw, smsSessionsRaw] = await Promise.all([
+    const [orders, downloadsRaw, productEvents, auditLogs, searchEventsRaw, pageViewsRaw, chatConvsRaw, emailLogsRaw, emailOpensRaw, smsSessionsRaw, helpVideoViewsRaw, faqViewsRaw] = await Promise.all([
       // Захиалга бүгд (статусаар) + items + product
       this.prisma.order.findMany({
         where: { userId: id },
@@ -444,6 +444,20 @@ export class UsersService {
           verifiedAt: true,
           expiresAt: true,
         },
+      }),
+      // Help video үзэлт (тухайн хэрэглэгч)
+      this.prisma.helpVideoView.findMany({
+        where: { userId: id },
+        orderBy: { viewedAt: 'desc' },
+        take: 100,
+        select: { id: true, viewedAt: true, device: true, video: { select: { id: true, title: true } } },
+      }),
+      // FAQ үзэлт
+      this.prisma.fAQView.findMany({
+        where: { userId: id },
+        orderBy: { viewedAt: 'desc' },
+        take: 100,
+        select: { id: true, viewedAt: true, device: true, faq: { select: { id: true, question: true } } },
       }),
     ]);
 
@@ -704,6 +718,19 @@ export class UsersService {
       chatConversations,
       emailHistory,
       smsHistory,
+      // Help video / FAQ үзэлт (хэрэглэгч юу, хэзээ, ямар төхөөрөмжөөр харсан)
+      helpVideoViews: helpVideoViewsRaw.map((v) => ({
+        id: v.id,
+        title: v.video?.title ?? '(устсан видео)',
+        viewedAt: v.viewedAt,
+        device: v.device,
+      })),
+      faqViews: faqViewsRaw.map((f) => ({
+        id: f.id,
+        question: f.faq?.question ?? '(устсан FAQ)',
+        viewedAt: f.viewedAt,
+        device: f.device,
+      })),
       ltv,
       interest,
       chatConversion,
