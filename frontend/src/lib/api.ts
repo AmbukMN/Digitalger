@@ -944,16 +944,17 @@ export interface HelpFaqItem {
 export const helpApi = {
   videos: () => request<HelpVideoItem[]>('/help/videos'),
   faqs: () => request<HelpFaqItem[]>('/help/faqs'),
-  // Үзэлт бүртгэх — fire-and-forget (алдаа гарвал залгина, UI-д нөлөөлөхгүй).
-  trackVideoView: (videoId: string, sessionId?: string) =>
+  // Үзэлт бүртгэх — fire-and-forget. userId (нэвтэрсэн) ШУУД дамжуулна → admin
+  // хэрэглэгчийн detail-д шууд харагдана. sessionId зочны backfill-д.
+  trackVideoView: (videoId: string, sessionId?: string, userId?: string) =>
     request('/analytics/help-video-view', {
       method: 'POST',
-      body: JSON.stringify({ videoId, sessionId }),
+      body: JSON.stringify({ videoId, sessionId, userId }),
     }).catch(() => null),
-  trackFaqView: (faqId: string, sessionId?: string) =>
+  trackFaqView: (faqId: string, sessionId?: string, userId?: string) =>
     request('/analytics/faq-view', {
       method: 'POST',
-      body: JSON.stringify({ faqId, sessionId }),
+      body: JSON.stringify({ faqId, sessionId, userId }),
     }).catch(() => null),
 };
 

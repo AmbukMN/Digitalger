@@ -5,11 +5,13 @@ import {
   HelpCircle, X, Play, ChevronRight, Bot, PlayCircle,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@digitalger/shared';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@digitalger/shared/ui';
 import { helpApi, type HelpVideoItem, type HelpFaqItem } from '@/lib/api';
+import { getSessionId as getAnalyticsSessionId } from '@/lib/analytics';
 import { useChatUi } from '@/store/chat-ui';
 
 const DRAG_KEY = 'dg-help-launcher-y';
@@ -166,9 +168,11 @@ function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void 
   );
 }
 
-// Chat-тай ижил sessionId (зочин үзэлтийг login-д backfill хийнэ).
+// ⚠️ Analytics-ийн sessionId (dg_sid)-ийг ашиглана — backfill (зочин→login) ИЖИЛ
+// sessionId-аар хайдаг тул заавал тэр (өмнө dg-chat-session байсан нь backfill-д
+// таарахгүй → зочны үзэлт userId-д холбогдохгүй байв).
 function getHelpSessionId(): string | undefined {
-  try { return localStorage.getItem('dg-chat-session') || undefined; } catch { return undefined; }
+  return getAnalyticsSessionId() || undefined;
 }
 
 export function HelpAssistant() {
@@ -177,20 +181,23 @@ export function HelpAssistant() {
   const [tab, setTab] = useState<'videos' | 'faq' | 'ai'>('videos');
   const [playing, setPlaying] = useState<HelpVideoItem | null>(null);
   const [openFaq, setOpenFaq] = useState<string | null>(null);
+  // Нэвтэрсэн бол userId ШУУД track-д (admin хэрэглэгчийн detail-д шууд харагдана).
+  const { data: session } = useSession();
+  const uid = session?.user?.id;
   // Үзэлт давхар бүртгэхгүйн тулд (нэг session-д нэг видео/FAQ нэг л удаа).
   const trackedRef = useRef<Set<string>>(new Set());
   const playVideo = (v: HelpVideoItem) => {
     setPlaying(v);
     if (!trackedRef.current.has('v:' + v.id)) {
       trackedRef.current.add('v:' + v.id);
-      helpApi.trackVideoView(v.id, getHelpSessionId());
+      helpApi.trackVideoView(v.id, getHelpSessionId(), uid);
     }
   };
   const openFaqItem = (f: HelpFaqItem, expanded: boolean) => {
     setOpenFaq(expanded ? null : f.id);
     if (!expanded && !trackedRef.current.has('f:' + f.id)) {
       trackedRef.current.add('f:' + f.id);
-      helpApi.trackFaqView(f.id, getHelpSessionId());
+      helpApi.trackFaqView(f.id, getHelpSessionId(), uid);
     }
   };
   const requestOpenChat = useChatUi((s) => s.requestOpenChat);
