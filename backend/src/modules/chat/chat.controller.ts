@@ -72,6 +72,7 @@ export class ChatController {
   async ingest(
     @Body()
     body: {
+      channel?: string; // 'web' | 'facebook' | 'instagram' (default web)
       sessionId?: string;
       userText?: string;
       assistantText?: string;
@@ -81,10 +82,11 @@ export class ChatController {
   ) {
     const sessionId = (body.sessionId ?? '').trim();
     if (!sessionId) return { ok: true, skipped: true };
+    const channel = body.channel ?? 'web';
     // user мессеж (adminUnread асаана)
     if (body.userText?.trim()) {
       await this.chat.saveMessage({
-        channel: 'web',
+        channel,
         sessionId,
         role: 'user',
         text: body.userText,
@@ -94,7 +96,7 @@ export class ChatController {
     // assistant мессеж + products
     if (body.assistantText?.trim()) {
       await this.chat.saveMessage({
-        channel: 'web',
+        channel,
         sessionId,
         role: 'assistant',
         text: body.assistantText,
