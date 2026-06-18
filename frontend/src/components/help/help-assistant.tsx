@@ -161,6 +161,15 @@ export function HelpAssistant() {
     setHelpOpen(open);
   }, [open, requestCloseChat, setHelpOpen]);
 
+  // Mobile эсэх (товчны drag байрлалд panel тааруулах нь зөвхөн mobile-д)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   // Esc — эхлээд видео lightbox, дараа нь panel хаах
   useEffect(() => {
     if (!open) return;
@@ -273,15 +282,18 @@ export function HelpAssistant() {
               className={cn(
                 'fixed z-[62] flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl',
                 // ⚠️ Panel нь ? icon-ийн ДЭЭД талаас гарна (icon-ийг дарахгүй).
-                // ? icon: mobile bottom-[5.75rem]≈92px + h-52px = орой ≈144px;
-                //         desktop md:bottom-[6.25rem]≈100px + 52px = орой ≈152px.
-                // Panel-ийн доод ирмэгийг icon оройноос ДЭЭШ тавина (bottom-[10rem]=160px).
-                // Баруун талдаа icon-той зэрэгцэнэ (right-5 / md:right-6).
-                'bottom-[11rem] right-3 left-3 max-h-[calc(100dvh-13rem)]',
+                // ? icon: bottom-[6.5rem]≈104px + h-64px = орой ≈168px. Panel доод ирмэг
+                // түүнээс дээш. ⚠️ dragY (товч чирсэн) panel-д ч НЭМНЭ (inline style доор)
+                // — товчийг дээш чирвэл panel ч дээш, товчтойгоо хамт хөдөлнө.
+                'right-3 left-3 max-h-[calc(100dvh-13rem)]',
+                // Desktop bottom (md:bottom-[11.5rem]) — drag desktop-д ховор тул тогтмол.
                 'md:bottom-[11.5rem] md:right-6 md:left-auto md:w-[400px] md:h-[min(560px,calc(100dvh-14rem))]',
               )}
-              // ? icon (доод-баруун) талаас дэлбээрэн нээгдэх — origin доод-баруун
-              style={{ transformOrigin: 'bottom right' }}
+              // ⚠️ MOBILE: товчны drag байрлалд тааруулна (bottom = 11.5rem - dragY,
+              // доод 88px). Desktop: md:bottom-[11.5rem] class (inline өгөхгүй).
+              style={isMobile
+                ? { transformOrigin: 'bottom right', bottom: `max(88px, calc(11.5rem - ${dragY}px))` }
+                : { transformOrigin: 'bottom right' }}
               initial={{ opacity: 0, y: 16, scale: 0.92 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.92 }}

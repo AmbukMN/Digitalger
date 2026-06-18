@@ -232,6 +232,15 @@ export function ChatWidget() {
     if (open) requestCloseHelp();
     setChatOpen(open);
   }, [open, requestCloseHelp, setChatOpen]);
+  // ── Mobile эсэх (товчны drag байрлалд цонхыг тааруулах нь зөвхөн mobile-д) ──
+  // Desktop дээр цонх тогтмол булангаа (md:bottom-24), mobile-д товчтойгоо хөдөлнө.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
   // ── Admin human-handoff (гар хариу) ──
   // handedOff: admin чатыг авсан → AI хариулахгүй, "Та багтай ярьж байна" баннер.
   const [handedOff, setHandedOff] = useState(false);
@@ -578,13 +587,17 @@ export function ChatWidget() {
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
             // Product details mobile-д чат цонх ч дээш (buy bar-аас зайтай).
-            // Desktop md:bottom-24 хэвээр.
+            // Desktop md:bottom-24 хэвээр. ⚠️ dragY (товч чирсэн) цонхонд НЭМНЭ —
+            // товчийг дээш чирвэл цонх ч дээш, товчтойгоо хамт хөдөлнө (inline style доор).
             className={cn(
               'fixed right-3 z-[60] flex w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-7rem))]',
               isProductDetail
-                ? 'bottom-36 h-[min(560px,calc(100dvh-11rem))]'
-                : 'bottom-24 h-[min(620px,calc(100dvh-7rem))]',
+                ? 'h-[min(560px,calc(100dvh-11rem))]'
+                : 'h-[min(620px,calc(100dvh-7rem))]',
             )}
+            // ⚠️ Зөвхөн MOBILE-д товчны drag байрлалд тааруулна (desktop md:bottom-24
+            // class хэвээр). bottom = base(product 9rem, бусад 6rem) - dragY, доод 80px.
+            style={isMobile ? { bottom: `max(80px, calc(${isProductDetail ? '9rem' : '6rem'} - ${dragY}px))` } : undefined}
           >
             {/* Толгой */}
             <div className="flex items-center justify-between gap-3 bg-primary px-4 py-3 text-primary-foreground">
