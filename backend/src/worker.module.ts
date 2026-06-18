@@ -32,7 +32,13 @@ import { VideoProcessor } from './modules/videos/video.processor';
       // ⚠️ SES 14/сек limit-ийг ЗӨРЧИХГҮЙ — max 10/сек.
       limiter: { max: EMAIL_RATE_LIMIT.max, duration: EMAIL_RATE_LIMIT.duration },
     }),
-    BullModule.registerQueue({ name: VIDEO_QUEUE }),
+    // ⚠️ Видео HLS удаан (том файл татах+ffmpeg 1-10мин). BullMQ default
+    // lockDuration=30с тул удвал "stalled" гэж дахин эхлүүлж LOOP болдог байв.
+    // lockDuration=15мин болгож, maxStalledCount=1 (нэг л дахин оролдоно).
+    BullModule.registerQueue({
+      name: VIDEO_QUEUE,
+      settings: { lockDuration: 900_000, lockRenewTime: 450_000, maxStalledCount: 1 },
+    }),
   ],
   providers: [
     ZipProcessor,
