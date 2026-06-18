@@ -256,11 +256,21 @@ export default function HelpVideosPage() {
         </Card>
       ) : (
         <div className="space-y-2">
+          {/* Багануудын гарчиг (table header) */}
+          <div className="flex items-center gap-3 px-3 pb-1 text-[11px] font-semibold uppercase text-muted-foreground">
+            <span className="w-4 shrink-0" />
+            <span className="w-20 shrink-0">Зураг</span>
+            <span className="flex-1">Гарчиг</span>
+            <span className="w-20 shrink-0 text-center">Хугацаа</span>
+            <span className="w-20 shrink-0 text-center">Төлөв</span>
+            <span className="w-16 shrink-0 text-center">Үзэлт</span>
+            <span className="w-16 shrink-0 text-center">Үйлдэл</span>
+          </div>
           {items.map((v) => (
             <Card key={v.id} className="transition-colors hover:border-primary/40">
               <CardContent className="flex items-center gap-3 p-3">
                 <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40" />
-                {/* thumbnail — poster зураг, эс бол видеоны эхний frame */}
+                {/* Зураг column — poster, эс бол видеоны эхний frame */}
                 <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-muted">
                   {v.posterKey ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -271,27 +281,30 @@ export default function HelpVideosPage() {
                     <div className="flex h-full w-full items-center justify-center"><Play className="h-4 w-4 text-muted-foreground" /></div>
                   )}
                 </div>
+                {/* Гарчиг column */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium">{v.title}</p>
-                    {/* HLS хөрвүүлэлтийн төлөв */}
-                    {v.streamStatus === 'processing' ? (
-                      <Badge className="shrink-0 bg-amber-100 text-xs text-amber-700 dark:bg-amber-900/30">⏳ HLS болгож байна</Badge>
-                    ) : v.streamStatus === 'error' ? (
-                      <Badge variant="destructive" className="shrink-0 text-xs">Алдаа</Badge>
-                    ) : (
-                      <Badge variant={v.active ? 'default' : 'secondary'} className="text-xs shrink-0">{v.active ? 'Идэвхтэй' : 'Идэвхгүй'}</Badge>
-                    )}
-                    {v.durationLabel && <span className="shrink-0 text-[11px] text-muted-foreground">{v.durationLabel}</span>}
-                    {/* Хэдэн удаа үзсэн */}
-                    <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground" title="Үзэлт">
-                      <Eye className="h-3 w-3" /> {v._count?.views ?? 0}
-                    </span>
-                  </div>
+                  <p className="truncate text-sm font-medium">{v.title}</p>
                   {v.description && <p className="truncate text-xs text-muted-foreground">{v.description}</p>}
                 </div>
+                {/* Хугацаа column */}
+                <span className="w-20 shrink-0 text-center text-xs text-muted-foreground">{v.durationLabel || '—'}</span>
+                {/* Төлөв column */}
+                <span className="flex w-20 shrink-0 justify-center">
+                  {v.streamStatus === 'processing' ? (
+                    <Badge className="bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-900/30">⏳ HLS</Badge>
+                  ) : v.streamStatus === 'error' ? (
+                    <Badge variant="destructive" className="text-[10px]">Алдаа</Badge>
+                  ) : (
+                    <Badge variant={v.active ? 'default' : 'secondary'} className="text-[10px]">{v.active ? 'Идэвхтэй' : 'Идэвхгүй'}</Badge>
+                  )}
+                </span>
+                {/* Үзэлт column (тусдаа) */}
+                <span className="flex w-16 shrink-0 items-center justify-center gap-1 text-sm font-semibold text-foreground" title="Хэдэн удаа үзсэн">
+                  <Eye className="h-3.5 w-3.5 text-muted-foreground" /> {v._count?.views ?? 0}
+                </span>
+                {/* Үйлдэл column */}
                 {canModify(v) ? (
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex w-16 shrink-0 justify-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => { setEditing(v); setDialogOpen(true); }}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -300,7 +313,7 @@ export default function HelpVideosPage() {
                     </Button>
                   </div>
                 ) : (
-                  <span className="shrink-0 text-[10px] italic text-muted-foreground/70">Өөр админ</span>
+                  <span className="w-16 shrink-0 text-center text-[10px] italic text-muted-foreground/70">Өөр админ</span>
                 )}
               </CardContent>
             </Card>
