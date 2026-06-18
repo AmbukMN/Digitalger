@@ -1,7 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Input, Separator } from '@digitalger/shared/ui';
@@ -9,7 +9,7 @@ import { formatPrice } from '@digitalger/shared';
 import { CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { couponsApi, ordersApi, paymentsApi, productsApi } from '@/lib/api';
+import { couponsApi, downloadsApi, ordersApi, paymentsApi, productsApi } from '@/lib/api';
 import { trackPurchase } from '@/lib/analytics';
 import { useCartStore } from '@/store/cart';
 import { MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
@@ -55,6 +55,24 @@ function CheckoutContent() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState('');
 
+  // ── Хэрэглэгчийн ЭЗЭМШСЭН (идэвхтэй) бүтээгдэхүүн — нэвтэрсэн үед ──
+  // Сагсанд өмнө худалдаж авсан бүтээгдэхүүн байвал: total-аас хасна (зөвхөн
+  // ШИНЭ бүтээгдэхүүнээр QPay үүснэ), UI-д "Аль хэдийн авсан" гэж тэмдэглэнэ.
+  // Backend createPending мөн ижил логиктой (давхар хамгаалалт).
+  const { data: ownedLibrary = [] } = useQuery({
+    queryKey: ['downloads', 'history'],
+    queryFn: () => downloadsApi.history(session!.accessToken!),
+    enabled: !!session?.accessToken,
+    staleTime: 30_000,
+  });
+  const ownedIds = useMemo(
+    () => new Set(ownedLibrary.filter((p) => p.isExpired !== true).map((p) => p.product.id)),
+    [ownedLibrary],
+  );
+  // Сагсыг 2 хуваана: payable (шинэ, төлөх) + alreadyOwned (өмнө авсан, хасагдана)
+  const payableItems = items.filter((i) => !ownedIds.has(i.productId));
+  const ownedItems = items.filter((i) => ownedIds.has(i.productId));
+
   // All unique coupon codes (from cart items + checkout-level)
   const cartCouponCodes = [...new Set(items.flatMap((i) => i.couponCodes ?? []))];
   const checkoutCouponCodes = checkoutCoupons.map((c) => c.code);
@@ -62,8 +80,8 @@ function CheckoutContent() {
   const totalCouponCount = allCouponCodes.length;
   const canAddMoreCoupons = totalCouponCount < MAX_COUPONS_PER_PRODUCT;
 
-  // Base subtotal from item prices (already includes per-product discounts from cart)
-  const cartSubtotal = items.reduce((sum, i) => sum + i.price, 0);
+  // Base subtotal — ЗӨВХӨН payable (өмнө авсныг хасна, QPay-тэй ижил total)
+  const cartSubtotal = payableItems.reduce((sum, i) => sum + i.price, 0);
 
   // Additional discount from checkout-level coupons
   const checkoutDiscount = checkoutCoupons.reduce((sum, c) => sum + c.discount, 0);
@@ -170,14 +188,24 @@ function CheckoutContent() {
       return;
     }
     if (!items.length) return;
+    // ⚠️ Сагсны БҮХ бүтээгдэхүүн аль хэдийн эзэмшсэн бол QPay үүсгэхгүй — шууд
+    // Миний сан руу (өмнө авсан нь тэнд бий). Холимог бол ШИНЭ-ээр л үргэлжилнэ.
+    if (payableItems.length === 0) {
+      toast.success('Та эдгээр бүтээгдэхүүнийг аль хэдийн авсан байна. Миний сан руу шилжиж байна...');
+      clear();
+      setPendingOrderId(null);
+      router.push('/library');
+      return;
+    }
     setPaying(true);
     try {
       let orderId = pendingOrderId;
 
       if (!orderId) {
+        // ⚠️ Зөвхөн payable (өмнө аваагүй) productId-г backend-д явуулна.
         const order = await ordersApi.create(
           session.accessToken,
-          items.map((i) => i.productId),
+          payableItems.map((i) => i.productId),
           allCouponCodes,
         );
 
@@ -284,8 +312,10 @@ function CheckoutContent() {
                 <p className="text-sm font-semibold">{items.length} бүтээгдэхүүн</p>
               </div>
               <ul className="divide-y divide-border">
-                {items.map((item) => (
-                  <li key={item.productId} className="px-4 py-3">
+                {items.map((item) => {
+                  const owned = ownedIds.has(item.productId);
+                  return (
+                  <li key={item.productId} className={`px-4 py-3 ${owned ? 'opacity-60' : ''}`}>
                     <ProductRowItem
                       thumbnail={item.thumbnailUrl}
                       title={item.title}
@@ -303,6 +333,15 @@ function CheckoutContent() {
                         </button>
                       }
                     />
+                    {/* Өмнө худалдаж авсан → "Аль хэдийн авсан" (төлбөрт орохгүй) */}
+                    {owned && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <span className="flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Аль хэдийн авсан
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">төлбөрт орохгүй · Миний санд байгаа</span>
+                      </div>
+                    )}
                     {(item.couponCodes?.length ?? 0) > 0 && (
                       <div className="mt-1.5 ml-0 flex flex-wrap items-center gap-1.5">
                         {item.couponCodes!.map((code) => (
@@ -315,7 +354,8 @@ function CheckoutContent() {
                       </div>
                     )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
 
