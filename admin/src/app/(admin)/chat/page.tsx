@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Bot, MessageCircle, Send, User as UserIcon, X, Loader2, HeadphonesIcon,
+  Bot, MessageCircle, Send, X, Loader2, HeadphonesIcon,
 } from 'lucide-react';
 import {
   Avatar, Button, Card, CardContent, Dialog, DialogContent, DialogHeader,
@@ -16,6 +16,12 @@ import type { AdminChatListItem, AdminChatConversationDetail, AdminChatMessage }
 function fmtTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString('mn-MN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// AI-н [SEARCH:keyword] системийн тэмдгийг харуулахаас цэвэрлэнэ (хэрэглэгчид
+// харагдах ёсгүй дотоод тэмдэг — хуучин мессежид үлдсэн бол энд хамгаална).
+function cleanText(t: string): string {
+  return (t || '').replace(/\[SEARCH:[^\]]*\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // ─── Чат дэлгэрэнгүй modal (мессеж + хариу бичих + handoff toggle) ──────────
@@ -111,6 +117,8 @@ function ChatDetailDialog({
               {conv?.messages.map((m: AdminChatMessage) => {
                 const isUser = m.role === 'user';
                 const isAdmin = m.role === 'admin';
+                const userName = conv?.user?.name || conv?.userName || 'Зочин';
+                const userImg = conv?.user?.image || conv?.userImage || undefined;
                 return (
                   <div key={m.id} className={`flex items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
                     {!isUser && (
@@ -119,13 +127,15 @@ function ChatDetailDialog({
                       </div>
                     )}
                     <div className={`flex max-w-[78%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                      {/* Хэрэглэгчийн нэр (FB/IG/нэвтэрсэн) — мессежийн дээр */}
+                      {isUser && <span className="px-1 text-[10px] font-semibold text-muted-foreground">{userName}</span>}
                       {isAdmin && <span className="px-1 text-[10px] font-semibold text-green-600">Багийн гишүүн</span>}
                       <div className={`whitespace-pre-wrap wrap-break-word rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
                         isUser ? 'rounded-br-sm bg-[#ffbe00] text-[#022179]'
                           : isAdmin ? 'rounded-bl-sm bg-green-50 ring-1 ring-green-200 dark:bg-green-900/20'
                             : 'rounded-bl-sm bg-card ring-1 ring-border'
                       }`}>
-                        {m.text}
+                        {cleanText(m.text)}
                       </div>
                       {/* AI санал болгосон бүтээгдэхүүний card (хэрэглэгчийн харсан) */}
                       {!isUser && Array.isArray(m.products) && m.products.length > 0 && (
@@ -152,9 +162,13 @@ function ChatDetailDialog({
                       <span className="mt-0.5 px-1 text-[10px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
                     </div>
                     {isUser && (
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#022179] text-white">
-                        <UserIcon className="h-3.5 w-3.5" />
-                      </div>
+                      userImg
+                        ? <Avatar src={userImg} name={userName} size={28} />
+                        : (
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#022179] text-[11px] font-bold text-white">
+                            {userName.charAt(0).toUpperCase()}
+                          </div>
+                        )
                     )}
                   </div>
                 );
@@ -259,7 +273,7 @@ export default function ChatPage() {
                     {last && (
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         <span className="font-medium">{last.role === 'user' ? '👤 ' : last.role === 'admin' ? '🎧 ' : '🤖 '}</span>
-                        {last.text}
+                        {cleanText(last.text)}
                       </p>
                     )}
                   </div>
