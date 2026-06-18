@@ -103,9 +103,10 @@ export class OrdersService {
     // эзэмшил байж болно — эзэмшсэнийг чимээгүй хасна, бусдыг үргэлжлүүлнэ).
     const productIds = requestedIds.filter((id) => !activeOwnedIds.has(id));
     if (productIds.length === 0) {
-      throw new BadRequestException(
-        'Та эдгээр бүтээгдэхүүнийг аль хэдийн худалдаж авсан байна',
-      );
+      // ⚠️ БҮХ бүтээгдэхүүн аль хэдийн эзэмшсэн → ЭНЭ нь АЛДАА БИШ (зөв нөхцөл).
+      // 400 throw хийвэл console-д улаан алдаа гарч, муу UX. Иймд 200-аар
+      // { alreadyOwned: true } буцаана → frontend "Миний сан" руу эелдэг шилжүүлнэ.
+      return { alreadyOwned: true as const };
     }
 
     const products = await this.prisma.product.findMany({

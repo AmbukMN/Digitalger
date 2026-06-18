@@ -181,6 +181,15 @@ function CheckoutContent() {
           allCouponCodes,
         );
 
+        // ⚠️ Бүх бүтээгдэхүүн аль хэдийн эзэмшсэн (алдаа БИШ) → "Миний сан" руу.
+        if ((order as { alreadyOwned?: boolean }).alreadyOwned) {
+          toast.success('Та эдгээр бүтээгдэхүүнийг аль хэдийн авсан байна. Миний сан руу шилжиж байна...');
+          clear();
+          setPendingOrderId(null);
+          router.push('/library');
+          return;
+        }
+
         // Free order or already PAID (backend auto-marks if total=0)
         if (isFree || order.status === 'PAID') {
           items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
@@ -214,6 +223,15 @@ function CheckoutContent() {
       setQpayResult(payment);
     } catch (err: any) {
       const msg = err?.message || '';
+      // ⚠️ Бүх бүтээгдэхүүн аль хэдийн эзэмшсэн — АЛДАА БИШ. Сагсыг цэвэрлэж
+      // "Миний сан" руу эелдэг шилжүүлнэ (улаан алдаа гаргахгүй).
+      if (msg.includes('ALREADY_OWNED')) {
+        toast.success('Та эдгээр бүтээгдэхүүнийг аль хэдийн авсан байна. Миний сан руу шилжиж байна...');
+        clear();
+        setPendingOrderId(null);
+        router.push('/library');
+        return;
+      }
       if (msg.includes('unavailable')) {
         toast.error('Нэг буюу хэд хэдэн бүтээгдэхүүн боломжгүй байна');
       } else if (msg.includes('QPay') || msg.includes('invoice')) {
