@@ -17,7 +17,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # postgresql-client — DB backup cron-д pg_dump хэрэгтэй (өдөр тутмын R2 backup).
-RUN apk add --no-cache postgresql16-client
+# ffmpeg — видео HLS (m3u8+ts segment) хөрвүүлэлт (worker VideoProcessor).
+# ⚠️ Системийн ffmpeg binary найдвартай (npm @ffmpeg-installer alpine libs шаардана).
+RUN apk add --no-cache postgresql16-client ffmpeg
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs

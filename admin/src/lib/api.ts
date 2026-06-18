@@ -652,7 +652,7 @@ export const adminApi = {
   // ─── Help Video (Туслах самбарын видео заавар) ───────────────────────────
   helpVideos: {
     list: () => adminFetch<AdminHelpVideo[]>('/admin/help-videos'),
-    create: (body: Partial<AdminHelpVideo>) =>
+    create: (body: Partial<AdminHelpVideo> & { rawVideoKey?: string }) =>
       adminFetch<AdminHelpVideo>('/admin/help-videos', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: Partial<AdminHelpVideo>) =>
       adminFetch<AdminHelpVideo>(`/admin/help-videos/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

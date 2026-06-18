@@ -143,6 +143,20 @@ export class StorageService {
     );
   }
 
+  // R2-аас файлыг Buffer болгож татах (worker HLS хөрвүүлэлтэд raw видео авна).
+  async downloadBuffer(key: string): Promise<Buffer> {
+    if (!this.client) throw new Error('Storage client not configured');
+    const res = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const body = res.Body as NodeJS.ReadableStream;
+    const chunks: Buffer[] = [];
+    for await (const chunk of body) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  }
+
   /**
    * R2 bucket дахь БҮХ object-ийг (key + LastModified) жагсаана (pagination-тай).
    * Orphan cleanup-д ашиглана. prefix өгвөл зөвхөн тэр хавтаснаас.

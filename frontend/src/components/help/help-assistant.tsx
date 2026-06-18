@@ -62,20 +62,57 @@ function VideoPlayer({ video }: { video: HelpVideoItem }) {
       </a>
     );
   }
-  // R2 файл (videoKey = public URL)
+  // R2 файл (videoKey) — HLS (.m3u8) бол hls.js stream, mp4 (хуучин) бол шууд.
   if (video.videoKey) {
-    return (
-      <video
-        src={video.videoKey}
-        poster={video.posterKey ?? undefined}
-        controls
-        autoPlay
-        playsInline
-        className="aspect-video w-full rounded-xl bg-black"
-      />
-    );
+    return <HlsVideo src={video.videoKey} poster={video.posterKey ?? undefined} title={video.title} />;
   }
   return null;
+}
+
+// R2 видео тоглуулагч — .m3u8 (HLS) бол hls.js (Chrome/Android) эсвэл native
+// (Safari/iOS), .mp4 (хуучин) бол шууд <video src>. Том видео segment-ээр хурдан.
+function HlsVideo({ src, poster, title }: { src: string; poster?: string; title: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const isHls = /\.m3u8($|\?)/i.test(src);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || !isHls) return;
+    // Safari/iOS — native HLS
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
+      return;
+    }
+    // Chrome/Android — hls.js (SSR-д import хийхгүй)
+    let hls: import('hls.js').default | null = null;
+    let cancelled = false;
+    import('hls.js').then((mod) => {
+      if (cancelled) return;
+      const Hls = mod.default;
+      if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+      } else {
+        video.src = src; // fallback
+      }
+    });
+    return () => { cancelled = true; if (hls) hls.destroy(); };
+  }, [src, isHls]);
+
+  return (
+    <video
+      ref={ref}
+      // mp4 (HLS биш) бол шууд src; HLS бол useEffect-д тавина
+      src={isHls ? undefined : src}
+      poster={poster}
+      controls
+      autoPlay
+      playsInline
+      className="aspect-video w-full rounded-xl bg-black"
+      title={title}
+    />
+  );
 }
 
 // ── Видео жагсаалтын мөр ──

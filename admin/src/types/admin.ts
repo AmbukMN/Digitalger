@@ -613,6 +613,7 @@ export interface AdminHelpVideo {
   videoStreamId: string | null;  // Cloudflare Stream
   posterKey: string | null;      // Thumbnail URL
   durationLabel: string | null;  // "0:30" г.м
+  streamStatus?: string | null;  // HLS: processing | ready | error
   sortOrder: number;
   active: boolean;
   createdByUserId?: string | null;

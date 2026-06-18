@@ -18,6 +18,8 @@ import type { AdminHelpVideo } from '@/types/admin';
 const emptyForm = {
   title: '', description: '', videoUrl: '', videoKey: '', posterKey: '',
   durationLabel: '', sortOrder: 0, active: true,
+  // Видео файл upload → rawVideoKey (R2 түр key). Backend HLS-руу хөрвүүлнэ.
+  rawVideoKey: '',
 };
 type FormState = typeof emptyForm;
 
@@ -42,6 +44,7 @@ function HelpVideoDialog({
             durationLabel: video.durationLabel ?? '',
             sortOrder: video.sortOrder,
             active: video.active,
+            rawVideoKey: '',
           }
         : emptyForm
       );
@@ -72,15 +75,17 @@ function HelpVideoDialog({
     try {
       // Видео бол хугацааг ЗЭРЭГ уншина (upload-той зэрэгцүүлэн)
       const durPromise = field === 'video' ? readDuration(file) : Promise.resolve(null);
-      const [res, dur] = await Promise.all([uploadWithProgress(file, 'help-videos'), durPromise]);
+      // Видео бол R2 tmp-д raw upload (folder=tmp) → rawVideoKey (backend HLS болгоно).
+      const folder = field === 'video' ? 'tmp' : 'help-videos';
+      const [res, dur] = await Promise.all([uploadWithProgress(file, folder), durPromise]);
       if (field === 'video') {
-        // Файл upload хийвэл videoKey-д хадгална (videoUrl-ийг цэвэрлэнэ).
-        // durationLabel-ийг автомат бөглөнө (хэрэглэгч гараар оруулахгүй).
-        setForm((f) => ({ ...f, videoKey: res.url, videoUrl: '', durationLabel: dur || f.durationLabel }));
+        // ⚠️ Чанар БУУРУУЛАХГҮЙ — raw файлыг R2-д тавиад backend -c copy HLS болгоно.
+        // rawVideoKey = R2 key (worker татаж хөрвүүлнэ). videoKey хоосон (worker бичнэ).
+        setForm((f) => ({ ...f, rawVideoKey: res.key, videoKey: '', videoUrl: '', durationLabel: dur || f.durationLabel }));
       } else {
         setForm((f) => ({ ...f, posterKey: res.url }));
       }
-      toast.success(field === 'video' && dur ? `Байршуулсан (${dur})` : 'Байршуулсан');
+      toast.success(field === 'video' && dur ? `Байршуулсан (${dur}) · HLS болгож байна` : 'Байршуулсан');
     } catch (e) {
       toast.error(errMsg(e, 'Байршуулахад алдаа'));
     } finally {
@@ -90,7 +95,7 @@ function HelpVideoDialog({
 
   const mutation = useMutation({
     mutationFn: () => {
-      const payload: Partial<AdminHelpVideo> = {
+      const payload: Partial<AdminHelpVideo> & { rawVideoKey?: string } = {
         title: form.title,
         description: form.description || undefined,
         videoUrl: form.videoUrl || undefined,
@@ -99,6 +104,8 @@ function HelpVideoDialog({
         durationLabel: form.durationLabel || undefined,
         sortOrder: form.sortOrder,
         active: form.active,
+        // Шинэ видео upload → backend HLS-руу queue (зөвхөн create үед).
+        rawVideoKey: form.rawVideoKey || undefined,
       };
       return video
         ? adminApi.helpVideos.update(video.id, payload)
@@ -108,7 +115,7 @@ function HelpVideoDialog({
     onError: (e) => toast.error(errMsg(e, 'Алдаа гарлаа')),
   });
 
-  const hasVideo = !!form.videoKey;
+  const hasVideo = !!(form.videoKey || form.rawVideoKey);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -209,6 +216,9 @@ export default function HelpVideosPage() {
     queryFn: () => adminApi.helpVideos.list(),
     staleTime: 0,
     refetchOnWindowFocus: true,
+    // HLS хөрвүүлж буй видео байвал 5с тутам polling (бэлэн болоход автомат шинэчлэх)
+    refetchInterval: (q) =>
+      (q.state.data ?? []).some((v) => v.streamStatus === 'processing') ? 5000 : false,
   });
 
   const deleteMut = useMutation({
@@ -264,7 +274,14 @@ export default function HelpVideosPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium">{v.title}</p>
-                    <Badge variant={v.active ? 'default' : 'secondary'} className="text-xs shrink-0">{v.active ? 'Идэвхтэй' : 'Идэвхгүй'}</Badge>
+                    {/* HLS хөрвүүлэлтийн төлөв */}
+                    {v.streamStatus === 'processing' ? (
+                      <Badge className="shrink-0 bg-amber-100 text-xs text-amber-700 dark:bg-amber-900/30">⏳ HLS болгож байна</Badge>
+                    ) : v.streamStatus === 'error' ? (
+                      <Badge variant="destructive" className="shrink-0 text-xs">Алдаа</Badge>
+                    ) : (
+                      <Badge variant={v.active ? 'default' : 'secondary'} className="text-xs shrink-0">{v.active ? 'Идэвхтэй' : 'Идэвхгүй'}</Badge>
+                    )}
                     {v.durationLabel && <span className="shrink-0 text-[11px] text-muted-foreground">{v.durationLabel}</span>}
                   </div>
                   {v.description && <p className="truncate text-xs text-muted-foreground">{v.description}</p>}

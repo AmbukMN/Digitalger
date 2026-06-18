@@ -698,10 +698,12 @@ model HelpVideo {
   title           String
   description     String?   @db.Text
   videoUrl        String?   // YouTube/Vimeo гадаад линк
-  videoKey        String?   // R2 public URL (admin upload)
-  videoStreamId   String?   // Cloudflare Stream uid
+  videoKey        String?   // R2 public URL — HLS m3u8 (шинэ) эсвэл mp4 (хуучин)
+  videoStreamId   String?   // Cloudflare Stream uid (ашиглахгүй — энгийн видео R2)
   posterKey       String?   // Thumbnail зураг (R2 эсвэл гадаад URL)
   durationLabel   String?   // "0:30", "1:20" гэх мэт харуулах шошго
+  // HLS хөрвүүлэлтийн төлөв: null/ready=бэлэн, processing=worker хөрвүүлж байна, error
+  streamStatus    String?   @default("ready")
   sortOrder       Int       @default(0)
   active          Boolean   @default(true)
   createdByUserId String?
