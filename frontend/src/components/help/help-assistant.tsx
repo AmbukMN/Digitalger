@@ -285,14 +285,17 @@ export function HelpAssistant() {
                 // ? icon: bottom-[6.5rem]≈104px + h-64px = орой ≈168px. Panel доод ирмэг
                 // түүнээс дээш. ⚠️ dragY (товч чирсэн) panel-д ч НЭМНЭ (inline style доор)
                 // — товчийг дээш чирвэл panel ч дээш, товчтойгоо хамт хөдөлнө.
-                'right-3 left-3 max-h-[calc(100dvh-13rem)]',
+                // Mobile: тогтмол өндөр 68dvh (bottom clamp хийхэд найдвартай).
+                'right-3 left-3 h-[68dvh] max-h-[68dvh]',
                 // Desktop bottom (md:bottom-[11.5rem]) — drag desktop-д ховор тул тогтмол.
-                'md:bottom-[11.5rem] md:right-6 md:left-auto md:w-[400px] md:h-[min(560px,calc(100dvh-14rem))]',
+                'md:bottom-[11.5rem] md:right-6 md:left-auto md:h-[min(560px,calc(100dvh-14rem))] md:max-h-none md:w-[400px]',
               )}
-              // ⚠️ MOBILE: товчны drag байрлалд тааруулна (bottom = 11.5rem - dragY,
-              // доод 88px). Desktop: md:bottom-[11.5rem] class (inline өгөхгүй).
+              // ⚠️ MOBILE: bottom = товчны drag байрлал, ГЭХДЭЭ clamp хийнэ:
+              //   доод 88px (товчны дээр), дээд 100dvh-68dvh-1rem (panel дэлгэцийн
+              //   ДЭЭД ирмэгээс ГАРАХГҮЙ). clamp(min, preferred, max). Товч хэт дээш
+              //   бол panel дээд хязгаарт ТОГТОНО (дээш алга болохгүй).
               style={isMobile
-                ? { transformOrigin: 'bottom right', bottom: `max(88px, calc(11.5rem - ${dragY}px))` }
+                ? { transformOrigin: 'bottom right', bottom: `clamp(88px, calc(11.5rem - ${dragY}px), calc(100dvh - 68dvh - 1rem))` }
                 : { transformOrigin: 'bottom right' }}
               initial={{ opacity: 0, y: 16, scale: 0.92 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

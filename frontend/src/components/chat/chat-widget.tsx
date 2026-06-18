@@ -591,13 +591,15 @@ export function ChatWidget() {
             // товчийг дээш чирвэл цонх ч дээш, товчтойгоо хамт хөдөлнө (inline style доор).
             className={cn(
               'fixed right-3 z-[60] flex w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-7rem))]',
-              isProductDetail
-                ? 'h-[min(560px,calc(100dvh-11rem))]'
-                : 'h-[min(620px,calc(100dvh-7rem))]',
+              // Mobile: тогтмол өндөр 70dvh (bottom clamp найдвартай). Desktop md:h дарна.
+              'h-[70dvh] md:h-[min(620px,calc(100dvh-7rem))]',
             )}
             // ⚠️ Зөвхөн MOBILE-д товчны drag байрлалд тааруулна (desktop md:bottom-24
-            // class хэвээр). bottom = base(product 9rem, бусад 6rem) - dragY, доод 80px.
-            style={isMobile ? { bottom: `max(80px, calc(${isProductDetail ? '9rem' : '6rem'} - ${dragY}px))` } : undefined}
+            // class хэвээр). bottom-ийг CLAMP: доод 80px (товчны дээр), дээд
+            // 100dvh-70dvh-1rem (цонх дэлгэцийн ДЭЭД ирмэгээс ГАРАХГҮЙ → дээш алга болохгүй).
+            style={isMobile
+              ? { bottom: `clamp(80px, calc(${isProductDetail ? '9rem' : '6rem'} - ${dragY}px), calc(100dvh - 70dvh - 1rem))` }
+              : undefined}
           >
             {/* Толгой */}
             <div className="flex items-center justify-between gap-3 bg-primary px-4 py-3 text-primary-foreground">
