@@ -78,6 +78,7 @@ export class ChatController {
       assistantText?: string;
       products?: unknown; // assistant санал болгосон card массив
       userName?: string;
+      userImage?: string; // FB/IG profile зураг
     },
   ) {
     const sessionId = (body.sessionId ?? '').trim();
@@ -91,6 +92,7 @@ export class ChatController {
         role: 'user',
         text: body.userText,
         userName: body.userName,
+        userImage: body.userImage,
       });
     }
     // assistant мессеж + products

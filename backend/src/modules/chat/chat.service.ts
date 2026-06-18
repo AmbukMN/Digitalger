@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // Чат суваг — n8n workflow-аас ирэх утга (web chat / FB / IG).
@@ -16,6 +17,7 @@ export interface SaveChatInput {
   role: string;
   text: string;
   userName?: string;
+  userImage?: string; // FB/IG profile зураг (n8n Get User Profile-аас)
   userId?: string;
   // AI бот санал болгосон бүтээгдэхүүний card (assistant мессеж дээр n8n дамжуулна).
   products?: unknown;
@@ -25,7 +27,39 @@ export interface SaveChatInput {
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /**
+   * FB/IG Messenger хэрэглэгч рүү Graph Send API-аар мессеж илгээх.
+   * sessionId = PSID (page-scoped user id). FB_PAGE_ACCESS_TOKEN env шаардлагатай.
+   * Алдаа гарвал залгина (admin reply DB-д хадгалагдсан хэвээр — мессеж алдагдахгүй).
+   */
+  private async sendFbMessage(psid: string, text: string): Promise<void> {
+    const token = this.config.get<string>('FB_PAGE_ACCESS_TOKEN');
+    if (!token || !psid || !text) return;
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(token)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient: { id: psid },
+            messaging_type: 'RESPONSE',
+            message: { text },
+          }),
+        },
+      );
+      if (!res.ok) {
+        this.logger.warn(`FB send fail ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      }
+    } catch (e) {
+      this.logger.warn(`FB send error: ${String(e).slice(0, 200)}`);
+    }
+  }
 
   // Дамжуулсан userId DB-д бодитоор оршдог эсэхийг шалгана (хуурамч/устсан id-аас
   // FK алдаа гарахаас сэргийлж, fail-open — байхгүй бол undefined).
@@ -67,6 +101,7 @@ export class ChatService {
     }
 
     const userName = input.userName?.trim() || undefined;
+    const userImage = input.userImage?.trim() || undefined;
     const safeUserId = await this.safeUserId(input.userId);
     const now = new Date();
 
@@ -84,12 +119,14 @@ export class ChatService {
         lastMessageAt: now,
         adminUnread: markAdminUnread,
         ...(userName ? { userName } : {}),
+        ...(userImage ? { userImage } : {}),
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
       update: {
         lastMessageAt: now,
         ...(markAdminUnread ? { adminUnread: true } : {}),
         ...(userName ? { userName } : {}),
+        ...(userImage ? { userImage } : {}),
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
       select: { id: true },
@@ -204,7 +241,7 @@ export class ChatService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {
-          id: true, channel: true, sessionId: true, userName: true,
+          id: true, channel: true, sessionId: true, userName: true, userImage: true,
           adminUnread: true, handedOff: true, lastMessageAt: true,
           user: { select: { id: true, name: true, email: true, image: true } },
           messages: {
@@ -226,7 +263,7 @@ export class ChatService {
     const conv = await this.prisma.chatConversation.findUnique({
       where: { id },
       select: {
-        id: true, channel: true, sessionId: true, userName: true,
+        id: true, channel: true, sessionId: true, userName: true, userImage: true,
         adminUnread: true, handedOff: true, lastMessageAt: true,
         user: { select: { id: true, name: true, email: true, image: true } },
         messages: {
@@ -256,7 +293,7 @@ export class ChatService {
     if (!t) return null;
     const conv = await this.prisma.chatConversation.findUnique({
       where: { id },
-      select: { id: true, sessionId: true, userId: true },
+      select: { id: true, sessionId: true, userId: true, channel: true },
     });
     if (!conv) return null;
     const msg = await this.prisma.chatMessage.create({
@@ -271,6 +308,11 @@ export class ChatService {
         userUnreadCount: { increment: 1 },
       },
     });
+    // ⚠️ FB/IG хэрэглэгчид admin-ийн хариуг Messenger руу ШУУД илгээнэ
+    // (sessionId = PSID). Web бол frontend polling-оор хүрнэ (FB send хэрэггүй).
+    if (conv.channel === 'facebook' || conv.channel === 'instagram') {
+      await this.sendFbMessage(conv.sessionId, t);
+    }
     return { message: msg, sessionId: conv.sessionId, userId: conv.userId };
   }
 

@@ -211,6 +211,7 @@ export interface AdminChatListItem {
   channel: 'web' | 'facebook' | 'instagram';
   sessionId: string;
   userName?: string | null;
+  userImage?: string | null;
   adminUnread: boolean;
   handedOff: boolean;
   lastMessageAt: string;
@@ -230,6 +231,7 @@ export interface AdminChatConversationDetail {
   channel: 'web' | 'facebook' | 'instagram';
   sessionId: string;
   userName?: string | null;
+  userImage?: string | null;
   adminUnread: boolean;
   handedOff: boolean;
   lastMessageAt: string;

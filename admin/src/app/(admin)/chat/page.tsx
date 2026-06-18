@@ -62,8 +62,23 @@ function ChatDetailDialog({
       <DialogContent className="flex max-h-[88vh] max-w-2xl flex-col p-0">
         <DialogHeader className="border-b border-border px-5 py-3">
           <DialogTitle className="flex items-center gap-2 text-base">
-            <MessageCircle className="h-4 w-4 text-primary" />
+            {/* Хэрэглэгчийн зураг (FB/IG profile эсвэл нэвтэрсэн user) */}
+            <Avatar
+              src={conv?.user?.image || conv?.userImage || undefined}
+              name={conv?.user?.name || conv?.userName || 'Зочин'}
+              size={28}
+            />
             {conv?.user?.name || conv?.userName || 'Зочин'}
+            {/* Суваг badge — FB / Instagram / Вэб */}
+            {conv?.channel && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                conv.channel === 'facebook' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  : conv.channel === 'instagram' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
+                    : 'bg-muted text-muted-foreground'
+              }`}>
+                {conv.channel === 'facebook' ? 'Facebook' : conv.channel === 'instagram' ? 'Instagram' : 'Вэб'}
+              </span>
+            )}
             {conv?.handedOff && (
               <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
                 Багтай ярьж байна
@@ -208,10 +223,18 @@ export default function ChatPage() {
                 onClick={() => setOpenId(c.id)}
               >
                 <CardContent className="flex items-center gap-3 p-3.5">
-                  <Avatar src={c.user?.image} name={c.user?.name || c.userName || 'Зочин'} size={40} />
+                  <Avatar src={c.user?.image || c.userImage || undefined} name={c.user?.name || c.userName || 'Зочин'} size={40} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-sm font-semibold">{c.user?.name || c.userName || 'Зочин'}</p>
+                      {/* Суваг badge */}
+                      <span className={`shrink-0 rounded-full px-1.5 text-[9px] font-semibold ${
+                        c.channel === 'facebook' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : c.channel === 'instagram' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
+                            : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {c.channel === 'facebook' ? 'FB' : c.channel === 'instagram' ? 'IG' : 'Вэб'}
+                      </span>
                       {c.adminUnread && <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />}
                       {c.handedOff && <span className="rounded-full bg-green-100 px-1.5 text-[9px] font-semibold text-green-700 dark:bg-green-900/30">Гар</span>}
                       <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{fmtTime(c.lastMessageAt)}</span>
