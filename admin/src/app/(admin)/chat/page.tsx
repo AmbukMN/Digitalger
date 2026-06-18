@@ -30,14 +30,29 @@ function ChatDetailDialog({
     queryKey: ['admin', 'chat', 'detail', convId],
     queryFn: () => adminApi.chat.detail(convId!),
     enabled: !!convId,
-    refetchInterval: convId ? 8000 : false, // нээлттэй үед хэрэглэгчийн шинэ мессеж автоматаар
+    refetchInterval: convId ? 5000 : false, // 5с — хэрэглэгчийн шинэ мессеж бараг шууд
+    refetchIntervalInBackground: true,
   });
 
+  // ⚠️ Чат нээх / шинэ мессеж ирэх бүрд ХАМГИЙН СҮҮЛИЙН мессеж рүү (ёроол) шилжинэ.
+  // Dialog нээгдэх агшинд DOM/animation бэлэн биш байдаг тул rAF-аар 2 удаа
+  // (одоо + дараагийн frame) scroll хийж найдвартай ёроолд буулгана.
+  const messageCount = data?.messages?.length ?? 0;
   useEffect(() => {
-    if (data && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [data]);
+    if (!data) return;
+    const scrollToBottom = () => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+    scrollToBottom();
+    const r1 = requestAnimationFrame(() => {
+      scrollToBottom();
+      requestAnimationFrame(scrollToBottom);
+    });
+    const t = setTimeout(scrollToBottom, 150); // зураг/card ачаалагдсаны дараа
+    return () => { cancelAnimationFrame(r1); clearTimeout(t); };
+    // convId (чат солих) + messageCount (шинэ мессеж) дээр дахин ёроолд
+  }, [convId, messageCount, data]);
 
   const replyMut = useMutation({
     mutationFn: () => adminApi.chat.reply(convId!, reply.trim()),
@@ -184,7 +199,8 @@ export default function ChatPage() {
     queryKey: ['admin', 'chat', 'list', onlyUnread],
     queryFn: () => adminApi.chat.list({ pageSize: 50, onlyUnread }),
     staleTime: 0,
-    refetchInterval: 30000, // 30с — шинэ чат/мессеж автоматаар
+    refetchInterval: 8000, // 8с — шинэ чат/мессеж бараг шууд харагдана (30с удаан байсан)
+    refetchIntervalInBackground: true, // tab идэвхгүй ч шинэчилнэ
     refetchOnWindowFocus: true,
   });
 
