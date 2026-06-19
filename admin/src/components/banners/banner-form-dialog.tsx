@@ -223,11 +223,11 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
               )}
             </div>
 
-            {/* Video */}
+            {/* Video — ⚠️ видеог ЭНД оруулна (дээрх зургийн хэсэгт БИШ) */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                 <Video className="h-3.5 w-3.5" />
-                <span>Видео (MP4, WebM — autoplay, loop)</span>
+                <span>🎬 Видео энд оруулна (MP4, WebM — autoplay, loop)</span>
               </div>
               {form.videoUrl ? (
                 <div className="relative overflow-hidden rounded-lg border bg-muted">
@@ -250,11 +250,11 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
                 </div>
               ) : (
                 <div
-                  className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 hover:border-primary hover:bg-primary/10 transition-colors"
                   onClick={() => videoRef.current?.click()}
                 >
-                  <Video className="h-7 w-7 text-muted-foreground mb-1.5" />
-                  <p className="text-xs text-muted-foreground">
+                  <Video className="h-7 w-7 text-primary mb-1.5" />
+                  <p className="text-xs font-medium text-primary">
                     {uploading === 'videoUrl' ? 'Байршуулж байна...' : 'Видео сонгох (MP4, WebM)'}
                   </p>
                   <input
