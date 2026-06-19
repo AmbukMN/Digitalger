@@ -133,15 +133,18 @@ function VideoRow({ video, onPlay }: { video: HelpVideoItem; onPlay: () => void 
       onClick={onPlay}
       className="group flex w-full items-start gap-3 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-muted"
     >
-      <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+      {/* ⚠️ object-contain — босоо (mobile) видеоны thumbnail object-cover-оор
+          хэрчигдэж (cropped) харагдаж байв. contain нь бүтэн харуулна (хоёр талд
+          бага зэрэг хоосон зай гарна ч content таслагдахгүй). */}
+      <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-black/5">
         {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={poster} alt={video.title} className="h-full w-full object-cover"
+          <img src={poster} alt={video.title} className="h-full w-full object-contain"
             referrerPolicy="no-referrer"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         ) : videoSrc ? (
           // Upload видеоны эхний frame preview (тоглуулахгүй, зөвхөн poster болгож)
-          <video src={`${videoSrc}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+          <video src={`${videoSrc}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-contain" />
         ) : (
           <div className="flex h-full w-full items-center justify-center" style={{ background: 'rgba(2,33,121,0.10)' }}>
             <PlayCircle className="h-5 w-5 text-primary" />
