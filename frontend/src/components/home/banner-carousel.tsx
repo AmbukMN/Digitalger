@@ -20,19 +20,35 @@ function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | 
   //   болоход видео тоглож эхэлнэ — poster болон видеоны эхэн ИЖИЛ зураг тул хүн
   //   шилжсэнийг ОГТ мэдэхгүй (flash байхгүй). poster байхгүй бол navy дэвсгэр.
   //   preload="auto" → богино MP4 бүтнээр урьдчилж татна → бараг шууд тоглоно.
+  // ⚠️ <video poster> ашиглавал видео ачаалагдах эхэнд intrinsic pixel хэмжээгээ
+  // (16:9 жижиг) түр авч, дараа object-cover хэрэгжихэд "жижиг→дүүрэх" зум гардаг байв.
+  // Засвар: poster-ийг видеоноос ТУСАД нь, CSS background (cover)-аар доод давхаргад
+  // тавина — энэ нь видеоны load-оос ХАМААРАХГҮЙ, container-ийг эхнээсээ бүтэн cover
+  // дүүргэнэ. Видео дээр нь object-cover-оор гарч ирнэ. Layout shift / зум гарахгүй.
   return (
-    <video
-      key={src}
-      src={src}
-      poster={poster ?? undefined}
-      className="absolute inset-0 h-full w-full object-cover"
-      style={{ background: bgColor ?? '#022179' }}
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="auto"
-    />
+    <div className="absolute inset-0 overflow-hidden" style={{ background: bgColor ?? '#022179' }}>
+      {poster && (
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url(${poster})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
+      <video
+        key={src}
+        src={src}
+        className="absolute inset-0"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+      />
+    </div>
   );
 }
 
