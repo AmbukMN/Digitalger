@@ -933,6 +933,7 @@ export interface HelpVideoItem {
   videoStreamId: string | null; // Cloudflare Stream
   posterKey: string | null;     // thumbnail
   durationLabel: string | null;
+  platform?: string | null;     // all | desktop | mobile
 }
 export interface HelpFaqItem {
   id: string;

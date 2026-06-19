@@ -18,6 +18,8 @@ import type { AdminHelpVideo } from '@/types/admin';
 const emptyForm = {
   title: '', description: '', videoUrl: '', videoKey: '', posterKey: '',
   durationLabel: '', sortOrder: 0, active: true,
+  // Аль дэлгэцэд: all=help panel+бүгд, desktop/mobile=product detail тухайн дэлгэц
+  platform: 'all',
   // Видео файл upload → rawVideoKey (R2 түр key). Backend HLS-руу хөрвүүлнэ.
   rawVideoKey: '',
 };
@@ -42,6 +44,7 @@ function HelpVideoDialog({
             videoKey: video.videoKey ?? '',
             posterKey: video.posterKey ?? '',
             durationLabel: video.durationLabel ?? '',
+            platform: video.platform ?? 'all',
             sortOrder: video.sortOrder,
             active: video.active,
             rawVideoKey: '',
@@ -102,6 +105,7 @@ function HelpVideoDialog({
         videoKey: form.videoKey || undefined,
         posterKey: form.posterKey || undefined,
         durationLabel: form.durationLabel || undefined,
+        platform: form.platform,
         sortOrder: form.sortOrder,
         active: form.active,
         // Шинэ видео upload → backend HLS-руу queue (зөвхөн create үед).
@@ -136,6 +140,22 @@ function HelpVideoDialog({
             <div className="space-y-2">
               <Label>Дараалал</Label>
               <Input type="number" value={form.sortOrder} onChange={(e) => setForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))} min={0} />
+            </div>
+            {/* Аль дэлгэцэд харуулах — product detail-д desktop/mobile сонгоно */}
+            <div className="space-y-2 col-span-2">
+              <Label>Харагдах дэлгэц</Label>
+              <select
+                value={form.platform}
+                onChange={(e) => setForm(f => ({ ...f, platform: e.target.value }))}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="all">Бүгд (Туслах самбар + бүх дэлгэц)</option>
+                <option value="desktop">Зөвхөн Desktop (компьютер) — бүтээгдэхүүний хуудас</option>
+                <option value="mobile">Зөвхөн Mobile (гар утас) — бүтээгдэхүүний хуудас</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                Desktop/Mobile сонговол бүтээгдэхүүний дэлгэрэнгүй хуудсанд (сургалтаас бусад) тухайн дэлгэцэд харагдана.
+              </p>
             </div>
           </div>
 

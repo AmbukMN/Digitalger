@@ -737,6 +737,9 @@ model HelpVideo {
   videoStreamId   String?   // Cloudflare Stream uid (ашиглахгүй — энгийн видео R2)
   posterKey       String?   // Thumbnail зураг (R2 эсвэл гадаад URL)
   durationLabel   String?   // "0:30", "1:20" гэх мэт харуулах шошго
+  // Аль дэлгэцэд харуулах: 'all' (help panel + бүгд), 'desktop', 'mobile'.
+  // Product detail хуудсанд дэлгэцээс хамаарч desktop/mobile видеог сонгоно.
+  platform        String?   @default("all")
   // HLS хөрвүүлэлтийн төлөв: null/ready=бэлэн, processing=worker хөрвүүлж байна, error
   streamStatus    String?   @default("ready")
   sortOrder       Int       @default(0)

@@ -14,6 +14,7 @@ import { WatchCourseButton } from '@/components/products/watch-course-button';
 import { BundleList } from '@/components/products/bundle-list';
 import { DownloadAllButton } from '@/components/products/download-all-button';
 import { ProductSwiper } from '@/components/products/product-swiper';
+import { ProductInstructionVideo } from '@/components/products/product-instruction-video';
 import {
   Star,
   Package,
@@ -401,6 +402,12 @@ export function ProductDetailView({
                   </div>
                 )}
               </section>
+            )}
+
+            {/* Худалдаж авах/татах заавар видео — дэлгэцээс хамаарч desktop/mobile
+                (сургалтаас бусад бүтээгдэхүүнд). Client component (useQuery/isMobile). */}
+            {product.type !== 'LESSON' && (
+              <ProductInstructionVideo productId={product.id} />
             )}
 
             {/* Testimonials — сургалтыг ХУДАЛДАЖ АВСАН үед нуудаг (gate, client) */}

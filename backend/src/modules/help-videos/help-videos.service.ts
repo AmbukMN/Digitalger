@@ -15,6 +15,7 @@ export class CreateHelpVideoDto {
   @IsOptional() @IsString() videoStreamId?: string;
   @IsOptional() @IsString() posterKey?: string;
   @IsOptional() @IsString() durationLabel?: string;
+  @IsOptional() @IsString() platform?: string; // all | desktop | mobile
   @IsOptional() @IsNumber() sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
   // ⚠️ R2-д түр upload хийсэн raw видео key (presign-ээр). Өгвөл backend HLS-руу
@@ -30,6 +31,7 @@ export class UpdateHelpVideoDto {
   @IsOptional() @IsString() videoStreamId?: string;
   @IsOptional() @IsString() posterKey?: string;
   @IsOptional() @IsString() durationLabel?: string;
+  @IsOptional() @IsString() platform?: string; // all | desktop | mobile
   @IsOptional() @IsNumber() sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 }
@@ -59,6 +61,7 @@ export class HelpVideosService {
         videoStreamId: true,
         posterKey: true,
         durationLabel: true,
+        platform: true,
       },
     });
   }

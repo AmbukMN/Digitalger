@@ -615,6 +615,7 @@ export interface AdminHelpVideo {
   videoStreamId: string | null;  // Cloudflare Stream
   posterKey: string | null;      // Thumbnail URL
   durationLabel: string | null;  // "0:30" г.м
+  platform?: string | null;      // all | desktop | mobile
   streamStatus?: string | null;  // HLS: processing | ready | error
   sortOrder: number;
   active: boolean;
