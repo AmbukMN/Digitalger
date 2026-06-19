@@ -358,6 +358,7 @@ export type AdminPermissionResource =
   | 'blog'
   | 'banners'
   | 'testimonials'
+  | 'partners'
   | 'faqs'
   | 'coupons'
   | 'pages'
@@ -650,6 +651,18 @@ export interface AdminTestimonial {
   sortOrder: number;
   createdByUserId?: string | null;
   _count?: { products: number };
+}
+
+export interface AdminPartner {
+  id: string;
+  name: string;
+  logo?: string | null;
+  description?: string | null;
+  website?: string | null;
+  featured: boolean;
+  active: boolean;
+  sortOrder: number;
+  createdByUserId?: string | null;
 }
 
 export interface AdminBundleItem {

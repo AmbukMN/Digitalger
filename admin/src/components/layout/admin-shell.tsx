@@ -28,6 +28,7 @@ import {
   Menu,
   MessageCircle,
   MessageSquare,
+  Handshake,
   MessagesSquare,
   Navigation,
   Package,
@@ -99,6 +100,7 @@ const navSections: readonly NavSection[] = [
       { href: '/subscribers', label: 'Subscriber', icon: Mail, superadminOnly: true },
       { href: '/reviews', label: 'Review', icon: Star, resource: 'reviews' },
       { href: '/testimonials', label: 'Testimonial', icon: MessageSquare, resource: 'testimonials' },
+      { href: '/partners', label: 'Хамтрагч', icon: Handshake, resource: 'partners' },
       // Суралцагчийн асуулт нь product-той холбоотой — бүгдэд (resource заахгүй).
       { href: '/lessons-questions', label: 'Суралцагчийн асуулт', icon: MessagesSquare },
       // AI чат — хэрэглэгчийн чат харах + гар хариулах (бүгдэд).

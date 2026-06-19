@@ -37,6 +37,16 @@ export interface Testimonial {
   rating: number;
 }
 
+export interface Partner {
+  id: string;
+  name: string;
+  logo?: string | null;
+  description?: string | null;
+  website?: string | null;
+  featured: boolean;
+  active: boolean;
+}
+
 export interface BundleItem {
   id: string;
   name: string;

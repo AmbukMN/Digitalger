@@ -90,6 +90,7 @@ model User {
   ownedCategories   Category[]          @relation("ContentOwner")
   ownedTypes        ProductTypeConfig[] @relation("ContentOwner")
   ownedTestimonials Testimonial[]       @relation("ContentOwner")
+  ownedPartners     Partner[]           @relation("ContentOwner")
   ownedFaqs         FAQ[]               @relation("ContentOwner")
   ownedBlogPosts    BlogPost[]          @relation("ContentOwner")
   ownedBanners      Banner[]            @relation("ContentOwner")
@@ -782,6 +783,27 @@ model Testimonial {
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
   products  ProductTestimonial[]
+
+  @@index([active, featured, sortOrder])
+  @@index([createdByUserId])
+}
+
+// Хамтрагч байгууллага (Partners) — footer-ийн дээд талд auto swiper-ээр харагдана.
+// logo (R2 key/URL), name, description, website динамикаар admin-аас удирдана.
+model Partner {
+  id          String   @id @default(cuid())
+  name        String
+  logo        String? // R2 key эсвэл бүтэн URL (зураг/лого)
+  description String?  @db.Text
+  website     String? // хамтрагчийн вэб (опцион, дарвал шилжинэ)
+  featured    Boolean  @default(true)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+
+  createdByUserId String?
+  createdBy       User?   @relation("ContentOwner", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([active, featured, sortOrder])
   @@index([createdByUserId])

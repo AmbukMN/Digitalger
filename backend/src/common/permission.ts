@@ -20,6 +20,7 @@ export type Resource =
   | 'blog'
   | 'banners'
   | 'testimonials'
+  | 'partners'
   | 'faqs'
   | 'coupons'
   | 'pages'
@@ -86,7 +87,7 @@ export async function getMyPermissions(
 ): Promise<Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }>> {
   const ALL: Resource[] = [
     'products', 'categories', 'product-types', 'blog', 'banners',
-    'testimonials', 'faqs', 'coupons', 'pages', 'menu', 'orders', 'reviews',
+    'testimonials', 'partners', 'faqs', 'coupons', 'pages', 'menu', 'orders', 'reviews',
   ];
   if (me.role === 'SUPERADMIN') {
     return Object.fromEntries(

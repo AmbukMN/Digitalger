@@ -12,6 +12,7 @@ import type {
   ProductSummary,
   PurchasedProduct,
   Testimonial,
+  Partner,
   WishlistItem,
 } from '@/types/api';
 import { API_URL } from './constants';
@@ -465,6 +466,11 @@ export const menuApi = {
 // —— Testimonials ——
 export const testimonialsApi = {
   listActive: () => request<Testimonial[]>('/testimonials', { next: { revalidate: 300 } }),
+};
+
+// —— Partners (хамтрагчид) ——
+export const partnersApi = {
+  listActive: () => request<Partner[]>('/partners', { next: { revalidate: 300 } }),
 };
 
 // —— Wishlist ——

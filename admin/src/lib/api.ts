@@ -35,6 +35,7 @@ import type {
   AdminSubscriber,
   AdminSubscriberCategory,
   AdminTestimonial,
+  AdminPartner,
   AdminUser,
   AdminUserDetail,
   AdminUserFullDetail,
@@ -717,6 +718,15 @@ export const adminApi = {
     update: (id: string, body: Partial<AdminTestimonial>) =>
       adminFetch<AdminTestimonial>(`/admin/testimonials/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) => adminFetch<void>(`/admin/testimonials/${id}`, { method: 'DELETE' }),
+  },
+
+  partners: {
+    list: () => adminFetch<AdminPartner[]>('/admin/partners'),
+    create: (body: Partial<AdminPartner>) =>
+      adminFetch<AdminPartner>('/admin/partners', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<AdminPartner>) =>
+      adminFetch<AdminPartner>(`/admin/partners/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => adminFetch<void>(`/admin/partners/${id}`, { method: 'DELETE' }),
   },
 
   bundles: {

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { SITE_NAME } from '@/lib/constants';
+import { partnersApi } from '@/lib/api';
+import { PartnersSwiper } from '@/components/layout/partners-swiper';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -50,6 +52,8 @@ const SOCIAL_ITEMS = [
 export async function SiteFooter() {
   const social = await getSocialLinks();
   const activeSocials = SOCIAL_ITEMS.filter(({ key }) => !!social[key]);
+  // Хамтрагчид (footer дээд талд цуваа). Алдаа гарвал хоосон — footer хэвийн.
+  const partners = await partnersApi.listActive().catch(() => []);
 
   // Mobile: 2x2 grid (Нууцлал → Үйлчилгээ → Мэдээлэл устгах → Холбоо барих)
   const links = (
@@ -88,6 +92,9 @@ export async function SiteFooter() {
 
   return (
     <footer className="bg-muted/30" style={{ borderTop: '2px solid #ffbe00' }}>
+      {/* Хамтрагчид — footer-ийн дээд талд лого цуваа (auto swiper) */}
+      <PartnersSwiper partners={partners} />
+
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
 
         {/* Mobile layout */}
