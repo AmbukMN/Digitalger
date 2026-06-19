@@ -1294,8 +1294,12 @@ export default function ProfilePage() {
         <div className="px-5 pb-5">
           {/* Avatar overlapping banner */}
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12">
+            {/* ⚠️ session.user.image-ийг ЭХЭНД — Facebook profile picture-ийн URL нь
+                token-той, түр зуурын (expire болдог). Backend-д хадгалсан хуучин FB URL
+                хүчингүй болдог тул header дээрх шинэ session URL-ийг урьдчилна. Google
+                зураг тогтвортой тул аль ч ажиллана. */}
             <UserAvatar
-              image={user?.image ?? session.user?.image}
+              image={session.user?.image ?? user?.image}
               name={displayName}
               isGuest={isGuest}
               token={token}
