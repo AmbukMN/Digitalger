@@ -100,9 +100,13 @@ export function ProductHelpVideo({ video, userId }: { video: HelpVideoItem; user
 
   return (
     <>
-      {/* Thumbnail card */}
+      {/* Thumbnail card — ⚠️ mobile видео БОСОО (9:16) харьцаатай тул aspect-video
+          (16:9)-д хэрчигдэж байв. platform=mobile бол босоо харьцаатай нарийн card,
+          desktop бол 16:9 өргөн. Ингэснээр thumbnail хэрчигдэхгүй бүтэн харагдана. */}
       <button onClick={play}
-        className="group relative flex aspect-video w-full max-w-md items-center justify-center overflow-hidden rounded-xl bg-muted ring-1 ring-border transition-shadow hover:shadow-lg">
+        className={`group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-muted ring-1 ring-border transition-shadow hover:shadow-lg ${
+          video.platform === 'mobile' ? 'aspect-[9/16] max-w-[15rem]' : 'aspect-video max-w-md'
+        }`}>
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={video.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
