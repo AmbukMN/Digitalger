@@ -4,11 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Plus, Pencil, Trash2, Video, Upload, Loader2, Play, GripVertical, Eye,
+  Plus, Pencil, Trash2, Video, Upload, Loader2, Play, GripVertical, Eye, Search,
 } from 'lucide-react';
 import {
   Badge, Button, Card, CardContent, Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogFooter, ErrorState, Input, Label, Loading,
+  DialogTitle, DialogFooter, ErrorState, Input, Label, Loading, StatCard, StatsGrid,
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
@@ -230,6 +230,7 @@ export default function HelpVideosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminHelpVideo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminHelpVideo | null>(null);
+  const [search, setSearch] = useState('');
   const { canModify } = useCurrentAdmin();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -251,7 +252,17 @@ export default function HelpVideosPage() {
   if (isLoading) return <Loading label="Видео заавар ачаалж байна..." />;
   if (isError) return <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const items = data ?? [];
+  const all = data ?? [];
+  // Хайлт — гарчиг/тайлбараар client-side (бага дата, бүгдийг нэг дор татна)
+  const q = search.trim().toLowerCase();
+  const items = q
+    ? all.filter((v) => v.title.toLowerCase().includes(q) || (v.description ?? '').toLowerCase().includes(q))
+    : all;
+  // Статистик
+  const total = all.length;
+  const activeCount = all.filter((v) => v.active).length;
+  const processingCount = all.filter((v) => v.streamStatus === 'processing').length;
+  const totalViews = all.reduce((s, v) => s + (v._count?.views ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -265,7 +276,25 @@ export default function HelpVideosPage() {
         </Button>
       </div>
 
-      {!items.length ? (
+      {/* Статистик */}
+      {total > 0 && (
+        <StatsGrid>
+          <StatCard label="Нийт" value={total} />
+          <StatCard label="Идэвхтэй" value={activeCount} variant="success" />
+          <StatCard label="HLS боловсруулж байна" value={processingCount} variant="warning" />
+          <StatCard label="Нийт үзэлт" value={totalViews} variant="primary" />
+        </StatsGrid>
+      )}
+
+      {/* Хайлт */}
+      {total > 0 && (
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Гарчиг, тайлбараар хайх..." className="pl-9" />
+        </div>
+      )}
+
+      {!all.length ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Video className="h-12 w-12 text-muted-foreground mb-4" />

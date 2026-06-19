@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CalendarDays, Eye, FileText, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
+import { CalendarDays, Eye, FileText, Pencil, Plus, Trash2, Upload, X, Search } from 'lucide-react';
 import {
   Button,
   Card,
@@ -17,6 +17,8 @@ import {
   Label,
   Loading,
   ErrorState,
+  StatCard,
+  StatsGrid,
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
 import { uploadWithProgress } from '@/lib/upload-with-progress';
@@ -287,6 +289,7 @@ export default function BlogPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<BlogPost | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BlogPost | null>(null);
+  const [search, setSearch] = useState('');
   const { canModify } = useCurrentAdmin();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -307,7 +310,16 @@ export default function BlogPage() {
   if (isLoading) return <Loading label="Нийтлэлүүд ачаалж байна..." />;
   if (isError) return <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const posts: BlogPost[] = data ?? [];
+  const allPosts: BlogPost[] = data ?? [];
+  // Статистик
+  const total = allPosts.length;
+  const publishedCount = allPosts.filter((p) => p.published).length;
+  const draftCount = total - publishedCount;
+  // Хайлт (гарчиг/slug)
+  const q = search.trim().toLowerCase();
+  const posts = q
+    ? allPosts.filter((p) => p.title.toLowerCase().includes(q) || (p.slug ?? '').toLowerCase().includes(q))
+    : allPosts;
 
   return (
     <div className="space-y-6">
@@ -321,7 +333,24 @@ export default function BlogPage() {
         </Button>
       </div>
 
-      {posts.length === 0 ? (
+      {/* Статистик */}
+      {total > 0 && (
+        <StatsGrid className="sm:grid-cols-3">
+          <StatCard label="Нийт" value={total} />
+          <StatCard label="Нийтлэгдсэн" value={publishedCount} variant="success" />
+          <StatCard label="Ноорог" value={draftCount} variant="warning" />
+        </StatsGrid>
+      )}
+
+      {/* Хайлт */}
+      {total > 0 && (
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Гарчиг, slug-аар хайх..." className="pl-9" />
+        </div>
+      )}
+
+      {allPosts.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />

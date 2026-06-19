@@ -1,5 +1,6 @@
 export * from './button';
 export * from './card';
+export * from './stat-card';
 export * from './input';
 export * from './label';
 export * from './badge';

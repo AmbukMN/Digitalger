@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, HelpCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, HelpCircle, Search } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -18,6 +18,8 @@ import {
   Input,
   Label,
   Loading,
+  StatCard,
+  StatsGrid,
 } from '@digitalger/shared/ui';
 import { adminApi, errMsg } from '@/lib/api';
 import { useCurrentAdmin } from '@/hooks/use-current-admin';
@@ -129,6 +131,7 @@ export default function FaqsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FAQ | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FAQ | null>(null);
+  const [search, setSearch] = useState('');
   const { canModify } = useCurrentAdmin();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -145,8 +148,18 @@ export default function FaqsPage() {
   if (isLoading) return <Loading label="FAQ ачаалж байна..." />;
   if (isError) return <ErrorState title="Ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  // Group by category
-  const grouped = (data ?? []).reduce<Record<string, FAQ[]>>((acc, faq) => {
+  const all = data ?? [];
+  // Статистик
+  const total = all.length;
+  const activeCount = all.filter((f) => f.active).length;
+  const helpCount = all.filter((f) => f.showInHelp).length;
+  // Хайлт (асуулт/хариулт/ангилал)
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? all.filter((f) => f.question.toLowerCase().includes(q) || f.answer.toLowerCase().includes(q) || (f.category ?? '').toLowerCase().includes(q))
+    : all;
+  // Group by category (шүүсэн дата дээр)
+  const grouped = filtered.reduce<Record<string, FAQ[]>>((acc, faq) => {
     const cat = faq.category ?? 'Бусад';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(faq);
@@ -164,6 +177,23 @@ export default function FaqsPage() {
           <Plus className="mr-2 h-4 w-4" /> FAQ нэмэх
         </Button>
       </div>
+
+      {/* Статистик */}
+      {total > 0 && (
+        <StatsGrid className="sm:grid-cols-3">
+          <StatCard label="Нийт" value={total} />
+          <StatCard label="Идэвхтэй" value={activeCount} variant="success" />
+          <StatCard label="Туслах самбарт" value={helpCount} variant="primary" />
+        </StatsGrid>
+      )}
+
+      {/* Хайлт */}
+      {total > 0 && (
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Асуулт, хариулт, ангиллаар хайх..." className="pl-9" />
+        </div>
+      )}
 
       {!data?.length ? (
         <Card>
