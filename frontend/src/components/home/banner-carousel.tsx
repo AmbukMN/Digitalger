@@ -27,12 +27,18 @@ function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | 
   //    (opacity 0). iOS дээр видео эхлэхэд intrinsic хэмжээгээ түр авч зумладаг тул
   //    бэлэн болтол poster background л харагдана → видео opacity fade-ээр гарна.
   //  - poster болон видеоны эхэн ИЖИЛ зураг тул шилжилт мэдрэгдэхгүй.
-  const ref = useRef<HTMLVideoElement>(null);
+  // ⚠️ iOS Safari-ийн БАРИМТЖСАН bug (Apple Developer Forums): object-fit:cover нь
+  // видеоны эхний 1-2 frame-д хэрэгждэггүй — жижиг (contain мэт) гарч дараа cover
+  // болж "халит" мэдрэгддэг. loadeddata event тус болохгүй (sizing дараа нь тогтдог).
+  // 2 давхар засвар:
+  //  1) min-width/min-height:100% — видео element хэзээ ч контейнерээс жижгэрэхгүй
+  //     (object-fit алдсан ч cover хэвээр).
+  //  2) Видеог 600ms timeout-аар л харуулна (iOS sizing тогтох цаг) — тэр хүртэл
+  //     poster background(cover) л харагдана. poster=эхний frame тул шилжилт жигд.
   const [shown, setShown] = useState(false);
   useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    if (v.readyState >= 2) setShown(true); // cache-аас шууд бэлэн байж магадгүй
+    const t = setTimeout(() => setShown(true), 600);
+    return () => clearTimeout(t);
   }, [src]);
 
   return (
@@ -48,13 +54,14 @@ function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | 
         />
       )}
       <video
-        ref={ref}
         key={src}
         src={src}
         className="absolute inset-0 transition-opacity duration-300"
         style={{
           width: '100%',
           height: '100%',
+          minWidth: '100%',
+          minHeight: '100%',
           objectFit: 'cover',
           objectPosition: 'center',
           opacity: shown ? 1 : 0,
@@ -64,7 +71,6 @@ function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | 
         loop
         playsInline
         preload="auto"
-        onLoadedData={() => setShown(true)}
       />
     </div>
   );
