@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { productsApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
 import { ProductDetailView } from '@/components/products/product-detail-view';
+import { AdminOnlyRedirect } from '@/components/products/admin-only-redirect';
 
 // ── First-visit хурд: бүтээгдэхүүний detail хуудсыг STATIC ISR болгов ──
 // ⚠️ ISR ажиллахын тулд энэ хуудас cookies()/headers()/getServerSession ОГТ
@@ -67,18 +67,20 @@ export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params;
   // ⚠️ Энэ хуудас ISR static (revalidate=300) — getServerSession/headers() дуудах
   // БОЛОМЖГҮЙ (static→dynamic runtime алдаа → 500). adminOnly бүтээгдэхүүн public-д
-  // 404 → дараагийн дугаарын redirect logic: жагсаалтаас adminOnly бол шууд
-  // `/products/[slug]/preview` (force-dynamic, token-той) руу зааж өгсөн.
-  let product: Awaited<ReturnType<typeof productsApi.bySlug>>;
+  // 404 болдог. Тийм үед notFound() биш — AdminOnlyRedirect (client) render хийнэ:
+  // тэр session-ийг CLIENT талд шалгаж, admin бол /preview руу шилжүүлнэ, зочинд
+  // "олдсонгүй" харуулна. Ингэснээр шууд URL-ээр орсон админ ч adminOnly-г харна.
+  let product: Awaited<ReturnType<typeof productsApi.bySlug>> | null = null;
   try {
     product = await productsApi.bySlug(slug);
   } catch {
-    notFound();
+    return <AdminOnlyRedirect slug={slug} />;
   }
 
   const [suggestedProducts] = await Promise.all([
     productsApi.suggested(slug, 8).catch(() => []),
   ]);
 
-  return <ProductDetailView product={product} suggestedProducts={suggestedProducts} />;
+  // catch-д return хийдэг тул энд product заавал бий (TS narrowing-д туслахаар !)
+  return <ProductDetailView product={product!} suggestedProducts={suggestedProducts} />;
 }
