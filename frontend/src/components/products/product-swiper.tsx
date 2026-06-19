@@ -67,8 +67,17 @@ export function ProductSwiper({
     }, AUTO_INTERVAL);
   }, [pan]);
 
-  const pauseAuto  = () => { pausedRef.current = true; };
-  const resumeAuto = () => { pausedRef.current = false; };
+  // ⚠️ Hover/touch үед autoplay-г БҮРЭН зогсооно (interval clear) — зөвхөн
+  // pausedRef flag биш (тэр нь дараагийн tick хүртэл нэг алхам хийдэг байв).
+  const pauseAuto = () => {
+    pausedRef.current = true;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  };
+  const resumeAuto = () => {
+    pausedRef.current = false;
+    // Desktop дээр л дахин эхлүүлнэ (mobile autoplay байхгүй)
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024 && cardW > 0) startAuto();
+  };
 
   useEffect(() => {
     calcLayout();
