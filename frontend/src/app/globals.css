@@ -87,3 +87,32 @@
 .dark .files-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 190, 0, 0.75);
 }
+
+/* ── Partners marquee (логоны тасралтгүй цуваа) ──
+   ⚠️ CSS transform animation — iOS Safari (iPhone 7) дээр ч ЖИГД (GPU compositing).
+   JS scrollLeft ашиглавал iOS momentum batching болж 3 сек тутам үсэрдэг байсан.
+   Лого 2 дахин давтагдсан тул -50% шилжихэд эхэн дэх багцтай таарч тасралтгүй loop. */
+@keyframes partnersMarquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.partners-marquee {
+  animation-name: partnersMarquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+/* Hover/touch үед зогсоно */
+.partners-marquee:hover,
+.partners-marquee:active {
+  animation-play-state: paused;
+}
+/* Хоёр захын зөөлөн бүдгэрэлт (fade) — лого огцом таслагдахгүй */
+.partners-marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+/* Хөдөлгөөн багасгах тохиргоотой хэрэглэгчид зогсооно */
+@media (prefers-reduced-motion: reduce) {
+  .partners-marquee { animation: none; }
+}
