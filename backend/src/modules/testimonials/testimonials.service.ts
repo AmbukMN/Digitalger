@@ -61,11 +61,12 @@ export class UpdateTestimonialDto {
 export class TestimonialsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Public: all active testimonials for home page
+  // Public: home хуудсанд ЗӨВХӨН онцлох (featured) + идэвхтэй сэтгэгдэл харагдана.
+  // ⚠️ active=харагдах эсэх, featured=home-д харуулах сонголт (хоёулаа true байх ёстой).
   findAllActive() {
     return this.prisma.testimonial.findMany({
-      where: { active: true },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
+      where: { active: true, featured: true },
+      orderBy: [{ sortOrder: 'asc' }],
     });
   }
 
