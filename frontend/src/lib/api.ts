@@ -947,10 +947,10 @@ export const helpApi = {
   faqs: () => request<HelpFaqItem[]>('/help/faqs'),
   // Үзэлт бүртгэх — fire-and-forget. userId (нэвтэрсэн) ШУУД дамжуулна → admin
   // хэрэглэгчийн detail-д шууд харагдана. sessionId зочны backfill-д.
-  trackVideoView: (videoId: string, sessionId?: string, userId?: string) =>
+  trackVideoView: (videoId: string, sessionId?: string, userId?: string, source?: 'help' | 'product') =>
     request('/analytics/help-video-view', {
       method: 'POST',
-      body: JSON.stringify({ videoId, sessionId, userId }),
+      body: JSON.stringify({ videoId, sessionId, userId, source }),
     }).catch(() => null),
   trackFaqView: (faqId: string, sessionId?: string, userId?: string) =>
     request('/analytics/faq-view', {

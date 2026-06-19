@@ -703,6 +703,8 @@ model HelpVideoView {
   user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   sessionId String?   // зочин tracking (login үед userId-д backfill)
   device    String?   // mobile | desktop | tablet
+  // Хаанаас үзсэн: 'help' (Туслах самбар) | 'product' (бүтээгдэхүүний хуудас)
+  source    String?   @default("help")
   viewedAt  DateTime  @default(now())
 
   @@index([videoId, viewedAt])

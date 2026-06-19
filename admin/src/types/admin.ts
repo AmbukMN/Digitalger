@@ -309,7 +309,7 @@ export interface AdminUserFullDetail {
   emailHistory?: UserDetailEmail[];
   // Утас баталгаажуулалтын түүх (verify.mn — PhoneVerifySession).
   smsHistory?: UserDetailSms[];
-  helpVideoViews?: { id: string; title: string; viewedAt: string; device?: string | null }[];
+  helpVideoViews?: { id: string; title: string; viewedAt: string; device?: string | null; source?: string | null }[];
   faqViews?: { id: string; question: string; viewedAt: string; device?: string | null }[];
 }
 

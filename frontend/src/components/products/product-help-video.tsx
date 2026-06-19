@@ -86,7 +86,7 @@ export function ProductHelpVideo({ video, userId }: { video: HelpVideoItem; user
     setOpen(true);
     if (!trackedRef.current) {
       trackedRef.current = true;
-      helpApi.trackVideoView(video.id, getAnalyticsSessionId() || undefined, userId);
+      helpApi.trackVideoView(video.id, getAnalyticsSessionId() || undefined, userId, 'product');
     }
   };
 

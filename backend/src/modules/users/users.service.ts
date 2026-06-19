@@ -450,7 +450,7 @@ export class UsersService {
         where: { userId: id },
         orderBy: { viewedAt: 'desc' },
         take: 100,
-        select: { id: true, viewedAt: true, device: true, video: { select: { id: true, title: true } } },
+        select: { id: true, viewedAt: true, device: true, source: true, video: { select: { id: true, title: true } } },
       }),
       // FAQ үзэлт
       this.prisma.fAQView.findMany({
@@ -724,6 +724,7 @@ export class UsersService {
         title: v.video?.title ?? '(устсан видео)',
         viewedAt: v.viewedAt,
         device: v.device,
+        source: v.source, // help | product (хаанаас үзсэн)
       })),
       faqViews: faqViewsRaw.map((f) => ({
         id: f.id,

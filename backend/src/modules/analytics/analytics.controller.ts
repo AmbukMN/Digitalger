@@ -99,7 +99,7 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Post('help-video-view')
   async trackHelpVideoView(
-    @Body() body: { videoId: string; sessionId?: string; userId?: string },
+    @Body() body: { videoId: string; sessionId?: string; userId?: string; source?: string },
     @Req() req: Request,
   ) {
     const ua = req.headers['user-agent'] ?? '';

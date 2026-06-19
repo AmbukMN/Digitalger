@@ -193,7 +193,7 @@ export function HelpAssistant() {
     setPlaying(v);
     if (!trackedRef.current.has('v:' + v.id)) {
       trackedRef.current.add('v:' + v.id);
-      helpApi.trackVideoView(v.id, getHelpSessionId(), uid);
+      helpApi.trackVideoView(v.id, getHelpSessionId(), uid, 'help');
     }
   };
   const openFaqItem = (f: HelpFaqItem, expanded: boolean) => {

@@ -92,14 +92,17 @@ export class AnalyticsService {
   }
 
   // Help video үзэлт бүртгэх (LessonEvent pattern). userId эсвэл зочин sessionId.
+  // source: 'help' (Туслах самбар) | 'product' (бүтээгдэхүүний хуудас).
   async trackHelpVideoView(data: {
     videoId: string;
     sessionId?: string;
     userId?: string;
     device?: string;
+    source?: string;
   }) {
     const userId = await this.safeUserId(data.userId);
-    return this.prisma.helpVideoView.create({ data: { ...data, userId } });
+    const source = data.source === 'product' ? 'product' : 'help';
+    return this.prisma.helpVideoView.create({ data: { ...data, userId, source } });
   }
 
   // FAQ үзэлт бүртгэх.
