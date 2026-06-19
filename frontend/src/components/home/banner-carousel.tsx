@@ -20,11 +20,21 @@ function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | 
   //   болоход видео тоглож эхэлнэ — poster болон видеоны эхэн ИЖИЛ зураг тул хүн
   //   шилжсэнийг ОГТ мэдэхгүй (flash байхгүй). poster байхгүй бол navy дэвсгэр.
   //   preload="auto" → богино MP4 бүтнээр урьдчилж татна → бараг шууд тоглоно.
-  // ⚠️ <video poster> ашиглавал видео ачаалагдах эхэнд intrinsic pixel хэмжээгээ
-  // (16:9 жижиг) түр авч, дараа object-cover хэрэгжихэд "жижиг→дүүрэх" зум гардаг байв.
-  // Засвар: poster-ийг видеоноос ТУСАД нь, CSS background (cover)-аар доод давхаргад
-  // тавина — энэ нь видеоны load-оос ХАМААРАХГҮЙ, container-ийг эхнээсээ бүтэн cover
-  // дүүргэнэ. Видео дээр нь object-cover-оор гарч ирнэ. Layout shift / зум гарахгүй.
+  // ⚠️ Зум/халит асуудал (ялангуяа iPhone 7 / iOS Safari):
+  //  - <video poster> биш — poster-ийг ТУСАД нь CSS background(cover) доод давхаргад
+  //    тавина (видео load-оос хамаарахгүй, эхнээсээ бүтэн cover).
+  //  - Видеог loadeddata (бодит frame бэлэн, cover хэмжээ тогтсон) болтол НУУНА
+  //    (opacity 0). iOS дээр видео эхлэхэд intrinsic хэмжээгээ түр авч зумладаг тул
+  //    бэлэн болтол poster background л харагдана → видео opacity fade-ээр гарна.
+  //  - poster болон видеоны эхэн ИЖИЛ зураг тул шилжилт мэдрэгдэхгүй.
+  const ref = useRef<HTMLVideoElement>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (v.readyState >= 2) setShown(true); // cache-аас шууд бэлэн байж магадгүй
+  }, [src]);
+
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: bgColor ?? '#022179' }}>
       {poster && (
@@ -38,15 +48,23 @@ function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | 
         />
       )}
       <video
+        ref={ref}
         key={src}
         src={src}
-        className="absolute inset-0"
-        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+        className="absolute inset-0 transition-opacity duration-300"
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          opacity: shown ? 1 : 0,
+        }}
         autoPlay
         muted
         loop
         playsInline
         preload="auto"
+        onLoadedData={() => setShown(true)}
       />
     </div>
   );
