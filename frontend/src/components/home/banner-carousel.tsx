@@ -16,15 +16,23 @@ interface Props {
 
 function BannerMedia({ banner }: { banner: Banner }) {
   if (banner.videoUrl) {
+    // ⚡ Богино banner видеог хурдан ачаалах:
+    //  - poster: видео ачаалж дуустал banner зураг ШУУД харагдана (хоосон хар дэлгэц
+    //    арилна) — desktop зураг, эс бол imageUrl
+    //  - preload="auto": богино (10 сек ~1-3MB) видео тул бүтнээр урьдчилж татна →
+    //    autoplay бараг шууд эхэлнэ (HLS overhead-гүй, MP4 direct хамгийн хурдан)
+    const poster = banner.desktopImageUrl || banner.imageUrl || banner.mobileImageUrl || undefined;
     return (
       <video
         key={banner.videoUrl}
         src={banner.videoUrl}
+        poster={poster}
         className="absolute inset-0 h-full w-full object-cover"
         autoPlay
         muted
         loop
         playsInline
+        preload="auto"
       />
     );
   }
