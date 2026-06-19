@@ -20,6 +20,9 @@ export class CreateBannerDto {
   videoUrl?: string;
 
   @IsOptional() @IsString()
+  posterUrl?: string;
+
+  @IsOptional() @IsString()
   linkUrl?: string;
 
   @IsOptional() @IsString()
@@ -59,6 +62,9 @@ export class UpdateBannerDto {
 
   @IsOptional() @IsString()
   videoUrl?: string;
+
+  @IsOptional() @IsString()
+  posterUrl?: string;
 
   @IsOptional() @IsString()
   linkUrl?: string;

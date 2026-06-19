@@ -656,6 +656,7 @@ model Banner {
   mobileImageUrl  String?
   desktopImageUrl String?
   videoUrl        String?
+  posterUrl       String? // видеоны эхний frame (thumbnail) — видео ачаалах хүртэл poster, flash-гүй
   linkUrl         String?
   linkLabel       String?
   sortOrder       Int       @default(0)

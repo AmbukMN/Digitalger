@@ -32,6 +32,7 @@ const empty = {
   mobileImageUrl: '',
   desktopImageUrl: '',
   videoUrl: '',
+  posterUrl: '',
   linkUrl: '',
   linkLabel: 'Дэлгэрэнгүй',
   sortOrder: 0,
@@ -60,6 +61,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
         mobileImageUrl: banner.mobileImageUrl ?? '',
         desktopImageUrl: banner.desktopImageUrl ?? '',
         videoUrl: banner.videoUrl ?? '',
+        posterUrl: banner.posterUrl ?? '',
         linkUrl: banner.linkUrl ?? '',
         linkLabel: banner.linkLabel ?? 'Дэлгэрэнгүй',
         sortOrder: banner.sortOrder,
@@ -82,6 +84,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
         mobileImageUrl: form.mobileImageUrl || undefined,
         desktopImageUrl: form.desktopImageUrl || undefined,
         videoUrl: form.videoUrl || undefined,
+        posterUrl: form.posterUrl || undefined,
         linkUrl: form.linkUrl || undefined,
         linkLabel: form.linkLabel || undefined,
         sortOrder: form.sortOrder,
@@ -105,7 +108,13 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
     setUploading(field);
     try {
       const result = await uploadWithProgress(file);
-      setForm((f) => ({ ...f, [field]: result.url }));
+      setForm((f) => ({
+        ...f,
+        [field]: result.url,
+        // Видео upload үед backend эхний frame (thumbnail) үүсгэдэг — түүнийг poster
+        // болгож хадгална. Видео ачаалах хүртэл ИЖИЛ зураг харагдана → flash байхгүй.
+        ...(field === 'videoUrl' && result.thumbnailUrl ? { posterUrl: result.thumbnailUrl } : {}),
+      }));
     } catch {
       toast.error('Файл байршуулахад алдаа');
     } finally {
@@ -239,7 +248,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
                   />
                   <button
                     type="button"
-                    onClick={() => setForm((f) => ({ ...f, videoUrl: '' }))}
+                    onClick={() => setForm((f) => ({ ...f, videoUrl: '', posterUrl: '' }))}
                     className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground"
                   >
                     <X className="h-3 w-3" />

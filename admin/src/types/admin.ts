@@ -569,6 +569,7 @@ export interface AdminBanner {
   mobileImageUrl: string | null;
   desktopImageUrl: string | null;
   videoUrl: string | null;
+  posterUrl: string | null;
   linkUrl: string | null;
   linkLabel: string | null;
   sortOrder: number;

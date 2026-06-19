@@ -107,6 +107,7 @@ export interface Banner {
   mobileImageUrl: string | null;
   desktopImageUrl: string | null;
   videoUrl: string | null;
+  posterUrl: string | null;
   linkUrl: string | null;
   linkLabel: string | null;
   bgColor: string | null;

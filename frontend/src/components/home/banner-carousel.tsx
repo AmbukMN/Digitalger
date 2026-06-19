@@ -14,42 +14,31 @@ interface Props {
   banners: Banner[];
 }
 
-function BannerVideo({ src, bgColor }: { src: string; bgColor?: string | null }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [ready, setReady] = useState(false);
-
-  // ⚡ Flash-гүй хурдан ачаалалт:
-  //  - poster ОГТ хэрэглэхгүй (өөр зураг → видео шилжихэд 1 сек үсрэлт гардаг байв)
-  //  - видео бэлэн (canplay) болтол navy bgColor дэвсгэр харагдана
-  //  - бэлэн болоход видео ЗӨӨЛӨН fade-in (opacity) — үсрэлт мэдрэгдэхгүй
-  //  - preload="auto" → богино MP4 бүтнээр урьдчилж татна → бараг шууд бэлэн
-  useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    // Cache-аас шууд бэлэн байж магадгүй (event алдагдахаас сэргийлж шалгана)
-    if (v.readyState >= 3) setReady(true);
-  }, [src]);
-
+function BannerVideo({ src, poster, bgColor }: { src: string; poster?: string | null; bgColor?: string | null }) {
+  // ⚡ Flash-гүй ачаалалт — poster = видеоны ЭХНИЙ FRAME (backend upload үед үүсгэсэн
+  //   thumbnail). Видео ачаалах хүртэл poster (эхний frame) ШУУД харагдана, бэлэн
+  //   болоход видео тоглож эхэлнэ — poster болон видеоны эхэн ИЖИЛ зураг тул хүн
+  //   шилжсэнийг ОГТ мэдэхгүй (flash байхгүй). poster байхгүй бол navy дэвсгэр.
+  //   preload="auto" → богино MP4 бүтнээр урьдчилж татна → бараг шууд тоглоно.
   return (
     <video
-      ref={ref}
       key={src}
       src={src}
-      className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500"
-      style={{ opacity: ready ? 1 : 0, background: bgColor ?? '#022179' }}
+      poster={poster ?? undefined}
+      className="absolute inset-0 h-full w-full object-cover"
+      style={{ background: bgColor ?? '#022179' }}
       autoPlay
       muted
       loop
       playsInline
       preload="auto"
-      onCanPlay={() => setReady(true)}
     />
   );
 }
 
 function BannerMedia({ banner }: { banner: Banner }) {
   if (banner.videoUrl) {
-    return <BannerVideo src={banner.videoUrl} bgColor={banner.bgColor} />;
+    return <BannerVideo src={banner.videoUrl} poster={banner.posterUrl} bgColor={banner.bgColor} />;
   }
 
   const desktopSrc = banner.desktopImageUrl || banner.imageUrl;
