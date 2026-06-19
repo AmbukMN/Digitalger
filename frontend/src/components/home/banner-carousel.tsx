@@ -14,27 +14,42 @@ interface Props {
   banners: Banner[];
 }
 
+function BannerVideo({ src, bgColor }: { src: string; bgColor?: string | null }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [ready, setReady] = useState(false);
+
+  // ⚡ Flash-гүй хурдан ачаалалт:
+  //  - poster ОГТ хэрэглэхгүй (өөр зураг → видео шилжихэд 1 сек үсрэлт гардаг байв)
+  //  - видео бэлэн (canplay) болтол navy bgColor дэвсгэр харагдана
+  //  - бэлэн болоход видео ЗӨӨЛӨН fade-in (opacity) — үсрэлт мэдрэгдэхгүй
+  //  - preload="auto" → богино MP4 бүтнээр урьдчилж татна → бараг шууд бэлэн
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    // Cache-аас шууд бэлэн байж магадгүй (event алдагдахаас сэргийлж шалгана)
+    if (v.readyState >= 3) setReady(true);
+  }, [src]);
+
+  return (
+    <video
+      ref={ref}
+      key={src}
+      src={src}
+      className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500"
+      style={{ opacity: ready ? 1 : 0, background: bgColor ?? '#022179' }}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      onCanPlay={() => setReady(true)}
+    />
+  );
+}
+
 function BannerMedia({ banner }: { banner: Banner }) {
   if (banner.videoUrl) {
-    // ⚡ Богино banner видеог хурдан ачаалах:
-    //  - poster: видео ачаалж дуустал banner зураг ШУУД харагдана (хоосон хар дэлгэц
-    //    арилна) — desktop зураг, эс бол imageUrl
-    //  - preload="auto": богино (10 сек ~1-3MB) видео тул бүтнээр урьдчилж татна →
-    //    autoplay бараг шууд эхэлнэ (HLS overhead-гүй, MP4 direct хамгийн хурдан)
-    const poster = banner.desktopImageUrl || banner.imageUrl || banner.mobileImageUrl || undefined;
-    return (
-      <video
-        key={banner.videoUrl}
-        src={banner.videoUrl}
-        poster={poster}
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-      />
-    );
+    return <BannerVideo src={banner.videoUrl} bgColor={banner.bgColor} />;
   }
 
   const desktopSrc = banner.desktopImageUrl || banner.imageUrl;
