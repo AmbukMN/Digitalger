@@ -154,11 +154,14 @@ function UserAvatar({
       <Ghost className={size === 'lg' ? 'h-10 w-10' : 'h-7 w-7'} />
     </div>
   ) : image ? (
-    <Image
+    // ⚠️ Raw <img> + referrerPolicy="no-referrer" — Facebook/Google CDN зураг
+    // next/Image-ээр харагдахгүй байв (optimizer/referrer 403). Header avatar-тай
+    // ижил арга (shared Avatar) — FB/Google profile picture найдвартай харагдана.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={image}
       alt={name ?? 'Профайл'}
-      width={size === 'lg' ? 96 : 64}
-      height={size === 'lg' ? 96 : 64}
+      referrerPolicy="no-referrer"
       className={`${dim} rounded-full object-cover ring-4 ring-background`}
     />
   ) : (
