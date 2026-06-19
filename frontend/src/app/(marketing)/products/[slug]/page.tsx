@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { productsApi } from '@/lib/api';
-import { getAdminAccessToken } from '@/lib/auth';
 import { SITE_URL } from '@/lib/constants';
 import { ProductDetailView } from '@/components/products/product-detail-view';
 
@@ -66,23 +65,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params;
-  // Token-гүй public fetch → ISR static (ердийн бүтээгдэхүүн хурдан, cache-тэй).
+  // ⚠️ Энэ хуудас ISR static (revalidate=300) — getServerSession/headers() дуудах
+  // БОЛОМЖГҮЙ (static→dynamic runtime алдаа → 500). adminOnly бүтээгдэхүүн public-д
+  // 404 → дараагийн дугаарын redirect logic: жагсаалтаас adminOnly бол шууд
+  // `/products/[slug]/preview` (force-dynamic, token-той) руу зааж өгсөн.
   let product: Awaited<ReturnType<typeof productsApi.bySlug>>;
   try {
     product = await productsApi.bySlug(slug);
   } catch {
-    // ⚠️ Public-д олдсонгүй (adminOnly байж магадгүй). Admin/SUPERADMIN нэвтэрсэн
-    // бол token-той дахин оролдоно (adminOnly бүтээгдэхүүнийг харуулна). Зочин/
-    // энгийн хэрэглэгч бол token undefined → дахин 404 → notFound.
-    // ⚠️ getAdminAccessToken (getServerSession) зөвхөн ЭНД (404 fallback) дуудагдана —
-    // ердийн бүтээгдэхүүн public-аас олдоход дуудагдахгүй тул ISR хэвээр.
-    try {
-      const adminToken = await getAdminAccessToken();
-      if (!adminToken) notFound();
-      product = await productsApi.bySlug(slug, adminToken);
-    } catch {
-      notFound();
-    }
+    notFound();
   }
 
   const [suggestedProducts] = await Promise.all([

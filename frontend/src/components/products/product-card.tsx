@@ -23,7 +23,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
   const { data: session } = useSession();
   const router = useRouter();
   const token = session?.accessToken;
-  const isAdmin = session?.user?.role === 'ADMIN';
+  const isAdmin = ['ADMIN', 'SUPERADMIN', 'EDITOR'].includes(session?.user?.role as string);
 
   const add = useCartStore((s) => s.add);
   // ⚠️ items-ийг ШУУД subscribe — has() функц reference өөрчлөгддөггүй тул сагсанд
@@ -75,10 +75,17 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     });
   };
 
+  // ⚠️ adminOnly бүтээгдэхүүн нь ердийн /products/[slug] (ISR public)-д 404 болдог.
+  // Admin нэвтэрсэн бол /products/[slug]/preview (force-dynamic, token-той) руу заана.
+  const productHref =
+    mounted && isAdmin && product.adminOnly
+      ? `/products/${product.slug}/preview`
+      : `/products/${product.slug}`;
+
   const handleCardClick = (e: React.MouseEvent) => {
     e.preventDefault();
     trackProductClick(product.id, product.slug);
-    router.push(`/products/${product.slug}`);
+    router.push(productHref);
   };
 
   const handleWishlist = async () => {
@@ -100,7 +107,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
 
   return (
     <Card className="group flex h-full flex-col overflow-hidden hover:-translate-y-0.5 hover:shadow-xl hover:border-primary/30">
-      <Link href={`/products/${product.slug}`} className="block" onClick={handleCardClick}>
+      <Link href={productHref} className="block" onClick={handleCardClick}>
         <div className="relative aspect-4/3 overflow-hidden bg-muted">
           {product.mainVideoUrl ? (
             <LazyCardVideo
@@ -203,7 +210,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           )}
         </div>
 
-        <Link href={`/products/${product.slug}`} className="flex-1" onClick={handleCardClick}>
+        <Link href={productHref} className="flex-1" onClick={handleCardClick}>
           <h3 className="text-xs sm:text-sm font-medium leading-snug transition-colors hover:text-primary" style={{ lineHeight: 1.4 }}>
             {product.title}
           </h3>
@@ -248,7 +255,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
             size="sm"
             className="flex-1 h-8 text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white"
           >
-            <Link href={`/products/${product.slug}`}>
+            <Link href={productHref}>
               <Download className="mr-1 h-3.5 w-3.5" />
               Үнэгүй татах
             </Link>
