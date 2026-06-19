@@ -100,7 +100,7 @@ export async function SiteFooter() {
         {/* Mobile layout */}
         <div className="flex flex-col items-center gap-2 sm:hidden">
           <p className="text-xs text-muted-foreground text-center">
-            © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
+            Күүл Системс ХХК © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
           {socialIcons}
           {links}
@@ -109,7 +109,7 @@ export async function SiteFooter() {
         {/* Desktop layout */}
         <div className="hidden sm:flex items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground shrink-0">
-            © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
+            Күүл Системс ХХК © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
           <div className="flex items-center gap-4 shrink-0">
             <Link href="/privacy-policy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
