@@ -15,22 +15,22 @@ interface BubbleCtx { idleMs: number; scrollPct: number; text: string; everyVisi
 
 function ctxFor(pathname: string): BubbleCtx {
   if (pathname.startsWith('/checkout')) {
-    return { idleMs: 13_000, scrollPct: 0, text: 'Төлбөр төлөхөд туслах уу? 💳', everyVisit: true };
+    return { idleMs: 8_000, scrollPct: 0, text: 'Төлбөр төлөхөд туслах уу? 💳', everyVisit: true };
   }
   if (/^\/products\/[^/]+/.test(pathname)) {
-    return { idleMs: 20_000, scrollPct: 60, text: 'Энэ бүтээгдэхүүний талаар асуух зүйл байна уу? 🛍️' };
+    return { idleMs: 10_000, scrollPct: 60, text: 'Энэ бүтээгдэхүүний талаар асуух зүйл байна уу? 🛍️' };
   }
   if (pathname.startsWith('/library')) {
-    return { idleMs: 20_000, scrollPct: 0, text: 'Файл татахад туслах уу? 📥' };
+    return { idleMs: 10_000, scrollPct: 0, text: 'Файл татахад туслах уу? 📥' };
   }
   if (pathname.startsWith('/learn')) {
-    return { idleMs: 30_000, scrollPct: 0, text: 'Хичээлийн талаар асуух зүйл байна уу? 🎓' };
+    return { idleMs: 15_000, scrollPct: 0, text: 'Хичээлийн талаар асуух зүйл байна уу? 🎓' };
   }
   if (pathname === '/products') {
-    return { idleMs: 25_000, scrollPct: 50, text: 'Хайхад туслах уу? Видео заавар бий 🔎' };
+    return { idleMs: 15_000, scrollPct: 50, text: 'Хайхад туслах уу? Видео заавар бий 🔎' };
   }
   // Нүүр + бусад
-  return { idleMs: 25_000, scrollPct: 70, text: 'Тусламж хэрэгтэй юу? 👋' };
+  return { idleMs: 15_000, scrollPct: 70, text: 'Тусламж хэрэгтэй юу? 👋' };
 }
 
 const SEEN_KEY = 'dg-help-bubble-shown-v1'; // session-д 1 удаа (sessionStorage)
