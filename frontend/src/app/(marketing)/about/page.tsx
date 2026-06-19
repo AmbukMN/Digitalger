@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/page-metadata';
-import { PageHeader } from '@/components/ui/page-header';
+import { PageHero } from '@/components/ui/page-hero';
 import { sanitizeHtml } from '@/lib/safe-html';
 
 export const revalidate = 60;
@@ -45,8 +45,9 @@ export default async function AboutPage() {
   if (!page) notFound();
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <PageHeader title={page.title} />
+    <>
+      <PageHero title={page.title} breadcrumb="Бид" />
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
         <div
           className="prose prose-base max-w-none font-sans text-muted-foreground
@@ -56,6 +57,7 @@ export default async function AboutPage() {
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
         />
       </div>
-    </div>
+      </div>
+    </>
   );
 }

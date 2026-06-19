@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { SITE_URL, SITE_NAME } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/page-metadata';
-import { PageHeader } from '@/components/ui/page-header';
+import { PageHero } from '@/components/ui/page-hero';
 import { sanitizeHtml } from '@/lib/safe-html';
 import { ContactForm } from '@/components/contact/contact-form';
 import {
@@ -127,17 +127,10 @@ export default async function ContactPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-
-      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-8">
-        <Link href="/" className="hover:text-foreground transition-colors">Нүүр</Link>
-        <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground font-medium">{title}</span>
-      </nav>
-
-      <PageHeader title={title} />
-
+      <PageHero title={title} />
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         {/* Зүүн тал: DB-ээс ирэх холбоо барих мэдээлэл/HTML + social icon */}
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
@@ -174,6 +167,7 @@ export default async function ContactPage() {
         {/* Баруун тал: хүсэлт илгээх маягт */}
         <ContactForm />
       </div>
-    </div>
+      </div>
+    </>
   );
 }

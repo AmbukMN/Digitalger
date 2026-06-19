@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
 import { pagesApi } from '@/lib/api';
 import { buildPageMetadata } from '@/lib/page-metadata';
-import { PageHeader } from '@/components/ui/page-header';
+import { PageHero } from '@/components/ui/page-hero';
 import { sanitizeHtml } from '@/lib/safe-html';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -48,15 +46,9 @@ export default async function TermsOfUsePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-8">
-        <Link href="/" className="hover:text-foreground transition-colors">Нүүр</Link>
-        <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground font-medium">{title}</span>
-      </nav>
-
-      <PageHeader title={title} />
-
+    <>
+      <PageHero title={title} />
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 lg:p-10 shadow-sm">
         <div
           className="prose prose-base max-w-none font-sans text-muted-foreground
@@ -66,6 +58,7 @@ export default async function TermsOfUsePage() {
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
         />
       </div>
-    </div>
+      </div>
+    </>
   );
 }
