@@ -111,7 +111,10 @@ function HlsVideo({ src, poster, title }: { src: string; poster?: string; title:
       controls
       autoPlay
       playsInline
-      className="aspect-video w-full rounded-xl bg-black"
+      controlsList="nodownload noplaybackrate"
+      disablePictureInPicture
+      // ⚠️ aspect ХАТУУ заахгүй — босоо/хэвтээ видео бодит харьцаагаар (object-contain).
+      className="max-h-[85dvh] w-full rounded-xl bg-black object-contain"
       title={title}
     />
   );
@@ -487,7 +490,9 @@ export function HelpAssistant() {
               <X className="h-6 w-6" />
             </button>
             <motion.div
-              className="w-full max-w-4xl"
+              // ⚠️ Mobile (босоо видео) нарийн өргөн + өндөр давамгай; desktop ТОМ
+              // (max-w-5xl). Видео object-contain тул босоо/хэвтээ бүтэн багтана.
+              className="flex max-h-[92dvh] w-full max-w-[min(95vw,28rem)] flex-col md:max-w-5xl"
               initial={{ scale: 0.94, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.94, opacity: 0 }}
