@@ -100,18 +100,19 @@ export function ProductHelpVideo({ video, userId }: { video: HelpVideoItem; user
 
   return (
     <>
-      {/* Thumbnail card — ⚠️ mobile видео БОСОО (9:16) харьцаатай тул aspect-video
-          (16:9)-д хэрчигдэж байв. platform=mobile бол босоо харьцаатай нарийн card,
-          desktop бол 16:9 өргөн. Ингэснээр thumbnail хэрчигдэхгүй бүтэн харагдана. */}
+      {/* Thumbnail card — өргөн 16:9 card (хуучин шиг). Босоо (mobile) видеог
+          object-contain-аар ТӨВД бүтэн харуулна (хэрчихгүй) — хоёр талд бага зэрэг
+          хоосон зай гарна. Хэвтээ (desktop) видео cover-оор дүүрнэ. */}
       <button onClick={play}
-        className={`group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-muted ring-1 ring-border transition-shadow hover:shadow-lg ${
-          video.platform === 'mobile' ? 'aspect-[9/16] max-w-[15rem]' : 'aspect-video max-w-md'
-        }`}>
+        className="group relative flex aspect-video w-full max-w-md items-center justify-center overflow-hidden rounded-xl bg-black/5 ring-1 ring-border transition-shadow hover:shadow-lg">
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt={video.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+          <img src={thumb} alt={video.title}
+            className={`h-full w-full ${video.platform === 'mobile' ? 'object-contain' : 'object-cover'}`}
+            referrerPolicy="no-referrer" />
         ) : videoSrc ? (
-          <video src={`${videoSrc}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+          <video src={`${videoSrc}#t=0.1`} muted playsInline preload="metadata"
+            className={`h-full w-full ${video.platform === 'mobile' ? 'object-contain' : 'object-cover'}`} />
         ) : (
           <div className="h-full w-full" style={{ background: 'rgba(2,33,121,0.10)' }} />
         )}
