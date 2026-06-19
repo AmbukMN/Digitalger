@@ -301,7 +301,7 @@ function ModuleSection({
       >
         <FolderOpen className="h-4 w-4 shrink-0 text-[#ffbe00]" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-foreground">{mod.title}</span>
+          <span className="block wrap-break-word text-sm font-semibold text-foreground">{mod.title}</span>
           <span className="mt-0.5 block text-[11px] text-muted-foreground">
             {completedInMod}/{mod.lessons.length} хичээл
             {totalSec > 0 && ` · ${formatTotalDuration(totalSec)}`}
