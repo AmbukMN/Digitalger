@@ -402,9 +402,9 @@ export function HelpAssistant() {
                       <p className="py-10 text-center text-sm text-muted-foreground">Видео заавар одоогоор алга</p>
                     ) : (
                       <div className="space-y-2">
-                        {/* Help panel-д зөвхөн platform='all' видео (desktop/mobile нь
-                            зөвхөн бүтээгдэхүүний хуудсанд). */}
-                        {videos.filter((v) => !v.platform || v.platform === 'all').map((v) => <VideoRow key={v.id} video={v} onPlay={() => playVideo(v)} />)}
+                        {/* Help самбарт БҮХ видео харагдана (platform нь зөвхөн
+                            product detail-д mobile/desktop алийг харуулахыг заана). */}
+                        {videos.map((v) => <VideoRow key={v.id} video={v} onPlay={() => playVideo(v)} />)}
                       </div>
                     )}
                   </TabsContent>

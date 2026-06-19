@@ -9,17 +9,19 @@ import { useChatUi } from '@/store/chat-ui';
 // ── Хуудас бүрд тохирох санал + idle/scroll босго ──
 // idleMs: хөдөлгөөнгүй хэдэн мс байвал гарах. scrollPct: хэдэн % доош гүйвэл гарах
 // (0 = scroll trigger хэрэггүй). text: bubble дээрх context-aware санал.
-interface BubbleCtx { idleMs: number; scrollPct: number; text: string }
+// everyVisit: checkout-д ОРОХ БОЛГОНД гарна (session 1 удаа БИШ) — X дарж хаасан
+// бол л тэр session-д дахин гарахгүй.
+interface BubbleCtx { idleMs: number; scrollPct: number; text: string; everyVisit?: boolean }
 
 function ctxFor(pathname: string): BubbleCtx {
   if (pathname.startsWith('/checkout')) {
-    return { idleMs: 25_000, scrollPct: 0, text: 'Төлбөр төлөхөд туслах уу? 💳' };
+    return { idleMs: 20_000, scrollPct: 0, text: 'Төлбөр төлөхөд туслах уу? 💳', everyVisit: true };
   }
   if (/^\/products\/[^/]+/.test(pathname)) {
-    return { idleMs: 30_000, scrollPct: 60, text: 'Энэ бүтээгдэхүүний талаар асуух зүйл байна уу? 🛍️' };
+    return { idleMs: 20_000, scrollPct: 60, text: 'Энэ бүтээгдэхүүний талаар асуух зүйл байна уу? 🛍️' };
   }
   if (pathname.startsWith('/library')) {
-    return { idleMs: 30_000, scrollPct: 0, text: 'Файл татахад туслах уу? 📥' };
+    return { idleMs: 20_000, scrollPct: 0, text: 'Файл татахад туслах уу? 📥' };
   }
   if (pathname.startsWith('/learn')) {
     return { idleMs: 40_000, scrollPct: 0, text: 'Хичээлийн талаар асуух зүйл байна уу? 🎓' };
@@ -28,10 +30,11 @@ function ctxFor(pathname: string): BubbleCtx {
     return { idleMs: 25_000, scrollPct: 50, text: 'Хайхад туслах уу? Видео заавар бий 🔎' };
   }
   // Нүүр + бусад
-  return { idleMs: 45_000, scrollPct: 70, text: 'Тусламж хэрэгтэй юу? 👋' };
+  return { idleMs: 25_000, scrollPct: 70, text: 'Тусламж хэрэгтэй юу? 👋' };
 }
 
 const SEEN_KEY = 'dg-help-bubble-shown-v1'; // session-д 1 удаа (sessionStorage)
+const CHECKOUT_DISMISSED_KEY = 'dg-help-bubble-checkout-dismissed-v1'; // checkout X дарсан
 
 export function HelpBubble() {
   const pathname = usePathname() || '/';
@@ -48,8 +51,15 @@ export function HelpBubble() {
   const armedRef = useRef(false);
 
   useEffect(() => {
-    // Session-д аль хэдийн харсан бол огт ажиллахгүй
-    try { if (sessionStorage.getItem(SEEN_KEY)) doneRef.current = true; } catch { /* алгасна */ }
+    // everyVisit (checkout) → SEEN_KEY БИШ, харин DISMISSED key (X дарсан) шалгана:
+    // орох болгонд гарна, гэхдээ X дарж хаасан бол тэр session-д дахин гарахгүй.
+    const stateKey = ctx.everyVisit ? CHECKOUT_DISMISSED_KEY : SEEN_KEY;
+
+    doneRef.current = false; // pathname солигдоход дахин эхэлнэ (everyVisit-д чухал)
+    armedRef.current = false;
+
+    // Аль хэдийн харсан/хаасан бол огт ажиллахгүй
+    try { if (sessionStorage.getItem(stateKey)) doneRef.current = true; } catch { /* алгасна */ }
     if (doneRef.current) return;
 
     const armTimer = setTimeout(() => { armedRef.current = true; }, 5_000);
@@ -60,7 +70,9 @@ export function HelpBubble() {
       // panel нээлттэй бол гаргахгүй (давхцахгүй)
       if (useChatUi.getState().helpOpen || useChatUi.getState().chatOpen) return;
       doneRef.current = true;
-      try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* алгасна */ }
+      // everyVisit бол SEEN тэмдэглэхгүй (дараагийн орохд дахин гарна). everyVisit
+      // биш бол SEEN (session 1 удаа).
+      if (!ctx.everyVisit) { try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* алгасна */ } }
       setShow(true);
     };
 
@@ -91,7 +103,7 @@ export function HelpBubble() {
       window.removeEventListener('scroll', onScroll);
     };
     // pathname солигдвол context (idle/scroll/текст) шинэчилнэ
-  }, [pathname, ctx.idleMs, ctx.scrollPct]);
+  }, [pathname, ctx.idleMs, ctx.scrollPct, ctx.everyVisit]);
 
   // 8с дараа аяндаа арилна (хэрэглэгч анзаараагүй бол шахахгүй)
   useEffect(() => {
@@ -130,7 +142,12 @@ export function HelpBubble() {
               {ctx.text}
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); setShow(false); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow(false);
+                // checkout (everyVisit) — X дарвал тэр session-д дахин гарахгүй
+                if (ctx.everyVisit) { try { sessionStorage.setItem(CHECKOUT_DISMISSED_KEY, '1'); } catch { /* алгасна */ } }
+              }}
               aria-label="Хаах"
               className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full text-white"
               style={{ background: '#022179' }}
