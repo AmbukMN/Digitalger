@@ -485,14 +485,12 @@ function SocialButtons({ tab, callbackUrl }: { tab: Tab; callbackUrl?: string })
           <GoogleIcon />
           Google
         </button>
-        {/* ⚠️ FB Login ТҮР DISABLED — Facebook App-ийн тохиргоо (Live mode + OAuth
-            redirect URI) дуусаагүй тул түр идэвхгүй. Янзалж дуусаад дахин асаахдаа
-            disabled + title-ийг хасаж, onClick-ийг идэвхжүүлнэ. App ID=988190444131827. */}
+        {/* FB Login идэвхтэй (App ID=1500717738176421 DigitalGerBot, OAuth redirect
+            https://digitalger.mn/api/auth/callback/facebook). */}
         <button
           type="button"
-          disabled
-          title="Facebook нэвтрэлт тун удахгүй идэвхжинэ"
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm font-medium opacity-50 cursor-not-allowed"
+          onClick={() => signIn('facebook', { callbackUrl: cb })}
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
         >
           <FacebookIcon />
           Facebook
