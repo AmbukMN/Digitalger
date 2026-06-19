@@ -13,6 +13,8 @@ function youtubeId(url: string): string | null {
 }
 
 // R2 видео — .m3u8 (HLS) бол hls.js, mp4 шууд. Чанар хадгална (segment stream).
+// ⚠️ aspect ХАТУУ заахгүй — босоо (mobile) ба хэвтээ (desktop) видео бодит
+// харьцаагаараа харагдана (object-contain). maxHeight-ийг lightbox өгнө.
 function HlsVideo({ src, poster, title }: { src: string; poster?: string; title: string }) {
   const ref = useRef<HTMLVideoElement>(null);
   const isHls = /\.m3u8($|\?)/i.test(src);
@@ -31,8 +33,12 @@ function HlsVideo({ src, poster, title }: { src: string; poster?: string; title:
     return () => { cancelled = true; if (hls) hls.destroy(); };
   }, [src, isHls]);
   return (
-    <video ref={ref} src={isHls ? undefined : src} poster={poster} controls autoPlay playsInline
-      className="aspect-video w-full rounded-xl bg-black" title={title} />
+    <video
+      ref={ref} src={isHls ? undefined : src} poster={poster} controls autoPlay playsInline
+      controlsList="nodownload noplaybackrate" disablePictureInPicture
+      className="max-h-[85dvh] w-full rounded-xl bg-black object-contain"
+      title={title}
+    />
   );
 }
 
@@ -131,13 +137,17 @@ export function ProductHelpVideo({ video, userId }: { video: HelpVideoItem; user
               className="absolute right-4 top-4 z-10 rounded-full p-2 text-white" style={{ background: 'rgba(255,255,255,0.12)' }}>
               <X className="h-6 w-6" />
             </button>
-            <motion.div className="w-full max-w-4xl"
+            {/* ⚠️ Mobile (босоо видео) — нарийн өргөн, өндөр 90dvh давамгай.
+                Desktop — ТОМ (max-w-5xl, дэлгэцээс хамаарч). Видео object-contain
+                тул босоо/хэвтээ аль ч харьцаа бүтэн багтана. */}
+            <motion.div
+              className="flex max-h-[92dvh] w-full max-w-[min(95vw,28rem)] flex-col md:max-w-5xl"
               initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <VideoInner video={video} />
-              <p className="mt-3 text-base font-semibold text-white">{video.title}</p>
+              <p className="mt-3 shrink-0 text-center text-base font-semibold text-white md:text-left">{video.title}</p>
             </motion.div>
           </motion.div>
         )}
