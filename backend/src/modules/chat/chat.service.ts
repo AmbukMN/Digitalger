@@ -123,6 +123,10 @@ export class ChatService {
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
       update: {
+        // ⚠️ channel-ийг ч шинэчилнэ — нэг хэрэглэгч (sessionId) FB→IG шилжвэл хамгийн
+        // сүүлийн платформоор. Өмнө update-д channel байхгүй тул хуучин facebook
+        // conversation-д IG мессеж нэмэгдэхэд facebook хэвээр (admin-д буруу ялгаатай) байв.
+        channel,
         lastMessageAt: now,
         ...(markAdminUnread ? { adminUnread: true } : {}),
         ...(userName ? { userName } : {}),
