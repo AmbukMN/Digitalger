@@ -65,7 +65,6 @@ services:
       # execution waitingExecution-д гацдаг тул debug ЗААВАЛ. ⚠️ force-recreate
       # зайлсхий — restart л (force-recreate runner-ийг түр эвддэг).
       - N8N_RUNNERS_MODE=internal
-      - N8N_LOG_LEVEL=debug
 
       # ── Encryption key ───────────────────────────────────────────────────────
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
@@ -110,7 +109,8 @@ services:
       - TELEGRAM_ADMIN_CHAT_ID=${TELEGRAM_ADMIN_CHAT_ID:-}
 
       # ── Logging ──────────────────────────────────────────────────────────────
-      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
+      # ⚠️ debug ЗААВАЛ (info үед task runner тогтворгүй → Code node гацна, comment reply ажиллахгүй)
+      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-debug}
       - N8N_LOG_OUTPUT=console
 
       # ── Limits ───────────────────────────────────────────────────────────────
