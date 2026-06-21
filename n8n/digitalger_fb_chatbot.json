@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T00:41:27.278Z",
+    "updatedAt": "2026-06-21T00:49:17.019Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -520,7 +520,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n// ⚠️ Private DM dedup: нэг хэрэглэгч 5 минутад олон comment бичвэл DM-г 1 л удаа.\n// Public reply comment бүрт хийгдэнэ, гэхдээ private DM-г userId-аар 5мин хязгаарлана (спам болхгүй).\nvar _sd = $getWorkflowStaticData('global');\n_sd.dmSeen = _sd.dmSeen || {};\nvar _uid = String(c.userId||'');\nvar _now = Date.now();\nvar _WINDOW = 5*60*1000;\nvar privCommentId = c.commentId;\n// хуучин бичлэг цэвэрлэх (5мин-ээс хэтэрсэн)\nfor (var _k in _sd.dmSeen){ if(_now - _sd.dmSeen[_k] > _WINDOW) delete _sd.dmSeen[_k]; }\nif (_uid && _sd.dmSeen[_uid] && (_now - _sd.dmSeen[_uid] < _WINDOW)) {\n  privCommentId = '';  // 5мин дотор давтсан → DM алгасна (commentId хоосон → private_replies алгасагдана)\n} else if (_uid) {\n  _sd.dmSeen[_uid] = _now;  // DM явуулна, timestamp тэмдэглэ\n}\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,link:link,privCommentId:privCommentId}}];"
+          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n// ⚠️ Private DM dedup: нэг хэрэглэгч 5 минутад олон comment бичвэл DM-г 1 л удаа.\n// Public reply comment бүрт хийгдэнэ, гэхдээ private DM-г userId-аар 5мин хязгаарлана (спам болхгүй).\nvar _sd = $getWorkflowStaticData('global');\n_sd.dmSeen = _sd.dmSeen || {};\nvar _uid = String(c.userId||'');\nvar _now = Date.now();\nvar _WINDOW = 5*60*1000;\nvar privUserId = String(c.userId||\"\");\n// хуучин бичлэг цэвэрлэх (5мин-ээс хэтэрсэн)\nfor (var _k in _sd.dmSeen){ if(_now - _sd.dmSeen[_k] > _WINDOW) delete _sd.dmSeen[_k]; }\nif (_uid && _sd.dmSeen[_uid] && (_now - _sd.dmSeen[_uid] < _WINDOW)) {\n  privUserId = \"\";  // 5мин дотор давтсан → DM алгасна (commentId хоосон → private_replies алгасагдана)\n} else if (_uid) {\n  _sd.dmSeen[_uid] = _now;  // DM явуулна, timestamp тэмдэглэ\n}\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,link:link,privUserId:privUserId}}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -537,7 +537,7 @@
           "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=<FB_PAGE_ACCESS_TOKEN>",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={\"recipient\":{\"comment_id\":\"{{ $json.privCommentId }}\"},\"message\":{\"text\":\"🚀 Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй 👇\n\n{{ $json.link }}\n\nАсуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно 😊\"}}",
+          "jsonBody": "={\"recipient\":{\"id\":\"{{ $json.privUserId }}\"},\"message\":{\"text\":\"🚀 Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй 👇\n\n{{ $json.link }}\n\nАсуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно 😊\"}}",
           "options": {
             "timeout": 10000,
             "response": {
@@ -800,7 +800,7 @@
       "global": {
         "seenMids": [],
         "dmSeen": {
-          "28232054943049794": 1782002699387
+          "28232054943049794": 1782003282619
         }
       }
     },
@@ -808,9 +808,9 @@
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "ad0162cd-996a-4bc7-a759-cb4c13f7192e",
-    "activeVersionId": "ad0162cd-996a-4bc7-a759-cb4c13f7192e",
-    "versionCounter": 633,
+    "versionId": "c5b349f4-1e25-4c65-83b2-a2f0122f8295",
+    "activeVersionId": "c5b349f4-1e25-4c65-83b2-a2f0122f8295",
+    "versionCounter": 656,
     "triggerCount": 2,
     "tags": [],
     "shared": [
