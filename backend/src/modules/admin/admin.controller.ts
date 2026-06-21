@@ -36,6 +36,7 @@ import { CoursesService } from '../courses/courses.service';
 import { CategoriesService } from '../categories/categories.service';
 import { OrdersService } from '../orders/orders.service';
 import { UsersService } from '../users/users.service';
+import { DownloadsService } from '../downloads/downloads.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { EmailService } from '../notifications/email.service';
@@ -75,6 +76,7 @@ export class AdminController {
     private readonly cache: AppCacheService,
     private readonly reviews: ReviewsService,
     private readonly courses: CoursesService,
+    private readonly downloads: DownloadsService,
   ) {}
 
   // ─── Sidebar "шинэ" badge ─────────────────────────────────────────────────────
@@ -1279,6 +1281,17 @@ export class AdminController {
   @Get('users/:id/granted-products')
   listGrantedProducts(@Param('id') id: string) {
     return this.users.listGrantedProducts(id);
+  }
+
+  /**
+   * Хэрэглэгчийн "Миний сан" — ЯГ хэрэглэгчид харагдаж байгаагаар (бодит идэвхтэй
+   * эзэмшил). Хэрэглэгчийн /downloads-той ИЖИЛ логик (listUserDownloads): PAID
+   * order + expiresAt идэвхтэй, product бүрт нэг мөр. Админ хэрэглэгчийн худалдаж
+   * авсан бүтээгдэхүүн санд орсон эсэхийг шалгаж, ороогүй бол гомдол шийднэ.
+   */
+  @Get('users/:id/library')
+  getUserLibrary(@Param('id') id: string) {
+    return this.downloads.listUserDownloads(id);
   }
 
   /** Админаас идэвхжүүлсэн бүтээгдэхүүнийг цуцлах (зөвхөн ADMIN_GRANT) */

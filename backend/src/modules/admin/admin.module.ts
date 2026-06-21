@@ -10,6 +10,7 @@ import { N8nModule } from '../n8n/n8n.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { CoursesModule } from '../courses/courses.module';
 import { NotificationCenterModule } from '../notification-center/notification-center.module';
+import { DownloadsModule } from '../downloads/downloads.module';
 import { AdminController } from './admin.controller';
 import { StaffController } from './staff.controller';
 import { AdminProductsService } from './admin-products.service';
@@ -27,6 +28,7 @@ import { ZIP_QUEUE } from '../downloads/zip.processor';
     ReviewsModule,
     CoursesModule,
     NotificationCenterModule,
+    DownloadsModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

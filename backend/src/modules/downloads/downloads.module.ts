@@ -29,5 +29,8 @@ import { StorageModule } from '../../storage/storage.module';
   ],
   controllers: [DownloadsController, PublicDownloadsController],
   providers: [DownloadsService, ZipCleanupService],
+  // AdminModule "Миний сан" таб-д хэрэглэгчийн бодит эзэмшил (listUserDownloads)-ийг
+  // дахин ашиглах тул DownloadsService-ийг export хийнэ.
+  exports: [DownloadsService],
 })
 export class DownloadsModule {}

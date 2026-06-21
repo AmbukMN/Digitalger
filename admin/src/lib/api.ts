@@ -21,6 +21,7 @@ import type {
   AdminQuizInput,
   AdminCourseModule,
   GrantedProduct,
+  AdminLibraryEntry,
   AdminMenuItem,
   AdminOrder,
   AdminPaymentRow,
@@ -533,6 +534,8 @@ export const adminApi = {
     // Хэрэглэгчийн ДЭЛГЭРЭНГҮЙ — popup-д бүх дата (захиалга/татсан/үзсэн/
     // дарсан/төхөөрөмж/аккаунт түүх) нэг дуудлагаар.
     detail: (id: string) => adminFetch<AdminUserFullDetail>(`/admin/users/${id}/detail`),
+    // "Миний сан" — хэрэглэгчид ЯГ харагдаж байгаа бодит эзэмшил (listUserDownloads)
+    library: (id: string) => adminFetch<AdminLibraryEntry[]>(`/admin/users/${id}/library`),
     update: (id: string, body: { name?: string; role?: string; phone?: string; email?: string }) =>
       adminFetch<AdminUser>(`/admin/users/${id}`, {
         method: 'PATCH',

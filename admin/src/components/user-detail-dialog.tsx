@@ -25,7 +25,10 @@ import {
   Globe,
   Heart,
   History,
+  Library,
   Link2,
+  FileStack,
+  AlertTriangle,
   LogIn,
   Mail,
   MessageCircle,
@@ -52,6 +55,7 @@ import { OrderStatusBadge } from '@/components/order-status-badge';
 import type {
   AdminUser,
   AdminUserFullDetail,
+  AdminLibraryEntry,
   UserDetailChatConversation,
   UserDetailOrder,
 } from '@/types/admin';
@@ -343,6 +347,15 @@ export function UserDetailDialog({ user, onClose }: Props) {
     staleTime: 0,
   });
 
+  // "Миний сан" — хэрэглэгчид ЯГ харагдаж байгаа бодит эзэмшил. Захиалга PAID
+  // байж болох ч энд (санд) орсон эсэхийг харна — гомдол шийдэхэд гол. realtime.
+  const { data: library, isLoading: libLoading } = useQuery<AdminLibraryEntry[]>({
+    queryKey: ['admin', 'user-library', user?.id],
+    queryFn: () => adminApi.users.library(user!.id),
+    enabled: !!user,
+    staleTime: 0,
+  });
+
   const u = data?.user;
   const s = data?.summary;
   const chats = data?.chatConversations ?? [];
@@ -434,6 +447,9 @@ export function UserDetailDialog({ user, onClose }: Props) {
                 <TabsTrigger value="overview" className="data-[state=active]:bg-muted">Тойм</TabsTrigger>
                 <TabsTrigger value="orders" className="data-[state=active]:bg-muted">
                   Захиалга {s ? `(${s.ordersTotal})` : ''}
+                </TabsTrigger>
+                <TabsTrigger value="library" className="data-[state=active]:bg-muted">
+                  <Library className="mr-1 h-3.5 w-3.5" />Миний сан {library ? `(${library.length})` : ''}
                 </TabsTrigger>
                 <TabsTrigger value="downloads" className="data-[state=active]:bg-muted">
                   Татсан {s ? `(${s.downloadsTotal})` : ''}
@@ -626,6 +642,107 @@ export function UserDetailDialog({ user, onClose }: Props) {
               ) : (
                 <div className="space-y-3">
                   {data.orders.map((o) => <OrderRow key={o.id} order={o} />)}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ─── МИНИЙ САН (бодит эзэмшил — хэрэглэгчид харагдаж байгаагаар) ─── */}
+            <TabsContent value="library" className="m-0 flex-1 overflow-y-auto p-5">
+              {/* Тайлбар: энэ нь хэрэглэгчийн "Миний сан" хуудастай ЯГ ижил.
+                  Захиалга PAID байгаад энд ороогүй бол алдаа → гомдол шийдэх. */}
+              <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2.5 dark:border-blue-900/50 dark:bg-blue-950/30">
+                <Library className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Хэрэглэгчийн &ldquo;Миний сан&rdquo;-д ЯГ харагдаж байгаа эзэмшил. Хэрэв
+                  төлбөртэй захиалга байгаад энд бүтээгдэхүүн харагдахгүй бол алдаа гарсан —
+                  хэрэглэгч санаа олохгүй байна. Захиалгын тоотой тулгаж шалгана уу.
+                </p>
+              </div>
+
+              {/* PAID захиалга байгаад санд ороогүй бол анхааруулга */}
+              {!libLoading && library && s && s.paidOrders > 0 && library.length === 0 && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-300 bg-red-50 px-3.5 py-2.5 dark:border-red-900/50 dark:bg-red-950/30">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                  <p className="text-xs text-red-700 dark:text-red-300">
+                    <span className="font-semibold">Анхаар:</span> {s.paidOrders} төлбөртэй захиалга
+                    байгаа ч &ldquo;Миний сан&rdquo; ХООСОН байна. Бүтээгдэхүүн идэвхжээгүй —
+                    шалгаж засах шаардлагатай.
+                  </p>
+                </div>
+              )}
+
+              {libLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              ) : !library || library.length === 0 ? (
+                <Empty icon={Library} text="Миний сан хоосон (идэвхтэй эзэмшил алга)" />
+              ) : (
+                <div className="space-y-2.5">
+                  {library.map((entry) => {
+                    const fileCount =
+                      entry.product.files.length +
+                      entry.product.bundleFiles.length +
+                      (entry.product.downloadFileKey ? 1 : 0);
+                    const expiresAt = entry.expiresAt ? new Date(entry.expiresAt) : null;
+                    const daysLeft =
+                      expiresAt && !entry.isExpired
+                        ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000))
+                        : null;
+                    return (
+                      <div
+                        key={`${entry.orderId}-${entry.product.id}`}
+                        className={`flex items-center gap-3 rounded-xl border bg-card p-3 ${
+                          entry.isExpired ? 'border-red-200 dark:border-red-900/50' : 'border-border'
+                        }`}
+                      >
+                        {/* Зураг */}
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+                          {entry.product.thumbnailUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={entry.product.thumbnailUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                              <Package className="h-5 w-5" />
+                            </div>
+                          )}
+                        </div>
+                        {/* Нэр + meta */}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{entry.product.title}</p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <FileStack className="h-3 w-3" />
+                              {fileCount} файл
+                            </span>
+                            <span>{fmtDate(entry.purchasedAt)}-нд авсан</span>
+                            <span className="font-mono text-[10px]">
+                              #{entry.orderId.slice(-8).toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Идэвхтэй / хугацаа дууссан */}
+                        {entry.isExpired ? (
+                          <Badge variant="destructive" className="shrink-0">
+                            <Clock className="mr-1 h-3 w-3" />Хугацаа дууссан
+                          </Badge>
+                        ) : daysLeft != null ? (
+                          <Badge variant={daysLeft <= 7 ? 'warning' : 'success'} className="shrink-0">
+                            <Clock className="mr-1 h-3 w-3" />{daysLeft} хоног
+                          </Badge>
+                        ) : (
+                          <Badge variant="success" className="shrink-0">
+                            <CheckCircle2 className="mr-1 h-3 w-3" />Идэвхтэй
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>

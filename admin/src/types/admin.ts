@@ -56,6 +56,29 @@ export interface GrantedProduct {
   imageKey: string | null;
 }
 
+// "Миний сан" нэг мөр — хэрэглэгчид ЯГ харагдаж байгаа бодит эзэмшил
+// (backend listUserDownloads буцаах бүтэц). Захиалга/татсан түүхээс ЯЛГААТАЙ:
+// энэ нь идэвхтэй эрх (PAID + expiresAt) бүхий бодит сан.
+export interface AdminLibraryEntry {
+  orderId: string;
+  purchasedAt: string;
+  expiresAt: string | null;
+  isExpired: boolean;
+  product: {
+    id: string;
+    title: string;
+    slug: string;
+    type: string;
+    thumbnailUrl: string | null;
+    accessType: string;
+    accessDays: number | null;
+    downloadFileKey: string | null;
+    files: { id: string; fileName: string }[];
+    bundleFiles: { id: string; fileName: string }[];
+    bundles: { id: string; title: string; items: { id: string }[] }[];
+  };
+}
+
 export interface TopDownloadedProduct {
   id: string;
   title: string;
