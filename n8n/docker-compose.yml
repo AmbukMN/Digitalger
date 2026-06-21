@@ -58,12 +58,11 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-}
 
       # ── Task runner (Code node) ──────────────────────────────────────────────
-      # ⚠️ ЗААВАЛ: n8n 2.x default-аар Python runner-ийг internal mode-д эхлүүлэх
-      # гэж оролдоод (Python 3 байхгүй тул) JS Task Runner crash loop болдог →
-      # Code node гацна → webhook execution "waitingExecution"-д зогсоно.
-      # ENABLED=true + MODE=internal → зөвхөн JS runner тогтвортой ажиллана.
-      - N8N_RUNNERS_ENABLED=true
-      - N8N_RUNNERS_MODE=internal
+      # ⚠️ n8n 2.x-д task runner анхдагчаар ON (ENABLED шаардлагагүй). MODE=internal
+      # тавьбал Python runner-ийг эхлүүлэх гэж оролдоод (Python 3 байхгүй тул) унаж,
+      # JS runner job авахгүй → Code node гацна → webhook execution waitingExecution.
+      # MODE-ийг ОГТ заахгүй (default=JS only) + Python-ийг идэвхгүй болгоно.
+      - N8N_RUNNERS_TASK_TIMEOUT=60
 
       # ── Encryption key ───────────────────────────────────────────────────────
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
