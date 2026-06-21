@@ -4,9 +4,10 @@ import { ChatAdminController } from './chat-admin.controller';
 import { ChatService } from './chat.service';
 import { NotificationCenterModule } from '../notification-center/notification-center.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SubscribersModule } from '../subscribers/subscribers.module';
 
 @Module({
-  imports: [NotificationCenterModule, NotificationsModule],
+  imports: [NotificationCenterModule, NotificationsModule, SubscribersModule],
   controllers: [ChatController, ChatAdminController],
   providers: [ChatService],
   exports: [ChatService],

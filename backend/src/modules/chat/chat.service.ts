@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscribersService } from '../subscribers/subscribers.service';
+
+// Хэрэглэгч чатдаа бичсэн имэйлийг текстээс таних. Энгийн найдвартай regex —
+// нэг мессежид олон имэйл байвал эхнийхийг авна (ихэвчлэн нэг).
+const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 
 // Чат суваг — n8n workflow-аас ирэх утга (web chat / FB / IG).
 export type ChatChannel = 'web' | 'facebook' | 'instagram';
@@ -30,6 +35,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly subscribers: SubscribersService,
   ) {}
 
   /**
@@ -105,6 +111,18 @@ export class ChatService {
     const safeUserId = await this.safeUserId(input.userId);
     const now = new Date();
 
+    // ── Чатаас имэйл таних — хэрэглэгч (user) мессежид имэйл бичсэн бол ──
+    // FB/IG Graph API-аар chat user-ийн имэйл авах БОЛОМЖГҮЙ (PSID≠email, privacy).
+    // Цорын ганц зам: хэрэглэгч чатдаа имэйлээ бичсэн үед текстээс таних. Танивал
+    // ChatConversation.userEmail-д хадгална + subscribers-д "Chat-с орж ирсэн"
+    // категориор нэг удаа бүртгэнэ (marketing email-д). assistant (бот) мессежийн
+    // имэйлийг (info@digitalger.mn г.м) авахгүй — зөвхөн user бичсэн.
+    let capturedEmail: string | undefined;
+    if (role === 'user') {
+      const m = text.match(EMAIL_RE);
+      if (m) capturedEmail = m[0].toLowerCase();
+    }
+
     // sessionId unique тул upsert — байхгүй бол create, байвал lastMessageAt
     // шинэчилж, userName/userId өгсөн бол set хийнэ (хуучин утгыг устгахгүй).
     // Хэрэглэгчийн (user) шинэ мессеж → admin уншаагүй (sidebar badge асна).
@@ -120,6 +138,7 @@ export class ChatService {
         adminUnread: markAdminUnread,
         ...(userName ? { userName } : {}),
         ...(userImage ? { userImage } : {}),
+        ...(capturedEmail ? { userEmail: capturedEmail } : {}),
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
       update: {
@@ -131,10 +150,18 @@ export class ChatService {
         ...(markAdminUnread ? { adminUnread: true } : {}),
         ...(userName ? { userName } : {}),
         ...(userImage ? { userImage } : {}),
+        // userEmail-ийг зөвхөн шинээр танивал set (хуучин таниснаа дарж бичихгүй).
+        ...(capturedEmail ? { userEmail: capturedEmail } : {}),
         ...(safeUserId ? { userId: safeUserId } : {}),
       },
       select: { id: true },
     });
+
+    // Танисан имэйлийг subscribers-д "Chat-с орж ирсэн" категориор бүртгэнэ
+    // (давхардвал чимээгүй өнгөрнө). fire-and-forget — чат хадгалахыг гацаахгүй.
+    if (capturedEmail) {
+      this.subscribers.captureFromChat(capturedEmail).catch(() => null);
+    }
 
     // Products card — зөвхөн assistant мессеж дээр, массив бол (дээд 12, спам хязгаар).
     // Хэрэглэгчид харагдсан card-ийг ЯГ хадгална → admin ижлээр харна.

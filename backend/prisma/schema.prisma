@@ -1048,6 +1048,7 @@ model ChatConversation {
   user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   userName  String? // FB/IG-ийн нэр (n8n profile-аас)
   userImage String? // FB/IG profile зураг (n8n Get User Profile-аас) — admin chat-д
+  userEmail String? // Хэрэглэгч чатдаа бичсэн имэйл (текстээс таниж хадгална) — admin + marketing
   lastMessageAt DateTime  @default(now())
   // ── Admin human-handoff (gar hariu) талбарууд ──
   // adminUnread: хэрэглэгч шинэ мессеж бичсэн → admin уншаагүй (sidebar badge).

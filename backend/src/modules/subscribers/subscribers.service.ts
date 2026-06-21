@@ -200,6 +200,35 @@ export class SubscribersService {
     return cat.id;
   }
 
+  /** "Chat-с орж ирсэн" категорийн id-г олж/үүсгэж буцаана. */
+  private async getChatCategoryId(): Promise<string> {
+    const cat = await this.prisma.subscriberCategory.upsert({
+      where: { name: 'Chat-с орж ирсэн' },
+      create: { name: 'Chat-с орж ирсэн', isSystem: true, description: 'AI чатад имэйлээ үлдээсэн' },
+      update: {},
+    });
+    return cat.id;
+  }
+
+  /**
+   * Chat (FB/IG/web)-аас имэйл цуглуулна — хэрэглэгч чатдаа имэйлээ бичсэн үед.
+   * source='chat', категори="Chat-с орж ирсэн". Давхардвал чимээгүй өнгөрнө
+   * (нэг имэйл нэг л удаа). Welcome имэйл ИЛГЭЭХГҮЙ (чатад имэйл өгсөн нь
+   * subscribe хүсэлт биш — спам болохгүй, зөвхөн marketing list-д нэмнэ).
+   * @returns true=шинээр нэмэгдсэн, false=аль хэдийн байсан/буруу
+   */
+  async captureFromChat(emailRaw: string): Promise<boolean> {
+    const email = (emailRaw ?? '').toLowerCase().trim();
+    if (validateEmail(email)) return false; // буруу хаяг — алгасна
+    const existing = await this.prisma.subscriber.findUnique({ where: { email } });
+    if (existing) return false; // давхардал — нэг удаа л
+    const categoryId = await this.getChatCategoryId();
+    await this.prisma.subscriber.create({
+      data: { email, source: 'chat', status: 'ACTIVE', isActive: true, categoryId },
+    });
+    return true;
+  }
+
   /** Welcome имэйл илгээж, явсангүй бол subscriber-ийг invalid тэмдэглэнэ. */
   private async sendWelcomeAndMark(email: string, subscriberId: string) {
     try {
