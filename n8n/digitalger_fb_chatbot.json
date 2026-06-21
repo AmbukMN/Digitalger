@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T01:58:44.497Z",
+    "updatedAt": "2026-06-21T02:24:07.146Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -520,7 +520,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n\n\n\n\n// === Private DM (хэрэглэгч рүү Messenger чат) — fromCharCode NL (SyntaxError-гүй) ===\nvar NL=String.fromCharCode(10);\nvar dmText='Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй:'+NL+NL+link+NL+NL+'Асуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно.';\nvar privCommentId=c.commentId;\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,privCommentId:privCommentId,dmText:dmText}}];"
+          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n\n\n\n\n// === Private DM (хэрэглэгч рүү Messenger чат) — fromCharCode NL (SyntaxError-гүй) ===\nvar NL=String.fromCharCode(10);\n\n// === DM карт: линкээс төрөл (product/blog/none) + slug задлах (regex-гүй, indexOf) ===\nvar linkType='none'; var slug='';\nfunction _slugAfter(s, marker){ var i=s.indexOf(marker); if(i===-1) return ''; var rest=s.slice(i+marker.length); var end=0; var stops=[47,63,35,32,10,13,9]; while(end<rest.length && stops.indexOf(rest.charCodeAt(end))===-1) end++; return rest.slice(0,end); }\nvar ps=_slugAfter(link,'digitalger.mn/products/');\nvar bs=_slugAfter(link,'digitalger.mn/blog/');\nif(ps){ linkType='product'; slug=ps; }\nelse if(bs){ linkType='blog'; slug=bs; }\nvar dmText='Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй:'+NL+NL+link+NL+NL+'Асуулт байвал шууд бичээрэй, бид туслахад баяртай байх болно.';\nvar privCommentId=c.commentId;\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,privCommentId:privCommentId,dmText:dmText,link:link,linkType:linkType,slug:slug}}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -537,14 +537,14 @@
           "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=<FB_PAGE_ACCESS_TOKEN>",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={\n  \"recipient\": { \"comment_id\": \"{{ $('build reply').first().json.privCommentId }}\" },\n  \"message\": { \"text\": {{ JSON.stringify($('build reply').first().json.dmText) }} }\n}",
+          "jsonBody": "={{ $('build DM').first().json.dmBody }}",
           "options": {
-            "timeout": 10000,
             "response": {
               "response": {
                 "neverError": true
               }
-            }
+            },
+            "timeout": 10000
           }
         },
         "id": "node_send_private",
@@ -552,10 +552,46 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
+          1684,
+          768
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://api.digitalger.mn/api/{{ $('build reply').first().json.linkType==='blog' ? 'blog' : 'products' }}/{{ $('build reply').first().json.slug }}",
+          "options": {
+            "timeout": 8000,
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "node_dm_meta",
+        "name": "Get DM Meta",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
           1244,
           768
         ],
         "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "var b=$('build reply').first().json;\nvar meta=$input.first().json||{};\nvar psid=b.privCommentId;\nvar dmText=b.dmText;\nvar linkType=b.linkType; var link=b.link;\n// мета амжилттай татагдсан эсэх (title бий)\nvar ok = meta && meta.title && linkType!=='none';\nvar body;\nif(ok){\n  var img = linkType==='product' ? ((meta.images&&meta.images[0]&&meta.images[0].url)||'') : (meta.coverImageUrl||'');\n  var title = String(meta.title||'').slice(0,80);\n  var sub;\n  if(linkType==='product'){\n    var pr = meta.salePrice||meta.price||0;\n    sub = (pr? (String(pr).replace(/B(?=(d{3})+(?!d))/g,',')+'₮') : '') ;\n  } else { sub = String(meta.excerpt||'').slice(0,80); }\n  var el={title:title, subtitle:sub||' ', image_url:img, default_action:{type:'web_url',url:link}, buttons:[{type:'web_url',url:link,title:'Дэлгэрэнгүй харах'}]};\n  // эхлээд танилцуулга текст, дараа карт — 2 message биш, attachment-д текст багтахгүй тул карт дангаар\n  body={recipient:{comment_id:psid},message:{attachment:{type:'template',payload:{template_type:'generic',elements:[el]}}}};\n} else {\n  // линкгүй эсвэл мета алдаа → зүгээр текст\n  body={recipient:{comment_id:psid},message:{text:dmText}};\n}\nreturn [{json:{dmBody:JSON.stringify(body),hasCard:ok}}];"
+        },
+        "id": "node_build_dm",
+        "name": "build DM",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1464,
+          768
+        ]
       }
     ],
     "connections": {
@@ -784,6 +820,28 @@
         "main": [
           [
             {
+              "node": "Get DM Meta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get DM Meta": {
+        "main": [
+          [
+            {
+              "node": "build DM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "build DM": {
+        "main": [
+          [
+            {
               "node": "Send Private Reply",
               "type": "main",
               "index": 0
@@ -805,9 +863,9 @@
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "450b9634-6d6b-40cd-8ec1-6d777f153299",
-    "activeVersionId": "450b9634-6d6b-40cd-8ec1-6d777f153299",
-    "versionCounter": 890,
+    "versionId": "98058824-fbed-4c72-b3fb-78d3f3cc74ae",
+    "activeVersionId": "98058824-fbed-4c72-b3fb-78d3f3cc74ae",
+    "versionCounter": 921,
     "triggerCount": 2,
     "tags": [],
     "shared": [
@@ -830,7 +888,7 @@
       }
     ],
     "versionMetadata": {
-      "name": "Version a9f33c6a",
+      "name": "Version 8a5b2802",
       "description": ""
     }
   }
