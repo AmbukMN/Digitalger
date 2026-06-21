@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T01:56:52.908Z",
+    "updatedAt": "2026-06-21T01:58:44.497Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -537,7 +537,7 @@
           "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=<FB_PAGE_ACCESS_TOKEN>",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={\n  \"recipient\": { \"comment_id\": \"{{ $json.privCommentId }}\" },\n  \"message\": { \"text\": {{ JSON.stringify($json.dmText) }} }\n}",
+          "jsonBody": "={\n  \"recipient\": { \"comment_id\": \"{{ $('build reply').first().json.privCommentId }}\" },\n  \"message\": { \"text\": {{ JSON.stringify($('build reply').first().json.dmText) }} }\n}",
           "options": {
             "timeout": 10000,
             "response": {
@@ -798,19 +798,16 @@
     },
     "staticData": {
       "global": {
-        "seenMids": [],
-        "dmSeen": {
-          "28232054943049794": 1782007043945
-        }
+        "seenMids": []
       }
     },
     "meta": {
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "29472bd7-3c99-45d3-95cd-b188f2d8a293",
-    "activeVersionId": "29472bd7-3c99-45d3-95cd-b188f2d8a293",
-    "versionCounter": 862,
+    "versionId": "450b9634-6d6b-40cd-8ec1-6d777f153299",
+    "activeVersionId": "450b9634-6d6b-40cd-8ec1-6d777f153299",
+    "versionCounter": 890,
     "triggerCount": 2,
     "tags": [],
     "shared": [
