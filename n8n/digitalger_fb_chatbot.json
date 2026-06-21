@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T00:26:56.088Z",
+    "updatedAt": "2026-06-21T00:41:27.278Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -534,17 +534,10 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "=https://graph.facebook.com/v21.0/{{ $json.privCommentId }}/private_replies?access_token=<FB_PAGE_ACCESS_TOKEN>",
+          "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=<FB_PAGE_ACCESS_TOKEN>",
           "sendBody": true,
-          "contentType": "form-urlencoded",
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "message",
-                "value": "=🚀 Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй 👇\n\n{{ $json.link }}\n\nАсуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно 😊"
-              }
-            ]
-          },
+          "specifyBody": "json",
+          "jsonBody": "={\"recipient\":{\"comment_id\":\"{{ $json.privCommentId }}\"},\"message\":{\"text\":\"🚀 Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй 👇\n\n{{ $json.link }}\n\nАсуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно 😊\"}}",
           "options": {
             "timeout": 10000,
             "response": {
@@ -805,20 +798,19 @@
     },
     "staticData": {
       "global": {
-        "seenMids": [
-          "m_ep7LoPHeDpfXYTANPHuUBKSRh2yOWEhTfjEUpiZ7sBP-FzCs6deeqOuiP9eyhglGrOCdvyNKsP6COurR3M1ZFw",
-          "m_7Eh0DdnwW4oQaWBoAPzBbW1G4ie3ucZcmoIIAEUy4hbKwb_QlSLQ8Wam9w4TyLjmYbUv94-fJK9z-ysa1wMY8Q",
-          "m_dqtpa5_y6dhmFGsqYHmKSKSRh2yOWEhTfjEUpiZ7sBO_VLcFj0jAWjGblGBohzZzNzQ_qcYeTOEnVnaXRmW7Aw"
-        ]
+        "seenMids": [],
+        "dmSeen": {
+          "28232054943049794": 1782002699387
+        }
       }
     },
     "meta": {
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "8cc523c6-2bc9-416a-b56a-afadc53972c6",
-    "activeVersionId": "8cc523c6-2bc9-416a-b56a-afadc53972c6",
-    "versionCounter": 607,
+    "versionId": "ad0162cd-996a-4bc7-a759-cb4c13f7192e",
+    "activeVersionId": "ad0162cd-996a-4bc7-a759-cb4c13f7192e",
+    "versionCounter": 633,
     "triggerCount": 2,
     "tags": [],
     "shared": [
