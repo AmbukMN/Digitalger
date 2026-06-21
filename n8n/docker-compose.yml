@@ -58,12 +58,14 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-}
 
       # ── Task runner (Code node) ──────────────────────────────────────────────
-      # ⚠️⚠️ N8N_RUNNERS_ENABLED=false → task runner БҮРЭН унтарна, Code node-г n8n
-      # main process дотор шууд ажиллуулна. Учир: image-д Python 3 байхгүй тул n8n
-      # 2.21 runner-ийг crash loop-д оруулдаг (Task runner stopped давтагдана) →
-      # JS runner job route хийхгүй → Code node гацна → webhook waitingExecution
-      # (comment reply, DM огт явахгүй). Runner-гүй main process найдвартай.
-      - N8N_RUNNERS_ENABLED=false
+      # ⚠️⚠️ Hardened Alpine image-д Python 3 байхгүй → internal runner Python-ийг
+      # эхлүүлэх гэж оролдоод унадаг ("Task runner stopped"). MODE=internal + LOG
+      # debug хослуулсан үед JS runner тогтвортой ажиллаж Code node гацахгүй
+      # (comment reply бүрэн ажиллана). LOG=info үед runner тогтворгүй болж
+      # execution waitingExecution-д гацдаг тул debug ЗААВАЛ. ⚠️ force-recreate
+      # зайлсхий — restart л (force-recreate runner-ийг түр эвддэг).
+      - N8N_RUNNERS_MODE=internal
+      - N8N_LOG_LEVEL=debug
 
       # ── Encryption key ───────────────────────────────────────────────────────
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
