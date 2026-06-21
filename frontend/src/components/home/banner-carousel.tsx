@@ -156,7 +156,12 @@ export function BannerCarousel({ banners }: Props) {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <AnimatePresence custom={direction} initial={false}>
+      {/* ⚠️ mode="popLayout" ЗААВАЛ — mode-гүй (default sync) үед autoplay timer
+          exit animation тасалж, DOM-д motion.div гацаж "цав цагаан" болдог
+          (зөвхөн bg/gradient үлдэж media алга). popLayout нь гарах слайдыг
+          popout хийж, орох слайдтай зэрэг гүйлгэнэ → гацахгүй. Гар swipe
+          (setCurrent дахин) гацсаныг сэргээдэг байсан нь яг үүний шинж. */}
+      <AnimatePresence custom={direction} initial={false} mode="popLayout">
         <motion.div
           key={banner.id}
           custom={direction}
