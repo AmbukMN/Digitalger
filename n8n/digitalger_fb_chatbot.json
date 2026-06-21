@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T01:33:13.307Z",
+    "updatedAt": "2026-06-21T01:56:52.908Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -520,7 +520,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n\n\n\n\n// === Private DM (хэрэглэгч рүү Messenger чат) — fromCharCode NL (SyntaxError-гүй) ===\nvar NL=String.fromCharCode(10);\nvar dmText='Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй:'+NL+NL+link+NL+NL+'Асуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно.';\n// userId-аар 5 минут dedup (нэг хэрэглэгч олон comment → DM 1 л удаа, спам болхгүй)\nvar _sd=$getWorkflowStaticData('global'); _sd.dmSeen=_sd.dmSeen||{};\nvar _uid=String(c.userId||''); var _now=Date.now(); var _W=5*60*1000;\nfor(var _k in _sd.dmSeen){ if(_now-_sd.dmSeen[_k]>_W) delete _sd.dmSeen[_k]; }\nvar privCommentId=c.commentId;\nif(_uid && _sd.dmSeen[_uid] && (_now-_sd.dmSeen[_uid]<_W)){ privCommentId=''; }\nelse if(_uid){ _sd.dmSeen[_uid]=_now; }\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,privCommentId:privCommentId,dmText:dmText}}];"
+          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n\n\n\n\n// === Private DM (хэрэглэгч рүү Messenger чат) — fromCharCode NL (SyntaxError-гүй) ===\nvar NL=String.fromCharCode(10);\nvar dmText='Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй:'+NL+NL+link+NL+NL+'Асуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно.';\nvar privCommentId=c.commentId;\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,privCommentId:privCommentId,dmText:dmText}}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -537,7 +537,7 @@
           "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=<FB_PAGE_ACCESS_TOKEN>",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({recipient:{comment_id:$json.privCommentId},message:{text:$json.dmText}}) }}",
+          "jsonBody": "={\n  \"recipient\": { \"comment_id\": \"{{ $json.privCommentId }}\" },\n  \"message\": { \"text\": {{ JSON.stringify($json.dmText) }} }\n}",
           "options": {
             "timeout": 10000,
             "response": {
@@ -798,16 +798,19 @@
     },
     "staticData": {
       "global": {
-        "seenMids": []
+        "seenMids": [],
+        "dmSeen": {
+          "28232054943049794": 1782007043945
+        }
       }
     },
     "meta": {
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "bf4b7f97-0d9f-4b25-bd43-29dbf93307a4",
-    "activeVersionId": "bf4b7f97-0d9f-4b25-bd43-29dbf93307a4",
-    "versionCounter": 815,
+    "versionId": "29472bd7-3c99-45d3-95cd-b188f2d8a293",
+    "activeVersionId": "29472bd7-3c99-45d3-95cd-b188f2d8a293",
+    "versionCounter": 862,
     "triggerCount": 2,
     "tags": [],
     "shared": [
