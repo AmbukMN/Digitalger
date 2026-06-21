@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T02:33:25.448Z",
+    "updatedAt": "2026-06-21T11:38:18.004Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -70,15 +70,16 @@
       },
       {
         "parameters": {
-          "url": "=https://graph.facebook.com/v21.0/me/conversations?user_id={{ $json.psid }}&fields=participants&access_token=<FB_PAGE_ACCESS_TOKEN>",
+          "url": "=https://graph.facebook.com/v21.0/{{ $json.psid }}?fields={{ $json.platform==='instagram' ? 'name,username,profile_pic' : 'name,first_name,profile_pic' }}&access_token=<FB_PAGE_ACCESS_TOKEN>",
           "options": {
             "response": {
               "response": {
                 "neverError": true
               }
             },
-            "timeout": 5000
-          }
+            "timeout": 8000
+          },
+          "method": "GET"
         },
         "id": "node_profile",
         "name": "Get User Profile",
@@ -92,7 +93,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Prep Context — AI Agent-аас ӨМНӨ ажиллана. Pre-search БАЙХГҮЙ.\n// Зөвхөн psid, userText, firstName бэлдэж AI-д өгөх agentInput угсарна.\n// AI өөрөө өгүүлбэрийг ойлгож [SEARCH:keyword] гаргана (хайлтыг дараа нь хийнэ).\nconst NL = String.fromCharCode(10);\nconst psid = $('Parse').first().json.psid;\nconst userText = $('Parse').first().json.text;\nconst platform = $('Parse').first().json.platform || 'facebook';\nconst _conv = $('Get User Profile').first().json || {};\n// /me/conversations?user_id=PSID → participants дотроос Page БИШ хэрэглэгчийн нэр\nlet _fbName = '';\ntry {\n  const parts = ((_conv.data && _conv.data[0] && _conv.data[0].participants && _conv.data[0].participants.data) || []);\n  const u = parts.find(function(p){ return p && p.id && p.id !== '1052275041465153'; });\n  if (u && u.name) _fbName = String(u.name).trim();\n} catch (e) { _fbName = ''; }\nconst profile = { first_name: _fbName, profile_pic: '' };\nconst firstName = (profile.first_name || '').trim();\n  const profilePic = (profile.profile_pic || '').trim();\nconst isGetStarted = (userText === '__GET_STARTED__');\nconst nameLine = firstName ? ('Хэрэглэгчийн нэр: ' + firstName) : '';\n\n// ⚠️ Холбоо барих контекстийг ЗӨВХӨН холбоо барих/бидний тухай асуулт илэрсэн\n// үед л агентад оруулна. Үргэлж оруулбал том текст AI-ийн фокусыг сарниулж,\n// \"free\", бүтээгдэхүүн хайх зэрэг бусад асуултад буруу (линк зохиосон) хариулдаг.\nconst lower = (userText || '').toLowerCase();\nconst contactTriggers = [\n  'утас', 'дугаар', 'хаяг', 'холбоо', 'холбогд', 'имэйл', 'мэйл', 'и-мэйл',\n  'хаана байр', 'байршил', 'хаяг', 'ажлын цаг', 'цагаар', 'социал', 'фэйсбүүк',\n  'facebook', 'instagram', 'инстаграм', 'бидний тухай', 'танай тухай', 'хэн бэ',\n  'хаягтай', 'утастай', 'phone', 'contact', 'address',\n];\nconst needsContact = contactTriggers.some((t) => lower.includes(t));\n\n// AI зөрүүдэлдэг тул холбоо барих асуултад AI-г ТОЙРЧ deterministic хариу\n// (directReply) бэлдэнэ — Build Messages node үүнийг шууд reply болгоно.\nlet directReply = '';\nif (needsContact) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.digitalger.mn/api/contact/chatbot-context',\n      json: true,\n      timeout: 4000,\n    });\n    const ct = String((resp && resp.contactText) || '').replace(/\\s+/g, ' ');\n    const email = (resp && resp.supportEmail) || 'info@digitalger.mn';\n    const phoneM = ct.match(/\\+?\\d[\\d\\s\\-]{6,}\\d/);\n    const phone = phoneM ? phoneM[0].trim() : '';\n    const addrM = ct.match(/Хаяг[:\\s]*([^•]+)/);\n    const addr = addrM ? addrM[1].trim() : '';\n    const socs = (resp && Array.isArray(resp.socials)) ? resp.socials : [];\n    const parts = ['📞 Холбоо барих мэдээлэл:'];\n    if (phone) parts.push('Утас: ' + phone);\n    parts.push('Имэйл: ' + email);\n    if (addr) parts.push('Хаяг: ' + addr);\n    if (socs.length) parts.push(socs.join(NL));\n    parts.push('Дэлгэрэнгүй: https://digitalger.mn/contact');\n    directReply = parts.join(NL);\n  } catch (e) {\n    directReply = '';\n  }\n}\n\nlet agentInput;\nif (isGetStarted) {\n  agentInput = [nameLine, '=== ОНЦГОЙ: хэрэглэгч анх удаа орж ирлээ. Дулаан угтах мэндчилгээ бич, DigitalGer-ийг товч танилцуул. Бүтээгдэхүүн хайхгүй. ==='].filter(Boolean).join(NL);\n} else {\n  agentInput = [nameLine, '=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===', userText].filter(Boolean).join(NL);\n}\nreturn [{ json: { psid, userText, firstName, profilePic, agentInput, isGetStarted, platform, directReply } }];\n"
+          "jsCode": "// Prep Context — AI Agent-аас ӨМНӨ ажиллана. Pre-search БАЙХГҮЙ.\n// Зөвхөн psid, userText, firstName бэлдэж AI-д өгөх agentInput угсарна.\n// AI өөрөө өгүүлбэрийг ойлгож [SEARCH:keyword] гаргана (хайлтыг дараа нь хийнэ).\nconst NL = String.fromCharCode(10);\nconst psid = $('Parse').first().json.psid;\nconst userText = $('Parse').first().json.text;\nconst platform = $('Parse').first().json.platform || 'facebook';\nconst _conv = $('Get User Profile').first().json || {};\n// FB/IG profile API: name, first_name, username, profile_pic\nvar _name = String(_conv.first_name || _conv.name || _conv.username || '').trim();\nvar _pic = String(_conv.profile_pic || '').trim();\nconst profile = { first_name: _name, profile_pic: _pic };\nconst firstName = (profile.first_name || '').trim();\n  const profilePic = (profile.profile_pic || '').trim();\nconst isGetStarted = (userText === '__GET_STARTED__');\nconst nameLine = firstName ? ('Хэрэглэгчийн нэр: ' + firstName) : '';\n\n// ⚠️ Холбоо барих контекстийг ЗӨВХӨН холбоо барих/бидний тухай асуулт илэрсэн\n// үед л агентад оруулна. Үргэлж оруулбал том текст AI-ийн фокусыг сарниулж,\n// \"free\", бүтээгдэхүүн хайх зэрэг бусад асуултад буруу (линк зохиосон) хариулдаг.\nconst lower = (userText || '').toLowerCase();\nconst contactTriggers = [\n  'утас', 'дугаар', 'хаяг', 'холбоо', 'холбогд', 'имэйл', 'мэйл', 'и-мэйл',\n  'хаана байр', 'байршил', 'хаяг', 'ажлын цаг', 'цагаар', 'социал', 'фэйсбүүк',\n  'facebook', 'instagram', 'инстаграм', 'бидний тухай', 'танай тухай', 'хэн бэ',\n  'хаягтай', 'утастай', 'phone', 'contact', 'address',\n];\nconst needsContact = contactTriggers.some((t) => lower.includes(t));\n\n// AI зөрүүдэлдэг тул холбоо барих асуултад AI-г ТОЙРЧ deterministic хариу\n// (directReply) бэлдэнэ — Build Messages node үүнийг шууд reply болгоно.\nlet directReply = '';\nif (needsContact) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.digitalger.mn/api/contact/chatbot-context',\n      json: true,\n      timeout: 4000,\n    });\n    const ct = String((resp && resp.contactText) || '').replace(/\\s+/g, ' ');\n    const email = (resp && resp.supportEmail) || 'info@digitalger.mn';\n    const phoneM = ct.match(/\\+?\\d[\\d\\s\\-]{6,}\\d/);\n    const phone = phoneM ? phoneM[0].trim() : '';\n    const addrM = ct.match(/Хаяг[:\\s]*([^•]+)/);\n    const addr = addrM ? addrM[1].trim() : '';\n    const socs = (resp && Array.isArray(resp.socials)) ? resp.socials : [];\n    const parts = ['📞 Холбоо барих мэдээлэл:'];\n    if (phone) parts.push('Утас: ' + phone);\n    parts.push('Имэйл: ' + email);\n    if (addr) parts.push('Хаяг: ' + addr);\n    if (socs.length) parts.push(socs.join(NL));\n    parts.push('Дэлгэрэнгүй: https://digitalger.mn/contact');\n    directReply = parts.join(NL);\n  } catch (e) {\n    directReply = '';\n  }\n}\n\nlet agentInput;\nif (isGetStarted) {\n  agentInput = [nameLine, '=== ОНЦГОЙ: хэрэглэгч анх удаа орж ирлээ. Дулаан угтах мэндчилгээ бич, DigitalGer-ийг товч танилцуул. Бүтээгдэхүүн хайхгүй. ==='].filter(Boolean).join(NL);\n} else {\n  agentInput = [nameLine, '=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===', userText].filter(Boolean).join(NL);\n}\nreturn [{ json: { psid, userText, firstName, profilePic, agentInput, isGetStarted, platform, directReply } }];\n"
         },
         "id": "node_prep",
         "name": "Prep Context",
@@ -855,16 +856,21 @@
     },
     "staticData": {
       "global": {
-        "seenMids": []
+        "seenMids": [
+          "aWdfZAG1faXRlbToxOklHTWVzc2FnZAUlEOjE3ODQxNDMzODQ0Nzg1ODEzOjM0MDI4MjM2Njg0MTcxMDMwMTI0NDI1OTYwNTI2NDY3NjIzNDMzODozMjg3Mjg1NTk2MDU3ODYxNjc2NDMzNzg5NDYzNTYwMTkyMAZDZD",
+          "test_profile_1782041928",
+          "dbg_1782042000",
+          "aWdfZAG1faXRlbToxOklHTWVzc2FnZAUlEOjE3ODQxNDMzODQ0Nzg1ODEzOjM0MDI4MjM2Njg0MTcxMDMwMTI0NDI1OTYwNTI2NDY3NjIzNDMzODozMjg3Mjg3Mjg0MDA3MTY4OTU3OTI5NTU3MzM1MDAyMzE2OAZDZD"
+        ]
       }
     },
     "meta": {
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "5fc11506-fdd3-473c-9ef9-745ac7599b21",
-    "activeVersionId": "3d565535-a9ce-4dd5-8fdf-a32e7e98df1d",
-    "versionCounter": 941,
+    "versionId": "c57b5ea8-5129-4239-b15e-87baa1716c8c",
+    "activeVersionId": "c57b5ea8-5129-4239-b15e-87baa1716c8c",
+    "versionCounter": 985,
     "triggerCount": 2,
     "tags": [],
     "shared": [
