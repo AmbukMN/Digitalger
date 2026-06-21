@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T00:18:01.088Z",
+    "updatedAt": "2026-06-21T00:26:56.088Z",
     "createdAt": "2026-05-29T20:02:10.211Z",
     "id": "CNamkzJ1xMqWKWOr",
     "name": "Facebook Chatbot — DigitalGer AI",
@@ -462,7 +462,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const body=$input.first().json.body;\nif(!body)return [];\nvar IGID='17841433844785813';\nvar PAGEID='1052275041465153';\nvar out=[];\nfor(var ei=0;ei<(body.entry||[]).length;ei++){\n  var changes=(body.entry[ei].changes)||[];\n  for(var ci=0;ci<changes.length;ci++){\n    var ch=changes[ci];\n    var v=ch.value||{};\n    // FB comment (object=page, field=feed)\n    if(body.object==='page' && ch.field==='feed'){\n      if(v.item!=='comment'||v.verb!=='add')continue;\n      var fbCid=v.comment_id; var fbFrom=v.from&&v.from.id;\n      if(!fbCid||!fbFrom||fbFrom===PAGEID)continue;\n      out.push({json:{platform:'facebook',commentId:fbCid,postId:v.post_id||''}});\n    }\n    // IG comment (object=instagram, field=comments)\n    else if(body.object==='instagram' && ch.field==='comments'){\n      var igCid=v.id; var igFrom=v.from&&v.from.id;\n      // өөрийн (IG account) сэтгэгдэлд хариулахгүй (давталт)\n      if(!igCid||!igFrom||igFrom===IGID)continue;\n      var mediaId=(v.media&&v.media.id)||'';\n      out.push({json:{platform:'instagram',commentId:igCid,postId:mediaId,igText:String(v.text||'')}});\n    }\n  }\n}\nreturn out;"
+          "jsCode": "const body=$input.first().json.body;\nif(!body)return [];\nvar IGID='17841433844785813';\nvar PAGEID='1052275041465153';\nvar out=[];\nfor(var ei=0;ei<(body.entry||[]).length;ei++){\n  var changes=(body.entry[ei].changes)||[];\n  for(var ci=0;ci<changes.length;ci++){\n    var ch=changes[ci];\n    var v=ch.value||{};\n    // FB comment (object=page, field=feed)\n    if(body.object==='page' && ch.field==='feed'){\n      if(v.item!=='comment'||v.verb!=='add')continue;\n      var fbCid=v.comment_id; var fbFrom=v.from&&v.from.id;\n      if(!fbCid||!fbFrom||fbFrom===PAGEID)continue;\n      out.push({json:{platform:'facebook',commentId:fbCid,postId:v.post_id||'',userId:fbFrom}});\n    }\n    // IG comment (object=instagram, field=comments)\n    else if(body.object==='instagram' && ch.field==='comments'){\n      var igCid=v.id; var igFrom=v.from&&v.from.id;\n      // өөрийн (IG account) сэтгэгдэлд хариулахгүй (давталт)\n      if(!igCid||!igFrom||igFrom===IGID)continue;\n      var mediaId=(v.media&&v.media.id)||'';\n      out.push({json:{platform:'instagram',commentId:igCid,postId:mediaId,igText:String(v.text||''),userId:igFrom}});\n    }\n  }\n}\nreturn out;"
         },
         "id": "node_parse_comments",
         "name": "Parse Comments",
@@ -520,7 +520,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText}}];"
+          "jsCode": "var c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('digitalger.mn');\n  if(i===-1)return 'https://digitalger.mn';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n// ⚠️ Private DM dedup: нэг хэрэглэгч 5 минутад олон comment бичвэл DM-г 1 л удаа.\n// Public reply comment бүрт хийгдэнэ, гэхдээ private DM-г userId-аар 5мин хязгаарлана (спам болхгүй).\nvar _sd = $getWorkflowStaticData('global');\n_sd.dmSeen = _sd.dmSeen || {};\nvar _uid = String(c.userId||'');\nvar _now = Date.now();\nvar _WINDOW = 5*60*1000;\nvar privCommentId = c.commentId;\n// хуучин бичлэг цэвэрлэх (5мин-ээс хэтэрсэн)\nfor (var _k in _sd.dmSeen){ if(_now - _sd.dmSeen[_k] > _WINDOW) delete _sd.dmSeen[_k]; }\nif (_uid && _sd.dmSeen[_uid] && (_now - _sd.dmSeen[_uid] < _WINDOW)) {\n  privCommentId = '';  // 5мин дотор давтсан → DM алгасна (commentId хоосон → private_replies алгасагдана)\n} else if (_uid) {\n  _sd.dmSeen[_uid] = _now;  // DM явуулна, timestamp тэмдэглэ\n}\nvar replyText='Танд чатаар мэдээлэл илгээлээ. Дэлгэрэнгүй үзэх бол: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,link:link,privCommentId:privCommentId}}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -530,6 +530,39 @@
         ],
         "id": "f0eb4e0b-16cd-440e-bd18-17b8b25fc1fe",
         "name": "build reply"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://graph.facebook.com/v21.0/{{ $json.privCommentId }}/private_replies?access_token=<FB_PAGE_ACCESS_TOKEN>",
+          "sendBody": true,
+          "contentType": "form-urlencoded",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "message",
+                "value": "=🚀 Сайн байна уу! Таны сонирхсон бүтээгдэхүүний дэлгэрэнгүйг доорх холбоосоор үзээрэй 👇\n\n{{ $json.link }}\n\nАсуулт байвал эндээ бичээрэй, бид туслахад баяртай байх болно 😊"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 10000,
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "node_private_reply",
+        "name": "Send Private Reply",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1244,
+          768
+        ],
+        "onError": "continueRegularOutput"
       }
     ],
     "connections": {
@@ -753,6 +786,17 @@
             }
           ]
         ]
+      },
+      "Send Comment Reply": {
+        "main": [
+          [
+            {
+              "node": "Send Private Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "settings": {
@@ -772,9 +816,9 @@
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "a18fdb06-e284-42c7-8dbd-05c123f31de7",
-    "activeVersionId": "a18fdb06-e284-42c7-8dbd-05c123f31de7",
-    "versionCounter": 593,
+    "versionId": "8cc523c6-2bc9-416a-b56a-afadc53972c6",
+    "activeVersionId": "8cc523c6-2bc9-416a-b56a-afadc53972c6",
+    "versionCounter": 607,
     "triggerCount": 2,
     "tags": [],
     "shared": [
