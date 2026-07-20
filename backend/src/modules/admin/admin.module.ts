@@ -16,6 +16,7 @@ import { StaffController } from './staff.controller';
 import { AdminProductsService } from './admin-products.service';
 import { AdminAiService } from './admin-ai.service';
 import { ZIP_QUEUE } from '../downloads/zip.processor';
+import { VIDEO_QUEUE } from '../videos/video-queue.types';
 
 @Module({
   imports: [
@@ -37,6 +38,8 @@ import { ZIP_QUEUE } from '../downloads/zip.processor';
       }),
     }),
     BullModule.registerQueue({ name: ZIP_QUEUE }),
+    // VIDEO_QUEUE producer — admin хичээлийн видео R2 HLS-руу job нэмнэ (consumer=worker).
+    BullModule.registerQueue({ name: VIDEO_QUEUE }),
   ],
   controllers: [AdminController, StaffController],
   providers: [AdminProductsService, AdminAiService],

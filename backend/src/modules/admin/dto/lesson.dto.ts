@@ -39,6 +39,13 @@ export class CreateLessonDto {
   @IsString()
   videoKey?: string;
 
+  // R2-д presign-ээр байршуулсан RAW видео key. Өгвөл backend HLS-руу queue хийж
+  // (worker m3u8+ts болгож R2-д бичээд videoKey-г шинэчилнэ), streamStatus=processing.
+  // videoKey-тэй зэрэг өгөхгүй (rawVideoKey давамгайлна). HelpVideo-той ижил flow.
+  @IsOptional()
+  @IsString()
+  rawVideoKey?: string;
+
   @IsOptional()
   @IsString()
   videoStreamId?: string;
@@ -96,6 +103,13 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsString()
   videoKey?: string;
+
+  // R2-д presign-ээр байршуулсан RAW видео key. Өгвөл backend HLS-руу queue хийж
+  // (worker m3u8+ts болгож R2-д бичээд videoKey-г шинэчилнэ), streamStatus=processing.
+  // videoKey-тэй зэрэг өгөхгүй (rawVideoKey давамгайлна). HelpVideo-той ижил flow.
+  @IsOptional()
+  @IsString()
+  rawVideoKey?: string;
 
   @IsOptional()
   @IsString()

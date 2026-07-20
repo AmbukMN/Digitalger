@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import { Prisma } from '@prisma/client';
+import { VIDEO_QUEUE, type VideoHlsJob } from '../videos/video-queue.types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CloudflareStreamService } from '../../storage/cloudflare-stream.service';
@@ -35,7 +38,21 @@ export class AdminProductsService {
     private readonly email: EmailService,
     private readonly notifications: NotificationCenterService,
     private readonly products: ProductsService,
+    @InjectQueue(VIDEO_QUEUE) private readonly videoQueue: Queue<VideoHlsJob>,
   ) {}
+
+  /**
+   * Хичээлийн RAW видеог (R2 presign key) HLS-руу queue хийнэ — HelpVideo-той ижил.
+   * Worker m3u8+ts болгож R2-д бичээд Lesson.videoKey-г шинэчилнэ (streamStatus ready).
+   * ⚠️ Хуучин Stream (Cloudflare) хэвээр — энэ нь ЗӨВХӨН шинэ R2 HLS upload-д.
+   */
+  private async enqueueLessonHls(lessonId: string, rawVideoKey: string) {
+    await this.videoQueue.add(
+      'convert',
+      { target: 'lesson', targetId: lessonId, rawKey: rawVideoKey, folder: 'lessons' },
+      { attempts: 2, backoff: 5000, removeOnComplete: true, removeOnFail: 50 },
+    );
+  }
 
   async findAll(
     query: { page?: number; pageSize?: number; search?: string },
@@ -442,6 +459,33 @@ export class AdminProductsService {
   async createLesson(productId: string, dto: CreateLessonDto) {
     const course = await this.ensureCourse(productId);
     const count = await this.prisma.lesson.count({ where: { courseId: course.id } });
+
+    // ⚠️ R2 HLS: rawVideoKey өгвөл → видео талбар хоосон + processing, create хийгээд
+    // HLS-руу queue (worker m3u8 бичнэ). Хуучин Stream (videoStreamId) хэвээр дэмжинэ.
+    const raw = dto.rawVideoKey?.trim();
+    if (raw) {
+      const lesson = await this.prisma.lesson.create({
+        data: {
+          courseId: course.id,
+          moduleId: dto.moduleId ?? null,
+          title: dto.title,
+          description: dto.description,
+          content: dto.content,
+          // HLS хөрвүүлж байгаа тул видео эх сурвалж түр хоосон, worker бичнэ.
+          videoKey: null,
+          videoStreamId: null,
+          videoUrl: null,
+          streamStatus: 'processing',
+          ...(dto.posterKey !== undefined && { posterKey: dto.posterKey || null }),
+          durationSec: dto.durationSec ?? 0,
+          isFreePreview: dto.isFreePreview ?? false,
+          sortOrder: dto.sortOrder ?? count,
+        },
+      });
+      await this.enqueueLessonHls(lesson.id, raw);
+      return lesson;
+    }
+
     // Видео эх сурвалж 3 хувилбар — зэрэг ОРОХГҮЙ (mutually exclusive).
     // Давуу эрэмбэ: videoStreamId → videoKey → videoUrl.
     const source = this.resolveVideoSource(dto);
@@ -493,8 +537,18 @@ export class AdminProductsService {
       oldStreamId = prev?.videoStreamId ?? null;
     }
 
+    // ⚠️ R2 HLS: rawVideoKey өгвөл → видео түр хоосон + processing, update хийгээд
+    // HLS-руу queue. rawVideoKey-г data-д хадгалахгүй (DTO spread-ээс хасна).
+    const rawVideoKey = dto.rawVideoKey?.trim();
+    delete (data as Record<string, unknown>).rawVideoKey;
+
     // Видео эх сурвалжийн аль нэг өгөгдсөн бол бусдыг null болгож mutually exclusive байлгана.
-    if (dto.videoStreamId !== undefined && dto.videoStreamId) {
+    if (rawVideoKey) {
+      data.videoKey = null;
+      data.videoStreamId = null;
+      data.videoUrl = null;
+      data.streamStatus = 'processing';
+    } else if (dto.videoStreamId !== undefined && dto.videoStreamId) {
       data.videoStreamId = dto.videoStreamId;
       data.videoKey = null;
       data.videoUrl = null;
@@ -513,9 +567,14 @@ export class AdminProductsService {
 
     const updated = await this.prisma.lesson.update({ where: { id: lessonId }, data });
 
+    // R2 HLS raw өгсөн бол → HLS-руу queue (worker m3u8 бичнэ).
+    if (rawVideoKey) {
+      await this.enqueueLessonHls(lessonId, rawVideoKey);
+    }
+
     // Хуучин Stream видео байсан бөгөөд шинэ эх сурвалж ӨӨР бол (stream→stream солих
-    // эсвэл stream→key/url солих) → Cloudflare-аас хуучныг устгана (orphan үлдээхгүй).
-    // fire-and-forget, алдвал хайхрахгүй (cron orphan cleanup нөөцлөнө).
+    // эсвэл stream→key/url солих, R2 HLS-руу шилжих) → Cloudflare-аас хуучныг устгана
+    // (orphan үлдээхгүй). fire-and-forget, алдвал хайхрахгүй (cron orphan cleanup нөөцлөнө).
     if (oldStreamId && oldStreamId !== updated.videoStreamId) {
       void this.stream.deleteVideo(oldStreamId).catch(() => null);
     }

@@ -43,6 +43,18 @@ export class VideoProcessor {
             streamStatus: 'ready',
           },
         });
+      } else if (target === 'lesson') {
+        // Хичээлийн R2 HLS — videoKey=m3u8, videoStreamId цэвэрлэнэ (mutually exclusive),
+        // durationSec бодит урт, streamStatus ready. Frontend type='r2' HLS player тоглоно.
+        await this.prisma.lesson.update({
+          where: { id: targetId },
+          data: {
+            videoKey: playlistUrl,
+            videoStreamId: null,
+            durationSec: Math.max(0, Math.round(result.durationSec)),
+            streamStatus: 'ready',
+          },
+        });
       }
 
       // 4) Raw түр файл устгах (HLS бэлэн тул хэрэггүй)
@@ -54,6 +66,10 @@ export class VideoProcessor {
       // Алдаа гарвал статус 'error' — admin дахин оролдож болно. Raw үлдээнэ (debug).
       if (target === 'helpVideo') {
         await this.prisma.helpVideo
+          .update({ where: { id: targetId }, data: { streamStatus: 'error' } })
+          .catch(() => null);
+      } else if (target === 'lesson') {
+        await this.prisma.lesson
           .update({ where: { id: targetId }, data: { streamStatus: 'error' } })
           .catch(() => null);
       }

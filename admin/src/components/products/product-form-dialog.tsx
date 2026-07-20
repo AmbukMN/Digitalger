@@ -836,6 +836,7 @@ function VideoUploadInput({
   isFreePreview,
   videoUrl, setVideoUrl,
   videoKey, setVideoKey,
+  setRawVideoKey,
   videoStreamId, setVideoStreamId,
   setStreamStatus,
   posterKey, setPosterKey,
@@ -854,6 +855,8 @@ function VideoUploadInput({
   isFreePreview: boolean;
   videoUrl: string; setVideoUrl: (v: string) => void;
   videoKey: string; setVideoKey: (v: string) => void;
+  // R2 HLS: raw upload key — save үед backend-руу дамжуулж HLS queue хийнэ.
+  setRawVideoKey: (v: string) => void;
   videoStreamId: string; setVideoStreamId: (v: string) => void;
   setStreamStatus: (v: string) => void;
   /** Видео thumbnail/poster R2 key (admin upload). Хоосон бол автомат frame. */
@@ -943,20 +946,16 @@ function VideoUploadInput({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoUrl]);
 
-  // ── Видео файл байршуулах — АВТОМАТ R2 / Stream сонголт ──────────────────────
-  // ⚠️ Admin зүгээр л файл сонгоно. isFreePreview-аас хамаарч систем эх сурвалжийг шийднэ:
-  //    isFreePreview === true  → R2 (presign PUT, videoKey)        — хямд, үнэгүй үзэлт.
-  //    isFreePreview === false → Cloudflare Stream (signed)         — хамгаалалттай, үнэтэй.
+  // ── Видео файл байршуулах — ⚠️ БҮГД R2 HLS-руу (Stream түр идэвхгүй) ──────────
+  // Cloudflare Stream нь ҮЗЭЛТЭЭР төлбөр авдаг тул түр идэвхгүй болгож, БҮХ хичээлийн
+  // видеог R2 HLS-руу чиглүүлэв (raw R2 → VIDEO_QUEUE → m3u8+ts, зөвхөн хадгалалтын
+  // төлбөр). Хуучин Stream (videoStreamId) видео ХЭВЭЭР тоглоно (frontend хоёуланг
+  // дэмжинэ). uploadToStream функц кодод үлдсэн — дараа Stream-руу буцаах бол сэргээнэ.
   async function handleVideoFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-
-    if (isFreePreview) {
-      await uploadToR2(file);
-    } else {
-      await uploadToStream(file);
-    }
+    await uploadToR2(file);
   }
 
   // ── R2 руу байршуулах (ҮНЭГҮЙ хичээл) — presign PUT + progress + videoKey ─────
@@ -987,13 +986,16 @@ function VideoUploadInput({
         setUploadProgress(pct);
         if (pct < 100) toast.loading(`R2-д байршуулж байна... (${pct}%)`, { id: toastId, duration: Infinity });
       });
-      // R2 = гол; Stream/URL цэвэрлэнэ (backend mutually exclusive).
-      setVideoKey(result.key);
+      // ⚠️ R2 HLS: raw key-г rawVideoKey-д тавина (videoKey БИШ). Save үед backend
+      // HLS-руу queue хийж (worker m3u8 болгоно), videoKey-г worker бичнэ.
+      // videoKey-г цэвэрлэнэ (raw ≠ тоглуулах m3u8), Stream/URL ч цэвэрлэнэ.
+      setRawVideoKey(result.key);
+      setVideoKey('');
       setVideoStreamId('');
-      setStreamStatus('');
+      setStreamStatus('processing');
       setVideoUrl('');
       setUploadedName(file.name);
-      toast.success('Видео R2-д байршуулагдлаа', { id: toastId, duration: 2500 });
+      toast.success('Видео R2-д байршуулагдлаа — HLS болгож байна', { id: toastId, duration: 2500 });
     } catch {
       toast.error('R2-д байршуулахад алдаа гарлаа', { id: toastId, duration: 3500 });
     } finally {
@@ -1829,6 +1831,8 @@ function LessonRow({
   const [title, setTitle] = useState(lesson.title);
   const [videoUrl, setVideoUrl] = useState(lesson.videoUrl ?? '');
   const [videoKey, setVideoKey] = useState(lesson.videoKey ?? '');
+  // R2 HLS raw key (шинэ upload) — save үед backend HLS queue. Хоосон бол хуучин videoKey/stream.
+  const [rawVideoKey, setRawVideoKey] = useState('');
   const [videoStreamId, setVideoStreamId] = useState(lesson.videoStreamId ?? '');
   const [streamStatus, setStreamStatus] = useState(lesson.streamStatus ?? '');
   const [posterKey, setPosterKey] = useState(lesson.posterKey ?? '');
@@ -1866,10 +1870,16 @@ function LessonRow({
         title: title.trim(),
         description: description.trim() || undefined,
         content: stripHtml(content) ? content : '',
-        videoStreamId: videoStreamId || undefined,
-        streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
-        videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
-        videoKey: videoStreamId ? undefined : (videoKey || undefined),
+        // ⚠️ R2 HLS: шинэ raw upload байвал rawVideoKey гол → backend HLS queue хийж
+        // videoKey-г worker бичнэ. Хуучин (rawVideoKey хоосон) бол Stream/videoKey хэвээр.
+        ...(rawVideoKey
+          ? { rawVideoKey }
+          : {
+              videoStreamId: videoStreamId || undefined,
+              streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
+              videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
+              videoKey: videoStreamId ? undefined : (videoKey || undefined),
+            }),
         // Poster — хоосон бол null илгээж устгана (автомат frame руу буцна).
         posterKey: posterKey || null,
         durationSec,
@@ -1956,6 +1966,7 @@ function LessonRow({
                 isFreePreview={freePreview}
                 videoUrl={videoUrl} setVideoUrl={setVideoUrl}
                 videoKey={videoKey} setVideoKey={setVideoKey}
+                setRawVideoKey={setRawVideoKey}
                 videoStreamId={videoStreamId} setVideoStreamId={setVideoStreamId}
                 setStreamStatus={setStreamStatus}
                 posterKey={posterKey} setPosterKey={setPosterKey}
@@ -2073,6 +2084,8 @@ function AddLessonForm({
   const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [videoKey, setVideoKey] = useState('');
+  // R2 HLS raw key (шинэ upload) — save үед backend HLS queue.
+  const [rawVideoKey, setRawVideoKey] = useState('');
   const [videoStreamId, setVideoStreamId] = useState('');
   const [streamStatus, setStreamStatus] = useState('');
   const [posterKey, setPosterKey] = useState('');
@@ -2085,10 +2098,15 @@ function AddLessonForm({
       title: title.trim(),
       description: description.trim() || undefined,
       content: stripHtml(content) ? content : undefined,
-      videoStreamId: videoStreamId || undefined,
-      streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
-      videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
-      videoKey: videoStreamId ? undefined : (videoKey || undefined),
+      // ⚠️ R2 HLS: raw upload байвал rawVideoKey гол → backend HLS queue.
+      ...(rawVideoKey
+        ? { rawVideoKey }
+        : {
+            videoStreamId: videoStreamId || undefined,
+            streamStatus: videoStreamId ? (streamStatus || 'ready') : undefined,
+            videoUrl: videoStreamId ? undefined : (videoKey ? undefined : (videoUrl.trim() || undefined)),
+            videoKey: videoStreamId ? undefined : (videoKey || undefined),
+          }),
       posterKey: posterKey || undefined,
       durationSec: parseDurationToSec(duration),
       isFreePreview: freePreview,
@@ -2119,6 +2137,7 @@ function AddLessonForm({
           isFreePreview={freePreview}
           videoUrl={videoUrl} setVideoUrl={setVideoUrl}
           videoKey={videoKey} setVideoKey={setVideoKey}
+          setRawVideoKey={setRawVideoKey}
           videoStreamId={videoStreamId} setVideoStreamId={setVideoStreamId}
           setStreamStatus={setStreamStatus}
           posterKey={posterKey} setPosterKey={setPosterKey}
