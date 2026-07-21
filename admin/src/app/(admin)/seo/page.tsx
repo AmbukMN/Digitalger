@@ -281,7 +281,7 @@ export default function SeoPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">SEO & Тохиргоо</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">SEO & Тохиргоо</h1>
           <p className="text-sm text-muted-foreground">Сайтын мета тэг, analytics, sitemap тохируулах</p>
         </div>
         <Button type="submit" disabled={mutation.isPending} className="shrink-0">

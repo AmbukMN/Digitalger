@@ -104,7 +104,7 @@ function TestimonialDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Нэр *</Label>
               <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Бат-Эрдэнэ" required />
@@ -189,7 +189,7 @@ export default function TestimonialsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Гэрчилгээ / Сэтгэгдэл</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Гэрчилгээ / Сэтгэгдэл</h1>
           <p className="text-muted-foreground">Хэрэглэгчийн сэтгэгдлүүдийг удирдах</p>
         </div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>

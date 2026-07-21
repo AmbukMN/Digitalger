@@ -106,7 +106,7 @@ function CampaignRecipientsDialog({
         ) : (
           <>
             <div className="max-h-[60vh] overflow-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="px-3 py-2 font-medium">Хаяг</th>
@@ -313,7 +313,7 @@ export function EmailMarketingPanel() {
               </span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-2.5 font-medium">Кампанит ажил</th>

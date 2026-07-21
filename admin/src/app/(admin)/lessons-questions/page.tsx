@@ -732,7 +732,7 @@ export default function LessonsQuestionsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl tracking-tight">
             <MessagesSquare className="h-6 w-6 text-primary" />
             Суралцагчийн асуулт
           </h1>

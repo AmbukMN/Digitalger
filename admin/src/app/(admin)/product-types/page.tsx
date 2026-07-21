@@ -96,7 +96,7 @@ function TypeFormDialog({
             <Label>Дүрс (Icon)</Label>
             <IconPicker value={icon} onChange={setIcon} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Эрэмбэ</Label>
               <Input type="number" min={0} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
@@ -154,9 +154,9 @@ export default function ProductTypesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Бүтээгдэхүүний төрлүүд</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">Бүтээгдэхүүний төрлүүд</h1>
           <p className="text-muted-foreground">Нийт {types.length} төрөл</p>
         </div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>

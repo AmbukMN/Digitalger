@@ -137,7 +137,7 @@ function CouponDialog({
           </div>
 
           {/* Type + Value */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Хөнгөлөлтийн төрөл</Label>
               <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v as any }))}>
@@ -261,9 +261,9 @@ export default function CouponsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold sm:text-2xl flex items-center gap-2">
             <Tag className="h-6 w-6 text-primary" />
             Купон код
           </h1>
@@ -288,7 +288,7 @@ export default function CouponsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Код</th>

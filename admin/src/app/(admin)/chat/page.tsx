@@ -227,7 +227,7 @@ export default function ChatPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">AI Чат</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">AI Чат</h1>
           <p className="text-muted-foreground">Хэрэглэгчийн AI чат — харах, гар хариулах</p>
         </div>
         <div className="flex gap-2">

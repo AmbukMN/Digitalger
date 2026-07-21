@@ -38,7 +38,7 @@ export default function MediaPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Media</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Media</h1>
         <p className="text-muted-foreground">R2 руу файл upload</p>
       </div>
 

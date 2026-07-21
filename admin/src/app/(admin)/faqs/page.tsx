@@ -77,7 +77,7 @@ function FaqDialog({
           <DialogTitle>{faq ? 'FAQ засах' : 'FAQ нэмэх'}</DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Ангилал</Label>
               <Input value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} placeholder="Жишээ нь: Төлбөр, Татах" />
@@ -168,9 +168,9 @@ export default function FaqsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Түгээмэл асуулт</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Түгээмэл асуулт</h1>
           <p className="text-muted-foreground">Бүх FAQ-уудыг удирдах. Бүтээгдэхүүнд оноохыг бүтээгдэхүүн засахад хийнэ.</p>
         </div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>

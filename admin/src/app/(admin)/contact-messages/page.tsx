@@ -119,7 +119,7 @@ export default function ContactMessagesPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2.5 font-medium">Илгээгч</th>

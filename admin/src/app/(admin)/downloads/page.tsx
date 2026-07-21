@@ -105,7 +105,7 @@ export default function DownloadsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold sm:text-2xl flex items-center gap-2">
             <Download className="h-6 w-6 text-primary" /> Таталт
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -212,7 +212,7 @@ export default function DownloadsPage() {
             <div className="py-12 text-center text-sm text-muted-foreground">Таталт олдсонгүй</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="px-4 py-2.5 font-medium">Бүтээгдэхүүн</th>

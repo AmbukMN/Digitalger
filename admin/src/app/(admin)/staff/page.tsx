@@ -47,7 +47,7 @@ export default function StaffPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Багийн админ</h1>
+        <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Багийн админ</h1>
         <p className="text-sm text-muted-foreground">
           Админ ажилтан нэмэх, хэсэг бүрд эрх (харах/нэмэх/засах/устгах) тохируулах.
         </p>

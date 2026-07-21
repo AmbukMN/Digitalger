@@ -323,9 +323,9 @@ export default function BlogPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Нийтлэл</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Нийтлэл</h1>
           <p className="text-muted-foreground">Blog нийтлэлүүдийг удирдах</p>
         </div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>

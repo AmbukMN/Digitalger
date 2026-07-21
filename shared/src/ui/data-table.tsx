@@ -68,15 +68,18 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border overflow-hidden">
-        <table className="w-full text-sm">
+      {/* ⚠️ Responsive: mobile-д багана шахагдахгүй — overflow-x-auto-оор
+          хэвтээ scroll (overflow-hidden байсныг сольсон). min-w-max нь table-г
+          шахахгүй бүтэн өргөнөөр (утсан дэлгэцэд гүйлгэж харна). */}
+      <div className="rounded-xl border border-border overflow-x-auto">
+        <table className="w-full min-w-max text-sm">
           <thead className="bg-muted/50">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
-                    className="h-11 px-4 text-left font-medium text-muted-foreground"
+                    className="h-11 whitespace-nowrap px-4 text-left font-medium text-muted-foreground"
                     style={h.column.columnDef.size ? { width: h.column.columnDef.size, minWidth: h.column.columnDef.minSize, maxWidth: h.column.columnDef.maxSize } : undefined}
                   >
                     {h.isPlaceholder

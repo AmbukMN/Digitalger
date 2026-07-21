@@ -916,7 +916,9 @@ export function AdminShell({
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        {/* ⚠️ Responsive padding — mobile-д багасгаж контент өргөн харагдана
+            (p-6 нь утсан дэлгэцэд хэт зай авдаг). Desktop (lg) хэвээр p-6. */}
+        <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

@@ -540,7 +540,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Хяналтын самбар</h1>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Хяналтын самбар</h1>
           <p className="text-sm text-muted-foreground capitalize">{todayLabel}</p>
         </div>
         <div className="flex items-center gap-1.5 self-start rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400 sm:self-auto">

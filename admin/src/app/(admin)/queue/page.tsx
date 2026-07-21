@@ -88,7 +88,7 @@ export default function QueuePage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">ZIP Дараалал</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">ZIP Дараалал</h1>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}><CardContent className="h-24 animate-pulse bg-muted rounded pt-6" /></Card>
@@ -101,7 +101,7 @@ export default function QueuePage() {
   if (isError || !data) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">ZIP Дараалал</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">ZIP Дараалал</h1>
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <AlertCircle className="h-10 w-10 text-destructive" />
@@ -117,9 +117,9 @@ export default function QueuePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">ZIP Дараалал</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">ZIP Дараалал</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {queue.isPaused ? (
               <span className="text-destructive font-medium">Түр зогсоосон</span>

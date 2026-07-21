@@ -110,7 +110,7 @@ function PartnerDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Вэб хаяг</Label>
               <Input value={form.website} onChange={(e) => setForm(f => ({ ...f, website: e.target.value }))} placeholder="https://..." />
@@ -182,7 +182,7 @@ export default function PartnersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Хамтрагчид (Partners)</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Хамтрагчид (Partners)</h1>
           <p className="text-muted-foreground">Нийтлэлийн footer дээд талд цувран харагдах хамтрагч байгууллагууд.</p>
         </div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>

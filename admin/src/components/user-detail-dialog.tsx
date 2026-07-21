@@ -623,7 +623,7 @@ export function UserDetailDialog({ user, onClose }: Props) {
               </div>
 
               {/* Бүртгэл огноо */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-xl border border-border bg-card p-4">
                   <p className="text-xs text-muted-foreground">Бүртгүүлсэн</p>
                   <p className="mt-1 text-sm font-semibold">{fmtDateTime(u?.createdAt)}</p>

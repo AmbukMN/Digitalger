@@ -340,7 +340,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Холбоос URL</Label>
               <Input
@@ -359,7 +359,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Дэвсгэр өнгө (HEX)</Label>
               <div className="flex items-center gap-2">
@@ -387,7 +387,7 @@ export function BannerFormDialog({ open, banner, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Эхлэх огноо</Label>
               <Input

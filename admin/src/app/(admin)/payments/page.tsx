@@ -265,7 +265,7 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Төлбөр</h1>
+        <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Төлбөр</h1>
         <p className="text-sm text-muted-foreground">Нийт {data?.total ?? 0} төлбөрийн бүртгэл</p>
       </div>
 

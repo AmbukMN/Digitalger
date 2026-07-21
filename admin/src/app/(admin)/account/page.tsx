@@ -262,7 +262,7 @@ export default function AccountPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Миний бүртгэл</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Миний бүртгэл</h1>
         <p className="text-sm text-muted-foreground">Профайл мэдээлэл, нууц үг, тохиргоо</p>
       </div>
 

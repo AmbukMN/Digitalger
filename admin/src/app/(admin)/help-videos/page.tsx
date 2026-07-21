@@ -128,7 +128,7 @@ function HelpVideoDialog({
           <DialogTitle>{video ? 'Видео заавар засах' : 'Видео заавар нэмэх'}</DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!hasVideo) { toast.error('Видео файл байршуулна уу'); return; } mutation.mutate(); }}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2 col-span-2">
               <Label>Гарчиг *</Label>
               <Input value={form.title} onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Жишээ: Бүтээгдэхүүн хэрхэн авах вэ?" required />
@@ -268,7 +268,7 @@ export default function HelpVideosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Видео заавар</h1>
+          <h1 className="text-xl font-bold sm:text-2xl tracking-tight">Видео заавар</h1>
           <p className="text-muted-foreground">Туслах самбар (Help)-ын &ldquo;Видео заавар&rdquo; таб-д харагдах зааврууд.</p>
         </div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>

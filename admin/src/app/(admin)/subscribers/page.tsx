@@ -163,7 +163,7 @@ function SubscriberDialog({
             <Label>Имэйл *</Label>
             <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required type="email" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Нэр</Label>
               <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
@@ -173,7 +173,7 @@ function SubscriberDialog({
               <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Нас</Label>
               <Input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
@@ -191,7 +191,7 @@ function SubscriberDialog({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Утас</Label>
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -861,7 +861,7 @@ export default function SubscribersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold sm:text-2xl flex items-center gap-2">
             <Mail className="h-6 w-6 text-primary" /> Subscriber
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Имэйл захиалагчдыг удирдах ({total})</p>
@@ -981,7 +981,7 @@ export default function SubscribersPage() {
             <div className="py-12 text-center text-sm text-muted-foreground">Subscriber олдсонгүй</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="px-4 py-2.5 w-10">
