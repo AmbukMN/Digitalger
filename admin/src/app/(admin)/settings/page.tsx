@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon, Share2, GraduationCap, PenLine } from 'lucide-react';
+import { Upload, X, Globe, Mail, Building2, Palette, Check, Monitor, Sun, Moon, Share2, GraduationCap, PenLine, Landmark } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -583,6 +583,139 @@ function SocialTab({
   );
 }
 
+// ——— Данс/Төлбөр таб —————————————————————————————————————————————
+// Checkout-д QPay-ийн хажууд "Дансаар төлөх" товч гаргаж, popup-д энэ мэдээллийг
+// динамикаар харуулна. Enabled=false бол товч огт гарахгүй.
+function BankTab({
+  site,
+  onSave,
+  isSaving,
+}: {
+  site: SiteSettings | null;
+  onSave: (data: Partial<SiteSettings>) => void;
+  isSaving: boolean;
+}) {
+  const [form, setForm] = useState({
+    bankTransferEnabled: site?.bankTransferEnabled ?? false,
+    bankName: site?.bankName ?? '',
+    bankAccountNumber: site?.bankAccountNumber ?? '',
+    bankAccountName: site?.bankAccountName ?? '',
+    bankTransferNote: site?.bankTransferNote ?? '',
+  });
+
+  useEffect(() => {
+    if (site) {
+      setForm({
+        bankTransferEnabled: site.bankTransferEnabled ?? false,
+        bankName: site.bankName ?? '',
+        bankAccountNumber: site.bankAccountNumber ?? '',
+        bankAccountName: site.bankAccountName ?? '',
+        bankTransferNote: site.bankTransferNote ?? '',
+      });
+    }
+  }, [site]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      bankTransferEnabled: form.bankTransferEnabled,
+      bankName: form.bankName || null,
+      bankAccountNumber: form.bankAccountNumber || null,
+      bankAccountName: form.bankAccountName || null,
+      bankTransferNote: form.bankTransferNote || null,
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Landmark className="h-5 w-5" />
+          Дансаар шилжүүлэх
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Checkout хуудсанд QPay-ийн хажууд &ldquo;Дансаар төлөх&rdquo; товч гарна.
+          Хэрэглэгч данс руу шилжүүлээд чат бичихэд та бүтээгдэхүүнийг гараар нээж өгнө.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Идэвхжүүлэх toggle */}
+          <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Дансаар төлөх боломж</p>
+              <p className="text-xs text-muted-foreground">Идэвхжүүлбэл checkout-д товч гарна</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={form.bankTransferEnabled}
+              onChange={(e) => setForm((f) => ({ ...f, bankTransferEnabled: e.target.checked }))}
+              className="h-5 w-5 accent-primary"
+            />
+          </label>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bankName">Банкны нэр</Label>
+            <Input
+              id="bankName"
+              value={form.bankName}
+              onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
+              placeholder="Жишээ: Хаан банк"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bankAccountNumber">Дансны дугаар</Label>
+            <Input
+              id="bankAccountNumber"
+              value={form.bankAccountNumber}
+              onChange={(e) => setForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
+              placeholder="5xxxxxxxxx"
+              className="font-mono tracking-wide"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bankAccountName">Данс эзэмшигчийн нэр</Label>
+            <Input
+              id="bankAccountName"
+              value={form.bankAccountName}
+              onChange={(e) => setForm((f) => ({ ...f, bankAccountName: e.target.value }))}
+              placeholder="Б. Амгаланбаяр"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bankTransferNote">Заавар / гуйвуулгын утга</Label>
+            <textarea
+              id="bankTransferNote"
+              value={form.bankTransferNote}
+              onChange={(e) => setForm((f) => ({ ...f, bankTransferNote: e.target.value }))}
+              placeholder="Жишээ: Гуйвуулгын утга дээр өөрийн и-мэйл хаягаа бичнэ үү. Төлбөр хийсэн баримтаа чатаар илгээгээрэй."
+              rows={3}
+              className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Popup-д харагдана. Холбоо барих чат линк нь Нийгмийн сүлжээ таб-ийн Facebook хаягийг ашиглана.
+            </p>
+          </div>
+
+          <Button type="submit" disabled={isSaving} className="w-full mt-2">
+            {isSaving ? (
+              'Хадгалж байна...'
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Данс тохиргоо хадгалах
+              </>
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ——— Certificate tab —————————————————————————————————————————
 function CertificateTab({
   site,
@@ -809,7 +942,8 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general">
-        <TabsList className="w-full">
+        {/* 5 таб — mobile-д багтахын тулд wrap (2 мөр болно), desktop-д нэг мөр */}
+        <TabsList className="flex h-auto w-full flex-wrap">
           <TabsTrigger value="general" className="flex-1">
             <Building2 className="mr-2 h-4 w-4" />
             Ерөнхий
@@ -825,6 +959,10 @@ export default function SettingsPage() {
           <TabsTrigger value="certificate" className="flex-1">
             <GraduationCap className="mr-2 h-4 w-4" />
             Сертификат
+          </TabsTrigger>
+          <TabsTrigger value="bank" className="flex-1">
+            <Landmark className="mr-2 h-4 w-4" />
+            Данс
           </TabsTrigger>
         </TabsList>
 
@@ -854,6 +992,14 @@ export default function SettingsPage() {
 
         <TabsContent value="certificate" className="mt-6">
           <CertificateTab
+            site={data?.site ?? null}
+            onSave={(body) => siteMutation.mutate(body)}
+            isSaving={siteMutation.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value="bank" className="mt-6">
+          <BankTab
             site={data?.site ?? null}
             onSave={(body) => siteMutation.mutate(body)}
             isSaving={siteMutation.isPending}

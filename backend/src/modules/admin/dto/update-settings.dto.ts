@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateThemeDto {
   @IsOptional()
@@ -156,4 +156,25 @@ export class UpdateSiteDto {
   @IsOptional()
   @IsString()
   certSignerTitle?: string;
+
+  // Дансаар шилжүүлэх төлбөр — checkout "Дансаар төлөх" товч + popup мэдээлэл
+  @IsOptional()
+  @IsBoolean()
+  bankTransferEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankTransferNote?: string;
 }

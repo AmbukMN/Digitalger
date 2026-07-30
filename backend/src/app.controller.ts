@@ -60,6 +60,13 @@ export class AppController {
       socialTiktok: site?.socialTiktok ?? null,
       socialYoutube: site?.socialYoutube ?? null,
       socialLinkedin: site?.socialLinkedin ?? null,
+      // Дансаар шилжүүлэх — checkout-д public (нэвтрэхгүйгээр). Enabled=false бол
+      // товч харагдахгүй тул данс мэдээлэл null-ээр илгээхэд асуудалгүй.
+      bankTransferEnabled: site?.bankTransferEnabled ?? false,
+      bankName: site?.bankName ?? null,
+      bankAccountNumber: site?.bankAccountNumber ?? null,
+      bankAccountName: site?.bankAccountName ?? null,
+      bankTransferNote: site?.bankTransferNote ?? null,
     };
   }
 

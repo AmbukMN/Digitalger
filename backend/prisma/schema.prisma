@@ -645,6 +645,14 @@ model SiteSetting {
   certSignerName    String? @default("Б. Амгаланбаяр") // гарын үсэг зурах хүний нэр
   certSignerTitle   String? @default("Гүйцэтгэх захирал") // албан тушаал
 
+  // Дансаар шилжүүлэх төлбөр — checkout-д QPay-ийн хажууд "Дансаар төлөх"
+  // товч гарна. Хэрэглэгч данс руу шилжүүлээд чат бичихэд admin гараар нээнэ.
+  bankTransferEnabled Boolean @default(false) // товч харагдах эсэх
+  bankName            String? // банкны нэр (ж: Хаан банк)
+  bankAccountNumber   String? // дансны дугаар
+  bankAccountName     String? // данс эзэмшигчийн нэр
+  bankTransferNote    String? // заавар/гуйвуулгын утга + холбоо барих текст
+
   updatedAt DateTime @updatedAt
 }
 

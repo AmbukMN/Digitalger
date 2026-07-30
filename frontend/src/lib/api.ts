@@ -863,6 +863,15 @@ export interface PublicSiteSettings {
   googleAnalyticsId: string | null;
   googleTagManagerId: string | null;
   fbPixelId: string | null;
+  // Facebook чат линк — bank transfer popup-д "Чатаар холбогдох" товчинд ашиглана
+  // (backend buildPublicSettings бүх social буцаадаг; энд хэрэгтэйг нь тодорхойлов)
+  socialFacebook: string | null;
+  // Дансаар шилжүүлэх төлбөр (checkout "Дансаар төлөх" popup)
+  bankTransferEnabled: boolean;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+  bankTransferNote: string | null;
 }
 
 export const siteSettingsApi = {

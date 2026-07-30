@@ -568,6 +568,13 @@ export interface SiteSettings {
   certSignatureUrl: string | null;
   certSignerName: string | null;
   certSignerTitle: string | null;
+
+  // Дансаар шилжүүлэх төлбөр (checkout "Дансаар төлөх" popup)
+  bankTransferEnabled: boolean;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+  bankTransferNote: string | null;
 }
 
 export interface AdminProductTypeConfig {

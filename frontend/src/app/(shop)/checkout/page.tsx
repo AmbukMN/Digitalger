@@ -6,16 +6,17 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Input, Separator } from '@digitalger/shared/ui';
 import { formatPrice } from '@digitalger/shared';
-import { CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
+import { Building2, CheckCircle2, Gift, Loader2, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { couponsApi, downloadsApi, ordersApi, paymentsApi, productsApi } from '@/lib/api';
+import { couponsApi, downloadsApi, ordersApi, paymentsApi, productsApi, siteSettingsApi } from '@/lib/api';
 import { trackPurchase } from '@/lib/analytics';
 import { useCartStore } from '@/store/cart';
 import { MAX_COUPONS_PER_PRODUCT } from '@/store/coupon';
 import { SiteNavbar } from '@/components/layout/site-navbar';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { QPayCheckout } from '@/components/payment/qpay-checkout';
+import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
 import { ProductRowItem } from '@/components/ui/product-row-item';
 import { TrustBadges } from '@/components/products/trust-badges';
 import type { PaymentInitiateResult } from '@/types/api';
@@ -41,7 +42,17 @@ function CheckoutContent() {
   const [authOpen, setAuthOpen] = useState(false);
   const [qpayResult, setQpayResult] = useState<PaymentInitiateResult | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [bankModalOpen, setBankModalOpen] = useState(false);
   const autoPayTriggered = useRef(false);
+
+  // Дансаар шилжүүлэх тохиргоо (public settings) — checkout-д "Дансаар төлөх"
+  // товч харуулах эсэх + popup-д харагдах данс мэдээллийг динамикаар татна.
+  const { data: siteSettings } = useQuery({
+    queryKey: ['site-settings', 'public'],
+    queryFn: () => siteSettingsApi.getPublic(),
+    staleTime: 5 * 60_000,
+  });
+  const bankEnabled = !!siteSettings?.bankTransferEnabled;
 
   // Checkout-level coupons (addable on this page)
   const [checkoutCoupons, setCheckoutCoupons] = useState<AppliedCoupon[]>(() => {
@@ -485,22 +496,39 @@ function CheckoutContent() {
                 </p>
               )}
 
-              <Button
-                className="w-full font-bold"
-                size="lg"
-                disabled={paying}
-                onClick={handlePay}
-              >
-                {paying ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Боловсруулж байна...</>
-                ) : !session ? (
-                  'Нэвтэрч, Захиалгаа баталгаажуулах'
-                ) : isFree ? (
-                  <><CheckCircle2 className="mr-2 h-4 w-4" />Үнэгүй авах</>
-                ) : (
-                  'QPay-ээр төлөх'
+              {/* Төлбөрийн товчнууд: QPay 8/10 + Дансаар 2/10 (mobile-д ч ижил
+                  харьцаа). Дансаар зөвхөн тохиргоо enabled БА үнэгүй биш үед. */}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-8 font-bold"
+                  size="lg"
+                  disabled={paying}
+                  onClick={handlePay}
+                >
+                  {paying ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Боловсруулж байна...</>
+                  ) : !session ? (
+                    'Нэвтэрч, Захиалгаа баталгаажуулах'
+                  ) : isFree ? (
+                    <><CheckCircle2 className="mr-2 h-4 w-4" />Үнэгүй авах</>
+                  ) : (
+                    'QPay-ээр төлөх'
+                  )}
+                </Button>
+                {bankEnabled && !isFree && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-2 flex-col gap-0.5 px-1 font-semibold leading-none"
+                    disabled={paying}
+                    onClick={() => setBankModalOpen(true)}
+                    title="Дансаар шилжүүлэх"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    <span className="text-[10px]">Дансаар</span>
+                  </Button>
                 )}
-              </Button>
+              </div>
 
               {/* Trust badges — итгэлийн тэмдгүүд (eco/teal зөөлөн background). */}
               <div className="mt-1 rounded-xl border border-teal-500/20 bg-teal-500/6 dark:bg-teal-400/6 p-3">
@@ -524,6 +552,14 @@ function CheckoutContent() {
           token={session.accessToken}
           onSuccess={handlePaymentSuccess}
           onClose={() => { setQpayResult(null); setPendingOrderId(null); }}
+        />
+      )}
+
+      {bankModalOpen && siteSettings && (
+        <BankTransferModal
+          settings={siteSettings}
+          total={total}
+          onClose={() => setBankModalOpen(false)}
         />
       )}
     </>
