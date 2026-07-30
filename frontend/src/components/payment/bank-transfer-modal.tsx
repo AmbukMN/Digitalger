@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Building2, Check, Copy, MessageCircle, X } from 'lucide-react';
 import { formatPrice } from '@digitalger/shared';
+import { useChatUi } from '@/store/chat-ui';
 import type { PublicSiteSettings } from '@/lib/api';
 
 interface BankTransferModalProps {
   settings: Pick<
     PublicSiteSettings,
-    'bankName' | 'bankAccountNumber' | 'bankAccountName' | 'bankTransferNote' | 'socialFacebook'
+    'bankName' | 'bankAccountNumber' | 'bankAccountName' | 'bankTransferNote'
   >;
   total: number;
   onClose: () => void;
@@ -50,7 +51,16 @@ function CopyRow({ label, value, mono }: { label: string; value: string; mono?: 
 }
 
 export function BankTransferModal({ settings, total, onClose }: BankTransferModalProps) {
-  const { bankName, bankAccountNumber, bankAccountName, bankTransferNote, socialFacebook } = settings;
+  const { bankName, bankAccountNumber, bankAccountName, bankTransferNote } = settings;
+  const requestOpenChat = useChatUi((s) => s.requestOpenChat);
+
+  // "Чатаар холбогдох" → вэбийн AI/туслах чат widget-ыг нээнэ (Facebook БИШ).
+  // Modal-ыг хаагаад чат нээгдэнэ.
+  const openWebChat = () => {
+    onClose();
+    // Modal-ын exit animation дуустал бага зэрэг хүлээгээд чат нээнэ.
+    setTimeout(() => requestOpenChat(), 120);
+  };
 
   return (
     <AnimatePresence>
@@ -135,18 +145,15 @@ export function BankTransferModal({ settings, total, onClose }: BankTransferModa
             </ol>
           </div>
 
-          {/* Холбоо барих — Facebook chat */}
-          {socialFacebook && (
-            <a
-              href={socialFacebook}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98]"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Чатаар холбогдох
-            </a>
-          )}
+          {/* Холбоо барих — вэбийн туслах чат widget нээнэ (Facebook БИШ) */}
+          <button
+            type="button"
+            onClick={openWebChat}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98]"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Чатаар холбогдох
+          </button>
         </div>
       </motion.div>
     </AnimatePresence>
