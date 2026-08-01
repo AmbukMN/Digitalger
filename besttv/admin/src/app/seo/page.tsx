@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { ImageUpload } from '@/components/image-upload';
+import { SeoPagesManager } from '@/components/seo-pages-manager';
 import { api } from '@/lib/api';
 import { useAdminSeo, type SeoSettings } from '@/lib/queries';
 
@@ -179,6 +180,21 @@ export default function SeoPage() {
           </div>
         </div>
       </main>
+
+      {/*
+        ⚠️ Хуудас тус бүрийн SEO — дээрх нь САЙТЫН ерөнхий тохиргоо.
+        /movies, /series, /blog гэх мэт хуудас бүрийг тусад нь тохируулна.
+      */}
+      <section className="px-8 pb-10">
+        <div className="admin-card rounded-xl border border-border bg-card p-5">
+          <h2 className="text-sm font-semibold text-foreground">Хуудасны SEO</h2>
+          <p className="mb-4 mt-0.5 text-xs text-muted-foreground">
+            Хуудас бүрийн гарчиг, тайлбар, OG зургийг тусад нь тохируулна. Кино/блогийн
+            дэлгэрэнгүй нь өөрсдийн датагаас автоматаар үүснэ.
+          </p>
+          <SeoPagesManager />
+        </div>
+      </section>
     </AdminShell>
   );
 }

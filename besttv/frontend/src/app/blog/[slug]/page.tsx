@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { BlogDetailClient } from './blog-detail-client';
+import { SITE_URL } from '@/lib/seo';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -8,10 +9,37 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const res = await fetch(`${api}/api/blog/${slug}`, { next: { revalidate: 30 } });
     if (!res.ok) return {};
     const post = await res.json();
+
+    /**
+     * ⚠️ Өмнө нь openGraph-д ЗӨВХӨН images байсан — og:title / og:description /
+     * og:url огт байгаагүй тул Facebook-д хуваалцахад гарчиг, тайлбар хоосон
+     * гарч байв. Canonical ч байгаагүй.
+     */
+    const title = (post.metaTitle || post.title || '').replace(/\s*\|\s*BestTV\s*$/i, '');
+    const description = post.metaDescription || post.excerpt || `${title} — BestTV блог.`;
+    const url = `${SITE_URL}/blog/${slug}`;
+    const image = post.coverUrl || null;
+
     return {
-      title: post.metaTitle || post.title,
-      description: post.metaDescription || post.excerpt,
-      openGraph: { images: post.coverUrl ? [post.coverUrl] : undefined },
+      title,
+      description,
+      alternates: { canonical: url },
+      openGraph: {
+        title,
+        description,
+        url,
+        type: 'article',
+        locale: 'mn_MN',
+        siteName: 'BestTV',
+        ...(post.publishedAt ? { publishedTime: post.publishedAt } : {}),
+        ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}),
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        ...(image ? { images: [image] } : {}),
+      },
     };
   } catch {
     return {};

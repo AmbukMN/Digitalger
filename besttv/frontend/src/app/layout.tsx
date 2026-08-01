@@ -4,6 +4,7 @@ import Script from 'next/script';
 import { Providers } from './providers';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { ContentProtection } from '@/components/content-protection';
+import { SITE_URL, getSeoOverride, jsonLd } from '@/lib/seo';
 import './globals.css';
 
 // Manrope — кирилл дэмжлэгтэй, орчин үеийн geometric font
@@ -39,20 +40,40 @@ async function getSeo(): Promise<SeoSettings | null> {
 
 export async function generateMetadata(): Promise<Metadata> {
   const seo = await getSeo();
+  // ⚠️ Нүүр хуудсын админ override — root layout нь "/"-ийн metadata-г ч өгдөг
+  const home = await getSeoOverride('/');
+
+  const homeTitle = home?.title || seo?.metaTitle || 'BestTV — Үз, мэдэр, дахин үз';
+  const homeDesc =
+    home?.description || seo?.metaDescription || 'Монголын киноны стриминг платформ';
+  // ⚠️ Анхдагч руу унана — ogImageUrl=null үед ч линк хуваалцахад зурагтай
+  const homeOg = home?.ogImageUrl || seo?.ogImageUrl || `${SITE_URL}/opengraph-image`;
+
   return {
-    title: { default: seo?.metaTitle ?? 'BestTV — Үз, мэдэр, дахин үз', template: `%s | ${seo?.siteName ?? 'BestTV'}` },
-    description: seo?.metaDescription ?? 'Монголын киноны стриминг платформ',
-    metadataBase: new URL(process.env.SITE_URL ?? 'http://localhost:3100'),
+    title: { default: homeTitle, template: `%s | ${seo?.siteName ?? 'BestTV'}` },
+    description: homeDesc,
+    // ⚠️ SITE_URL байхгүй бол production хаяг — localhost БОЛГОХГҮЙ
+    // (localhost болбол бүх харьцангуй OG зураг эвдэрч FB хоосон харуулна)
+    metadataBase: new URL(SITE_URL),
+    // Нүүр хуудсын canonical (дэд хуудсууд өөрсдөө дарж бичнэ)
+    alternates: { canonical: SITE_URL },
+    ...(home?.keywords ? { keywords: home.keywords } : {}),
     robots: seo?.noindex ? { index: false, follow: false } : undefined,
     verification: seo?.siteVerification ? { google: seo.siteVerification } : undefined,
     openGraph: {
+      title: homeTitle,
+      description: homeDesc,
+      url: SITE_URL,
       siteName: seo?.siteName ?? 'BestTV',
       locale: 'mn_MN',
       type: 'website',
-      images: seo?.ogImageUrl ? [seo.ogImageUrl] : undefined,
+      images: homeOg ? [{ url: homeOg, width: 1200, height: 630, alt: homeTitle }] : undefined,
     },
     twitter: {
       card: (seo?.twitterCard as 'summary_large_image' | 'summary') ?? 'summary_large_image',
+      title: homeTitle,
+      description: homeDesc,
+      ...(homeOg ? { images: [homeOg] } : {}),
     },
   };
 }
@@ -82,6 +103,39 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               })(window,document,'script','dataLayer','${seo.googleTagManagerId}');`}
           </Script>
         )}
+        {/*
+          Organization + WebSite structured data — Google-д сайтын нэр, лого,
+          хайлтын хэлбэрийг мэдэгдэнэ (rich result / sitelinks searchbox).
+        */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLd([
+              {
+                '@context': 'https://schema.org',
+                '@type': 'Organization',
+                name: seo?.siteName ?? 'BestTV',
+                url: SITE_URL,
+                ...(seo?.ogImageUrl ? { logo: seo.ogImageUrl } : {}),
+              },
+              {
+                '@context': 'https://schema.org',
+                '@type': 'WebSite',
+                name: seo?.siteName ?? 'BestTV',
+                url: SITE_URL,
+                inLanguage: 'mn',
+                potentialAction: {
+                  '@type': 'SearchAction',
+                  target: {
+                    '@type': 'EntryPoint',
+                    urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+                  },
+                  'query-input': 'required name=search_term_string',
+                },
+              },
+            ]),
+          }}
+        />
         <Providers>
           {/* Баруун товч / хуулах / F12 хамгаалалт (бүх хуудсанд) */}
           <ContentProtection />

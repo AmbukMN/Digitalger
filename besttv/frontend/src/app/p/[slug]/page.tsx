@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { SITE_URL } from '@/lib/seo';
 
 interface PageData {
   slug: string;
@@ -29,9 +30,22 @@ export async function generateMetadata({
   const { slug } = await params;
   const page = await getPage(slug);
   if (!page) return {};
+
+  /**
+   * ⚠️ DB-д metaTitle нь "... | BestTV" гэж хадгалагдсан бол root layout-ийн
+   * template дахин нэмж ДАВХАРДАНА. Тиймээс төгсгөлийн сайтын нэрийг хасна.
+   */
+  const raw = page.metaTitle || page.title;
+  const title = raw.replace(/\s*\|\s*BestTV\s*$/i, '');
+  const description = page.metaDescription || `${title} — BestTV.`;
+  const url = `${SITE_URL}/p/${slug}`;
+
   return {
-    title: page.metaTitle || page.title,
-    description: page.metaDescription || undefined,
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { title, description, url, type: 'article', locale: 'mn_MN' },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 

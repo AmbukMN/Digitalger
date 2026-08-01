@@ -10,17 +10,40 @@ import { ErrorState } from '@besttv/shared/ui';
 import { useCatalog, useGenres } from '@/lib/queries';
 import { cn } from '@besttv/shared';
 
+type CatalogType = 'MOVIE' | 'SERIES' | undefined;
+
 /** Кино каталог grid — жанр filter (client-side, keepPreviousData тул skeleton гацахгүй) */
-export function CatalogGrid({ type, heading, subheading }: { type: 'MOVIE' | 'SERIES'; heading: string; subheading: string }) {
+export function CatalogGrid({
+  type: initialType,
+  heading,
+  subheading,
+}: {
+  type: 'MOVIE' | 'SERIES';
+  heading: string;
+  subheading: string;
+}) {
   const searchParams = useSearchParams();
   const [genre, setGenre] = useState<string | undefined>(searchParams.get('genre') ?? undefined);
+  /**
+   * ⚠️ Төрөл нь ХЭРЭГЛЭГЧИЙН СОНГОЛТ (өмнө нь хуудсанд хатуу байсан).
+   * Алдаа байсан: нүүрнээс "Монгол кино" жанр дарахад /movies?genre=... руу
+   * очиж, тэнд type=MOVIE хатуу байсан тул тэр жанрын ОЛОН АНГИТ бүгд
+   * алга болдог байв. Одоо жанраар ирвэл "Бүгд" болж, хэрэглэгч өөрөө
+   * шүүнэ.
+   */
+  const [type, setType] = useState<CatalogType>(
+    searchParams.get('genre') ? undefined : initialType,
+  );
   const [sort, setSort] = useState<'new' | 'popular' | 'rating'>('new');
   const [page, setPage] = useState(1);
 
   // Нүүр хуудасны "Бүгдийг үзэх" (?genre=slug) холбоосыг тайлбарлана
   useEffect(() => {
     const g = searchParams.get('genre');
-    if (g) setGenre(g);
+    if (g) {
+      setGenre(g);
+      setType(undefined); // жанраар ирвэл БҮХ ТӨРӨЛ (кино + олон ангит)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -32,7 +55,27 @@ export function CatalogGrid({ type, heading, subheading }: { type: 'MOVIE' | 'SE
       <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">{heading}</h1>
       <p className="mt-1.5 text-white/55">{subheading}</p>
 
-      <div className="mt-7 flex flex-wrap items-center gap-2" role="group" aria-label="Жанраар шүүх">
+      {/*
+        ⚠️ ТӨРЛИЙН шүүлт — жанраар ирэхэд "Бүгд" болдог тул хэрэглэгч
+        кино/олон ангит хооронд эндээс сэлгэнэ.
+      */}
+      <div className="mt-6 flex gap-1 rounded-full bg-white/6 p-1 w-fit" role="group" aria-label="Төрлөөр шүүх">
+        {([undefined, 'MOVIE', 'SERIES'] as const).map((t) => (
+          <button
+            key={t ?? 'all'}
+            onClick={() => { setType(t); setPage(1); }}
+            aria-pressed={type === t}
+            className={cn(
+              'rounded-full px-4 py-1.5 text-xs font-semibold transition-colors',
+              type === t ? 'bg-primary text-white shadow-md' : 'text-white/55 hover:text-white',
+            )}
+          >
+            {t === undefined ? 'Бүгд' : t === 'MOVIE' ? 'Кино' : 'Олон ангит'}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Жанраар шүүх">
         <FilterChip active={!genre} onClick={() => { setGenre(undefined); setPage(1); }}>
           Бүгд
         </FilterChip>
