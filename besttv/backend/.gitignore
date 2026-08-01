@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.production
+*.log
+# ⚠️ Локал драйверийн файлын хавтас — ЗӨВХӨН үндэс дэх storage/.
+# Урд нь "storage/" байсан нь src/storage/ ЭХ КОДЫГ ч барьж, тэр хавтасны
+# файлууд git-д огт ороогүй байсан.
+/storage/

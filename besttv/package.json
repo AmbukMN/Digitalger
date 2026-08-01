@@ -1,0 +1,19 @@
+{
+  "name": "besttv",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "frontend",
+    "admin",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:admin": "npm run dev -w admin",
+    "dev:backend": "npm run start:dev -w backend",
+    "dev:worker": "npm run worker:dev -w backend",
+    "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w admin",
+    "db:migrate": "npm run prisma:migrate -w backend",
+    "db:seed": "npm run prisma:seed -w backend"
+  }
+}

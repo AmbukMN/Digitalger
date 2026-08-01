@@ -1,0 +1,272 @@
+@layer base {
+  /* ════════════════════════════════════════════════════════════════════════
+     BestTV — кино стриминг theme. DARK-FIRST: сайт үндсэндээ хар дэвсгэртэй
+     (Netflix загвар), admin panel light хэрэглэж болно.
+     ⚠️ ХУУЧИН БРАУЗЕР FALLBACK: OKLCH зөвхөн iOS 15.4+/Chrome 111+ — тиймээс
+     ЭХЛЭЭД HEX (бүх браузер), ДАРАА cascade-аар oklch давхарлана.
+     Брэнд: улаан #e50914 accent + хар 3 түвшин (#050505/#0a0a0a/#1a1a1a).
+     ════════════════════════════════════════════════════════════════════════ */
+  :root {
+    /* iOS safe-area fallbacks */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+
+    /* Light (admin panel) */
+    --background: #ffffff;
+    --foreground: #0a0a0a;
+    --card: #ffffff;
+    --card-foreground: #0a0a0a;
+    --popover: #ffffff;
+    --popover-foreground: #0a0a0a;
+
+    /* BestTV brand — cinema red */
+    --primary: #e50914;
+    --primary-foreground: #ffffff;
+
+    --secondary: #f3f4f6;
+    --secondary-foreground: #1a1a1a;
+
+    --muted: #f3f4f7;
+    --muted-foreground: #4b5563;
+
+    --accent: #b1060f;
+    --accent-foreground: #ffffff;
+
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --border: #e3e4e7;
+    --input: #e3e4e7;
+    --ring: #e50914;
+    --warning: #edb200;
+    --warning-foreground: #2b2300;
+    --success: #00a544;
+    --success-foreground: #ffffff;
+    /* Premium badge — алт */
+    --premium: #edb200;
+    --premium-foreground: #1a1200;
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    /* ── Cinema black elevation: page → section → card ── */
+    --background: #050505;
+    --foreground: #f5f5f5;
+    --card: #121212;
+    --card-foreground: #f5f5f5;
+    --popover: #1a1a1a;
+    --popover-foreground: #f5f5f5;
+
+    --primary: #e50914;
+    --primary-foreground: #ffffff;
+
+    --secondary: #1f1f1f;
+    --secondary-foreground: #d4d4d4;
+
+    --muted: #171717;
+    --muted-foreground: #9ca3af;
+
+    --accent: #ff2c38;
+    --accent-foreground: #ffffff;
+
+    --destructive: #f43f4d;
+    --destructive-foreground: #ffffff;
+
+    --border: rgba(255, 255, 255, 0.12);
+    --input: rgba(255, 255, 255, 0.16);
+
+    --ring: #e50914;
+    --warning: #ffc300;
+    --warning-foreground: #1f1900;
+    --success: #00c758;
+    --success-foreground: #061206;
+    --premium: #edb200;
+    --premium-foreground: #1a1200;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01", "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.03em;
+  }
+  h4, h5, h6 {
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono,
+  [class*="price"],
+  [class*="amount"],
+  [class*="count"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* iOS search input zoom prevention (16px доош zoom хийдэг) */
+  @media (max-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em) !important;
+    }
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-premium: var(--premium);
+  --color-premium-foreground: var(--premium-foreground);
+  --radius: var(--radius);
+}
+
+/* ─── Keyframes (Sheet/Dialog — ЗААВАЛ зөөлөн, гэнэт биш) ──── */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slide-out-right {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slide-out-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+@keyframes fade-in-overlay {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fade-out-overlay {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes dialog-out {
+  from { opacity: 1; transform: scale(1)    translateY(0); }
+  to   { opacity: 0; transform: scale(0.96) translateY(-6px); }
+}
+
+.sheet-right[data-state="open"] {
+  animation: slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.sheet-right[data-state="closed"] {
+  animation: slide-out-right 0.38s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.sheet-left[data-state="open"] {
+  animation: slide-in-left 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.sheet-left[data-state="closed"] {
+  animation: slide-out-left 0.38s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.sheet-overlay[data-state="open"] {
+  animation: fade-in-overlay 0.2s ease both;
+}
+.sheet-overlay[data-state="closed"] {
+  animation: fade-out-overlay 0.2s ease both;
+}
+.dialog-content[data-state="open"] {
+  animation: dialog-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dialog-content[data-state="closed"] {
+  animation: dialog-out 0.18s ease both;
+}
+
+/* ─── Search overlay slide-down ───────────────────────────── */
+@keyframes search-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-search-slide-down {
+  animation: search-slide-down 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Hero контентын fade-up ──────────────────────────────── */
+@keyframes hero-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-hero-fade-up {
+  animation: hero-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Themed scrollbar ────────────────────────────────────── */
+.overflow-y-auto,
+[class*="overflow-y-auto"] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 100, 100, 0.3) transparent;
+}
+.overflow-y-auto::-webkit-scrollbar,
+[class*="overflow-y-auto"]::-webkit-scrollbar {
+  width: 5px;
+}
+.overflow-y-auto::-webkit-scrollbar-track,
+[class*="overflow-y-auto"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb,
+[class*="overflow-y-auto"]::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 99px;
+}
+.dark .overflow-y-auto::-webkit-scrollbar-thumb,
+.dark [class*="overflow-y-auto"]::-webkit-scrollbar-thumb {
+  background: rgba(180, 180, 180, 0.25);
+}
+
+/* ─── Hide scrollbar (карусель мөрүүд) ────────────────────── */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

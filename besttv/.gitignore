@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+.env
+.env.local
+.env.production
+# ⚠️ Жинхэнэ түлхүүр агуулсан backup — .env.example л git-д орно
+.env.bak*
+.env.*.bak
+*.log
+
+# Production нууц
+docker/.env
+origin_ssl/

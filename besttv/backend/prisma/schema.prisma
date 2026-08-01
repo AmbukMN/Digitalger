@@ -1,0 +1,833 @@
+// BestTV — Prisma schema
+// Кино/цуврал стриминг: private R2 + HLS, QPay subscription
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  FACEBOOK
+  GUEST
+}
+
+enum TitleType {
+  MOVIE
+  SERIES
+}
+
+/// Видео HLS хөрвүүлэлтийн төлөв (upload → worker → ready)
+enum StreamStatus {
+  NONE // видео ороогүй
+  UPLOADED // raw R2-д орсон, queue-д хүлээж байна
+  PROCESSING // ffmpeg HLS хөрвүүлж байна
+  READY // m3u8 бэлэн — тоглуулах боломжтой
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+/// Хэтэвчийн гүйлгээний төрөл
+enum WalletTxType {
+  TOPUP // QPay-ээр цэнэглэсэн
+  ADMIN_CREDIT // Админ нэмсэн
+  ADMIN_DEBIT // Админ хассан
+  PURCHASE // Багц худалдан авахад зарцуулсан
+  REFUND // Буцаалт
+}
+
+// ─── Хэрэглэгч ────────────────────────────────────────────────────────────────
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String?
+  passwordHash String?
+  role         Role    @default(USER)
+
+  // ── Avatar ── OAuth-аас ирсэн URL-ийг ШУУД хадгалахгүй, R2 руу mirror
+  // хийж key хадгална (гадны CDN унтарвал avatar эвдрэхээс сэргийлнэ,
+  // мөн хэрэглэгчийн R2 private bucket-тэй нийцнэ).
+  avatarKey String?
+
+  // ── OAuth ──────────────────────────────────────────────────────────────
+  provider      AuthProvider @default(LOCAL)
+  googleId      String?      @unique
+  facebookId    String?      @unique
+  emailVerified Boolean      @default(false) // OAuth-аар ирвэл автоматаар true
+
+  // ⚠️ Зочин (guest) нэвтрэлт БҮРМӨСӨН ХАСАГДСАН — зөвхөн Google/Facebook/
+  // имэйл+нууц үгээр нэвтэрнэ. Хуучин зочин бүртгэлүүд DB-д үлдсэн бол
+  // isGuest=true хэвээр байх ба нэвтрэх боломжгүй болно.
+  isGuest    Boolean @default(false)
+  guestToken String? @unique
+
+  /// Хэтэвчийн үлдэгдэл (₮) — QPay-ээр цэнэглэж, багц худалдан авахад зарцуулна
+  walletBalance Int @default(0)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+  payments      Payment[]
+  watchProgress WatchProgress[]
+  myList        MyListItem[]
+  reviews       Review[]
+  walletTxs     WalletTransaction[]
+
+  // Tracking — админ хэрэглэгчийн бүрэн зан төлөвийг харна
+  pageViews    PageView[]
+  titleEvents  TitleEvent[]
+  searchEvents SearchEvent[]
+  auditLogs    UserAuditLog[]
+
+  chatConversations ChatConversation[]
+  reviewVotes       ReviewVote[]
+  reviewReports     ReviewReport[]
+  rentals           Rental[]
+  emailOtps         EmailOtp[]
+  adminSeens        AdminSeen[]
+
+  @@index([provider])
+}
+
+/// Хэтэвчийн гүйлгээний бүртгэл — үлдэгдлийн өөрчлөлт бүрийг мөрдөнө (audit).
+/// balanceAfter нь гүйлгээний дараах үлдэгдлийн snapshot (тулгахад).
+model WalletTransaction {
+  id     String       @id @default(cuid())
+  userId String
+  type   WalletTxType
+  amount Int // ₮ — эерэг = нэмэгдсэн, сөрөг = хасагдсан
+
+  balanceAfter Int
+  description  String @default("")
+
+  /// TOPUP бол QPay Payment-тэй холбоо; PURCHASE бол Subscription-тэй
+  paymentId String?
+  planId    String?
+
+  /// ADMIN_CREDIT/ADMIN_DEBIT бол хийсэн админы id
+  actorUserId String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ─── Контент ──────────────────────────────────────────────────────────────────
+
+/// Кино БА цуврал хоёуланг нэг моделд (type ялгана).
+/// MOVIE → videoKey шууд энд; SERIES → Season/Episode-уудад.
+model Title {
+  id            String    @id @default(cuid())
+  type          TitleType
+  title         String
+  titleEn       String? // EN UI дараа нэмэхэд бэлэн
+  slug          String    @unique
+  description   String    @default("")
+  descriptionEn String?
+
+  // Медиа — бүгд R2 key (private bucket, presign-ээр л хандана)
+  posterKey   String? // 2:3 (300x450 хэлбэр)
+  backdropKey String? // 16:9 hero (1920x1080)
+  trailerKey  String? // HLS m3u8 key — hero autoplay
+  videoRawKey String? // upload хийсэн оригинал (HLS болмогц устгана)
+  videoKey    String? // HLS m3u8 key (зөвхөн MOVIE)
+
+  streamStatus StreamStatus @default(NONE)
+  /// HLS хөрвүүлэлтийн явц 0-100 (PROCESSING үед админд харуулна)
+  streamProgress Int @default(0)
+  /// Хөрвүүлэлт эхэлсэн хугацаа — ГАЦСАН ажлыг илрүүлэхэд
+  streamStartedAt DateTime?
+  /// Амжилтгүй болсон шалтгаан (админд харуулна)
+  streamError String?
+  durationSec  Int?
+
+  isPremium Boolean @default(true) // false = үнэгүй, эрхгүй үзнэ
+
+  /// ⚠️ ШИРХЭГЭЭР ТҮРЭЭСЛЭХ үнэ (₮). NULL = сайтын нийтлэг үнэ (Settings.rent).
+  /// Хэрэглэгч багц авахгүйгээр ЗӨВХӨН энэ киног түрээслэж үзэж болно.
+  rentPrice   Int?
+  /// Түрээсийн хугацаа (цаг). NULL = нийтлэг тохиргоо (default 48 цаг).
+  rentHours   Int?
+  /// false = энэ киног ширхэгээр түрээслүүлэхгүй (зөвхөн багцаар)
+  rentEnabled Boolean   @default(true)
+  rating      Float?
+  ageRating   String? // "16+", "PG-13", "G" гэх мэт
+  director    String?
+  year        Int?
+  releaseDate DateTime?
+  views       Int       @default(0)
+  actors      String[]  @default([]) // хуучин энгийн нэрсийн жагсаалт (backward-compat)
+  cast        Json? // [{ name, character, photoKey }] — дэлгэрэнгүй cast
+  galleryKeys String[]  @default([]) // нэмэлт screenshot/gallery зургууд (R2 key)
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+
+  // Нүүрийн байрлал/дараалал (IncheTV загвар)
+  isBanner         Boolean @default(false) // hero carousel-д гарна
+  bannerOrder      Int     @default(0)
+  comingSoon       Boolean @default(false)
+  comingSoonOrder  Int     @default(0)
+  newReleasesOrder Int     @default(0)
+  hideFromNew      Boolean @default(false)
+  isActive         Boolean @default(true)
+
+  genres        TitleGenre[]
+  seasons       Season[]
+  watchProgress WatchProgress[]
+  myList        MyListItem[]
+  reviews       Review[]
+  rentals       Rental[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type, isActive])
+  @@index([isBanner, isActive])
+  @@index([comingSoon, isActive])
+}
+
+model Genre {
+  id       String  @id @default(cuid())
+  name     String
+  nameEn   String?
+  slug     String  @unique
+  order    Int     @default(0)
+  imageKey String?
+
+  /// Насанд хүрэгчдийн контент — ерөнхий каталог/нүүрэнд ХАРАГДАХГҮЙ,
+  /// зөвхөн /adult хуудсанд (нас баталгаажуулсны дараа) гарна.
+  isAdult Boolean @default(false)
+
+  titles TitleGenre[]
+  plans  PlanGenre[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isAdult])
+}
+
+/// Олон-олон + жанрын мөр доторх дараалал (админ удирдана)
+model TitleGenre {
+  titleId String
+  genreId String
+  order   Int    @default(0)
+
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([titleId, genreId])
+  @@index([genreId, order])
+}
+
+model Season {
+  id      String  @id @default(cuid())
+  titleId String
+  number  Int
+  name    String?
+
+  title    Title     @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  episodes Episode[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([titleId, number])
+}
+
+model Episode {
+  id          String  @id @default(cuid())
+  seasonId    String
+  number      Int
+  name        String?
+  description String  @default("")
+
+  videoRawKey  String?
+  videoKey     String? // HLS m3u8 key
+  posterKey    String?
+  durationSec  Int?
+  streamStatus StreamStatus @default(NONE)
+  /// HLS хөрвүүлэлтийн явц 0-100 (PROCESSING үед админд харуулна)
+  streamProgress Int @default(0)
+  /// Хөрвүүлэлт эхэлсэн хугацаа — ГАЦСАН ажлыг илрүүлэхэд
+  streamStartedAt DateTime?
+  /// Амжилтгүй болсон шалтгаан (админд харуулна)
+  streamError String?
+
+  /// true = эрхгүй ч үзэж болно (цувралын эхний анги гэх мэт)
+  isFreePreview Boolean @default(false)
+
+  season        Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  watchProgress WatchProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([seasonId, number])
+}
+
+// ─── Subscription + QPay ──────────────────────────────────────────────────────
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String // "Монгол кино багц"
+  description  String   @default("")
+  price        Int // ₮
+  durationDays Int // 30 / 90 / 180 / 365
+  features     String[] @default([])
+  isActive     Boolean  @default(true)
+  order        Int      @default(0)
+
+  /// VIP = БҮХ жанрын контент нээгдэнэ (genres холбоос үл хамааран).
+  /// false бол зөвхөн PlanGenre-д холбогдсон жанрууд нээгдэнэ.
+  isVip Boolean @default(false)
+
+  genres        PlanGenre[]
+  subscriptions Subscription[]
+  payments      Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Багц ↔ жанрын хандалт. Хэрэглэгч тухайн багцтай бол эдгээр жанрын
+/// (аль нэгэнд нь хамаарах) premium контентыг үзэх эрхтэй.
+model PlanGenre {
+  planId  String
+  genreId String
+
+  plan  Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([planId, genreId])
+  @@index([genreId])
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  planId    String
+  startsAt  DateTime @default(now())
+  expiresAt DateTime
+  paymentId String?  @unique
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    Plan     @relation(fields: [planId], references: [id])
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model Payment {
+  id     String        @id @default(cuid())
+  userId String
+  /// ⚠️ Хэтэвч цэнэглэх төлбөрт planId БАЙХГҮЙ (null) — багц авахад л заавал
+  planId String?
+  amount Int
+  status PaymentStatus @default(PENDING)
+
+  /// true = хэтэвч цэнэглэх төлбөр (багц худалдан авалт биш)
+  isWalletTopup Boolean @default(false)
+
+  couponCode     String? // хэрэглэсэн купон код (лог зорилгоор, snapshot)
+  originalAmount Int? // купон хэрэглэхээс өмнөх дvн (хямдрал харуулахад)
+
+  qpayInvoiceId String?   @unique
+  qpayQrText    String?
+  qpayQrImage   String? // base64 QR
+  qpayUrls      Json? // deeplink жагсаалт (банкны app)
+  paidAt        DateTime?
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan?         @relation(fields: [planId], references: [id])
+  subscription Subscription?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+// ─── Үзэлтийн явц + жагсаалт ─────────────────────────────────────────────────
+
+/// "Үргэлжлүүлэн үзэх" — нэг хэрэглэгч нэг Title-д НЭГ мөр.
+/// Цувралд episodeId = одоо үзэж буй анги.
+model WatchProgress {
+  id          String  @id @default(cuid())
+  userId      String
+  titleId     String
+  episodeId   String?
+  positionSec Int     @default(0)
+  durationSec Int     @default(0)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title   Title    @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, titleId])
+  @@index([userId, updatedAt])
+}
+
+model MyListItem {
+  userId  String
+  titleId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, titleId])
+}
+
+/// Хэрэглэгчийн үнэлгээ+сэтгэгдэл — нэг хэрэглэгч нэг Title-д НЭГ review
+model Review {
+  id      String @id @default(cuid())
+  userId  String
+  titleId String
+  rating  Int // 1-10
+  comment String @default("")
+
+  /// Спойлер агуулсан — үзээгүй хүнд бүрхэгдэж харагдана
+  hasSpoiler Boolean @default(false)
+
+  /// Хариу бичсэн эх сэтгэгдэл. NULL = үндсэн сэтгэгдэл.
+  parentId String?
+  parent   Review?  @relation("ReviewReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Review[] @relation("ReviewReplies")
+
+  /// ⚠️ ЯАГААД ЭНЭ ТАЛБАР: SQL-д NULL ≠ NULL тул `@@unique([userId, titleId,
+  /// parentId])` нь parentId=NULL үед ОГТ хамгаалдаггүй — нэг хэрэглэгч нэг
+  /// кинонд хэдэн ч сэтгэгдэл бичиж чадна. Тиймээс үндсэн сэтгэгдэлд "" (хоосон
+  /// мөр), хариунд эх сэтгэгдлийн id-г хадгалж, unique-ыг ҮҮГЭЭР барина.
+  parentKey String @default("")
+
+  /// Админ хариулсан эсэх (өнгөөр ялгаж харуулна)
+  isStaff Boolean @default(false)
+
+  /// Тохиромжгүй гэж мэдээлэгдсэн тоо — админ шүүнэ
+  reportCount Int     @default(0)
+  /// Админ нуусан (устгахгүйгээр)
+  isHidden    Boolean @default(false)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  votes   ReviewVote[]
+  reports ReviewReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// ⚠️ Нэг хэрэглэгч нэг кинонд нэг л ҮНДСЭН сэтгэгдэл ("" түлхүүрээр).
+  /// Хариу нь parentKey=эх id тул олон байж болно (хариу бүр өөр эх сэтгэгдэлд).
+  /// Хэрэв нэг хүн нэг эх сэтгэгдэлд ОЛОН хариу бичих шаардлагатай бол энэ
+  /// unique саад болно — тиймээс хариунд parentKey-г "reply:<cuid>" гэж өвөрмөц болгоно.
+  @@unique([userId, titleId, parentKey])
+  @@index([titleId, parentId, createdAt])
+  @@index([titleId, createdAt])
+  @@index([isHidden, reportCount])
+}
+
+/// Сэтгэгдэлд өгсөн санал (хэрэгтэй / хэрэггүй)
+model ReviewVote {
+  reviewId String
+  userId   String
+  /// 1 = хэрэгтэй, -1 = хэрэггүй
+  value    Int
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([reviewId, userId])
+  @@index([userId])
+}
+
+/// Тохиромжгүй сэтгэгдлийн мэдээлэл
+model ReviewReport {
+  id       String @id @default(cuid())
+  reviewId String
+  userId   String
+  /// spam | offensive | spoiler | other
+  reason   String
+  note     String @default("")
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([reviewId, userId])
+  @@index([createdAt])
+}
+
+// ─── Контент маркетинг ────────────────────────────────────────────────────────
+
+model Faq {
+  id       String  @id @default(cuid())
+  question String
+  answer   String
+  category String  @default("Ерөнхий")
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
+model BlogPost {
+  id       String   @id @default(cuid())
+  title    String
+  slug     String   @unique
+  excerpt  String   @default("")
+  content  String
+  coverKey String?
+  tags     String[] @default([])
+  author   String?
+
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  views       Int       @default(0)
+
+  metaTitle       String?
+  metaDescription String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isPublished, publishedAt])
+}
+
+/// Хямдралын купон код — QPay subscription худалдан авалтад ашиглана
+model Coupon {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  discountType DiscountType
+  amount       Int // PERCENT бол 1-100, FIXED бол ₮
+  maxUses      Int? // null = хязгааргvй
+  usedCount    Int          @default(0)
+  minPrice     Int          @default(0) // энэ дvнгээс дээш захиалгад л хvчинтэй
+  expiresAt    DateTime?
+  isActive     Boolean      @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code, isActive])
+}
+
+/// Статик хуудас — Үйлчилгээний нөхцөл, Нууцлалын бодлого, Дата устгах хүсэлт
+/// гэх мэт. Админаас агуулга+SEO-г бүрэн удирдана (DigitalGer-ийн Pages жишиг).
+model Page {
+  id      String @id @default(cuid())
+  slug    String @unique // "terms" | "privacy" | "data-deletion" | "about"
+  title   String
+  content String @default("") // HTML/Markdown-той rich text
+
+  metaTitle       String?
+  metaDescription String?
+  ogImageKey      String?
+
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
+// ─── Тохиргоо ─────────────────────────────────────────────────────────────────
+
+model Settings {
+  key   String @id
+  value Json
+
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Tracking / Analytics ────────────────────────────────────────────────────
+// ⚠️ Fail-open хэв маяг: titleId/episodeId-д хатуу FK ТАВИХГҮЙ — устсан эсвэл
+// хуурамч id-аас болж sendBeacon-ий insert унахаас сэргийлнэ. Зөвхөн userId л
+// бодит User-тэй холбогдоно (onDelete: SetNull — хэрэглэгч устахад лог үлдэнэ).
+
+/// Хэрэглэгч аль хуудсаар зочилсон
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  sessionId String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device    String? // mobile | desktop | tablet
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([path, createdAt])
+  @@index([createdAt])
+}
+
+/// Кино/цуврал дээрх үйлдэл — юу үзсэн, юу дуусгасныг харна
+model TitleEvent {
+  id          String   @id @default(cuid())
+  /// view | play | progress | complete | mylist_add | mylist_remove
+  type        String
+  titleId     String
+  titleSlug   String?
+  titleName   String? // хожим Title устсан ч түүхэнд нэр үлдэнэ
+  episodeId   String?
+  /// progress/complete үед — хаана хүртэл үзсэн
+  positionSec Int?
+  durationSec Int?
+  sessionId   String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device      String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([titleId, type, createdAt])
+  @@index([type, createdAt])
+}
+
+/// Хайлтын түүх — хэрэглэгч юу хайж байсныг админ харна
+model SearchEvent {
+  id        String   @id @default(cuid())
+  query     String
+  results   Int      @default(0)
+  sessionId String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([query, createdAt])
+  @@index([createdAt])
+}
+
+/// Аккаунтын өөрчлөлт/нэвтрэлтийн түүх
+model UserAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// login | register | oauth_login | logout | password | email | name | avatar
+  /// | role | blocked | wallet_credit | wallet_debit | plan_granted
+  field     String
+  oldValue  String?
+  newValue  String?
+  /// self | admin | system
+  actor     String
+  actorId   String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([field, createdAt])
+}
+
+// ─── Чат (вэб AI туслах + админ гар хариулт) ─────────────────────────────────
+// Урсгал: frontend → n8n webhook → n8n нь AI хариу + /chat/ingest-ээр энд бичнэ.
+// ⚠️ AI-ийн ЯРИАНЫ САНАХ ОЙ энд БИШ — n8n-ий Postgres memory-д. Энд зөвхөн лог.
+
+model ChatConversation {
+  id        String  @id @default(cuid())
+  /// web (одоогоор зөвхөн вэб; ирээдүйд facebook/instagram)
+  channel   String  @default("web")
+  /// frontend localStorage-оос ирнэ (web_xxx) — upsert-ийн түлхүүр
+  sessionId String  @unique
+  /// Нэвтэрсэн хэрэглэгчтэй холбогдвол (нэвтрэх үед backfill)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String?
+  userEmail String?
+
+  lastMessageAt   DateTime @default(now())
+  /// Хэрэглэгч бичсэн, админ хараагүй
+  adminUnread     Boolean  @default(false)
+  /// Админ гар аргаар авсан — AI хариулахаа болино
+  handedOff       Boolean  @default(false)
+  /// Админ бичсэн, хэрэглэгч хараагүй
+  userUnreadCount Int      @default(0)
+
+  createdAt DateTime      @default(now())
+  messages  ChatMessage[]
+
+  @@index([userId, lastMessageAt])
+  @@index([adminUnread, lastMessageAt])
+  @@index([channel, lastMessageAt])
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// user | assistant | admin
+  role           String
+  text           String           @db.Text
+  /// Санал болгосон кино/цуврал: [{id,title,slug,posterUrl,url,year,rating}]
+  titles         Json?
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// Кино ширхэгээр түрээслэх — багц авахгүйгээр нэг киног хугацаатай үзэх.
+///
+/// ⚠️ Эрх шалгах дараалал: (1) үнэгүй кино → (2) идэвхтэй багц → (3) идэвхтэй
+/// түрээс. Аль нэг нь таарвал үзнэ.
+model Rental {
+  id      String @id @default(cuid())
+  userId  String
+  titleId String
+
+  /// Төлсөн дүн (₮) — түүхэнд үлдэнэ (үнэ хожим өөрчлөгдсөн ч)
+  amount    Int
+  /// Холбогдох төлбөр (QPay эсвэл хэтэвч)
+  paymentId String?
+
+  /// Хүчинтэй хугацаа дуусах — энэ хүртэл үзнэ
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  /// Идэвхтэй түрээс хайхад (userId + titleId + хугацаа)
+  @@index([userId, titleId, expiresAt])
+  @@index([titleId, createdAt])
+  @@index([expiresAt])
+}
+
+// ─── Имэйл систем ────────────────────────────────────────────────────────────
+
+/// Имэйл баталгаажуулах / имэйл солих OTP код.
+/// ⚠️ Код нь HASH-лагдаж хадгалагдана (задарсан DB-ээс код уншигдахгүй).
+model EmailOtp {
+  id        String    @id @default(cuid())
+  userId    String
+  /// Аль имэйл рүү илгээсэн (имэйл солиход ШИНЭ имэйл)
+  email     String
+  codeHash  String
+  /// verify | change — юуны төлөө илгээснийг ялгана
+  purpose   String    @default("verify")
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@index([expiresAt])
+}
+
+/// Bounce/complaint ирсэн хаягууд — дахин илгээхгүй (SES reputation хамгаална).
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  /// bounce | complaint | manual
+  reason    String
+  subType   String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([reason, createdAt])
+}
+
+/// Илгээсэн имэйл бүрийн лог — админ хяналт, дахин илгээх шалгалт.
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  /// welcome | verify | payment | subscription | rental | expiring | marketing
+  template  String
+  /// sent | failed | suppressed
+  status    String   @default("sent")
+  error     String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([template, createdAt])
+  @@index([to, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Имэйл цуглуулга (мэдээллийн товхимол).
+/// ⚠️ Хэрэглэгч бүртгүүлэхэд ч энд автоматаар нэмэгдэнэ (source=register).
+model Subscriber {
+  id          String           @id @default(cuid())
+  email       String           @unique
+  name        String?
+  /// homepage | footer | register | checkout | admin | import
+  source      String?
+  status      SubscriberStatus @default(ACTIVE)
+  tags        String[]         @default([])
+  /// Нэвтэрсэн хэрэглэгчтэй холбоотой бол
+  userId      String?
+  lastEmailAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([source])
+}
+
+enum SubscriberStatus {
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+/// Админы sidebar "уншаагүй" badge — хэсэг бүрийг сүүлд харсан огноо.
+/// Badge тоо = тухайн хэсгийн createdAt > lastSeenAt.
+/// ⚠️ Хэсэгт орж харахад lastSeenAt=now() → badge цэвэрлэгдэнэ (Gmail загвар).
+model AdminSeen {
+  id      String @id @default(cuid())
+  adminId String
+  admin   User   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  /// users | payments | reviews | chat | subscribers | email-issues | rentals
+  section String
+
+  lastSeenAt DateTime @default(now())
+
+  @@unique([adminId, section])
+  @@index([adminId])
+}

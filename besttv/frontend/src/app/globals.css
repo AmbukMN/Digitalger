@@ -1,0 +1,190 @@
+@import 'tailwindcss';
+@import '@besttv/shared/styles/globals.css';
+
+/* Shared package-ийн component class-уудыг Tailwind-д scan хийлгэнэ */
+@source '../../../shared/src';
+
+/* BestTV frontend — ҮРГЭЛЖ dark (кино сайт). html дээр .dark class layout-д. */
+
+/* ─── Hero градиентууд ────────────────────────────────────────── */
+.hero-gradient {
+  background: linear-gradient(
+    to top,
+    rgba(5, 5, 5, 1) 0%,
+    rgba(5, 5, 5, 0.6) 30%,
+    rgba(5, 5, 5, 0.15) 60%,
+    rgba(5, 5, 5, 0.4) 100%
+  );
+}
+.hero-gradient-side {
+  background: linear-gradient(
+    to right,
+    rgba(5, 5, 5, 0.92) 0%,
+    rgba(5, 5, 5, 0.55) 45%,
+    rgba(5, 5, 5, 0) 75%
+  );
+}
+
+/* Ken Burns — hero backdrop маш зөөлөн томрон амьсгална */
+@keyframes ken-burns {
+  from { transform: scale(1) translateX(0); }
+  to   { transform: scale(1.08) translateX(-1.5%); }
+}
+.animate-ken-burns {
+  animation: ken-burns 9s ease-out both;
+  will-change: transform;
+}
+
+/* Hero progress indicator — идэвхтэй слайдын хугацааг дүүргэнэ */
+@keyframes hero-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+.animate-hero-progress {
+  animation: hero-progress 6s linear both;
+}
+
+/* ─── Карт hover ─────────────────────────────────────────────── */
+.title-card {
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
+}
+.title-card:hover,
+.title-card:focus-visible {
+  transform: scale(1.05) translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  z-index: 10;
+}
+
+/* Hover үед quick action-ууд доороос зөөлөн гарч ирнэ */
+.card-actions {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.title-card:hover .card-actions,
+.title-card:focus-within .card-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Navbar ─────────────────────────────────────────────────── */
+.navbar-solid {
+  background: rgba(5, 5, 5, 0.88);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.navbar-transparent {
+  background: linear-gradient(to bottom, rgba(5, 5, 5, 0.75), rgba(5, 5, 5, 0));
+}
+
+/* ─── Glassmorphism (modal, dropdown, overlay) ───────────────── */
+.glass {
+  background: rgba(18, 18, 18, 0.72);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+.glass-light {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Мөрийн ирмэгийн fade (карусель үргэлжлэхийг илтгэнэ) ────── */
+.row-fade-right {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 56px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 56px), transparent);
+}
+
+/* ─── Top 10 том дугаар ──────────────────────────────────────── */
+.top10-number {
+  font-size: 9rem;
+  line-height: 0.8;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  color: transparent;
+  -webkit-text-stroke: 3px rgba(255, 255, 255, 0.28);
+  user-select: none;
+}
+
+/* ─── Skeleton shimmer (энгийн pulse-аас илүү амьд) ──────────── */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* ─── Мобайл bottom nav-д зориулсан доод зай ─────────────────── */
+@media (max-width: 767px) {
+  .pb-mobile-nav {
+    padding-bottom: calc(4.5rem + var(--safe-bottom));
+  }
+}
+
+/* prefers-reduced-motion — хөдөлгөөн мэдрэмтгий хэрэглэгчид */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ken-burns,
+  .animate-hero-progress,
+  .skeleton-shimmer::after {
+    animation: none;
+  }
+  .title-card,
+  .card-actions {
+    transition: none;
+  }
+}
+
+/* ── Статик хуудасны агуулга (/p/[slug] — Үйлчилгээний нөхцөл гэх мэт) ── */
+.static-page h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  margin: 2rem 0 0.75rem;
+}
+.static-page h2:first-child { margin-top: 0; }
+.static-page h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 1.5rem 0 0.5rem;
+}
+.static-page p {
+  margin: 0.75rem 0;
+  line-height: 1.8;
+  font-size: 0.95rem;
+}
+.static-page ul,
+.static-page ol {
+  margin: 0.75rem 0 0.75rem 1.5rem;
+  line-height: 1.8;
+  font-size: 0.95rem;
+}
+.static-page ul { list-style: disc; }
+.static-page ol { list-style: decimal; }
+.static-page li { margin: 0.35rem 0; }
+.static-page a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.static-page a:hover { filter: brightness(1.2); }
+.static-page strong { color: rgba(255, 255, 255, 0.92); font-weight: 600; }
+.static-page div {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}

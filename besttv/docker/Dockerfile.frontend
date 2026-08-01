@@ -1,0 +1,55 @@
+# BestTV Frontend (Next.js standalone)
+# ⚠️ Build context = besttv/ (npm workspace: shared + frontend)
+
+# ── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+COPY shared/package*.json ./shared/
+COPY frontend/package*.json ./frontend/
+
+RUN npm install --workspace shared --workspace frontend --include-workspace-root
+
+COPY shared ./shared/
+COPY frontend ./frontend/
+
+# ⚠️ NEXT_PUBLIC_* нь BUILD үед код руу шигдэнэ — runtime env хангалтгүй.
+ARG NEXT_PUBLIC_ASSETS_URL
+ARG NEXT_PUBLIC_CHAT_WEBHOOK_URL
+ARG NEXTAUTH_URL
+ARG API_URL
+ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL \
+    NEXT_PUBLIC_CHAT_WEBHOOK_URL=$NEXT_PUBLIC_CHAT_WEBHOOK_URL \
+    NEXTAUTH_URL=$NEXTAUTH_URL \
+    API_URL=$API_URL \
+    NEXT_TELEMETRY_DISABLED=1
+
+# shared нь build script-гүй — Next transpilePackages-аар шууд TS уншина
+RUN npm run build --workspace frontend
+
+# ── Stage 2: Runner ──────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3100 \
+    HOSTNAME=0.0.0.0
+
+RUN apk add --no-cache wget && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# standalone output — зөвхөн хэрэгтэй node_modules-ыг агуулна
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./frontend/.next/static
+
+USER nextjs
+
+EXPOSE 3100
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:3100/ >/dev/null || exit 1
+
+CMD ["node", "frontend/server.js"]

@@ -1,0 +1,141 @@
+# BestTV — Production (VPS 62.238.47.2, besttv.us)
+#
+# ⚠️ ЗААВАЛ project name-тэй ажиллуулна:
+#     docker compose -f docker/docker-compose.prod.yml -p besttv up -d
+#
+# Учир нь DigitalGer ч мөн `docker/` хавтастай — project name автоматаар
+# "docker" болж НӨГӨӨ СТЕКИЙН container-ыг устгадаг.
+#
+# ⚠️ Nginx нь DigitalGer-ийн стект байгаа (docker-nginx-1) — энд ДАХИН
+# үүсгэхгүй. BestTV-ийн nginx conf-ыг DigitalGer-ийн conf.d руу нэмнэ.
+# Тиймээс энэ стек нь `digitalger_internal` сүлжээнд гаднаас нэгдэнэ.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: besttv-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-besttv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-besttv}
+    volumes:
+      - besttv_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-besttv}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - besttv_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: besttv-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - besttv_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - besttv_net
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: besttv-backend
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - besttv_net
+      - nginx_net
+
+  # HLS хөрвүүлэлтийн worker — backend-тэй ижил image, өөр entrypoint.
+  # ⚠️ Queue/processor код өөрчлөгдвөл ЭНЭ container-ыг ЗААВАЛ rebuild
+  # (backend rebuild хангалтгүй — processor зөвхөн энд ажиллана).
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: besttv-worker
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env.production
+    command: ['node', 'dist/src/worker.js']
+    # ⚠️ Worker нь ВЕБ СЕРВЕР БИШ (HLS queue consumer) — image-ийн HTTP
+    # healthcheck нь үргэлж унана. Процесс амьд эсэхийг л шалгана.
+    healthcheck:
+      test: ['CMD-SHELL', 'pgrep -f "dist/src/worker.js" > /dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - besttv_net
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_ASSETS_URL: ${NEXT_PUBLIC_ASSETS_URL}
+        NEXT_PUBLIC_CHAT_WEBHOOK_URL: ${NEXT_PUBLIC_CHAT_WEBHOOK_URL}
+        NEXTAUTH_URL: ${NEXTAUTH_URL}
+        API_URL: http://backend:4100
+    container_name: besttv-frontend
+    restart: unless-stopped
+    env_file:
+      - ../frontend/.env.production
+    depends_on:
+      - backend
+    networks:
+      - besttv_net
+      - nginx_net
+
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.admin
+      args:
+        NEXT_PUBLIC_ASSETS_URL: ${NEXT_PUBLIC_ASSETS_URL}
+        API_URL: http://backend:4100
+    container_name: besttv-admin
+    restart: unless-stopped
+    env_file:
+      - ../admin/.env.production
+    depends_on:
+      - backend
+    networks:
+      - besttv_net
+      - nginx_net
+
+volumes:
+  besttv_pg_data:
+  besttv_redis_data:
+
+networks:
+  # Дотоод — DB/Redis зөвхөн энд харагдана
+  besttv_net:
+    driver: bridge
+  # ⚠️ DigitalGer-ийн nginx (docker-nginx-1) ЭНЭ сүлжээнд байгаа. BestTV-ийн
+  # web container-ууд мөн энд нэгдсэнээр nginx нь `besttv-frontend:3100` гэх
+  # мэт контейнерийн нэрээр шууд proxy_pass хийж чадна.
+  nginx_net:
+    external: true
+    name: docker_internal

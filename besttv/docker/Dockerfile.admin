@@ -1,0 +1,49 @@
+# BestTV Admin (Next.js standalone)
+# ⚠️ Build context = besttv/ (npm workspace: shared + admin)
+
+# ── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+COPY shared/package*.json ./shared/
+COPY admin/package*.json ./admin/
+
+RUN npm install --workspace shared --workspace admin --include-workspace-root
+
+COPY shared ./shared/
+COPY admin ./admin/
+
+ARG NEXT_PUBLIC_ASSETS_URL
+ARG API_URL
+ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL \
+    API_URL=$API_URL \
+    NEXT_TELEMETRY_DISABLED=1
+
+# shared нь build script-гүй — Next transpilePackages-аар шууд TS уншина
+RUN npm run build --workspace admin
+
+# ── Stage 2: Runner ──────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3101 \
+    HOSTNAME=0.0.0.0
+
+RUN apk add --no-cache wget && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/static ./admin/.next/static
+
+USER nextjs
+
+EXPOSE 3101
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:3101/login >/dev/null || exit 1
+
+CMD ["node", "admin/server.js"]

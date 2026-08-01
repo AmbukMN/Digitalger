@@ -1,0 +1,302 @@
+{
+  "name": "Web Chat — BestTV AI",
+  "nodes": [
+    {
+      "id": "btv-webhook",
+      "name": "Web Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        0
+      ],
+      "webhookId": "besttv-web-chat",
+      "parameters": {
+        "path": "besttv-chat",
+        "options": {},
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "btv-prep",
+      "name": "Prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// BestTV вэб чат — { sessionId, message, name } задална → AI Agent-д өгнө.\nconst body = $input.first().json.body || {};\nconst sessionId = String(body.sessionId || 'web_anon').slice(0, 64);\nconst userText = String(body.message || '').trim();\nconst name = (body.name || '').trim();\n\nif (!userText) {\n  return [{ json: { psid: sessionId, userText: '', agentInput: '', empty: true } }];\n}\n\nconst NL = String.fromCharCode(10);\nconst nameLine = name ? ('Хэрэглэгчийн нэр: ' + name) : '';\nconst agentInput = [nameLine, '=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===', userText].filter(Boolean).join(NL);\n\nreturn [{ json: { psid: sessionId, userText, agentInput } }];"
+      }
+    },
+    {
+      "id": "btv-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        60,
+        0
+      ],
+      "parameters": {
+        "text": "={{ $json.agentInput }}",
+        "options": {
+          "systemMessage": "Чи бол BestTV (besttv.us) — Монголын кино, цуврал үзэх онлайн стриминг платформын албан ёсны AI туслах.\n\n## ЧИНИЙ ҮҮРЭГ\nХэрэглэгчид кино/цуврал олоход туслах, багц/төлбөрийн талаар зөвлөх, платформыг ашиглах зааврыг өгөх.\n\n## ХЭЛ, ӨНГӨ АЯС\n- ЗӨВХӨН монгол хэлээр (кирилл) хариул. Англи, орос хэлээр БҮҮ хариул.\n- Найрсаг, товч, ойлгомжтой. 2-4 өгүүлбэрт багтаа.\n- Хэрэглэгчийг \"та\" гэж хүндэтгэлтэй хандана.\n- Emoji хэмжээтэй ашигла (1-2, хэтрүүлэхгүй).\n- Markdown ФОРМАТ БҮҮ ашигла (**тод**, [холбоос](url) г.м.) — энгийн текстээр бич.\n\n## BESTTV-Д ЮУ БАЙДАГ\n\n### Жанрууд\nМонгол кино, Солонгос кино, Хятад кино, Орос кино, Насанд хүрэгчдийн кино (18+).\n\n### Багцууд (сарын эрх, 30 хоног)\n- Монгол кино багц — 15,000₮\n- Солонгос кино багц — 15,000₮\n- Хятад кино багц — 15,000₮\n- Орос кино багц — 15,000₮\n- Насанд хүрэгчдийн багц (18+) — 15,000₮\n- VIP багц — 25,000₮ (БҮХ жанр нээгдэнэ, хамгийн ашигтай)\n\nБагц бүр ЗӨВХӨН өөрийн жанрын кинонуудыг нээнэ. Олон жанр үзэх бол VIP хамгийн хямд.\n\n### Төлбөр\n- QPay-ээр банкны аппаар QR уншуулж төлнө\n- Эсвэл хэтэвчээ урьдчилж цэнэглээд түүгээрээ багц авна\n- Купон код байвал төлбөрийн хуудсанд оруулж хямдруулна\n\n### Хэтэвч\nХэрэглэгч QPay-ээр хэтэвчээ цэнэглээд, дараа нь багц худалдан авахад ашиглана. Үлдэгдэл, гүйлгээний түүхээ Профайл > Хэтэвч хэсгээс харна.\n\n### Чухал хуудсууд\n- Нүүр: https://besttv.us\n- Багцын үнэ: https://besttv.us/pricing\n- Кинонууд: https://besttv.us/movies\n- Цувралууд: https://besttv.us/series\n- Миний жагсаалт: https://besttv.us/my-list\n- Профайл/Хэтэвч: https://besttv.us/profile\n- Түгээмэл асуулт: https://besttv.us/faq\n\n## КИНО ХАЙХ ДҮРЭМ (ХАМГИЙН ЧУХАЛ — ЗААВАЛ ДАГА)\n\nХэрэглэгч кино/цуврал/жанр/жүжигчинтэй холбоотой ЮУ Ч асуувал, хариултынхаа\nХАМГИЙН ТӨГСГӨЛД дараах тэмдгийг ЗААВАЛ бич:\n[SEARCH:хайх үг]\n\n⚠️ Энэ тэмдэг байхгүй бол хэрэглэгчид кино харагдахгүй. Тиймээс эргэлзвэл\nТАВЬ. Тэмдгийг хэрэглэгч ХАРАХГҮЙ — систем ашиглаад арилгана.\n\nЖишээ (бүгд тэмдэгтэй):\n- \"солонгос кино байна уу\" → ...хариу... [SEARCH:солонгос]\n- \"монгол кино санал болгооч\" → ...хариу... [SEARCH:монгол]\n- \"хайрын тухай кино\" → ...хариу... [SEARCH:хайр]\n- \"ямар кино байна\" → ...хариу... [SEARCH:кино]\n- \"Аяны шувууд байна уу\" → ...хариу... [SEARCH:Аяны шувууд]\n- \"сонирхолтой юм үзмээр байна\" → ...хариу... [SEARCH:кино]\n\nЗӨВХӨН дараах үед тэмдэг ТАВИХГҮЙ:\n- Багц/үнэ/төлбөр/хэтэвч/купоны асуулт\n- Бүртгүүлэх/нэвтрэх/төлөх заавар\n- Энгийн мэндчилгээ (\"сайн уу\", \"баярлалаа\")\n- Техникийн гомдол (видео тоглохгүй г.м)\n\n## ЧУХАЛ ХЯЗГААРЛАЛТ\n- Байхгүй кино, багц, үнийг ЗОХИОЖ БОЛОХГҮЙ. Мэдэхгүй бол \"тодорхой мэдээлэл өгч чадахгүй байна, https://besttv.us хуудсаас шалгана уу\" гэж хэл.\n- Насанд хүрэгчдийн (18+) контентын талаар дэлгэрэнгүй БҮҮ ярь. Зөвхөн \"тусдаа багц шаардлагатай, 18 нас хүрсэн байх ёстой\" гэж товч хэл.\n- Хэрэглэгчийн нууц үг, картын мэдээлэл ХЭЗЭЭ Ч бүү асуу.\n- Бусад стриминг платформыг сурталчилж болохгүй.\n- Хууль бус, зохиогчийн эрх зөрчсөн сайтын талаар зөвлөж болохгүй.\n\n## ТУСЛАМЖ ШААРДЛАГАТАЙ ҮЕД\nХэрэглэгч гомдолтой, төлбөр асуудалтай, эсвэл чиний хариулж чадахгүй асуудалтай бол:\n\"Энэ асуудлыг манай ажилтан шалгаж туслах болно. Та энэ чатанд имэйл хаягаа үлдээгээрэй, эсвэл https://besttv.us/faq хуудсаас холбоо барих мэдээллийг аваарай.\" гэж хэл.\n\nХэрэглэгч имэйлээ бичвэл \"Имэйл хаягийг тань хүлээн авлаа, ажилтан удахгүй холбогдоно\" гэж баталгаажуул."
+        },
+        "promptType": "define"
+      }
+    },
+    {
+      "id": "btv-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        20,
+        200
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "qpjrNb8Yo010i6C9",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "id": "btv-memory",
+      "name": "Postgres Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        180,
+        200
+      ],
+      "parameters": {
+        "tableName": "n8n_chat_memory",
+        "sessionKey": "={{ $('Prep').first().json.psid }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "credentials": {
+        "postgres": {
+          "id": "ngOFGxWpH1dywpIn",
+          "name": "N8N PostgreSQL"
+        }
+      }
+    },
+    {
+      "id": "btv-extract",
+      "name": "Extract Keyword",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// AI хариунаас [SEARCH:keyword] салгаж, цэвэр текст бэлдэнэ.\nconst prep = $('Prep').first().json;\nconst psid = prep.psid;\nlet raw = ($input.first().json.output || '').trim();\n\nlet keyword = '';\nconst m = raw.match(/\\[SEARCH:\\s*([^\\]]*)\\]/i);\nif (m) { keyword = (m[1] || '').trim(); }\n\n// Тэмдгийг хэрэглэгчид харагдах текстээс бүрэн арилгана\nlet replyText = raw.replace(/\\[SEARCH:[^\\]]*\\]/ig, '').trim();\n\n// Markdown цэвэрлэх: [текст](url) → \"текст url\", ** __ устгах\nfunction stripMd(s){ s=String(s||''); var r='',i=0; while(i<s.length){ if(s[i]==='['){ var c=s.indexOf('](',i); if(c!==-1){ var e=s.indexOf(')',c+2); if(e!==-1){ var t=s.slice(i+1,c).trim(); var u=s.slice(c+2,e).trim(); r+=(t===u||!t)?u:(t+' '+u); i=e+1; continue; } } } r+=s[i]; i++; } r=r.split('**').join('').split('__').join(''); return r.trim(); }\nreplyText = stripMd(replyText);\n\n// ⚠️ FAQ ХАМГААЛАЛТ: AI ерөнхий асуултыг андуурч [SEARCH:]-д тавьсан бол хайхгүй.\n// Эс бөгөөс \"яаж төлөх вэ\" гэсэнд кино хайж \"олдсонгүй\" гэж хариулна.\nconst kwLc = keyword.toLowerCase().replace(/\\s+/g, ' ').trim();\nconst FAQ_STOP = ['багц','үнэ','төлбөр','тулбур','qpay','купон','хэтэвч','буцаалт','эрх',\n  'хэрхэн','яаж','нэвтрэх','бүртгэл','бүртгүүлэх','нууц үг','имэйл','тусламж',\n  'холбоо барих','админ','vip','цэнэглэх','захиалга','үзэх заавар','заавар'];\nfor (let i = 0; i < FAQ_STOP.length; i++) { if (kwLc === FAQ_STOP[i]) { keyword = ''; break; } }\n\n\n// ⚠️ FALLBACK: gpt-4o-mini нь [SEARCH:] заавраа тогтмол дагадаггүй тул\n// AI тэмдэг өгөөгүй үед ХЭРЭГЛЭГЧИЙН мессежээс кодоор түлхүүр үг олно.\n// (DigitalGer-ийн contact-trigger хэв маягтай ижил — AI-д найдахгүй.)\nif (!keyword) {\n  const userText = String(prep.userText || '').toLowerCase();\n\n  // Багц/төлбөр/заавартай холбоотой бол хайлт хийхгүй\n  const NO_SEARCH = ['багц','үнэ','төлбөр','төлөх','qpay','купон','хэтэвч','цэнэглэ',\n    'бүртгүүл','нэвтрэх','нууц үг','имэйл','яаж','хэрхэн','тусламж','холбоо',\n    'сайн уу','сайн байна','баярлалаа','vip','захиалга','цуцлах','буцаалт'];\n  const skip = NO_SEARCH.some((t) => userText.includes(t));\n\n  if (!skip) {\n    // Жанр/төрлийн түлхүүр үгс — киноны сэдэвтэй холбоотой эсэхийг танина\n    const GENRE = [\n      ['монгол', 'монгол'], ['солонгос', 'солонгос'], ['хятад', 'хятад'],\n      ['орос', 'орос'], ['хайр', 'хайр'], ['инээдм', 'инээдмийн'],\n      ['аймшг', 'аймшгийн'], ['адал', 'адал явдал'], ['шинэ', 'шинэ'],\n      ['цуврал', 'цуврал'], ['драм', 'драм'], ['экшн', 'экшн'],\n    ];\n    for (let i = 0; i < GENRE.length; i++) {\n      if (userText.includes(GENRE[i][0])) { keyword = GENRE[i][1]; break; }\n    }\n    // Жанр олдоогүй ч \"кино/цуврал/үзэх\" гэсэн үг байвал ерөнхий хайлт\n    if (!keyword && /кино|цуврал|үзэх|үзмээр|санал болго/.test(userText)) {\n      keyword = 'кино';\n    }\n  }\n}\n\nconst doSearch = keyword.length >= 2;\nif (!replyText) { replyText = doSearch ? 'Танд тохирох кино хайж байна...' : 'Уучлаарай, дахин бичнэ үү.'; }\n\nreturn [{ json: { psid, keyword, doSearch, replyText } }];"
+      }
+    },
+    {
+      "id": "btv-search",
+      "name": "Search Titles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "url": "=https://api.besttv.us/api/titles/search?q={{ encodeURIComponent($json.keyword || '') }}&limit=6",
+        "method": "GET",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "btv-build",
+      "name": "Build JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Widget-д зориулсан эцсийн JSON: { reply, titles[] } + backend-д бичих _ingest.\nconst ex = $('Extract Keyword').first().json;\nconst replyText = (ex.replyText || '').trim() || 'Уучлаарай, дахин бичнэ үү.';\n\nlet raw = [];\ntry {\n  const s = $('Search Titles').first().json;\n  // /titles/search нь массив шууд буцаана\n  raw = Array.isArray(s) ? s : (Array.isArray(s && s.data) ? s.data : []);\n} catch (e) { raw = []; }\n\nconst triedSearch = ex.doSearch === true;\nconst list = triedSearch ? raw : [];\n\n// Эхний 6 киног widget-ийн карт болгоно\nconst titles = list.slice(0, 6).map(function (t) {\n  return {\n    id: t.id || null,\n    title: t.title || '',\n    slug: t.slug || '',\n    posterUrl: t.posterUrl || null,\n    url: t.slug ? ('https://besttv.us/movie/' + t.slug) : null,\n    year: (t.year != null) ? Number(t.year) : null,\n    rating: (t.rating != null) ? Number(t.rating) : null,\n  };\n});\n\nreturn [{ json: {\n  reply: replyText,\n  titles: titles,\n  _ingest: {\n    sessionId: String(($('Prep').first().json.psid) || '').slice(0, 64),\n    userText: String(($('Prep').first().json.userText) || '').trim(),\n    assistantText: String(replyText || '').trim(),\n    titles: titles,\n  },\n} }];"
+      }
+    },
+    {
+      "id": "btv-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        -100
+      ],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "btv-ingest",
+      "name": "Save Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "parameters": {
+        "url": "https://api.besttv.us/api/chat/ingest",
+        "method": "POST",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "jsonBody": "={{ JSON.stringify($json._ingest) }}",
+        "sendBody": true,
+        "specifyBody": "json"
+      }
+    }
+  ],
+  "connections": {
+    "Web Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Extract Keyword",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Keyword": {
+      "main": [
+        [
+          {
+            "node": "Search Titles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Titles": {
+      "main": [
+        [
+          {
+            "node": "Build JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build JSON": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "id": "BestTVWebChat01"
+}

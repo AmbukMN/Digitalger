@@ -1,0 +1,55 @@
+# BestTV — бүрэн бие даасан stack. DigitalGer-тэй ЯМАР Ч container/DB/Redis
+# хуваалцахгүй (тусдаа порт, тусдаа нэр, тусдаа volume).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: besttv-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: besttv
+      POSTGRES_PASSWORD: besttv_secret
+      POSTGRES_DB: besttv
+    ports:
+      - '5434:5432' # ⚠️ DigitalGer 5433 ашигладаг тул 5434
+    volumes:
+      - besttv_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U besttv -d besttv']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: besttv-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - allkeys-lru
+    ports:
+      - '6380:6379' # ⚠️ DigitalGer 6379 ашигладаг тул 6380
+    volumes:
+      - besttv_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+# ⚠️ DigitalGer-ийн docker/ хавтастай ижил project name (folder нэр = "docker")
+# автоматаар авдаг тул `docker compose up` хийхэд НӨГӨӨ СТЕКИЙН container-ууд
+# устдаг байсан. Тиймээс: ЗААВАЛ `docker compose -p besttv up -d` гэж ажиллуулна.
+# Volume-ууд нь эхлээд `docker_*` prefix-тэй үүссэн тул external-аар холбож,
+# өгөгдөл алдагдахаас сэргийлнэ.
+volumes:
+  besttv_postgres_data:
+    external: true
+    name: docker_besttv_postgres_data
+  besttv_redis_data:
+    external: true
+    name: docker_besttv_redis_data

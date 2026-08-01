@@ -1,0 +1,17 @@
+# ⚠️ Локал орчны env — production образ руу ОРОХГҮЙ.
+# Next.js-д `.env.local` нь `.env.production`-оос ДАВУУ эрхтэй тул орвол
+# localhost утга build-д шигдэж, production дээр эвдэрнэ.
+**/.env.local
+**/.env.development
+**/.env.development.local
+**/.env.test.local
+
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/.git
+**/*.log
+backend/storage
+origin_ssl
+docker/.env
