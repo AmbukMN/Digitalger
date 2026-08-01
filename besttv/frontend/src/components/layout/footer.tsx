@@ -109,10 +109,20 @@ export function Footer() {
                 - МОБАЙЛ: нэг мөрөнд зэрэгцээ (footer урт болохгүй)
                 - ДЕСКТОП: форм нь тайлбарын ЯГ ДООР, нарийхан
             */}
-            <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-3 md:block">
-              <p className="min-w-0 flex-1 max-w-xs text-sm leading-relaxed text-white/45">
+            <div className="mt-3 flex flex-wrap items-stretch gap-x-4 gap-y-3 md:block">
+              <p className="min-w-0 flex-1 max-w-xs self-start text-sm leading-relaxed text-white/45">
                 Үз, мэдэр, дахин үз. Монголын киноны стриминг платформ.
               </p>
+
+              {/*
+                ⚠️ Тусгаарлагч зураас — ЗӨВХОН МОБАЙЛ (md:hidden).
+                Десктоп дээр форм нь тайлбарын доор босдог тул зураас утгагүй.
+                `self-stretch` — хажуугийн хоёр блокийн өндрөөр сунана.
+              */}
+              <div
+                aria-hidden="true"
+                className="w-px shrink-0 self-stretch bg-white/10 md:hidden"
+              />
 
               <div className="w-full max-w-[220px] shrink-0 md:mt-4">
                 <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/40">

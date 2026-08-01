@@ -53,7 +53,23 @@ export function VideoUpload({
     return () => clearInterval(t);
   }, [currentStatus, onDone]);
 
-  const xhrUpload = (url: string, method: string, body: File | FormData, contentType?: string) =>
+  /**
+   * @param auth  Backend руу явж байгаа эсэх.
+   *   ⚠️⚠️ R2 presigned PUT-д ЗААВАЛ false. Яагаад:
+   *     - `Authorization` бол "simple header" БИШ → browser preflight шаардана
+   *     - Preflight-д `Access-Control-Request-Headers: authorization` очно
+   *     - Presigned URL-ийн гарын үсэг `Authorization`-ийг тооцоогүй тул R2
+   *       preflight-ыг ТАТГАЛЗАНА → browser PUT-ыг илгээхгүй → net::ERR_FAILED
+   *   Өмнө нь энд болзолгүй `Authorization` тавьдаг байсан тул анги/кино/
+   *   трейлерийн видео upload БҮГД унадаг байсан.
+   */
+  const xhrUpload = (
+    url: string,
+    method: string,
+    body: File | FormData,
+    contentType?: string,
+    auth = true,
+  ) =>
     new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = (e) => {
@@ -61,12 +77,14 @@ export function VideoUpload({
       };
       xhr.onload = () => {
         if (xhr.status < 300) resolve(xhr.responseText);
-        else reject(new Error('Upload failed'));
+        else reject(new Error(`Upload failed (${xhr.status})`));
       };
-      xhr.onerror = () => reject(new Error('Upload failed'));
+      xhr.onerror = () => reject(new Error('Сүлжээний алдаа — upload амжилтгүй'));
       xhr.open(method, url);
-      const token = getAccessToken();
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      if (auth) {
+        const token = getAccessToken();
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
       if (contentType) xhr.setRequestHeader('Content-Type', contentType);
       xhr.send(body);
     });
@@ -85,7 +103,8 @@ export function VideoUpload({
           '/admin/uploads/video/presign',
           { method: 'POST', body: JSON.stringify({ fileName: file.name }) },
         );
-        await xhrUpload(uploadUrl, 'PUT', file, file.type || 'video/mp4');
+        // ⚠️ auth=false — presigned URL-д Authorization тавьбал preflight унана
+        await xhrUpload(uploadUrl, 'PUT', file, file.type || 'video/mp4', false);
         rawKey = key;
       } else {
         // ⚠️ Next.js rewrite (/api/*) том файл upload-д тохирохгvй (dev/production
