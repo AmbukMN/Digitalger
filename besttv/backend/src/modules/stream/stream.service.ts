@@ -106,6 +106,43 @@ export class StreamService {
   }
 
   /**
+   * АДМИН PREVIEW — байршуулсан видеогоо шалгах.
+   *
+   * ⚠️ Эрх шалгалт (assertAccess) ХИЙХГҮЙ: админ багц худалдаж авалгүйгээр
+   * өөрийн контентоо шалгах ёстой. Гэхдээ `isActive` шалгахгүй — идэвхгүй
+   * (нийтлээгүй) контентоо ч урьдчилан үзэх шаардлагатай.
+   * Хамгаалалт: controller дээр JwtAuthGuard + RolesGuard(ADMIN).
+   */
+  async adminPreview(kind: 'movie' | 'episode' | 'trailer', id: string): Promise<string> {
+    let key: string | null = null;
+
+    if (kind === 'episode') {
+      const ep = await this.prisma.episode.findUnique({
+        where: { id },
+        select: { videoKey: true, streamStatus: true },
+      });
+      if (ep?.streamStatus !== 'READY') throw new NotFoundException('Видео бэлэн биш байна');
+      key = ep.videoKey;
+    } else if (kind === 'movie') {
+      const t = await this.prisma.title.findUnique({
+        where: { id },
+        select: { videoKey: true, streamStatus: true },
+      });
+      if (t?.streamStatus !== 'READY') throw new NotFoundException('Видео бэлэн биш байна');
+      key = t.videoKey;
+    } else {
+      const t = await this.prisma.title.findUnique({
+        where: { id },
+        select: { trailerKey: true },
+      });
+      key = t?.trailerKey ?? null;
+    }
+
+    if (!key) throw new NotFoundException('Видео олдсонгүй');
+    return this.rewritePlaylist(key);
+  }
+
+  /**
    * ⚠️ Эрхийн ГОЛ шалгуур — багц ↔ жанраар.
    * Контентын жанруудын АЛЬ НЭГИЙГ нээдэг багцтай (эсвэл VIP) бол зөвшөөрнө.
    */

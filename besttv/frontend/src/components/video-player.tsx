@@ -229,13 +229,22 @@ export function VideoPlayer({
       role="region"
       aria-label="Видео тоглуулагч"
     >
+      {/*
+        ⚠️ Хамгаалалт: браузерын өөрийн "Save video as / Copy video address /
+        Picture in picture" цэсийг хаана. Эдгээр нь ХЯЛБАР татах зам байсан.
+        (Жинхэнэ хамгаалалт нь private R2 + presigned segment хэвээр.)
+      */}
       <video
         ref={videoRef}
         poster={poster}
         onClick={toggle}
         onDoubleClick={toggleFullscreen}
+        onContextMenu={(e) => e.preventDefault()}
         className="h-full w-full"
         playsInline
+        controlsList="nodownload noplaybackrate noremoteplayback"
+        disablePictureInPicture
+        disableRemotePlayback
       />
 
       {/* Skip flash indicator */}

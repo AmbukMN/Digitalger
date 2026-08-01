@@ -167,7 +167,10 @@ export default function SeoPage() {
               )}
             </div>
             <div className="p-3">
-              <p className="truncate text-xs text-muted-foreground">besttv.mn</p>
+              {/* ⚠️ Домэйныг hardcode ХИЙХГҮЙ — env-ээс (домэйн солигдвол энд ч дагана) */}
+              <p className="truncate text-xs text-muted-foreground">
+                {(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://besttv.us').replace(/^https?:\/\//, '')}
+              </p>
               <p className="truncate text-sm font-semibold text-foreground">{form.metaTitle || 'Meta title...'}</p>
               <p className="line-clamp-2 text-xs text-muted-foreground">
                 {form.metaDescription || 'Meta description...'}

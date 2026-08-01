@@ -2,10 +2,8 @@ import type { Metadata } from 'next';
 import { Manrope } from 'next/font/google';
 import Script from 'next/script';
 import { Providers } from './providers';
-import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
-import { Navbar } from '@/components/layout/navbar';
-import { Footer } from '@/components/layout/footer';
-import { MobileNav } from '@/components/layout/mobile-nav';
+import { SiteChrome } from '@/components/layout/site-chrome';
+import { ContentProtection } from '@/components/content-protection';
 import './globals.css';
 
 // Manrope — кирилл дэмжлэгтэй, орчин үеийн geometric font
@@ -85,13 +83,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </Script>
         )}
         <Providers>
-          <Navbar />
-          <div id="main-content" className="pb-mobile-nav">
-            {children}
-          </div>
-          <Footer />
-          <MobileNav />
-          <ChatWidgetLazy />
+          {/* Баруун товч / хуулах / F12 хамгаалалт (бүх хуудсанд) */}
+          <ContentProtection />
+          {/* ⚠️ Chrome-ыг SiteChrome шийднэ — /watch дээр бүгд нуугдана */}
+          <SiteChrome>{children}</SiteChrome>
         </Providers>
       </body>
     </html>

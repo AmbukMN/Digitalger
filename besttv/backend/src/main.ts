@@ -42,7 +42,7 @@ async function bootstrap() {
   const corsOrigin = corsOrigins.length
     ? corsOrigins
     : isProd
-      ? ['https://besttv.mn', 'https://admin.besttv.mn']
+      ? ['https://besttv.us', 'https://www.besttv.us', 'https://admin.besttv.us']
       : true;
   app.enableCors({ origin: corsOrigin, credentials: true });
 

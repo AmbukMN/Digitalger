@@ -51,7 +51,7 @@ export const STATIC_PAGES = [
 <p>Үйлчилгээ нь энэхүү Нөхцөлд өөрчлөлт оруулах эрхтэй. Өөрчлөлтийг вэбсайтад нийтэлсэн даруйд хүчин төгөлдөр болно.</p>
 
 <h2>9. Холбоо барих</h2>
-<p>Асуулт, гомдол, саналаа <a href="mailto:support@besttv.mn">support@besttv.mn</a> хаягаар илгээнэ үү.</p>`,
+<p>Асуулт, гомдол, саналаа <a href="mailto:support@besttv.us">support@besttv.us</a> хаягаар илгээнэ үү.</p>`,
   },
   {
     slug: 'privacy',
@@ -121,7 +121,7 @@ export const STATIC_PAGES = [
 <p>Үйлчилгээ нь 13 наснаас доош хүүхдэд зориулагдаагүй. Ийм мэдээлэл илэрвэл нэн даруй устгана.</p>
 
 <h2>10. Холбоо барих</h2>
-<p>Нууцлалтай холбоотой асуултаа <a href="mailto:privacy@besttv.mn">privacy@besttv.mn</a> хаягаар илгээнэ үү.</p>`,
+<p>Нууцлалтай холбоотой асуултаа <a href="mailto:privacy@besttv.us">privacy@besttv.us</a> хаягаар илгээнэ үү.</p>`,
   },
   {
     slug: 'data-deletion',
@@ -136,7 +136,7 @@ export const STATIC_PAGES = [
 <h2>1. Хүсэлт гаргах арга</h2>
 <p><strong>Арга 1 — Имэйлээр:</strong></p>
 <ol>
-  <li><a href="mailto:support@besttv.mn">support@besttv.mn</a> хаяг руу имэйл илгээнэ</li>
+  <li><a href="mailto:support@besttv.us">support@besttv.us</a> хаяг руу имэйл илгээнэ</li>
   <li>Гарчигт "Мэдээлэл устгах хүсэлт" гэж бичнэ</li>
   <li>Бүртгэлтэй имэйл хаягаасаа илгээнэ (хэн болохыг баталгаажуулахад шаардлагатай)</li>
 </ol>
@@ -180,6 +180,6 @@ export const STATIC_PAGES = [
 <p>Facebook бүртгэлээр нэвтэрсэн бол Facebook-ийн Тохиргоо → Апп ба вэбсайт хэсгээс BestTV-г устгаснаар холболт салах ба дээрх хүсэлтийг гаргаж бүртгэлээ бүрмөсөн устгуулна уу.</p>
 
 <h2>7. Холбоо барих</h2>
-<p>Асуулт байвал <a href="mailto:support@besttv.mn">support@besttv.mn</a> хаягаар холбогдоно уу.</p>`,
+<p>Асуулт байвал <a href="mailto:support@besttv.us">support@besttv.us</a> хаягаар холбогдоно уу.</p>`,
   },
 ];

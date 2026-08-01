@@ -5,7 +5,7 @@
 ## Урсгал
 
 ```
-Хэрэглэгч (besttv.mn widget)
+Хэрэглэгч (besttv.us widget)
    │  POST { sessionId, message, name }
    ▼
 n8n webhook /webhook/besttv-chat
@@ -16,7 +16,7 @@ n8n webhook /webhook/besttv-chat
    │                 Extract Keyword  ([SEARCH:xxx] салгана)
    │                     │
    │                     ▼
-   │                 Search Titles ──► GET api.besttv.mn/api/titles/search
+   │                 Search Titles ──► GET api.besttv.us/api/titles/search
    │                     │
    │                     ▼
    │                 Build JSON

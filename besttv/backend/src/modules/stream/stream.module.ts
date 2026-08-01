@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { StreamController } from './stream.controller';
+import { AdminStreamController, StreamController } from './stream.controller';
 import { StreamService } from './stream.service';
 
 @Module({
-  controllers: [StreamController],
+  // ⚠️ AdminStreamController — админ өөрийн байршуулсан видеог шалгах preview
+  controllers: [StreamController, AdminStreamController],
   providers: [StreamService],
 })
 export class StreamModule {}
