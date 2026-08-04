@@ -7,6 +7,50 @@ import FacebookProvider from 'next-auth/providers/facebook';
 // runtime-д зөв утга уншина (build-д bake хийгдэхгүй).
 const BACKEND_URL = process.env.API_URL ?? 'http://localhost:4100';
 
+/** Access token хугацаа дуусахаас хэдэн мс өмнө урьдчилж шинэчлэх */
+const REFRESH_SKEW_MS = 60_000;
+
+/** JWT-ийн `exp`-ыг мс болгож уншина (шалгалтгүй — зөвхөн хугацаа мэдэхэд) */
+function jwtExpiryMs(token?: string): number | undefined {
+  if (!token) return undefined;
+  const payload = token.split('.')[1];
+  if (!payload) return undefined;
+  try {
+    const { exp } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { exp?: number };
+    return typeof exp === 'number' ? exp * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Хугацаа дуусахад ойрхон эсэх (хугацаа мэдэгдэхгүй бол шинэчлүүлнэ) */
+function isExpiringSoon(expiresAt?: number): boolean {
+  if (!expiresAt) return true;
+  return Date.now() >= expiresAt - REFRESH_SKEW_MS;
+}
+
+/** refreshToken-оор backend-ээс шинэ access token авна */
+async function refreshAccessToken(
+  refreshToken: string,
+): Promise<{ accessToken: string; refreshToken?: string } | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) {
+      console.error(`[auth][refresh] амжилтгүй ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
+    return data.accessToken ? { accessToken: data.accessToken, refreshToken: data.refreshToken } : null;
+  } catch (e) {
+    console.error('[auth][refresh] алдаа —', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
 const providers: NextAuthOptions['providers'] = [];
 
 // ⚠️ Client ID/Secret хоосон бол provider бүртгэгдэхгүй — .env дутуу үед
@@ -168,48 +212,47 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
         token.picture = user.image;
+        token.accessExpires = jwtExpiryMs(user.accessToken);
       }
       // useSession().update()-аар client талаас дуудагдана (avatar шинэчлэх г.м.)
       if (trigger === 'update' && session?.picture) {
         token.picture = session.picture;
       }
+
+      /**
+       * ⚠️⚠️ НЭВТРЭЛТ БҮТЭЛГҮЙТЭЖ БАЙСНЫ ЖИНХЭНЭ ШАЛТГААН — ХУГАЦААНЫ ЗӨРҮҮ:
+       *
+       *   backend access token = 15 МИНУТ  (JWT_EXPIRES_IN=15m)
+       *   NextAuth session     = 30 ХОНОГ  (maxAge)
+       *
+       * Дээрх блок зөвхөн `if (user)` буюу АНХНЫ нэвтрэлтэд ажилладаг тул
+       * дараагийн зочилол бүрт NextAuth хуучин JWT-гээ дахин ашиглаж,
+       * дотор нь ХУГАЦАА ДУУССАН токеныг session-д тавьдаг байв. Үр дүнд:
+       *   session 200 (токентой) → /auth/me 401 → sync унана → "Нэвтрэх"
+       * товч буцаж гарч, хэрэглэгч ХЭЗЭЭ Ч нэвтэрч чаддаггүй.
+       *
+       * Засвар: хугацаа дуусахаас өмнө refreshToken-оор (30 хоног, session-
+       * тэй ижил урт) backend-ээс ШИНЭ access token авна. Ингэснээр session-
+       * д ҮРГЭЛЖ хүчинтэй токен байна.
+       */
+      if (token.refreshToken && isExpiringSoon(token.accessExpires)) {
+        const refreshed = await refreshAccessToken(String(token.refreshToken));
+        if (refreshed) {
+          token.accessToken = refreshed.accessToken;
+          token.refreshToken = refreshed.refreshToken ?? token.refreshToken;
+          token.accessExpires = jwtExpiryMs(refreshed.accessToken);
+        } else {
+          // refresh ч хүчингүй → session-ийг хүчингүйд тооцно (дахин нэвтэрнэ)
+          token.accessToken = undefined;
+          token.refreshToken = undefined;
+          token.accessExpires = undefined;
+        }
+      }
+
       return token;
     },
 
     async session({ session, token }) {
-      /**
-       * ⚠️ ТҮР ОНОШИЛГОО — session-д accessToken хүрч байгаа эсэхийг батлана.
-       * `/api/auth/session` 200 буцаад `/api/auth/me` 401 гарч байгаа тул
-       * токен jwt→session шатанд алдагдаж байгаа эсэхийг шалгана.
-       */
-      /**
-       * ⚠️ Токеныг backend-д ШУУД шалгуулж, хүчинтэй эсэхийг батална.
-       * Console дээр `/auth/me → 401` гарч байгаа тул session-ээр дамжиж
-       * буй токен эвдэрсэн эсэхийг ЭНД нь тогтооно (browser хүрэхээс өмнө).
-       */
-      const at = token.accessToken ? String(token.accessToken) : '';
-      let probe = 'skipped';
-      if (at) {
-        try {
-          const r = await fetch(`${BACKEND_URL}/api/auth/me`, {
-            headers: { Authorization: `Bearer ${at}` },
-          });
-          probe = `me=${r.status}`;
-        } catch (e) {
-          probe = `throw:${e instanceof Error ? e.message : e}`;
-        }
-      }
-      console.log(
-        '[auth][session]',
-        JSON.stringify({
-          hasUser: !!session.user,
-          len: at.length,
-          dots: (at.match(/\./g) ?? []).length, // JWT бол 2 байх ёстой
-          head: at.slice(0, 10),
-          tokenId: token.id ?? null,
-          probe,
-        }),
-      );
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;

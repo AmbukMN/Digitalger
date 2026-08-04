@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { SessionProvider, signOut as nextAuthSignOut } from 'next-auth/react';
+import { SessionProvider, signOut as nextAuthSignOut, useSession } from 'next-auth/react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
@@ -34,27 +34,54 @@ function MyListSync() {
  */
 function AuthSessionWatcher() {
   const userId = useAuth((s) => s.user?.id);
+  const { status: oauthStatus } = useSession();
+
+  /**
+   * ⚠️⚠️ OAUTH НЭВТРЭЛТ ЦИКЛ БОЛЖ БАЙСНЫ ШАЛТГААН:
+   *
+   * Google-ээр нэвтрэхэд урсгал ингэж эвдэрдэг байв:
+   *   1. OAuth амжилттай → NextAuth session үүснэ
+   *   2. `OAuthSessionSync` ШИНЭ токен хадгалж `refreshMe()` дуудна
+   *   3. ГЭТЭЛ энэ watcher нь ХУУЧИН/ХООСОН токеноор ЗЭРЭГ `/auth/me`
+   *      дуудаад 401 авна
+   *   4. Тэр 401-ийг барьж `clearTokens()` + `signOut()` хийнэ
+   *   5. Сая хадгалсан ШИНЭ токен УСТАНА → "Нэвтрэх" товч буцаж гарна
+   *
+   * Production логт яг ийм харагдсан:
+   *   callback/google 302 → session 200 → me 401 ×4 → /login
+   *
+   * Засвар 1: NextAuth session `loading` үед watcher ОГТ ажиллахгүй
+   *           (OAuth sync дуустал хүлээнэ).
+   */
+  const ready = oauthStatus !== 'loading';
 
   const { data, error } = useQuery({
     queryKey: ['auth-watch', userId],
     queryFn: () => api<AuthUser>('/auth/me'),
-    enabled: !!userId && !!getAccessToken(),
+    enabled: ready && !!userId && !!getAccessToken(),
     refetchInterval: 45_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    // ⚠️ 401-д АВТОМАТ дахин оролдохгүй — доорх logout логик шийднэ
+    retry: false,
   });
 
   useEffect(() => {
     if (data) useAuth.getState().setUser(data);
   }, [data]);
 
+  /**
+   * Засвар 2: OAuth session АМЖИЛТТАЙ байхад 401 гарвал гаргахгүй.
+   * Тэр тохиолдолд токен sync хийгдэж байгаа буюу хуучирсан алдаа —
+   * `OAuthSessionSync` шинэ токеноор дахин ачаална.
+   */
   useEffect(() => {
-    if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
-      clearTokens();
-      useAuth.getState().setUser(null);
-      nextAuthSignOut({ redirect: false }).catch(() => null);
-    }
-  }, [error]);
+    if (!(error instanceof ApiError) || ![401, 403, 404].includes(error.status)) return;
+    if (oauthStatus === 'authenticated') return; // OAuth sync хийгдэж байна
+    clearTokens();
+    useAuth.getState().setUser(null);
+    nextAuthSignOut({ redirect: false }).catch(() => null);
+  }, [error, oauthStatus]);
 
   return null;
 }

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { signOut as nextAuthSignOut } from 'next-auth/react';
-import { api, clearTokens, getAccessToken, getRefreshToken, setTokens } from './api';
+import { api, clearTokens, getAccessToken, getRefreshToken, setTokens, tryRefresh } from './api';
 
 /** Хэрэглэгчийн идэвхтэй нэг багц (олон багц зэрэг байж болно) */
 export interface UserSubscription {
@@ -154,7 +154,25 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   syncFromOAuth: async (accessToken, refreshToken) => {
     setTokens(accessToken, refreshToken);
-    await get().refreshMe();
+    try {
+      await get().refreshMe();
+    } catch {
+      /**
+       * ⚠️ ХОЁР ДАХЬ ДАВХАР ХАМГААЛАЛТ.
+       *
+       * Гол засвар нь server талд (auth.ts jwt callback хугацаа дуусахаас
+       * өмнө токеныг шинэчилдэг), гэхдээ ХУУЧИН session cookie-той
+       * хэрэглэгчид эсвэл яг хилийн агшинд токен хугацаа дуусаж болно.
+       * Тэр үед refreshToken-оор (30 хоног) шинэ токен авч сэргээнэ —
+       * ингэснээр хэрэглэгч "нэвтэрч чадахгүй" гацахгүй.
+       */
+      const result = await tryRefresh();
+      if (result !== 'ok') {
+        clearTokens();
+        throw new Error('Нэвтрэлт сэргээж чадсангүй. Дахин нэвтэрнэ үү.');
+      }
+      await get().refreshMe();
+    }
   },
 
   logout: () => {

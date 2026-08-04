@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
 import { useAuth } from '@/lib/auth-store';
+import { clearTokens, getAccessToken, getRefreshToken } from '@/lib/api';
 import { useBrand } from '@/lib/queries';
 import { SocialButtons } from '@/components/auth/social-buttons';
 
@@ -41,6 +42,24 @@ export default function LoginPage() {
   useEffect(() => {
     if (!authLoading && user) router.replace(nextUrl);
   }, [authLoading, user, nextUrl, router]);
+
+  /**
+   * ⚠️⚠️ ХУУЧИРСАН ТОКЕН ЦЭВЭРЛЭХ — НЭВТРЭЛТ ЦИКЛ БОЛОХООС СЭРГИЙЛНЭ.
+   *
+   * `/login` дээр байгаа боловч localStorage-д токен үлдсэн бол тэр нь
+   * ХУУЧИРСАН гэсэн үг (хүчинтэй байсан бол дээрх effect нүүр рүү
+   * чиглүүлэх байсан). Тэр токеныг үлдээвэл:
+   *   Google нэвтрэлт → session үүснэ → бусад компонент ХУУЧИН токеноор
+   *   /auth/me дуудна → 401 → хуучин refresh-ээр шинэчилнэ (201 ч буруу
+   *   хэрэглэгчийнх) → дахин 401 → /login руу буцна = МӨНХИЙН ЦИКЛ.
+   *
+   * ⚠️ `authLoading` дуустал хүлээнэ — эс бөгөөс хүчинтэй токеныг
+   *    шалгаж амжаагүй байхад устгана.
+   */
+  useEffect(() => {
+    if (authLoading || user) return;
+    if (getAccessToken() || getRefreshToken()) clearTokens();
+  }, [authLoading, user]);
 
   const passwordsMismatch =
     mode === 'register' && confirmPassword.length > 0 && password !== confirmPassword;

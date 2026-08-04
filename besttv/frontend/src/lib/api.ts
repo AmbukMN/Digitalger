@@ -34,7 +34,12 @@ export function getRefreshToken(): string | null {
  * эс бөгөөс түр саатлаас болж хэрэглэгч шалтгаангүй гарч, дахин нэвтрэх
  * шаардлагатай болно. Зөвхөн сервер "хүчингүй" гэж хэлсэн үед л гаргана.
  */
-async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
+/**
+ * refreshToken-оор шинэ access token авна.
+ * ⚠️ Экспортолсон шалтгаан: OAuth sync (auth-store) хугацаа дууссан токен
+ * авчирвал энэ функцээр сэргээж, хэрэглэгчийг "нэвтэрч чадахгүй" гацаахгүй.
+ */
+export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return 'invalid';
   try {

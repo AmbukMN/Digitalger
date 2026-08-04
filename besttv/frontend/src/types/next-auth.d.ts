@@ -25,7 +25,14 @@ declare module 'next-auth/jwt' {
     id: string;
     role: string;
     isGuest: boolean;
-    accessToken: string;
-    refreshToken: string;
+    /**
+     * ⚠️ Заавал биш (`?`) — backend access token 15 минутын настай тул
+     * 30 хоногийн session дотор хугацаа нь дуусч, refresh амжилтгүй болвол
+     * `undefined` болгож session-ийг хүчингүйд тооцдог.
+     */
+    accessToken?: string;
+    refreshToken?: string;
+    /** Access token хэзээ дуусах (мс) — урьдчилж шинэчлэхэд ашиглана */
+    accessExpires?: number;
   }
 }

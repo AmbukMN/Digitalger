@@ -20,6 +20,9 @@ import { toast } from 'sonner';
  * Нухацтай хамгаалах цорын ганц зам = DRM (Widevine/FairPlay).
  */
 
+/** DevTools товчлуурын блок (F12, Ctrl+Shift+I/J/C) */
+const BLOCK_DEVTOOLS = true;
+
 /** Хамгаалалт хэрэглэхгүй сонголтууд — эдгээрийг блоклобол UX эвдэрнэ */
 const ALLOW_SELECTOR = 'input, textarea, select, [contenteditable="true"], [data-allow-copy]';
 
@@ -62,18 +65,25 @@ export function ContentProtection() {
       const k = e.key.toLowerCase();
       const ctrl = e.ctrlKey || e.metaKey;
 
-      // F12 — DevTools
-      if (e.key === 'F12') {
-        e.preventDefault();
-        warn('Хөгжүүлэгчийн хэрэгсэл идэвхгүй');
-        return;
-      }
+      /**
+       * ⚠️ Энэ блок бодит хулгайг зогсоодоггүй (цэсээр нээх, view-source,
+       * JS унтраах — бүгд тойрно). Оношилгоо хийхэд саад болвол дээрх
+       * `BLOCK_DEVTOOLS`-ыг түр `false` болгоно.
+       */
+      if (BLOCK_DEVTOOLS) {
+        // F12 — DevTools
+        if (e.key === 'F12') {
+          e.preventDefault();
+          warn('Хөгжүүлэгчийн хэрэгсэл идэвхгүй');
+          return;
+        }
 
-      // Ctrl+Shift+I / J / C — DevTools, console, inspect
-      if (ctrl && e.shiftKey && ['i', 'j', 'c'].includes(k)) {
-        e.preventDefault();
-        warn('Хөгжүүлэгчийн хэрэгсэл идэвхгүй');
-        return;
+        // Ctrl+Shift+I / J / C — DevTools, console, inspect
+        if (ctrl && e.shiftKey && ['i', 'j', 'c'].includes(k)) {
+          e.preventDefault();
+          warn('Хөгжүүлэгчийн хэрэгсэл идэвхгүй');
+          return;
+        }
       }
 
       // Ctrl+U — эх код харах
