@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ArrowLeft,
   Gauge,
   Loader2,
   Maximize,
@@ -31,12 +32,18 @@ export function VideoPlayer({
   onProgress,
   onEnded,
   startAt,
+  title,
+  backHref,
 }: {
   src: string; // '/api/stream/movie/{id}/playlist.m3u8' гэх мэт
   poster?: string;
   onProgress?: (positionSec: number, durationSec: number) => void;
   onEnded?: () => void;
   startAt?: number; // үргэлжлүүлэн үзэх — секундээр
+  /** Дээд мөрөнд харуулах гарчиг (fullscreen үед ялангуяа чухал) */
+  title?: string;
+  /** Буцах холбоос — player дотроос шууд гарах зам */
+  backHref?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -473,7 +480,20 @@ export function VideoPlayer({
    */
   const thumbReady = useRef(false);
   useEffect(() => {
-    if (isTouch || loading || thumbReady.current) return;
+    /**
+     * ⚠️⚠️ ХЭРЭГЛЭГЧ ЗУРААС ДЭЭР ХҮРСНИЙ ДАРАА Л АЧААЛНА (`hover`).
+     *
+     * Өмнө нь гол видео бэлэн болмогц (`!loading`) ШУУД ачаалдаг байсан
+     * нь кино эхлэх агшинд ХОЁР HLS УРСГАЛ зэрэг татаж, сүлжээг
+     * хуваадаг байв — Playwright хэмжилтээр `playlist.m3u8`,
+     * `variant.m3u8`, `v1_seg_000.ts` тус бүр 2 УДАА татагдсан.
+     * Кино удаан ачаалагдах гол шалтгаан.
+     *
+     * Одоо hover хийх хүртэл огт хөндөхгүй — кино эхлэх хурд бүрэн
+     * сэргэнэ. Hover-оос thumbnail гарах хүртэл ~1 секунд зарцуулна
+     * (`preload="metadata"` + богино буфер тул хурдан).
+     */
+    if (isTouch || loading || hover === null || thumbReady.current) return;
     const tv = thumbVideoRef.current;
     if (!tv || !src) return;
     thumbReady.current = true;
@@ -491,12 +511,25 @@ export function VideoPlayer({
               xhr.setRequestHeader('Authorization', `Bearer ${token}`);
             }
           },
-          startLevel: 0, // хамгийн бага чанар
-          capLevelToPlayerSize: true,
-          maxBufferLength: 4,
+          /**
+           * ⚠️ ХАМГИЙН БАГА ЧАНАРААР ТҮГЖИНЭ.
+           *
+           * `capLevelToPlayerSize` нь thumbnail 160×90 үед ажилладаггүй
+           * (hls.js дэлгэцийн хэмжээг зөв уншдаггүй) тул хэмжилтээр `v1`
+           * буюу ДУНД чанар татагдаж байв — сүлжээ дэмий иднэ.
+           * `startLevel` + `capLevelTo` хоёулаа 0 → ABR огт өсөхгүй.
+           */
+          startLevel: 0,
+          autoStartLoad: true,
+          maxBufferLength: 2,
+          maxMaxBufferLength: 4,
         });
         hls.loadSource(new URL(src, window.location.origin).toString());
         hls.attachMedia(tv);
+        // ⚠️ Manifest уншмагц чанарыг 0-д ТҮГЖИНЭ (ABR өсгөхийг хориглоно)
+        hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
+          if (hls) hls.currentLevel = 0;
+        });
       } else if (tv.canPlayType('application/vnd.apple.mpegurl')) {
         tv.src = src; // Safari — уугуул HLS
       }
@@ -505,7 +538,7 @@ export function VideoPlayer({
     return () => {
       hls?.destroy();
     };
-  }, [loading, src, isTouch]);
+  }, [hover, loading, src, isTouch]);
 
   // ⚠️ Өөр кино/анги руу шилжвэл thumbnail-г ДАХИН ачаалуулна
   useEffect(() => {
@@ -645,6 +678,41 @@ export function VideoPlayer({
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black text-white/70">
           {error}
+        </div>
+      )}
+
+      {/*
+        ⚠️ ДЭЭД МӨР — буцах товч + гарчиг.
+        Өмнө нь буцах холбоос зөвхөн видеоны ДООР байсан тул дэлгэц дүүрэн
+        (fullscreen) үзэж байхад ГАРАХ ЗАМ ОГТ ХАРАГДАХГҮЙ байв — хэрэглэгч
+        Esc товч мэдэхгүй бол гацна. Одоо удирдлагатай хамт гарч ирнэ.
+      */}
+      {!error && (backHref || title) && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 bg-linear-to-b from-black/80 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:p-4">
+          {backHref && (
+            <a
+              href={backHref}
+              onClick={(e) => {
+                // Fullscreen үед хуудас солих нь эвгүй — эхлээд гарна
+                if (document.fullscreenElement) {
+                  e.preventDefault();
+                  document.exitFullscreen?.().then(() => {
+                    window.location.href = backHref;
+                  });
+                }
+              }}
+              className="pointer-events-auto flex shrink-0 items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-black/70"
+              aria-label="Буцах"
+            >
+              <ArrowLeft size={17} />
+              <span className="hidden sm:inline">Буцах</span>
+            </a>
+          )}
+          {title && (
+            <p className="truncate text-sm font-semibold text-white/90 drop-shadow sm:text-base">
+              {title}
+            </p>
+          )}
         </div>
       )}
 

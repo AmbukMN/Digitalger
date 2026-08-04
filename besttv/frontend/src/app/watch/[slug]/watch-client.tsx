@@ -213,6 +213,17 @@ export function WatchClient({ slug }: { slug: string }) {
             onProgress={saveProgress}
             onEnded={handleEnded}
             startAt={startAt}
+            /**
+             * ⚠️ Гарчиг + буцах товчийг PLAYER ДОТОР харуулна.
+             * Доорх холбоос нь дэлгэц дүүрэн (fullscreen) үед харагдахгүй
+             * тул хэрэглэгч гарах замгүй болдог байв.
+             */
+            title={
+              episodeId && flatEpisodes[currentIndex]
+                ? `${data.title} — ${flatEpisodes[currentIndex].number}-р анги`
+                : data.title
+            }
+            backHref={`/movie/${slug}`}
           />
           <div className="px-4 py-4 md:px-8">
             <Link href={`/movie/${slug}`} className="text-sm text-white/60 hover:text-white">

@@ -280,7 +280,29 @@ export class StreamService {
    *      зөвшөөрөхгүй) → оронд нь дэд playlist-ыг манай API руу чиглүүлнэ.
    *   2. MEDIA (нэг түвшин, хуучин видео) — segment шууд presign.
    */
+  /**
+   * ⚠️⚠️ PLAYLIST КЭШ — SEEK УДААН БАЙСНЫ ГОЛ ШАЛТГААН.
+   *
+   * `rewritePlaylist` нь playlist доторх segment БҮРД presigned URL
+   * үүсгэдэг (нэг кинонд 170-2000 ширхэг). Монголоос хэмжихэд дуудалт
+   * бүр ~0.8 СЕКУНД зарцуулж байв. Player нь seek хийх бүрт, чанар
+   * солих бүрт playlist-ыг ДАХИН татдаг тул хэрэглэгч тэр 0.8с-ыг
+   * дахин дахин хүлээнэ.
+   *
+   * Presigned URL 4 ЦАГ хүчинтэй тул үр дүнг 30 минут кэшлэх нь бүрэн
+   * аюулгүй — кэшнээс гарсан URL хамгийн муудаа 3.5 цаг хүчинтэй хэвээр.
+   *
+   * ⚠️ Кэш нь ЗӨВХӨН R2 presign-ийг хэмнэнэ. Эрхийн шалгалт нь controller
+   * түвшинд, дуудалт бүрт хийгдсээр байна (кэш эрх тойрохгүй).
+   */
+  private readonly playlistCache = new Map<string, { at: number; text: string }>();
+  private static readonly PLAYLIST_TTL_MS = 30 * 60 * 1000;
+
   private async rewritePlaylist(m3u8Key: string, variantBase?: string): Promise<string> {
+    const cacheKey = `${m3u8Key}|${variantBase ?? ''}`;
+    const hit = this.playlistCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < StreamService.PLAYLIST_TTL_MS) return hit.text;
+
     const text = await this.storage.downloadText(m3u8Key);
     const prefix = m3u8Key.slice(0, m3u8Key.lastIndexOf('/') + 1);
     const isMaster = text.includes('#EXT-X-STREAM-INF');
@@ -305,7 +327,20 @@ export class StreamService {
       }),
     );
 
-    return lines.join('\n');
+    const out = lines.join('\n');
+    this.playlistCache.set(cacheKey, { at: Date.now(), text: out });
+
+    /**
+     * ⚠️ Санах ой хамгаалалт — хугацаа дууссан бичлэгүүдийг цэвэрлэнэ.
+     * Кэш хязгааргүй өсвөл олон кинотой сайт дээр RAM дүүрнэ.
+     */
+    if (this.playlistCache.size > 200) {
+      const now = Date.now();
+      for (const [k, v] of this.playlistCache) {
+        if (now - v.at >= StreamService.PLAYLIST_TTL_MS) this.playlistCache.delete(k);
+      }
+    }
+    return out;
   }
 
   /**
