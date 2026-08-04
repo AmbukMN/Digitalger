@@ -71,16 +71,36 @@ function AuthSessionWatcher() {
   }, [data]);
 
   /**
-   * Засвар 2: OAuth session АМЖИЛТТАЙ байхад 401 гарвал гаргахгүй.
-   * Тэр тохиолдолд токен sync хийгдэж байгаа буюу хуучирсан алдаа —
-   * `OAuthSessionSync` шинэ токеноор дахин ачаална.
+   * Засвар 2: OAuth session АМЖИЛТТАЙ байхад 401 гарвал ШУУД гаргахгүй —
+   * `OAuthSessionSync` токен солих хугацаа өгнө.
+   *
+   * ⚠️⚠️ ГЭХДЭЭ МӨНХӨД ХҮЛЭЭЖ БОЛОХГҮЙ. Өмнө нь `authenticated` үед
+   * болзолгүй `return` хийдэг байсан нь ГАЦАА үүсгэж байв:
+   *   session байгаа ч токен ажиллахгүй → watcher юу ч хийхгүй →
+   *   sync ч сэргээж чадаагүй → /auth/me 401 ДАХИН ДАХИН → хэрэглэгч
+   *   "Нэвтрэх" товч харсаар үлдэнэ (гарах ч үгүй, орох ч үгүй).
+   *
+   * Одоо sync-д 6 секунд өгөөд, дараа нь 401 хэвээр бол NextAuth session-ийг
+   * цэвэрлэж дахин нэвтрэх боломж олгоно.
    */
   useEffect(() => {
     if (!(error instanceof ApiError) || ![401, 403, 404].includes(error.status)) return;
-    if (oauthStatus === 'authenticated') return; // OAuth sync хийгдэж байна
-    clearTokens();
-    useAuth.getState().setUser(null);
-    nextAuthSignOut({ redirect: false }).catch(() => null);
+
+    const bail = () => {
+      clearTokens();
+      useAuth.getState().setUser(null);
+      nextAuthSignOut({ redirect: false }).catch(() => null);
+    };
+
+    if (oauthStatus !== 'authenticated') {
+      bail();
+      return;
+    }
+
+    // OAuth sync-д боломж өгнө; амжилттай бол `userId` солигдож энэ effect
+    // цэвэрлэгдэнэ (timer цуцлагдана).
+    const t = setTimeout(bail, 6_000);
+    return () => clearTimeout(t);
   }, [error, oauthStatus]);
 
   return null;

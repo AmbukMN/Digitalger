@@ -35,10 +35,34 @@ export function getRefreshToken(): string | null {
  * шаардлагатай болно. Зөвхөн сервер "хүчингүй" гэж хэлсэн үед л гаргана.
  */
 /**
- * refreshToken-оор шинэ access token авна.
- * ⚠️ Экспортолсон шалтгаан: OAuth sync (auth-store) хугацаа дууссан токен
- * авчирвал энэ функцээр сэргээж, хэрэглэгчийг "нэвтэрч чадахгүй" гацаахгүй.
+ * Өгөгдсөн refreshToken-оор backend-ээс шинэ токен авна (localStorage-д
+ * бичихгүй — дуудагч өөрөө шийднэ).
+ *
+ * ⚠️ Экспортолсон шалтгаан: OAuth sync үед localStorage аль хэдийн
+ * цэвэрлэгдсэн байж болох тул NextAuth session-ээс ирсэн refreshToken-г
+ * ШУУД дамжуулах шаардлагатай (`tryRefresh` нь localStorage-оос уншдаг).
  */
+export async function refreshWithToken(
+  refreshToken: string,
+): Promise<{ accessToken: string; refreshToken: string } | null> {
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.accessToken
+      ? { accessToken: data.accessToken, refreshToken: data.refreshToken ?? refreshToken }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** localStorage дахь refreshToken-оор шинэ access token авч, тэндээ хадгална. */
 export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return 'invalid';
