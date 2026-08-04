@@ -147,6 +147,13 @@ export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
     if (res.ok) {
       const data = await res.json();
       setTokens(data.accessToken, data.refreshToken);
+      // ⚠️ ТҮР ОНОШИЛГОО — refresh 201 өгсөн токен ХАДГАЛАГДСАН эсэх
+      const saved = getAccessToken();
+      console.log('[api] refresh 201 →', {
+        авсан: data.accessToken ? `${String(data.accessToken).slice(0, 12)}…` : 'ХООСОН',
+        хадгалсан: saved ? `${saved.slice(0, 12)}…` : 'ХАДГАЛАГДААГҮЙ!',
+        таарсан: saved === data.accessToken ? 'тийм' : '❌ ЗӨРСӨН',
+      });
       return 'ok';
     }
     // 401/403 = refresh token үнэхээр хүчингүй. 5xx = серверийн түр алдаа.
@@ -164,6 +171,31 @@ export async function api<T = unknown>(
 
   const doFetch = () => {
     const token = auth ? getAccessToken() : null;
+    /**
+     * ⚠️ ТҮР ОНОШИЛГОО — `/auth/me` 401 болох ЯГ шалтгааныг console-д гаргана.
+     * Нэг хэрэглэгчийн browser дээр л нэвтрэлт унаж байгаа ч (incognito,
+     * гар утас, Playwright бүгд ✅) шалтгаан нь ХААНА Ч ХАРАГДАХГҮЙ байв.
+     * Асуудал шийдэгдмэгц ЭНЭ БЛОКЫГ ХАСНА.
+     */
+    if (path === '/auth/me') {
+      let exp = 'задрахгүй';
+      if (token) {
+        try {
+          const p = JSON.parse(
+            atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+          ) as { exp?: number; sub?: string };
+          exp = `${p.sub?.slice(0, 8)} дуусах=${new Date((p.exp ?? 0) * 1000).toLocaleTimeString()}${(p.exp ?? 0) * 1000 < Date.now() ? ' ДУУССАН!' : ''}`;
+        } catch {
+          exp = 'ЭВДЭРСЭН';
+        }
+      }
+      console.log('[api] /auth/me →', {
+        token: token ? `${token.slice(0, 12)}… (${token.length})` : 'АЛГА',
+        payload: exp,
+        cookie: document.cookie.includes('btv_token') ? 'бий' : 'алга',
+        refresh: getRefreshToken() ? 'бий' : 'алга',
+      });
+    }
     return fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
@@ -177,6 +209,9 @@ export async function api<T = unknown>(
   };
 
   let res = await doFetch();
+  if (path === '/auth/me' && res.status === 401) {
+    console.warn('[api] /auth/me 401 — дээрх токеныг сервер ТАТГАЛЗСАН');
+  }
 
   // 401 → refresh нэг удаа (олон зэрэг хүсэлт нэг refresh хуваалцана).
   // ⚠️ access байхгүй ч refresh байвал оролдоно — хэрэглэгч удаан эзгүй байгаад
