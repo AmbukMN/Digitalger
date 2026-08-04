@@ -176,63 +176,34 @@ export const useAuth = create<AuthState>((set, get) => ({
     await get().refreshMe();
   },
 
+  /**
+   * OAuth (Google/Facebook) нэвтрэлтийн "гүүр".
+   *
+   * ⚠️⚠️ ЭНГИЙН БАЙЛГАХ НЬ ЧУХАЛ — БҮХ ХУГАЦААНЫ ШАЛГАЛТЫГ ХАССАН.
+   *
+   * Өмнө нь `Date.now()`-оор токены `exp`-г урьдчилж шалгадаг байсан нь
+   * ЭМЗЭГ бөгөөд ИЛҮҮЦ: хэрэглэгчийн төхөөрөмжийн цаг зөрвөл (эсвэл
+   * цагийн бүс/DST буруу тохируулсан бол) client "хүчинтэй" гэж бодоод
+   * сервер "дууссан" гэж татгалздаг → хэрэглэгч мөнхөд нэвтэрч чадахгүй.
+   * Production-д яг ийм болсон: сервер Герман, хэрэглэгч Монголд.
+   *
+   * ⚠️ ХУГАЦААГ ЗӨВХӨН СЕРВЕР ШИЙДНЭ. Client нь оролдоод, 401 гарвал
+   * refreshToken-оор (30 хоног) сэргээнэ. Ямар ч цагийн тохиргоонд
+   * зөв ажиллана.
+   */
   syncFromOAuth: async (accessToken, refreshToken) => {
-    /**
-     * ⚠️⚠️ SESSION-ИЙН ТОКЕН ХУГАЦАА ДУУССАН БАЙХ НЬ ЭНГИЙН ЗҮЙЛ.
-     *
-     * NextAuth session 30 ХОНОГ амьдардаг ч дотор нь 15 МИНУТЫН access
-     * token ЦАРЦСАН байдаг (`jwt` callback зөвхөн анхны нэвтрэлтэд бичдэг).
-     * Тиймээс хэрэглэгч 15 минутын дараа буцаж ирэхэд session-ийн токен
-     * үргэлж хуучирсан байна.
-     *
-     * Тэр хуучин токеныг хадгалаад `/auth/me` дуудвал ЗААВАЛ 401 гарна —
-     * дэмий алдаа, дэмий сүлжээ. Хугацааг УРЬДЧИЛЖ шалгаж, шаардлагатай
-     * бол refreshToken-оор (30 хоног, session-тэй ижил урт) шинэ токен
-     * авна.
-     */
-    if (isJwtExpired(accessToken)) {
-      const fresh = await refreshWithToken(refreshToken);
-      if (!fresh) {
-        clearTokens();
-        throw new Error('Нэвтрэлт сэргээж чадсангүй. Дахин нэвтэрнэ үү.');
-      }
-      setTokens(fresh.accessToken, fresh.refreshToken);
-      /**
-       * ⚠️⚠️ ТОКЕНЫГ ШУУД ДАМЖУУЛНА — localStorage-оос УНШУУЛАХГҮЙ.
-       *
-       * Production console-оос барьсан зөрчил:
-       *   refresh 201 → "таарсан: тийм" (хадгалалт ЗӨВ)
-       *   → /auth/me ШИНЭ токеноор → ГЭТЭЛ 401
-       * Шалтгаан: `setTokens` бичих ба `api()` унших ХООРОНД өөр
-       * `syncFromOAuth` зэрэг ажиллаж localStorage-ыг ДАРЖ БИЧСЭН
-       * (лог дээр `[sync]` олон удаа давтагдсан). Уралдаан.
-       *
-       * Токеныг параметрээр өгвөл ямар ч уралдаанаас хамаарахгүй.
-       */
-      const user = await api<AuthUser>('/auth/me', { token: fresh.accessToken });
-      writeUserCache(user);
-      set({ user });
-      return;
-    }
-
     setTokens(accessToken, refreshToken);
     try {
       await get().refreshMe();
       return;
     } catch {
-      /* доор сэргээнэ */
+      /* session-ийн токен хуучирсан байх нь ЭНГИЙН — доор сэргээнэ */
     }
 
     /**
-     * ⚠️⚠️ ХОЁР ДАХЬ ДАВХАР — ЯАГААД ЗААВАЛ `refreshToken`-Г ШУУД ДАМЖУУЛАХ ВЭ:
-     *
-     * Дээрх `refreshMe()` унахад `api()` дотор аль хэдийн 401 → tryRefresh →
-     * 'invalid' → `clearTokens()` ажилласан байдаг. Тиймээс localStorage
-     * ХООСОН болчихсон — энд `tryRefresh()` дуудвал refreshToken олдохгүй,
-     * шууд 'invalid' буцаад сэргээх боломж алдагдана.
-     *
-     * Шийдэл: NextAuth session-ээс ирсэн refreshToken-г (30 хоног, session-
-     * тэй ижил урт) ШУУД ашиглан backend-ээс шинэ токен авна.
+     * ⚠️ `refreshToken`-г ШУУД дамжуулна: дээрх `refreshMe()` унахад
+     * `api()` дотор `clearTokens()` аль хэдийн ажилласан байж болох тул
+     * localStorage-оос уншвал олдохгүй.
      */
     const restored = await refreshWithToken(refreshToken);
     if (!restored) {
@@ -240,7 +211,10 @@ export const useAuth = create<AuthState>((set, get) => ({
       throw new Error('Нэвтрэлт сэргээж чадсангүй. Дахин нэвтэрнэ үү.');
     }
     setTokens(restored.accessToken, restored.refreshToken);
-    await get().refreshMe();
+    // ⚠️ Токеныг ПАРАМЕТРЭЭР — зэрэг ажиллаж буй sync дарж бичихээс хамгаална
+    const user = await api<AuthUser>('/auth/me', { token: restored.accessToken });
+    writeUserCache(user);
+    set({ user });
   },
 
   logout: () => {

@@ -200,10 +200,11 @@ export async function api<T = unknown>(
         }
       }
       console.log('[api] /auth/me →', {
-        token: token ? `${token.slice(0, 12)}… (${token.length})` : 'АЛГА',
+        эх: forcedToken ? 'ПАРАМЕТР' : 'localStorage',
         payload: exp,
+        // ⚠️ Токены СҮҮЛИЙН тэмдэгтүүд — аль токен болохыг ялгахад
+        сүүл: token ? token.slice(-10) : 'АЛГА',
         cookie: document.cookie.includes('btv_token') ? 'бий' : 'алга',
-        refresh: getRefreshToken() ? 'бий' : 'алга',
       });
     }
     return fetch(`${API_BASE}${path}`, {

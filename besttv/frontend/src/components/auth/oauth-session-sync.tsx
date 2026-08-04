@@ -29,22 +29,6 @@ const failedTokens = new Set<string>();
  */
 let syncing = false;
 
-/**
- * JWT-ийн хугацаа дууссан эсэх (30 секундын нөөцтэй).
- * ⚠️ Задлаж чадахгүй бол ДУУССАН гэж үзнэ — эвдэрсэн токеныг хадгалахгүй.
- */
-function isExpired(token: string): boolean {
-  try {
-    const { exp } = JSON.parse(
-      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
-    ) as { exp?: number };
-    if (typeof exp !== 'number') return true;
-    return exp * 1000 - 30_000 <= Date.now();
-  } catch {
-    return true;
-  }
-}
-
 export function OAuthSessionSync() {
   const { data: session, status } = useSession();
   const syncFromOAuth = useAuth((s) => s.syncFromOAuth);
@@ -112,19 +96,20 @@ export function OAuthSessionSync() {
      *   → sync ДАХИН ажиллаж session-ийн ХУУЧИН токеныг дарж бичнэ ❌
      *   → /auth/me 401 → refresh → sync дахин дарна → эцэс төгсгөлгүй
      *
-     * Тиймээс localStorage-д АЛЬ ХЭДИЙН ХҮЧИНТЭЙ токен байвал sync
-     * ОГТ ХИЙХГҮЙ. OAuth "гүүр" нь зөвхөн токен АЛГА эсвэл ХУГАЦАА
-     * ДУУССАН үед л хэрэгтэй.
+     * Тиймээс localStorage-д АЛЬ ХЭДИЙН токен байвал sync ОГТ ХИЙХГҮЙ.
+     * OAuth "гүүр" нь зөвхөн токен АЛГА үед л хэрэгтэй.
+     *
+     * ⚠️⚠️ ХУГАЦААГ ЭНД ШАЛГАХГҮЙ. Өмнө нь `Date.now()`-оор `exp`-г
+     * шалгадаг байсан нь ЭМЗЭГ: хэрэглэгчийн төхөөрөмжийн цаг зөрвөл
+     * буруу шийдвэр гаргана (сервер Герман, хэрэглэгч Монголд —
+     * production-д яг ийм асуудал гарсан). Хугацааг ЗӨВХӨН СЕРВЕР
+     * шийднэ: токен хуучирсан бол `api()` 401 аваад refreshToken-оор
+     * автоматаар сэргээнэ.
      */
-    const current = getAccessToken();
-    if (current && !isExpired(current)) {
-      console.log('[sync] localStorage-д ХҮЧИНТЭЙ токен бий — sync алгасав');
+    if (getAccessToken()) {
       synced.current = accessToken; // дахин шалгахгүй
       return;
     }
-    console.log('[sync] ▶ эхэлж байна', {
-      sessionТокен: isExpired(accessToken) ? 'ХУГАЦАА ДУУССАН → refresh хийнэ' : 'хүчинтэй',
-    });
 
     synced.current = accessToken;
     // ⚠️ ЭХЛЭЭД цэвэрлэнэ — хуучин токеноор 401/refresh гогцоо үүсэхээс сэргийлнэ
