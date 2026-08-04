@@ -19,6 +19,22 @@ import { clearTokens, getAccessToken } from '@/lib/api';
  */
 const failedTokens = new Set<string>();
 
+/**
+ * JWT-ийн хугацаа дууссан эсэх (30 секундын нөөцтэй).
+ * ⚠️ Задлаж чадахгүй бол ДУУССАН гэж үзнэ — эвдэрсэн токеныг хадгалахгүй.
+ */
+function isExpired(token: string): boolean {
+  try {
+    const { exp } = JSON.parse(
+      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { exp?: number };
+    if (typeof exp !== 'number') return true;
+    return exp * 1000 - 30_000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function OAuthSessionSync() {
   const { data: session, status } = useSession();
   const syncFromOAuth = useAuth((s) => s.syncFromOAuth);
@@ -62,6 +78,38 @@ export function OAuthSessionSync() {
      * тэмдэглэнэ. Тэр токен дахин ирвэл ОГТ оролдохгүй → гогцоо таслагдана.
      */
     if (failedTokens.has(accessToken)) return;
+
+    /**
+     * ⚠️⚠️⚠️ ГОЛ ШАЛТГААН — SESSION-ИЙН ХУУЧИН ТОКЕНЫГ ДАХИН БИЧИХ.
+     *
+     * NextAuth session нь 30 ХОНОГ амьдардаг ч дотор нь 15 МИНУТЫН
+     * access token ЦАРЦСАН байдаг (`jwt` callback зөвхөн анхны нэвтрэлтэд
+     * бичдэг). Тэр токен удалгүй хугацаа нь дуусна.
+     *
+     * Production console-оос барьсан гогцоо:
+     *   api() refresh → ШИНЭ токен хадгална ✅ (лог: "таарсан: тийм")
+     *   → sync ДАХИН ажиллаж session-ийн ХУУЧИН токеныг дарж бичнэ ❌
+     *   → /auth/me 401 → refresh → sync дахин дарна → эцэс төгсгөлгүй
+     *
+     * Тиймээс localStorage-д АЛЬ ХЭДИЙН ХҮЧИНТЭЙ токен байвал sync
+     * ОГТ ХИЙХГҮЙ. OAuth "гүүр" нь зөвхөн токен АЛГА эсвэл ХУГАЦАА
+     * ДУУССАН үед л хэрэгтэй.
+     */
+    const current = getAccessToken();
+    if (current && !isExpired(current)) {
+      synced.current = accessToken; // дахин шалгахгүй
+      return;
+    }
+
+    /**
+     * Session-ийн токен өөрөө хугацаа дууссан бол бичих утгагүй —
+     * `api()` нь localStorage-ийн refreshToken-оор сэргээнэ.
+     */
+    if (isExpired(accessToken)) {
+      synced.current = accessToken;
+      failedTokens.add(accessToken);
+      return;
+    }
 
     synced.current = accessToken;
     // ⚠️ ЭХЛЭЭД цэвэрлэнэ — хуучин токеноор 401/refresh гогцоо үүсэхээс сэргийлнэ
