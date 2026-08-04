@@ -51,7 +51,31 @@ export class StreamService {
       title.genres.map((g) => g.genreId),
       userId,
     );
-    return this.rewritePlaylist(title.videoKey);
+    // ⚠️ ABR master бол дэд playlist-ыг манай API руу чиглүүлнэ (эрх дахин шалгагдана)
+    return this.rewritePlaylist(title.videoKey, `/api/stream/movie/${titleId}/variant.m3u8`);
+  }
+
+  /** ABR дэд playlist — киноны v0/v1/v2 */
+  async movieVariant(titleId: string, variant: string, userId?: string | null): Promise<string> {
+    const title = await this.prisma.title.findUnique({
+      where: { id: titleId },
+      select: {
+        videoKey: true,
+        isPremium: true,
+        isActive: true,
+        streamStatus: true,
+        genres: { select: { genreId: true } },
+      },
+    });
+    if (!title?.videoKey || !title.isActive || title.streamStatus !== 'READY') {
+      throw new NotFoundException('Видео бэлэн биш байна');
+    }
+    await this.assertAccess(
+      title.isPremium,
+      title.genres.map((g) => g.genreId),
+      userId,
+    );
+    return this.variantPlaylist(title.videoKey, variant);
   }
 
   /** Цувралын анги */
@@ -90,7 +114,47 @@ export class StreamService {
       episode.season.title.genres.map((g) => g.genreId),
       userId,
     );
-    return this.rewritePlaylist(episode.videoKey);
+    return this.rewritePlaylist(
+      episode.videoKey,
+      `/api/stream/episode/${episodeId}/variant.m3u8`,
+    );
+  }
+
+  /** ABR дэд playlist — ангийн v0/v1/v2 */
+  async episodeVariant(
+    episodeId: string,
+    variant: string,
+    userId?: string | null,
+  ): Promise<string> {
+    const episode = await this.prisma.episode.findUnique({
+      where: { id: episodeId },
+      select: {
+        videoKey: true,
+        streamStatus: true,
+        isFreePreview: true,
+        season: {
+          select: {
+            title: {
+              select: {
+                isPremium: true,
+                isActive: true,
+                genres: { select: { genreId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!episode?.videoKey || episode.streamStatus !== 'READY' || !episode.season.title.isActive) {
+      throw new NotFoundException('Видео бэлэн биш байна');
+    }
+    const premium = episode.season.title.isPremium && !episode.isFreePreview;
+    await this.assertAccess(
+      premium,
+      episode.season.title.genres.map((g) => g.genreId),
+      userId,
+    );
+    return this.variantPlaylist(episode.videoKey, variant);
   }
 
   /** Трейлер — ҮРГЭЛЖ нээлттэй (hero autoplay, дэлгэрэнгүй хуудас) */
@@ -102,7 +166,19 @@ export class StreamService {
     if (!title?.trailerKey || !title.isActive) {
       throw new NotFoundException('Трейлер олдсонгүй');
     }
-    return this.rewritePlaylist(title.trailerKey);
+    return this.rewritePlaylist(title.trailerKey, `/api/stream/trailer/${titleId}/variant.m3u8`);
+  }
+
+  /** ABR дэд playlist — трейлерийн v0/v1/v2 (нээлттэй) */
+  async trailerVariant(titleId: string, variant: string): Promise<string> {
+    const title = await this.prisma.title.findUnique({
+      where: { id: titleId },
+      select: { trailerKey: true, isActive: true },
+    });
+    if (!title?.trailerKey || !title.isActive) {
+      throw new NotFoundException('Трейлер олдсонгүй');
+    }
+    return this.variantPlaylist(title.trailerKey, variant);
   }
 
   /**

@@ -1,7 +1,7 @@
 'use client';
 
 import { toast } from 'sonner';
-import { api, getAccessToken, tryRefresh } from './api';
+import { api, clearTokens, getAccessToken, tryRefresh } from './api';
 
 /**
  * BestTV файл байршуулах НЭГДСЭН helper.
@@ -60,8 +60,21 @@ async function xhrUpload(
      */
     const status = (e as { status?: number })?.status;
     if (status !== 401 || opts.auth === false) throw e;
+
+    /**
+     * ⚠️ Refresh амжилтгүй бол ХЭРЭГЛЭГЧИД ОЙЛГОМЖТОЙ хэлнэ.
+     * Өмнө нь серверийн "Authentication required" гэсэн ерөнхий мессеж
+     * гарч, админ юу хийхээ мэдэхгүй байв. Одоо шалтгаан + үйлдлийг
+     * хэлж, 1.5 секундын дараа нэвтрэх хуудас руу автоматаар шилжүүлнэ.
+     */
     const ok = await tryRefresh();
-    if (!ok) throw new Error('Нэвтрэлт дууссан — дахин нэвтэрнэ үү');
+    if (!ok) {
+      clearTokens();
+      setTimeout(() => {
+        if (typeof window !== 'undefined') window.location.href = '/login';
+      }, 1500);
+      throw new Error('Нэвтрэлтийн хугацаа дууслаа — дахин нэвтэрч байна...');
+    }
     return xhrOnce(url, method, body, opts);
   }
 }

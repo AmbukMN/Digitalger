@@ -10,6 +10,7 @@ import {
   Play,
   RotateCcw,
   RotateCw,
+  Settings,
   Volume1,
   Volume2,
   VolumeX,
@@ -48,6 +49,15 @@ export function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  /**
+   * ⚠️ ABR — чанарын түвшнүүд (1080p/720p/480p).
+   * `hlsRef` нь level солиход хэрэгтэй; `levels` хоосон бол хуучин НЭГ
+   * түвшинтэй видео гэсэн үг → цэс огт харагдахгүй (нийцтэй байдал).
+   */
+  const hlsRef = useRef<import('hls.js').default | null>(null);
+  const [levels, setLevels] = useState<{ index: number; height: number }[]>([]);
+  const [currentLevel, setCurrentLevel] = useState(-1); // -1 = Auto
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [seekFlash, setSeekFlash] = useState<'fwd' | 'back' | null>(null);
 
@@ -84,10 +94,21 @@ export function VideoPlayer({
           maxBufferLength: 30,
           startLevel: -1, // bandwidth-аар автоматаар чанар сонгоно
         });
+        hlsRef.current = hls;
         hls.loadSource(url.toString());
         hls.attachMedia(video);
         hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
           setLoading(false);
+          /**
+           * ⚠️ ABR түвшнүүдийг цуглуулна. Нэг л түвшин бол цэс ХАРУУЛАХГҮЙ
+           * (хуучин видео) — хэрэглэгчид сонгох зүйлгүй цэс утгагүй.
+           */
+          const lv = (hls?.levels ?? [])
+            .map((l, i) => ({ index: i, height: l.height }))
+            .filter((l) => l.height > 0)
+            .sort((a, b) => b.height - a.height);
+          setLevels(lv.length > 1 ? lv : []);
+          setCurrentLevel(-1);
           if (startAt && startAt > 0) video.currentTime = startAt;
           // ⚠️ AUTOPLAY — хэрэглэгч кино дээр дарж ирсэн тул шууд эхэлнэ.
           // Дуутай autoplay-г browser блоклодог тул амжилтгүй бол ЧИМЭЭГҮЙ
@@ -154,9 +175,26 @@ export function VideoPlayer({
       }
     })();
 
-    return () => hls?.destroy();
+    return () => {
+      hls?.destroy();
+      hlsRef.current = null;
+      setLevels([]);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
+
+  /**
+   * Чанар солих. -1 = Auto (сүлжээгээр автоматаар).
+   * ⚠️ `nextLevel` ашиглана (`currentLevel` БИШ) — одоо буферт байгаа
+   * хэсгийг хаяхгүй, дараагийн segment-ээс шилжинэ (зураг үсрэхгүй).
+   */
+  const changeQuality = useCallback((index: number) => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    hls.nextLevel = index;
+    setCurrentLevel(index);
+    setQualityMenuOpen(false);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -381,6 +419,57 @@ export function VideoPlayer({
             </span>
 
             <div className="flex-1" />
+
+            {/*
+              ⚠️ ЧАНАРЫН цэс — зөвхөн ABR видеонд (levels.length > 1).
+              Хуучин нэг түвшинтэй видеонд огт харагдахгүй.
+            */}
+            {levels.length > 1 && (
+              <div className="relative">
+                <button
+                  onClick={() => setQualityMenuOpen((v) => !v)}
+                  aria-label="Дүрсний чанар"
+                  aria-haspopup="menu"
+                  aria-expanded={qualityMenuOpen}
+                  className="flex items-center gap-1 text-xs font-medium"
+                >
+                  <Settings size={16} />
+                  {currentLevel === -1
+                    ? 'Авто'
+                    : `${levels.find((l) => l.index === currentLevel)?.height ?? ''}p`}
+                </button>
+                {qualityMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute bottom-8 right-0 min-w-24 rounded-md bg-black/90 py-1 text-sm shadow-xl"
+                  >
+                    <button
+                      role="menuitem"
+                      onClick={() => changeQuality(-1)}
+                      className={cn(
+                        'block w-full px-4 py-1.5 text-left hover:bg-white/10',
+                        currentLevel === -1 && 'text-primary',
+                      )}
+                    >
+                      Авто
+                    </button>
+                    {levels.map((l) => (
+                      <button
+                        key={l.index}
+                        role="menuitem"
+                        onClick={() => changeQuality(l.index)}
+                        className={cn(
+                          'block w-full px-4 py-1.5 text-left hover:bg-white/10',
+                          currentLevel === l.index && 'text-primary',
+                        )}
+                      >
+                        {l.height}p
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="relative">
               <button

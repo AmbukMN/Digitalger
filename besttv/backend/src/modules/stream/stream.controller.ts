@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Param, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { StreamService } from './stream.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -67,5 +67,41 @@ export class StreamController {
   @Header('Cache-Control', 'private, max-age=300')
   trailer(@Param('titleId') titleId: string) {
     return this.stream.trailerPlaylist(titleId);
+  }
+
+  /* ─── ABR дэд playlist (v0/v1/v2) ────────────────────────────────────────
+   * ⚠️ Master playlist доторх мөрүүд ЭДГЭЭР рүү заана. Ингэснээр player
+   * чанар солих бүрт эрхийн шалгалтаас дахин өнгөрнө — зөвхөн segment нь
+   * R2-оос шууд урсана (bandwidth backend-ээр дамжихгүй).
+   * `?v=` нь `vN.m3u8` хэлбэртэй эсэхийг service шалгана (зам гарахаас).
+   * ─────────────────────────────────────────────────────────────────────── */
+
+  @Get('movie/:titleId/variant.m3u8')
+  @Header('Content-Type', 'application/vnd.apple.mpegurl')
+  @Header('Cache-Control', 'private, no-store')
+  movieVariant(
+    @Param('titleId') titleId: string,
+    @Query('v') v: string,
+    @CurrentUser() user: JwtPayload | null,
+  ) {
+    return this.stream.movieVariant(titleId, v, user?.sub);
+  }
+
+  @Get('episode/:episodeId/variant.m3u8')
+  @Header('Content-Type', 'application/vnd.apple.mpegurl')
+  @Header('Cache-Control', 'private, no-store')
+  episodeVariant(
+    @Param('episodeId') episodeId: string,
+    @Query('v') v: string,
+    @CurrentUser() user: JwtPayload | null,
+  ) {
+    return this.stream.episodeVariant(episodeId, v, user?.sub);
+  }
+
+  @Get('trailer/:titleId/variant.m3u8')
+  @Header('Content-Type', 'application/vnd.apple.mpegurl')
+  @Header('Cache-Control', 'private, max-age=300')
+  trailerVariant(@Param('titleId') titleId: string, @Query('v') v: string) {
+    return this.stream.trailerVariant(titleId, v);
   }
 }
