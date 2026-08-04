@@ -26,7 +26,7 @@ import { toast } from 'sonner';
  * ⚠️ ОНОШИЛГООНЫ ХУГАЦААНД УНТРААЛТТАЙ — админ өөрөө console харах
  * шаардлагатай. Бүх алдаа шийдэгдсэний ДАРАА `true` болгоно.
  */
-const BLOCK_DEVTOOLS = false;
+const BLOCK_DEVTOOLS = true;
 
 /** Хамгаалалт хэрэглэхгүй сонголтууд — эдгээрийг блоклобол UX эвдэрнэ */
 const ALLOW_SELECTOR = 'input, textarea, select, [contenteditable="true"], [data-allow-copy]';

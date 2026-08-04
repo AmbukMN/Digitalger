@@ -55,42 +55,14 @@ export function getAccessToken(): string | null {
   return lsGet('btv_access');
 }
 
-/**
- * ⚠️⚠️ ТОКЕНЫГ COOKIE-Д Ч БИЧНЭ — ЗӨВХӨН HEADER-Д НАЙДАЖ БОЛОХГҮЙ.
- *
- * Production-д нэг хэрэглэгч ГАНЦ Chrome profile дээрээ нэвтэрч чаддаггүй
- * байв (incognito-д БОЛОН гар утсан дээр асуудалгүй — хэрэглэгч баталсан).
- * Ганц ялгаа нь EXTENSION: зарим өргөтгөл `fetch`/`XHR`-ыг залгаж
- * `Authorization` header-ыг арилгадаг → бүх хүсэлт 401 → "Нэвтрэх" товч
- * буцаж гарна. Ямар ч код засвар тус болохгүй байв.
- *
- * Cookie-г browser ӨӨРӨӨ явуулдаг тул JS давхаргад залгагдахгүй.
- * Backend `jwt.strategy.ts` нь header → cookie гэсэн дарааллаар уншина.
- *
- * ⚠️ `SameSite=Lax` — CSRF-ээс хамгаална (гуравдагч сайтаас POST явуулахад
- *    cookie ЯВАХГҮЙ). GET навигацид явдаг тул нэвтрэлт тасрахгүй.
- */
-function writeTokenCookie(access: string | null) {
-  if (typeof document === 'undefined') return;
-  const secure = location.protocol === 'https:' ? '; Secure' : '';
-  if (access) {
-    // 15 минут — access token-ийн настай ижил
-    document.cookie = `btv_token=${access}; path=/; max-age=900; SameSite=Lax${secure}`;
-  } else {
-    document.cookie = `btv_token=; path=/; max-age=0; SameSite=Lax${secure}`;
-  }
-}
-
 export function setTokens(access: string, refresh: string) {
   lsSet('btv_access', access);
   lsSet('btv_refresh', refresh);
-  writeTokenCookie(access);
 }
 
 export function clearTokens() {
   lsRemove('btv_access');
   lsRemove('btv_refresh');
-  writeTokenCookie(null);
 }
 
 // ⚠️ Зочны нэвтрэлт (guest) БҮРМӨСӨН ХАСАГДСАН — зөвхөн имэйл/Google/Facebook.
@@ -147,13 +119,6 @@ export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
     if (res.ok) {
       const data = await res.json();
       setTokens(data.accessToken, data.refreshToken);
-      // ⚠️ ТҮР ОНОШИЛГОО — refresh 201 өгсөн токен ХАДГАЛАГДСАН эсэх
-      const saved = getAccessToken();
-      console.log('[api] refresh 201 →', {
-        авсан: data.accessToken ? `${String(data.accessToken).slice(0, 12)}…` : 'ХООСОН',
-        хадгалсан: saved ? `${saved.slice(0, 12)}…` : 'ХАДГАЛАГДААГҮЙ!',
-        таарсан: saved === data.accessToken ? 'тийм' : '❌ ЗӨРСӨН',
-      });
       return 'ok';
     }
     // 401/403 = refresh token үнэхээр хүчингүй. 5xx = серверийн түр алдаа.
@@ -181,48 +146,28 @@ export async function api<T = unknown>(
 
   const doFetch = () => {
     const token = auth ? (forcedToken ?? getAccessToken()) : null;
-    /**
-     * ⚠️ ТҮР ОНОШИЛГОО — `/auth/me` 401 болох ЯГ шалтгааныг console-д гаргана.
-     * Нэг хэрэглэгчийн browser дээр л нэвтрэлт унаж байгаа ч (incognito,
-     * гар утас, Playwright бүгд ✅) шалтгаан нь ХААНА Ч ХАРАГДАХГҮЙ байв.
-     * Асуудал шийдэгдмэгц ЭНЭ БЛОКЫГ ХАСНА.
-     */
-    if (path === '/auth/me') {
-      let exp = 'задрахгүй';
-      if (token) {
-        try {
-          const p = JSON.parse(
-            atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
-          ) as { exp?: number; sub?: string };
-          exp = `${p.sub?.slice(0, 8)} дуусах=${new Date((p.exp ?? 0) * 1000).toLocaleTimeString()}${(p.exp ?? 0) * 1000 < Date.now() ? ' ДУУССАН!' : ''}`;
-        } catch {
-          exp = 'ЭВДЭРСЭН';
-        }
-      }
-      console.log('[api] /auth/me →', {
-        эх: forcedToken ? 'ПАРАМЕТР' : 'localStorage',
-        payload: exp,
-        // ⚠️ Токены СҮҮЛИЙН тэмдэгтүүд — аль токен болохыг ялгахад
-        сүүл: token ? token.slice(-10) : 'АЛГА',
-        cookie: document.cookie.includes('btv_token') ? 'бий' : 'алга',
-      });
-    }
     return fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
         ...(init.body && !(init.body instanceof FormData)
           ? { 'Content-Type': 'application/json' }
           : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
+        /**
+         * ⚠️⚠️ `Authorization` нь `init.headers`-ийн ДАРАА байх ЁСТОЙ.
+         *
+         * Өмнө нь ӨМНӨ нь байсан тул `init.headers` дотор хуучин
+         * `Authorization` байвал ШИНЭ токеныг ДАРЖ БИЧДЭГ байв.
+         * Production-д яг ийм: console "шинэ токен явуулж байна" гэж
+         * бичсэн ч сервер 9 ЦАГИЙН ӨМНӨХ токен хүлээж авсан
+         * (`TokenExpiredError: jwt expired`, `үлдсэн=-32530с`).
+         */
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
   };
 
   let res = await doFetch();
-  if (path === '/auth/me' && res.status === 401) {
-    console.warn('[api] /auth/me 401 — дээрх токеныг сервер ТАТГАЛЗСАН');
-  }
 
   // 401 → refresh нэг удаа (олон зэрэг хүсэлт нэг refresh хуваалцана).
   // ⚠️ access байхгүй ч refresh байвал оролдоно — хэрэглэгч удаан эзгүй байгаад
