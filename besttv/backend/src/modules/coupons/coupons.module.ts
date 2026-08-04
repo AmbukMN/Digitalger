@@ -14,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
 import { DiscountType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -170,7 +171,13 @@ export class CouponsService {
 export class CouponsController {
   constructor(private readonly svc: CouponsService) {}
 
+  /**
+   * ⚠️ Rate limit ЗААВАЛ — купоны код нь богино тэмдэгт (ж: "ZUN2026") тул
+   * хязгааргүй бол скриптээр таах боломжтой. Минутад 15 нь хүн гараар
+   * оролдоход хангалттай, автомат таалтад хангалтгүй.
+   */
   @Post('validate')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   validate(@Body() dto: ValidateCouponDto) {
     return this.svc.validate(dto);
   }

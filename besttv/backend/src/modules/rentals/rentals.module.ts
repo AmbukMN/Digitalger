@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
 import { Role, WalletTxType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -252,8 +253,13 @@ export class RentalsController {
     return this.svc.myRental(user.sub, titleId);
   }
 
-  /** Хэтэвчээр түрээслэх */
+  /**
+   * Хэтэвчээр түрээслэх.
+   * ⚠️ ХЭТЭВЧНЭЭС МӨНГӨ ХАСНА тул rate limit ЗААВАЛ — скрипт давхар
+   * дуудвал үлдэгдэл хэдхэн секундэд шавхагдана.
+   */
   @Post(':titleId/wallet')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard)
   rentWallet(
     @Param('titleId') titleId: string,

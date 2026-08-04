@@ -47,6 +47,18 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
      * Аль нэгийг давбал 429 буцна.
      */
     ThrottlerModule.forRoot([
+      /**
+       * ⚠️⚠️ `default` нэр ЗААВАЛ ЭХЭНД байна.
+       *
+       * Кодын 25 газарт `@Throttle({ default: {...} })` бичигдсэн (нэвтрэлт,
+       * төлбөр, имэйл, купон, түрээс). Гэтэл энд зөвхөн short/medium/long
+       * нэртэй тохиргоо байсан тул `default` нэр ОЛДОХГҮЙ → тэдгээр
+       * хязгаарууд ЧИМЭЭГҮЙ АЛГАСАГДАЖ, огт хэрэгжихгүй байв
+       * (тест: купоны endpoint-д 20 хүсэлт зэрэг явахад бүгд 200 буцсан).
+       *
+       * `@Throttle`-гүй endpoint-д short/medium/long хэвээр үйлчилнэ.
+       */
+      { name: 'default', ttl: 60_000, limit: 300 },
       { name: 'short', ttl: 1_000, limit: 20 },
       { name: 'medium', ttl: 60_000, limit: 300 },
       { name: 'long', ttl: 3_600_000, limit: 3_000 },

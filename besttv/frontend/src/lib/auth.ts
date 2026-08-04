@@ -89,12 +89,22 @@ export const authOptions: NextAuthOptions = {
           });
           if (!res.ok) return false;
 
-          const data = await res.json();
+          /**
+           * ⚠️ `as any` ХЭРЭГГҮЙ — `types/next-auth.d.ts`-д User/JWT/Session
+           * төрлүүд аль хэдийн өргөтгөгдсөн. `as any` нь тэр хамгаалалтыг
+           * үгүйсгэж, талбарын нэр солигдоход compile үед баригдахгүй болгож
+           * байв.
+           */
+          const data = (await res.json()) as {
+            user: { id: string; role: string; isGuest?: boolean };
+            accessToken: string;
+            refreshToken: string;
+          };
           user.id = data.user.id;
-          (user as any).role = data.user.role;
-          (user as any).isGuest = data.user.isGuest ?? false;
-          (user as any).accessToken = data.accessToken;
-          (user as any).refreshToken = data.refreshToken;
+          user.role = data.user.role;
+          user.isGuest = data.user.isGuest ?? false;
+          user.accessToken = data.accessToken;
+          user.refreshToken = data.refreshToken;
         } catch {
           return false;
         }
@@ -105,10 +115,10 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
-        token.isGuest = (user as any).isGuest ?? false;
-        token.accessToken = (user as any).accessToken;
-        token.refreshToken = (user as any).refreshToken;
+        token.role = user.role;
+        token.isGuest = user.isGuest ?? false;
+        token.accessToken = user.accessToken;
+        token.refreshToken = user.refreshToken;
         token.picture = user.image;
       }
       // useSession().update()-аар client талаас дуудагдана (avatar шинэчлэх г.м.)
@@ -120,13 +130,13 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        (session.user as any).role = token.role;
-        (session.user as any).isGuest = token.isGuest ?? false;
-        session.user.image = (token.picture as string) ?? session.user.image;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.isGuest = token.isGuest ?? false;
+        session.user.image = token.picture ?? session.user.image;
       }
-      (session as any).accessToken = token.accessToken;
-      (session as any).refreshToken = token.refreshToken;
+      session.accessToken = token.accessToken;
+      session.refreshToken = token.refreshToken;
       return session;
     },
   },
