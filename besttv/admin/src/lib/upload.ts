@@ -1,7 +1,7 @@
 'use client';
 
 import { toast } from 'sonner';
-import { api, getAccessToken } from './api';
+import { api, getAccessToken, tryRefresh } from './api';
 
 /**
  * BestTV файл байршуулах НЭГДСЭН helper.
@@ -32,8 +32,39 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** XHR upload — явц + цуцлах боломжтой */
-function xhrUpload(
+/**
+ * XHR upload — явц + цуцлах боломжтой.
+ *
+ * ⚠️ 401 үед ТОКЕН ШИНЭЧЛЭЭД ДАХИН оролдоно. Access token 15 минутын настай
+ * тул админ модал удаан нээлттэй байгаад upload дархад "Authentication
+ * required" гээд унадаг байв (`api()`-д refresh байсан ч XHR тусдаа зам).
+ */
+async function xhrUpload(
+  url: string,
+  method: 'POST' | 'PUT',
+  body: File | FormData,
+  opts: {
+    onProgress?: (percent: number) => void;
+    auth?: boolean;
+    signal?: { xhr: XMLHttpRequest | null };
+  } = {},
+): Promise<string> {
+  try {
+    return await xhrOnce(url, method, body, opts);
+  } catch (e) {
+    // ⚠️ Зөвхөн 401-д — бусад алдаанд дахин оролдвол давхар upload болно
+    const is401 = e instanceof UnauthorizedError;
+    if (!is401 || opts.auth === false) throw e;
+    const ok = await tryRefresh();
+    if (!ok) throw new Error('Нэвтрэлт дууссан — дахин нэвтэрнэ үү');
+    return xhrOnce(url, method, body, opts);
+  }
+}
+
+/** 401 үед таних тусгай алдаа */
+class UnauthorizedError extends Error {}
+
+function xhrOnce(
   url: string,
   method: 'POST' | 'PUT',
   body: File | FormData,
@@ -63,7 +94,8 @@ function xhrUpload(
         } catch {
           /* JSON биш — статус кодоор л мэдэгдэнэ */
         }
-        reject(new Error(msg));
+        // ⚠️ 401-ийг ТУСГАЙ төрлөөр — дээд түвшинд refresh хийж дахин оролдоно
+        reject(xhr.status === 401 ? new UnauthorizedError(msg) : new Error(msg));
       }
     };
     xhr.onerror = () => reject(new Error('Сүлжээний алдаа'));

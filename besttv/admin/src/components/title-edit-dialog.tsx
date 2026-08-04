@@ -173,6 +173,49 @@ export function TitleEditDialog({
     );
   }, [existing, titleId]);
 
+  /**
+   * ⚠️ SEO-г БОДИТООР бөглөнө (placeholder биш).
+   *
+   * Өмнө нь зөвхөн placeholder-т харуулж, хадгалах үед л утга үүсгэдэг
+   * байсан тул админ "бөглөгдөхгүй байна" гэж ойлгодог байв. Одоо гарчиг/
+   * тайлбар бичихэд талбарт ШУУД бичигдэнэ — харагдана, засаж болно.
+   *
+   * ⚠️ Гараар засвал ДАРЖ БИЧИХГҮЙ: `seoTouched` тэмдэглэнэ.
+   */
+  const seoTouched = useRef({ title: false, desc: false });
+
+  useEffect(() => {
+    if (!form.title.trim()) return;
+    setForm((f) => {
+      const next = { ...f };
+      if (!seoTouched.current.title) next.metaTitle = autoMetaTitle(f.title, f.year);
+      if (!seoTouched.current.desc) {
+        next.metaDescription = autoMetaDescription(f.title, f.description);
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.title, form.year, form.description]);
+
+  /**
+   * ⚠️ ХУУЧИН контент нээхэд хадгалсан SEO-г "гараар бичсэн" гэж үзнэ —
+   * эс бөгөөс дээрх автомат нь админы бичсэн текстийг ДАРЖ БИЧНЭ.
+   * Шинэ контент (titleId=null) дээр хоосон тул автомат ажиллана.
+   */
+  useEffect(() => {
+    if (!open) return;
+    if (!titleId) {
+      seoTouched.current = { title: false, desc: false };
+      return;
+    }
+    const e = existing as { metaTitle?: string; metaDescription?: string } | undefined;
+    if (!e) return;
+    seoTouched.current = {
+      title: Boolean(e.metaTitle?.trim()),
+      desc: Boolean(e.metaDescription?.trim()),
+    };
+  }, [open, titleId, existing]);
+
   const applyTmdb = (result: TmdbImportResult) => {
     setForm((f) => ({
       ...f,
@@ -563,29 +606,36 @@ export function TitleEditDialog({
                 </summary>
                 <div className="mt-3 space-y-3">
                   {/*
-                    ⚠️ Хоосон орхивол гарчиг/тайлбараас АВТОМАТ үүснэ.
-                    Placeholder-т яг тэр үр дүнг харуулна — админ юу болохыг
-                    урьдчилж мэдэж, хүсвэл гараар дарж бичнэ.
+                    ⚠️ Гарчиг/тайлбар бичихэд эдгээр ШУУД бөглөгдөнө.
+                    Гараар засвал автомат дарж бичихээ болино (seoTouched).
                   */}
-                  <Field label="Meta гарчиг">
+                  <Field
+                    label="Meta гарчиг"
+                    hint={`${form.metaTitle.length}/60`}
+                  >
                     <input
                       value={form.metaTitle}
-                      onChange={(e) => setForm((f) => ({ ...f, metaTitle: e.target.value }))}
-                      placeholder={
-                        form.title
-                          ? autoMetaTitle(form.title, form.year)
-                          : 'Гарчиг бичихэд автоматаар үүснэ'
-                      }
+                      onChange={(e) => {
+                        // ⚠️ Гараар засав — цаашид автоматаар дарж бичихгүй
+                        seoTouched.current.title = true;
+                        setForm((f) => ({ ...f, metaTitle: e.target.value }));
+                      }}
+                      placeholder="Гарчиг бичихэд автоматаар үүснэ"
                       aria-label="Meta гарчиг"
                       className="admin-input"
                     />
                   </Field>
-                  <Field label="Meta тайлбар">
+                  <Field
+                    label="Meta тайлбар"
+                    hint={`${form.metaDescription.length}/160`}
+                  >
                     <textarea
                       value={form.metaDescription}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, metaDescription: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        // ⚠️ Гараар засав — цаашид автоматаар дарж бичихгүй
+                        seoTouched.current.desc = true;
+                        setForm((f) => ({ ...f, metaDescription: e.target.value }));
+                      }}
                       rows={2}
                       placeholder={
                         form.title
@@ -712,17 +762,23 @@ export function TitleEditDialog({
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  /** Баруун талд жижиг тэмдэглэл — SEO-д тэмдэгтийн тоо харуулна */
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-        {required && <span className="ml-0.5 text-destructive">*</span>}
+      <span className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+          {required && <span className="ml-0.5 text-destructive">*</span>}
+        </span>
+        {hint && <span className="text-[11px] text-muted-foreground/70">{hint}</span>}
       </span>
       {children}
     </label>

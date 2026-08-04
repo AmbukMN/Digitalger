@@ -17,7 +17,12 @@ export function clearTokens() {
   localStorage.removeItem('btv_admin_refresh');
 }
 
-async function tryRefresh(): Promise<boolean> {
+/**
+ * ⚠️ ЭКСПОРТ — upload.ts-д ч хэрэгтэй. Access token 15 минутын настай тул
+ * том файл байршуулж эхлэхэд хүчинтэй байсан ч дунд нь дуусаж 401 өгдөг
+ * байв (`api()`-д refresh байсан ч XHR upload түүнийг ашигладаггүй).
+ */
+export async function tryRefresh(): Promise<boolean> {
   const refreshToken = localStorage.getItem('btv_admin_refresh');
   if (!refreshToken) return false;
   try {
