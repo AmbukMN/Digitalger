@@ -12,7 +12,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly prisma: PrismaService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      /**
+       * ⚠️⚠️ ХОЁР ЭХ СУРВАЛЖ — ЗӨВХӨН HEADER-Д НАЙДАЖ БОЛОХГҮЙ.
+       *
+       * Production-д нэг хэрэглэгч ГАНЦ Chrome profile дээрээ нэвтэрч
+       * чаддаггүй байв (incognito-д БОЛОН гар утсан дээр асуудалгүй).
+       * Ялгаа нь EXTENSION: зарим өргөтгөл `fetch`/`XHR`-ыг залгаж
+       * `Authorization` header-ыг арилгадаг эсвэл өөрчилдөг. Тэр үед
+       * бүх хүсэлт 401 болж, хэрэглэгч "Нэвтрэх" товч хараад л үлддэг —
+       * ямар ч код засвар тус болохгүй.
+       *
+       * Одоо header байхгүй бол `btv_token` cookie-оос уншина. Cookie нь
+       * browser өөрөө явуулдаг тул JS-ийн давхаргад залгагдахгүй.
+       *
+       * ⚠️ Дараалал чухал: HEADER ЭХЭНД — олон хэрэглэгч нэг browser-т
+       * (эсвэл админ+хэрэглэгч зэрэг) байвал header нь тухайн үйлдлийн
+       * зөв эзэн; cookie бол зөвхөн нөөц.
+       */
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req: { cookies?: Record<string, string> }) => req?.cookies?.btv_token ?? null,
+      ]),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('jwt.secret')!,
     });

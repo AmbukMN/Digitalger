@@ -10,14 +10,42 @@ export function getAccessToken(): string | null {
   return localStorage.getItem('btv_access');
 }
 
+/**
+ * ⚠️⚠️ ТОКЕНЫГ COOKIE-Д Ч БИЧНЭ — ЗӨВХӨН HEADER-Д НАЙДАЖ БОЛОХГҮЙ.
+ *
+ * Production-д нэг хэрэглэгч ГАНЦ Chrome profile дээрээ нэвтэрч чаддаггүй
+ * байв (incognito-д БОЛОН гар утсан дээр асуудалгүй — хэрэглэгч баталсан).
+ * Ганц ялгаа нь EXTENSION: зарим өргөтгөл `fetch`/`XHR`-ыг залгаж
+ * `Authorization` header-ыг арилгадаг → бүх хүсэлт 401 → "Нэвтрэх" товч
+ * буцаж гарна. Ямар ч код засвар тус болохгүй байв.
+ *
+ * Cookie-г browser ӨӨРӨӨ явуулдаг тул JS давхаргад залгагдахгүй.
+ * Backend `jwt.strategy.ts` нь header → cookie гэсэн дарааллаар уншина.
+ *
+ * ⚠️ `SameSite=Lax` — CSRF-ээс хамгаална (гуравдагч сайтаас POST явуулахад
+ *    cookie ЯВАХГҮЙ). GET навигацид явдаг тул нэвтрэлт тасрахгүй.
+ */
+function writeTokenCookie(access: string | null) {
+  if (typeof document === 'undefined') return;
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  if (access) {
+    // 15 минут — access token-ийн настай ижил
+    document.cookie = `btv_token=${access}; path=/; max-age=900; SameSite=Lax${secure}`;
+  } else {
+    document.cookie = `btv_token=; path=/; max-age=0; SameSite=Lax${secure}`;
+  }
+}
+
 export function setTokens(access: string, refresh: string) {
   localStorage.setItem('btv_access', access);
   localStorage.setItem('btv_refresh', refresh);
+  writeTokenCookie(access);
 }
 
 export function clearTokens() {
   localStorage.removeItem('btv_access');
   localStorage.removeItem('btv_refresh');
+  writeTokenCookie(null);
 }
 
 // ⚠️ Зочны нэвтрэлт (guest) БҮРМӨСӨН ХАСАГДСАН — зөвхөн имэйл/Google/Facebook.

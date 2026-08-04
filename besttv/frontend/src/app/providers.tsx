@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
 import { useMyListStore } from '@/lib/my-list-store';
-import { api, clearTokens, getAccessToken, ApiError } from '@/lib/api';
+import { api, clearTokens, getAccessToken } from '@/lib/api';
 import { OAuthSessionSync } from '@/components/auth/oauth-session-sync';
 import { PageTracker } from '@/components/page-tracker';
 
@@ -79,7 +79,20 @@ function AuthSessionWatcher() {
    * логик нь сая нэвтэрсэн хэрэглэгчийг буруугаар гаргах эрсдэлтэй.
    */
   useEffect(() => {
-    if (!(error instanceof ApiError) || ![401, 403, 404].includes(error.status)) return;
+    /**
+     * ⚠️⚠️ `instanceof` БИШ, ТАЛБАРААР шалгана — ЭНЭ НЬ НЭВТРЭЛТ ЭВДЭЖ БАЙВ.
+     *
+     * Production build-д `ApiError` класс минифай хийгдэж, өөр chunk-д
+     * хуулагдвал `error instanceof ApiError` ХУДАЛ буцаана. Тэр үед энэ
+     * effect шууд `return` хийж, 401 гарсан ч токен цэвэрлэгдэхгүй,
+     * session устахгүй → хэрэглэгч мөнхийн 401 дээр гацна.
+     *
+     * Яг ижил алдаа админы зураг upload-д гарч байсныг өмнө нь зассан
+     * (`admin/src/lib/upload.ts` — тэнд ч `instanceof` талбар шалгалт
+     * болсон). Энэ бол ижил алдааны frontend дэх ХОСМОГ нь.
+     */
+    const status = (error as { status?: number } | null)?.status;
+    if (typeof status !== 'number' || ![401, 403, 404].includes(status)) return;
 
     const bail = () => {
       clearTokens();

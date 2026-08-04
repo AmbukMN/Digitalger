@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import express from 'express';
 import path from 'path';
@@ -26,6 +27,12 @@ async function bootstrap() {
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
+  /**
+   * ⚠️ JWT-г `Authorization` header-ээс ГАДНА `btv_token` cookie-оос ч
+   * уншина (`jwt.strategy.ts`). Зарим browser өргөтгөл `fetch`/`XHR`-ыг
+   * залгаж header-ыг арилгадаг тул тэр үед нэвтрэлт бүрэн унадаг байв.
+   */
+  app.use(cookieParser());
   // crossOriginResourcePolicy: false — /media/* дор буй зураг/HLS segment
   // өөр origin-той frontend/admin-аас (localhost:3100/3101) чөлөөтэй ачаалагдана
   app.use(helmet({ crossOriginResourcePolicy: false }));
