@@ -165,12 +165,22 @@ export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
 
 export async function api<T = unknown>(
   path: string,
-  options: RequestInit & { auth?: boolean } = {},
+  options: RequestInit & {
+    auth?: boolean;
+    /**
+     * ⚠️ Токеныг ШУУД өгөх (localStorage-оос уншихгүй).
+     *
+     * OAuth sync-д зайлшгүй: `setTokens` бичих ба энэ функц унших хооронд
+     * өөр sync зэрэг ажиллаж localStorage-ыг дарж бичих УРАЛДААН гардаг.
+     * Production console-д яг ийм: refresh 201 "таарсан: тийм" → me 401.
+     */
+    token?: string;
+  } = {},
 ): Promise<T> {
-  const { auth = true, ...init } = options;
+  const { auth = true, token: forcedToken, ...init } = options;
 
   const doFetch = () => {
-    const token = auth ? getAccessToken() : null;
+    const token = auth ? (forcedToken ?? getAccessToken()) : null;
     /**
      * ⚠️ ТҮР ОНОШИЛГОО — `/auth/me` 401 болох ЯГ шалтгааныг console-д гаргана.
      * Нэг хэрэглэгчийн browser дээр л нэвтрэлт унаж байгаа ч (incognito,

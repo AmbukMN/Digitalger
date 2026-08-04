@@ -86,6 +86,23 @@ interface AuthState {
  */
 const USER_CACHE_KEY = 'btv_user_cache';
 
+/**
+ * JWT хугацаа дууссан эсэх (30 секундын нөөцтэй).
+ * ⚠️ Задлаж чадахгүй бол ДУУССАН гэж үзнэ — эвдэрсэн токеноор оролдох
+ * нь зөвхөн дэмий 401 үүсгэнэ.
+ */
+function isJwtExpired(token: string): boolean {
+  try {
+    const { exp } = JSON.parse(
+      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { exp?: number };
+    if (typeof exp !== 'number') return true;
+    return exp * 1000 - 30_000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 function readUserCache(): AuthUser | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -160,6 +177,44 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   syncFromOAuth: async (accessToken, refreshToken) => {
+    /**
+     * ⚠️⚠️ SESSION-ИЙН ТОКЕН ХУГАЦАА ДУУССАН БАЙХ НЬ ЭНГИЙН ЗҮЙЛ.
+     *
+     * NextAuth session 30 ХОНОГ амьдардаг ч дотор нь 15 МИНУТЫН access
+     * token ЦАРЦСАН байдаг (`jwt` callback зөвхөн анхны нэвтрэлтэд бичдэг).
+     * Тиймээс хэрэглэгч 15 минутын дараа буцаж ирэхэд session-ийн токен
+     * үргэлж хуучирсан байна.
+     *
+     * Тэр хуучин токеныг хадгалаад `/auth/me` дуудвал ЗААВАЛ 401 гарна —
+     * дэмий алдаа, дэмий сүлжээ. Хугацааг УРЬДЧИЛЖ шалгаж, шаардлагатай
+     * бол refreshToken-оор (30 хоног, session-тэй ижил урт) шинэ токен
+     * авна.
+     */
+    if (isJwtExpired(accessToken)) {
+      const fresh = await refreshWithToken(refreshToken);
+      if (!fresh) {
+        clearTokens();
+        throw new Error('Нэвтрэлт сэргээж чадсангүй. Дахин нэвтэрнэ үү.');
+      }
+      setTokens(fresh.accessToken, fresh.refreshToken);
+      /**
+       * ⚠️⚠️ ТОКЕНЫГ ШУУД ДАМЖУУЛНА — localStorage-оос УНШУУЛАХГҮЙ.
+       *
+       * Production console-оос барьсан зөрчил:
+       *   refresh 201 → "таарсан: тийм" (хадгалалт ЗӨВ)
+       *   → /auth/me ШИНЭ токеноор → ГЭТЭЛ 401
+       * Шалтгаан: `setTokens` бичих ба `api()` унших ХООРОНД өөр
+       * `syncFromOAuth` зэрэг ажиллаж localStorage-ыг ДАРЖ БИЧСЭН
+       * (лог дээр `[sync]` олон удаа давтагдсан). Уралдаан.
+       *
+       * Токеныг параметрээр өгвөл ямар ч уралдаанаас хамаарахгүй.
+       */
+      const user = await api<AuthUser>('/auth/me', { token: fresh.accessToken });
+      writeUserCache(user);
+      set({ user });
+      return;
+    }
+
     setTokens(accessToken, refreshToken);
     try {
       await get().refreshMe();

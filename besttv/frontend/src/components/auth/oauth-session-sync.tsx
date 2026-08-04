@@ -20,6 +20,16 @@ import { clearTokens, getAccessToken } from '@/lib/api';
 const failedTokens = new Set<string>();
 
 /**
+ * ⚠️ Явагдаж буй sync — ЗЭРЭГ хоёр sync ажиллуулахгүй.
+ *
+ * React StrictMode / re-render / `useSession` polling зэргээс болж энэ
+ * effect олон удаа зэрэг ажилладаг. Тэр үед хоёр sync localStorage-ыг
+ * бие биенийхээ доор дарж бичиж, "refresh 201 → me 401" гэсэн зөрчил
+ * үүсгэдэг байв (production console-д баталсан).
+ */
+let syncing = false;
+
+/**
  * JWT-ийн хугацаа дууссан эсэх (30 секундын нөөцтэй).
  * ⚠️ Задлаж чадахгүй бол ДУУССАН гэж үзнэ — эвдэрсэн токеныг хадгалахгүй.
  */
@@ -57,11 +67,22 @@ export function OAuthSessionSync() {
    * session-ийн токеныг хадгална — хоорондоо зөрөх агшин үүсэхгүй.
    */
   useEffect(() => {
+    // ⚠️ ТҮР ОНОШИЛГОО — sync хаана зогсож байгааг харуулна
+    console.log('[sync]', {
+      status,
+      session: session?.accessToken ? 'токентой' : 'ТОКЕНГҮЙ',
+      localStorage: getAccessToken() ? 'токентой' : 'ХООСОН',
+    });
+
     if (status !== 'authenticated') return;
     const accessToken = session?.accessToken;
     const refreshToken = session?.refreshToken;
-    if (!accessToken || !refreshToken) return;
+    if (!accessToken || !refreshToken) {
+      console.warn('[sync] session-д токен АЛГА — гүүр ажиллахгүй');
+      return;
+    }
     if (synced.current === accessToken) return; // давхар sync хийхгүй
+    if (syncing) return; // ⚠️ өөр sync явж байна — уралдаан үүсгэхгүй
 
     /**
      * ⚠️⚠️ БҮТЭЛГҮЙТСЭН ТОКЕНЫГ ДАХИН ХЭЗЭЭ Ч ОРОЛДОХГҮЙ.
@@ -97,31 +118,32 @@ export function OAuthSessionSync() {
      */
     const current = getAccessToken();
     if (current && !isExpired(current)) {
+      console.log('[sync] localStorage-д ХҮЧИНТЭЙ токен бий — sync алгасав');
       synced.current = accessToken; // дахин шалгахгүй
       return;
     }
-
-    /**
-     * Session-ийн токен өөрөө хугацаа дууссан бол бичих утгагүй —
-     * `api()` нь localStorage-ийн refreshToken-оор сэргээнэ.
-     */
-    if (isExpired(accessToken)) {
-      synced.current = accessToken;
-      failedTokens.add(accessToken);
-      return;
-    }
+    console.log('[sync] ▶ эхэлж байна', {
+      sessionТокен: isExpired(accessToken) ? 'ХУГАЦАА ДУУССАН → refresh хийнэ' : 'хүчинтэй',
+    });
 
     synced.current = accessToken;
     // ⚠️ ЭХЛЭЭД цэвэрлэнэ — хуучин токеноор 401/refresh гогцоо үүсэхээс сэргийлнэ
     if (getAccessToken() !== accessToken) clearTokens();
 
-    syncFromOAuth(accessToken, refreshToken).catch(() => {
-      failedTokens.add(accessToken);
-      clearTokens();
-      // Session-ыг устгах оролдлого (амжилтгүй болсон ч дээрх хамгаалалт
-      // гогцоог таслах тул хэрэглэгч гацахгүй).
-      nextAuthSignOut({ redirect: false }).catch(() => null);
-    });
+    syncing = true;
+    syncFromOAuth(accessToken, refreshToken)
+      .then(() => console.log('[sync] ✅ АМЖИЛТТАЙ — нэвтэрлээ'))
+      .catch((e) => {
+        console.error('[sync] ❌ УНАЛАА —', e?.message ?? e);
+        failedTokens.add(accessToken);
+        clearTokens();
+        // Session-ыг устгах оролдлого (амжилтгүй болсон ч дээрх хамгаалалт
+        // гогцоог таслах тул хэрэглэгч гацахгүй).
+        nextAuthSignOut({ redirect: false }).catch(() => null);
+      })
+      .finally(() => {
+        syncing = false;
+      });
   }, [session, status, syncFromOAuth]);
 
   return null;
