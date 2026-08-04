@@ -202,7 +202,17 @@ export function Navbar() {
                 )}
               >
                 <Crown size={13} className="shrink-0" />
-                <span className="truncate">
+                {/*
+                  ⚠️ МОБАЙЛД товч нэр БҮТЭН харагдахгүй тул "Багц" гэсэн
+                  богино шошго. Урт нэр ("Монгол кино багц") таслагдаж
+                  "Монгол кино б..." гэж эмх замбараагүй харагддаг байв.
+                  Дэлгэрэнгүйг профайл хуудаснаас харна.
+                */}
+                <span className="truncate sm:hidden">
+                  {vip ? 'VIP' : 'Багц'}
+                  {activePlans.length > 1 && ` ${activePlans.length}`}
+                </span>
+                <span className="hidden truncate sm:inline">
                   {vip ? 'VIP' : (activePlans[0]?.planName ?? 'Багц')}
                   {activePlans.length > 1 && ` +${activePlans.length - 1}`}
                 </span>

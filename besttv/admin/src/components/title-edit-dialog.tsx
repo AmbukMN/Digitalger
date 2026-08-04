@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Clapperboard,
@@ -12,7 +12,9 @@ import {
   Search,
   Sparkles,
   Tv,
+  UploadCloud,
   Users as UsersIcon,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
@@ -27,6 +29,7 @@ import {
   TabsTrigger,
 } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
+import { uploadVideo } from '@/lib/upload';
 import { useAdminGenres, useAdminTitle } from '@/lib/queries';
 import { ImageUpload } from '@/components/image-upload';
 import { VideoUpload } from '@/components/video-upload';
@@ -58,6 +61,24 @@ const EMPTY_FORM = {
   genreIds: [] as string[],
 };
 
+/** SEO meta title — 60 тэмдэгтэд багтаана (Google таслахгүй) */
+function autoMetaTitle(title: string, year?: string): string {
+  const base = year ? `${title} (${year})` : title;
+  const full = `${base} — BestTV дээр онлайнаар үзэх`;
+  return full.length <= 60 ? full : `${base} — BestTV`.slice(0, 60);
+}
+
+/** SEO meta description — 150-160 тэмдэгт (хайлтын хэсэгт таслагдахгүй) */
+function autoMetaDescription(title: string, description: string): string {
+  const clean = description.replace(/\s+/g, ' ').trim();
+  if (clean.length >= 80) {
+    return clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}...`;
+  }
+  // Тайлбар богино бол бүтэн өгүүлбэр болгоно
+  const filled = `${clean ? `${clean} ` : ''}${title} киног BestTV дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
+  return filled.length <= 160 ? filled : `${filled.slice(0, 157).trimEnd()}...`;
+}
+
 /**
  * Кино нэмэх-засах МОДАЛ.
  *
@@ -87,6 +108,12 @@ export function TitleEditDialog({
   const [cast, setCast] = useState<CastEntry[]>([]);
   const [gallery, setGallery] = useState<GalleryEntry[]>([]);
   const [savedId, setSavedId] = useState<string | null>(titleId);
+  /**
+   * ⚠️ ШИНЭ контент дээр сонгосон видео — хадгалах хүртэл ЭНД хүлээнэ.
+   * (Upload нь `targetId` шаарддаг, тэр нь title үүссэний дараа л гарна.)
+   * Хадгалмагц `save()` автоматаар байршуулна.
+   */
+  const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [tmdbOpen, setTmdbOpen] = useState(false);
   const [tab, setTab] = useState('info');
@@ -187,8 +214,14 @@ export function TitleEditDialog({
         rating: form.rating ? Number(form.rating) : undefined,
         director: form.director || undefined,
         ageRating: form.ageRating || undefined,
-        metaTitle: form.metaTitle || undefined,
-        metaDescription: form.metaDescription || undefined,
+        /**
+         * ⚠️ SEO АВТОМАТ — хоосон орхивол гарчиг/тайлбараас үүсгэнэ.
+         * Гараар бичсэн бол ХҮНДЭТГЭНЭ (дарж бичихгүй). Ингэснээр кино
+         * бүр SEO-той болж, админ нэмэлт ажил хийхгүй.
+         */
+        metaTitle: form.metaTitle.trim() || autoMetaTitle(form.title, form.year),
+        metaDescription:
+          form.metaDescription.trim() || autoMetaDescription(form.title, form.description),
         cast: cast
           .filter((c) => c.name.trim())
           .map((c) => ({ name: c.name, character: c.character || undefined, photoKey: c.photoKey })),
@@ -207,20 +240,38 @@ export function TitleEditDialog({
         backdropKey,
       };
 
-      if (savedId) {
-        await api(`/admin/titles/${savedId}`, { method: 'PATCH', body: JSON.stringify(payload) });
-        toast.success('Хадгалагдлаа');
+      let id = savedId;
+      if (id) {
+        await api(`/admin/titles/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
       } else {
         const created = await api<{ id: string }>('/admin/titles', {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        setSavedId(created.id);
-        toast.success('Үүсгэгдлээ — одоо видео/анги нэмж болно');
+        id = created.id;
+        setSavedId(id);
+      }
+
+      /**
+       * ⚠️ ХҮЛЭЭЛГЭСЭН ВИДЕО — шинэ контент дээр сонгосон файлыг ЭНД
+       * байршуулна. Өмнө нь эхлээд хадгалж, дараа нь модалыг дахин нээж
+       * видео нэмэх ХОЁР алхамтай байсан. Одоо нэг удаад бүгд.
+       */
+      if (pendingVideo && id) {
+        toast.success('Хадгалагдлаа — видео байршуулж байна...');
+        try {
+          await uploadVideo(pendingVideo, { target: 'movie', targetId: id }).promise;
+          setPendingVideo(null);
+        } catch {
+          // uploadVideo өөрөө toast харуулна — контент аль хэдийн хадгалагдсан
+          toast.error('Контент хадгалагдсан ч видео байршуулж чадсангүй');
+        }
+      } else {
+        toast.success(savedId ? 'Хадгалагдлаа' : 'Үүсгэгдлээ');
       }
 
       await qc.invalidateQueries({ queryKey: ['admin-titles'] });
-      if (savedId) await qc.invalidateQueries({ queryKey: ['admin-title', savedId] });
+      if (id) await qc.invalidateQueries({ queryKey: ['admin-title', id] });
       if (closeAfter) onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Хадгалахад алдаа гарлаа');
@@ -508,14 +559,23 @@ export function TitleEditDialog({
               {/* SEO */}
               <details className="rounded-lg border border-border p-3">
                 <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
-                  <Search size={12} className="mr-1 inline" /> SEO (заавал биш)
+                  <Search size={12} className="mr-1 inline" /> SEO — автоматаар бөглөгдөнө
                 </summary>
                 <div className="mt-3 space-y-3">
+                  {/*
+                    ⚠️ Хоосон орхивол гарчиг/тайлбараас АВТОМАТ үүснэ.
+                    Placeholder-т яг тэр үр дүнг харуулна — админ юу болохыг
+                    урьдчилж мэдэж, хүсвэл гараар дарж бичнэ.
+                  */}
                   <Field label="Meta гарчиг">
                     <input
                       value={form.metaTitle}
                       onChange={(e) => setForm((f) => ({ ...f, metaTitle: e.target.value }))}
-                      placeholder="Хайлтад харагдах гарчиг"
+                      placeholder={
+                        form.title
+                          ? autoMetaTitle(form.title, form.year)
+                          : 'Гарчиг бичихэд автоматаар үүснэ'
+                      }
                       aria-label="Meta гарчиг"
                       className="admin-input"
                     />
@@ -527,7 +587,11 @@ export function TitleEditDialog({
                         setForm((f) => ({ ...f, metaDescription: e.target.value }))
                       }
                       rows={2}
-                      placeholder="150-160 тэмдэгт"
+                      placeholder={
+                        form.title
+                          ? autoMetaDescription(form.title, form.description)
+                          : '150-160 тэмдэгт — автоматаар үүснэ'
+                      }
                       aria-label="Meta тайлбар"
                       className="admin-textarea"
                     />
@@ -588,9 +652,19 @@ export function TitleEditDialog({
             {/* ═══ Видео / Ангиуд ═══ */}
             <TabsContent value="video" className="mt-0">
               {!savedId ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">
-                  Эхлээд үндсэн мэдээллийг хадгалсны дараа видео нэмнэ
-                </p>
+                /*
+                  ⚠️ ШИНЭ контент — файлыг ЭНД сонгоод хүлээлгэнэ, "Хадгалах"
+                  дархад автоматаар байршина. Өмнө нь "эхлээд хадгална уу"
+                  гээд бүтэн зогсоодог, админ модалыг хааж дахин нээх
+                  шаардлагатай байсан.
+                */
+                form.type === 'MOVIE' ? (
+                  <PendingVideoPicker file={pendingVideo} onPick={setPendingVideo} />
+                ) : (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    Олон ангит — хадгалсны дараа улирал/анги нэмнэ
+                  </p>
+                )
               ) : form.type === 'MOVIE' ? (
                 <VideoUpload
                   target="movie"
@@ -681,5 +755,74 @@ function Toggle({
       />
       {label}
     </label>
+  );
+}
+
+/**
+ * ШИНЭ контент дээрх видео сонгогч.
+ *
+ * ⚠️ Яагаад тусдаа вэ: upload нь `targetId` (backend-д үүссэн title) шаарддаг,
+ * тэр нь хадгалах хүртэл байхгүй. Тиймээс энд ЗӨВХӨН файлыг барьж аваад
+ * хүлээлгэнэ — "Хадгалах" дархад `save()` автоматаар байршуулна.
+ */
+function PendingVideoPicker({
+  file,
+  onPick,
+}: {
+  file: File | null;
+  onPick: (f: File | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onPick(f);
+          e.target.value = ''; // ижил файлыг дахин сонгож болно
+        }}
+      />
+
+      {file ? (
+        <div className="rounded-lg border border-primary/30 bg-primary/8 p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <Film size={17} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {(file.size / (1024 * 1024)).toFixed(1)} MB · Хадгалахад автоматаар байршина
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onPick(null)}
+              className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+              aria-label="Видео хасах"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 py-10 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+        >
+          <UploadCloud size={20} />
+          Видео сонгох
+          <span className="text-xs font-normal text-muted-foreground">
+            Хадгалахад автоматаар байршиж, HLS хөрвүүлэлт эхэлнэ
+          </span>
+        </button>
+      )}
+    </div>
   );
 }

@@ -7,12 +7,17 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { InsightsService } from './insights.service';
 
-/** Хянах самбарын хугацааны сонголт */
+/**
+ * Хянах самбарын хугацааны сонголт.
+ * ⚠️ InsightsService-ийн RANGE_DAYS-тэй ЯГ ИЖИЛ байх ёстой — нэг сонголтоор
+ * хоёр эх сурвалжийг зэрэг шүүдэг тул зөрвөл тоо таарахгүй.
+ */
 const RANGE_DAYS: Record<string, number> = {
   today: 1,
   '7d': 7,
   '30d': 30,
   '90d': 90,
+  '180d': 180,
   '365d': 365,
 };
 

@@ -22,6 +22,13 @@ import { ReviewsSection } from '@/components/title/reviews-section';
 import { RentDialog } from '@/components/title/rent-dialog';
 import { consumeAuthIntent, savePostPurchaseReturn } from '@/lib/auth-intent';
 
+/**
+ * ⚠️ СЭТГЭГДЭЛ ТҮР ХААЛТТАЙ.
+ * Дахин нээхдээ ЗӨВХӨН энэ утгыг `true` болгоно — өөр юу ч засах шаардлагагүй.
+ * Дата устаагүй: админ талд сэтгэгдэл хэвээр, зөвхөн нийтэд харуулахгүй.
+ */
+const REVIEWS_ENABLED = false;
+
 export function TitleDetailClient({ slug }: { slug: string }) {
   const { data, isLoading, isError, refetch } = useTitleDetail(slug);
   const qc = useQueryClient();
@@ -140,15 +147,25 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                   {data.ageRating}
                 </span>
               )}
-              {(data.reviewStats.average ?? data.rating) != null && (
-                <span className="flex items-center gap-1">
-                  <Star size={14} className="fill-premium text-premium" />
-                  {(data.reviewStats.count > 0 ? data.reviewStats.average! : data.rating!).toFixed(1)}
-                  {data.reviewStats.count > 0 && (
-                    <span className="text-white/40">({data.reviewStats.count})</span>
-                  )}
-                </span>
-              )}
+              {/*
+                ⚠️ Үнэлгээ 0 бол ХАРУУЛАХГҮЙ. Өмнө нь `!= null` шалгадаг
+                байсан тул үнэлгээ оруулаагүй кинонд "★ 0.0" гэж гарч,
+                муу үнэлгээтэй мэт харагддаг байв.
+              */}
+              {(() => {
+                const score =
+                  data.reviewStats.count > 0 ? data.reviewStats.average : data.rating;
+                if (!score || score <= 0) return null;
+                return (
+                  <span className="flex items-center gap-1">
+                    <Star size={14} className="fill-premium text-premium" />
+                    {score.toFixed(1)}
+                    {data.reviewStats.count > 0 && (
+                      <span className="text-white/40">({data.reviewStats.count})</span>
+                    )}
+                  </span>
+                );
+              })()}
               {data.director && <span>Найруулагч: {data.director}</span>}
               {data.genres?.map((g) => (
                 <span key={g.id} className="rounded bg-white/10 px-2 py-0.5">
@@ -157,7 +174,12 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               ))}
             </div>
 
-            <p className="mt-4 max-w-2xl text-sm text-white/80 md:text-base">{data.description}</p>
+            {/* ⚠️ Тайлбар хоосон бол хоосон зай үлдээхгүй */}
+            {data.description?.trim() && (
+              <p className="mt-4 max-w-2xl text-sm text-white/80 md:text-base">
+                {data.description}
+              </p>
+            )}
 
             {/*
               ⚠️ ЯГ 2 үндсэн товч — "Түрээслэх" ба "Багц авах". Дуртай/Хуваалцах
@@ -314,7 +336,14 @@ export function TitleDetailClient({ slug }: { slug: string }) {
 
           {data.galleryUrls.length > 0 && <GalleryRow images={data.galleryUrls} />}
 
-          <ReviewsSection titleId={data.id} reviewStats={data.reviewStats} />
+          {/*
+            ⚠️ СЭТГЭГДЭЛ ТҮР ХААЛТТАЙ — хэрэглэгчид ОГТ харагдахгүй.
+            Дахин нээхдээ ЭНЭ ТОГТМОЛЫГ `true` болгоно (файлын дээд талд).
+            Дата устаагүй — админ талд хэвээр, зөвхөн нийтэд харуулахгүй.
+          */}
+          {REVIEWS_ENABLED && (
+            <ReviewsSection titleId={data.id} reviewStats={data.reviewStats} />
+          )}
 
           {data.related?.length > 0 && <TitleRow title="Ижил төстэй контент" items={data.related} />}
         </div>

@@ -136,17 +136,13 @@ export class CreateTitleDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
-}
 
-export class UpdateTitleDto extends CreateTitleDto {
-  @IsOptional()
-  @IsEnum(TitleType)
-  declare type: TitleType;
-
-  @IsOptional()
-  @IsString()
-  declare title: string;
-
+  /**
+   * ⚠️ Эрэмбийн талбарууд — ЗААВАЛ CreateTitleDto-д байх ёстой.
+   * Өмнө нь зөвхөн UpdateTitleDto-д байсан тул админ форм ижил биеийг
+   * илгээхэд ШИНЭ контент үүсгэх нь `forbidNonWhitelisted` дүрмээр
+   * "property bannerOrder should not exist" гээд 400 буцдаг байв.
+   */
   @IsOptional()
   @IsInt()
   bannerOrder?: number;
@@ -162,6 +158,16 @@ export class UpdateTitleDto extends CreateTitleDto {
   @IsOptional()
   @IsBoolean()
   hideFromNew?: boolean;
+}
+
+export class UpdateTitleDto extends CreateTitleDto {
+  @IsOptional()
+  @IsEnum(TitleType)
+  declare type: TitleType;
+
+  @IsOptional()
+  @IsString()
+  declare title: string;
 }
 
 export class CreateSeasonDto {

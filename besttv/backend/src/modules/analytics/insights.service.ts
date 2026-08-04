@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Хугацааны сонголт — dashboard-тай ижил */
+/** ⚠️ AnalyticsService-ийн RANGE_DAYS-тэй ЯГ ИЖИЛ байх ёстой */
 const RANGE_DAYS: Record<string, number> = {
   today: 1,
   '7d': 7,
   '30d': 30,
   '90d': 90,
+  '180d': 180,
   '365d': 365,
 };
 
@@ -166,9 +168,19 @@ export class InsightsService {
       funnel: {
         views,
         plays,
-        completes,
+        /**
+         * ⚠️ `completes` нь `plays`-ээс ИХ гарч болзошгүй: 'complete' үйлдэл
+         * тоглуулалт бүрт биш, хуудас сэргээх/үргэлжлүүлэх үед ч бүртгэгддэг
+         * бөгөөд эхлэлийн 'play' нь өөр мужид унасан байж болно.
+         * Юүлүүр нь БУУРАХ дараалалтай байх ёстой (үзсэн ≥ тоглуулсан ≥
+         * дуусгасан) тул дээд хязгаарыг барина — эс бөгөөс "150%" гэж
+         * гарч, график дүүрэн улаан болдог байв.
+         */
+        completes: Math.min(completes, plays),
+        // ⚠️ Хоёр хувийг ЭХНИЙ алхмаас (views) тооцно — үе шат бүр
+        //    өмнөхөөсөө бага хувьтай болж, юүлүүр зөв харагдана.
         playRate: views ? Math.round((plays / views) * 100) : 0,
-        completeRate: plays ? Math.round((completes / plays) * 100) : 0,
+        completeRate: views ? Math.round((Math.min(completes, plays) / views) * 100) : 0,
       },
       topViewed: this.mapTitles(topViewed),
       topPlayed: this.mapTitles(topPlayed),
