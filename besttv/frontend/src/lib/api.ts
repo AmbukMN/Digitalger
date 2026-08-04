@@ -178,17 +178,24 @@ export async function api<T = unknown>(
     if (result === 'ok') {
       res = await doFetch();
       /**
-       * ⚠️⚠️ REFRESH АМЖИЛТТАЙ БОЛСОН ЧЬ 401 ХЭВЭЭР → ТОКЕН ЦЭВЭРЛЭНЭ.
+       * ⚠️⚠️ REFRESH АМЖИЛТТАЙ БОЛСОН ЧЬ 401 ХЭВЭЭР → ДАХИН НЭГ ОРОЛДОНО.
        *
-       * Production nginx логт яг ийм гогцоо тэмдэглэгдсэн:
-       *   POST /auth/refresh → 201 (24 удаа)
-       *   GET  /auth/me      → 401 (34 удаа)
-       * Refresh шинэ токен өгсөөр байхад тэр токен ажиллахгүй — өөрөөр
-       * хэлбэл localStorage дахь өгөгдөл ЭВДЭРСЭН (өөр орчны/хуучин
-       * хэрэглэгчийн үлдэгдэл). Цэвэрлэхгүй бол хэрэглэгч мөнхөд гацна:
-       * "Нэвтрэх" товч харагдсаар, оролдох бүрт 401.
+       * Production nginx лог зөрчлийг харуулав:
+       *   POST refresh → 201 (ШИНЭ токен)
+       *   GET  me      → 401 (TokenExpiredError = ХУУЧИН токен явсан)
+       *
+       * Шалтгаан: `init()`, `AuthSessionWatcher`, `syncFromOAuth` гурав
+       * ЗЭРЭГ ажилладаг. Нэг нь refresh хийж байх зуур нөгөө нь ХУУЧИН
+       * токеныг уншсан байж болно (`doFetch` дотор `getAccessToken()`).
+       *
+       * Тиймээс шууд `clearTokens()` хийвэл САЯ АМЖИЛТТАЙ авсан токеныг
+       * устгаж, хэрэглэгчийг гаргана. Оронд нь дахин нэг оролдоод, тэгсэн
+       * ч 401 бол л токен үнэхээр хүчингүй гэж үзнэ.
        */
-      if (res.status === 401) clearTokens();
+      if (res.status === 401) {
+        res = await doFetch();
+        if (res.status === 401) clearTokens();
+      }
     } else if (result === 'invalid') {
       clearTokens(); // сервер хүчингүй гэж баталсан үед л гаргана
     }

@@ -25,6 +25,20 @@ async function bootstrap() {
   // nginx reverse proxy-ийн ард — жинхэнэ клиент IP X-Forwarded-For-оос
   app.set('trust proxy', 1);
 
+  /**
+   * ⚠️ AUTH хариунд ETag/кэш БАЙЖ БОЛОХГҮЙ.
+   *
+   * Express анхдагчаар ETag тавьдаг тул `/auth/me` хариу browser-т
+   * кэшлэгдэж `304 Not Modified` буцаадаг байв (production nginx лог:
+   * `auth/me 304` × 8). Токен солигдсон ч browser ХУУЧИН хариуг
+   * ашиглах эрсдэлтэй — нэвтрэлтийн төлөв зөрнө.
+   */
+  app.getHttpAdapter().getInstance().set('etag', false);
+  app.use('/api/auth', (_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    next();
+  });
+
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
   /**

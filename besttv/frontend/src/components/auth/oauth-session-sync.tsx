@@ -9,39 +9,42 @@ import { getAccessToken } from '@/lib/api';
  * OAuth "гүүр" — Google/Facebook нэвтрэлтийн үр дүнг манай JWT flow руу
  * дамжуулна.
  *
- * NextAuth session-д backend-ийн accessToken/refreshToken байдаг
- * (`auth.ts` callbacks.session). Тэдгээрийг localStorage руу НЭГ УДАА
- * хуулна — цаашид апп бүхэлдээ өөрийн JWT flow-оор ажиллана.
+ * ⚠️⚠️ SESSION-ИЙН `accessToken`-Г ОГТ ХЭРЭГЛЭХГҮЙ.
  *
- * ⚠️ ЭНГИЙН БАЙЛГАХ НЬ ЧУХАЛ. Өмнө нь энд токены хугацаа шалгах, амжилтгүй
- * токен тэмдэглэх, session устгах, давхар sync хаах гэх мэт олон давхар
- * логик хуримтлагдаж, бие биенээ эвдэж байв. Одоо:
- *   - localStorage хоосон бол л sync хийнэ
- *   - Хугацааг ЗӨВХӨН СЕРВЕР шийднэ (401 → `api()` өөрөө refresh хийнэ)
+ * NextAuth session нь 30 ХОНОГ амьдардаг ч дотор нь 15 МИНУТЫН access
+ * token ЦАРЦСАН байдаг (`jwt` callback зөвхөн анхны нэвтрэлтэд бичдэг).
+ * Тиймээс session-ийн `accessToken` нь бараг ҮРГЭЛЖ хугацаа нь дууссан
+ * байдаг — production backend лог үүнийг олон удаа баталсан:
+ *     [jwt] 401 /api/auth/me — TokenExpiredError: jwt expired
+ *
+ * Урьд нь тэр хуучин токеныг хадгалаад дараа нь засах гэж оролдож
+ * байсан нь олон давхар логик (хугацаа шалгах, уралдаан хаах,
+ * амжилтгүй токен тэмдэглэх) хуримтлуулж, бүгд бие биенээ эвдэж байв.
+ *
+ * ЗӨВ ЗАМ: session-ээс ЗӨВХӨН `refreshToken` (30 хоног — session-тэй
+ * ижил урт) авч, түүгээр ШИНЭ access token авна. Хугацааны ямар ч
+ * шалгалт хэрэггүй — сервер өөрөө шийднэ.
  */
 export function OAuthSessionSync() {
   const { data: session, status } = useSession();
   const syncFromOAuth = useAuth((s) => s.syncFromOAuth);
-  const synced = useRef(false);
+  const done = useRef(false);
 
   useEffect(() => {
-    if (status !== 'authenticated') return;
-    if (synced.current) return;
+    if (status !== 'authenticated' || done.current) return;
 
-    const accessToken = session?.accessToken;
     const refreshToken = session?.refreshToken;
-    if (!accessToken || !refreshToken) return;
+    if (!refreshToken) return;
 
     // Аль хэдийн токентой бол гүүр хэрэггүй
     if (getAccessToken()) {
-      synced.current = true;
+      done.current = true;
       return;
     }
 
-    synced.current = true;
-    syncFromOAuth(accessToken, refreshToken).catch(() => {
-      // Амжилтгүй бол дахин оролдох боломж үлдээнэ (шинэ session ирвэл)
-      synced.current = false;
+    done.current = true;
+    syncFromOAuth(refreshToken).catch(() => {
+      done.current = false; // шинэ session ирвэл дахин оролдоно
     });
   }, [session, status, syncFromOAuth]);
 

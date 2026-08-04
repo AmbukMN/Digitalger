@@ -9,6 +9,7 @@ import {
   getRefreshToken,
   refreshWithToken,
   setTokens,
+  tryRefresh,
 } from './api';
 
 /** Хэрэглэгчийн идэвхтэй нэг багц (олон багц зэрэг байж болно) */
@@ -52,7 +53,7 @@ interface AuthState {
   register: (email: string, password: string, name?: string) => Promise<void>;
   /** OAuth signIn амжилттай болсны дараа NextAuth session-оос ирсэн
    * accessToken/refreshToken-г манай localStorage руу хадгална. */
-  syncFromOAuth: (accessToken: string, refreshToken: string) => Promise<void>;
+  syncFromOAuth: (refreshToken: string) => Promise<void>;
   logout: () => void;
   refreshMe: () => Promise<void>;
   /**
@@ -86,23 +87,6 @@ interface AuthState {
  */
 const USER_CACHE_KEY = 'btv_user_cache';
 
-/**
- * JWT хугацаа дууссан эсэх (30 секундын нөөцтэй).
- * ⚠️ Задлаж чадахгүй бол ДУУССАН гэж үзнэ — эвдэрсэн токеноор оролдох
- * нь зөвхөн дэмий 401 үүсгэнэ.
- */
-function isJwtExpired(token: string): boolean {
-  try {
-    const { exp } = JSON.parse(
-      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
-    ) as { exp?: number };
-    if (typeof exp !== 'number') return true;
-    return exp * 1000 - 30_000 <= Date.now();
-  } catch {
-    return true;
-  }
-}
-
 function readUserCache(): AuthUser | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -135,6 +119,22 @@ export const useAuth = create<AuthState>((set, get) => ({
       writeUserCache(null);
       set({ user: null, loading: false });
       return;
+    }
+
+    /**
+     * ⚠️ ACCESS ХУГАЦАА ДУУССАН БОЛ ЭХЛЭЭД REFRESH.
+     *
+     * Тэгэхгүй бол `init()` болон `AuthSessionWatcher` хоёр ЗЭРЭГ хуучин
+     * токеноор дуудаж, хоёр дэмий 401 үүсгэдэг (production console дээр
+     * яг ийм: `/auth/me 401` × 2 → дараа нь refresh → 200).
+     *
+     * ⚠️ Хугацааг `Date.now()`-оор ШАЛГАХГҮЙ — хэрэглэгчийн цаг зөрж
+     * болно. Оронд нь access БАЙХГҮЙ (зөвхөн refresh) үед л урьдчилж
+     * шинэчилнэ. Access байвал шууд оролдоод, 401 гарвал `api()` өөрөө
+     * сэргээнэ.
+     */
+    if (!getAccessToken() && getRefreshToken()) {
+      await tryRefresh();
     }
 
     // ⚠️ ХАМГИЙН ЧУХАЛ: кэшнээс ШУУД сэргээнэ — сервер хүлээхгүй.
@@ -191,28 +191,17 @@ export const useAuth = create<AuthState>((set, get) => ({
    * refreshToken-оор (30 хоног) сэргээнэ. Ямар ч цагийн тохиргоонд
    * зөв ажиллана.
    */
-  syncFromOAuth: async (accessToken, refreshToken) => {
-    setTokens(accessToken, refreshToken);
-    try {
-      await get().refreshMe();
-      return;
-    } catch {
-      /* session-ийн токен хуучирсан байх нь ЭНГИЙН — доор сэргээнэ */
-    }
-
-    /**
-     * ⚠️ `refreshToken`-г ШУУД дамжуулна: дээрх `refreshMe()` унахад
-     * `api()` дотор `clearTokens()` аль хэдийн ажилласан байж болох тул
-     * localStorage-оос уншвал олдохгүй.
-     */
-    const restored = await refreshWithToken(refreshToken);
-    if (!restored) {
+  syncFromOAuth: async (refreshToken) => {
+    // Session-ийн refreshToken-оор ШИНЭ access token авна
+    const fresh = await refreshWithToken(refreshToken);
+    if (!fresh) {
       clearTokens();
       throw new Error('Нэвтрэлт сэргээж чадсангүй. Дахин нэвтэрнэ үү.');
     }
-    setTokens(restored.accessToken, restored.refreshToken);
-    // ⚠️ Токеныг ПАРАМЕТРЭЭР — зэрэг ажиллаж буй sync дарж бичихээс хамгаална
-    const user = await api<AuthUser>('/auth/me', { token: restored.accessToken });
+    setTokens(fresh.accessToken, fresh.refreshToken);
+    // ⚠️ Токеныг ПАРАМЕТРЭЭР — localStorage-оос уншвал зэрэг ажиллаж буй
+    //    өөр код дарж бичсэн байж болно
+    const user = await api<AuthUser>('/auth/me', { token: fresh.accessToken });
     writeUserCache(user);
     set({ user });
   },

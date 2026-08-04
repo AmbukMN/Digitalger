@@ -34,6 +34,15 @@ function MyListSync() {
  */
 function AuthSessionWatcher() {
   const userId = useAuth((s) => s.user?.id);
+  /**
+   * ⚠️ `init()` дуустал ХҮЛЭЭНЭ.
+   *
+   * Өмнө нь зэрэг ажиллаж, хуучин токеноор дэмий 401 үүсгэдэг байв
+   * (production console: `/auth/me 401` × 2 → refresh → 200).
+   * `init()` нь шаардлагатай бол токеныг шинэчилдэг тул дуустал нь
+   * хүлээвэл ганц ч дэмий 401 гарахгүй.
+   */
+  const authLoading = useAuth((s) => s.loading);
   const { status: oauthStatus } = useSession();
 
   /**
@@ -58,7 +67,14 @@ function AuthSessionWatcher() {
   const { data, error } = useQuery({
     queryKey: ['auth-watch', userId],
     queryFn: () => api<AuthUser>('/auth/me'),
-    enabled: ready && !!userId && !!getAccessToken(),
+    /**
+     * ⚠️ `user` ТОГТООГДСОН хойно л ажиллана (`!!userId`).
+     * Тэгэхгүй бол `init()`/`syncFromOAuth`-тай ЗЭРЭГ ажиллаж, хуучин
+     * токеноор дэмий 401 үүсгэдэг (production nginx лог: me 401 × 2).
+     */
+    enabled: ready && !authLoading && !!userId && !!getAccessToken(),
+    /** ⚠️ Эхний mount дээр ДАХИН дуудахгүй — `init()` аль хэдийн авчирсан */
+    refetchOnMount: false,
     refetchInterval: 45_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
