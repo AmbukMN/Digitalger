@@ -114,6 +114,18 @@ export async function api<T = unknown>(
     const result = await refreshPromise;
     if (result === 'ok') {
       res = await doFetch();
+      /**
+       * ⚠️⚠️ REFRESH АМЖИЛТТАЙ БОЛСОН ЧЬ 401 ХЭВЭЭР → ТОКЕН ЦЭВЭРЛЭНЭ.
+       *
+       * Production nginx логт яг ийм гогцоо тэмдэглэгдсэн:
+       *   POST /auth/refresh → 201 (24 удаа)
+       *   GET  /auth/me      → 401 (34 удаа)
+       * Refresh шинэ токен өгсөөр байхад тэр токен ажиллахгүй — өөрөөр
+       * хэлбэл localStorage дахь өгөгдөл ЭВДЭРСЭН (өөр орчны/хуучин
+       * хэрэглэгчийн үлдэгдэл). Цэвэрлэхгүй бол хэрэглэгч мөнхөд гацна:
+       * "Нэвтрэх" товч харагдсаар, оролдох бүрт 401.
+       */
+      if (res.status === 401) clearTokens();
     } else if (result === 'invalid') {
       clearTokens(); // сервер хүчингүй гэж баталсан үед л гаргана
     }

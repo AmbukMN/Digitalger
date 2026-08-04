@@ -66,6 +66,20 @@ export function VideoPlayer({
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [seekFlash, setSeekFlash] = useState<'fwd' | 'back' | null>(null);
+  /**
+   * Ачаалагдсан (buffered) хэсгийн төгсгөл — YouTube/Netflix шиг progress
+   * bar дээр цайвар зураасаар харуулна. Хэрэглэгч "хаана хүртэл бэлэн бэ,
+   * seek хийвэл хүлээх үү" гэдгийг ХАРЖ мэдэх боломжтой болно.
+   */
+  const [buffered, setBuffered] = useState(0);
+  /** Progress bar дээр хулгана хөдлөхөд гарах урьдчилсан харагдац */
+  const [hover, setHover] = useState<{ time: number; x: number } | null>(null);
+  /** Хулганаар чирч seek хийж байгаа эсэх */
+  const [scrubbing, setScrubbing] = useState(false);
+  const barRef = useRef<HTMLDivElement>(null);
+  /** Thumbnail зурах нуугдмал видео (тусдаа элемент — гол тоглолтод нөлөөлөхгүй) */
+  const thumbVideoRef = useRef<HTMLVideoElement>(null);
+  const thumbCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     let hls: import('hls.js').default | null = null;
@@ -213,20 +227,43 @@ export function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    /**
+     * Одоогийн байрлалыг АГУУЛСАН buffered мужийн төгсгөл.
+     * ⚠️ `buffered` нь олон тасархай муж агуулж болно (хэрэглэгч seek хийхэд).
+     * Сүүлчийнхийг нь биш, ЯГ одоо тоглож буй хэсгийн төгсгөлийг авах ёстой —
+     * тэгэхгүй бол "бүх зүйл ачаалагдсан" мэт худал харагдана.
+     */
+    const readBuffered = () => {
+      const b = video.buffered;
+      const t = video.currentTime;
+      for (let i = 0; i < b.length; i++) {
+        if (t >= b.start(i) - 0.5 && t <= b.end(i) + 0.5) return b.end(i);
+      }
+      return b.length ? b.end(b.length - 1) : 0;
+    };
+
     const onTime = () => {
       setProgress(video.currentTime);
       setDuration(video.duration || 0);
+      setBuffered(readBuffered());
       onProgress?.(video.currentTime, video.duration || 0);
     };
+    // ⚠️ `progress` эвент — түр зогсоосон/гацсан үед ч ачаалал үргэлжилдэг тул
+    // `timeupdate` дангаараа хангалтгүй (тоглохгүй үед огт дуудагддаггүй).
+    const onBuffer = () => setBuffered(readBuffered());
     const onEndedInternal = () => onEnded?.();
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     video.addEventListener('timeupdate', onTime);
+    video.addEventListener('progress', onBuffer);
+    video.addEventListener('seeked', onBuffer);
     video.addEventListener('ended', onEndedInternal);
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
     return () => {
       video.removeEventListener('timeupdate', onTime);
+      video.removeEventListener('progress', onBuffer);
+      video.removeEventListener('seeked', onBuffer);
       video.removeEventListener('ended', onEndedInternal);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
@@ -298,13 +335,132 @@ export function VideoPlayer({
     setSpeedMenuOpen(false);
   };
 
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+  /** Progress bar дээрх x координатыг видеоны секунд болгоно */
+  const timeAtX = useCallback(
+    (clientX: number) => {
+      const rect = barRef.current?.getBoundingClientRect();
+      if (!rect || !duration) return 0;
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      return ratio * duration;
+    },
+    [duration],
+  );
+
+  const seekTo = useCallback((time: number) => {
     const v = videoRef.current;
-    if (!v || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    v.currentTime = ratio * duration;
+    if (v) v.currentTime = time;
+  }, []);
+
+  /**
+   * Хулгана progress bar дээгүүр хөдлөхөд тухайн агшны ХУГАЦАА + ЖИЖИГ ЗУРАГ
+   * (thumbnail) харуулна — YouTube/Netflix-ийн нэгэн адил.
+   *
+   * ⚠️ Thumbnail-ыг тусдаа нуугдмал <video>-оос авна. Гол тоглогчийн
+   * `currentTime`-ыг хөндвөл тоглолт тасалдана.
+   */
+  const onBarMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!duration) return;
+    const time = timeAtX(e.clientX);
+    const rect = barRef.current?.getBoundingClientRect();
+    setHover({ time, x: rect ? e.clientX - rect.left : 0 });
+    if (scrubbing) seekTo(time);
   };
+
+  /**
+   * Hover хугацаа өөрчлөгдөхөд thumbnail-г дахин зурна.
+   * ⚠️ Debounce хийнэ — хулгана хөдлөх бүрт seek хийвэл browser гацна.
+   */
+  useEffect(() => {
+    if (hover === null) return;
+    const tv = thumbVideoRef.current;
+    if (!tv) return;
+    const t = setTimeout(() => {
+      // readyState < 1 бол metadata ачаалагдаагүй — seek хийж болохгүй
+      if (tv.readyState >= 1) tv.currentTime = hover.time;
+    }, 90);
+    return () => clearTimeout(t);
+  }, [hover]);
+
+  /** Нуугдмал видеоны seek дуусмагц canvas руу зурна */
+  useEffect(() => {
+    const tv = thumbVideoRef.current;
+    const canvas = thumbCanvasRef.current;
+    if (!tv || !canvas) return;
+    const draw = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !tv.videoWidth) return;
+      ctx.drawImage(tv, 0, 0, canvas.width, canvas.height);
+    };
+    tv.addEventListener('seeked', draw);
+    return () => tv.removeEventListener('seeked', draw);
+  }, []);
+
+  /**
+   * Thumbnail видеог HLS-ээр ачаална (гол видеотой ижил эх сурвалж).
+   *
+   * ⚠️ ХАМГИЙН БАГА ЧАНАРААР (`startLevel: 0` + `capLevelToPlayerSize`) —
+   * 160×90 зурагт 1080p татах нь сүлжээ дэмий иддэг ба гол тоглолтын
+   * bandwidth-ыг булаана.
+   * ⚠️ ЗӨВХӨН хэрэглэгч progress bar дээр анх hover хийхэд ачаална
+   * (`hover !== null`) — тэгэхгүй бол кино бүр нээхэд илүү нэг урсгал
+   * дэмий эхэлнэ.
+   */
+  const thumbReady = useRef(false);
+  useEffect(() => {
+    if (hover === null || thumbReady.current) return;
+    const tv = thumbVideoRef.current;
+    if (!tv || !src) return;
+    thumbReady.current = true;
+
+    let hls: import('hls.js').default | null = null;
+    const token = getAccessToken();
+
+    (async () => {
+      const HlsMod = (await import('hls.js')).default;
+      if (HlsMod.isSupported()) {
+        hls = new HlsMod({
+          // Гол тоглогчтой ижил дүрэм: token ЗӨВХӨН манай API-д (presigned R2-д БИШ)
+          xhrSetup: (xhr, requestUrl) => {
+            if (token && requestUrl.includes('/api/stream/')) {
+              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+          },
+          startLevel: 0, // хамгийн бага чанар
+          capLevelToPlayerSize: true,
+          maxBufferLength: 4,
+        });
+        hls.loadSource(new URL(src, window.location.origin).toString());
+        hls.attachMedia(tv);
+      } else if (tv.canPlayType('application/vnd.apple.mpegurl')) {
+        tv.src = src; // Safari — уугуул HLS
+      }
+    })();
+
+    return () => {
+      hls?.destroy();
+    };
+  }, [hover, src]);
+
+  // ⚠️ Өөр кино/анги руу шилжвэл thumbnail-г ДАХИН ачаалуулна
+  useEffect(() => {
+    thumbReady.current = false;
+  }, [src]);
+
+  /**
+   * Чирч seek хийх (scrubbing). ⚠️ Эвентийг WINDOW дээр сонсоно — хулгана
+   * bar-аас гарсан ч чирэлт үргэлжлэх ёстой (жинхэнэ player-ийн зан).
+   */
+  useEffect(() => {
+    if (!scrubbing) return;
+    const onMove = (e: MouseEvent) => seekTo(timeAtX(e.clientX));
+    const onUp = () => setScrubbing(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [scrubbing, timeAtX, seekTo]);
 
   // ── Keyboard shortcuts: space=play/pause, ←/→=10с, ↑/↓=volume, f=fullscreen, m=mute ──
   useEffect(() => {
@@ -374,6 +530,22 @@ export function VideoPlayer({
         disableRemotePlayback
       />
 
+      {/*
+        Progress bar дээр hover хийхэд урьдчилсан зураг гаргах НУУГДМАЛ видео.
+        ⚠️ Гол тоглогчийн `currentTime`-ыг ашиглаж болохгүй — тоглолт тасална.
+        ⚠️ `muted` + `preload="metadata"` — дуу гарахгүй, сүлжээ дэмий иднэ.
+      */}
+      <video
+        ref={thumbVideoRef}
+        muted
+        playsInline
+        preload="metadata"
+        crossOrigin="anonymous"
+        aria-hidden
+        tabIndex={-1}
+        className="pointer-events-none absolute size-px opacity-0"
+      />
+
       {/* Skip flash indicator */}
       {seekFlash && (
         <div
@@ -400,19 +572,61 @@ export function VideoPlayer({
 
       {!loading && !error && (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {/* ── Явцын зураас: ачаалагдсан хэсэг + hover thumbnail + чирэлт ── */}
           <div
-            onClick={seek}
+            ref={barRef}
+            onMouseDown={(e) => {
+              setScrubbing(true);
+              seekTo(timeAtX(e.clientX));
+            }}
+            onMouseMove={onBarMove}
+            onMouseLeave={() => setHover(null)}
             role="slider"
+            tabIndex={0}
             aria-label="Видеоны явц"
             aria-valuemin={0}
             aria-valuemax={duration}
             aria-valuenow={progress}
-            className="mb-3 h-1.5 cursor-pointer rounded-full bg-white/25"
+            /* ⚠️ Дарах талбарыг өндөр (py-2) болгов — 1.5px зураасыг оносон
+               эсэхээ хэрэглэгч тааварлах ёсгүй. Харагдац нь нимгэн хэвээр. */
+            className="group/bar relative mb-3 cursor-pointer py-2"
           >
-            <div
-              className="h-full rounded-full bg-primary"
-              style={{ width: duration ? `${(progress / duration) * 100}%` : 0 }}
-            />
+            <div className="relative h-1.5 rounded-full bg-white/25 transition-all group-hover/bar:h-2">
+              {/* Ачаалагдсан (buffered) хэсэг — цайвар */}
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-white/40"
+                style={{ width: duration ? `${Math.min(100, (buffered / duration) * 100)}%` : 0 }}
+              />
+              {/* Тоглосон хэсэг */}
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                style={{ width: duration ? `${(progress / duration) * 100}%` : 0 }}
+              />
+              {/* Бариул — hover/чирэлтийн үед л харагдана */}
+              <div
+                className={cn(
+                  'absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow transition-opacity',
+                  scrubbing ? 'opacity-100' : 'opacity-0 group-hover/bar:opacity-100',
+                )}
+                style={{ left: duration ? `${(progress / duration) * 100}%` : 0 }}
+              />
+            </div>
+
+            {/* Урьдчилсан харагдац — зураг + хугацаа */}
+            {hover && duration > 0 && (
+              <div
+                className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 overflow-hidden rounded-lg border border-white/20 bg-black/90 shadow-xl"
+                style={{
+                  // ⚠️ Хажуу тал руу хальж гарахаас сэргийлж хязгаарлана
+                  left: `clamp(80px, ${hover.x}px, calc(100% - 80px))`,
+                }}
+              >
+                <canvas ref={thumbCanvasRef} width={160} height={90} className="block bg-black" />
+                <div className="py-1 text-center text-xs font-medium tabular-nums text-white">
+                  {formatTime(hover.time)}
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-4 text-white">
             <button onClick={toggle} aria-label={playing ? 'Түр зогсоох' : 'Тоглуулах'}>

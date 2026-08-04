@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { StorageUsageCard } from '@/components/storage-usage-card';
 import {
   ArrowRight,
   Clock,
@@ -197,6 +198,15 @@ export default function DashboardPage() {
 
                 {/* Юүлүүр — үзсэн → тоглуулсан → дуусгасан */}
                 {ins && <FunnelCard funnel={ins.funnel} />}
+
+                {/*
+                  Cloudflare R2 зай — аль кино хэдэн GB эзэлж байгаа.
+                  ⚠️ Хугацааны мужаас ХАМААРАХГҮЙ (одоогийн бодит төлөв) тул
+                  `range`-д хамаарах графикуудаас тусад нь байрлуулав.
+                */}
+                <div className="mt-5">
+                  <StorageUsageCard />
+                </div>
 
                 <div className="mt-5 grid gap-5 lg:grid-cols-2">
                   <ListCard

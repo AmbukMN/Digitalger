@@ -97,9 +97,18 @@ function AuthSessionWatcher() {
       return;
     }
 
-    // OAuth sync-д боломж өгнө; амжилттай бол `userId` солигдож энэ effect
-    // цэвэрлэгдэнэ (timer цуцлагдана).
-    const t = setTimeout(bail, 6_000);
+    /**
+     * OAuth sync-д боломж өгнө. Амжилттай болбол `userId` солигдож энэ
+     * effect дахин ажиллаад timer цуцлагдана.
+     *
+     * ⚠️ Гарахаасаа ӨМНӨ токеныг дахин шалгана — sync амжилттай болсон
+     * хэдий ч query кэш дэх хуучин `error` энэ effect-ийг дуудаж, САЯ
+     * нэвтэрсэн хэрэглэгчийг буруугаар гаргах эрсдэлтэй.
+     */
+    const t = setTimeout(() => {
+      if (useAuth.getState().user && getAccessToken()) return; // сэргэсэн
+      bail();
+    }, 8_000);
     return () => clearTimeout(t);
   }, [error, oauthStatus]);
 

@@ -7,50 +7,6 @@ import FacebookProvider from 'next-auth/providers/facebook';
 // runtime-д зөв утга уншина (build-д bake хийгдэхгүй).
 const BACKEND_URL = process.env.API_URL ?? 'http://localhost:4100';
 
-/** Access token хугацаа дуусахаас хэдэн мс өмнө урьдчилж шинэчлэх */
-const REFRESH_SKEW_MS = 60_000;
-
-/** JWT-ийн `exp`-ыг мс болгож уншина (шалгалтгүй — зөвхөн хугацаа мэдэхэд) */
-function jwtExpiryMs(token?: string): number | undefined {
-  if (!token) return undefined;
-  const payload = token.split('.')[1];
-  if (!payload) return undefined;
-  try {
-    const { exp } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { exp?: number };
-    return typeof exp === 'number' ? exp * 1000 : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Хугацаа дуусахад ойрхон эсэх (хугацаа мэдэгдэхгүй бол шинэчлүүлнэ) */
-function isExpiringSoon(expiresAt?: number): boolean {
-  if (!expiresAt) return true;
-  return Date.now() >= expiresAt - REFRESH_SKEW_MS;
-}
-
-/** refreshToken-оор backend-ээс шинэ access token авна */
-async function refreshAccessToken(
-  refreshToken: string,
-): Promise<{ accessToken: string; refreshToken?: string } | null> {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) {
-      console.error(`[auth][refresh] амжилтгүй ${res.status}`);
-      return null;
-    }
-    const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
-    return data.accessToken ? { accessToken: data.accessToken, refreshToken: data.refreshToken } : null;
-  } catch (e) {
-    console.error('[auth][refresh] алдаа —', e instanceof Error ? e.message : String(e));
-    return null;
-  }
-}
-
 const providers: NextAuthOptions['providers'] = [];
 
 // ⚠️ Client ID/Secret хоосон бол provider бүртгэгдэхгүй — .env дутуу үед
@@ -212,7 +168,6 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
         token.picture = user.image;
-        token.accessExpires = jwtExpiryMs(user.accessToken);
       }
       // useSession().update()-аар client талаас дуудагдана (avatar шинэчлэх г.м.)
       if (trigger === 'update' && session?.picture) {
@@ -220,35 +175,23 @@ export const authOptions: NextAuthOptions = {
       }
 
       /**
-       * ⚠️⚠️ НЭВТРЭЛТ БҮТЭЛГҮЙТЭЖ БАЙСНЫ ЖИНХЭНЭ ШАЛТГААН — ХУГАЦААНЫ ЗӨРҮҮ:
+       * ⚠️⚠️ ЭНД REFRESH ХИЙЖ БОЛОХГҮЙ — МӨНХИЙН ГОГЦОО ҮҮСГЭНЭ.
        *
-       *   backend access token = 15 МИНУТ  (JWT_EXPIRES_IN=15m)
-       *   NextAuth session     = 30 ХОНОГ  (maxAge)
+       * Оролдлого хийж үзсэн: `jwt` callback дотор хугацаа дууссан токеныг
+       * refresh хийдэг болгосон. NextAuth нь энэ callback-ийг `session`
+       * дуудалт БҮРТ ажиллуулдаг ч, буцаасан токеныг cookie-д ДАХИН
+       * БИЧДЭГГҮЙ (зөвхөн signIn/update үед бичнэ). Үр дүнд:
        *
-       * Дээрх блок зөвхөн `if (user)` буюу АНХНЫ нэвтрэлтэд ажилладаг тул
-       * дараагийн зочилол бүрт NextAuth хуучин JWT-гээ дахин ашиглаж,
-       * дотор нь ХУГАЦАА ДУУССАН токеныг session-д тавьдаг байв. Үр дүнд:
-       *   session 200 (токентой) → /auth/me 401 → sync унана → "Нэвтрэх"
-       * товч буцаж гарч, хэрэглэгч ХЭЗЭЭ Ч нэвтэрч чаддаггүй.
+       *   session → refresh 201 → шинэ токен зөвхөн санах ойд үлдэнэ
+       *   дараагийн session → ДАХИН хуучин токен → ДАХИН refresh → ...
        *
-       * Засвар: хугацаа дуусахаас өмнө refreshToken-оор (30 хоног, session-
-       * тэй ижил урт) backend-ээс ШИНЭ access token авна. Ингэснээр session-
-       * д ҮРГЭЛЖ хүчинтэй токен байна.
+       * Production nginx логт яг ийм харагдсан: 45 секунд тутам
+       * `POST /api/auth/refresh 201` × 3, эцэс төгсгөлгүй.
+       *
+       * Тиймээс токен шинэчлэлтийг ЗӨВХӨН client талд (`api.ts` tryRefresh,
+       * localStorage) хийнэ. NextAuth session нь зөвхөн OAuth "гүүр" —
+       * анхны токеныг дамжуулаад цаашид оролцохгүй.
        */
-      if (token.refreshToken && isExpiringSoon(token.accessExpires)) {
-        const refreshed = await refreshAccessToken(String(token.refreshToken));
-        if (refreshed) {
-          token.accessToken = refreshed.accessToken;
-          token.refreshToken = refreshed.refreshToken ?? token.refreshToken;
-          token.accessExpires = jwtExpiryMs(refreshed.accessToken);
-        } else {
-          // refresh ч хүчингүй → session-ийг хүчингүйд тооцно (дахин нэвтэрнэ)
-          token.accessToken = undefined;
-          token.refreshToken = undefined;
-          token.accessExpires = undefined;
-        }
-      }
-
       return token;
     },
 

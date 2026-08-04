@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { InsightsService } from './insights.service';
+import { StorageUsageService } from './storage-usage.service';
 
 /**
  * Хянах самбарын хугацааны сонголт.
@@ -230,6 +231,7 @@ export class AnalyticsController {
   constructor(
     private readonly svc: AnalyticsService,
     private readonly insights: InsightsService,
+    private readonly storageUsage: StorageUsageService,
   ) {}
 
   /** Хэрэглэгчийн зан төлөвийн шинжилгээ (хандалт, юүлүүр, хайлт) */
@@ -242,10 +244,19 @@ export class AnalyticsController {
   dashboard(@Query('range') range?: string) {
     return this.svc.dashboard(range ?? '30d');
   }
+
+  /**
+   * Cloudflare R2 зай эзлэлт — кино тус бүр хэдэн GB эзэлж байгаа.
+   * ⚠️ 10 минут кэштэй (бүрэн скан R2-д үнэтэй). `?refresh=1` — албадан.
+   */
+  @Get('storage')
+  storage(@Query('refresh') refresh?: string) {
+    return this.storageUsage.usage(refresh === '1' || refresh === 'true');
+  }
 }
 
 @Module({
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, InsightsService],
+  providers: [AnalyticsService, InsightsService, StorageUsageService],
 })
 export class AnalyticsModule {}
