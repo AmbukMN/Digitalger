@@ -28,8 +28,12 @@ export function VideoPreview({ kind, id }: { kind: Kind; id: string }) {
 
     const video = videoRef.current;
     const token = getAccessToken();
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
-    const src = `${apiBase}/api/admin/stream/${kind}/${id}/playlist.m3u8`;
+    /**
+     * ⚠️ SAME-ORIGIN — cross-origin үед hls.js-ийн `Authorization` header
+     * preflight дээр алдагдаж 401 буцдаг (upload-тай яг ижил шалтгаан).
+     * Next rewrite `/api/*`-ыг backend руу дамжуулна.
+     */
+    const src = `/api/admin/stream/${kind}/${id}/playlist.m3u8`;
 
     let hls: import('hls.js').default | null = null;
     let cancelled = false;

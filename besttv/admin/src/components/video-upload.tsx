@@ -111,11 +111,11 @@ export function VideoUpload({
         // ⚠️ Next.js rewrite (/api/*) том файл upload-д тохирохгvй (dev/production
         // сервер дундуур stream дамжуулалт найдваргvй, "100%" дээр гацдаг) —
         // backend руу ШУУД absolute URL-аар (Next rewrite тойрч) явуулна.
-        // ⚠️ localhost fallback БАЙХГҮЙ — хоосон бол харьцангуй зам
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+        // ⚠️ SAME-ORIGIN ЗААВАЛ — cross-origin preflight дээр Authorization
+        //    алдагдаж 401 буцдаг (зураг upload-тай яг ижил шалтгаан).
         const form = new FormData();
         form.append('file', file);
-        const resText = await xhrUpload(`${apiBase}/api/admin/uploads/video/direct`, 'POST', form);
+        const resText = await xhrUpload('/api/admin/uploads/video/direct', 'POST', form);
         rawKey = (JSON.parse(resText) as { key: string }).key;
       }
 

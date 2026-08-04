@@ -202,12 +202,18 @@ export function uploadImage(
     form.append('kind', kind);
 
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
-      const url = apiBase
-        ? `${apiBase}/api/admin/uploads/image`
-        : '/api/admin/uploads/image';
-
-      const text = await xhrUpload(url, 'POST', form, {
+      /**
+       * ⚠️⚠️ SAME-ORIGIN ЗААВАЛ — `/api/...` (Next rewrite backend руу дамжуулна).
+       *
+       * Өмнө нь `NEXT_PUBLIC_API_URL` (https://api.besttv.us) ашиглаж
+       * CROSS-ORIGIN болгодог байсан. Тэр үед browser preflight хийж,
+       * зарим орчинд `Authorization` header алдагдаж 401 буцдаг байв.
+       *
+       * Нотолгоо: нэг агшинд `/api/admin/titles` (same-origin) → 200, харин
+       * `api.besttv.us/api/admin/uploads/image` (cross-origin) → 401.
+       * Ижил токен, ижил хэрэглэгч — зөвхөн origin л ялгаатай.
+       */
+      const text = await xhrUpload('/api/admin/uploads/image', 'POST', form, {
         onProgress: (p) => {
           onProgress?.(p);
           t.onProgress?.(p);
@@ -267,13 +273,11 @@ export function uploadVideo(
         await xhrUpload(uploadUrl, 'PUT', file, { onProgress: track, auth: false, signal });
         rawKey = key;
       } else {
-        // Локал драйвер — backend руу ШУУД (Next rewrite том файлд гацдаг)
-        // ⚠️ localhost fallback БАЙХГҮЙ — production дээр буруу хаяг руу
-        // хандаж эвдэрдэг байсан. Хоосон бол харьцангуй зам (Next rewrite).
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+        // ⚠️ SAME-ORIGIN — зурагтай ижил шалтгаан (cross-origin preflight
+        //    дээр Authorization алдагдаж 401 буцдаг). Next rewrite дамжуулна.
         const form = new FormData();
         form.append('file', file);
-        const text = await xhrUpload(`${apiBase}/api/admin/uploads/video/direct`, 'POST', form, {
+        const text = await xhrUpload('/api/admin/uploads/video/direct', 'POST', form, {
           onProgress: track,
           signal,
         });
