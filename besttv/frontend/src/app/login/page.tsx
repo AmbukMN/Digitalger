@@ -44,22 +44,25 @@ export default function LoginPage() {
   }, [authLoading, user, nextUrl, router]);
 
   /**
-   * ⚠️⚠️ ХУУЧИРСАН ТОКЕН ЦЭВЭРЛЭХ — НЭВТРЭЛТ ЦИКЛ БОЛОХООС СЭРГИЙЛНЭ.
+   * ⚠️⚠️⚠️ ЭНД ТОКЕН ЦЭВЭРЛЭЖ БОЛОХГҮЙ — ЭНЭ НЬ НЭВТРЭЛТИЙГ ЭВДЭЖ БАЙВ.
    *
-   * `/login` дээр байгаа боловч localStorage-д токен үлдсэн бол тэр нь
-   * ХУУЧИРСАН гэсэн үг (хүчинтэй байсан бол дээрх effect нүүр рүү
-   * чиглүүлэх байсан). Тэр токеныг үлдээвэл:
-   *   Google нэвтрэлт → session үүснэ → бусад компонент ХУУЧИН токеноор
-   *   /auth/me дуудна → 401 → хуучин refresh-ээр шинэчилнэ (201 ч буруу
-   *   хэрэглэгчийнх) → дахин 401 → /login руу буцна = МӨНХИЙН ЦИКЛ.
+   * Өмнө нь "хуучирсан токен цэвэрлэх" зорилгоор `clearTokens()` дуудаж
+   * байсан нь Google/Facebook нэвтрэлтийг БҮРМӨСӨН БҮТЭЛГҮЙТҮҮЛЖ байлаа:
    *
-   * ⚠️ `authLoading` дуустал хүлээнэ — эс бөгөөс хүчинтэй токеныг
-   *    шалгаж амжаагүй байхад устгана.
+   *   1. Google callback → NextAuth session үүснэ → `/` рүү 302
+   *   2. `OAuthSessionSync` ШИНЭ токеныг localStorage-д бичнэ
+   *   3. Гэвч `refreshMe()` дуусаагүй тул `user` ХАРААХАН null,
+   *      `authLoading` аль хэдийн false
+   *   4. Хэрэглэгч энэ агшинд `/login`-д хүрвэл (redirect гинжин хэлхээнд)
+   *      → энэ effect САЯ ХАДГАЛСАН ХҮЧИНТЭЙ ТОКЕНЫГ УСТГАНА
+   *   5. → нэвтрэлт бүтэлгүйтэж "Нэвтрэх" товч буцаж гарна
+   *
+   * Production nginx лог нотолсон:
+   *   callback/google 302 → GET / → session → GET /login → /auth/me
+   *
+   * Хуучирсан токеныг `api.ts` ӨӨРӨӨ зохицуулна: 401 → refresh →
+   * амжилтгүй бол `clearTokens()`. Энд давхар цэвэрлэх шаардлагагүй.
    */
-  useEffect(() => {
-    if (authLoading || user) return;
-    if (getAccessToken() || getRefreshToken()) clearTokens();
-  }, [authLoading, user]);
 
   const passwordsMismatch =
     mode === 'register' && confirmPassword.length > 0 && password !== confirmPassword;

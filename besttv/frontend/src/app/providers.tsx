@@ -92,24 +92,20 @@ function AuthSessionWatcher() {
       nextAuthSignOut({ redirect: false }).catch(() => null);
     };
 
-    if (oauthStatus !== 'authenticated') {
-      bail();
-      return;
-    }
-
     /**
-     * OAuth sync-д боломж өгнө. Амжилттай болбол `userId` солигдож энэ
-     * effect дахин ажиллаад timer цуцлагдана.
+     * ⚠️⚠️ NextAuth session БАЙВАЛ ГАРГАХГҮЙ.
      *
-     * ⚠️ Гарахаасаа ӨМНӨ токеныг дахин шалгана — sync амжилттай болсон
-     * хэдий ч query кэш дэх хуучин `error` энэ effect-ийг дуудаж, САЯ
-     * нэвтэрсэн хэрэглэгчийг буруугаар гаргах эрсдэлтэй.
+     * Хэрэглэгч Google/Facebook-ээр саяхан нэвтэрсэн бол session хүчинтэй.
+     * Тэр үед 401 гарах нь ЗӨВХӨН токен sync хийгдэж дуусаагүйгээс —
+     * `OAuthSessionSync` шинэ токеноор сэргээнэ. Энд хүчээр гаргавал
+     * САЯ АМЖИЛТТАЙ нэвтэрсэн хэрэглэгчийг буцаана (яг тэр алдаа
+     * production дээр гарч байв).
+     *
+     * Session үнэхээр хүчингүй бол NextAuth өөрөө `unauthenticated`
+     * болгоно — тэр үед доорх `bail()` ажиллана.
      */
-    const t = setTimeout(() => {
-      if (useAuth.getState().user && getAccessToken()) return; // сэргэсэн
-      bail();
-    }, 8_000);
-    return () => clearTimeout(t);
+    if (oauthStatus === 'authenticated') return;
+    bail();
   }, [error, oauthStatus]);
 
   return null;
