@@ -109,22 +109,26 @@ export function Footer() {
                 - МОБАЙЛ: нэг мөрөнд зэрэгцээ (footer урт болохгүй)
                 - ДЕСКТОП: форм нь тайлбарын ЯГ ДООР, нарийхан
             */}
-            <div className="mt-3 flex flex-wrap items-stretch gap-x-4 gap-y-3 md:block">
-              <p className="min-w-0 flex-1 max-w-xs self-start text-sm leading-relaxed text-white/45">
+            {/*
+              ⚠️ МОБАЙЛ 60/40: тайлбар 60%, имэйл хэсэг 40%. Өмнө нь
+              `flex-wrap` + `max-w-[220px]` байсан тул тайлбар ~60%-ийг
+              эзлээд input давчуурч байв. Одоо тогтмол харьцаа.
+            */}
+            <div className="mt-3 flex items-stretch gap-3 md:block">
+              <p className="min-w-0 basis-[58%] self-start text-sm leading-relaxed text-white/45 md:max-w-xs md:basis-auto">
                 Үз, мэдэр, дахин үз. Монголын киноны стриминг платформ.
               </p>
 
               {/*
                 ⚠️ Тусгаарлагч зураас — ЗӨВХОН МОБАЙЛ (md:hidden).
                 Десктоп дээр форм нь тайлбарын доор босдог тул зураас утгагүй.
-                `self-stretch` — хажуугийн хоёр блокийн өндрөөр сунана.
               */}
               <div
                 aria-hidden="true"
                 className="w-px shrink-0 self-stretch bg-white/10 md:hidden"
               />
 
-              <div className="w-full max-w-[220px] shrink-0 md:mt-4">
+              <div className="min-w-0 basis-[42%] md:mt-4 md:w-full md:max-w-[220px] md:basis-auto">
                 <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/40">
                   Шинэ кино авах
                 </h3>
@@ -196,13 +200,24 @@ export function Footer() {
           </div>
         </div>
 
-        {/* ⚠️ Хууль эрх зүйн хуудсууд — доод мөрөнд, copyright-ийн хажууд */}
-        <div className="mt-8 flex flex-col items-start justify-between gap-3 border-t border-white/8 pt-6 text-xs text-white/35 sm:flex-row md:mt-10">
+        {/*
+          ⚠️ Хууль эрх зүйн хуудсууд — доод мөрөнд, copyright-ийн хажууд.
+          МОБАЙЛД голлуулна (текст зүүн тийш нийлж эмх замбараагүй харагдаж
+          байсан); ДЕСКТОПТ хуучнаар зүүн/баруун.
+        */}
+        {/*
+          ⚠️ pb — мобайлд баруун доод буланд ХӨВӨГЧ чат товч байдаг тул
+          сүүлийн мөрийг халхлахаас сэргийлж доод зай нэмнэ.
+        */}
+        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-white/8 pb-14 pt-6 text-center text-xs text-white/35 sm:flex-row sm:items-start sm:pb-0 sm:text-left md:mt-10">
           <p>
             © {new Date().getFullYear()} {siteName}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
           {!!pages?.length && (
-            <nav aria-label="Хууль эрх зүй" className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
+            <nav
+              aria-label="Хууль эрх зүй"
+              className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1.5 sm:justify-start"
+            >
               {pages.map((p, i) => (
                 <span key={p.slug} className="flex items-center gap-1">
                   {i > 0 && <span aria-hidden>·</span>}

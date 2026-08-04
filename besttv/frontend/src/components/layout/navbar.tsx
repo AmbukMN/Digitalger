@@ -90,9 +90,14 @@ export function Navbar() {
       >
         Үндсэн контент руу шилжих
       </a>
-      <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-6 px-4 md:px-8">
+      {/*
+        ⚠️ МОБАЙЛД БАГТААХ: gap-6 нь утсан дээр хэт өргөн байсан тул логоны
+        баруун тал (хайх + багц + профайл) дэлгэцнээс хальж байв.
+        Мобайлд gap-2 + px-3, лого арай жижиг.
+      */}
+      <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-3 sm:gap-4 md:gap-6 md:px-8">
         <Link href="/" className="flex shrink-0 items-center" aria-label={`${siteName} нүүр`}>
-          <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto" />
+          <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-7 w-auto sm:h-9" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 text-sm" aria-label="Үндсэн цэс">
@@ -169,12 +174,12 @@ export function Navbar() {
           товч ХАРУУЛАХГҮЙ.
         */}
         {authLoading ? (
-          <div className="flex items-center gap-3" aria-hidden>
-            <span className="skeleton-shimmer h-7 w-24 rounded-full" />
-            <span className="skeleton-shimmer h-9 w-9 rounded-full" />
+          <div className="flex items-center gap-2 sm:gap-3" aria-hidden>
+            <span className="skeleton-shimmer h-7 w-20 rounded-full sm:w-24" />
+            <span className="skeleton-shimmer h-8 w-8 rounded-full sm:h-9 sm:w-9" />
           </div>
         ) : user ? (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {/*
               ⚠️ МОБАЙЛД ч харагдана (өмнө нь `hidden sm:inline-flex` байсан).
                 - Багцгүй → "Багц авах" товч
@@ -189,7 +194,8 @@ export function Navbar() {
                     : undefined
                 }
                 className={cn(
-                  'inline-flex max-w-[46vw] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all sm:max-w-none sm:px-3.5',
+                  // ⚠️ 46vw нь мобайлд хэт өргөн — header дэлгэцнээс хальж байв
+                  'inline-flex min-w-0 max-w-[30vw] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all sm:max-w-none sm:gap-1.5 sm:px-3.5 sm:text-xs',
                   vip
                     ? 'bg-premium text-premium-foreground hover:brightness-110'
                     : 'bg-white/10 text-white hover:bg-white/16',

@@ -66,29 +66,91 @@ export function VideoPlayer({
       const HlsMod = (await import('hls.js')).default;
       if (HlsMod.isSupported()) {
         hls = new HlsMod({
-          xhrSetup: (xhr) => {
-            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          /**
+           * ⚠️⚠️ ВИДЕО ТОГЛОГДОХГҮЙ БАЙСНЫ ГОЛ ШАЛТГААН:
+           * Өмнө нь `Authorization`-ийг БҮХ хүсэлтэд тавьдаг байсан. Гэтэл
+           * m3u8 доторх segment-үүд нь R2-ийн PRESIGNED URL:
+           *   1) `Authorization` бол simple header БИШ → browser preflight хийнэ
+           *   2) Presigned гарын үсэг тэр header-ийг тооцоогүй → R2 ТАТГАЛЗАНА
+           *   3) Segment ачаалагдахгүй → play дарсан ч юу ч тоглохгүй
+           * Тиймээс ЗӨВХӨН манай API руу явах m3u8-д л token тавина.
+           */
+          xhrSetup: (xhr, requestUrl) => {
+            if (token && requestUrl.includes('/api/stream/')) {
+              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
           },
+          // Гар утасны сүлжээнд буферыг богино барина (эхлэх хурд чухал)
+          maxBufferLength: 30,
+          startLevel: -1, // bandwidth-аар автоматаар чанар сонгоно
         });
         hls.loadSource(url.toString());
         hls.attachMedia(video);
         hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
           setLoading(false);
           if (startAt && startAt > 0) video.currentTime = startAt;
+          // ⚠️ AUTOPLAY — хэрэглэгч кино дээр дарж ирсэн тул шууд эхэлнэ.
+          // Дуутай autoplay-г browser блоклодог тул амжилтгүй бол ЧИМЭЭГҮЙ
+          // болгож дахин оролдоно (Netflix/YouTube-ийн зан төлөв).
+          video.play().catch(() => {
+            video.muted = true;
+            setMuted(true);
+            video.play().catch(() => {
+              /* хэрэглэгч гараар дарна */
+            });
+          });
         });
         hls.on(HlsMod.Events.ERROR, (_evt, data) => {
-          if (data.fatal) setError('Видео тоглуулж чадсангүй');
+          if (!data.fatal) return;
+          /**
+           * ⚠️ Fatal алдааг ЗААВАЛ сэргээхийг оролдоно — өмнө нь шууд
+           * "тоглуулж чадсангүй" гээд бууж өгдөг байсан тул сүлжээ түр
+           * тасрахад л видео мөнхөд зогсдог байв.
+           */
+          if (data.type === HlsMod.ErrorTypes.NETWORK_ERROR) {
+            hls?.startLoad();
+            return;
+          }
+          if (data.type === HlsMod.ErrorTypes.MEDIA_ERROR) {
+            hls?.recoverMediaError();
+            return;
+          }
+          setLoading(false);
+          setError(
+            data.response?.code === 403
+              ? 'Энэ контентыг үзэх эрх шаардлагатай'
+              : data.response?.code === 404
+                ? 'Видео олдсонгүй — хөрвүүлэлт дуусаагүй байж болзошгүй'
+                : 'Видео тоглуулж чадсангүй',
+          );
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari / iOS — HLS-ийг өөрөө дэмжинэ
         video.src = url.toString();
         video.addEventListener(
           'loadedmetadata',
           () => {
             setLoading(false);
             if (startAt && startAt > 0) video.currentTime = startAt;
+            video.play().catch(() => {
+              video.muted = true;
+              setMuted(true);
+              video.play().catch(() => {});
+            });
           },
           { once: true },
         );
+        video.addEventListener(
+          'error',
+          () => {
+            setLoading(false);
+            setError('Видео тоглуулж чадсангүй');
+          },
+          { once: true },
+        );
+      } else {
+        setLoading(false);
+        setError('Энэ браузер видео дэмжихгүй байна');
       }
     })();
 
