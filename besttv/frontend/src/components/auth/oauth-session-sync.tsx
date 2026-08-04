@@ -3,49 +3,28 @@
 import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAuth } from '@/lib/auth-store';
-import { getAccessToken } from '@/lib/api';
 
 /**
- * OAuth "гүүр" — Google/Facebook нэвтрэлтийн үр дүнг манай JWT flow руу
- * дамжуулна.
- *
- * ⚠️⚠️ SESSION-ИЙН `accessToken`-Г ОГТ ХЭРЭГЛЭХГҮЙ.
- *
- * NextAuth session нь 30 ХОНОГ амьдардаг ч дотор нь 15 МИНУТЫН access
- * token ЦАРЦСАН байдаг (`jwt` callback зөвхөн анхны нэвтрэлтэд бичдэг).
- * Тиймээс session-ийн `accessToken` нь бараг ҮРГЭЛЖ хугацаа нь дууссан
- * байдаг — production backend лог үүнийг олон удаа баталсан:
- *     [jwt] 401 /api/auth/me — TokenExpiredError: jwt expired
- *
- * Урьд нь тэр хуучин токеныг хадгалаад дараа нь засах гэж оролдож
- * байсан нь олон давхар логик (хугацаа шалгах, уралдаан хаах,
- * амжилтгүй токен тэмдэглэх) хуримтлуулж, бүгд бие биенээ эвдэж байв.
- *
- * ЗӨВ ЗАМ: session-ээс ЗӨВХӨН `refreshToken` (30 хоног — session-тэй
- * ижил урт) авч, түүгээр ШИНЭ access token авна. Хугацааны ямар ч
- * шалгалт хэрэггүй — сервер өөрөө шийднэ.
+ * Google/Facebook signIn() амжилттай болмогц NextAuth session-д
+ * backend-ийн accessToken/refreshToken гарч ирнэ (auth.ts callbacks.session).
+ * Энэ мөрийг манай localStorage JWT (btv_access/btv_refresh) руу
+ * нэг удаа хуулна — цаашид апп бүхэлдээ өөрийн JWT flow-оор ажиллана
+ * (NextAuth session-ийг зөвхөн OAuth "гүүр" болгож ашиглана).
  */
 export function OAuthSessionSync() {
   const { data: session, status } = useSession();
   const syncFromOAuth = useAuth((s) => s.syncFromOAuth);
-  const done = useRef(false);
+  const synced = useRef<string | null>(null);
 
   useEffect(() => {
-    if (status !== 'authenticated' || done.current) return;
+    if (status !== 'authenticated') return;
+    const accessToken = (session as any)?.accessToken as string | undefined;
+    const refreshToken = (session as any)?.refreshToken as string | undefined;
+    if (!accessToken || !refreshToken) return;
+    if (synced.current === accessToken) return; // давхар sync хийхгүй
 
-    const refreshToken = session?.refreshToken;
-    if (!refreshToken) return;
-
-    // Аль хэдийн токентой бол гүүр хэрэггүй
-    if (getAccessToken()) {
-      done.current = true;
-      return;
-    }
-
-    done.current = true;
-    syncFromOAuth(refreshToken).catch(() => {
-      done.current = false; // шинэ session ирвэл дахин оролдоно
-    });
+    synced.current = accessToken;
+    syncFromOAuth(accessToken, refreshToken).catch(() => null);
   }, [session, status, syncFromOAuth]);
 
   return null;

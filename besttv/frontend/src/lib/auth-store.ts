@@ -2,15 +2,7 @@
 
 import { create } from 'zustand';
 import { signOut as nextAuthSignOut } from 'next-auth/react';
-import {
-  api,
-  clearTokens,
-  getAccessToken,
-  getRefreshToken,
-  refreshWithToken,
-  setTokens,
-  tryRefresh,
-} from './api';
+import { api, clearTokens, getAccessToken, getRefreshToken, setTokens } from './api';
 
 /** Хэрэглэгчийн идэвхтэй нэг багц (олон багц зэрэг байж болно) */
 export interface UserSubscription {
@@ -53,7 +45,7 @@ interface AuthState {
   register: (email: string, password: string, name?: string) => Promise<void>;
   /** OAuth signIn амжилттай болсны дараа NextAuth session-оос ирсэн
    * accessToken/refreshToken-г манай localStorage руу хадгална. */
-  syncFromOAuth: (refreshToken: string) => Promise<void>;
+  syncFromOAuth: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => void;
   refreshMe: () => Promise<void>;
   /**
@@ -121,22 +113,6 @@ export const useAuth = create<AuthState>((set, get) => ({
       return;
     }
 
-    /**
-     * ⚠️ ACCESS ХУГАЦАА ДУУССАН БОЛ ЭХЛЭЭД REFRESH.
-     *
-     * Тэгэхгүй бол `init()` болон `AuthSessionWatcher` хоёр ЗЭРЭГ хуучин
-     * токеноор дуудаж, хоёр дэмий 401 үүсгэдэг (production console дээр
-     * яг ийм: `/auth/me 401` × 2 → дараа нь refresh → 200).
-     *
-     * ⚠️ Хугацааг `Date.now()`-оор ШАЛГАХГҮЙ — хэрэглэгчийн цаг зөрж
-     * болно. Оронд нь access БАЙХГҮЙ (зөвхөн refresh) үед л урьдчилж
-     * шинэчилнэ. Access байвал шууд оролдоод, 401 гарвал `api()` өөрөө
-     * сэргээнэ.
-     */
-    if (!getAccessToken() && getRefreshToken()) {
-      await tryRefresh();
-    }
-
     // ⚠️ ХАМГИЙН ЧУХАЛ: кэшнээс ШУУД сэргээнэ — сервер хүлээхгүй.
     // Ингэснээр "Нэвтрэх → Профайл" гэсэн харагдацын үсрэлт (flash) арилна.
     const cached = readUserCache();
@@ -176,34 +152,9 @@ export const useAuth = create<AuthState>((set, get) => ({
     await get().refreshMe();
   },
 
-  /**
-   * OAuth (Google/Facebook) нэвтрэлтийн "гүүр".
-   *
-   * ⚠️⚠️ ЭНГИЙН БАЙЛГАХ НЬ ЧУХАЛ — БҮХ ХУГАЦААНЫ ШАЛГАЛТЫГ ХАССАН.
-   *
-   * Өмнө нь `Date.now()`-оор токены `exp`-г урьдчилж шалгадаг байсан нь
-   * ЭМЗЭГ бөгөөд ИЛҮҮЦ: хэрэглэгчийн төхөөрөмжийн цаг зөрвөл (эсвэл
-   * цагийн бүс/DST буруу тохируулсан бол) client "хүчинтэй" гэж бодоод
-   * сервер "дууссан" гэж татгалздаг → хэрэглэгч мөнхөд нэвтэрч чадахгүй.
-   * Production-д яг ийм болсон: сервер Герман, хэрэглэгч Монголд.
-   *
-   * ⚠️ ХУГАЦААГ ЗӨВХӨН СЕРВЕР ШИЙДНЭ. Client нь оролдоод, 401 гарвал
-   * refreshToken-оор (30 хоног) сэргээнэ. Ямар ч цагийн тохиргоонд
-   * зөв ажиллана.
-   */
-  syncFromOAuth: async (refreshToken) => {
-    // Session-ийн refreshToken-оор ШИНЭ access token авна
-    const fresh = await refreshWithToken(refreshToken);
-    if (!fresh) {
-      clearTokens();
-      throw new Error('Нэвтрэлт сэргээж чадсангүй. Дахин нэвтэрнэ үү.');
-    }
-    setTokens(fresh.accessToken, fresh.refreshToken);
-    // ⚠️ Токеныг ПАРАМЕТРЭЭР — localStorage-оос уншвал зэрэг ажиллаж буй
-    //    өөр код дарж бичсэн байж болно
-    const user = await api<AuthUser>('/auth/me', { token: fresh.accessToken });
-    writeUserCache(user);
-    set({ user });
+  syncFromOAuth: async (accessToken, refreshToken) => {
+    setTokens(accessToken, refreshToken);
+    await get().refreshMe();
   },
 
   logout: () => {

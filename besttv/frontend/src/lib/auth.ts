@@ -68,42 +68,10 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
-  /**
-   * ⚠️⚠️ COOKIES ТОХИРГОО ГАРААР ӨГӨХГҮЙ.
-   *
-   * Оролдлого хийж `state`/`pkce`-ыг SameSite=None болгосон нь НЭВТРЭЛТ
-   * БҮРЭН ЭВДСЭН: NextAuth-д `cookies` объектыг гараар өгвөл анхдагч
-   * утгуудтай НЭГТГЭДЭГГҮЙ — зөвхөн бичсэн түлхүүрүүд үйлчилнэ. Тиймээс
-   * `sessionToken` тодорхойлолтгүй үлдэж, SESSION COOKIE ОГТ ТАВИГДАХГҮЙ
-   * болж, callback амжилттай болсон ч хэрэглэгч /login руу буцдаг байв.
-   *
-   * NextAuth нь `NEXTAUTH_URL` https байхад аюулгүй анхдагчийг (__Secure-
-   * угтвар, secure: true) ӨӨРӨӨ хэрэглэдэг тул гараар тохируулах
-   * шаардлагагүй.
-   */
   pages: {
     signIn: '/login',
     error: '/login',
   },
-
-  /**
-   * ⚠️ OAuth алдааг PRODUCTION ЛОГТ гаргана.
-   * Анхдагчаар NextAuth production-д зөвхөн `error`-ыг хэвлэдэг ч
-   * `signIn` callback доторх алдаа чимээгүй `false` болж, шалтгаан нь
-   * хаана ч харагддаггүй байв. Одоо тодорхой мессежтэй.
-   */
-  logger: {
-    error(code, metadata) {
-      console.error('[auth][error]', code, JSON.stringify(metadata)?.slice(0, 500));
-    },
-    warn(code) {
-      console.warn('[auth][warn]', code);
-    },
-    debug() {
-      /* production-д debug хэвлэхгүй */
-    },
-  },
-
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google' || account?.provider === 'facebook') {
@@ -119,41 +87,15 @@ export const authOptions: NextAuthOptions = {
               image: user.image ?? (profile as { picture?: string })?.picture ?? null,
             }),
           });
-          /**
-           * ⚠️ Өмнө нь ЧИМЭЭГҮЙ `return false` байсан тул нэвтрэлт бүтэлгүй
-           * болоод шалтгаан нь хаана ч харагддаггүй, хэрэглэгч зөвхөн
-           * "нэвтрэх товч буцаж гарах" л хардаг байв.
-           */
-          if (!res.ok) {
-            const body = await res.text().catch(() => '');
-            console.error(
-              `[auth][oauth] ${account.provider} FAILED ${res.status} — ${body.slice(0, 300)}`,
-            );
-            return false;
-          }
+          if (!res.ok) return false;
 
-          /**
-           * ⚠️ `as any` ХЭРЭГГҮЙ — `types/next-auth.d.ts`-д User/JWT/Session
-           * төрлүүд аль хэдийн өргөтгөгдсөн. `as any` нь тэр хамгаалалтыг
-           * үгүйсгэж, талбарын нэр солигдоход compile үед баригдахгүй болгож
-           * байв.
-           */
-          const data = (await res.json()) as {
-            user: { id: string; role: string; isGuest?: boolean };
-            accessToken: string;
-            refreshToken: string;
-          };
+          const data = await res.json();
           user.id = data.user.id;
-          user.role = data.user.role;
-          user.isGuest = data.user.isGuest ?? false;
-          user.accessToken = data.accessToken;
-          user.refreshToken = data.refreshToken;
-        } catch (e) {
-          // ⚠️ Сүлжээ/JSON алдаа — өмнө нь чимээгүй `false` байсан
-          console.error(
-            `[auth][oauth] ${account.provider} THREW —`,
-            e instanceof Error ? e.message : String(e),
-          );
+          (user as any).role = data.user.role;
+          (user as any).isGuest = data.user.isGuest ?? false;
+          (user as any).accessToken = data.accessToken;
+          (user as any).refreshToken = data.refreshToken;
+        } catch {
           return false;
         }
       }
@@ -163,47 +105,28 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
-        token.isGuest = user.isGuest ?? false;
-        token.accessToken = user.accessToken;
-        token.refreshToken = user.refreshToken;
+        token.role = (user as any).role;
+        token.isGuest = (user as any).isGuest ?? false;
+        token.accessToken = (user as any).accessToken;
+        token.refreshToken = (user as any).refreshToken;
         token.picture = user.image;
       }
       // useSession().update()-аар client талаас дуудагдана (avatar шинэчлэх г.м.)
       if (trigger === 'update' && session?.picture) {
         token.picture = session.picture;
       }
-
-      /**
-       * ⚠️⚠️ ЭНД REFRESH ХИЙЖ БОЛОХГҮЙ — МӨНХИЙН ГОГЦОО ҮҮСГЭНЭ.
-       *
-       * Оролдлого хийж үзсэн: `jwt` callback дотор хугацаа дууссан токеныг
-       * refresh хийдэг болгосон. NextAuth нь энэ callback-ийг `session`
-       * дуудалт БҮРТ ажиллуулдаг ч, буцаасан токеныг cookie-д ДАХИН
-       * БИЧДЭГГҮЙ (зөвхөн signIn/update үед бичнэ). Үр дүнд:
-       *
-       *   session → refresh 201 → шинэ токен зөвхөн санах ойд үлдэнэ
-       *   дараагийн session → ДАХИН хуучин токен → ДАХИН refresh → ...
-       *
-       * Production nginx логт яг ийм харагдсан: 45 секунд тутам
-       * `POST /api/auth/refresh 201` × 3, эцэс төгсгөлгүй.
-       *
-       * Тиймээс токен шинэчлэлтийг ЗӨВХӨН client талд (`api.ts` tryRefresh,
-       * localStorage) хийнэ. NextAuth session нь зөвхөн OAuth "гүүр" —
-       * анхны токеныг дамжуулаад цаашид оролцохгүй.
-       */
       return token;
     },
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.isGuest = token.isGuest ?? false;
-        session.user.image = token.picture ?? session.user.image;
+        session.user.id = token.id as string;
+        (session.user as any).role = token.role;
+        (session.user as any).isGuest = token.isGuest ?? false;
+        session.user.image = (token.picture as string) ?? session.user.image;
       }
-      session.accessToken = token.accessToken;
-      session.refreshToken = token.refreshToken;
+      (session as any).accessToken = token.accessToken;
+      (session as any).refreshToken = token.refreshToken;
       return session;
     },
   },

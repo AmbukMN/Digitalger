@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
 import { useAuth } from '@/lib/auth-store';
-import { clearTokens, getAccessToken, getRefreshToken } from '@/lib/api';
 import { useBrand } from '@/lib/queries';
 import { SocialButtons } from '@/components/auth/social-buttons';
 
@@ -42,27 +41,6 @@ export default function LoginPage() {
   useEffect(() => {
     if (!authLoading && user) router.replace(nextUrl);
   }, [authLoading, user, nextUrl, router]);
-
-  /**
-   * ⚠️⚠️⚠️ ЭНД ТОКЕН ЦЭВЭРЛЭЖ БОЛОХГҮЙ — ЭНЭ НЬ НЭВТРЭЛТИЙГ ЭВДЭЖ БАЙВ.
-   *
-   * Өмнө нь "хуучирсан токен цэвэрлэх" зорилгоор `clearTokens()` дуудаж
-   * байсан нь Google/Facebook нэвтрэлтийг БҮРМӨСӨН БҮТЭЛГҮЙТҮҮЛЖ байлаа:
-   *
-   *   1. Google callback → NextAuth session үүснэ → `/` рүү 302
-   *   2. `OAuthSessionSync` ШИНЭ токеныг localStorage-д бичнэ
-   *   3. Гэвч `refreshMe()` дуусаагүй тул `user` ХАРААХАН null,
-   *      `authLoading` аль хэдийн false
-   *   4. Хэрэглэгч энэ агшинд `/login`-д хүрвэл (redirect гинжин хэлхээнд)
-   *      → энэ effect САЯ ХАДГАЛСАН ХҮЧИНТЭЙ ТОКЕНЫГ УСТГАНА
-   *   5. → нэвтрэлт бүтэлгүйтэж "Нэвтрэх" товч буцаж гарна
-   *
-   * Production nginx лог нотолсон:
-   *   callback/google 302 → GET / → session → GET /login → /auth/me
-   *
-   * Хуучирсан токеныг `api.ts` ӨӨРӨӨ зохицуулна: 401 → refresh →
-   * амжилтгүй бол `clearTokens()`. Энд давхар цэвэрлэх шаардлагагүй.
-   */
 
   const passwordsMismatch =
     mode === 'register' && confirmPassword.length > 0 && password !== confirmPassword;

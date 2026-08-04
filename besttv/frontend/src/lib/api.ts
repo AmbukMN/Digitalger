@@ -5,70 +5,26 @@ const API_BASE = '/api';
 
 let refreshPromise: Promise<'ok' | 'invalid' | 'network'> | null = null;
 
-/**
- * ⚠️⚠️ LOCALSTORAGE УНАЖ БОЛНО — ЗААВАЛ ХАМГААЛНА.
- *
- * `localStorage` нь дараах тохиолдолд ШИДДЭГ (throw), буцаадаггүй:
- *   - Chrome site settings-д тухайн сайтын cookie/site data ХОРИГЛОСОН
- *   - Хадгалах багтаамж дүүрсэн (QuotaExceededError)
- *   - Зарим browser-ийн хатуу privacy горим
- *
- * Production-д нэг хэрэглэгч ГАНЦ Chrome profile дээрээ нэвтэрч чаддаггүй
- * байв (incognito ✅, гар утас ✅). Хамгаалалтгүй `setItem` шидэхэд
- * `setTokens` бүхэлдээ унаж, токен ХАДГАЛАГДАХГҮЙ үлддэг:
- *     refresh 201 → me 401 → refresh 201 → me 401 … (production лог)
- * Хэрэглэгч "Нэвтрэх" товч хараад л үлдэнэ, шалтгаан нь хаана ч гарахгүй.
- *
- * Одоо localStorage унавал САНАХ ОЙН нөөц рүү шилжинэ — тухайн таб дээр
- * нэвтрэлт бүрэн ажиллана (шинэ таб нээхэд л дахин нэвтэрнэ).
- */
-const memStore = new Map<string, string>();
-
-function lsGet(key: string): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem(key) ?? memStore.get(key) ?? null;
-  } catch {
-    return memStore.get(key) ?? null;
-  }
-}
-
-function lsSet(key: string, value: string) {
-  memStore.set(key, value); // ⚠️ ҮРГЭЛЖ санах ойд — localStorage унасан ч ажиллана
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* хориглосон/дүүрсэн — санах ойн хуулбар хангалттай */
-  }
-}
-
-function lsRemove(key: string) {
-  memStore.delete(key);
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    /* алгасна */
-  }
-}
-
 export function getAccessToken(): string | null {
-  return lsGet('btv_access');
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('btv_access');
 }
 
 export function setTokens(access: string, refresh: string) {
-  lsSet('btv_access', access);
-  lsSet('btv_refresh', refresh);
+  localStorage.setItem('btv_access', access);
+  localStorage.setItem('btv_refresh', refresh);
 }
 
 export function clearTokens() {
-  lsRemove('btv_access');
-  lsRemove('btv_refresh');
+  localStorage.removeItem('btv_access');
+  localStorage.removeItem('btv_refresh');
 }
 
 // ⚠️ Зочны нэвтрэлт (guest) БҮРМӨСӨН ХАСАГДСАН — зөвхөн имэйл/Google/Facebook.
 
 export function getRefreshToken(): string | null {
-  return lsGet('btv_refresh');
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('btv_refresh');
 }
 
 /**
@@ -78,36 +34,7 @@ export function getRefreshToken(): string | null {
  * эс бөгөөс түр саатлаас болж хэрэглэгч шалтгаангүй гарч, дахин нэвтрэх
  * шаардлагатай болно. Зөвхөн сервер "хүчингүй" гэж хэлсэн үед л гаргана.
  */
-/**
- * Өгөгдсөн refreshToken-оор backend-ээс шинэ токен авна (localStorage-д
- * бичихгүй — дуудагч өөрөө шийднэ).
- *
- * ⚠️ Экспортолсон шалтгаан: OAuth sync үед localStorage аль хэдийн
- * цэвэрлэгдсэн байж болох тул NextAuth session-ээс ирсэн refreshToken-г
- * ШУУД дамжуулах шаардлагатай (`tryRefresh` нь localStorage-оос уншдаг).
- */
-export async function refreshWithToken(
-  refreshToken: string,
-): Promise<{ accessToken: string; refreshToken: string } | null> {
-  if (!refreshToken) return null;
-  try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.accessToken
-      ? { accessToken: data.accessToken, refreshToken: data.refreshToken ?? refreshToken }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** localStorage дахь refreshToken-оор шинэ access token авч, тэндээ хадгална. */
-export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
+async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return 'invalid';
   try {
@@ -130,39 +57,20 @@ export async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
 
 export async function api<T = unknown>(
   path: string,
-  options: RequestInit & {
-    auth?: boolean;
-    /**
-     * ⚠️ Токеныг ШУУД өгөх (localStorage-оос уншихгүй).
-     *
-     * OAuth sync-д зайлшгүй: `setTokens` бичих ба энэ функц унших хооронд
-     * өөр sync зэрэг ажиллаж localStorage-ыг дарж бичих УРАЛДААН гардаг.
-     * Production console-д яг ийм: refresh 201 "таарсан: тийм" → me 401.
-     */
-    token?: string;
-  } = {},
+  options: RequestInit & { auth?: boolean } = {},
 ): Promise<T> {
-  const { auth = true, token: forcedToken, ...init } = options;
+  const { auth = true, ...init } = options;
 
   const doFetch = () => {
-    const token = auth ? (forcedToken ?? getAccessToken()) : null;
+    const token = auth ? getAccessToken() : null;
     return fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
         ...(init.body && !(init.body instanceof FormData)
           ? { 'Content-Type': 'application/json' }
           : {}),
-        ...init.headers,
-        /**
-         * ⚠️⚠️ `Authorization` нь `init.headers`-ийн ДАРАА байх ЁСТОЙ.
-         *
-         * Өмнө нь ӨМНӨ нь байсан тул `init.headers` дотор хуучин
-         * `Authorization` байвал ШИНЭ токеныг ДАРЖ БИЧДЭГ байв.
-         * Production-д яг ийм: console "шинэ токен явуулж байна" гэж
-         * бичсэн ч сервер 9 ЦАГИЙН ӨМНӨХ токен хүлээж авсан
-         * (`TokenExpiredError: jwt expired`, `үлдсэн=-32530с`).
-         */
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
       },
     });
   };
@@ -177,25 +85,6 @@ export async function api<T = unknown>(
     const result = await refreshPromise;
     if (result === 'ok') {
       res = await doFetch();
-      /**
-       * ⚠️⚠️ REFRESH АМЖИЛТТАЙ БОЛСОН ЧЬ 401 ХЭВЭЭР → ДАХИН НЭГ ОРОЛДОНО.
-       *
-       * Production nginx лог зөрчлийг харуулав:
-       *   POST refresh → 201 (ШИНЭ токен)
-       *   GET  me      → 401 (TokenExpiredError = ХУУЧИН токен явсан)
-       *
-       * Шалтгаан: `init()`, `AuthSessionWatcher`, `syncFromOAuth` гурав
-       * ЗЭРЭГ ажилладаг. Нэг нь refresh хийж байх зуур нөгөө нь ХУУЧИН
-       * токеныг уншсан байж болно (`doFetch` дотор `getAccessToken()`).
-       *
-       * Тиймээс шууд `clearTokens()` хийвэл САЯ АМЖИЛТТАЙ авсан токеныг
-       * устгаж, хэрэглэгчийг гаргана. Оронд нь дахин нэг оролдоод, тэгсэн
-       * ч 401 бол л токен үнэхээр хүчингүй гэж үзнэ.
-       */
-      if (res.status === 401) {
-        res = await doFetch();
-        if (res.status === 401) clearTokens();
-      }
     } else if (result === 'invalid') {
       clearTokens(); // сервер хүчингүй гэж баталсан үед л гаргана
     }
