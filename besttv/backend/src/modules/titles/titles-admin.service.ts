@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
@@ -15,6 +15,8 @@ import {
 
 @Injectable()
 export class TitlesAdminService {
+  private readonly logger = new Logger(TitlesAdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -226,6 +228,145 @@ export class TitlesAdminService {
     ]);
 
     return { ok: true };
+  }
+
+  // ── Bulk үйлдлүүд ───────────────────────────────────────────────────────────
+
+  /** Нэг хүсэлтэд боловсруулах дээд тоо — санамсаргүй бүх каталогийг хамгаална */
+  private static readonly BULK_MAX = 200;
+
+  private assertBulk(ids: string[]) {
+    if (!ids?.length) throw new BadRequestException('Нэг ч контент сонгоогүй байна');
+    if (ids.length > TitlesAdminService.BULK_MAX) {
+      throw new BadRequestException(
+        `Нэг удаад дээд тал нь ${TitlesAdminService.BULK_MAX} контент (сонгосон: ${ids.length})`,
+      );
+    }
+  }
+
+  /**
+   * Устгахын ӨМНӨХ нөлөөллийн тайлан.
+   *
+   * ⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: `Rental` нь `onDelete: Cascade` тул кино устахад
+   * ТӨЛБӨР ТӨЛСӨН хэрэглэгчийн идэвхтэй түрээс ЧИМЭЭГҮЙ устдаг. Админ
+   * үүнийг устгахаас өмнө мэдэж байх ёстой.
+   */
+  async bulkImpact(ids: string[]) {
+    this.assertBulk(ids);
+    const now = new Date();
+
+    const titles = await this.prisma.title.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        title: true,
+        views: true,
+        _count: { select: { myList: true, reviews: true } },
+        rentals: {
+          where: { expiresAt: { gt: now } },
+          select: { id: true, amount: true },
+        },
+      },
+    });
+
+    const items = titles.map((t) => ({
+      id: t.id,
+      title: t.title,
+      views: t.views,
+      inMyList: t._count.myList,
+      reviews: t._count.reviews,
+      activeRentals: t.rentals.length,
+      rentalAmount: t.rentals.reduce((s, r) => s + r.amount, 0),
+    }));
+
+    return {
+      total: items.length,
+      /** ⚠️ Устгавал мөнгө төлсөн хэрэглэгч эрхээ алдана */
+      withActiveRentals: items.filter((i) => i.activeRentals > 0),
+      totalActiveRentals: items.reduce((s, i) => s + i.activeRentals, 0),
+      totalRentalAmount: items.reduce((s, i) => s + i.rentalAmount, 0),
+      items,
+    };
+  }
+
+  /**
+   * Бөөнөөр устгах.
+   * @param force идэвхтэй түрээстэй байсан ч устгах (админ баталгаажуулсан)
+   */
+  async bulkDelete(ids: string[], force: boolean) {
+    this.assertBulk(ids);
+    const now = new Date();
+
+    const titles = await this.prisma.title.findMany({
+      where: { id: { in: ids } },
+      include: {
+        seasons: { include: { episodes: true } },
+        rentals: { where: { expiresAt: { gt: now } }, select: { id: true } },
+      },
+    });
+    if (!titles.length) throw new NotFoundException('Сонгосон контент олдсонгүй');
+
+    // ⚠️ Идэвхтэй түрээстэй бол force-гүйгээр УСТГАХГҮЙ
+    const blocked = titles.filter((t) => t.rentals.length > 0);
+    if (blocked.length && !force) {
+      throw new BadRequestException({
+        code: 'ACTIVE_RENTALS',
+        message:
+          `${blocked.length} контентод идэвхтэй түрээс байна — устгавал төлбөр ` +
+          `төлсөн хэрэглэгчид эрхээ алдана. Баталгаажуулна уу.`,
+        titles: blocked.map((t) => ({ id: t.id, title: t.title, rentals: t.rentals.length })),
+      });
+    }
+
+    // R2 цэвэрлэгээний түлхүүрүүдийг DB устгахаас ӨМНӨ цуглуулна
+    const keys: string[] = [];
+    const prefixes: string[] = [];
+    for (const t of titles) {
+      for (const k of [t.posterKey, t.backdropKey, t.videoRawKey]) if (k) keys.push(k);
+      if (t.videoKey) prefixes.push(this.hlsPrefix(t.videoKey));
+      if (t.trailerKey) prefixes.push(this.hlsPrefix(t.trailerKey));
+      for (const s of t.seasons) {
+        for (const e of s.episodes) {
+          if (e.posterKey) keys.push(e.posterKey);
+          if (e.videoRawKey) keys.push(e.videoRawKey);
+          if (e.videoKey) prefixes.push(this.hlsPrefix(e.videoKey));
+        }
+      }
+    }
+
+    const foundIds = titles.map((t) => t.id);
+    const { count } = await this.prisma.title.deleteMany({ where: { id: { in: foundIds } } });
+
+    // Fire-and-forget цэвэрлэгээ (DB устгал амжилттай болсны ДАРАА)
+    void Promise.all([
+      ...keys.map((k) => this.storage.delete(k).catch(() => null)),
+      ...prefixes.map((p) => this.storage.deletePrefix(p).catch(() => null)),
+    ]);
+
+    this.logger.log(
+      `Bulk устгал: ${count} контент, ${keys.length} файл, ${prefixes.length} HLS хавтас`,
+    );
+    return { ok: true, deleted: count, files: keys.length, hlsFolders: prefixes.length };
+  }
+
+  /** Идэвх (нийтлэгдсэн эсэх) бөөнөөр солих */
+  async bulkSetActive(ids: string[], isActive: boolean) {
+    this.assertBulk(ids);
+    const { count } = await this.prisma.title.updateMany({
+      where: { id: { in: ids } },
+      data: { isActive },
+    });
+    return { ok: true, updated: count };
+  }
+
+  /** Төлбөртэй/үнэгүй бөөнөөр солих */
+  async bulkSetPremium(ids: string[], isPremium: boolean) {
+    this.assertBulk(ids);
+    const { count } = await this.prisma.title.updateMany({
+      where: { id: { in: ids } },
+      data: { isPremium },
+    });
+    return { ok: true, updated: count };
   }
 
   /** m3u8 key → HLS хавтасны prefix ('titles/uuid/video.m3u8' → 'titles/uuid/') */

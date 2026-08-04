@@ -4,7 +4,11 @@ import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Check, Clapperboard, Film, Lock, Pencil, Plus, Settings2, Tv, X } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
+import { api } from '@/lib/api';
+import { BulkBar, type BulkImpact } from '@/components/bulk-bar';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
@@ -48,9 +52,45 @@ export default function MoviesPage() {
   const { data: genres } = useAdminGenres();
   /** null = хаалттай, 'new' = шинэ, id = засах */
   const [editing, setEditing] = useState<string | null | 'new'>(null);
+  const qc = useQueryClient();
 
-  const set = (patch: Partial<TitleFilters>) =>
+  /** Bulk үйлдэлд сонгосон мөрүүд */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const ids = useMemo(() => [...selected], [selected]);
+
+  const toggleOne = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const pageIds = data?.items.map((t) => t.id) ?? [];
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const toggleAll = () =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (allOnPage) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+  /** Bulk дараа — жагсаалт/тоолол шинэчилж, сонголт цэвэрлэнэ */
+  const afterBulk = async (msg: string) => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['admin-titles'] }),
+      qc.invalidateQueries({ queryKey: ['admin-title-counts'] }),
+    ]);
+    setSelected(new Set());
+    toast.success(msg);
+  };
+
+  const set = (patch: Partial<TitleFilters>) => {
+    // ⚠️ Шүүлт/хуудас солигдоход сонголт цэвэрлэнэ — харагдахгүй мөр
+    // сонгоотой үлдэж, санамсаргүй устгахаас сэргийлнэ
+    setSelected(new Set());
     setF((s) => ({ ...s, ...patch, page: patch.page ?? 1 }));
+  };
 
   const activeCount = useMemo(() => {
     let n = 0;
@@ -159,6 +199,39 @@ export default function MoviesPage() {
           }
         />
 
+        {/* ⚠️ Сонголттой үед л гарна — бөөн үйлдэл (нийтлэх/нуух/устгах г.м.) */}
+        <BulkBar
+          count={ids.length}
+          onClear={() => setSelected(new Set())}
+          loadImpact={() =>
+            api<BulkImpact>('/admin/titles/bulk/impact', {
+              method: 'POST',
+              body: JSON.stringify({ ids }),
+            })
+          }
+          onDelete={async (force) => {
+            const r = await api<{ deleted: number }>('/admin/titles/bulk/delete', {
+              method: 'POST',
+              body: JSON.stringify({ ids, force }),
+            });
+            await afterBulk(`${r.deleted} контент устгагдлаа`);
+          }}
+          onSetActive={async (isActive) => {
+            const r = await api<{ updated: number }>('/admin/titles/bulk/active', {
+              method: 'POST',
+              body: JSON.stringify({ ids, isActive }),
+            });
+            await afterBulk(`${r.updated} контент ${isActive ? 'нийтлэгдлээ' : 'нуугдлаа'}`);
+          }}
+          onSetPremium={async (isPremium) => {
+            const r = await api<{ updated: number }>('/admin/titles/bulk/premium', {
+              method: 'POST',
+              body: JSON.stringify({ ids, isPremium }),
+            });
+            await afterBulk(`${r.updated} контент ${isPremium ? 'төлбөртэй' : 'үнэгүй'} боллоо`);
+          }}
+        />
+
         <div
           className={cn(
             'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
@@ -168,6 +241,15 @@ export default function MoviesPage() {
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                <th className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allOnPage}
+                    onChange={toggleAll}
+                    aria-label="Бүгдийг сонгох"
+                    className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
+                  />
+                </th>
                 <SortHeader
                   label="Гарчиг"
                   field="title"
@@ -193,7 +275,22 @@ export default function MoviesPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {data?.items.map((t) => (
-                <tr key={t.id} className="transition-colors hover:bg-accent/40">
+                <tr
+                  key={t.id}
+                  className={cn(
+                    'transition-colors hover:bg-accent/40',
+                    selected.has(t.id) && 'bg-primary/6',
+                  )}
+                >
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(t.id)}
+                      onChange={() => toggleOne(t.id)}
+                      aria-label={`${t.title} сонгох`}
+                      className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => setEditing(t.id)}

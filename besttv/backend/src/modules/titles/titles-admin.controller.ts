@@ -15,6 +15,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TitlesAdminService } from './titles-admin.service';
 import {
+  BulkActiveDto,
+  BulkDeleteDto,
+  BulkIdsDto,
+  BulkPremiumDto,
   CreateEpisodeDto,
   CreateSeasonDto,
   CreateTitleDto,
@@ -69,6 +73,37 @@ export class TitlesAdminController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.svc.remove(id);
+  }
+
+  // ── Bulk үйлдлүүд ───────────────────────────────────────────────────────────
+  // ⚠️ `:id` route-уудаас ДООШ байрлуулбал `bulk/...` нь `:id`-д баригдана.
+  //    Тиймээс тусдаа `bulk/` угтвартай — Nest давхцлыг зам уртаар нь шийднэ.
+
+  /**
+   * Устгахын ӨМНӨ нөлөөллийг харуулна (идэвхтэй түрээс, дуртай, үзэлт).
+   * ⚠️ Rental нь Cascade тул кино устахад ТӨЛБӨР ТӨЛСӨН хэрэглэгчийн
+   *    идэвхтэй эрх чимээгүй устдаг — админ үүнийг мэдэж байх ёстой.
+   */
+  @Post('bulk/impact')
+  bulkImpact(@Body() dto: BulkIdsDto) {
+    return this.svc.bulkImpact(dto.ids);
+  }
+
+  @Post('bulk/delete')
+  bulkDelete(@Body() dto: BulkDeleteDto) {
+    return this.svc.bulkDelete(dto.ids, dto.force ?? false);
+  }
+
+  /** Идэвх (нийтлэгдсэн эсэх) бөөнөөр солих */
+  @Post('bulk/active')
+  bulkActive(@Body() dto: BulkActiveDto) {
+    return this.svc.bulkSetActive(dto.ids, dto.isActive);
+  }
+
+  /** Төлбөртэй/үнэгүй бөөнөөр солих */
+  @Post('bulk/premium')
+  bulkPremium(@Body() dto: BulkPremiumDto) {
+    return this.svc.bulkSetPremium(dto.ids, dto.isPremium);
   }
 
   // ── Season / Episode ────────────────────────────────────────────────────────

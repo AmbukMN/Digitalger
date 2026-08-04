@@ -202,3 +202,34 @@ export class UpdateEpisodeDto extends CreateEpisodeDto {
   @IsString()
   posterKey?: string;
 }
+
+// ─── Bulk үйлдлүүд ────────────────────────────────────────────────────────────
+// ⚠️ ids-д дээд хязгаар (200) — санамсаргүй бүх каталогийг устгахаас
+//    сэргийлнэ, мөн нэг хүсэлт хэт удаан ажиллахгүй.
+
+export class BulkIdsDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids!: string[];
+}
+
+export class BulkDeleteDto extends BulkIdsDto {
+  /**
+   * Идэвхтэй ТҮРЭЭС байхад ч устгах эсэх.
+   * ⚠️ Rental нь Cascade тул устгавал төлбөр төлсөн хэрэглэгчийн эрх
+   *    чимээгүй устна. Тиймээс админ ЗОРИУДААР баталгаажуулна.
+   */
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
+}
+
+export class BulkActiveDto extends BulkIdsDto {
+  @IsBoolean()
+  isActive!: boolean;
+}
+
+export class BulkPremiumDto extends BulkIdsDto {
+  @IsBoolean()
+  isPremium!: boolean;
+}
