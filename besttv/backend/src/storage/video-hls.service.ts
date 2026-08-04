@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import * as os from 'os';
@@ -11,7 +12,9 @@ import { StorageService } from './storage.service';
 // ⚠️ Docker-т системийн ffmpeg (apk add ffmpeg) байвал ТҮҮНИЙГ ашиглана
 // (@ffmpeg-installer alpine-д libs дутуу унадаг). Эс бол installer path руу унана.
 const SYSTEM_FFMPEG = '/usr/bin/ffmpeg';
-ffmpeg.setFfmpegPath(existsSync(SYSTEM_FFMPEG) ? SYSTEM_FFMPEG : ffmpegInstaller.path);
+/** ⚠️ spawn-д ч хэрэгтэй (ABR хөрвүүлэлт fluent-ffmpeg-гүй шууд ажиллана) */
+const FFMPEG_BIN = existsSync(SYSTEM_FFMPEG) ? SYSTEM_FFMPEG : ffmpegInstaller.path;
+ffmpeg.setFfmpegPath(FFMPEG_BIN);
 
 /**
  * ⚠️ Хөрвүүлэлт мөнхөд гацахаас сэргийлэх хугацаа.
@@ -262,8 +265,8 @@ export class VideoHlsService {
     });
 
     opts.push(
-      '-var_stream_map',
-      ladder.map((_, i) => `v:${i},a:${i}`).join(' '),
+      // ⚠️ Утга нь ЗАЙТАЙ мөр — spawn-д тусдаа аргумент болж яг хэвээр очно
+      '-var_stream_map', ladder.map((_, i) => `v:${i},a:${i}`).join(' '),
       '-master_pl_name', 'master.m3u8',
       '-hls_time', '6',
       '-hls_list_size', '0',
@@ -277,40 +280,48 @@ export class VideoHlsService {
       `ABR: эх ${sourceHeight}p → ${ladder.map((l) => l.name).join(', ')} (${ladder.length} түвшин)`,
     );
 
+    /**
+     * ⚠️ fluent-ffmpeg БИШ, spawn-оор ШУУД дуудна.
+     *
+     * Яагаад: fluent-ffmpeg нь `outputOptions` массивын элемент бүрийг
+     * ЗАЙГААР дахин задалдаг. `-var_stream_map "v:0,a:0 v:1,a:1"` нь
+     * зайтай утга тул задарч, "v:1,a:1"-ыг ГАРАЛТЫН ФАЙЛ гэж үзээд унадаг.
+     * Нэг мөр болгож өгвөл эсрэгээр бүхэлд нь ТАНИХГҮЙ ФЛАГ гэж үзнэ.
+     * spawn нь аргумент бүрийг яг байгаагаар нь дамжуулдаг тул найдвартай.
+     */
     return new Promise((resolve, reject) => {
-      // ⚠️ `v%v.m3u8` — %v нь хувилбарын дугаараар солигдоно (v0/v1/v2)
-      const cmd = ffmpeg(inputPath).outputOptions(opts).output(path.join(dir, 'v%v.m3u8'));
+      const args = ['-y', '-i', inputPath, ...opts, path.join(dir, 'v%v.m3u8')];
+      const proc = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 
-      // ⚠️ Гацахаас хамгаалах — timeout болбол ffmpeg-ийг ХҮЧЭЭР зогсооно
       const timer = setTimeout(() => {
-        cmd.kill('SIGKILL');
+        proc.kill('SIGKILL');
         reject(new Error(`ffmpeg ${FFMPEG_TIMEOUT_MS / 60000} минут хэтэрлээ (гацсан)`));
       }, FFMPEG_TIMEOUT_MS);
 
       let lastErr = '';
-      cmd
-        .on('stderr', (line: string) => {
-          // Алдаа гарвал сүүлийн мөрүүд шалтгааныг хэлнэ
-          if (/error|invalid|failed/i.test(line)) lastErr = line;
-        })
-        .on('progress', (p) => {
-          if (durationSec > 0 && p.timemark) {
-            const [h, m, s] = p.timemark.split(':').map(Number);
-            const sec = (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
+      proc.stderr.on('data', (buf: Buffer) => {
+        const text = buf.toString();
+        for (const line of text.split('\n')) {
+          // Явц — `time=00:01:23.45` хэлбэрээс тооцоолно
+          const m = line.match(/time=(\d+):(\d+):(\d+)/);
+          if (m && durationSec > 0) {
+            const sec = +m[1] * 3600 + +m[2] * 60 + +m[3];
             onPercent?.(Math.min(100, (sec / durationSec) * 100));
-          } else if (typeof p.percent === 'number') {
-            onPercent?.(p.percent);
           }
-        })
-        .on('end', () => {
-          clearTimeout(timer);
-          resolve();
-        })
-        .on('error', (e) => {
-          clearTimeout(timer);
-          reject(new Error(lastErr ? `${e.message} — ${lastErr}` : e.message));
-        })
-        .run();
+          if (/error|invalid|failed|unrecognized/i.test(line)) lastErr = line.trim();
+        }
+      });
+
+      proc.on('error', (e) => {
+        clearTimeout(timer);
+        reject(new Error(`ffmpeg эхлүүлж чадсангүй: ${e.message}`));
+      });
+
+      proc.on('close', (code) => {
+        clearTimeout(timer);
+        if (code === 0) return resolve();
+        reject(new Error(`ffmpeg exited with code ${code}${lastErr ? ` — ${lastErr}` : ''}`));
+      });
     });
   }
 
