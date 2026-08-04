@@ -65,6 +65,15 @@ export async function api<T = unknown>(
     const token = auth ? getAccessToken() : null;
     return fetch(`${API_BASE}${path}`, {
       ...init,
+      /**
+       * ⚠️ AUTH хүсэлтийг browser КЭШЛЭХГҮЙ.
+       *
+       * Express анхдагчаар ETag тавьдаг тул browser `/auth/me` хариуг
+       * кэшлээд `304 Not Modified` авдаг байв (production nginx лог:
+       * `auth/me 304`). Тэр үед токен солигдсон ч ХУУЧИН хариу буцаж,
+       * нэвтрэлтийн төлөв зөрдөг.
+       */
+      cache: auth ? 'no-store' : init.cache,
       headers: {
         ...(init.body && !(init.body instanceof FormData)
           ? { 'Content-Type': 'application/json' }
