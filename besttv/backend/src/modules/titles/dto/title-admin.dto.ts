@@ -34,6 +34,15 @@ export class CreateTitleDto {
   @IsString()
   title: string;
 
+  /**
+   * URL slug. Хоосон бол гарчигаас АВТОМАТ үүснэ.
+   * ⚠️ Давхардвал backend `-2`, `-3` нэмнэ. Засах үед хуучин линк эвдрэх
+   *    тул зөвхөн админ ЗОРИУДААР өөрчилсөн үед л солигдоно.
+   */
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
   @IsOptional()
   @IsString()
   titleEn?: string;

@@ -43,6 +43,7 @@ import { genreId } from '@/lib/genre';
 const EMPTY_FORM = {
   type: 'MOVIE' as 'MOVIE' | 'SERIES',
   title: '',
+  slug: '',
   description: '',
   year: '',
   rating: '',
@@ -143,6 +144,7 @@ export function TitleEditDialog({
     setForm({
       type: e.type,
       title: e.title,
+      slug: e.slug ?? '',
       description: e.description ?? '',
       year: e.year ? String(e.year) : '',
       rating: e.rating ? String(e.rating) : '',
@@ -183,6 +185,8 @@ export function TitleEditDialog({
    * ⚠️ Гараар засвал ДАРЖ БИЧИХГҮЙ: `seoTouched` тэмдэглэнэ.
    */
   const seoTouched = useRef({ title: false, desc: false });
+  /** ⚠️ Slug гараар засагдсан эсэх — засагдсан бол автомат дарж бичихгүй */
+  const slugTouched = useRef(false);
 
   useEffect(() => {
     if (!form.title.trim()) return;
@@ -252,6 +256,8 @@ export function TitleEditDialog({
       const payload = {
         type: form.type,
         title: form.title,
+        // ⚠️ Хоосон бол backend гарчигаас галиг slug үүсгэнэ (кирилл→латин)
+        slug: form.slug.trim() || undefined,
         description: form.description,
         year: form.year ? Number(form.year) : undefined,
         rating: form.rating ? Number(form.rating) : undefined,
@@ -411,6 +417,30 @@ export function TitleEditDialog({
                   className="admin-input"
                   autoFocus
                 />
+              </Field>
+
+              {/*
+                ⚠️ URL slug — гарчигаас автомат үүснэ, гэхдээ ЗАСАЖ БОЛНО.
+                Хуучин контентод slug солих нь Google index, сошиал
+                хуваалцалт, чатботын линкийг ЭВДЭНЭ тул анхааруулна.
+              */}
+              <Field
+                label="URL хаяг (slug)"
+                hint={savedId ? '⚠️ солих нь хуучин линкийг эвдэнэ' : 'автоматаар үүснэ'}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="shrink-0 text-xs text-muted-foreground">/movie/</span>
+                  <input
+                    value={form.slug}
+                    onChange={(e) => {
+                      slugTouched.current = true;
+                      setForm((f) => ({ ...f, slug: e.target.value }));
+                    }}
+                    placeholder="гарчиг бичихэд автоматаар үүснэ"
+                    aria-label="URL slug"
+                    className="admin-input"
+                  />
+                </div>
               </Field>
 
               <Field label="Тайлбар">

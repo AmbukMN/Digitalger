@@ -158,8 +158,9 @@ export class TitlesAdminService {
   }
 
   async create(dto: CreateTitleDto) {
-    const slug = await this.makeUniqueSlug(dto.title);
-    const { genreIds, cast, ...data } = dto;
+    // ⚠️ Админ slug гараар өгсөн бол ТҮҮНИЙГ, эс бөгөөс гарчигаас үүсгэнэ
+    const { genreIds, cast, slug: rawSlug, ...data } = dto;
+    const slug = await this.makeUniqueSlug(rawSlug?.trim() || dto.title);
 
     return this.prisma.title.create({
       data: {
@@ -181,8 +182,18 @@ export class TitlesAdminService {
     const existing = await this.prisma.title.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Контент олдсонгүй');
 
-    const { genreIds, cast, ...data } = dto;
+    const { genreIds, cast, slug: rawSlug, ...data } = dto;
     const castData = cast ? { cast: cast as unknown as Prisma.InputJsonValue } : {};
+
+    /**
+     * ⚠️ Slug засах — ЗӨВХӨН админ гараар өөрчилсөн үед.
+     * Гарчиг өөрчлөгдөхөд slug АВТОМАТААР солигдохгүй: хуучин линк
+     * (Google index, сошиал хуваалцалт, чатбот) бүгд эвдэрнэ.
+     */
+    const slugData =
+      rawSlug?.trim() && slugify(rawSlug) !== existing.slug
+        ? { slug: await this.makeUniqueSlug(rawSlug, id) }
+        : {};
 
     return this.prisma.$transaction(async (tx) => {
       if (genreIds) {
@@ -191,7 +202,7 @@ export class TitlesAdminService {
           data: genreIds.map((genreId, i) => ({ titleId: id, genreId, order: i })),
         });
       }
-      return tx.title.update({ where: { id }, data: { ...data, ...castData } });
+      return tx.title.update({ where: { id }, data: { ...data, ...castData, ...slugData } });
     });
   }
 
@@ -374,10 +385,22 @@ export class TitlesAdminService {
     return m3u8Key.slice(0, m3u8Key.lastIndexOf('/') + 1);
   }
 
-  private async makeUniqueSlug(title: string): Promise<string> {
-    const base = slugify(title);
+  /**
+   * Давхардахгүй slug үүсгэнэ.
+   *
+   * @param source Гарчиг ЭСВЭЛ админы гараар өгсөн slug
+   * @param excludeId Засах үед ӨӨРИЙНХӨӨ slug-ыг давхардал гэж үзэхгүй
+   */
+  private async makeUniqueSlug(source: string, excludeId?: string): Promise<string> {
+    const base = slugify(source);
+    // ⚠️ slugify нь кирилл/тэмдэгтийг бүрэн хасвал хоосон болзошгүй
+    if (!base) throw new BadRequestException('Slug үүсгэх боломжгүй — латин үсэг оруулна уу');
+
     const taken = await this.prisma.title.findMany({
-      where: { slug: { startsWith: base } },
+      where: {
+        slug: { startsWith: base },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
       select: { slug: true },
     });
     const set = new Set(taken.map((t) => t.slug));

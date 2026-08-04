@@ -164,24 +164,56 @@ export class StreamService {
   }
 
   /**
-   * m3u8 доторх segment файлын нэрсийг (seg_000.ts ...) presigned URL болгоно.
-   * m3u8 нь жижиг текст (кино ~30KB) тул backend-ээр дамжихад асуудалгүй.
+   * m3u8 доторх файлын нэрсийг presigned URL болгоно.
+   *
+   * ⚠️ ХОЁР ТӨРЛИЙН playlist:
+   *   1. MASTER (ABR) — доторх мөрүүд нь `v0.m3u8` гэх мэт ДЭД PLAYLIST.
+   *      Эдгээрийг presign хийвэл болохгүй: тэдгээр нь эргээд segment
+   *      жагсаалттай бөгөөд presign хийгдээгүй байна. Тиймээс дэд
+   *      playlist-ыг ЭНД ДОТОР нь задалж, segment-үүдийг нь presign хийж,
+   *      бүхэл ABR бүтцийг НЭГ хариунд буцаах боломжгүй (HLS стандарт
+   *      зөвшөөрөхгүй) → оронд нь дэд playlist-ыг манай API руу чиглүүлнэ.
+   *   2. MEDIA (нэг түвшин, хуучин видео) — segment шууд presign.
    */
-  private async rewritePlaylist(m3u8Key: string): Promise<string> {
+  private async rewritePlaylist(m3u8Key: string, variantBase?: string): Promise<string> {
     const text = await this.storage.downloadText(m3u8Key);
     const prefix = m3u8Key.slice(0, m3u8Key.lastIndexOf('/') + 1);
+    const isMaster = text.includes('#EXT-X-STREAM-INF');
 
     const lines = await Promise.all(
       text.split('\n').map(async (line) => {
         const trimmed = line.trim();
-        // Тайлбар/директив мөрүүд хэвээр — зөвхөн segment файлын мөрийг солино
+        // Тайлбар/директив мөрүүд хэвээр — зөвхөн файлын мөрийг солино
         if (!trimmed || trimmed.startsWith('#')) return line;
         // Абсолют URL байвал (байх ёсгүй) хэвээр
         if (trimmed.startsWith('http')) return line;
+
+        /**
+         * ⚠️ MASTER доторх дэд playlist — presign ХИЙХГҮЙ, манай API руу
+         * чиглүүлнэ. Ингэснээр player дэд playlist авахдаа ДАХИН эрхийн
+         * шалгалтаас өнгөрч, зөвхөн segment нь R2-оос шууд урсана.
+         */
+        if (isMaster && variantBase) {
+          return `${variantBase}?v=${encodeURIComponent(trimmed)}`;
+        }
         return this.storage.presignGet(prefix + trimmed, this.SEGMENT_EXPIRES);
       }),
     );
 
     return lines.join('\n');
+  }
+
+  /**
+   * ABR-ийн ДЭД playlist (v0.m3u8 / v1.m3u8 ...) — segment-үүдийг presign.
+   *
+   * ⚠️ `variant` нь ГАДНААС ирдэг тул зам гарах халдлагаас хамгаална:
+   * зөвхөн `vN.m3u8` хэлбэрийг зөвшөөрнө ("../" гэх мэт бүрэн хаагдана).
+   */
+  private async variantPlaylist(m3u8Key: string, variant: string): Promise<string> {
+    if (!/^v\d+\.m3u8$/.test(variant)) {
+      throw new NotFoundException('Буруу playlist');
+    }
+    const prefix = m3u8Key.slice(0, m3u8Key.lastIndexOf('/') + 1);
+    return this.rewritePlaylist(prefix + variant);
   }
 }

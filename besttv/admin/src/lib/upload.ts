@@ -52,17 +52,29 @@ async function xhrUpload(
   try {
     return await xhrOnce(url, method, body, opts);
   } catch (e) {
-    // ⚠️ Зөвхөн 401-д — бусад алдаанд дахин оролдвол давхар upload болно
-    const is401 = e instanceof UnauthorizedError;
-    if (!is401 || opts.auth === false) throw e;
+    /**
+     * ⚠️ Зөвхөн 401-д — бусад алдаанд дахин оролдвол давхар upload болно.
+     * ⚠️ `instanceof` БИШ, ТАЛБАРААР шалгана: production build-д класс нэр
+     *    минифай хийгдэж, тусдаа chunk-д хуулагдвал `instanceof` худал
+     *    буцаадаг (яг ийм шалтгаанаар refresh ажиллахгүй байсан).
+     */
+    const status = (e as { status?: number })?.status;
+    if (status !== 401 || opts.auth === false) throw e;
     const ok = await tryRefresh();
     if (!ok) throw new Error('Нэвтрэлт дууссан — дахин нэвтэрнэ үү');
     return xhrOnce(url, method, body, opts);
   }
 }
 
-/** 401 үед таних тусгай алдаа */
-class UnauthorizedError extends Error {}
+/** HTTP статустай алдаа — 401-ийг найдвартай таних (минифайд ч ажиллана) */
+class HttpError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 function xhrOnce(
   url: string,
@@ -94,8 +106,9 @@ function xhrOnce(
         } catch {
           /* JSON биш — статус кодоор л мэдэгдэнэ */
         }
-        // ⚠️ 401-ийг ТУСГАЙ төрлөөр — дээд түвшинд refresh хийж дахин оролдоно
-        reject(xhr.status === 401 ? new UnauthorizedError(msg) : new Error(msg));
+        // ⚠️ Статусыг ТАЛБАРААР дамжуулна — дээд түвшин 401-ийг таниад
+        //    токен шинэчилж дахин оролдоно (минифайд ч найдвартай)
+        reject(new HttpError(xhr.status, msg));
       }
     };
     xhr.onerror = () => reject(new Error('Сүлжээний алдаа'));

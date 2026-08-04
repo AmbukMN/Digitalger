@@ -95,7 +95,12 @@ export class VideoHlsService {
     const tmpDir = path.join(os.tmpdir(), `hls_${uuid}`);
     await fs.mkdir(tmpDir, { recursive: true });
     const inputPath = path.join(tmpDir, 'input');
-    const playlistName = 'video.m3u8';
+    /**
+     * ⚠️ ABR-т ҮНДСЭН playlist нь `master.m3u8` (доторх v0/v1/v2.m3u8 руу
+     * заана). Хуучин нэг түвшинтэй видео `video.m3u8`-тай хэвээр — stream
+     * gate хоёуланг нь дэмжинэ (нийцтэй байдал).
+     */
+    const playlistName = 'master.m3u8';
     const playlistPath = path.join(tmpDir, playlistName);
     const posterPath = path.join(tmpDir, 'poster.jpg');
 
@@ -108,12 +113,19 @@ export class VideoHlsService {
       await this.storage.downloadToFile(rawKey, inputPath);
       report('download', 15);
 
-      // ── 1) Үргэлжлэх хугацаа (ffprobe) ──
-      const durationSec = await this.probeDuration(inputPath);
+      // ── 1) Үргэлжлэх хугацаа + нягтрал (ffprobe) ──
+      const [durationSec, sourceHeight] = await Promise.all([
+        this.probeDuration(inputPath),
+        this.probeHeight(inputPath),
+      ]);
 
-      // ── 2) HLS segment (re-encode ХИЙХГҮЙ) — 15-70% ──
-      await this.toHls(inputPath, playlistPath, durationSec, (pct) =>
-        report('convert', 15 + pct * 0.55),
+      // ── 2) ABR HLS (3 түвшин re-encode) — 15-70% ──
+      await this.toHls(
+        inputPath,
+        playlistPath,
+        durationSec,
+        (pct) => report('convert', 15 + pct * 0.55),
+        sourceHeight,
       );
 
       // ── 3) Poster (эхний frame) ──
@@ -166,6 +178,35 @@ export class VideoHlsService {
   }
 
   /**
+   * Эх файлын өндөр (px). ABR шатлалыг сонгоход хэрэгтэй.
+   *
+   * ⚠️ Уншиж чадаагүй бол 1080 гэж үзнэ — бүх түвшин үүсгэнэ. Дутуу
+   * түвшинтэй үлдэхээс илүү, илүү хийсэн нь дээр.
+   */
+  private probeHeight(filePath: string): Promise<number> {
+    return new Promise((resolve) => {
+      ffmpeg.ffprobe(filePath, (err, data) => {
+        if (err) return resolve(1080);
+        const v = data?.streams?.find((s) => s.codec_type === 'video');
+        resolve(Number(v?.height) || 1080);
+      });
+    });
+  }
+
+  /**
+   * Эх файлаас ДООШ буюу тэнцүү түвшнүүдийг сонгоно.
+   *
+   * ⚠️ 480p эх файлыг 1080p болгох нь зөвхөн хэмжээ өсгөж, чанар
+   * нэмэгдүүлэхгүй (байхгүй мэдээллийг зохиож чадахгүй).
+   * ⚠️ Хамгийн багадаа НЭГ түвшин буцаана — жижиг эх файл (ж: 360p) орвол
+   *    хоосон массив буцаад ffmpeg унах байсан.
+   */
+  private pickLadder(sourceHeight: number) {
+    const fit = LADDER.filter((l) => l.height <= sourceHeight);
+    return fit.length > 0 ? fit : [LADDER[LADDER.length - 1]];
+  }
+
+  /**
    * HLS segment болгох.
    *
    * ⚠️ ХУГАЦААНЫ ХЯЗГААР ЗААВАЛ — ffmpeg эвдэрсэн файлд мөнхөд гацаж,
@@ -176,20 +217,69 @@ export class VideoHlsService {
     playlistPath: string,
     durationSec: number,
     onPercent?: (p: number) => void,
+    sourceHeight = 1080,
   ): Promise<void> {
+    const dir = path.dirname(playlistPath);
+    const ladder = this.pickLadder(sourceHeight);
+
+    /**
+     * ⚠️ ADAPTIVE BITRATE — нэг ffmpeg дуудалтаар 3 түвшин зэрэг үүсгэнэ.
+     *
+     * Яагаад нэг дуудалт вэ: эх файлыг НЭГ л удаа декодоод (`split`) 3 салаа
+     * болгоно. Тусад нь 3 удаа ажиллуулбал декодыг 3 удаа давтаж, ~2 дахин
+     * удаан болно.
+     *
+     * `-var_stream_map` нь аль видео/аудио хосыг аль хувилбарт хамаарахыг
+     * зааж, `master.m3u8`-г автоматаар үүсгэнэ. Player түүнийг уншаад
+     * сүлжээнийхээ хурдад тохирох түвшнийг ӨӨРӨӨ сонгоно.
+     */
+    const filter = [
+      `[0:v]split=${ladder.length}${ladder.map((_, i) => `[s${i}]`).join('')}`,
+      ...ladder.map((l, i) => `[s${i}]scale=-2:${l.height}[v${i}]`),
+    ].join(';');
+
+    const opts: string[] = ['-filter_complex', filter];
+
+    ladder.forEach((l, i) => {
+      opts.push(
+        '-map', `[v${i}]`,
+        `-c:v:${i}`, 'libx264',
+        `-preset:v:${i}`, X264_PRESET,
+        `-crf:v:${i}`, String(l.crf),
+        `-maxrate:v:${i}`, l.maxrate,
+        `-bufsize:v:${i}`, l.bufsize,
+        // ⚠️ Түлхүүр frame-ийг 2 секунд тутам ТААРУУЛНА — эс бөгөөс түвшин
+        //    солиход зураг үсэрч, эсвэл огт солигдохгүй.
+        `-g:v:${i}`, '48',
+        `-keyint_min:v:${i}`, '48',
+        `-sc_threshold:v:${i}`, '0',
+      );
+    });
+
+    // Аудио — түвшин бүрт нэг урсгал (HLS шаарддаг)
+    ladder.forEach((l, i) => {
+      opts.push('-map', 'a:0?', `-c:a:${i}`, 'aac', `-b:a:${i}`, l.audio, `-ac:a:${i}`, '2');
+    });
+
+    opts.push(
+      '-var_stream_map',
+      ladder.map((_, i) => `v:${i},a:${i}`).join(' '),
+      '-master_pl_name', 'master.m3u8',
+      '-hls_time', '6',
+      '-hls_list_size', '0',
+      '-hls_flags', 'independent_segments',
+      '-hls_playlist_type', 'vod',
+      '-hls_segment_filename', path.join(dir, 'v%v_seg_%03d.ts'),
+      '-f', 'hls',
+    );
+
+    this.logger.log(
+      `ABR: эх ${sourceHeight}p → ${ladder.map((l) => l.name).join(', ')} (${ladder.length} түвшин)`,
+    );
+
     return new Promise((resolve, reject) => {
-      const cmd = ffmpeg(inputPath)
-        .outputOptions([
-          '-c copy', // ⚠️ re-encode ХИЙХГҮЙ — чанар 100% хадгална, хурдан
-          '-start_number 0',
-          '-hls_time 6', // 6 секундын segment (CDN кэшлэхэд тохиромжтой)
-          '-hls_list_size 0', // бүх segment playlist-д (VOD)
-          '-hls_flags independent_segments', // сегмент бүр бие даан тоглоно
-          '-hls_segment_filename',
-          path.join(path.dirname(playlistPath), 'seg_%03d.ts'),
-          '-f hls',
-        ])
-        .output(playlistPath);
+      // ⚠️ `v%v.m3u8` — %v нь хувилбарын дугаараар солигдоно (v0/v1/v2)
+      const cmd = ffmpeg(inputPath).outputOptions(opts).output(path.join(dir, 'v%v.m3u8'));
 
       // ⚠️ Гацахаас хамгаалах — timeout болбол ffmpeg-ийг ХҮЧЭЭР зогсооно
       const timer = setTimeout(() => {
@@ -197,9 +287,13 @@ export class VideoHlsService {
         reject(new Error(`ffmpeg ${FFMPEG_TIMEOUT_MS / 60000} минут хэтэрлээ (гацсан)`));
       }, FFMPEG_TIMEOUT_MS);
 
+      let lastErr = '';
       cmd
+        .on('stderr', (line: string) => {
+          // Алдаа гарвал сүүлийн мөрүүд шалтгааныг хэлнэ
+          if (/error|invalid|failed/i.test(line)) lastErr = line;
+        })
         .on('progress', (p) => {
-          // ⚠️ `-c copy` үед percent найдваргүй тул timemark-аас тооцоолно
           if (durationSec > 0 && p.timemark) {
             const [h, m, s] = p.timemark.split(':').map(Number);
             const sec = (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
@@ -214,7 +308,7 @@ export class VideoHlsService {
         })
         .on('error', (e) => {
           clearTimeout(timer);
-          reject(e);
+          reject(new Error(lastErr ? `${e.message} — ${lastErr}` : e.message));
         })
         .run();
     });
