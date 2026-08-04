@@ -35,17 +35,39 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ]),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('jwt.secret')!,
+      /** ⚠️ ТҮР ОНОШИЛГОО — татгалзсан шалтгааныг мэдэхэд req хэрэгтэй */
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<JwtPayload> {
+  /**
+   * ⚠️ ТҮР ОНОШИЛГОО — `/auth/me` 401 болох ЯГ шалтгааныг production логт
+   * бичнэ. Нэг хэрэглэгчийн browser дээр л 401 гарч байгаа ч (curl,
+   * Playwright, incognito, гар утас бүгд ✅) шалтгаан нь хаана ч
+   * харагдахгүй байв. Асуудал шийдэгдмэгц ЭНЭ БЛОКЫГ ХАСНА.
+   */
+  async validate(
+    req: { url?: string; headers?: Record<string, unknown>; cookies?: Record<string, string> },
+    payload: JwtPayload,
+  ): Promise<JwtPayload> {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, email: true, role: true, isActive: true },
     });
 
-    if (!user) throw new UnauthorizedException('Хэрэглэгч олдсонгүй');
-    if (!user.isActive) throw new UnauthorizedException('Таны бүртгэл хаагдсан байна');
+    if (!user) {
+      const auth = String(req?.headers?.authorization ?? '');
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[jwt] ТАТГАЛЗЛАА: ХЭРЭГЛЭГЧ ОЛДСОНГҮЙ sub=${payload.sub} email=${payload.email} url=${req?.url} эх=${auth ? 'header' : req?.cookies?.btv_token ? 'cookie' : '?'}`,
+      );
+      throw new UnauthorizedException('Хэрэглэгч олдсонгүй');
+    }
+    if (!user.isActive) {
+      // eslint-disable-next-line no-console
+      console.warn(`[jwt] ТАТГАЛЗЛАА: БҮРТГЭЛ ХААГДСАН sub=${payload.sub} url=${req?.url}`);
+      throw new UnauthorizedException('Таны бүртгэл хаагдсан байна');
+    }
 
     return { sub: user.id, email: user.email, role: user.role };
   }
