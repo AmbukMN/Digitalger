@@ -68,38 +68,42 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
-
   /**
-   * ⚠️⚠️ GOOGLE/FACEBOOK НЭВТРЭЛТ ЦИКЛ БОЛЖ БАЙСНЫ ШАЛТГААН:
-   *   [next-auth][error][OAUTH_CALLBACK_ERROR] State cookie was missing.
+   * ⚠️⚠️ COOKIES ТОХИРГОО ГАРААР ӨГӨХГҮЙ.
    *
-   * NextAuth-ийн анхдагч `state`/`pkce` cookie нь `SameSite=Lax`. Google-ээс
-   * буцаж ирэх redirect нь CROSS-SITE тул browser тэр cookie-г ИЛГЭЭДЭГГҮЙ
-   * (Chrome-ийн шинэ хувилбарууд илүү хатуу). Үр дүнд callback "state алга"
-   * гээд login руу буцааж, хэрэглэгч мөнхийн цикл дээр гацдаг байв.
+   * Оролдлого хийж `state`/`pkce`-ыг SameSite=None болгосон нь НЭВТРЭЛТ
+   * БҮРЭН ЭВДСЭН: NextAuth-д `cookies` объектыг гараар өгвөл анхдагч
+   * утгуудтай НЭГТГЭДЭГГҮЙ — зөвхөн бичсэн түлхүүрүүд үйлчилнэ. Тиймээс
+   * `sessionToken` тодорхойлолтгүй үлдэж, SESSION COOKIE ОГТ ТАВИГДАХГҮЙ
+   * болж, callback амжилттай болсон ч хэрэглэгч /login руу буцдаг байв.
    *
-   * Засвар: state/pkce/nonce cookie-г `SameSite=None; Secure` болгоно —
-   * зөвхөн эдгээр гурав (богино настай, OAuth урсгалд л ашиглагдана).
-   * Session cookie нь `Lax` хэвээр (CSRF хамгаалалт хадгалагдана).
+   * NextAuth нь `NEXTAUTH_URL` https байхад аюулгүй анхдагчийг (__Secure-
+   * угтвар, secure: true) ӨӨРӨӨ хэрэглэдэг тул гараар тохируулах
+   * шаардлагагүй.
    */
-  cookies: {
-    state: {
-      name: '__Secure-next-auth.state',
-      options: { httpOnly: true, sameSite: 'none', path: '/', secure: true, maxAge: 900 },
-    },
-    pkceCodeVerifier: {
-      name: '__Secure-next-auth.pkce.code_verifier',
-      options: { httpOnly: true, sameSite: 'none', path: '/', secure: true, maxAge: 900 },
-    },
-    nonce: {
-      name: '__Secure-next-auth.nonce',
-      options: { httpOnly: true, sameSite: 'none', path: '/', secure: true },
-    },
-  },
   pages: {
     signIn: '/login',
     error: '/login',
   },
+
+  /**
+   * ⚠️ OAuth алдааг PRODUCTION ЛОГТ гаргана.
+   * Анхдагчаар NextAuth production-д зөвхөн `error`-ыг хэвлэдэг ч
+   * `signIn` callback доторх алдаа чимээгүй `false` болж, шалтгаан нь
+   * хаана ч харагддаггүй байв. Одоо тодорхой мессежтэй.
+   */
+  logger: {
+    error(code, metadata) {
+      console.error('[auth][error]', code, JSON.stringify(metadata)?.slice(0, 500));
+    },
+    warn(code) {
+      console.warn('[auth][warn]', code);
+    },
+    debug() {
+      /* production-д debug хэвлэхгүй */
+    },
+  },
+
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google' || account?.provider === 'facebook') {
@@ -115,7 +119,18 @@ export const authOptions: NextAuthOptions = {
               image: user.image ?? (profile as { picture?: string })?.picture ?? null,
             }),
           });
-          if (!res.ok) return false;
+          /**
+           * ⚠️ Өмнө нь ЧИМЭЭГҮЙ `return false` байсан тул нэвтрэлт бүтэлгүй
+           * болоод шалтгаан нь хаана ч харагддаггүй, хэрэглэгч зөвхөн
+           * "нэвтрэх товч буцаж гарах" л хардаг байв.
+           */
+          if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            console.error(
+              `[auth][oauth] ${account.provider} FAILED ${res.status} — ${body.slice(0, 300)}`,
+            );
+            return false;
+          }
 
           /**
            * ⚠️ `as any` ХЭРЭГГҮЙ — `types/next-auth.d.ts`-д User/JWT/Session
@@ -133,7 +148,12 @@ export const authOptions: NextAuthOptions = {
           user.isGuest = data.user.isGuest ?? false;
           user.accessToken = data.accessToken;
           user.refreshToken = data.refreshToken;
-        } catch {
+        } catch (e) {
+          // ⚠️ Сүлжээ/JSON алдаа — өмнө нь чимээгүй `false` байсан
+          console.error(
+            `[auth][oauth] ${account.provider} THREW —`,
+            e instanceof Error ? e.message : String(e),
+          );
           return false;
         }
       }
@@ -157,6 +177,39 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
+      /**
+       * ⚠️ ТҮР ОНОШИЛГОО — session-д accessToken хүрч байгаа эсэхийг батлана.
+       * `/api/auth/session` 200 буцаад `/api/auth/me` 401 гарч байгаа тул
+       * токен jwt→session шатанд алдагдаж байгаа эсэхийг шалгана.
+       */
+      /**
+       * ⚠️ Токеныг backend-д ШУУД шалгуулж, хүчинтэй эсэхийг батална.
+       * Console дээр `/auth/me → 401` гарч байгаа тул session-ээр дамжиж
+       * буй токен эвдэрсэн эсэхийг ЭНД нь тогтооно (browser хүрэхээс өмнө).
+       */
+      const at = token.accessToken ? String(token.accessToken) : '';
+      let probe = 'skipped';
+      if (at) {
+        try {
+          const r = await fetch(`${BACKEND_URL}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${at}` },
+          });
+          probe = `me=${r.status}`;
+        } catch (e) {
+          probe = `throw:${e instanceof Error ? e.message : e}`;
+        }
+      }
+      console.log(
+        '[auth][session]',
+        JSON.stringify({
+          hasUser: !!session.user,
+          len: at.length,
+          dots: (at.match(/\./g) ?? []).length, // JWT бол 2 байх ёстой
+          head: at.slice(0, 10),
+          tokenId: token.id ?? null,
+          probe,
+        }),
+      );
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
