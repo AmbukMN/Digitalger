@@ -15,13 +15,37 @@ ffmpeg.setFfmpegPath(existsSync(SYSTEM_FFMPEG) ? SYSTEM_FFMPEG : ffmpegInstaller
 
 /**
  * ⚠️ Хөрвүүлэлт мөнхөд гацахаас сэргийлэх хугацаа.
- * `-c copy` тул 1GB видео ч 2-3 минутад дуусах ёстой. 30 минут хэтэрвэл
- * ямар нэг зүйл эвдэрсэн гэсэн үг.
+ *
+ * ABR (3 түвшин re-encode) нь `-c copy`-оос ХАМААГҮЙ удаан:
+ * VPS-т хэмжсэнээр ~3.3x realtime (30с видео → 9с) тул 2 цагийн кино
+ * ~36 минут. 3 цагийн кино + удаан татах хугацааг тооцож 3 цаг тавив.
  */
-const FFMPEG_TIMEOUT_MS = 30 * 60 * 1000;
+const FFMPEG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
 /** R2 руу зэрэг илгээх segment-ийн тоо — хурд ба санах ойн тэнцвэр */
 const UPLOAD_CONCURRENCY = 6;
+
+/**
+ * ADAPTIVE BITRATE түвшнүүд (өндөр→бага).
+ *
+ * ⚠️ Эх файлаас ӨНДӨР түвшин үүсгэхгүй — 480p эх файлыг 1080p болгох нь
+ * зөвхөн хэмжээ өсгөж, чанар нэмэгдүүлэхгүй.
+ *
+ * maxrate/bufsize — сүлжээний хэлбэлзэлд player зөв тооцоолохын тулд.
+ * crf өндөр = чанар бага, хэмжээ бага (480p-д зөвшөөрөгдөнө).
+ */
+const LADDER = [
+  { name: '1080p', height: 1080, crf: 21, maxrate: '5000k', bufsize: '10000k', audio: '128k' },
+  { name: '720p', height: 720, crf: 23, maxrate: '2800k', bufsize: '5600k', audio: '128k' },
+  { name: '480p', height: 480, crf: 25, maxrate: '1400k', bufsize: '2800k', audio: '96k' },
+] as const;
+
+/**
+ * x264 preset — хурд ↔ хэмжээний тэнцвэр.
+ * `veryfast` нь `medium`-ээс ~4 дахин хурдан, файл ~10% том. VPS дээр
+ * CPU л хязгаарлагч тул хурдыг сонгов.
+ */
+const X264_PRESET = 'veryfast';
 
 export interface HlsResult {
   playlistKey: string; // R2 key: 'videos/{uuid}/video.m3u8' (videoKey-д хадгална — R2 KEY, URL БИШ!)

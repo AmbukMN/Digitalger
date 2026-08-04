@@ -139,7 +139,28 @@ export function TitleDetailClient({ slug }: { slug: string }) {
           </div>
 
           <div className="flex-1 pt-2">
-            <h1 className="text-2xl font-black text-white md:text-4xl">{data.title}</h1>
+            {/*
+              ⚠️ МОБАЙЛД дуртай/хуваалцах icon нь гарчигийн БАРУУН талд
+              (өөрийн зайд л багтана). Өмнө нь товчнуудын доор тусдаа мөр
+              эзэлж, дэлгэцийн зай дэмий алдагддаг байв.
+              ДЕСКТОПТ хуучнаар товчнуудын хажууд үлдэнэ.
+            */}
+            <div className="flex items-start gap-3">
+              <h1 className="min-w-0 flex-1 text-2xl font-black text-white md:text-4xl">
+                {data.title}
+              </h1>
+              <div className="flex shrink-0 items-center gap-2 md:hidden">
+                <IconAction
+                  onClick={toggleMyList}
+                  disabled={myListPending}
+                  pressed={inList}
+                  label={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
+                >
+                  <Heart size={17} className={inList ? 'fill-current' : ''} />
+                </IconAction>
+                <ShareButton title={data.title} slug={data.slug} compact />
+              </div>
+            </div>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/70">
               {data.year && <span>{data.year}</span>}
               {data.ageRating && (
@@ -243,6 +264,8 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                   </button>
                 )}
 
+                {/* ⚠️ Мобайлд эдгээр нь ГАРЧИГИЙН хажууд зөөгдсөн (дээрээс
+                    харна уу) тул энд зөвхөн десктоп дээр харагдана. */}
                 <button
                   onClick={toggleMyList}
                   disabled={myListPending}
@@ -250,14 +273,16 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                   title={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
                   aria-label={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
                   className={cn(
-                    'flex h-11 w-11 items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-50',
+                    'hidden h-11 w-11 items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-50 md:flex',
                     inList ? 'bg-primary hover:brightness-110' : 'bg-white/10 hover:bg-white/20',
                   )}
                 >
                   <Heart size={19} className={inList ? 'fill-current' : ''} />
                 </button>
 
-                <ShareButton title={data.title} slug={data.slug} />
+                <span className="hidden md:contents">
+                  <ShareButton title={data.title} slug={data.slug} />
+                </span>
               </div>
             </div>
 
@@ -377,4 +402,38 @@ function formatRentLeft(expiresAt: string): string {
   const h = Math.floor(ms / 3600_000);
   const m = Math.floor((ms % 3600_000) / 60_000);
   return h > 0 ? `${h} цаг ${m} мин` : `${m} мин`;
+}
+
+/**
+ * Мобайлын жижиг дугуй товч (гарчигийн хажууд).
+ * ⚠️ h-9 — дэлгэцийн зай хэмнэнэ, гэхдээ хүрэлцэх талбай (36px) хангалттай.
+ */
+function IconAction({
+  children,
+  onClick,
+  disabled,
+  pressed,
+  label,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  pressed?: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'flex h-9 w-9 items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-50',
+        pressed ? 'bg-primary hover:brightness-110' : 'bg-white/10 hover:bg-white/20',
+      )}
+    >
+      {children}
+    </button>
+  );
 }

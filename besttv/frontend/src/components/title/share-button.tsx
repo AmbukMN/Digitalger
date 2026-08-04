@@ -4,7 +4,16 @@ import { useState } from 'react';
 import { Check, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function ShareButton({ title, slug }: { title: string; slug: string }) {
+export function ShareButton({
+  title,
+  slug,
+  compact,
+}: {
+  title: string;
+  slug: string;
+  /** ⚠️ Мобайлд гарчигийн хажууд — жижиг хэмжээ (h-9), зай хэмнэнэ */
+  compact?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   const share = async () => {
@@ -29,9 +38,13 @@ export function ShareButton({ title, slug }: { title: string; slug: string }) {
       onClick={share}
       aria-label="Хуваалцах"
       title="Хуваалцах"
-      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95"
+      className={
+        compact
+          ? 'flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95'
+          : 'flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95'
+      }
     >
-      {copied ? <Check size={18} /> : <Share2 size={18} />}
+      {copied ? <Check size={compact ? 16 : 18} /> : <Share2 size={compact ? 16 : 18} />}
     </button>
   );
 }

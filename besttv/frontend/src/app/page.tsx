@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useHome } from '@/lib/queries';
 import { HeroBanner } from '@/components/hero-banner';
@@ -34,6 +35,12 @@ export default function HomePage() {
   );
 
   const genreRows = data.genreRows.filter((r) => r.titles.length > 0);
+  /**
+   * ⚠️ Banner БАЙХГҮЙ үед `-mt-8` сөрөг margin нь эхний мөрийг header
+   * ДООГУУР татаж, гарчиг navbar-тай давхцдаг байв. Сөрөг margin нь
+   * зөвхөн hero-той үед утгатай (түүн дээр давхарлах зорилготой).
+   */
+  const hasHero = data.banners.length > 0;
 
   return (
     <main className="min-h-screen bg-background pb-16">
@@ -42,7 +49,12 @@ export default function HomePage() {
       {/* ⚠️ Нүүрэнд ЗӨВХӨН жанрын мөрүүд (Топ 10 / Шинээр нэмэгдсэн /
           Удахгүй гарах ЗОРИУД хасагдсан). Үргэлжлүүлэн үзэх нь хэрэглэгчийн
           өөрийнх тул үлдээв. */}
-      <div className="relative z-10 -mt-8 space-y-9 md:-mt-12">
+      <div
+        className={cn(
+          'relative z-10 space-y-9',
+          hasHero ? '-mt-8 md:-mt-12' : 'pt-24 md:pt-28',
+        )}
+      >
         {data.continueWatching.length > 0 && (
           <TitleRow
             title="Үргэлжлүүлэн үзэх"
