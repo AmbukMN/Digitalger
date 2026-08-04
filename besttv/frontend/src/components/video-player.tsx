@@ -77,9 +77,26 @@ export function VideoPlayer({
   /** Хулганаар чирч seek хийж байгаа эсэх */
   const [scrubbing, setScrubbing] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
-  /** Thumbnail зурах нуугдмал видео (тусдаа элемент — гол тоглолтод нөлөөлөхгүй) */
+  /** Thumbnail харуулах нуугдмал видео (тусдаа элемент — гол тоглолтод нөлөөлөхгүй) */
   const thumbVideoRef = useRef<HTMLVideoElement>(null);
-  const thumbCanvasRef = useRef<HTMLCanvasElement>(null);
+  /**
+   * ⚠️ Хүрэлцэх (мобайл) төхөөрөмж дээр thumbnail ОГТ ХЭРЭГГҮЙ:
+   *   - "hover" гэж байхгүй — хуруу дарахад л seek хийнэ
+   *   - Хоёр дахь HLS урсгал нь гар утасны сүлжээ/батарейг дэмий иднэ
+   *     (гол видео нь удаан ачаалах шалтгаан болно)
+   *   - Жижиг дэлгэцэнд хайрцаг видеон дээр бүрхэж, хальж гардаг
+   */
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    setIsTouch(window.matchMedia('(hover: none), (pointer: coarse)').matches);
+  }, []);
+  /**
+   * Тоглолтын явцад буфер дуусч ГАЦСАН эсэх.
+   * ⚠️ `loading` нь ЗӨВХӨН эхний ачаалалтад үнэн байдаг тул дунд нь
+   * сүлжээ удаашрахад хэрэглэгч ямар ч тэмдэг харахгүй, "эвдэрсэн юм уу"
+   * гэж бодоод хаадаг байв.
+   */
+  const [buffering, setBuffering] = useState(false);
 
   useEffect(() => {
     let hls: import('hls.js').default | null = null;
@@ -110,9 +127,33 @@ export function VideoPlayer({
               xhr.setRequestHeader('Authorization', `Bearer ${token}`);
             }
           },
-          // Гар утасны сүлжээнд буферыг богино барина (эхлэх хурд чухал)
+          /**
+           * ⚠️⚠️ ЭХЛЭХ ХУРД — "их удаан уншдаг" гэсэн гомдлын засвар.
+           *
+           * Өмнө нь `startLevel: -1` (авто) байсан нь ЭХНИЙ сегментийг
+           * татаж дуустал bandwidth-ыг мэддэггүй тул ихэвчлэн ХАМГИЙН ӨНДӨР
+           * чанараар эхэлдэг → гар утсанд 5-15 секунд хүлээнэ.
+           *
+           * `startLevel: 0` — хамгийн бага чанараар ТҮРГЭН эхэлж, ABR
+           * хэдхэн секундын дараа автоматаар өндөр чанар руу шилжинэ
+           * (YouTube/Netflix яг ингэдэг).
+           */
+          startLevel: 0,
+          /** Гар утасны сүлжээнд буферыг богино барина (эхлэх хурд чухал) */
           maxBufferLength: 30,
-          startLevel: -1, // bandwidth-аар автоматаар чанар сонгоно
+          /** ⚠️ Эхлэхэд шаардах буфер — бага байх тусам түргэн эхэлнэ */
+          maxBufferSize: 30 * 1000 * 1000,
+          /** Дэлгэцийн хэмжээнээс өндөр чанар татахгүй — дэмий трафик */
+          capLevelToPlayerSize: true,
+          /**
+           * ⚠️ Сегмент татахад хугацаа хэтэрвэл ХУРДАН бууруулна —
+           * анхдагч утга удаан сүлжээнд хэт тэвчээртэй, хэрэглэгч гацдаг.
+           */
+          fragLoadingMaxRetry: 4,
+          fragLoadingRetryDelay: 500,
+          /** Удаан эхлэхээс сэргийлж ABR-ыг илүү мэдрэмтгий болгоно */
+          abrEwmaFastLive: 2,
+          abrEwmaFastVoD: 2,
         });
         hlsRef.current = hls;
         hls.loadSource(url.toString());
@@ -254,12 +295,24 @@ export function VideoPlayer({
     const onEndedInternal = () => onEnded?.();
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
+    /**
+     * Буфер дуусч гацсан — spinner харуулна.
+     * `waiting`/`stalled` = гацсан, `playing`/`canplay` = үргэлжилсэн.
+     */
+    const onWaiting = () => setBuffering(true);
+    const onResume = () => setBuffering(false);
+
     video.addEventListener('timeupdate', onTime);
     video.addEventListener('progress', onBuffer);
     video.addEventListener('seeked', onBuffer);
     video.addEventListener('ended', onEndedInternal);
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
+    video.addEventListener('waiting', onWaiting);
+    video.addEventListener('stalled', onWaiting);
+    video.addEventListener('seeking', onWaiting);
+    video.addEventListener('playing', onResume);
+    video.addEventListener('canplay', onResume);
     return () => {
       video.removeEventListener('timeupdate', onTime);
       video.removeEventListener('progress', onBuffer);
@@ -267,6 +320,11 @@ export function VideoPlayer({
       video.removeEventListener('ended', onEndedInternal);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
+      video.removeEventListener('waiting', onWaiting);
+      video.removeEventListener('stalled', onWaiting);
+      video.removeEventListener('seeking', onWaiting);
+      video.removeEventListener('playing', onResume);
+      video.removeEventListener('canplay', onResume);
     };
   }, [onProgress, onEnded]);
 
@@ -359,7 +417,7 @@ export function VideoPlayer({
    * `currentTime`-ыг хөндвөл тоглолт тасалдана.
    */
   const onBarMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!duration) return;
+    if (!duration || isTouch) return; // мобайлд hover гэж байхгүй
     const time = timeAtX(e.clientX);
     const rect = barRef.current?.getBoundingClientRect();
     setHover({ time, x: rect ? e.clientX - rect.left : 0 });
@@ -375,25 +433,29 @@ export function VideoPlayer({
     const tv = thumbVideoRef.current;
     if (!tv) return;
     const t = setTimeout(() => {
-      // readyState < 1 бол metadata ачаалагдаагүй — seek хийж болохгүй
+      /**
+       * ⚠️ `readyState >= 1` (HAVE_METADATA) хангалттай — `currentTime`
+       * оноомогц hls.js тухайн байрлалын сегментийг татаж эхэлнэ.
+       * Хэт өндөр босго (HAVE_FUTURE_DATA) тавьбал seek хэзээ ч
+       * ажиллахгүй: буфер зөвхөн seek хийсний ДАРАА бүрддэг.
+       */
       if (tv.readyState >= 1) tv.currentTime = hover.time;
-    }, 90);
+    }, 120);
     return () => clearTimeout(t);
   }, [hover]);
 
-  /** Нуугдмал видеоны seek дуусмагц canvas руу зурна */
-  useEffect(() => {
-    const tv = thumbVideoRef.current;
-    const canvas = thumbCanvasRef.current;
-    if (!tv || !canvas) return;
-    const draw = () => {
-      const ctx = canvas.getContext('2d');
-      if (!ctx || !tv.videoWidth) return;
-      ctx.drawImage(tv, 0, 0, canvas.width, canvas.height);
-    };
-    tv.addEventListener('seeked', draw);
-    return () => tv.removeEventListener('seeked', draw);
-  }, []);
+  /**
+   * ⚠️⚠️ CANVAS ХЭРЭГЛЭХГҮЙ — ХАР ХАЙРЦАГ ГАРЧ БАЙВ.
+   *
+   * Эхлээд `ctx.drawImage(video)`-ээр canvas руу зурдаг байсан нь
+   * production-д ХООСОН ХАР хайрцаг харуулж байлаа: HLS segment-үүд нь
+   * R2-ийн presigned URL (өөр origin) тул canvas "tainted" болж
+   * `drawImage` чимээгүй бүтэлгүйтдэг. `crossOrigin="anonymous"` нэмэх нь
+   * ч тус болохгүй — presigned гарын үсэг CORS header шаарддаг.
+   *
+   * Шийдэл: нуугдмал видеог ӨӨРИЙГ НЬ жижигрүүлж харуулна. Ямар ч
+   * canvas/CORS хамааралгүй, найдвартай.
+   */
 
   /**
    * Thumbnail видеог HLS-ээр ачаална (гол видеотой ижил эх сурвалж).
@@ -402,12 +464,16 @@ export function VideoPlayer({
    * 160×90 зурагт 1080p татах нь сүлжээ дэмий иддэг ба гол тоглолтын
    * bandwidth-ыг булаана.
    * ⚠️ ЗӨВХӨН хэрэглэгч progress bar дээр анх hover хийхэд ачаална
-   * (`hover !== null`) — тэгэхгүй бол кино бүр нээхэд илүү нэг урсгал
-   * дэмий эхэлнэ.
+   * ⚠️⚠️ ГОЛ ВИДЕО БЭЛЭН БОЛМОГЦ ачаална (`!loading`), hover ХҮЛЭЭХГҮЙ.
+   *
+   * Өмнө нь `hover !== null` болтол хүлээдэг байсан нь ХООСОН ХАР хайрцаг
+   * үүсгэж байв: хэрэглэгч зураас дээр очмогц HLS дөнгөж эхэлж, manifest+
+   * сегмент татаж амжаагүй байхад hover дуусдаг. Одоо урьдчилж бэлдэнэ —
+   * хамгийн бага чанараар, богино буфертай тул зардал бага.
    */
   const thumbReady = useRef(false);
   useEffect(() => {
-    if (hover === null || thumbReady.current) return;
+    if (isTouch || loading || thumbReady.current) return;
     const tv = thumbVideoRef.current;
     if (!tv || !src) return;
     thumbReady.current = true;
@@ -439,7 +505,7 @@ export function VideoPlayer({
     return () => {
       hls?.destroy();
     };
-  }, [hover, src]);
+  }, [loading, src, isTouch]);
 
   // ⚠️ Өөр кино/анги руу шилжвэл thumbnail-г ДАХИН ачаалуулна
   useEffect(() => {
@@ -507,7 +573,19 @@ export function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className="group relative aspect-video w-full overflow-hidden bg-black outline-none"
+      /**
+       * ⚠️⚠️ `aspect-video` ДАНГААРАА ХАНГАЛТГҮЙ — МОБАЙЛД ХАЛЬЖ ГАРДАГ.
+       *
+       * `aspect-video` нь ЗӨВХӨН ӨРГӨНӨӨС өндрийг тооцдог. Утсыг хэвтээ
+       * болгоход (эсвэл өндөр нарийн дэлгэцэнд) видео дэлгэцээс давж,
+       * удирдлагын товчнууд харагдахаа больдог байв.
+       *
+       * `max-h-[80svh]` — динамик viewport (`svh`) ашиглана: мобайл
+       * browser-ийн хаяг/доод самбар гарч ороход ч зөв ажиллана (`vh`
+       * бол тэдгээрийг тооцдоггүй). `mx-auto` — өндрөөр хязгаарлагдахад
+       * хэвтээ голлоно.
+       */
+      className="group relative mx-auto aspect-video max-h-[80svh] w-full overflow-hidden bg-black outline-none"
       tabIndex={0}
       role="region"
       aria-label="Видео тоглуулагч"
@@ -523,28 +601,14 @@ export function VideoPlayer({
         onClick={toggle}
         onDoubleClick={toggleFullscreen}
         onContextMenu={(e) => e.preventDefault()}
-        className="h-full w-full"
+        /* ⚠️ `object-contain` — контейнер хязгаарлагдахад дүрс СУНАХГҮЙ */
+        className="h-full w-full object-contain"
         playsInline
         controlsList="nodownload noplaybackrate noremoteplayback"
         disablePictureInPicture
         disableRemotePlayback
       />
 
-      {/*
-        Progress bar дээр hover хийхэд урьдчилсан зураг гаргах НУУГДМАЛ видео.
-        ⚠️ Гол тоглогчийн `currentTime`-ыг ашиглаж болохгүй — тоглолт тасална.
-        ⚠️ `muted` + `preload="metadata"` — дуу гарахгүй, сүлжээ дэмий иднэ.
-      */}
-      <video
-        ref={thumbVideoRef}
-        muted
-        playsInline
-        preload="metadata"
-        crossOrigin="anonymous"
-        aria-hidden
-        tabIndex={-1}
-        className="pointer-events-none absolute size-px opacity-0"
-      />
 
       {/* Skip flash indicator */}
       {seekFlash && (
@@ -561,6 +625,20 @@ export function VideoPlayer({
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
           <Loader2 className="animate-spin text-white/70" size={40} aria-label="Ачааллаж байна" />
+        </div>
+      )}
+
+      {/*
+        ⚠️ ТОГЛОЛТЫН ЯВЦАД гацсаныг харуулна (buffering).
+        `loading` нь зөвхөн ЭХНИЙ ачаалалтад үнэн тул дунд нь сүлжээ
+        удаашрахад хэрэглэгч ямар ч тэмдэг харахгүй, "эвдэрсэн" гэж
+        бодоод хаадаг байв. Дэвсгэр ил тод — кино харагдсаар байна.
+      */}
+      {!loading && !error && buffering && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="rounded-full bg-black/55 p-3 backdrop-blur-sm">
+            <Loader2 className="animate-spin text-white" size={32} aria-label="Ачааллаж байна" />
+          </span>
         </div>
       )}
 
@@ -612,18 +690,48 @@ export function VideoPlayer({
               />
             </div>
 
-            {/* Урьдчилсан харагдац — зураг + хугацаа */}
-            {hover && duration > 0 && (
+            {/*
+              Урьдчилсан харагдац — зураг + хугацаа.
+              ⚠️ Мобайлд ОГТ харуулахгүй (`isTouch`) — hover гэж байхгүй,
+                 дэлгэц бүрхэж, нэмэлт HLS урсгал сүлжээ иднэ.
+            */}
+            {/*
+              ⚠️⚠️ ХАЙРЦГИЙГ ҮРГЭЛЖ DOM-Д БАЙЛГАНА, зөвхөн ХАРАГДАЦЫГ нь
+              сольно (`opacity`/`visibility`).
+
+              Өмнө нь `hover && (...)` буюу нөхцөлт render хийж байсан нь
+              production-д ХООСОН ХАР хайрцаг үүсгэж байв: hover болмогц
+              <video> шинээр үүсч, HLS-ээ тэглээд эхнээс ачаална → хүрэлцэх
+              хугацаа алга. Хулгана холдоход DOM-оос устаж, дараагийн hover-т
+              БҮГД ДАХИН эхэлдэг тул хэзээ ч зураг гарч ирдэггүй байлаа.
+            */}
+            {!isTouch && (
               <div
-                className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 overflow-hidden rounded-lg border border-white/20 bg-black/90 shadow-xl"
+                className={cn(
+                  'pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 overflow-hidden rounded-lg border border-white/20 bg-black shadow-2xl transition-opacity duration-150',
+                  hover && duration > 0 ? 'opacity-100' : 'invisible opacity-0',
+                )}
                 style={{
                   // ⚠️ Хажуу тал руу хальж гарахаас сэргийлж хязгаарлана
-                  left: `clamp(80px, ${hover.x}px, calc(100% - 80px))`,
+                  left: `clamp(84px, ${hover?.x ?? 0}px, calc(100% - 84px))`,
                 }}
               >
-                <canvas ref={thumbCanvasRef} width={160} height={90} className="block bg-black" />
+                {/*
+                  ⚠️ CANVAS БИШ, ВИДЕО ӨӨРӨӨ. `canvas.drawImage(video)` нь
+                  presigned R2 (өөр origin) сегментээс болж "tainted" болоод
+                  чимээгүй бүтэлгүйтдэг → хоосон хар дөрвөлжин.
+                */}
+                <video
+                  ref={thumbVideoRef}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  aria-hidden
+                  tabIndex={-1}
+                  className="block h-22.5 w-40 bg-black object-cover"
+                />
                 <div className="py-1 text-center text-xs font-medium tabular-nums text-white">
-                  {formatTime(hover.time)}
+                  {formatTime(hover?.time ?? 0)}
                 </div>
               </div>
             )}

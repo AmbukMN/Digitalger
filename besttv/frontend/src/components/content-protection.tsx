@@ -20,8 +20,13 @@ import { toast } from 'sonner';
  * Нухацтай хамгаалах цорын ганц зам = DRM (Widevine/FairPlay).
  */
 
-/** DevTools товчлуурын блок (F12, Ctrl+Shift+I/J/C) */
-const BLOCK_DEVTOOLS = true;
+/**
+ * DevTools товчлуурын блок (F12, Ctrl+Shift+I/J/C).
+ *
+ * ⚠️ ОНОШИЛГООНЫ ХУГАЦААНД УНТРААЛТТАЙ — админ өөрөө console харах
+ * шаардлагатай. Бүх алдаа шийдэгдсэний ДАРАА `true` болгоно.
+ */
+const BLOCK_DEVTOOLS = false;
 
 /** Хамгаалалт хэрэглэхгүй сонголтууд — эдгээрийг блоклобол UX эвдэрнэ */
 const ALLOW_SELECTOR = 'input, textarea, select, [contenteditable="true"], [data-allow-copy]';

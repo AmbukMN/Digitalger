@@ -18,6 +18,7 @@ import {
   type AdminUser,
   type UserFilters,
 } from '@/lib/queries';
+import { NewBadge } from '@/components/new-badge';
 import { useNewSince } from '@/lib/use-new-since';
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -219,11 +220,7 @@ export default function UsersPage() {
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 truncate font-medium text-foreground hover:text-primary">
                           {u.name ?? '—'}
-                          {isNew(u.createdAt) && (
-                            <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
-                              шинэ
-                            </span>
-                          )}
+                          {isNew(u.createdAt) && <NewBadge />}
                           {u.role === 'ADMIN' && (
                             <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
                               АДМИН

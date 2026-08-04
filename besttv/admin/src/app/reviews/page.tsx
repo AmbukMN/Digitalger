@@ -20,7 +20,9 @@ import { Badge, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { NewBadge } from '@/components/new-badge';
 import { api } from '@/lib/api';
+import { useNewSince } from '@/lib/use-new-since';
 import { useAdminReviews, type AdminReview } from '@/lib/queries';
 
 const REASON_LABEL: Record<string, string> = {
@@ -33,6 +35,8 @@ const REASON_LABEL: Record<string, string> = {
 type Filter = 'all' | 'reported' | 'hidden';
 
 export default function ReviewsPage() {
+  // Аль сэтгэгдэл сүүлийн үзэлтээс хойш шинээр ирснийг мөрөнд тэмдэглэнэ
+  const isNew = useNewSince('reviews');
   const [q, setQ] = useState('');
   const [rating, setRating] = useState<number | undefined>();
   const [filter, setFilter] = useState<Filter>('all');
@@ -321,6 +325,7 @@ export default function ReviewsPage() {
                     <p className="flex items-center gap-1.5 font-medium text-foreground">
                       {r.isStaff && <Shield size={12} className="text-primary" />}
                       {r.user.name ?? '—'}
+                      {isNew(r.createdAt) && <NewBadge />}
                     </p>
                     <p className="text-xs text-muted-foreground">{r.user.email}</p>
                   </td>

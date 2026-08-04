@@ -12,6 +12,7 @@ import { DataToolbar, SortHeader } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
 import { useAdminPaymentCounts, useAdminPayments, type PaymentFilters } from '@/lib/queries';
+import { NewBadge } from '@/components/new-badge';
 import { useNewSince } from '@/lib/use-new-since';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -42,6 +43,8 @@ export default function PaymentsPage() {
   const [exporting, setExporting] = useState(false);
   /** ⚠️ Хуудас нээгдэх мөчид тэмдэглэсэн — badge цэвэрлэгдсэн ч мөр тэмдэглэгдэнэ */
   const isNew = useNewSince('payments');
+  /** Амжилтгүй төлбөр — тусдаа section (sidebar-т ч тусад нь тоологддог) */
+  const isNewFailed = useNewSince('payments-failed');
   const confirm = useConfirm();
   const qc = useQueryClient();
   /** Давхар дарахаас сэргийлж тухайн мөрийг түр түгжинэ */
@@ -283,11 +286,16 @@ export default function PaymentsPage() {
                   <td className="px-4 py-3">
                     <p className="flex items-center font-medium text-foreground">
                       <span className="truncate">{p.user.name ?? p.user.email}</span>
-                      {isNew(p.paidAt ?? p.createdAt) && (
-                        <span className="ml-1.5 shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
-                          шинэ
-                        </span>
-                      )}
+                      {/*
+                        ⚠️ Төлөгдсөн ба амжилтгүй төлбөр нь ӨӨР ӨӨР section-тай
+                        (`payments` / `payments-failed`) — sidebar-т ч тусад нь
+                        тоологддог. Тиймээс мөрийн тэмдэглэгээг ч тухайн
+                        төлөвт харгалзах section-оор шалгана, эс бөгөөс
+                        амжилтгүй төлбөр "шинэ" гэж хэзээ ч тэмдэглэгдэхгүй.
+                      */}
+                      {(p.status === 'FAILED'
+                        ? isNewFailed(p.createdAt)
+                        : isNew(p.paidAt ?? p.createdAt)) && <NewBadge className="ml-1.5" />}
                     </p>
                     <p className="text-xs text-muted-foreground">{p.user.email}</p>
                   </td>

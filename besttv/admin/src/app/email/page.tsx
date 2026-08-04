@@ -20,7 +20,9 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { DataToolbar } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
+import { NewBadge } from '@/components/new-badge';
 import { api } from '@/lib/api';
+import { useNewSince } from '@/lib/use-new-since';
 
 const TABS = [
   { id: 'logs', label: 'Илгээсэн имэйл' },
@@ -252,6 +254,8 @@ function LogsTab() {
 // ─── Бүртгүүлэгчид ────────────────────────────────────────────────────────────
 
 function SubscribersTab() {
+  // Сүүлийн үзэлтээс хойш шинээр бүртгүүлсэн хүмүүсийг тэмдэглэнэ
+  const isNew = useNewSince('subscribers');
   const [f, setF] = useState({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 });
   const [exporting, setExporting] = useState(false);
 
@@ -373,7 +377,12 @@ function SubscribersTab() {
           <tbody className="divide-y divide-border">
             {data?.items.map((s) => (
               <tr key={s.id} className="transition-colors hover:bg-accent/40">
-                <td className="px-4 py-3 text-foreground">{s.email}</td>
+                <td className="px-4 py-3 text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    {s.email}
+                    {isNew(s.createdAt) && <NewBadge />}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{s.name ?? '—'}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{s.source ?? '—'}</td>
                 <td className="px-4 py-3">
@@ -566,6 +575,8 @@ function BroadcastTab() {
 // ─── Хориглосон хаяг ──────────────────────────────────────────────────────────
 
 function SuppressionsTab() {
+  // Шинээр нэмэгдсэн bounce/complaint — SES нэр хүндэд аюултай, шуурхай харах
+  const isNew = useNewSince('email-issues');
   const { data, isFetching } = useQuery({
     queryKey: ['admin-suppressions'],
     queryFn: () =>
@@ -592,7 +603,12 @@ function SuppressionsTab() {
         <tbody className="divide-y divide-border">
           {data?.map((s) => (
             <tr key={s.id} className="transition-colors hover:bg-accent/40">
-              <td className="px-4 py-3 text-foreground">{s.email}</td>
+              <td className="px-4 py-3 text-foreground">
+                <span className="flex items-center gap-1.5">
+                  {s.email}
+                  {isNew(s.createdAt) && <NewBadge />}
+                </span>
+              </td>
               <td className="px-4 py-3 text-muted-foreground">
                 {s.reason}
                 {s.subType && ` · ${s.subType}`}
