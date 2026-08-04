@@ -644,8 +644,60 @@ export class PaymentsService {
     await this.subs.grant(userId, plan.id, plan.durationDays, payment.id);
     if (normalizedCoupon) await this.coupons.incrementUse(normalizedCoupon);
 
+    /**
+     * ⚠️ БАТАЛГААЖУУЛАХ ИМЭЙЛ — өмнө нь ЗӨВХӨН QPay-ээр авахад илгээгддэг
+     * байсан тул хэтэвчээр авсан хэрэглэгч ямар ч бичгэн баримтгүй үлддэг
+     * байв (хэдэн төгрөг хассан, хэзээ дуусахыг мэдэхгүй).
+     * `await` ХИЙХГҮЙ — имэйл унасан ч худалдан авалт амжилттай хэвээр.
+     */
+    void this.sendWalletPurchaseEmail(userId, plan.id, plan.name, amount);
+
     this.logger.log(`Хэтэвчээр эрх нээгдлээ: user=${userId} plan=${plan.name} -${amount}₮`);
     return { ok: true, paymentId: payment.id, planName: plan.name };
+  }
+
+  /** Хэтэвчээр багц авсны баталгаажуулах имэйл (алдаа гарвал зөвхөн log) */
+  private async sendWalletPurchaseEmail(
+    userId: string,
+    planId: string,
+    planName: string,
+    amount: number,
+  ) {
+    try {
+      const [buyer, planFull, activeSub] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, name: true },
+        }),
+        this.prisma.plan.findUnique({
+          where: { id: planId },
+          select: { isVip: true, genres: { select: { genre: { select: { name: true } } } } },
+        }),
+        this.prisma.subscription.findFirst({
+          where: { userId, planId },
+          orderBy: { expiresAt: 'desc' },
+          select: { expiresAt: true },
+        }),
+      ]);
+      if (!buyer || !activeSub) return;
+
+      this.email.sendSubscriptionActivated({
+        to: buyer.email,
+        name: buyer.name,
+        planName,
+        amount,
+        expiresAt: activeSub.expiresAt,
+        isVip: planFull?.isVip,
+        genres: planFull?.genres.map((g) => g.genre.name),
+        userId,
+      });
+    } catch (e) {
+      this.logger.warn(
+        `Хэтэвчийн худалдан авалтын имэйл илгээж чадсангүй (user=${userId}): ${
+          e instanceof Error ? e.message : e
+        }`,
+      );
+    }
   }
 
   private async verifyPaymentWithQpay(qpayInvoiceId: string): Promise<boolean> {

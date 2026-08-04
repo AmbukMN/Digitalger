@@ -100,3 +100,40 @@ export function loginUrlWithIntent(intent: AuthIntent, next?: string): string {
   saveAuthIntent(intent);
   return loginUrl(next);
 }
+
+/* ─── Худалдан авалтын дараа буцах зам ───────────────────────────────────
+ * ⚠️ Хэрэглэгч КИНО үзэх гэж багц/түрээс авахад төлбөр төлсний дараа
+ * /pricing дээр үлдээд, өөрөө буцаж хайх шаардлагатай байсан.
+ * Энэ нь тухайн киног санаж, эрх нээгдмэгц ТЭР КИНО руу нь буцаана.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+const RETURN_KEY = 'btv-post-purchase-return';
+
+/** Багц/түрээс авахаар /pricing руу явахын өмнө дуудна */
+export function savePostPurchaseReturn(path?: string) {
+  if (typeof window === 'undefined') return;
+  const target = path ?? currentPath();
+  // /pricing, /login руу буцаах нь утгагүй (гогцоо үүснэ)
+  if (!target.startsWith('/') || /^\/(pricing|login)/.test(target)) return;
+  try {
+    sessionStorage.setItem(RETURN_KEY, JSON.stringify({ path: target, at: Date.now() }));
+  } catch {
+    /* private mode — алгасна */
+  }
+}
+
+/** Уншаад ЦЭВЭРЛЭНЭ (нэг л удаа). Хугацаа хэтэрсэн бол null. */
+export function consumePostPurchaseReturn(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(RETURN_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(RETURN_KEY);
+    const parsed = JSON.parse(raw) as { path: string; at: number };
+    if (!parsed?.path || Date.now() - parsed.at > TTL_MS) return null;
+    // ⚠️ Зөвхөн дотоод зам — нээлттэй чиглүүлэлтээс сэргийлнэ
+    return parsed.path.startsWith('/') && !parsed.path.startsWith('//') ? parsed.path : null;
+  } catch {
+    return null;
+  }
+}

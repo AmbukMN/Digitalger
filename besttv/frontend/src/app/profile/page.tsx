@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
@@ -58,9 +58,19 @@ export default function ProfilePage() {
   const router = useRouter();
   const qc = useQueryClient();
   const premium = hasPremium(user);
+  /** ⚠️ VIP бол бүх ангилал нээлттэй — нэмэлт багц санал болгох утгагүй */
+  const vip = (user?.subscriptions ?? []).some((s) => s.isVip);
   const fileRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
-  const [tab, setTab] = useState<Tab>('profile');
+  /**
+   * ⚠️ URL-ээс таб — `?tab=wallet` руу чиглүүлэхэд ЯГ тэр таб нээгдэнэ.
+   * Өмнө нь "үлдэгдэл хүрэлцэхгүй" үед зүгээр `/profile` руу явуулдаг тул
+   * хэрэглэгч Профайл табан дээр буугаад ХААНААС цэнэглэхээ олдоггүй байв.
+   */
+  const initialTab = (useSearchParams().get('tab') ?? 'profile') as Tab;
+  const [tab, setTab] = useState<Tab>(
+    ['profile', 'wallet', 'orders'].includes(initialTab) ? initialTab : 'profile',
+  );
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -379,15 +389,23 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <>
-                  <p className="mt-2 text-sm text-white/55">Одоогоор идэвхтэй багц байхгүй байна.</p>
-                  <Link
-                    href="/pricing"
-                    className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-premium py-2.5 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.01] hover:brightness-105"
-                  >
-                    <Crown size={15} /> Багц авах
-                  </Link>
-                </>
+                <p className="mt-2 text-sm text-white/55">Одоогоор идэвхтэй багц байхгүй байна.</p>
+              )}
+
+              {/*
+                ⚠️ ҮРГЭЛЖ харагдана (VIP-ээс бусад). Өмнө нь зөвхөн багцгүй
+                хэрэглэгчид харагддаг байсан тул НЭГ багцтай хүн нэмэлт багц
+                авах гарцгүй болж, зөвхөн footer-ийн линк үлддэг байв.
+                VIP бол бүх ангилал нээлттэй тул илүүдэл.
+              */}
+              {!vip && (
+                <Link
+                  href="/pricing"
+                  className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-premium py-2.5 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.01] hover:brightness-105"
+                >
+                  <Crown size={15} />
+                  {user.subscriptions.length > 0 ? 'Багц нэмэх / сунгах' : 'Багц авах'}
+                </Link>
               )}
             </div>
 

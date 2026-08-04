@@ -20,7 +20,7 @@ import { ShareButton } from '@/components/title/share-button';
 import { GalleryRow } from '@/components/title/gallery-row';
 import { ReviewsSection } from '@/components/title/reviews-section';
 import { RentDialog } from '@/components/title/rent-dialog';
-import { consumeAuthIntent } from '@/lib/auth-intent';
+import { consumeAuthIntent, savePostPurchaseReturn } from '@/lib/auth-intent';
 
 export function TitleDetailClient({ slug }: { slug: string }) {
   const { data, isLoading, isError, refetch } = useTitleDetail(slug);
@@ -178,8 +178,14 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                         {formatPrice(data.rental.price)} · {data.rental.hours}ц түрээслэх
                       </button>
                     )}
+                    {/*
+                      ⚠️ Буцах замыг ХАДГАЛНА — төлбөр төлж эрх нээгдмэгц
+                      хэрэглэгч ЭНЭ КИНО руугаа буцна. Өмнө нь /pricing дээр
+                      үлдээд өөрөө буцаж хайх шаардлагатай байв.
+                    */}
                     <Link
                       href="/pricing"
+                      onClick={() => savePostPurchaseReturn()}
                       className="flex items-center justify-center gap-2 rounded-lg bg-premium px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
                     >
                       <Lock size={17} />

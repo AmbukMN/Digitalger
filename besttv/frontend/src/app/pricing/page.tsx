@@ -12,7 +12,11 @@ import { useAuth } from '@/lib/auth-store';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
-import { consumeAuthIntent, loginUrlWithIntent } from '@/lib/auth-intent';
+import {
+  consumeAuthIntent,
+  consumePostPurchaseReturn,
+  loginUrlWithIntent,
+} from '@/lib/auth-intent';
 
 type PayMethod = 'wallet' | 'qpay';
 
@@ -125,8 +129,16 @@ export default function PricingPage() {
       );
     }
     if (user.walletBalance < finalPrice) {
-      toast.error('Хэтэвчийн үлдэгдэл хүрэлцэхгүй байна — эхлээд цэнэглэнэ үү');
-      router.push('/profile');
+      /**
+       * ⚠️ ХЭТЭВЧ ТАБ руу шууд (?tab=wallet). Өмнө нь `/profile` руу
+       * явуулдаг тул Профайл табан дээр буугаад хэрэглэгч хаанаас
+       * цэнэглэхээ олдоггүй байв. Дутуу дүнг ч хэлнэ.
+       */
+      const short = finalPrice - user.walletBalance;
+      toast.error(
+        `Үлдэгдэл ${formatPrice(short)} дутуу байна — цэнэглэх хуудас руу шилжүүлж байна`,
+      );
+      router.push('/profile?tab=wallet');
       return;
     }
     setLoadingPlan(planId);
@@ -136,7 +148,19 @@ export default function PricingPage() {
         body: JSON.stringify({ planId, couponCode: appliedCoupon?.code }),
       });
       await refreshAll();
-      toast.success('Эрх амжилттай нээгдлээ 🎉');
+
+      /**
+       * ⚠️ Хэрэглэгч КИНО үзэх гэж багц авсан бол ТЭР КИНО руугаа буцна.
+       * Өмнө нь зүгээр toast гарч, хэрэглэгч /pricing дээр үлдэж, өөрөө
+       * буцаж хайх шаардлагатай байв.
+       */
+      const back = consumePostPurchaseReturn();
+      if (back) {
+        toast.success('Эрх нээгдлээ 🎉 — үргэлжлүүлж байна');
+        router.push(back);
+      } else {
+        toast.success('Эрх амжилттай нээгдлээ 🎉');
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally {
@@ -416,9 +440,12 @@ export default function PricingPage() {
           successText="Эрх идэвхжиж байна…"
           onPaid={async () => {
             await refreshAll();
+            // ⚠️ Кино үзэх гэж багц авсан бол ТЭР КИНО руугаа буцна
+            // (өмнө нь болзолгүй нүүр хуудас руу шиддэг байсан)
+            const back = consumePostPurchaseReturn();
             setTimeout(() => {
               setPayment(null);
-              router.push('/');
+              router.push(back ?? '/');
             }, 1600);
           }}
           onClose={() => setPayment(null)}

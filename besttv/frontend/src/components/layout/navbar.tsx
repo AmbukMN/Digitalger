@@ -265,8 +265,18 @@ export function Navbar() {
                     <div className="py-1.5">
                       <MenuItem href="/profile" icon={<User size={15} />} label="Миний профайл" />
                       <MenuItem href="/my-list" icon={<Heart size={15} />} label="Дуртай кино" />
-                      {!premium && (
-                        <MenuItem href="/pricing" icon={<Crown size={15} />} label="Багц авах" />
+                      {/*
+                        ⚠️ VIP бол бүх ангилал нээлттэй тул нуухаас БУСАД
+                        тохиолдолд ҮРГЭЛЖ харуулна. Өмнө нь `!premium` байсан
+                        тул нэг багцтай хэрэглэгч НЭМЭЛТ багц авах гарцгүй
+                        болж, зөвхөн footer-ийн линк үлддэг байв.
+                      */}
+                      {!vip && (
+                        <MenuItem
+                          href="/pricing"
+                          icon={<Crown size={15} />}
+                          label={premium ? 'Багц нэмэх / сунгах' : 'Багц авах'}
+                        />
                       )}
                       <button
                         role="menuitem"
