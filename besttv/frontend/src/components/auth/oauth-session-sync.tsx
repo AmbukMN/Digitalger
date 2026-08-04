@@ -12,6 +12,13 @@ import { clearTokens, getAccessToken } from '@/lib/api';
  * нэг удаа хуулна — цаашид апп бүхэлдээ өөрийн JWT flow-оор ажиллана
  * (NextAuth session-ийг зөвхөн OAuth "гүүр" болгож ашиглана).
  */
+/**
+ * Sync хийхэд БҮТЭЛГҮЙТСЭН accessToken-ууд.
+ * ⚠️ Компонентоос ГАДНА (модуль түвшинд) — re-mount болоход ч хадгалагдана.
+ * Session cookie устгах оролдлого амжилтгүй болсон ч гогцоо үүсэхгүй.
+ */
+const failedTokens = new Set<string>();
+
 export function OAuthSessionSync() {
   const { data: session, status } = useSession();
   const syncFromOAuth = useAuth((s) => s.syncFromOAuth);
@@ -40,27 +47,31 @@ export function OAuthSessionSync() {
     if (!accessToken || !refreshToken) return;
     if (synced.current === accessToken) return; // давхар sync хийхгүй
 
+    /**
+     * ⚠️⚠️ БҮТЭЛГҮЙТСЭН ТОКЕНЫГ ДАХИН ХЭЗЭЭ Ч ОРОЛДОХГҮЙ.
+     *
+     * Production nginx лог (12:41:00) — гогцооны бодит хэлбэр:
+     *   refresh 201 → me 401 → refresh 201 → me 401 → refresh 201 → me 401
+     *   → signout 200 → session 200 (498 байт = ХЭРЭГЛЭГЧТЭЙ, УСТААГҮЙ!)
+     *
+     * `signOut({redirect:false})` нь cookie-г үргэлж НАЙДВАРТАЙ устгадаггүй.
+     * Устгаагүй бол `useSession` дахин `authenticated` мэдэгдэж, sync
+     * дахин ажиллаад мөнхийн гогцоо үргэлжилнэ.
+     *
+     * Тиймээс session-д найдахаа болиод, БҮТЭЛГҮЙТСЭН токеныг өөрийг нь
+     * тэмдэглэнэ. Тэр токен дахин ирвэл ОГТ оролдохгүй → гогцоо таслагдана.
+     */
+    if (failedTokens.has(accessToken)) return;
+
     synced.current = accessToken;
     // ⚠️ ЭХЛЭЭД цэвэрлэнэ — хуучин токеноор 401/refresh гогцоо үүсэхээс сэргийлнэ
     if (getAccessToken() !== accessToken) clearTokens();
 
     syncFromOAuth(accessToken, refreshToken).catch(() => {
-      /**
-       * ⚠️⚠️ SYNC УНАВАЛ SESSION-ЫГ УСТГАНА — ГАЦААНААС ГАРГАХ ЦОРЫН ГАНЦ ЗАМ.
-       *
-       * Өмнө нь `synced.current = null` тавьж "дахин оролдоно" гэсэн нь
-       * МӨНХИЙН ГОГЦОО үүсгэж байв:
-       *   session-ийн токен хүчингүй → /auth/me 401 → refresh ч амжилтгүй
-       *   → synced тэглэгдэнэ → useSession дахин мэдэгдэнэ → ДАХИН sync
-       *   → ДАХИН 401 ... эцэс төгсгөлгүй
-       * Production console-д яг ийм: /api/auth/me 401 × 4, refresh огт үгүй.
-       * Хэрэглэгч "Нэвтрэх" товч хараад л үлдэнэ, юу ч хийж чадахгүй.
-       *
-       * Session доторх токен сэргэхгүй нь тогтоогдсон тул тэр session
-       * ХЭРЭГГҮЙ. Устгавал NextAuth `unauthenticated` болж, хэрэглэгч
-       * ЦЭВЭР байдлаас дахин нэвтэрч чадна.
-       */
+      failedTokens.add(accessToken);
       clearTokens();
+      // Session-ыг устгах оролдлого (амжилтгүй болсон ч дээрх хамгаалалт
+      // гогцоог таслах тул хэрэглэгч гацахгүй).
       nextAuthSignOut({ redirect: false }).catch(() => null);
     });
   }, [session, status, syncFromOAuth]);
