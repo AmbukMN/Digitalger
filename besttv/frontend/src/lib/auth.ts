@@ -68,6 +68,34 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
+
+  /**
+   * ⚠️⚠️ GOOGLE/FACEBOOK НЭВТРЭЛТ ЦИКЛ БОЛЖ БАЙСНЫ ШАЛТГААН:
+   *   [next-auth][error][OAUTH_CALLBACK_ERROR] State cookie was missing.
+   *
+   * NextAuth-ийн анхдагч `state`/`pkce` cookie нь `SameSite=Lax`. Google-ээс
+   * буцаж ирэх redirect нь CROSS-SITE тул browser тэр cookie-г ИЛГЭЭДЭГГҮЙ
+   * (Chrome-ийн шинэ хувилбарууд илүү хатуу). Үр дүнд callback "state алга"
+   * гээд login руу буцааж, хэрэглэгч мөнхийн цикл дээр гацдаг байв.
+   *
+   * Засвар: state/pkce/nonce cookie-г `SameSite=None; Secure` болгоно —
+   * зөвхөн эдгээр гурав (богино настай, OAuth урсгалд л ашиглагдана).
+   * Session cookie нь `Lax` хэвээр (CSRF хамгаалалт хадгалагдана).
+   */
+  cookies: {
+    state: {
+      name: '__Secure-next-auth.state',
+      options: { httpOnly: true, sameSite: 'none', path: '/', secure: true, maxAge: 900 },
+    },
+    pkceCodeVerifier: {
+      name: '__Secure-next-auth.pkce.code_verifier',
+      options: { httpOnly: true, sameSite: 'none', path: '/', secure: true, maxAge: 900 },
+    },
+    nonce: {
+      name: '__Secure-next-auth.nonce',
+      options: { httpOnly: true, sameSite: 'none', path: '/', secure: true },
+    },
+  },
   pages: {
     signIn: '/login',
     error: '/login',

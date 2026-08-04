@@ -96,12 +96,18 @@ export function VideoPreview({ kind, id }: { kind: Kind; id: string }) {
 
   return (
     <div className="mt-2">
-      <div className="relative overflow-hidden rounded-md bg-black">
+      {/*
+        ⚠️ `max-h` — модал доторх preview нь дэлгэцээс ХАЛЬДАГ байсан
+        (aspect-video нь зөвхөн ӨРГӨНӨӨС тооцдог тул өндөр дэлгэцэнд
+        60vh-аас өндөр болж, доод товчнууд харагдахаа болино).
+        `object-contain` — өөр харьцаатай видеог тайрахгүй, бүтнээр нь багтаана.
+      */}
+      <div className="relative flex max-h-[60vh] items-center justify-center overflow-hidden rounded-md bg-black">
         <video
           ref={videoRef}
           controls
           playsInline
-          className="aspect-video w-full"
+          className="max-h-[60vh] w-full object-contain"
           controlsList="nodownload"
         />
         {loading && (

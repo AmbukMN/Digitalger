@@ -39,6 +39,21 @@ export class AdminStreamController {
   trailer(@Param('titleId') titleId: string) {
     return this.stream.adminPreview('trailer', titleId);
   }
+
+  /**
+   * ⚠️ ABR дэд playlist — master доторх мөрүүд ЭНД заана.
+   * Ингэснээр segment-үүд presign хийгдэж, админ preview тоглоно.
+   */
+  @Get(':kind/:id/variant.m3u8')
+  @Header('Content-Type', 'application/vnd.apple.mpegurl')
+  @Header('Cache-Control', 'private, no-store')
+  variant(
+    @Param('kind') kind: 'movie' | 'episode' | 'trailer',
+    @Param('id') id: string,
+    @Query('v') v: string,
+  ) {
+    return this.stream.adminVariant(kind, id, v);
+  }
 }
 
 // ⚠️ OptionalJwtAuthGuard — үнэгүй контентыг нэвтрээгүй хүн ч үзнэ.

@@ -55,6 +55,12 @@ export function VideoPlayer({
    * түвшинтэй видео гэсэн үг → цэс огт харагдахгүй (нийцтэй байдал).
    */
   const hlsRef = useRef<import('hls.js').default | null>(null);
+  /**
+   * ⚠️ Дуу АВТОМАТААР хаагдсан эсэх (browser autoplay бодлого).
+   * Хэрэглэгчийн ЭХНИЙ даралтад дууг буцааж нээхэд ашиглана — тэгэхгүй бол
+   * кино дуугүй тоглосоор, хэрэглэгч шалтгааныг ойлгохгүй.
+   */
+  const autoMutedRef = useRef(false);
   const [levels, setLevels] = useState<{ index: number; height: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(-1); // -1 = Auto
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
@@ -110,12 +116,20 @@ export function VideoPlayer({
           setLevels(lv.length > 1 ? lv : []);
           setCurrentLevel(-1);
           if (startAt && startAt > 0) video.currentTime = startAt;
-          // ⚠️ AUTOPLAY — хэрэглэгч кино дээр дарж ирсэн тул шууд эхэлнэ.
-          // Дуутай autoplay-г browser блоклодог тул амжилтгүй бол ЧИМЭЭГҮЙ
-          // болгож дахин оролдоно (Netflix/YouTube-ийн зан төлөв).
+          /**
+           * ⚠️ AUTOPLAY — хэрэглэгч кино дээр дарж ирсэн тул шууд эхэлнэ.
+           * Дуутай autoplay-г browser блоклодог тул амжилтгүй бол чимээгүй
+           * болгож дахин оролдоно.
+           *
+           * ⚠️ ДУУ АВТОМАТААР ХААГДСАН гэдгийг тэмдэглэнэ (`autoMuted`) —
+           * хэрэглэгч эхний удаа дэлгэц дээр дармагц ДУУГ БУЦААЖ НЭЭНЭ.
+           * Өмнө нь чимээгүй үлдээд, хэрэглэгч өөрөө олж дарахгүй бол
+           * кино дуугүй тоглосоор байв.
+           */
           video.play().catch(() => {
             video.muted = true;
             setMuted(true);
+            autoMutedRef.current = true;
             video.play().catch(() => {
               /* хэрэглэгч гараар дарна */
             });
@@ -228,6 +242,19 @@ export function VideoPlayer({
   const toggle = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
+    /**
+     * ⚠️ Browser-ийн autoplay бодлогоор дуу АВТОМАТААР хаагдсан бол
+     * хэрэглэгчийн ЭХНИЙ даралтад буцааж нээнэ. Энэ даралт нь "хэрэглэгчийн
+     * үйлдэл" тул browser дуу зөвшөөрнө. Тэгэхгүй бол кино дуугүй тоглосоор,
+     * хэрэглэгч шалтгааныг ойлгохгүй үлддэг байв.
+     */
+    if (autoMutedRef.current) {
+      autoMutedRef.current = false;
+      v.muted = false;
+      setMuted(false);
+      if (v.paused) v.play();
+      return; // энэ даралт нь дуу нээхэд зарцуулагдана — pause хийхгүй
+    }
     if (v.paused) v.play();
     else v.pause();
   }, []);

@@ -215,7 +215,36 @@ export class StreamService {
     }
 
     if (!key) throw new NotFoundException('Видео олдсонгүй');
-    return this.rewritePlaylist(key);
+    /**
+     * ⚠️ ABR master бол дэд playlist-ыг АДМИН variant endpoint руу чиглүүлнэ.
+     * Өмнө нь `variantBase`-гүй дуудаж байсан тул `v0.m3u8`-ыг presign хийж,
+     * ДОТОРХ segment-үүд presign хийгдээгүй үлдэж, видео ОГТ ТОГЛОХГҮЙ байв.
+     */
+    return this.rewritePlaylist(key, `/api/admin/stream/${kind}/${id}/variant.m3u8`);
+  }
+
+  /** Админ preview-ийн ABR дэд playlist (эрх шалгахгүй, ADMIN guard хамгаална) */
+  async adminVariant(
+    kind: 'movie' | 'episode' | 'trailer',
+    id: string,
+    variant: string,
+  ): Promise<string> {
+    let key: string | null = null;
+    if (kind === 'episode') {
+      const ep = await this.prisma.episode.findUnique({
+        where: { id },
+        select: { videoKey: true },
+      });
+      key = ep?.videoKey ?? null;
+    } else {
+      const t = await this.prisma.title.findUnique({
+        where: { id },
+        select: { videoKey: true, trailerKey: true },
+      });
+      key = kind === 'trailer' ? (t?.trailerKey ?? null) : (t?.videoKey ?? null);
+    }
+    if (!key) throw new NotFoundException('Видео олдсонгүй');
+    return this.variantPlaylist(key, variant);
   }
 
   /**
