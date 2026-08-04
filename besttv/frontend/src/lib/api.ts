@@ -5,9 +5,54 @@ const API_BASE = '/api';
 
 let refreshPromise: Promise<'ok' | 'invalid' | 'network'> | null = null;
 
-export function getAccessToken(): string | null {
+/**
+ * ⚠️⚠️ LOCALSTORAGE УНАЖ БОЛНО — ЗААВАЛ ХАМГААЛНА.
+ *
+ * `localStorage` нь дараах тохиолдолд ШИДДЭГ (throw), буцаадаггүй:
+ *   - Chrome site settings-д тухайн сайтын cookie/site data ХОРИГЛОСОН
+ *   - Хадгалах багтаамж дүүрсэн (QuotaExceededError)
+ *   - Зарим browser-ийн хатуу privacy горим
+ *
+ * Production-д нэг хэрэглэгч ГАНЦ Chrome profile дээрээ нэвтэрч чаддаггүй
+ * байв (incognito ✅, гар утас ✅). Хамгаалалтгүй `setItem` шидэхэд
+ * `setTokens` бүхэлдээ унаж, токен ХАДГАЛАГДАХГҮЙ үлддэг:
+ *     refresh 201 → me 401 → refresh 201 → me 401 … (production лог)
+ * Хэрэглэгч "Нэвтрэх" товч хараад л үлдэнэ, шалтгаан нь хаана ч гарахгүй.
+ *
+ * Одоо localStorage унавал САНАХ ОЙН нөөц рүү шилжинэ — тухайн таб дээр
+ * нэвтрэлт бүрэн ажиллана (шинэ таб нээхэд л дахин нэвтэрнэ).
+ */
+const memStore = new Map<string, string>();
+
+function lsGet(key: string): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('btv_access');
+  try {
+    return localStorage.getItem(key) ?? memStore.get(key) ?? null;
+  } catch {
+    return memStore.get(key) ?? null;
+  }
+}
+
+function lsSet(key: string, value: string) {
+  memStore.set(key, value); // ⚠️ ҮРГЭЛЖ санах ойд — localStorage унасан ч ажиллана
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* хориглосон/дүүрсэн — санах ойн хуулбар хангалттай */
+  }
+}
+
+function lsRemove(key: string) {
+  memStore.delete(key);
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* алгасна */
+  }
+}
+
+export function getAccessToken(): string | null {
+  return lsGet('btv_access');
 }
 
 /**
@@ -37,22 +82,21 @@ function writeTokenCookie(access: string | null) {
 }
 
 export function setTokens(access: string, refresh: string) {
-  localStorage.setItem('btv_access', access);
-  localStorage.setItem('btv_refresh', refresh);
+  lsSet('btv_access', access);
+  lsSet('btv_refresh', refresh);
   writeTokenCookie(access);
 }
 
 export function clearTokens() {
-  localStorage.removeItem('btv_access');
-  localStorage.removeItem('btv_refresh');
+  lsRemove('btv_access');
+  lsRemove('btv_refresh');
   writeTokenCookie(null);
 }
 
 // ⚠️ Зочны нэвтрэлт (guest) БҮРМӨСӨН ХАСАГДСАН — зөвхөн имэйл/Google/Facebook.
 
 export function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('btv_refresh');
+  return lsGet('btv_refresh');
 }
 
 /**
