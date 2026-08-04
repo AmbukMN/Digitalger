@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut as nextAuthSignOut } from 'next-auth/react';
 import { useAuth } from '@/lib/auth-store';
 import { clearTokens, getAccessToken } from '@/lib/api';
 
@@ -43,10 +43,25 @@ export function OAuthSessionSync() {
     synced.current = accessToken;
     // ⚠️ ЭХЛЭЭД цэвэрлэнэ — хуучин токеноор 401/refresh гогцоо үүсэхээс сэргийлнэ
     if (getAccessToken() !== accessToken) clearTokens();
+
     syncFromOAuth(accessToken, refreshToken).catch(() => {
-      // ⚠️ Дахин оролдох боломж үлдээнэ — эс тэгвэл энэ session-д
-      // хэзээ ч дахин sync хийгдэхгүй болж хэрэглэгч гацна.
-      synced.current = null;
+      /**
+       * ⚠️⚠️ SYNC УНАВАЛ SESSION-ЫГ УСТГАНА — ГАЦААНААС ГАРГАХ ЦОРЫН ГАНЦ ЗАМ.
+       *
+       * Өмнө нь `synced.current = null` тавьж "дахин оролдоно" гэсэн нь
+       * МӨНХИЙН ГОГЦОО үүсгэж байв:
+       *   session-ийн токен хүчингүй → /auth/me 401 → refresh ч амжилтгүй
+       *   → synced тэглэгдэнэ → useSession дахин мэдэгдэнэ → ДАХИН sync
+       *   → ДАХИН 401 ... эцэс төгсгөлгүй
+       * Production console-д яг ийм: /api/auth/me 401 × 4, refresh огт үгүй.
+       * Хэрэглэгч "Нэвтрэх" товч хараад л үлдэнэ, юу ч хийж чадахгүй.
+       *
+       * Session доторх токен сэргэхгүй нь тогтоогдсон тул тэр session
+       * ХЭРЭГГҮЙ. Устгавал NextAuth `unauthenticated` болж, хэрэглэгч
+       * ЦЭВЭР байдлаас дахин нэвтэрч чадна.
+       */
+      clearTokens();
+      nextAuthSignOut({ redirect: false }).catch(() => null);
     });
   }, [session, status, syncFromOAuth]);
 
