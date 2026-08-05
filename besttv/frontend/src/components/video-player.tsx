@@ -335,6 +335,18 @@ export function VideoPlayer({
     // ⚠️ `progress` эвент — түр зогсоосон/гацсан үед ч ачаалал үргэлжилдэг тул
     // `timeupdate` дангаараа хангалтгүй (тоглохгүй үед огт дуудагддаггүй).
     const onBuffer = () => setBuffered(readBuffered());
+    /**
+     * ⚠️⚠️ SEEK ХИЙСНИЙ ДАРАА БАЙРЛАЛЫГ ШУУД ХАДГАЛНА.
+     *
+     * `timeupdate` нь зөвхөн ТОГЛОЖ БАЙХАД дуудагддаг. Хэрэглэгч seek
+     * хийгээд ТҮР ЗОГСООВОЛ эсвэл шууд хуудсаа хаавал шинэ байрлал
+     * ХЭЗЭЭ Ч хадгалагдахгүй — буцаж ирэхэд хуучин байрлалаас эхэлдэг
+     * (бодит гомдол: "seek зөв хадгалагдахгүй").
+     */
+    const onSeeked = () => {
+      setBuffered(readBuffered());
+      onProgress?.(video.currentTime, video.duration || 0);
+    };
     const onEndedInternal = () => onEnded?.();
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
@@ -345,24 +357,44 @@ export function VideoPlayer({
     const onWaiting = () => setBuffering(true);
     const onResume = () => setBuffering(false);
 
+    /**
+     * ⚠️ Хуудас хаах / таб солих үед ч ХАДГАЛНА. `pagehide` нь mobile
+     * Safari-д ажилладаг цорын ганц найдвартай эвент; `visibilitychange`
+     * нь таб солиход барина.
+     */
+    const onLeave = () => {
+      if (video.currentTime > 0) onProgress?.(video.currentTime, video.duration || 0);
+    };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') onLeave();
+    };
+
     video.addEventListener('timeupdate', onTime);
     video.addEventListener('progress', onBuffer);
-    video.addEventListener('seeked', onBuffer);
+    video.addEventListener('seeked', onSeeked);
     video.addEventListener('ended', onEndedInternal);
     video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onLeave);
     video.addEventListener('pause', onPause);
+    window.addEventListener('pagehide', onLeave);
+    document.addEventListener('visibilitychange', onHide);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('stalled', onWaiting);
     video.addEventListener('seeking', onWaiting);
     video.addEventListener('playing', onResume);
     video.addEventListener('canplay', onResume);
     return () => {
+      // ⚠️ Компонент устахад (өөр анги/хуудас руу шилжих) ч ХАДГАЛНА
+      onLeave();
       video.removeEventListener('timeupdate', onTime);
       video.removeEventListener('progress', onBuffer);
-      video.removeEventListener('seeked', onBuffer);
+      video.removeEventListener('seeked', onSeeked);
       video.removeEventListener('ended', onEndedInternal);
       video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onLeave);
       video.removeEventListener('pause', onPause);
+      window.removeEventListener('pagehide', onLeave);
+      document.removeEventListener('visibilitychange', onHide);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('stalled', onWaiting);
       video.removeEventListener('seeking', onWaiting);

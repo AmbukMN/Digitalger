@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Play, SearchX, Star , Lock } from 'lucide-react';
-import type { TitleCard } from '@besttv/shared';
+import { SearchX } from 'lucide-react';
+import type { TitleCard as TitleCardType } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
-import { useCatalog, useGenres } from '@/lib/queries';
+import { useCatalog, useGenres, useHome } from '@/lib/queries';
 import { cn } from '@besttv/shared';
+import { TitleRow } from './title-row';
+import { TitleCard } from './title-card';
 
 /**
  * Кино каталог grid — ЗӨВХӨН ЖАНРААР ангилна.
@@ -35,7 +37,7 @@ export function CatalogGrid({
 }) {
   const searchParams = useSearchParams();
   const [genre, setGenre] = useState<string | undefined>(searchParams.get('genre') ?? undefined);
-  const [sort, setSort] = useState<'new' | 'popular' | 'rating'>('new');
+  // ⚠️ Эрэмбэ ҮРГЭЛЖ "шинэ" — сонголтын товч хасагдсан (илүүц байв)
   const [page, setPage] = useState(1);
 
   // Нүүр хуудасны "Бүгдийг үзэх" (?genre=slug) холбоосыг тайлбарлана
@@ -47,7 +49,18 @@ export function CatalogGrid({
 
   const { data: genres } = useGenres();
   // ⚠️ `type` ОГТ дамжуулахгүй — нэг ангит + олон ангит БҮГД харагдана
-  const { data, isFetching, isError, refetch } = useCatalog({ genre, sort, page });
+  const { data, isFetching, isError, refetch } = useCatalog({ genre, sort: 'new', page });
+
+  /**
+   * ⚠️⚠️ "БҮГД" СОНГОСОН ҮЕД ЖАНРААР ЭГНЭЭ (нүүр хуудас шиг).
+   *
+   * Өмнө нь бүх кино ялгаагүй нэг grid-д ХОЛИЛДОЖ гардаг байв — Монгол
+   * кино, насанд хүрэгчдийн бүгд зэрэгцээд, хэрэглэгч ямар ангилал
+   * болохыг ялгаж чадахгүй. Одоо "Бүгд" үед жанр бүр ТУСДАА эгнээ
+   * болж, тодорхой жанр сонгосон үед л grid харагдана.
+   */
+  const { data: home } = useHome();
+  const showRows = !genre;
 
   return (
     <main className="min-h-screen bg-background px-4 pb-16 pt-24 md:px-8">
@@ -67,22 +80,10 @@ export function CatalogGrid({
             {g.name}
           </FilterChip>
         ))}
-
-        <div className="ml-auto flex gap-1 rounded-full bg-white/6 p-1" role="group" aria-label="Эрэмбэлэх">
-          {(['new', 'popular', 'rating'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setSort(s)}
-              aria-pressed={sort === s}
-              className={cn(
-                'rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
-                sort === s ? 'bg-primary text-white shadow-md' : 'text-white/55 hover:text-white',
-              )}
-            >
-              {s === 'new' ? 'Шинэ' : s === 'popular' ? 'Эрэлттэй' : 'Үнэлгээ'}
-            </button>
-          ))}
-        </div>
+        {/*
+          ⚠️ ЭРЭМБИЙН товч (Шинэ/Эрэлттэй/Үнэлгээ) ХАСАГДСАН — хэрэглэгчид
+          илүүц сонголт. Каталог үргэлж ШИНЭ-ээр эрэмбэлэгдэнэ.
+        */}
       </div>
 
       {isError ? (
@@ -91,6 +92,29 @@ export function CatalogGrid({
           message="Контент ачаалахад алдаа гарлаа."
           onRetry={() => refetch()}
         />
+      ) : showRows ? (
+        /* ⚠️ "Бүгд" — ЖАНР БҮР ТУСДАА ЭГНЭЭ (нүүр хуудас шиг), холилдохгүй */
+        <div className="mt-7 -mx-4 space-y-8 md:-mx-8">
+          {home?.genreRows?.length
+            ? home.genreRows.map((row) => (
+                <TitleRow
+                  key={row.id}
+                  title={row.name}
+                  items={row.titles}
+                  href={`/movies?genre=${row.slug}`}
+                />
+              ))
+            : Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="px-4 md:px-8">
+                  <div className="skeleton-shimmer mb-3 h-6 w-40 rounded" />
+                  <div className="flex gap-3">
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <div key={j} className="skeleton-shimmer aspect-2/3 w-36 shrink-0 rounded-lg" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+        </div>
       ) : (
         <div
           className={cn(
@@ -99,7 +123,17 @@ export function CatalogGrid({
           )}
         >
           {(data?.items ?? []).map((t) => (
-            <GridCard key={t.id} title={t} />
+            /**
+             * ⚠️⚠️ `TitleCard` АШИГЛАНА (өмнө нь энд өөрийн `GridCard` байв).
+             *
+             * Тэр давхардсан компонент нь ЗӨВХӨН `title.isPremium`-ыг
+             * шалгаж, хэрэглэгчийн ЭРХИЙГ ОГТ ТООЦДОГГҮЙ байсан тул
+             * БАГЦТАЙ хэрэглэгчид ч "🔒 Төлбөртэй" гэж харагддаг байв
+             * (нүүр хуудсан дээр "Үзэх боломжтой" гэж зөв гардаг атал).
+             * `TitleCard` нь `accessState()`-аар эрхийг тооцдог — нэг л
+             * эх сурвалж, ирээдүйд ижил алдаа давтагдахгүй.
+             */
+            <TitleCard key={t.id} title={t} />
           ))}
           {!data &&
             Array.from({ length: 12 }).map((_, i) => (
@@ -108,14 +142,15 @@ export function CatalogGrid({
         </div>
       )}
 
-      {data && data.items.length === 0 && (
+      {/* ⚠️ Эгнээ горимд (Бүгд) хоосон мессеж/хуудаслалт харуулахгүй */}
+      {!showRows && data && data.items.length === 0 && (
         <div className="mt-16 flex flex-col items-center text-white/35">
           <SearchX size={40} />
           <p className="mt-3">Энэ шүүлтүүрт тохирох контент олдсонгүй</p>
         </div>
       )}
 
-      {data && data.totalPages > 1 && (
+      {!showRows && data && data.totalPages > 1 && (
         <nav className="mt-10 flex justify-center gap-2" aria-label="Хуудаслалт">
           {Array.from({ length: data.totalPages }).map((_, i) => (
             <button
@@ -151,51 +186,4 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-function GridCard({ title }: { title: TitleCard }) {
-  return (
-    <Link
-      href={`/movie/${title.slug}`}
-      className="title-card group relative block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      aria-label={`${title.title}${title.year ? `, ${title.year}` : ''}`}
-    >
-      <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-[#1a1a1a]">
-        {title.posterUrl ? (
-          <Image src={title.posterUrl} alt="" fill sizes="220px" className="object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-white/20">
-            <Play size={32} />
-          </div>
-        )}
-        {/* Төлбөртэй эсэх — түгжээ / үнэгүй */}
-        {title.isPremium ? (
-          <span
-            title="Багц авсан хүн үзнэ"
-            className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-premium backdrop-blur-sm"
-          >
-            <Lock size={9} /> Төлбөртэй
-          </span>
-        ) : (
-          <span className="absolute left-1.5 top-1.5 rounded bg-success/85 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
-            Үнэгүй
-          </span>
-        )}
-
-        {/* Жанр */}
-        {(title.genres ?? []).length > 0 && (
-          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-white/85 backdrop-blur-sm">
-            {(title.genres ?? []).slice(0, 2).map((g) => g.name).join(' · ')}
-          </span>
-        )}
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-1">
-        <p className="truncate text-sm font-medium text-white/90">{title.title}</p>
-        {title.rating ? (
-          <span className="flex shrink-0 items-center gap-0.5 text-xs text-white/50">
-            <Star size={11} className="fill-premium text-premium" />
-            {title.rating.toFixed(1)}
-          </span>
-        ) : null}
-      </div>
-    </Link>
-  );
-}
+// ⚠️ GridCard УСТГАГДСАН — TitleCard-ыг ашиглана (эрхийн логик давхардахгүй)

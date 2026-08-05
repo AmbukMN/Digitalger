@@ -146,20 +146,49 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
               variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
               className="mt-6 flex gap-3"
             >
-              {/* ⚠️ Эрх шалгасны дараа л /watch руу орно */}
-              <button
-                onClick={() =>
-                  play({
-                    slug: banner.slug,
-                    isPremium: banner.isPremium,
-                    comingSoon: banner.comingSoon,
-                    type: banner.type,
-                  })
-                }
-                className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-bold text-black transition-all hover:scale-[1.03] hover:bg-white/90 active:scale-[0.98]"
-              >
-                <Play size={19} fill="black" /> Үзэх
-              </button>
+              {/*
+                ⚠️⚠️ ЭРХТЭЙ БОЛ ШУУД ТОГЛУУЛНА.
+                Өмнө нь `hasAccess` дамжуулдаггүй байсан тул `usePlayGuard`
+                дотор `undefined !== true` үнэн болж, ЭРХТЭЙ хэрэглэгчийг
+                ч дэлгэрэнгүй рүү явуулдаг байв — "Үзэх" ба "Дэлгэрэнгүй"
+                хоёр ижил үүрэгтэй болсон (бодит гомдол).
+                Одоо `bannerAccess`-ыг дамжуулна: эрхтэй бол /watch руу
+                ШУУД, эрхгүй/нэвтрээгүй бол дэлгэрэнгүй (тэнд багц/түрээс).
+              */}
+              {(() => {
+                const canPlay = bannerAccess === 'owned' || bannerAccess === 'free';
+                return (
+                  <button
+                    onClick={() =>
+                      play(
+                        {
+                          slug: banner.slug,
+                          isPremium: banner.isPremium,
+                          comingSoon: banner.comingSoon,
+                          type: banner.type,
+                        },
+                        canPlay,
+                      )
+                    }
+                    className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-bold text-black transition-all hover:scale-[1.03] hover:bg-white/90 active:scale-[0.98]"
+                  >
+                    {/*
+                      ⚠️ ТОВЧНЫ НЭР ЭРХЭЭС ХАМААРНА. Эрхгүй хэрэглэгчид
+                      "Үзэх" гэж харуулах нь ХУДАЛ амлалт — дарахад үзэхийн
+                      оронд төлбөрийн хуудас гардаг тул хэрэглэгч эндүүрнэ.
+                    */}
+                    {canPlay ? (
+                      <>
+                        <Play size={19} fill="black" /> Үзэх
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={17} /> Багц авах
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
               <Link
                 href={`/movie/${banner.slug}`}
                 className="glass-light flex items-center gap-2 rounded-lg px-6 py-3 font-semibold text-white transition-all hover:scale-[1.03] hover:bg-white/16 active:scale-[0.98]"

@@ -302,7 +302,8 @@ export default function PricingPage() {
             <div
               key={plan.id}
               className={cn(
-                'relative flex flex-col rounded-2xl border p-4 transition-transform sm:p-6',
+                // ⚠️ `h-full` — доторх `mt-auto` (товчны блок) ажиллахад ЗААВАЛ
+                'relative flex h-full flex-col rounded-2xl border p-4 transition-transform sm:p-6',
                 lastOdd && 'col-span-2 lg:col-span-1',
                 !supersededByVip && 'hover:-translate-y-1',
                 supersededByVip && 'opacity-55',
@@ -386,7 +387,13 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <div className="mt-5 space-y-2">
+              {/*
+                ⚠️ `mt-auto` — товчны блокыг картын ЁРООЛД бэхлэнэ.
+                Багцуудын гарчиг/боломжийн жагсаалт өөр өөр урттай тул
+                mobile-д (grid-cols-2) товчнууд ӨӨР ӨНДӨРТ таарч,
+                зэрэгцээ нь замбараагүй харагддаг байв.
+              */}
+              <div className="mt-auto space-y-2 pt-5">
                 {supersededByVip && (
                   <p className="rounded-lg bg-premium/10 px-3 py-2 text-center text-[11px] leading-relaxed text-premium">
                     VIP багц энэ бүх контентыг аль хэдийн нээсэн байна
@@ -398,7 +405,8 @@ export default function PricingPage() {
                   // (хоёр гүйлгээ зэрэг эхлэхээс сэргийлнэ)
                   disabled={!!loadingPlan}
                   className={cn(
-                    'flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50',
+                    // ⚠️ `whitespace-nowrap` — mobile-д текст мөр таслахгүй
+                    'flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg py-2.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50',
                     canPayWithWallet
                       ? plan.isVip
                         ? 'bg-premium text-premium-foreground hover:brightness-105'
@@ -417,10 +425,18 @@ export default function PricingPage() {
                 <button
                   onClick={() => buyWithQpay(plan.id)}
                   disabled={!!loadingPlan}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/8 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50"
+                  /* ⚠️ `whitespace-nowrap` — mobile-д текст 2 мөр болж
+                     товчны өндөр зөрөхөөс сэргийлнэ (зэрэгцээ жигд) */
+                  className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-white/8 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50"
                 >
                   {loadingPlan === plan.id && <Loader2 size={12} className="animate-spin" />}
-                  {owned ? 'QPay-ээр сунгах' : 'QPay-ээр шууд төлөх'}
+                  {/*
+                    ⚠️ Текстийг БОГИНО, ЖИГД байлгана. Өмнө нь "QPay-ээр
+                    шууд төлөх" гэсэн урт бичиг байсан тул mobile-д мөр
+                    таарахгүй, багц бүрийн товч өөр өндөртэй болж
+                    зэрэгцээ нь замбараагүй харагддаг байв.
+                  */}
+                  {owned ? 'QPay-ээр сунгах' : 'QPay-ээр төлөх'}
                 </button>
               </div>
             </div>

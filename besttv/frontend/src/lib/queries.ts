@@ -4,7 +4,12 @@ import { useAuth } from './auth-store';
 import type { GenreRow, PlanInfo, TitleCard } from '@besttv/shared';
 
 export interface HomeData {
-  banners: (TitleCard & { description: string; trailerAvailable: boolean; genres: { name: string; slug: string }[] })[];
+  // ⚠️ `id` ЗААВАЛ — `accessState()` жанрын ID-аар эрх тулгадаг
+  banners: (TitleCard & {
+    description: string;
+    trailerAvailable: boolean;
+    genres: { id: string; name: string; slug: string }[];
+  })[];
   newReleases: TitleCard[];
   comingSoon: TitleCard[];
   popular: TitleCard[];

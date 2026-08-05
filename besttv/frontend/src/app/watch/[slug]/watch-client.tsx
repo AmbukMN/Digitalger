@@ -43,6 +43,11 @@ export function WatchClient({ slug }: { slug: string }) {
 
   const saveProgress = useCallback(
     (positionSec: number, durationSec: number) => {
+      /**
+       * ⚠️ 5 секундын алхам — сервер рүү хэт олон бичихээс сэргийлнэ.
+       * Гэхдээ SEEK хийхэд байрлал ИХ ҮСЭРДЭГ тул тэр шалгуур саад
+       * болохгүй (5-аас их зөрүү = үргэлж хадгална).
+       */
       if (!data || Math.abs(positionSec - lastSaved.current) < 5) return;
       lastSaved.current = positionSec;
       api('/progress', {
@@ -200,8 +205,22 @@ export function WatchClient({ slug }: { slug: string }) {
     ? `/api/stream/episode/${episodeId}/playlist.m3u8`
     : `/api/stream/movie/${data.id}/playlist.m3u8`;
 
+  /**
+   * ⚠️⚠️ ҮРГЭЛЖЛҮҮЛЭН ҮЗЭХ — ХАДГАЛСАН БАЙРЛАЛААС эхэлнэ.
+   *
+   * Өмнө нь `!episodeId` нөхцөлтэй байсан тул ЗӨВХӨН нэг ангит кинонд
+   * ажиллаж, ОЛОН АНГИТ киног анги дундаас нь эхлүүлдэггүй байв
+   * (хэрэглэгч 30 минут үзчихээд буцаж ирэхэд 0-ээс эхэлнэ).
+   *
+   * Backend нь тухайн киноны СҮҮЛД үзсэн явцыг `episodeId`-тэй хамт
+   * буцаадаг тул ЯГ ТЭР анги дээр байгаа эсэхийг тулгана:
+   *   • нэг ангит  → progress.episodeId === null, URL-д ?ep= байхгүй
+   *   • олон ангит → progress.episodeId === одоогийн episodeId
+   */
   const startAt =
-    !episodeId && data.progress?.episodeId === null ? data.progress?.positionSec : undefined;
+    (data.progress?.episodeId ?? null) === (episodeId ?? null)
+      ? data.progress?.positionSec
+      : undefined;
 
   return (
     <main className="min-h-screen bg-black">

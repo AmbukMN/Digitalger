@@ -62,12 +62,20 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
   const goWatch = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    play({
-      slug: title.slug,
-      isPremium: title.isPremium,
-      comingSoon: title.comingSoon,
-      type: title.type,
-    });
+    /**
+     * ⚠️ ЭРХИЙГ ДАМЖУУЛНА — эс бөгөөс `usePlayGuard` дотор
+     * `undefined !== true` үнэн болж, ЭРХТЭЙ хэрэглэгчийг ч
+     * дэлгэрэнгүй рүү явуулдаг (play товч ажиллахгүй мэт).
+     */
+    play(
+      {
+        slug: title.slug,
+        isPremium: title.isPremium,
+        comingSoon: title.comingSoon,
+        type: title.type,
+      },
+      access === 'owned' || access === 'free',
+    );
   };
 
   // Эхний жанрын нэр (2 хүртэл — хэт урт болохгүй)

@@ -60,7 +60,13 @@ export class TitlesService {
             ...CARD_SELECT,
             description: true,
             trailerKey: true,
-            genres: { include: { genre: { select: { name: true, slug: true } } } },
+            /**
+             * ⚠️⚠️ `id` ЗААВАЛ — frontend-ийн `accessState()` нь хэрэглэгчийн
+             * `accessGenreIds`-ыг жанрын ID-аар тулгадаг. `id` байхгүй бол
+             * тулгалт ҮРГЭЛЖ бүтэлгүйтэж, БАГЦТАЙ хэрэглэгчид ч hero дээр
+             * "Багц авах" гэж харагддаг байв (бодит гомдол).
+             */
+            genres: { include: { genre: { select: { id: true, name: true, slug: true } } } },
           },
         }),
         this.prisma.title.findMany({
@@ -188,14 +194,21 @@ export class TitlesService {
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(60, params.limit ?? 24);
 
-    // ⚠️ 18+ жанрыг ТУСГАЙЛАН сонгосон үед л харуулна (нүүрнээс тэр мөрийг
-    // дарж ирэхэд ажиллана). Жанр сонгоогүй ерөнхий каталогт ОРОХГҮЙ —
-    // хэрэглэгч санамсаргүй хармааргүй.
+    /**
+     * ⚠️⚠️ КАТАЛОГТ 18+ ШҮҮЛТ ХИЙХГҮЙ.
+     *
+     * Өмнө нь жанр сонгоогүй үед `NOT_ADULT` ажиллаж, "Бүгд" дархад
+     * насанд хүрэгчдийн кино ОГТ ГАРАХГҮЙ байв. Гэтэл эдгээр нь
+     * НҮҮР ХУУДСАНД аль хэдийн харагддаг тул каталогт нуух нь
+     * зөрчилтэй бөгөөд хэрэглэгчид ойлгомжгүй ("яагаад Бүгд гэхэд
+     * зарим кино алга болов?").
+     *
+     * `/adult` хуудас нь нас баталгаажуулалттай хэвээр — тэр нь
+     * ТУСГАЙЛСАН хуудас. Ерөнхий каталог бол бүх контентын жагсаалт.
+     */
     const where: Prisma.TitleWhereInput = {
       isActive: true,
-      ...(params.genre
-        ? { genres: { some: { genre: { slug: params.genre } } } }
-        : NOT_ADULT),
+      ...(params.genre ? { genres: { some: { genre: { slug: params.genre } } } } : {}),
       ...(params.type ? { type: params.type } : {}),
       ...(params.year ? { year: params.year } : {}),
     };
