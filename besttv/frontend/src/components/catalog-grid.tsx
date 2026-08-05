@@ -94,7 +94,8 @@ export function CatalogGrid({
         />
       ) : showRows ? (
         /* ⚠️ "Бүгд" — ЖАНР БҮР ТУСДАА ЭГНЭЭ (нүүр хуудас шиг), холилдохгүй */
-        <div className="mt-7 -mx-4 space-y-8 md:-mx-8">
+        /* ⚠️ `space-y-9` — НҮҮР хуудастай ЯГ ИЖИЛ зай (жигд харагдац) */
+        <div className="-mx-4 mt-7 space-y-9 md:-mx-8">
           {home?.genreRows?.length
             ? home.genreRows.map((row) => (
                 <TitleRow
@@ -133,7 +134,12 @@ export function CatalogGrid({
              * `TitleCard` нь `accessState()`-аар эрхийг тооцдог — нэг л
              * эх сурвалж, ирээдүйд ижил алдаа давтагдахгүй.
              */
-            <TitleCard key={t.id} title={t} />
+            /**
+             * ⚠️ `inGrid` ЗААВАЛ — эс бөгөөс карт нь эгнээний ТОГТМОЛ
+             * өргөнтэй (`w-37.5`) үлдэж, grid баганыг бүтэн дүүргэхгүй.
+             * Тэр үед картууд өөр өөр зайтай, тэгш бус харагдана.
+             */
+            <TitleCard key={t.id} title={t} inGrid />
           ))}
           {!data &&
             Array.from({ length: 12 }).map((_, i) => (

@@ -282,7 +282,14 @@ export default function PricingPage() {
       )}
 
       {/* ⚠️ Мобайл дээр ч 2 БАГАНА — доош сунаж уншигдахгүй болохоос сэргийлнэ */}
-      <div className="mx-auto mt-8 grid max-w-6xl grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
+      {/*
+        ⚠️⚠️ MOBILE-Д НЭГ БАГАНА (өмнө нь `grid-cols-2`).
+        Утсан дээр 2 багана нь картыг хэт нарийн болгож: багцын нэр 2-3
+        мөр болж, үнэ доошоо түлхэгдэж, картууд өөр өндөртэй болж
+        зэрэгцээ нь ЗАМБАРААГҮЙ харагддаг байв (бодит гомдол).
+        Нэг багана = бүх текст нэг мөрөнд багтаж, цэвэрхэн харагдана.
+      */}
+      <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
         {isLoading &&
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="skeleton-shimmer h-80 rounded-2xl" />
@@ -293,8 +300,9 @@ export default function PricingPage() {
           const owned = ownedPlanIds.has(plan.id);
           // VIP идэвхтэй үед энгийн багц илүүдэл (VIP өөрөө биш)
           const supersededByVip = hasVip && !plan.isVip;
-          // ⚠️ Мобайлд сондгой тоотой бол СҮҮЛИЙН карт 2 баганыг эзэлнэ —
-          // хажуудаа хоосон нүх үлдээхгүй
+          // ⚠️ sm-ээс дээш (2 багана) сондгой тоотой бол СҮҮЛИЙН карт 2
+          // баганыг эзэлнэ — хажуудаа хоосон нүх үлдээхгүй.
+          // ⚠️ Mobile нь `grid-cols-1` тул тэнд хамаарахгүй.
           const lastOdd = plans.length % 2 === 1 && i === plans.length - 1;
           const canPayWithWallet = !!user && user.walletBalance >= finalPrice;
 
@@ -304,7 +312,7 @@ export default function PricingPage() {
               className={cn(
                 // ⚠️ `h-full` — доторх `mt-auto` (товчны блок) ажиллахад ЗААВАЛ
                 'relative flex h-full flex-col rounded-2xl border p-4 transition-transform sm:p-6',
-                lastOdd && 'col-span-2 lg:col-span-1',
+                lastOdd && 'sm:col-span-2 lg:col-span-1',
                 !supersededByVip && 'hover:-translate-y-1',
                 supersededByVip && 'opacity-55',
                 plan.isVip
@@ -334,7 +342,12 @@ export default function PricingPage() {
                 </span>
               ) : null}
 
-              <h3 className="flex items-center gap-1.5 text-base font-bold text-white sm:text-lg">
+              {/*
+                ⚠️ `pr-24` — баруун дээд буланд "Идэвхтэй"/"VIP-д багтсан"
+                badge нь `absolute` байрлалтай тул урт нэртэй багцын
+                гарчиг ТҮҮНИЙ ДООГУУР ОРЖ ДАВХЦАДАГ байв. Зай үлдээв.
+              */}
+              <h3 className="flex items-center gap-1.5 pr-24 text-base font-bold text-white sm:text-lg">
                 {plan.isVip && <Crown size={16} className="text-premium" />}
                 {plan.name}
               </h3>
