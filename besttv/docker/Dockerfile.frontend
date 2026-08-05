@@ -44,6 +44,10 @@ RUN apk add --no-cache wget && \
 # standalone output — зөвхөн хэрэгтэй node_modules-ыг агуулна
 COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./frontend/.next/static
+# ⚠️ `public/` нь standalone output-д АВТОМАТААР ОРДОГГҮЙ — гараар хуулах ёстой
+# (Next.js-ийн баримтжуулсан алхам). Хуулаагүй бол /favicon.ico, robots.txt
+# зэрэг статик файлууд 404 өгнө.
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./frontend/public
 
 USER nextjs
 

@@ -125,7 +125,13 @@ export class StorageService {
         Key: key,
         Body: body,
         ContentType: contentType,
-        CacheControl: 'public,max-age=31536000,immutable',
+        /**
+         * ⚠️ `immutable` ХЭРЭГЛЭХГҮЙ — дэлгэрэнгүйг `presignGet` дээрх
+         * тайлбараас үз. Товчоор: CORS буруу үед browser нь CORS-гүй хариуг
+         * МӨНХӨД кэшилж, сервер талын засвар хүрэхээ болино.
+         * 7 хоног нь хурдны хувьд бараг ижил, гэхдээ сэргээх боломжтой.
+         */
+        CacheControl: 'public, max-age=604800',
       }),
     );
     return key;
@@ -155,7 +161,30 @@ export class StorageService {
     return this.presignGet(key, expiresIn);
   }
 
-  /** GET presign — R2: signed URL (кэштэй). Local: статик /media/* URL шууд. */
+  /**
+   * GET presign — R2: signed URL (кэштэй). Local: статик /media/* URL шууд.
+   *
+   * ⚠️⚠️ `ResponseCacheControl` — ЯАГААД ЗААВАЛ ХЭРЭГТЭЙ ВЭ:
+   *
+   * Объектууд upload хийгдэхдээ `public,max-age=31536000,immutable` гэсэн
+   * metadata-тай бичигддэг (доорх `upload()`). `immutable` гэдэг нь browser-т
+   * "ХЭЗЭЭ Ч дахин бүү шалга" гэсэн үг — маш хурдан ч, НЭГ АЮУЛТАЙ:
+   *
+   *   Bucket дээр CORS БАЙХГҮЙ үед хэрэглэгчийн browser нь segment-ийг
+   *   татаад, `Access-Control-Allow-Origin`-ГҮЙ хариуг 1 ЖИЛ кэшилдэг.
+   *   Дараа нь bucket-ийн CORS-ыг зассан ч browser сервер рүү ОГТ ХАНДАХГҮЙ
+   *   тул хуучин, CORS-гүй хариугаа гаргасаар байна → видео тоглохгүй,
+   *   console дүүрэн "blocked by CORS policy". Засвар хүрэхгүй, хэрэглэгч
+   *   кэшээ ГАРААР цэвэрлэхээс өөр аргагүй болно (бодит тохиолдол гарсан).
+   *
+   * `ResponseCacheControl` нь presign дотор явж, R2-г объектын metadata-ын
+   * ОРОНД энэ утгыг буцаахыг шаарддаг — 4578 объектыг дахин бичихгүйгээр
+   * кэшийн бодлогыг УДИРДАНА.
+   *
+   * 7 хоног + `immutable`-гүй: segment-үүд хэвээрээ хурдан кэшлэгдэнэ
+   * (нэг кино үзэхэд хангалттай урт), гэхдээ browser шаардлагатай үед
+   * дахин баталгаажуулах боломжтой тул ийм "хордсон кэш" мөнхөрөхгүй.
+   */
   async presignGet(key: string, expiresIn = 7200): Promise<string> {
     if (!this.client) return `${this.localBaseUrl}/media/${key}`;
 
@@ -165,7 +194,11 @@ export class StorageService {
 
     const url = await getSignedUrl(
       this.client,
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ResponseCacheControl: 'public, max-age=604800',
+      }),
       { expiresIn },
     );
     setCachedPresign(cacheKey, url, expiresIn);
