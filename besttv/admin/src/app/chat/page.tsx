@@ -18,6 +18,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { api } from '@/lib/api';
+import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 
 interface ConvListItem {
   id: string;
@@ -60,6 +61,12 @@ export default function ChatPage() {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const qc = useQueryClient();
+  /* Олноор устгах — тест яриа их хуримтлагддаг */
+  const sel = useBulkSelect({
+    endpoint: '/admin/chat/conversations/bulk-delete',
+    invalidate: ['admin-chat-list', 'admin-chat-unread', 'admin-chat-detail'],
+    label: 'яриа',
+  });
   const confirm = useConfirm();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -177,14 +184,29 @@ export default function ChatPage() {
                 const last = c.messages[0];
                 const name = c.user?.name ?? c.userName ?? c.user?.email ?? c.userEmail ?? 'Зочин';
                 return (
-                  <button
+                  /*
+                   * ⚠️ Гадна нь `div` — өмнө нь `button` байсан. Bulk сонголтын
+                   * checkbox нь ИНТЕРАКТИВ элемент тул `button` дотор үүрлэвэл
+                   * HTML буруу болж, дарахад хоёулаа зэрэг ажилладаг.
+                   */
+                  <div
                     key={c.id}
-                    onClick={() => setSelected(c.id)}
                     className={cn(
-                      'w-full border-b border-border px-3 py-2.5 text-left transition-colors',
+                      'flex items-start gap-2 border-b border-border px-3 py-2.5 transition-colors',
                       selected === c.id ? 'bg-primary/10' : 'hover:bg-accent/50',
                     )}
                   >
+                    <div className="pt-1.5">
+                      <SelectBox
+                        checked={sel.isSelected(c.id)}
+                        onChange={() => sel.toggle(c.id)}
+                        ariaLabel={`${name}-ийн яриаг сонгох`}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setSelected(c.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
                     <div className="flex items-center gap-2">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-foreground">
                         {name[0]?.toUpperCase() ?? '?'}
@@ -212,7 +234,8 @@ export default function ChatPage() {
                         </Badge>
                       )}
                     </div>
-                  </button>
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -337,6 +360,7 @@ export default function ChatPage() {
           ) : null}
         </div>
       </main>
+      <BulkBar {...sel.bar} />
     </AdminShell>
   );
 }

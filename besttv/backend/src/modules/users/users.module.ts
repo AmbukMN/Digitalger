@@ -12,13 +12,23 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 import * as bcrypt from 'bcrypt';
 import { Role, Prisma, AuthProvider } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
 class UpdateUserDto {
   @IsOptional()
@@ -48,6 +58,14 @@ class GrantSubscriptionDto {
   @IsInt()
   @Min(1)
   days?: number;
+}
+
+class BulkDeleteDto {
+  /** Устгах хэрэглэгчийн ID-ууд (нэг удаад дээд тал нь 200) */
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(200)
+  ids: string[];
 }
 
 @Injectable()
@@ -316,6 +334,55 @@ export class UsersService {
       });
     });
   }
+
+  /**
+   * ⚠️⚠️ БӨӨНӨӨР УСТГАХ — тест хэрэглэгч цэвэрлэхэд.
+   *
+   * УСТГАЛТ БУЦААГДАХГҮЙ тул 3 ХАМГААЛАЛТ:
+   *   1. ӨӨРИЙГӨӨ устгахгүй (админ өөрийгөө хаачихвал системд орох аргагүй)
+   *   2. ADMIN эрхтэйг устгахгүй (санамсаргүй бусад админыг арилгахаас)
+   *   3. ТӨЛБӨР ТӨЛСӨН хэрэглэгчийг устгахгүй — санхүүгийн бүртгэл
+   *      (Payment/WalletTransaction) алдагдвал тайлан эвдэрнэ. Тэднийг
+   *      устгахын оронд `isActive: false` болгож хаах ёстой.
+   *
+   * Устгагдсанаар Prisma `onDelete: Cascade`-аар холбоотой мөрүүд
+   * (subscription, myList, watchProgress, review...) автоматаар цэвэрлэгдэнэ.
+   */
+  async bulkDelete(ids: string[], actorId: string) {
+    const unique = [...new Set(ids)].filter(Boolean);
+    if (unique.length === 0) throw new BadRequestException('ID сонгоогүй байна');
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        _count: { select: { payments: true, walletTxs: true } },
+      },
+    });
+
+    const skipped: { email: string; reason: string }[] = [];
+    const deletable: string[] = [];
+
+    for (const u of users) {
+      if (u.id === actorId) {
+        skipped.push({ email: u.email, reason: 'Өөрийгөө устгах боломжгүй' });
+      } else if (u.role === Role.ADMIN) {
+        skipped.push({ email: u.email, reason: 'Админ эрхтэй' });
+      } else if (u._count.payments > 0 || u._count.walletTxs > 0) {
+        skipped.push({ email: u.email, reason: 'Төлбөрийн бүртгэлтэй — хаах хэрэгтэй' });
+      } else {
+        deletable.push(u.id);
+      }
+    }
+
+    const { count } = deletable.length
+      ? await this.prisma.user.deleteMany({ where: { id: { in: deletable } } })
+      : { count: 0 };
+
+    return { deleted: count, skipped };
+  }
 }
 
 @Controller('admin/users')
@@ -369,6 +436,17 @@ export class UsersController {
   @Post(':id/grant-subscription')
   grantSubscription(@Param('id') id: string, @Body() dto: GrantSubscriptionDto) {
     return this.svc.grantSubscription(id, dto);
+  }
+
+  /**
+   * ⚠️⚠️ БӨӨНӨӨР УСТГАХ — тест хэрэглэгч цэвэрлэхэд.
+   *
+   * `@Post` ашигласан шалтгаан: `@Delete` нь body-г найдвартай дэмждэггүй
+   * (зарим proxy/browser хаядаг). ID жагсаалт body-гоор явна.
+   */
+  @Post('bulk-delete')
+  bulkDelete(@Body() dto: BulkDeleteDto, @CurrentUser() actor: JwtPayload) {
+    return this.svc.bulkDelete(dto.ids, actor.sub);
   }
 }
 

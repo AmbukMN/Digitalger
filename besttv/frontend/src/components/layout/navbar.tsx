@@ -195,7 +195,8 @@ export function Navbar() {
                 }
                 className={cn(
                   // ⚠️ 46vw нь мобайлд хэт өргөн — header дэлгэцнээс хальж байв
-                  'inline-flex min-w-0 max-w-[30vw] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all sm:max-w-none sm:gap-1.5 sm:px-3.5 sm:text-xs',
+                  /* ⚠️ `min-h-9` — хүрэх талбар (хэмжилтээр 29px байсан, дарахад хэцүү) */
+                  'inline-flex min-h-9 min-w-0 max-w-[30vw] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all sm:max-w-none sm:gap-1.5 sm:px-3.5 sm:text-xs',
                   vip
                     ? 'bg-premium text-premium-foreground hover:brightness-110'
                     : 'bg-white/10 text-white hover:bg-white/16',

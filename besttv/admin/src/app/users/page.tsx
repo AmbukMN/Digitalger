@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { Loader2, ShieldCheck, UserCheck, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
@@ -47,6 +48,12 @@ export default function UsersPage() {
   const { data, isFetching } = useAdminUsers(f);
   const { data: counts } = useAdminUserCounts({ q: f.q, from: f.from, to: f.to });
   const qc = useQueryClient();
+  /* Олноор устгах — тест хэрэглэгч их хуримтлагддаг (hook давхардлыг арилгасан) */
+  const sel = useBulkSelect({
+    endpoint: '/admin/users/bulk-delete',
+    invalidate: ['admin-users', 'admin-user-counts'],
+    label: 'хэрэглэгч',
+  });
   const [detailTarget, setDetailTarget] = useState<AdminUser | null>(null);
   /** ⚠️ Хуудас нээгдэх мөчид тэмдэглэсэн — badge цэвэрлэгдсэн ч мөр тэмдэглэгдэнэ */
   const isNew = useNewSince('users');
@@ -185,6 +192,14 @@ export default function UsersPage() {
           <table className="w-full min-w-[820px] text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                {/* ⚠️ Bulk сонголт — тест хэрэглэгч олноор үүсдэг тул заавал */}
+                <th className="w-10 px-4 py-3">
+                  <SelectBox
+                    checked={sel.allChecked((data?.items ?? []).map((u) => u.id))}
+                    onChange={() => sel.toggleAll((data?.items ?? []).map((u) => u.id))}
+                    ariaLabel="Хуудсан дээрх бүгдийг сонгох"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left font-semibold">Хэрэглэгч</th>
                 <th className="px-4 py-3 text-left font-semibold">Багц</th>
                 <th className="px-4 py-3 text-left font-semibold">Нэвтрэх</th>
@@ -209,6 +224,13 @@ export default function UsersPage() {
             <tbody className="divide-y divide-border">
               {data?.items.map((u) => (
                 <tr key={u.id} className="transition-colors hover:bg-accent/40">
+                  <td className="px-4 py-3">
+                    <SelectBox
+                      checked={sel.isSelected(u.id)}
+                      onChange={() => sel.toggle(u.id)}
+                      ariaLabel={`${u.email} сонгох`}
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => setDetailTarget(u)}
@@ -311,6 +333,8 @@ export default function UsersPage() {
       {detailTarget && (
         <UserDetailDialog user={detailTarget} onClose={() => setDetailTarget(null)} />
       )}
+
+      <BulkBar {...sel.bar} />
     </AdminShell>
   );
 }

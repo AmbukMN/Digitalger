@@ -699,11 +699,22 @@ export default function ProfilePage() {
               <div className="mt-3 space-y-2">
                 {payments.map((p) => {
                   const st = STATUS_LABEL[p.status] ?? { label: p.status, className: 'bg-white/10 text-white/50' };
+                  /**
+                   * ⚠️⚠️ MOBILE-Д БАГАНААР ӨРНӨ (`flex-col`).
+                   * Өмнө нь нэг эгнээнд нэр + үнэ + төлөв гурвуулаа шахагдаж,
+                   * багцын нэр таслагдаж ("Монгол кино ..."), төлөвийн шошго
+                   * картаас халиад эвгүй харагддаг байв.
+                   * Одоо: нэр/огноо ДЭЭД мөр, үнэ+төлөв ДООД мөр.
+                   * sm-ээс дээш хуучин нэг эгнээ хэвээр.
+                   */
                   return (
-                    <div key={p.id} className="flex items-center justify-between rounded-lg bg-black/20 px-3 py-2.5 text-sm">
+                    <div
+                      key={p.id}
+                      className="flex flex-col gap-1.5 rounded-lg bg-black/20 px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-2"
+                    >
                       <div className="min-w-0">
                         <p className="truncate font-medium text-white/85">{p.plan?.name ?? 'Хэтэвч цэнэглэлт'}</p>
-                        <p className="text-xs text-white/40">
+                        <p className="text-[11px] leading-snug text-white/40 sm:text-xs">
                           {new Date(p.createdAt).toLocaleDateString('mn-MN')}
                           {p.couponCode && ` · Купон: ${p.couponCode}`}
                           {/* ⚠️ Админаас гараар олгосон эрх — төлбөр байхгүй */}
@@ -712,11 +723,11 @@ export default function ProfilePage() {
                             ` · ${new Date(p.expiresAt).toLocaleDateString('mn-MN')} хүртэл`}
                         </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
                         <span className="font-semibold text-white/85">
                           {p.grantedByAdmin ? 'Үнэгүй' : formatPrice(p.amount)}
                         </span>
-                        <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', st.className)}>
+                        <span className={cn('shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium sm:text-xs', st.className)}>
                           {st.label}
                         </span>
                       </div>

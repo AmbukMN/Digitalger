@@ -156,7 +156,10 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
           <span
             className={cn(
               'absolute right-1.5 top-1.5 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold shadow-sm backdrop-blur-sm',
-              title.language === 'MN' ? 'bg-black/80 text-white' : 'bg-white/85 text-black',
+              /* ⚠️ "Хадмал" нь `bg-white/85` (тунгалаг) байсан тул постерын
+                 өнгө шингэж БҮДЭГ харагддаг байв. Монголынхтой адил
+                 бүрэн бараан дэвсгэр + цагаан текст болгов. */
+              'bg-black/80 text-white',
             )}
           >
             {/*

@@ -36,7 +36,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 @Controller('admin/stream')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@SkipThrottle()
+@SkipThrottle({ default: true, short: true, medium: true, long: true })
 export class AdminStreamController {
   constructor(private readonly stream: StreamService) {}
 
@@ -91,13 +91,21 @@ export class AdminStreamController {
  * Production nginx лог үүнийг тодорхой харуулав: ЯГ ИЖИЛ URL заримдаа
  * 200, заримдаа 403 — эрхийн алдаа биш, rate limit.
  *
+ * ⚠️⚠️ ЗААВАЛ БҮХ throttler-ийн НЭРИЙГ бичнэ:
+ *   `@SkipThrottle()` (хоосон) нь ЗӨВХӨН `default`-ыг алгасдаг. Манай
+ *   `app.module.ts`-д `short`/`medium`/`long` гэсэн НЭРЛЭСЭН throttler-ууд
+ *   бий тул тэдгээрийг нэрээр нь заахгүй бол `short` (20 хүсэлт/сек)
+ *   ХЭВЭЭР үйлчилж, 429 буцаасаар байна.
+ *   Production burst тест үүнийг батлав: хоосон `@SkipThrottle()` үед
+ *   эхний 20 хүсэлт өнгөрч, 21-ээс 429 гарч байв.
+ *
  * ⚠️ Аюулгүй байдал АЛДАГДАХГҮЙ: эрхийн шалгалт (`assertAccess`) хүсэлт
  * бүрт хийгдсээр байна. Rate limit нь зөвхөн ДАВТАМЖИЙН хамгаалалт бөгөөд
  * видео урсгалд утгагүй — нэг хэрэглэгч кино үзэхэд л олон хүсэлт явна.
  */
 @Controller('stream')
 @UseGuards(OptionalJwtAuthGuard)
-@SkipThrottle()
+@SkipThrottle({ default: true, short: true, medium: true, long: true })
 export class StreamController {
   constructor(private readonly stream: StreamService) {}
 

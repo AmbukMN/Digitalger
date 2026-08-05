@@ -10,7 +10,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsEmail, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Length,
+  MaxLength,
+} from 'class-validator';
 import { Prisma, Role, SubscriberStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -371,6 +379,14 @@ export class EmailOtpController {
   }
 }
 
+/** Олноор устгах хүсэлт — захиалагч болон имэйл лог хоёуланд ижил хэлбэр */
+class BulkDeleteDto {
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(200)
+  ids: string[];
+}
+
 @Controller('admin/email')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -433,6 +449,32 @@ export class EmailAdminController {
   @Get('subscribers/export')
   exportSubscribers(@Query('status') status?: string) {
     return this.subs.exportCsv(status);
+  }
+
+  /**
+   * Захиалагчдыг олноор устгана (тест бүртгэл цэвэрлэх).
+   *
+   * ⚠️ ЖИНХЭНЭ устгал — "unsubscribe" БИШ. Хэрэглэгч өөрөө татгалзсан бол
+   * `status: UNSUBSCRIBED` үлдэх ёстой (дахин илгээхээс сэргийлнэ); энэ нь
+   * зөвхөн админ гар аргаар хогийн бүртгэл цэвэрлэхэд зориулагдсан.
+   */
+  @Post('subscribers/bulk-delete')
+  async bulkDeleteSubscribers(@Body() dto: BulkDeleteDto) {
+    if (!dto.ids.length) return { deleted: 0 };
+    const res = await this.prisma.subscriber.deleteMany({
+      where: { id: { in: dto.ids } },
+    });
+    return { deleted: res.count };
+  }
+
+  /** Илгээсэн имэйлийн логийг олноор устгана (тест лог хуримтлагддаг) */
+  @Post('logs/bulk-delete')
+  async bulkDeleteLogs(@Body() dto: BulkDeleteDto) {
+    if (!dto.ids.length) return { deleted: 0 };
+    const res = await this.prisma.emailLog.deleteMany({
+      where: { id: { in: dto.ids } },
+    });
+    return { deleted: res.count };
   }
 
   /** Suppression жагсаалт (bounce/complaint) */

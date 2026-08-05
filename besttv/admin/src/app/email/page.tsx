@@ -22,6 +22,7 @@ import { DataToolbar } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { NewBadge } from '@/components/new-badge';
 import { api } from '@/lib/api';
+import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { useNewSince } from '@/lib/use-new-since';
 
 const TABS = [
@@ -100,6 +101,13 @@ export default function EmailPage() {
 
 function LogsTab() {
   const [f, setF] = useState({ search: '', template: 'ALL', status: 'ALL', page: 1, limit: 20 });
+
+  /* Олноор устгах — тест лог хуримтлагддаг */
+  const sel = useBulkSelect({
+    endpoint: '/admin/email/logs/bulk-delete',
+    invalidate: ['admin-email-logs'],
+    label: 'лог',
+  });
 
   const { data, isFetching } = useQuery({
     queryKey: ['admin-email-logs', f],
@@ -194,6 +202,14 @@ function LogsTab() {
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
+              {/* Bulk сонголт — тест имэйл лог их хуримтлагддаг */}
+              <th className="w-10 px-4 py-3">
+                <SelectBox
+                  checked={sel.allChecked((data?.items ?? []).map((l) => l.id))}
+                  onChange={() => sel.toggleAll((data?.items ?? []).map((l) => l.id))}
+                  ariaLabel="Хуудсан дээрх бүгдийг сонгох"
+                />
+              </th>
               <th className="px-4 py-3 text-left font-semibold">Хүлээн авагч</th>
               <th className="px-4 py-3 text-left font-semibold">Гарчиг</th>
               <th className="px-4 py-3 text-left font-semibold">Төрөл</th>
@@ -204,6 +220,13 @@ function LogsTab() {
           <tbody className="divide-y divide-border">
             {data?.items.map((l) => (
               <tr key={l.id} className="transition-colors hover:bg-accent/40">
+                <td className="px-4 py-3">
+                  <SelectBox
+                    checked={sel.isSelected(l.id)}
+                    onChange={() => sel.toggle(l.id)}
+                    ariaLabel={l.to + ' лог сонгох'}
+                  />
+                </td>
                 <td className="px-4 py-3 text-foreground">{l.to}</td>
                 <td className="max-w-[280px] truncate px-4 py-3 text-muted-foreground">
                   {l.subject}
@@ -247,6 +270,7 @@ function LogsTab() {
         limit={f.limit}
         onPage={(p) => setF((s) => ({ ...s, page: p }))}
       />
+      <BulkBar {...sel.bar} />
     </>
   );
 }
@@ -258,6 +282,13 @@ function SubscribersTab() {
   const isNew = useNewSince('subscribers');
   const [f, setF] = useState({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 });
   const [exporting, setExporting] = useState(false);
+
+  /* Олноор устгах — тест бүртгэл цэвэрлэх */
+  const sel = useBulkSelect({
+    endpoint: '/admin/email/subscribers/bulk-delete',
+    invalidate: ['admin-subscribers'],
+    label: 'бүртгүүлэгч',
+  });
 
   const { data, isFetching } = useQuery({
     queryKey: ['admin-subscribers', f],
@@ -367,6 +398,14 @@ function SubscribersTab() {
         <table className="w-full min-w-[620px] text-sm">
           <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
+              {/* Bulk сонголт — тест бүртгэл цэвэрлэх */}
+              <th className="w-10 px-4 py-3">
+                <SelectBox
+                  checked={sel.allChecked((data?.items ?? []).map((x) => x.id))}
+                  onChange={() => sel.toggleAll((data?.items ?? []).map((x) => x.id))}
+                  ariaLabel="Хуудсан дээрх бүгдийг сонгох"
+                />
+              </th>
               <th className="px-4 py-3 text-left font-semibold">Имэйл</th>
               <th className="px-4 py-3 text-left font-semibold">Нэр</th>
               <th className="px-4 py-3 text-left font-semibold">Эх сурвалж</th>
@@ -377,6 +416,13 @@ function SubscribersTab() {
           <tbody className="divide-y divide-border">
             {data?.items.map((s) => (
               <tr key={s.id} className="transition-colors hover:bg-accent/40">
+                <td className="px-4 py-3">
+                  <SelectBox
+                    checked={sel.isSelected(s.id)}
+                    onChange={() => sel.toggle(s.id)}
+                    ariaLabel={s.email + ' сонгох'}
+                  />
+                </td>
                 <td className="px-4 py-3 text-foreground">
                   <span className="flex items-center gap-1.5">
                     {s.email}
@@ -420,6 +466,7 @@ function SubscribersTab() {
         limit={f.limit}
         onPage={(p) => setF((s) => ({ ...s, page: p }))}
       />
+      <BulkBar {...sel.bar} />
     </>
   );
 }

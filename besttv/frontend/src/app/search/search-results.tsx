@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, SearchX } from 'lucide-react';
+import { Search, SearchX, X } from 'lucide-react';
 import { ErrorState } from '@besttv/shared/ui';
 import { useSearch } from '@/lib/queries';
 import { trackSearch } from '@/lib/track';
@@ -26,6 +26,15 @@ export function SearchResults() {
 
   useEffect(() => setInput(qParam), [qParam]);
 
+  /**
+   * ⚠️ Хайлтаас ГАРАХ. Түүхэнд өмнөх хуудас байвал буцна, эс бөгөөс
+   * нүүр рүү (шинэ таб/шууд линкээр орсон тохиолдол).
+   */
+  const closeSearch = () => {
+    if (window.history.length > 1) router.back();
+    else router.push('/');
+  };
+
   const { data, isLoading, isError, refetch } = useSearch(qParam);
 
   // Хайлтын түүх — үр дүн ирсний ДАРАА бүртгэнэ (олдсон тоог мэдэхийн тулд).
@@ -46,10 +55,32 @@ export function SearchResults() {
           autoFocus
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            // ⚠️ Esc — бичсэнээ цэвэрлэнэ, хоосон бол хайлтаас ГАРНА
+            if (e.key === 'Escape') {
+              if (input) setInput('');
+              else closeSearch();
+            }
+          }}
           placeholder="Кино хайх..."
           aria-label="Хайх"
-          className="w-full rounded-full border border-white/15 bg-white/5 py-3.5 pl-12 pr-4 text-base text-white placeholder:text-white/35 outline-none transition-colors focus:border-primary focus:bg-white/8"
+          className="w-full rounded-full border border-white/15 bg-white/5 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-white/35 outline-none transition-colors focus:border-primary focus:bg-white/8"
         />
+        {/*
+          ⚠️⚠️ ХААХ ТОВЧ — өмнө нь хайлтаас ГАРАХ АРГА БАЙХГҮЙ байв.
+          Хэрэглэгч mobile дээр хайлт нээгээд буцаж чадахгүй гацдаг
+          (browser-ийн "back" л ажилладаг байсан).
+            • Бичсэн текст байвал → цэвэрлэнэ (X)
+            • Хоосон бол → өмнөх хуудас руу буцна
+        */}
+        <button
+          type="button"
+          onClick={() => (input ? setInput('') : closeSearch())}
+          aria-label={input ? 'Хайлтыг цэвэрлэх' : 'Хайлтыг хаах'}
+          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {qParam && (

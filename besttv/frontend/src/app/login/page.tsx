@@ -108,7 +108,7 @@ export default function LoginPage() {
       </div>
 
       {/* Баруун — форм */}
-      <div className="flex flex-1 items-center justify-center px-4 py-16">
+      <div className="flex flex-1 items-center justify-center px-5 py-8 sm:px-4 sm:py-16">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -116,14 +116,14 @@ export default function LoginPage() {
           className="w-full max-w-sm"
         >
           <h1 className="flex items-center">
-            <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-11 w-auto" textSize="text-3xl" />
+            <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto sm:h-11" textSize="text-2xl sm:text-3xl" />
           </h1>
           <p className="mt-1.5 text-sm text-white/55">
             {mode === 'login' ? 'Дахин тавтай морил 👋' : 'Шинэ бүртгэл үүсгэх'}
           </p>
 
           {/* Login/Register segmented toggle */}
-          <div className="mt-6 flex rounded-lg bg-white/6 p-1" role="tablist">
+          <div className="mt-5 flex rounded-lg bg-white/6 p-1 sm:mt-6" role="tablist">
             {(['login', 'register'] as const).map((m) => (
               <button
                 key={m}
@@ -154,7 +154,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={submit} className="mt-5 space-y-3.5">
+          <form onSubmit={submit} className="mt-4 space-y-3 sm:mt-5 sm:space-y-3.5">
             {mode === 'register' && (
               <Field label="Нэр">
                 <input
@@ -223,7 +223,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || passwordsMismatch}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 font-bold text-white transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/30 active:scale-[0.99] disabled:opacity-50"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-white transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/30 active:scale-[0.99] disabled:opacity-50 sm:py-3 sm:text-base"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading

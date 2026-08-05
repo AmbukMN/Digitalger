@@ -258,6 +258,26 @@ export class ChatService {
     return { ok: true, handedOff };
   }
 
+  /**
+   * Олон яриаг нэг дор устгана (админ — тест яриа цэвэрлэх).
+   *
+   * ⚠️  нь  тул мессежүүд нь ДАГАЖ
+   * устана — тусад нь устгах шаардлагагүй.
+   */
+  /**
+   * Олон яриаг нэг дор устгана (админ — тест яриа цэвэрлэх).
+   *
+   * ⚠️ `ChatMessage` нь `onDelete: Cascade` тул мессежүүд нь ДАГАЖ устана —
+   * тусад нь устгах шаардлагагүй.
+   */
+  async bulkDelete(ids: string[]) {
+    if (!ids.length) return { deleted: 0 };
+    const res = await this.prisma.chatConversation.deleteMany({
+      where: { id: { in: ids } },
+    });
+    return { deleted: res.count };
+  }
+
   async unreadCount() {
     const unreadTotal = await this.prisma.chatConversation.count({ where: { adminUnread: true } });
     return { unreadTotal };

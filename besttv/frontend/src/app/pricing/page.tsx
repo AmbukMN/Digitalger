@@ -419,7 +419,8 @@ export default function PricingPage() {
                   disabled={!!loadingPlan}
                   className={cn(
                     // ⚠️ `whitespace-nowrap` — mobile-д текст мөр таслахгүй
-                    'flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:py-2.5 sm:text-sm',
+                    /* ⚠️ `min-h-10` — хүрэх талбар (WCAG) */
+                    'flex min-h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:py-2.5 sm:text-sm',
                     canPayWithWallet
                       ? plan.isVip
                         ? 'bg-premium text-premium-foreground hover:brightness-105'
@@ -440,7 +441,7 @@ export default function PricingPage() {
                   disabled={!!loadingPlan}
                   /* ⚠️ `whitespace-nowrap` — mobile-д текст 2 мөр болж
                      товчны өндөр зөрөхөөс сэргийлнэ (зэрэгцээ жигд) */
-                  className="flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-white/8 py-1.5 text-[11px] font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50 sm:gap-1.5 sm:py-2 sm:text-xs"
+                  className="flex min-h-9 w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-white/8 py-1.5 text-[11px] font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50 sm:gap-1.5 sm:py-2 sm:text-xs"
                 >
                   {loadingPlan === plan.id && <Loader2 size={12} className="animate-spin" />}
                   {/*

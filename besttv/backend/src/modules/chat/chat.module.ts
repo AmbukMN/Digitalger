@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ArrayMaxSize, IsArray, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -121,6 +122,14 @@ export class ChatController {
   }
 }
 
+/** Олноор устгах хүсэлт (чат/захиалагч/лог бүгдэд ижил хэлбэр) */
+class BulkDeleteDto {
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(200)
+  ids: string[];
+}
+
 @Controller('admin/chat')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -153,6 +162,12 @@ export class ChatAdminController {
   @Post('conversations/:id/reply')
   reply(@Param('id') id: string, @Body() body: { text?: string }) {
     return this.chat.adminReply(id, body.text ?? '');
+  }
+
+  /** ⚠️ Bulk устгал — тест яриа их хуримтлагддаг тул админд заавал хэрэгтэй */
+  @Post('conversations/bulk-delete')
+  bulkDelete(@Body() dto: BulkDeleteDto) {
+    return this.chat.bulkDelete(dto.ids);
   }
 
   @Post('conversations/:id/handoff')
