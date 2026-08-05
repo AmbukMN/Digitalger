@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAuth } from '@/lib/auth-store';
-import { getAccessToken, getRefreshToken, isJwtExpired } from '@/lib/api';
+import { getAccessToken, getRefreshToken } from '@/lib/api';
 
 /**
  * Google/Facebook signIn() амжилттай болмогц NextAuth session-д
@@ -81,11 +81,17 @@ export function OAuthSessionSync() {
      * Одоо ХОЁУЛАА хүчингүй бол session-ийн токеноор СЭРГЭЭНЭ.
      * Нэг нь ч хүчинтэй бол хөндөхгүй (шинэ токеныг хуучнаар дарахгүй).
      */
-    const a = getAccessToken();
-    const r = getRefreshToken();
-    const aOk = !!a && !isJwtExpired(a);
-    const rOk = !!r && !isJwtExpired(r);
-    if (aOk || rOk) return;
+    /**
+     * ⚠️ ЦАГААС ХАМААРАХГҮЙ — зөвхөн "байгаа эсэх"-ийг шалгана.
+     *
+     * Өмнө нь `isJwtExpired()`-ээр хугацааг client тал шалгадаг байв.
+     * Хэрэглэгчийн цаг буруу бол буруу шийдвэр гарна. Хугацааны
+     * шийдвэрийг СЕРВЕР гаргана: токен хүчингүй бол `api()` дотор
+     * 401 → refresh → амжилтгүй бол clearTokens() хийгдэнэ. Тэр үед
+     * localStorage хоосорч, энэ effect дараагийн render-д session-ээс
+     * СЭРГЭЭНЭ. Ингэснээр гацах ч үгүй, буруу шийдвэр ч гарахгүй.
+     */
+    if (getAccessToken() || getRefreshToken()) return;
 
     /**
      * Гогцоо хамгаалалт — нэг хуудасны амьдралд НЭГ л удаа сэргээнэ.
@@ -97,21 +103,21 @@ export function OAuthSessionSync() {
     syncedToken.current = key;
 
     /**
-     * ⚠️⚠️ Session доторх токен нь ӨӨРӨӨ хуучирсан/байхгүй байж болно.
+     * ⚠️⚠️ ҮРГЭЛЖ `/api/auth/bridge`-ЭЭР ШИНЭ ТОКЕН АВНА.
      *
-     * NextAuth session 30 хоног амьдардаг ч доторх accessToken 15 минут
-     * бөгөөд хэзээ ч шинэчлэгддэггүй. Иймд түүгээр шууд синк хийвэл
-     * дахиад л хүчингүй токен бичигдэнэ.
+     * ЯАГААД session доторх токеныг ШУУД ХЭРЭГЛЭХГҮЙ ВЭ:
+     * NextAuth session 30 хоног амьдардаг ч доторх accessToken ердөө
+     * 15 минут. Түүгээр шууд синк хийвэл ХУГАЦАА ДУУССАН токен
+     * localStorage-д бичигдэж, бүх хүсэлт 401 болно.
      *
-     * Тиймээс: session доторх токен ХҮЧИНТЭЙ бол шууд ашиглана (хурдан),
-     * ХУУЧИРСАН эсвэл БАЙХГҮЙ бол `/api/auth/bridge`-ээр ЦОО ШИНЭ токен
-     * авна. Ингэснээр session хүчинтэй л бол хэрэглэгч хэзээ ч гацахгүй.
+     * ЯАГААД "хүчинтэй эсэхийг шалгаад" гэж ХИЙХГҮЙ ВЭ:
+     * Тэр шалгалт нь хэрэглэгчийн компьютерийн цагаас хамаарна. Цаг
+     * буруу тохируулсан хэрэглэгч МАШ ОЛОН — тэдэнд буруу шийдвэр
+     * гарч, мөнхийн 401 гогцоонд ордог (бодит алдаа).
+     *
+     * Bridge нь СЕРВЕР талд session-ийг баталгаажуулж, backend-ээс
+     * ЦОО ШИНЭ токен авдаг тул цагаас бүрэн хамааралгүй, үргэлж зөв.
      */
-    if (accessToken && refreshToken && !isJwtExpired(accessToken)) {
-      syncFromOAuth(accessToken, refreshToken).catch(() => null);
-      return;
-    }
-
     fetch('/api/auth/bridge', { method: 'POST' })
       .then((res) => (res.ok ? res.json() : null))
       .then((d: { accessToken: string; refreshToken: string } | null) => {

@@ -28,32 +28,21 @@ export function getRefreshToken(): string | null {
 }
 
 /**
- * Access токен хугацаа нь ДУУССАН эсэх (сүлжээгүй, зөвхөн JWT-г уншина).
+ * ⚠️⚠️ CLIENT ТАЛД ТОКЕНЫ ХУГАЦААГ ХЭЗЭЭ Ч БҮҮ ШАЛГА.
  *
- * ⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: хуудас ачаалахад олон компонент ЗЭРЭГ хүсэлт
- * явуулдаг. Access хуучирсан бол тэд БҮГД 401 аваад л дараа нь refresh
- * эхэлдэг байв — хэрэглэгчийн console 401-ээр дүүрдэг гол шалтгаан.
- * Хугацааг УРЬДЧИЛАН мэдэж чадвал refresh-ыг ЭХЭЛЖ хийгээд, дараа нь
- * бүх хүсэлтийг ШИНЭ токеноор явуулна — 401 огт үүсэхгүй.
+ * Энд өмнө нь `isAccessExpired()` байсан — токены `exp`-ыг `Date.now()`-той
+ * харьцуулдаг. Гэвч хэрэглэгчийн компьютерийн цаг буруу тохируулагдсан
+ * байх нь МАШ ТҮГЭЭМЭЛ. Тэр үед:
+ *   - цаг ХОЦРОГДСОН → client "хүчинтэй" гэж үзээд явуулна, сервер
+ *     "jwt expired" гэж 401 өгнө → МӨНХИЙН 401 ГОГЦОО
+ *     (production оношлогоо: client stale=false гэж үзсэн токенд
+ *      backend `TokenExpiredError: jwt expired` буцааж байсан)
+ *   - цаг ТҮРҮҮЛСЭН → хүчинтэй токеныг дэмий refresh хийнэ
  *
- * ⚠️ Энэ нь ЗӨВХӨН оновчлол — эрхийн ШИЙДВЭР сервер дээр гардаг.
- * Задлахад алдвал `false` буцааж, хуучин зан төлөв рүү аюулгүй уналаа
- * (401 → refresh) хийнэ.
+ * Хугацааны ШИЙДВЭР 100% СЕРВЕРИЙНХ: токен байвал шууд явуулна, сервер
+ * 401 буцаавал л refresh хийнэ. Ингэснээр хэрэглэгчийн цаг ямар ч
+ * байсан зөв ажиллана.
  */
-export function isJwtExpired(token: string): boolean {
-  return isAccessExpired(token);
-}
-
-function isAccessExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number };
-    if (!payload.exp) return false;
-    // 10 секундын нөөц — сүлжээний саатал/цагийн бага зөрүүг тооцно
-    return Date.now() >= payload.exp * 1000 - 10_000;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Refresh оролдлого.
@@ -139,48 +128,25 @@ export async function api<T = unknown>(
   }
 
   /**
-   * ⚠️ УРЬДЧИЛСАН REFRESH — 401 үүсгэлгүйгээр токеныг сэргээнэ.
-   * Access хуучирсан ба refresh байгаа бол хүсэлт явуулахын ӨМНӨ сэргээнэ.
-   * Олон зэрэг хүсэлт нэг `refreshPromise`-ыг хуваалцана.
+   * Access ОГТ БАЙХГҮЙ ч refresh байвал урьдчилан сэргээнэ.
+   * ⚠️ Энэ нь цагаас ХАМААРАХГҮЙ — зөвхөн "байгаа/байхгүй" шалгалт.
    */
-  if (auth) {
-    const token = getAccessToken();
-    const stale = !token || isAccessExpired(token);
-
-    if (stale) {
-      if (getRefreshToken()) {
-        // Refresh боломжтой — сэргээнэ (олон зэрэг хүсэлт нэгийг хуваалцана)
-        refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
-        const r = await refreshPromise;
-        if (r === 'invalid') {
-          clearTokens();
-          throw new ApiError(401, 'Нэвтрэлт дууссан', 'TOKEN_EXPIRED');
-        }
-        // 'network' үед токен ХЭВЭЭР — доор хуучин токеноор оролдоно
-        // (сервер сэргэвэл ажиллана, түр саатлаас болж гаргахгүй)
-      } else {
-        /**
-         * ⚠️⚠️ ХУУЧИРСАН ТОКЕНООР ХҮСЭЛТ ОГТ БҮҮ ЯВУУЛ.
-         *
-         * Refresh token АЛГА бөгөөд access хуучирсан бол сервер рүү
-         * явуулах нь 100% 401 буцаана — үр дүнгүй, зөвхөн хэрэглэгчийн
-         * console-ыг дүүргэнэ.
-         *
-         * Production дээр хэрэглэгчийн дүр зургийг ЯГ давтан гаргав:
-         *   auth/me=401, auth/me=401, my-list/ids=401, chat/link-session=401
-         * — refresh алга + access хуучирсан үед 4 хүсэлт ЗЭРЭГ явж бүгд
-         * унасан. Одоо 0 болсон.
-         *
-         * ⚠️ Зөвхөн энэ тохиолдолд эрт гарна. Refresh БАЙГАА үед хэзээ ч
-         * эрт гарахгүй — эс бөгөөс хүчинтэй refresh-тэй хэрэглэгч
-         * шалтгаангүй гарна (регресс тестээр илэрсэн).
-         */
-        clearTokens();
-        throw new ApiError(401, 'Нэвтрэлт дууссан', 'TOKEN_EXPIRED');
-      }
+  if (auth && !getAccessToken() && getRefreshToken()) {
+    refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+    const r = await refreshPromise;
+    if (r === 'invalid') {
+      clearTokens();
+      throw new ApiError(401, 'Нэвтрэлт дууссан', 'TOKEN_EXPIRED');
     }
   }
 
+  /**
+   * ⚠️⚠️ ХЭРЭГЛЭГЧИЙН ЦАГААС ХАМААРАХГҮЙ — ХУГАЦААГ СЕРВЕР Л ШИЙДНЭ.
+   *
+   * Токеныг ШУУД явуулна. Сервер 401 буцаавал л refresh хийнэ (доорх
+   * блок). Client тал `exp`-ыг `Date.now()`-той харьцуулахгүй тул
+   * хэрэглэгчийн цаг буруу байсан ч зөв ажиллана.
+   */
   let res = await doFetch();
 
   // 401 → refresh нэг удаа (олон зэрэг хүсэлт нэг refresh хуваалцана).
