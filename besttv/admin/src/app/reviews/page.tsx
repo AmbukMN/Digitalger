@@ -296,7 +296,7 @@ export default function ReviewsPage() {
                   />
                 </th>
                 <th className="px-4 py-3 text-left font-semibold">Хэрэглэгч</th>
-                <th className="px-4 py-3 text-left font-semibold">Кино/Олон ангит</th>
+                <th className="px-4 py-3 text-left font-semibold">Кино</th>
                 <th className="px-4 py-3 text-left font-semibold">Үнэлгээ</th>
                 <th className="px-4 py-3 text-left font-semibold">Сэтгэгдэл</th>
                 <th className="px-4 py-3 text-left font-semibold">Огноо</th>

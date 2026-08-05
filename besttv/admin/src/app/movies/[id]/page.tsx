@@ -216,7 +216,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
                       form.type === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
-                    {t === 'MOVIE' ? 'Кино' : 'Олон ангит'}
+                    {t === 'MOVIE' ? 'Нэг ангит' : 'Олон ангит'}
                   </button>
                 ))}
               </div>

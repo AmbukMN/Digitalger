@@ -108,7 +108,7 @@ export default function MoviesPage() {
   return (
     <AdminShell>
       <AdminTopbar
-        title="Кино / Олон ангит"
+        title="Кино"
         subtitle={data ? `${data.total.toLocaleString()} контент` : undefined}
       />
 
@@ -133,7 +133,7 @@ export default function MoviesPage() {
           searchPlaceholder="Нэр, slug-аар хайх (галиг дэмжинэ)..."
           tabs={[
             { id: 'ALL', label: 'Бүгд', count: counts?.ALL },
-            { id: 'MOVIE', label: 'Кино', count: counts?.movies },
+            { id: 'MOVIE', label: 'Нэг ангит', count: counts?.movies },
             { id: 'SERIES', label: 'Олон ангит', count: counts?.series },
           ]}
           activeTab={f.type}
@@ -320,7 +320,7 @@ export default function MoviesPage() {
                   <td className="px-4 py-3 text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">
                       {t.type === 'MOVIE' ? <Film size={13} /> : <Tv size={13} />}
-                      {t.type === 'MOVIE' ? 'Кино' : `${t._count.seasons} улирал`}
+                      {t.type === 'MOVIE' ? 'Нэг ангит' : `${t._count.seasons} улирал`}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">

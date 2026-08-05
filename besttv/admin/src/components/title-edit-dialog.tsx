@@ -351,7 +351,7 @@ export function TitleEditDialog({
                 {isNew ? 'Шинэ контент нэмэх' : form.title || 'Контент засах'}
               </span>
               <span className="block text-xs font-normal text-muted-foreground">
-                {form.type === 'SERIES' ? 'Олон ангит' : 'Бүрэн хэмжээний кино'}
+                {form.type === 'SERIES' ? 'Олон ангит' : 'Нэг ангит кино'}
               </span>
             </span>
           </DialogTitle>
@@ -394,7 +394,7 @@ export function TitleEditDialog({
                       )}
                     >
                       {t === 'MOVIE' ? <Clapperboard size={13} /> : <Tv size={13} />}
-                      {t === 'MOVIE' ? 'Кино' : 'Олон ангит'}
+                      {t === 'MOVIE' ? 'Нэг ангит' : 'Олон ангит'}
                     </button>
                   ))}
                 </div>

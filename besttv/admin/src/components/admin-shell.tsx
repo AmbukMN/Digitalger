@@ -24,7 +24,7 @@ const NAV_GROUPS = [
   {
     label: 'Контент',
     items: [
-      { href: '/movies', label: 'Кино/Олон ангит', icon: Clapperboard },
+      { href: '/movies', label: 'Кино', icon: Clapperboard },
       { href: '/genres', label: 'Жанр', icon: Tags },
       { href: '/reviews', label: 'Сэтгэгдэл', icon: MessageSquare, section: 'reviews' },
       { href: '/blog', label: 'Блог', icon: FileText },

@@ -360,7 +360,7 @@ export default function DashboardPage() {
                     icon={<Film size={17} />}
                   />
                   <Metric
-                    label="Кино / Олон ангит"
+                    label="Кино"
                     value={`${data.totalMovies} / ${data.totalSeries}`}
                     icon={<Tv size={17} />}
                   />

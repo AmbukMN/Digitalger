@@ -9,17 +9,22 @@ export async function generateMetadata(): Promise<Metadata> {
     path: '/movies',
     title: 'Бүх Кинонууд',
     description:
-      'Таны үзэх дуртай бүх төрлийн нэг ангит кинонууд — BestTV дээр эрэлттэй, шинэ кино бүгд.',
+      'Таны үзэх дуртай бүх төрлийн кино — BestTV дээр эрэлттэй, шинэ бүгд.',
   });
 }
 
+/**
+ * ⚠️⚠️ "КИНО" бол ЕРӨНХИЙ НЭРШИЛ — нэг ангит БОЛОН олон ангит ХОЁУЛАА
+ * энд харагдана. Хэрэглэгчийн талд MOVIE/SERIES гэж ЯЛГАХГҮЙ (тэр нь
+ * зөвхөн админ талын дотоод хэрэгсэл — контент оруулах хэлбэрийг заана).
+ * Ангилал = ЖАНР.
+ */
 export default function MoviesPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-background pt-24" />}>
       <CatalogGrid
-        type="MOVIE"
         heading="Бүх Кинонууд"
-        subheading="Таны үзэх дуртай бүх төрлийн нэг ангит кинонууд"
+        subheading="Жанраар шүүж, өөрт таарсан киногоо олоорой"
       />
     </Suspense>
   );

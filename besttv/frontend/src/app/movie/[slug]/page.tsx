@@ -122,10 +122,15 @@ export default async function TitleDetailPage({
           itemListElement: [
             { '@type': 'ListItem', position: 1, name: 'Нүүр', item: SITE_URL },
             {
+              /**
+               * ⚠️ Каталог НЭГДСЭН — "Кино" бол ерөнхий нэршил (нэг ангит +
+               * олон ангит). Өмнө нь SERIES бол `/series` руу зааж байсан
+               * нь одоо redirect үүсгэх тул SEO-д муу.
+               */
               '@type': 'ListItem',
               position: 2,
-              name: title.type === 'SERIES' ? 'Олон ангит' : 'Кино',
-              item: `${SITE_URL}${title.type === 'SERIES' ? '/series' : '/movies'}`,
+              name: 'Кино',
+              item: `${SITE_URL}/movies`,
             },
             {
               '@type': 'ListItem',

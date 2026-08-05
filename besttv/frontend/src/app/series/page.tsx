@@ -1,25 +1,15 @@
-import type { Metadata } from 'next';
-import { Suspense } from 'react';
-import { CatalogGrid } from '@/components/catalog-grid';
-import { buildPageMetadata } from '@/lib/seo';
+import { redirect } from 'next/navigation';
 
-// ⚠️ Админ панелаас (SEO → Хуудасны тохиргоо) дарж бичих боломжтой
-export async function generateMetadata(): Promise<Metadata> {
-  return buildPageMetadata({
-    path: '/series',
-    title: 'Олон ангит',
-    description: 'Хамгийн сүүлийн үеийн шилдэг олон ангит кинонууд — BestTV дээр үзээрэй.',
-  });
-}
-
+/**
+ * ⚠️⚠️ /series ХУУДАС ХАСАГДСАН — /movies руу шилжүүлнэ.
+ *
+ * "Кино" бол ЕРӨНХИЙ НЭРШИЛ бөгөөд нэг ангит болон олон ангит хоёуланг
+ * агуулна. Тусдаа "Олон ангит" хуудас байх нь "олон ангит бол кино биш"
+ * гэсэн буруу ойлголт төрүүлдэг байв.
+ *
+ * ⚠️ Хуудсыг УСТГАХГҮЙ шилжүүлж байгаа шалтгаан: хайлтын систем болон
+ * хэрэглэгчийн хадгалсан хуучин холбоосууд 404 болохгүй (SEO хамгаална).
+ */
 export default function SeriesPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-background pt-24" />}>
-      <CatalogGrid
-        type="SERIES"
-        heading="Олон ангит"
-        subheading="Хамгийн сүүлийн үеийн шилдэг олон ангит кинонууд"
-      />
-    </Suspense>
-  );
+  redirect('/movies');
 }
