@@ -8,17 +8,20 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
 /**
- * ⚠️⚠️ PLAYLIST-ЫГ BROWSER-Т 10 МИНУТ КЭШЛҮҮЛНЭ (`private, max-age=600`).
+ * ⚠️⚠️ PLAYLIST-ЫГ BROWSER-Т 2 МИНУТ КЭШЛҮҮЛНЭ (`private, max-age=120`).
  *
  * Өмнө нь `no-store` байсан тул player нь seek хийх бүрт, чанар солих
  * бүрт playlist-ыг СЕРВЕРЭЭС ДАХИН татдаг байв. Монгол↔Герман хооронд
  * дуудалт тутам ~0.4-0.8 СЕКУНД — хэрэглэгч "seek хийхэд удаан уншиж
  * байна" гэж мэдэрдэг гол шалтгаан.
  *
+ * ⚠️ 10 минут (600с) БАЙСНЫГ 2 МИНУТ болгов: playlist дотор presigned URL
+ * байдаг тул урт кэш нь ХУУЧИРСАН холбоосыг барьж, R2 тохиргоо
+ * (жишээ нь CORS) солигдоход browser хуучин URL-аар дуудсаар алдаа өгдөг
+ * байв. 2 минут нь seek-ийн хурдыг хадгалж, хуучирлаас хамгаална.
+ *
  * ЯАГААД АЮУЛГҮЙ ВЭ:
  *   - `private` = зөвхөн тухайн хэрэглэгчийн browser (CDN/proxy кэшлэхгүй)
- *   - Дотор нь буй presigned URL 4 ЦАГ хүчинтэй тул 10 минутын кэш
- *     хэзээ ч хугацаа дууссан холбоос өгөхгүй
  *   - Эрхийн шалгалт нь guard дээр, хүсэлт БҮРТ хийгдсээр байна
  *     (кэш нь browser-ийн дотоод — эрх алдагдахгүй)
  */
@@ -37,21 +40,21 @@ export class AdminStreamController {
 
   @Get('movie/:titleId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   movie(@Param('titleId') titleId: string) {
     return this.stream.adminPreview('movie', titleId);
   }
 
   @Get('episode/:episodeId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   episode(@Param('episodeId') episodeId: string) {
     return this.stream.adminPreview('episode', episodeId);
   }
 
   @Get('trailer/:titleId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   trailer(@Param('titleId') titleId: string) {
     return this.stream.adminPreview('trailer', titleId);
   }
@@ -62,7 +65,7 @@ export class AdminStreamController {
    */
   @Get(':kind/:id/variant.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   variant(
     @Param('kind') kind: 'movie' | 'episode' | 'trailer',
     @Param('id') id: string,
@@ -81,14 +84,14 @@ export class StreamController {
 
   @Get('movie/:titleId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   movie(@Param('titleId') titleId: string, @CurrentUser() user: JwtPayload | null) {
     return this.stream.moviePlaylist(titleId, user?.sub);
   }
 
   @Get('episode/:episodeId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   episode(@Param('episodeId') episodeId: string, @CurrentUser() user: JwtPayload | null) {
     return this.stream.episodePlaylist(episodeId, user?.sub);
   }
@@ -109,7 +112,7 @@ export class StreamController {
 
   @Get('movie/:titleId/variant.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   movieVariant(
     @Param('titleId') titleId: string,
     @Query('v') v: string,
@@ -120,7 +123,7 @@ export class StreamController {
 
   @Get('episode/:episodeId/variant.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
-  @Header('Cache-Control', 'private, max-age=600')
+  @Header('Cache-Control', 'private, max-age=120')
   episodeVariant(
     @Param('episodeId') episodeId: string,
     @Query('v') v: string,
