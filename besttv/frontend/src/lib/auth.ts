@@ -7,22 +7,6 @@ import FacebookProvider from 'next-auth/providers/facebook';
 // runtime-д зөв утга уншина (build-д bake хийгдэхгүй).
 const BACKEND_URL = process.env.API_URL ?? 'http://localhost:4100';
 
-/**
- * JWT-ийн хугацаа дууссан эсэх (сервер тал, сүлжээгүй).
- * ⚠️ 30 секундын нөөц — refresh-ыг ЭРТ хийж, зааг дээр 401 гарахаас сэргийлнэ.
- */
-function isExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(
-      Buffer.from(token.split('.')[1], 'base64').toString('utf8'),
-    ) as { exp?: number };
-    if (!payload.exp) return false;
-    return Date.now() >= payload.exp * 1000 - 30_000;
-  } catch {
-    return false;
-  }
-}
-
 const providers: NextAuthOptions['providers'] = [];
 
 // ⚠️ Client ID/Secret хоосон бол provider бүртгэгдэхгүй — .env дутуу үед
@@ -162,27 +146,17 @@ export const authOptions: NextAuthOptions = {
        * `jwt` callback нь session уншигдах бүрд ажилладаг тул session
        * ҮРГЭЛЖ ХҮЧИНТЭЙ токентой байна.
        */
-      const at = token.accessToken as string | undefined;
-      const rt = token.refreshToken as string | undefined;
-      if (at && rt && isExpired(at)) {
-        try {
-          const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: rt }),
-          });
-          if (res.ok) {
-            const d = (await res.json()) as { accessToken: string; refreshToken: string };
-            token.accessToken = d.accessToken;
-            token.refreshToken = d.refreshToken;
-          }
-          // Амжилтгүй бол хуучныг үлдээнэ — client тал /api/auth/bridge-ээр
-          // сэргээхийг оролдоно (сүлжээний түр саатлаас болж гаргахгүй)
-        } catch {
-          /* сүлжээний алдаа — хуучин токеныг хэвээр үлдээнэ */
-        }
-      }
-
+      /**
+       * ⚠️⚠️ ЭНД ТОКЕН REFRESH ХИЙХГҮЙ.
+       *
+       * Өмнө нь энд access хуучирвал refresh хийдэг код байсан. Гэвч
+       * NextAuth v4 нь jwt callback-ийн өөрчлөлтийг COOKIE-д ХАДГАЛДАГГҮЙ
+       * (зөвхөн signIn/update trigger дээр л бичигдэнэ). Тиймээс session
+       * уншигдах БҮРД (SessionProvider poll, tab focus, getServerSession)
+       * refresh дахин дахин дуудагдаж — production лог 1-3 секунд тутам
+       * [REFRESH] спамдсан, гэхдээ cookie доторх токен ХЭВЭЭР хуучин
+       * үлдсээр байв. Утгагүй ачаалал + хуучин токен тараах эх үүсвэр.
+       */
       return token;
     },
 
@@ -193,8 +167,26 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).isGuest = token.isGuest ?? false;
         session.user.image = (token.picture as string) ?? session.user.image;
       }
-      (session as any).accessToken = token.accessToken;
-      (session as any).refreshToken = token.refreshToken;
+      /**
+       * ⚠️⚠️ SESSION-Д accessToken/refreshToken-ЫГ ОГТ ОРУУЛАХГҮЙ.
+       *
+       * ЭНЭ БОЛ "нэвтэрсэн байтлаа 401" АЛДААНЫ ҮНДЭС ШАЛТГААН БАЙВ:
+       *
+       * Cookie доторх токен нь signIn хийсэн МӨЧИД (жишээ нь 06:39-д)
+       * хөлдөж, 30 хоногийн турш ХЭЗЭЭ Ч шинэчлэгддэггүй. Гэтэл
+       * OAuthSessionSync (ялангуяа ХУУЧИН bundle ажиллуулж буй ӨӨР ТАБ)
+       * тэр ХӨЛДСӨН ХУУЧИРСАН токеныг localStorage руу дахин дахин
+       * бичдэг байв. localStorage табуудын дунд ХУВААЛЦАГДДАГ тул:
+       *   таб-1 refresh хийж ШИНЭ токен бичнэ → таб-2 (хуучин bundle)
+       *   session-ийн ХУУЧИН токеноор ДАРНА → таб-1-ийн дараагийн
+       *   хүсэлт хуучин токеноор явж 401 → уралдаан, санамсаргүй 401.
+       * Production лог үүнийг батлав: client ШИНЭ токен явуулсан гэж
+       * үзсэн мөчид backend-д 06:39-ийн ХУУЧИН токен ирсээр байсан.
+       *
+       * Session-д токен байхгүй бол ЯМАР Ч таб (хуучин bundle ч) үүнийг
+       * хийж чадахгүй. Client токеноо ЗӨВХӨН login эсвэл /api/auth/bridge
+       * (сервер шинээр олгоно)-оос авна. Нэг л эх сурвалж = localStorage.
+       */
       // ⚠️ /api/auth/bridge-д хэрэгтэй (токен сэргээхэд ЗӨВ provider)
       (session as any).provider = token.provider;
       (session as any).providerAccountId = token.providerAccountId;
