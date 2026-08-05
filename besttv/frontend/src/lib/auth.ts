@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, account, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
@@ -110,6 +110,18 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = (user as any).accessToken;
         token.refreshToken = (user as any).refreshToken;
         token.picture = user.image;
+        /**
+         * ⚠️ Provider-ыг ХАДГАЛНА — `/api/auth/bridge` нь токен сэргээхдээ
+         * ЗӨВ provider-ыг backend рүү дамжуулах ёстой. Facebook-ээр
+         * нэвтэрсэн хэрэглэгчийг 'google' гэж дамжуулбал буруу/шинэ
+         * бүртгэл үүсэх эрсдэлтэй.
+         */
+        if (account?.provider) token.provider = account.provider;
+        if ((user as any).providerAccountId) {
+          token.providerAccountId = (user as any).providerAccountId;
+        } else if (account?.providerAccountId) {
+          token.providerAccountId = account.providerAccountId;
+        }
       }
       // useSession().update()-аар client талаас дуудагдана (avatar шинэчлэх г.м.)
       if (trigger === 'update' && session?.picture) {
@@ -127,6 +139,9 @@ export const authOptions: NextAuthOptions = {
       }
       (session as any).accessToken = token.accessToken;
       (session as any).refreshToken = token.refreshToken;
+      // ⚠️ /api/auth/bridge-д хэрэгтэй (токен сэргээхэд ЗӨВ provider)
+      (session as any).provider = token.provider;
+      (session as any).providerAccountId = token.providerAccountId;
       return session;
     },
   },

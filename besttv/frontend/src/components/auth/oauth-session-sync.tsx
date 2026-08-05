@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAuth } from '@/lib/auth-store';
-import { getAccessToken, getRefreshToken } from '@/lib/api';
+import { getAccessToken, getRefreshToken, isJwtExpired } from '@/lib/api';
 
 /**
  * Google/Facebook signIn() амжилттай болмогц NextAuth session-д
@@ -59,13 +59,54 @@ export function OAuthSessionSync() {
      * Одоо токен байвал зүгээр л буцна — дараагийн удаа (токен алга
      * болсон бол) энэ effect дахин ажиллаж СЭРГЭЭНЭ.
      */
-    if (getAccessToken() || getRefreshToken()) return;
+    /**
+     * ⚠️⚠️ ХҮЧИНГҮЙ токеныг СЭРГЭЭНЭ (зөвхөн "байгаа эсэх" биш).
+     *
+     * Өмнө нь `getAccessToken() || getRefreshToken()` гэж ЗӨВХӨН БАЙГАА
+     * эсэхийг шалгадаг байв. Гэтэл localStorage-д ХУГАЦАА ДУУССАН токен
+     * байхад ч энэ нөхцөл үнэн болж, session-ээс сэргээхгүй буцдаг байв.
+     * Үр дүнд: NextAuth cookie 30 хоног хүчинтэй БАЙХАД хэрэглэгч
+     * "нэвтрэх боломжгүй" гацдаг (бодит гомдол — DevTools-д btv_access,
+     * btv_refresh ХОЁУЛАА байсан ч /auth/me 401 буцаж байсан).
+     *
+     * Одоо ХОЁУЛАА хүчингүй бол session-ийн токеноор СЭРГЭЭНЭ.
+     * Нэг нь ч хүчинтэй бол хөндөхгүй (шинэ токеныг хуучнаар дарахгүй).
+     */
+    const a = getAccessToken();
+    const r = getRefreshToken();
+    const aOk = !!a && !isJwtExpired(a);
+    const rOk = !!r && !isJwtExpired(r);
+    if (aOk || rOk) return;
 
     // Ижил токеноор дахин дахин синк хийхээс сэргийлнэ (гогцоо хамгаалалт)
     if (syncedToken.current === accessToken) return;
     syncedToken.current = accessToken;
 
-    syncFromOAuth(accessToken, refreshToken).catch(() => null);
+    /**
+     * ⚠️⚠️ Session доторх токен нь ӨӨРӨӨ хуучирсан байж болно.
+     *
+     * NextAuth session 30 хоног амьдардаг ч доторх accessToken 15 минут
+     * бөгөөд хэзээ ч шинэчлэгддэггүй. Иймд түүгээр шууд синк хийвэл
+     * дахиад л хүчингүй токен бичигдэнэ.
+     *
+     * Тиймээс: session доторх токен ХҮЧИНТЭЙ бол шууд ашиглана (хурдан),
+     * ХУУЧИРСАН бол `/api/auth/bridge`-ээр ЦОО ШИНЭ токен авна.
+     * Ингэснээр session хүчинтэй л бол хэрэглэгч хэзээ ч гацахгүй.
+     */
+    if (!isJwtExpired(accessToken)) {
+      syncFromOAuth(accessToken, refreshToken).catch(() => null);
+      return;
+    }
+
+    fetch('/api/auth/bridge', { method: 'POST' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d: { accessToken: string; refreshToken: string } | null) => {
+        if (d?.accessToken && d?.refreshToken) {
+          return syncFromOAuth(d.accessToken, d.refreshToken);
+        }
+        return null;
+      })
+      .catch(() => null);
   }, [session, status, syncFromOAuth]);
 
   return null;

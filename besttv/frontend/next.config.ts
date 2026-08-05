@@ -45,7 +45,13 @@ const nextConfig: NextConfig = {
       // beforeFiles-ээр эрт нь backend руу шууд rewrite хийнэ.
       beforeFiles: [
         {
-          source: '/api/auth/:path((?!signin|signout|callback|session|csrf|providers|error).*)',
+          /**
+           * ⚠️ `bridge` нь МАНАЙ Next.js route (app/api/auth/bridge/route.ts) —
+           * NextAuth session-ээс шинэ backend токен олгодог. Энэ жагсаалтад
+           * байхгүй бол backend руу rewrite хийгдэж 404 өгнө (бодит алдаа).
+           */
+          source:
+            '/api/auth/:path((?!signin|signout|callback|session|csrf|providers|error|bridge).*)',
           destination: `${api}/api/auth/:path`,
         },
       ],

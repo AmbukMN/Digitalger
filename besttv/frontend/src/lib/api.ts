@@ -40,6 +40,10 @@ export function getRefreshToken(): string | null {
  * Задлахад алдвал `false` буцааж, хуучин зан төлөв рүү аюулгүй уналаа
  * (401 → refresh) хийнэ.
  */
+export function isJwtExpired(token: string): boolean {
+  return isAccessExpired(token);
+}
+
 function isAccessExpired(token: string): boolean {
   try {
     const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number };
