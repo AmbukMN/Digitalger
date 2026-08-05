@@ -38,6 +38,9 @@ RUN apk add --no-cache wget && \
 
 COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/static ./admin/.next/static
+# ⚠️ `public/` нь standalone output-д АВТОМАТААР ОРДОГГҮЙ — гараар хуулах ёстой
+# (Next.js-ийн баримтжуулсан алхам). Хуулаагүй бол /favicon.ico 404 өгнө.
+COPY --from=builder --chown=nextjs:nodejs /app/admin/public ./admin/public
 
 USER nextjs
 

@@ -143,15 +143,20 @@ export function VideoPlayer({
           /**
            * ⚠️⚠️ ЭХЛЭХ ХУРД — "их удаан уншдаг" гэсэн гомдлын засвар.
            *
-           * Өмнө нь `startLevel: -1` (авто) байсан нь ЭХНИЙ сегментийг
-           * татаж дуустал bandwidth-ыг мэддэггүй тул ихэвчлэн ХАМГИЙН ӨНДӨР
-           * чанараар эхэлдэг → гар утсанд 5-15 секунд хүлээнэ.
+           * `startLevel: -1` (авто) нь bandwidth мэдэгдэх хүртэл ихэвчлэн
+           * ӨНДӨР чанараар эхэлдэг → 5-15 секунд хүлээнэ.
            *
-           * `startLevel: 0` — хамгийн бага чанараар ТҮРГЭН эхэлж, ABR
-           * хэдхэн секундын дараа автоматаар өндөр чанар руу шилжинэ
-           * (YouTube/Netflix яг ингэдэг).
+           * ⚠️⚠️ `startLevel: 0` БАС БУРУУ БАЙВ: 0 бол "жагсаалтын эхний"
+           * гэсэн үг, харин манай master playlist-д ЭХНИЙ мөр нь 720p
+           * (2.5 Mbps) байдаг тул кино ХАМГИЙН ӨНДӨР чанараар эхэлж,
+           * Монгол↔Герман хооронд маш удаан ачаалагдаж байв.
+           *
+           * Зөв шийдэл: MANIFEST_PARSED дээр bitrate-аар ХАМГИЙН БАГА
+           * түвшнийг олж тавина (доор). Энд -1 үлдээвэл hls.js өөрөө
+           * эхэлчихэх тул `autoStartLoad: false`-оор түр саатуулна.
            */
-          startLevel: 0,
+          startLevel: -1,
+          autoStartLoad: false,
           /** Гар утасны сүлжээнд буферыг богино барина (эхлэх хурд чухал) */
           maxBufferLength: 30,
           /** ⚠️ Эхлэхэд шаардах буфер — бага байх тусам түргэн эхэлнэ */
@@ -173,11 +178,36 @@ export function VideoPlayer({
         hls.attachMedia(video);
         hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
           setLoading(false);
+
+          /**
+           * ⚠️⚠️ ХАМГИЙН БАГА ЧАНАРААР ЭХЭЛНЭ — ЭХЛЭХ ХУРДНЫ ГОЛ ЗАСВАР.
+           *
+           * `startLevel: 0` нь ИНДЕКС-ийг заадаг тул master playlist-ийн
+           * эхний мөр 720p байхад ХАМГИЙН ӨНДРӨӨР эхэлж байв. Энд bodit
+           * `bitrate`-аар хамгийн багыг олж тавьснаар индексийн дараалал
+           * ямар ч байсан зөв ажиллана.
+           *
+           * Эхний сегмент багахан тул кино ТҮРГЭН эхэлнэ, дараа нь ABR
+           * (autoLevelCapping = -1) хэдхэн секундэд өндөр чанар руу
+           * өөрөө өснө — YouTube/Netflix яг ингэдэг.
+           */
+          const levels = hls?.levels ?? [];
+          if (hls && levels.length > 1) {
+            let lowest = 0;
+            for (let i = 1; i < levels.length; i++) {
+              if (levels[i].bitrate < levels[lowest].bitrate) lowest = i;
+            }
+            hls.startLevel = lowest;
+            hls.nextLevel = lowest;
+          }
+          // ⚠️ `autoStartLoad: false` тавьсан тул ЭНД гараар эхлүүлнэ
+          hls?.startLoad(startAt && startAt > 0 ? startAt : -1);
+
           /**
            * ⚠️ ABR түвшнүүдийг цуглуулна. Нэг л түвшин бол цэс ХАРУУЛАХГҮЙ
            * (хуучин видео) — хэрэглэгчид сонгох зүйлгүй цэс утгагүй.
            */
-          const lv = (hls?.levels ?? [])
+          const lv = levels
             .map((l, i) => ({ index: i, height: l.height }))
             .filter((l) => l.height > 0)
             .sort((a, b) => b.height - a.height);
@@ -527,16 +557,39 @@ export function VideoPlayer({
      * сэргэнэ. Hover-оос thumbnail гарах хүртэл ~1 секунд зарцуулна
      * (`preload="metadata"` + богино буфер тул хурдан).
      */
-    if (isTouch || loading || hover === null || thumbReady.current) return;
+    /**
+     * ⚠️⚠️ УРЬДЧИЛЖ БЭЛДЭНЭ — "seek thumbnail зураг ОГТ гарахгүй" засвар.
+     *
+     * Өмнө нь `hover === null` буюу хэрэглэгч зураас дээр ХҮРСНИЙ ДАРАА л
+     * HLS эхэлдэг байв. Гэтэл manifest + сегмент татахад 1-2 секунд орох
+     * тул хэрэглэгч зураасаар шилжүүлэх зуур ХООСОН ХАР хайрцаг л
+     * харагддаг байсан (бодит гомдол).
+     *
+     * Одоо гол видео эхэлмэгц (`!loading`) 1.5 секундын дараа урьдчилж
+     * ачаална. Тэр саатал нь киноны эхний сегментүүд татагдаж дуусахыг
+     * хүлээх зорилготой — зэрэг татвал кино удаан эхэлнэ.
+     * Хамгийн бага чанар + 10с буфер тул зардал маш бага.
+     */
+    if (isTouch || loading || thumbReady.current) return;
     const tv = thumbVideoRef.current;
     if (!tv || !src) return;
     thumbReady.current = true;
 
     let hls: import('hls.js').default | null = null;
+    let cancelled = false;
     const token = getAccessToken();
 
     (async () => {
+      /**
+       * ⚠️ 1.5с ХҮЛЭЭНЭ — гол видеоны эхний сегментүүд татагдаж дуустал.
+       * Зэрэг татвал хоёр HLS урсгал сүлжээг хувааж, кино удаан эхэлнэ
+       * (өмнөх хэмжилтээр сегмент бүр 2 удаа татагдаж байсан).
+       */
+      await new Promise((r) => setTimeout(r, 1500));
+      if (cancelled) return;
+
       const HlsMod = (await import('hls.js')).default;
+      if (cancelled) return;
       if (HlsMod.isSupported()) {
         hls = new HlsMod({
           // Гол тоглогчтой ижил дүрэм: token ЗӨВХӨН манай API-д (presigned R2-д БИШ)
@@ -551,9 +604,10 @@ export function VideoPlayer({
            * `capLevelToPlayerSize` нь thumbnail 160×90 үед ажилладаггүй
            * (hls.js дэлгэцийн хэмжээг зөв уншдаггүй) тул хэмжилтээр `v1`
            * буюу ДУНД чанар татагдаж байв — сүлжээ дэмий иднэ.
-           * `startLevel` + `capLevelTo` хоёулаа 0 → ABR огт өсөхгүй.
+           * ⚠️ `startLevel` энд -1 (авто) — бодит хамгийн бага түвшнийг
+           * MANIFEST_PARSED дээр bitrate-аар олж түгжинэ (доор).
            */
-          startLevel: 0,
+          startLevel: -1,
           autoStartLoad: true,
           /**
            * ⚠️⚠️ БУФЕР ХЭТ БАГА БАЙВАЛ SEEK ЭВДЭРНЭ.
@@ -571,12 +625,28 @@ export function VideoPlayer({
         });
         hls.loadSource(new URL(src, window.location.origin).toString());
         hls.attachMedia(tv);
-        // ⚠️ Manifest уншмагц чанарыг 0-д ТҮГЖИНЭ (ABR өсгөхийг хориглоно)
+        // ⚠️ Manifest уншмагц ХАМГИЙН БАГА чанарт ТҮГЖИНЭ (ABR хориглоно)
         hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
-          if (hls) {
-            hls.currentLevel = 0;
-            hls.autoLevelCapping = 0; // ABR-ыг бүрэн хаана
+          if (!hls) return;
+          /**
+           * ⚠️ ИНДЕКС биш BITRATE-аар хамгийн багыг олно. Манай master
+           * playlist-д эхний мөр нь 720p (2.5 Mbps) тул `currentLevel = 0`
+           * гэвэл thumbnail ӨНДӨР чанар татаж, гол киноны bandwidth-ыг
+           * иддэг байв — кино удаан ачаалагдах нэг шалтгаан.
+           */
+          const lv = hls.levels ?? [];
+          let low = 0;
+          for (let i = 1; i < lv.length; i++) {
+            if (lv[i].bitrate < lv[low].bitrate) low = i;
           }
+          hls.currentLevel = low;
+          hls.autoLevelCapping = low; // ABR-ыг бүрэн хаана
+          /**
+           * ⚠️ ЭХНИЙ КАДРЫГ УРЬДЧИЛЖ БЭЛДЭНЭ. Seek хийлгүй орхивол видео
+           * `readyState 0` дээр үлдэж, эхний hover-д ХООСОН ХАР харагдана.
+           * Багахан урагшлуулснаар декодер бодит кадр бэлдэнэ.
+           */
+          tv.currentTime = 1;
         });
       } else if (tv.canPlayType('application/vnd.apple.mpegurl')) {
         tv.src = src; // Safari — уугуул HLS
@@ -584,9 +654,10 @@ export function VideoPlayer({
     })();
 
     return () => {
+      cancelled = true;
       hls?.destroy();
     };
-  }, [hover, loading, src, isTouch]);
+  }, [loading, src, isTouch]);
 
   // ⚠️ Өөр кино/анги руу шилжвэл thumbnail-г ДАХИН ачаалуулна
   useEffect(() => {
