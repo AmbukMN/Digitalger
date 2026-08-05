@@ -67,10 +67,26 @@ const CORS = {
         AllowedMethods: ['PUT', 'GET', 'HEAD'],
         // presigned PUT-д browser эдгээрийг илгээж болно
         AllowedHeaders: ['*'],
-        // upload дууссаныг баталгаажуулахад ETag хэрэгтэй
-        ExposeHeaders: ['ETag', 'Content-Length'],
-        // preflight-ийг 1 цаг кэшлэнэ (анги бүрт дахин OPTIONS явуулахгүй)
-        MaxAgeSeconds: 3600,
+        /**
+         * ⚠️ `Content-Range` ЗААВАЛ — hls.js нь segment-ийг Range хүсэлтээр
+         * (206 Partial Content) татдаг. Энэ header ил гараагүй бол player
+         * хэсэгчилсэн хариуг уншиж чадахгүй.
+         */
+        ExposeHeaders: ['ETag', 'Content-Length', 'Content-Range'],
+        /**
+         * ⚠️⚠️ preflight кэшийг 5 МИНУТ (өмнө 1 ЦАГ байсан).
+         *
+         * ЯАГААД БОГИНОСГОВ: CORS тохиргоо буруу/дутуу байх үед browser нь
+         * ТАТГАЛЗСАН preflight-ийг MaxAge хугацаагаар кэшилдэг. 1 цаг байхад
+         * серверийн CORS-ыг зассан ч хэрэглэгчийн browser нэг цагийн турш
+         * "CORS blocked" гэж хэлсээр байсан — засвар хүрэхгүй, хэрэглэгч
+         * кэшээ гараар цэвэрлэхээс өөр аргагүй болдог.
+         *
+         * 5 минут нь preflight-ийн ачааллыг бараг бүрэн хэмнэсэн хэвээр
+         * (нэг кино = олон зуун segment, гэхдээ preflight нь origin+зам тус
+         * бүрт нэг л удаа), гэхдээ засвар хурдан хүрнэ.
+         */
+        MaxAgeSeconds: 300,
       },
     ],
   },
