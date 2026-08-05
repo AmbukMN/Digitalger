@@ -23,6 +23,11 @@ export interface TitleCard {
   year: number | null;
   views: number;
   comingSoon: boolean;
+  /**
+   * Киноны хэлний хувилбар — картан дээр шошго болно.
+   * MN = монгол хэлтэй (🇲🇳 "Хэл") | SUB = хадмал орчуулгатай ("Хадмал")
+   */
+  language?: 'MN' | 'SUB';
   /** Аль жанрт багтахыг картад харуулна (эхний 2) */
   genres?: { id: string; name: string; slug: string; isAdult?: boolean }[];
 }

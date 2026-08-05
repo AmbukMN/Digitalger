@@ -12,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TitleType } from '@prisma/client';
+import { TitleType, TitleLanguage } from '@prisma/client';
 
 export class CastMemberDto {
   @IsString()
@@ -115,6 +115,14 @@ export class CreateTitleDto {
   @IsOptional()
   @IsString()
   ageRating?: string;
+
+  /**
+   * ⚠️ Киноны ХЭЛНИЙ хувилбар — админ сонгоно, картан дээр шошго болно.
+   * MN = монгол хэлтэй (🇲🇳 "Хэл") | SUB = хадмал орчуулгатай ("Хадмал")
+   */
+  @IsOptional()
+  @IsEnum(TitleLanguage)
+  language?: TitleLanguage;
 
   @IsOptional()
   @IsArray()

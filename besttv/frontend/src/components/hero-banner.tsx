@@ -83,9 +83,15 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
 
       {/* Контентын хэсэг — stagger animation.
           ⚠️ Индикатор доор нь ТУСАД НЬ байрлана (bottom-10/14) тул контентыг
-          түүнээс ДЭЭШ (bottom-28/40) өргөнө — эс бөгөөс "Үзэх" товчтой
-          зураасууд давхцана. */}
-      <div className="absolute bottom-28 left-4 max-w-xl md:bottom-40 md:left-12">
+          түүнээс ДЭЭШ (bottom-24/40) өргөнө — эс бөгөөс "Үзэх" товчтой
+          зураасууд давхцана.
+
+          ⚠️⚠️ `top-20` + `justify-end` — MOBILE-Д ГАРЧИГ NAVBAR-ТАЙ
+          ДАВХЦАХААС СЭРГИЙЛНЭ. Өмнө нь зөвхөн `bottom-*` байсан тул
+          hero намхан үед (min-h-105 ≈ 420px) урт гарчиг ДЭЭШЭЭ ургаж
+          navbar-ын доогуур ОРЖ ДАВХЦДАГ байв (бодит гомдол).
+          Одоо дээд хязгаартай болсон тул хэзээ ч давхцахгүй. */}
+      <div className="absolute inset-x-4 bottom-24 top-20 flex max-w-xl flex-col justify-end md:inset-x-auto md:bottom-40 md:left-12 md:top-24">
         <AnimatePresence mode="wait">
           <motion.div
             key={banner.id}
@@ -130,21 +136,24 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
 
             <motion.h1
               variants={{ hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0 } }}
-              className="text-4xl font-black leading-[1.05] tracking-tight text-white drop-shadow-2xl md:text-6xl"
+              /* ⚠️ Mobile-д 2 мөрөөр таслана — урт гарчиг дэлгэц дүүргэж,
+                 тайлбар/товч доош түлхэгдэхээс сэргийлнэ */
+              className="line-clamp-2 text-2xl font-black leading-[1.1] tracking-tight text-white drop-shadow-2xl sm:text-3xl md:text-5xl lg:text-6xl"
             >
               {banner.title}
             </motion.h1>
 
             <motion.p
               variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
-              className="mt-4 line-clamp-3 max-w-lg text-sm leading-relaxed text-white/75 md:text-base"
+              /* ⚠️ Mobile-д 2 мөр + жижиг — дэлгэц дүүргэхгүй */
+              className="mt-2.5 line-clamp-2 max-w-lg text-xs leading-relaxed text-white/75 sm:mt-4 sm:line-clamp-3 sm:text-sm md:text-base"
             >
               {banner.description}
             </motion.p>
 
             <motion.div
               variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
-              className="mt-6 flex gap-3"
+              className="mt-4 flex flex-wrap gap-2 sm:mt-6 sm:gap-3"
             >
               {/*
                 ⚠️⚠️ ЭРХТЭЙ БОЛ ШУУД ТОГЛУУЛНА.
@@ -170,7 +179,7 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                         canPlay,
                       )
                     }
-                    className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-bold text-black transition-all hover:scale-[1.03] hover:bg-white/90 active:scale-[0.98]"
+                    className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:bg-white/90 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                   >
                     {/*
                       ⚠️ ТОВЧНЫ НЭР ЭРХЭЭС ХАМААРНА. Эрхгүй хэрэглэгчид
@@ -191,7 +200,7 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
               })()}
               <Link
                 href={`/movie/${banner.slug}`}
-                className="glass-light flex items-center gap-2 rounded-lg px-6 py-3 font-semibold text-white transition-all hover:scale-[1.03] hover:bg-white/16 active:scale-[0.98]"
+                className="glass-light flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.03] hover:bg-white/16 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
               >
                 <Info size={18} /> Дэлгэрэнгүй
               </Link>

@@ -29,6 +29,14 @@ enum TitleType {
   SERIES
 }
 
+/// Киноны хэлний хувилбар — хэрэглэгчид картан дээр шошгоор харагдана.
+/// MN  = монгол хэлтэй (дубляж/эх хэл) → 🇲🇳 "Хэл"
+/// SUB = хадмал орчуулгатай            → "Хадмал"
+enum TitleLanguage {
+  MN
+  SUB
+}
+
 /// Видео HLS хөрвүүлэлтийн төлөв (upload → worker → ready)
 enum StreamStatus {
   NONE // видео ороогүй
@@ -161,14 +169,14 @@ model Title {
   videoRawKey String? // upload хийсэн оригинал (HLS болмогц устгана)
   videoKey    String? // HLS m3u8 key (зөвхөн MOVIE)
 
-  streamStatus StreamStatus @default(NONE)
+  streamStatus    StreamStatus @default(NONE)
   /// HLS хөрвүүлэлтийн явц 0-100 (PROCESSING үед админд харуулна)
-  streamProgress Int @default(0)
+  streamProgress  Int          @default(0)
   /// Хөрвүүлэлт эхэлсэн хугацаа — ГАЦСАН ажлыг илрүүлэхэд
   streamStartedAt DateTime?
   /// Амжилтгүй болсон шалтгаан (админд харуулна)
-  streamError String?
-  durationSec  Int?
+  streamError     String?
+  durationSec     Int?
 
   isPremium Boolean @default(true) // false = үнэгүй, эрхгүй үзнэ
 
@@ -178,16 +186,19 @@ model Title {
   /// Түрээсийн хугацаа (цаг). NULL = нийтлэг тохиргоо (default 48 цаг).
   rentHours   Int?
   /// false = энэ киног ширхэгээр түрээслүүлэхгүй (зөвхөн багцаар)
-  rentEnabled Boolean   @default(true)
+  rentEnabled Boolean       @default(true)
   rating      Float?
   ageRating   String? // "16+", "PG-13", "G" гэх мэт
+  /// ⚠️ Хэлний хувилбар — картан дээр 🇲🇳 "Хэл" / "Хадмал" шошго болно.
+  /// Одоо орсон бүх кино монгол хэлтэй тул анхдагч нь MN.
+  language    TitleLanguage @default(MN)
   director    String?
   year        Int?
   releaseDate DateTime?
-  views       Int       @default(0)
-  actors      String[]  @default([]) // хуучин энгийн нэрсийн жагсаалт (backward-compat)
+  views       Int           @default(0)
+  actors      String[]      @default([]) // хуучин энгийн нэрсийн жагсаалт (backward-compat)
   cast        Json? // [{ name, character, photoKey }] — дэлгэрэнгүй cast
-  galleryKeys String[]  @default([]) // нэмэлт screenshot/gallery зургууд (R2 key)
+  galleryKeys String[]      @default([]) // нэмэлт screenshot/gallery зургууд (R2 key)
 
   // SEO
   metaTitle       String?
@@ -272,17 +283,17 @@ model Episode {
   name        String?
   description String  @default("")
 
-  videoRawKey  String?
-  videoKey     String? // HLS m3u8 key
-  posterKey    String?
-  durationSec  Int?
-  streamStatus StreamStatus @default(NONE)
+  videoRawKey     String?
+  videoKey        String? // HLS m3u8 key
+  posterKey       String?
+  durationSec     Int?
+  streamStatus    StreamStatus @default(NONE)
   /// HLS хөрвүүлэлтийн явц 0-100 (PROCESSING үед админд харуулна)
-  streamProgress Int @default(0)
+  streamProgress  Int          @default(0)
   /// Хөрвүүлэлт эхэлсэн хугацаа — ГАЦСАН ажлыг илрүүлэхэд
   streamStartedAt DateTime?
   /// Амжилтгүй болсон шалтгаан (админд харуулна)
-  streamError String?
+  streamError     String?
 
   /// true = эрхгүй ч үзэж болно (цувралын эхний анги гэх мэт)
   isFreePreview Boolean @default(false)

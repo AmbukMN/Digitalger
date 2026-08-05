@@ -134,10 +134,26 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
           </span>
         )}
 
-        {/* Жанр — картын ДООД талд (аль ангилалд багтахыг харуулна) */}
+        {/* Жанр — картын ЗҮҮН доод (аль ангилалд багтахыг харуулна) */}
         {genreLabel && (
-          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
+          <span className="absolute bottom-1.5 left-1.5 max-w-[60%] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
             {genreLabel}
+          </span>
+        )}
+
+        {/*
+          ⚠️ ХЭЛНИЙ ШОШГО — картын БАРУУН доод (жанртай зэрэгцэхгүй).
+          Хэрэглэгч постер дээрээс шууд "монгол хэлтэй юу, хадмал уу"
+          гэдгийг мэднэ — киног нээхээс өмнө шийдвэр гаргахад чухал.
+        */}
+        {title.language && (
+          <span
+            className={cn(
+              'absolute bottom-1.5 right-1.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold shadow-sm backdrop-blur-sm',
+              title.language === 'MN' ? 'bg-black/80 text-white' : 'bg-white/85 text-black',
+            )}
+          >
+            {title.language === 'MN' ? '🇲🇳 Хэл' : 'Хадмал'}
           </span>
         )}
 

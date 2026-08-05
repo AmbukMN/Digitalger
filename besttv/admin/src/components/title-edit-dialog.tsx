@@ -49,6 +49,8 @@ const EMPTY_FORM = {
   rating: '',
   director: '',
   ageRating: '',
+  // ⚠️ Анхдагч нь монгол хэлтэй (одоогийн бүх кино тийм)
+  language: 'MN' as 'MN' | 'SUB',
   metaTitle: '',
   metaDescription: '',
   isPremium: true,
@@ -150,6 +152,7 @@ export function TitleEditDialog({
       rating: e.rating ? String(e.rating) : '',
       director: e.director ?? '',
       ageRating: e.ageRating ?? '',
+      language: (e.language ?? 'MN') as 'MN' | 'SUB',
       metaTitle: e.metaTitle ?? '',
       metaDescription: e.metaDescription ?? '',
       isPremium: e.isPremium,
@@ -263,6 +266,7 @@ export function TitleEditDialog({
         rating: form.rating ? Number(form.rating) : undefined,
         director: form.director || undefined,
         ageRating: form.ageRating || undefined,
+        language: form.language,
         /**
          * ⚠️ SEO АВТОМАТ — хоосон орхивол гарчиг/тайлбараас үүсгэнэ.
          * Гараар бичсэн бол ХҮНДЭТГЭНЭ (дарж бичихгүй). Ингэснээр кино
@@ -490,6 +494,23 @@ export function TitleEditDialog({
                         {a}
                       </option>
                     ))}
+                  </select>
+                </Field>
+                {/*
+                  ⚠️ ХЭЛНИЙ ХУВИЛБАР — хэрэглэгчийн талд картан дээр шошго
+                  болж гарна: MN → 🇲🇳 "Хэл", SUB → "Хадмал".
+                */}
+                <Field label="Хэл">
+                  <select
+                    value={form.language}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, language: e.target.value as 'MN' | 'SUB' }))
+                    }
+                    aria-label="Хэлний хувилбар"
+                    className="admin-select"
+                  >
+                    <option value="MN">🇲🇳 Монгол хэлтэй</option>
+                    <option value="SUB">Хадмал орчуулгатай</option>
                   </select>
                 </Field>
                 <Field label="Найруулагч">
