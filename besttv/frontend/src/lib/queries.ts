@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api } from './api';
+import { useAuth } from './auth-store';
 import type { GenreRow, PlanInfo, TitleCard } from '@besttv/shared';
 
 export interface HomeData {
@@ -95,9 +96,16 @@ export interface ReviewStats {
   distribution: Record<number, number>;
 }
 
+/**
+ * Нүүр хуудасны контент.
+ * ⚠️ `auth: true` — "Үргэлжлүүлэн үзэх" мөр хэрэглэгч тус бүрд өөр тул
+ * `queryKey`-д `userId` ЗААВАЛ (эс бөгөөс өмнөх хэрэглэгчийн жагсаалт
+ * үлдэнэ).
+ */
 export function useHome() {
+  const userId = useAuth((s) => s.user?.id);
   return useQuery({
-    queryKey: ['home'],
+    queryKey: ['home', userId ?? 'guest'],
     queryFn: () => api<HomeData>('/titles/home', { auth: true }),
     staleTime: 60_000,
   });
@@ -126,11 +134,27 @@ export function useCatalog(params: {
   });
 }
 
+/**
+ * Киноны дэлгэрэнгүй.
+ *
+ * ⚠️⚠️ НЭВТЭРЛЭЛТ ТОГТОХЫГ ХҮЛЭЭНЭ — "БАГЦТАЙ МӨРТЛӨӨ ТҮРЭЭСЛЭХ ГЭЖ
+ * ГАРДАГ" АЛДААНЫ ЗАСВАР.
+ *
+ * Өмнө нь `enabled: !!slug` байсан тул хуудас нээгдэх агшинд, токен
+ * localStorage-оос уншигдаж `init()` дуусахаас ӨМНӨ хүсэлт явдаг байв.
+ * Тэр хүсэлт ТОКЕНГҮЙ тул backend `hasAccess: false` буцааж, хэрэглэгч
+ * багцтай атлаа "Түрээслэх / Багц авах" дэлгэц хардаг.
+ *
+ * ⚠️ `queryKey`-д `userId` ЗААВАЛ — хэрэглэгч солигдоход (нэвтрэх/гарах)
+ * кэш шинэчлэгдэнэ. Эс бөгөөс өмнөх хэрэглэгчийн эрх үлдэнэ.
+ */
 export function useTitleDetail(slug: string) {
+  const userId = useAuth((s) => s.user?.id);
+  const authLoading = useAuth((s) => s.loading);
   return useQuery({
-    queryKey: ['title', slug],
+    queryKey: ['title', slug, userId ?? 'guest'],
     queryFn: () => api<TitleDetail>(`/titles/${slug}`, { auth: true }),
-    enabled: !!slug,
+    enabled: !!slug && !authLoading,
   });
 }
 

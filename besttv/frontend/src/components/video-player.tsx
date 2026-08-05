@@ -104,6 +104,12 @@ export function VideoPlayer({
    * гэж бодоод хаадаг байв.
    */
   const [buffering, setBuffering] = useState(false);
+  /**
+   * Удирдлага харагдаж байгаа эсэх. ⚠️ `group-hover` дангаараа хангалтгүй
+   * байв — хулгана player дээр байвал удирдлага ҮРГЭЛЖ харагдаж, кино
+   * бүрхэгддэг. Одоо 2 секунд хөдөлгөөнгүй байвал нуугдана.
+   */
+  const [controlsVisible, setControlsVisible] = useState(true);
 
   useEffect(() => {
     let hls: import('hls.js').default | null = null;
@@ -432,24 +438,52 @@ export function VideoPlayer({
   };
 
   /**
-   * Hover хугацаа өөрчлөгдөхөд thumbnail-г дахин зурна.
-   * ⚠️ Debounce хийнэ — хулгана хөдлөх бүрт seek хийвэл browser гацна.
+   * ⚠️⚠️ THUMBNAIL SEEK — ХУЛГАНА ХӨДЛӨХӨД ГАЦДАГ БАЙСНЫ ЗАСВАР.
+   *
+   * Өмнө нь `useEffect([hover])` дотор `setTimeout` ашигладаг байсан:
+   * hover өөрчлөгдөх бүрт effect дахин ажиллаж, cleanup нь өмнөх timer-ыг
+   * ЦУЦАЛДАГ. Хулгана тасралтгүй хөдөлж байвал timer хэзээ ч дуусахгүй →
+   * seek ОГТ хийгдэхгүй. Production хэмжилтээр thumbnail `currentTime`
+   * 3205.6с дээр гацсан байв — хэрэглэгч "тухайн agшны зураг харагдахгүй"
+   * гэж мэдэрдэг гол шалтгаан.
+   *
+   * Одоо: хүссэн хугацааг ref-д бичээд, timer-ыг ЗӨВХӨН НЭГ удаа
+   * тавина (аль хэдийн ажиллаж байвал шинээр тавихгүй). Тэр timer
+   * дуусахдаа ХАМГИЙН СҮҮЛИЙН утгыг уншина.
    */
+  const wantTimeRef = useRef(0);
+  const seekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    if (hover === null) return;
-    const tv = thumbVideoRef.current;
-    if (!tv) return;
-    const t = setTimeout(() => {
+    if (hover === null || isTouch) return;
+    wantTimeRef.current = hover.time;
+    if (seekTimerRef.current) return; // аль хэдийн товлогдсон
+
+    seekTimerRef.current = setTimeout(() => {
+      seekTimerRef.current = null;
+      const tv = thumbVideoRef.current;
+      if (!tv) return;
       /**
-       * ⚠️ `readyState >= 1` (HAVE_METADATA) хангалттай — `currentTime`
-       * оноомогц hls.js тухайн байрлалын сегментийг татаж эхэлнэ.
-       * Хэт өндөр босго (HAVE_FUTURE_DATA) тавьбал seek хэзээ ч
-       * ажиллахгүй: буфер зөвхөн seek хийсний ДАРАА бүрддэг.
+       * ⚠️ `readyState` ШАЛГАХГҮЙ.
+       *
+       * Seek хийж байх агшинд `readyState` түр 0 болдог тул шалгавал
+       * дараагийн seek АЛГАСАГДАНА (хэмжилт: эхнийх ✅, дараах бүгд ❌).
+       * `duration` мэдэгдэж байвал `currentTime` оноох нь аюулгүй —
+       * hls.js тухайн байрлалын сегментийг өөрөө татна.
        */
-      if (tv.readyState >= 1) tv.currentTime = hover.time;
-    }, 120);
-    return () => clearTimeout(t);
-  }, [hover]);
+      if (Number.isFinite(tv.duration) && tv.duration > 0) {
+        tv.currentTime = Math.min(wantTimeRef.current, tv.duration - 0.5);
+      }
+    }, 150);
+  }, [hover, isTouch]);
+
+  // Компонент устахад товлогдсон seek-ийг цуцална
+  useEffect(
+    () => () => {
+      if (seekTimerRef.current) clearTimeout(seekTimerRef.current);
+    },
+    [],
+  );
 
   /**
    * ⚠️⚠️ CANVAS ХЭРЭГЛЭХГҮЙ — ХАР ХАЙРЦАГ ГАРЧ БАЙВ.
@@ -521,14 +555,28 @@ export function VideoPlayer({
            */
           startLevel: 0,
           autoStartLoad: true,
-          maxBufferLength: 2,
-          maxMaxBufferLength: 4,
+          /**
+           * ⚠️⚠️ БУФЕР ХЭТ БАГА БАЙВАЛ SEEK ЭВДЭРНЭ.
+           *
+           * `maxBufferLength: 2` тавьсан нь эхний seek л ажиллаад,
+           * дараагийнх нь `currentTime = 0` руу унадаг байв (production
+           * хэмжилт: 15% ✅ → 50% ❌ → 80% ❌). hls.js буферээ хаяад
+           * шинэ байрлалд хүрэлцэхүйц өгөгдөл бүрдүүлж чаддаггүй.
+           * 10 секунд нь thumbnail-д хангалттай бага, seek-д хангалттай их.
+           */
+          maxBufferLength: 10,
+          maxMaxBufferLength: 20,
+          /** Seek хийхэд буферээс гадуур байвал шууд шинэ сегмент татна */
+          maxBufferHole: 0.5,
         });
         hls.loadSource(new URL(src, window.location.origin).toString());
         hls.attachMedia(tv);
         // ⚠️ Manifest уншмагц чанарыг 0-д ТҮГЖИНЭ (ABR өсгөхийг хориглоно)
         hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
-          if (hls) hls.currentLevel = 0;
+          if (hls) {
+            hls.currentLevel = 0;
+            hls.autoLevelCapping = 0; // ABR-ыг бүрэн хаана
+          }
         });
       } else if (tv.canPlayType('application/vnd.apple.mpegurl')) {
         tv.src = src; // Safari — уугуул HLS
@@ -544,6 +592,67 @@ export function VideoPlayer({
   useEffect(() => {
     thumbReady.current = false;
   }, [src]);
+
+  /**
+   * ⚠️⚠️ УДИРДЛАГА АВТОМАТААР НУУГДАХ (2 секунд).
+   *
+   * Өмнө нь зөвхөн `group-hover` ашигладаг байсан тул хулгана player
+   * дээр байвал удирдлага ҮРГЭЛЖ харагдаж, кино харах талбарыг бүрхдэг
+   * байв. Одоо YouTube/Netflix шиг: хулгана хөдлөхөд гарч ирээд,
+   * 2 секунд хөдлөхгүй бол алга болно.
+   *
+   * ⚠️ Түр зогсоосон (`paused`) эсвэл цэс нээлттэй үед НУУХГҮЙ —
+   * хэрэглэгч тэр үед удирдлагатай харьцаж байгаа.
+   */
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 2000);
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onMove = () => showControls();
+    const onLeave = () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      setControlsVisible(false);
+    };
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    // Хүрэлцэх төхөөрөмжид: дэлгэц дарахад гарч ирнэ
+    el.addEventListener('touchstart', onMove, { passive: true });
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+      el.removeEventListener('touchstart', onMove);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [showControls]);
+
+  /**
+   * Удирдлага харагдах эцсийн нөхцөл.
+   * ⚠️ Түр зогсоосон / цэс нээлттэй / чирч байгаа үед ЗААВАЛ харагдана —
+   * тэр үед хэрэглэгч удирдлагатай харьцаж байгаа тул нуувал эвгүй.
+   */
+  const showUi =
+    controlsVisible ||
+    !playing ||
+    speedMenuOpen ||
+    qualityMenuOpen ||
+    scrubbing ||
+    /**
+     * ⚠️ Progress bar дээр hover хийж байхад НУУХГҮЙ.
+     *
+     * Нуувал доод блок `opacity-0` болж, доторх thumbnail <video> нь
+     * үзэгдэхээ болиод browser нь HLS-ийг УСТГАДАГ (production
+     * хэмжилтээр: 1.5с-д `ready=4, w=854` байсан нь 3с-д `ready=0, w=0`
+     * болсон). Хэрэглэгч зураас дээр хулгана барьж байхад thumbnail
+     * алга болдог гол шалтгаан.
+     */
+    hover !== null;
 
   /**
    * Чирч seek хийх (scrubbing). ⚠️ Эвентийг WINDOW дээр сонсоно — хулгана
@@ -688,7 +797,10 @@ export function VideoPlayer({
         Esc товч мэдэхгүй бол гацна. Одоо удирдлагатай хамт гарч ирнэ.
       */}
       {!error && (backHref || title) && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 bg-linear-to-b from-black/80 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:p-4">
+        <div className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 bg-linear-to-b from-black/80 to-transparent p-3 transition-opacity duration-200 sm:p-4",
+            showUi ? "opacity-100" : "opacity-0",
+          )}>
           {backHref && (
             <a
               href={backHref}
@@ -717,7 +829,10 @@ export function VideoPlayer({
       )}
 
       {!loading && !error && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className={cn(
+            "absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 to-transparent p-4 transition-opacity duration-200",
+            showUi ? "opacity-100" : "pointer-events-none opacity-0",
+          )}>
           {/* ── Явцын зураас: ачаалагдсан хэсэг + hover thumbnail + чирэлт ── */}
           <div
             ref={barRef}
@@ -775,9 +890,16 @@ export function VideoPlayer({
             */}
             {!isTouch && (
               <div
+                /**
+                 * ⚠️ `invisible` (visibility:hidden) ХЭРЭГЛЭХГҮЙ — browser
+                 * үүнийг "харагдахгүй" гэж үзээд доторх <video>-ийн HLS-ийг
+                 * устгадаг (хэмжилтээр `ready=4` → `ready=0`). Зөвхөн
+                 * `opacity`-оор нуувал видео амьд үлдэж, дараагийн hover-т
+                 * ТҮРГЭН зураг гарна.
+                 */
                 className={cn(
                   'pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 overflow-hidden rounded-lg border border-white/20 bg-black shadow-2xl transition-opacity duration-150',
-                  hover && duration > 0 ? 'opacity-100' : 'invisible opacity-0',
+                  hover && duration > 0 ? 'opacity-100' : 'opacity-0',
                 )}
                 style={{
                   // ⚠️ Хажуу тал руу хальж гарахаас сэргийлж хязгаарлана
@@ -805,15 +927,21 @@ export function VideoPlayer({
             )}
           </div>
           <div className="flex items-center gap-4 text-white">
-            <button onClick={toggle} aria-label={playing ? 'Түр зогсоох' : 'Тоглуулах'}>
+            <button
+              onClick={toggle}
+              className="transition-transform hover:scale-110 active:scale-95"
+              aria-label={playing ? 'Түр зогсоох' : 'Тоглуулах'}
+            >
               {playing ? <Pause size={22} /> : <Play size={22} />}
             </button>
-            <button onClick={() => skip(-10)} aria-label="10 секунд ухраах">
-              <RotateCcw size={18} />
-            </button>
-            <button onClick={() => skip(10)} aria-label="10 секунд урагшлах">
-              <RotateCw size={18} />
-            </button>
+            {/*
+              ⚠️ 10 секунд ухраах/урагшлах ТОВЧ ХАСАГДСАН (хэрэглэгчийн
+              шаардлага). Тэр үйлдэл ХЭВЭЭР боломжтой:
+                - Гар: ← / → товч
+                - Хулгана: видеон дээр 2 удаа дарах (зүүн/баруун тал)
+              Товчийг хасснаар удирдлагын мөр цэвэрхэн, кино харах талбар
+              илүү нээлттэй болно.
+            */}
 
             <div className="group/vol flex items-center gap-1.5">
               <button onClick={toggleMute} aria-label={muted ? 'Дуу нээх' : 'Дуу хаах'}>
