@@ -29,23 +29,30 @@ const BACKEND_URL = process.env.API_URL ?? 'http://localhost:4100';
 export async function POST() {
   const session = await getServerSession(authOptions);
   const user = session?.user as { id?: string; email?: string; name?: string } | undefined;
+  const s = session as { provider?: string; providerAccountId?: string } | null;
 
-  if (!user?.id || !user.email) {
+  /**
+   * ⚠️ `id` БАЙХГҮЙ ч имэйл байвал үргэлжилнэ — backend нь имэйлээр
+   * бүртгэлтэй хэрэглэгчийг холбодог. Хуучин session-д `id` бичигдээгүй
+   * байж болзошгүй тул зөвхөн имэйлийг л заавал шаардана.
+   */
+  if (!user?.email) {
     return NextResponse.json({ message: 'Session байхгүй' }, { status: 401 });
   }
 
   /**
-   * Backend-ийн OAuth endpoint нь `providerAccountId`-аар хэрэглэгчийг
-   * олж, ШИНЭ токен хос буцаана. Session-д provider хадгалагддаггүй тул
-   * имэйлээр таниулна — backend нь имэйлээр аль хэдийн бүртгэлтэй
-   * хэрэглэгчийг холбодог.
+   * Backend-ийн OAuth endpoint нь имэйлээр бүртгэлтэй хэрэглэгчийг олж,
+   * ШИНЭ токен хос буцаана.
+   * ⚠️ provider-ыг session-ээс авна (Facebook хэрэглэгчийг 'google' гэж
+   * дамжуулбал буруу/шинэ бүртгэл үүсэх эрсдэлтэй). Хуучин session-д
+   * байхгүй бол google руу уналаа — имэйл таарвал ижил хэрэглэгч олдоно.
    */
   const res = await fetch(`${BACKEND_URL}/api/auth/oauth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      provider: 'google',
-      providerAccountId: user.id,
+      provider: s?.provider ?? 'google',
+      providerAccountId: s?.providerAccountId ?? user.id ?? user.email,
       email: user.email,
       name: user.name ?? undefined,
     }),

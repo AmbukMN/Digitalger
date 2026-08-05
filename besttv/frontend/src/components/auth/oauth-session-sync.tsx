@@ -44,7 +44,16 @@ export function OAuthSessionSync() {
 
     const accessToken = (session as { accessToken?: string } | null)?.accessToken;
     const refreshToken = (session as { refreshToken?: string } | null)?.refreshToken;
-    if (!accessToken || !refreshToken) return;
+    /**
+     * ⚠️⚠️ Session-д токен БАЙХГҮЙ ч ГАРАХГҮЙ — `/api/auth/bridge`-ээр сэргээнэ.
+     *
+     * Өмнө нь энд `if (!accessToken || !refreshToken) return;` гэж эрт
+     * гардаг байв. Гэтэл session нь backend restart-аас ӨМНӨ үүссэн,
+     * эсвэл `jwt` callback токен бичээгүй тохиолдолд session ХҮЧИНТЭЙ
+     * мөртлөө доторх токен ХООСОН байдаг. Тэр үед хэрэглэгч сэргэх
+     * ямар ч зам үлдэхгүй гацдаг байв (бодит гомдол).
+     * Одоо session хүчинтэй л бол bridge-ээр ШИНЭ токен авна.
+     */
 
     /**
      * ⚠️ Өөрийн JWT аль хэдийн байвал session-ийн ХУУЧИН токеноор
@@ -78,22 +87,27 @@ export function OAuthSessionSync() {
     const rOk = !!r && !isJwtExpired(r);
     if (aOk || rOk) return;
 
-    // Ижил токеноор дахин дахин синк хийхээс сэргийлнэ (гогцоо хамгаалалт)
-    if (syncedToken.current === accessToken) return;
-    syncedToken.current = accessToken;
+    /**
+     * Гогцоо хамгаалалт — нэг хуудасны амьдралд НЭГ л удаа сэргээнэ.
+     * (session доторх токен байхгүй ч байж болох тул түлхүүр нь
+     * хэрэглэгчийн ID эсвэл 'bridge' тогтмол)
+     */
+    const key = accessToken ?? `bridge:${(session?.user as { id?: string })?.id ?? '1'}`;
+    if (syncedToken.current === key) return;
+    syncedToken.current = key;
 
     /**
-     * ⚠️⚠️ Session доторх токен нь ӨӨРӨӨ хуучирсан байж болно.
+     * ⚠️⚠️ Session доторх токен нь ӨӨРӨӨ хуучирсан/байхгүй байж болно.
      *
      * NextAuth session 30 хоног амьдардаг ч доторх accessToken 15 минут
      * бөгөөд хэзээ ч шинэчлэгддэггүй. Иймд түүгээр шууд синк хийвэл
      * дахиад л хүчингүй токен бичигдэнэ.
      *
      * Тиймээс: session доторх токен ХҮЧИНТЭЙ бол шууд ашиглана (хурдан),
-     * ХУУЧИРСАН бол `/api/auth/bridge`-ээр ЦОО ШИНЭ токен авна.
-     * Ингэснээр session хүчинтэй л бол хэрэглэгч хэзээ ч гацахгүй.
+     * ХУУЧИРСАН эсвэл БАЙХГҮЙ бол `/api/auth/bridge`-ээр ЦОО ШИНЭ токен
+     * авна. Ингэснээр session хүчинтэй л бол хэрэглэгч хэзээ ч гацахгүй.
      */
-    if (!isJwtExpired(accessToken)) {
+    if (accessToken && refreshToken && !isJwtExpired(accessToken)) {
       syncFromOAuth(accessToken, refreshToken).catch(() => null);
       return;
     }
