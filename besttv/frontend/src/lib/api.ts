@@ -28,6 +28,30 @@ export function getRefreshToken(): string | null {
 }
 
 /**
+ * Access токен хугацаа нь ДУУССАН эсэх (сүлжээгүй, зөвхөн JWT-г уншина).
+ *
+ * ⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: хуудас ачаалахад олон компонент ЗЭРЭГ хүсэлт
+ * явуулдаг. Access хуучирсан бол тэд БҮГД 401 аваад л дараа нь refresh
+ * эхэлдэг байв — хэрэглэгчийн console 401-ээр дүүрдэг гол шалтгаан.
+ * Хугацааг УРЬДЧИЛАН мэдэж чадвал refresh-ыг ЭХЭЛЖ хийгээд, дараа нь
+ * бүх хүсэлтийг ШИНЭ токеноор явуулна — 401 огт үүсэхгүй.
+ *
+ * ⚠️ Энэ нь ЗӨВХӨН оновчлол — эрхийн ШИЙДВЭР сервер дээр гардаг.
+ * Задлахад алдвал `false` буцааж, хуучин зан төлөв рүү аюулгүй уналаа
+ * (401 → refresh) хийнэ.
+ */
+function isAccessExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number };
+    if (!payload.exp) return false;
+    // 10 секундын нөөц — сүлжээний саатал/цагийн бага зөрүүг тооцно
+    return Date.now() >= payload.exp * 1000 - 10_000;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Refresh оролдлого.
  * ⚠️ Буцаах утга: 'ok' | 'invalid' | 'network'
  * 'network' (сүлжээ тасарсан, сервер унтарсан) үед токеныг ЦЭВЭРЛЭХГҮЙ —
@@ -83,6 +107,36 @@ export async function api<T = unknown>(
       },
     });
   };
+
+  /**
+   * ⚠️⚠️ REFRESH ЯВЖ БАЙХАД ХҮЛЭЭНЭ — console дүүрэн 401-ийн шалтгаан.
+   *
+   * Хуудас ачаалахад олон компонент ЗЭРЭГ хүсэлт явуулдаг
+   * (`/auth/me`, `/my-list/ids`, `/chat/link-session` ...). Access токен
+   * хуучирсан үед тэдгээр БҮГД хуучин токеноор явж, БҮГД 401 буцаадаг —
+   * зөвхөн дараа нь refresh эхэлдэг байв. Үр дүнд хэрэглэгчийн console
+   * 401-ээр дүүрч, "эвдэрсэн" сэтгэгдэл төрүүлнэ (бодит гомдол).
+   *
+   * Одоо refresh аль хэдийн явж байвал ЭХЛЭХИЙН ӨМНӨ хүлээнэ — шинэ
+   * токеноор ганц удаа явж, 401 огт үүсгэхгүй.
+   */
+  if (auth && refreshPromise) {
+    await refreshPromise.catch(() => null);
+  }
+
+  /**
+   * ⚠️ УРЬДЧИЛСАН REFRESH — 401 үүсгэлгүйгээр токеныг сэргээнэ.
+   * Access хуучирсан ба refresh байгаа бол хүсэлт явуулахын ӨМНӨ сэргээнэ.
+   * Олон зэрэг хүсэлт нэг `refreshPromise`-ыг хуваалцана.
+   */
+  if (auth) {
+    const token = getAccessToken();
+    if ((!token || isAccessExpired(token)) && getRefreshToken()) {
+      refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+      const r = await refreshPromise;
+      if (r === 'invalid') clearTokens();
+    }
+  }
 
   let res = await doFetch();
 

@@ -250,8 +250,19 @@ export function ChatWidget() {
   useEffect(() => {
     if (!user?.id || linkedUserRef.current === user.id) return;
     linkedUserRef.current = user.id;
-    chatApi.linkSession(getSessionId()).catch(() => {
-      linkedUserRef.current = null; // дахин оролдоно
+    chatApi.linkSession(getSessionId()).catch((e: { status?: number }) => {
+      /**
+       * ⚠️ 401 үед ДАХИН БҮҮ ОРОЛД.
+       *
+       * Өмнө нь ямар ч алдаанд `null` болгож "дахин оролдоно" гэдэг байв.
+       * Гэтэл `user` объект нь setUser бүрд ШИНЭ reference авдаг тул effect
+       * дахин ажиллаж, 401 → null → дахин 401 гэсэн ТӨГСГӨЛГҮЙ ДАВТАЛТ
+       * үүсгэж, хэрэглэгчийн console-ыг дүүргэдэг байв.
+       * Токен хүчингүй бол дахин оролдох нь утгагүй — нэвтрэлт сэргэхэд
+       * `user.id` шинэчлэгдэж энэ effect өөрөө дахин ажиллана.
+       */
+      if (e?.status === 401 || e?.status === 403) return;
+      linkedUserRef.current = null; // зөвхөн сүлжээ/сервер алдаанд дахин оролдоно
     });
   }, [user?.id]);
 
