@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
 import { useMyListStore } from '@/lib/my-list-store';
-import { api, clearTokens, getAccessToken } from '@/lib/api';
+import { api, clearTokens, getAccessToken, getRefreshToken } from '@/lib/api';
 import { OAuthSessionSync } from '@/components/auth/oauth-session-sync';
 import { PageTracker } from '@/components/page-tracker';
 
@@ -38,7 +38,13 @@ function AuthSessionWatcher() {
   const { data, error } = useQuery({
     queryKey: ['auth-watch', userId],
     queryFn: () => api<AuthUser>('/auth/me'),
-    enabled: !!userId && !!getAccessToken(),
+    /**
+     * ⚠️ `getRefreshToken()` ч хангалттай: access 15 минутын дараа
+     * дуусдаг тул түүнийг шаардвал watcher унтарч, эрхийн өөрчлөлт
+     * (багц авсан, блоклогдсон) UI-д тусахаа болино. api() нь refresh-ээр
+     * access-ыг өөрөө сэргээнэ.
+     */
+    enabled: !!userId && !!(getAccessToken() || getRefreshToken()),
     refetchInterval: 45_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
@@ -59,13 +65,32 @@ function AuthSessionWatcher() {
    * ⚠️ Мөн NextAuth session-ийг ЗААВАЛ signOut хийнэ — эс бөгөөс дараагийн
    * ачаалалд OAuthSessionSync нь session доторх ХУУЧИН токеныг дахин бичнэ.
    */
+  /**
+   * ⚠️⚠️ ЗӨВХӨН ТОКЕН ҮНЭХЭЭР УСТСАН ҮЕД гаргана.
+   *
+   * ЯАГААД: `api()` дотор 401 гарвал refresh автоматаар оролддог бөгөөд
+   * үр дүнг ӨӨРӨӨ зөв боловсруулна:
+   *   - 'ok'      → дахин хүсэлт явуулна (алдаа гарахгүй)
+   *   - 'invalid' → clearTokens() хийнэ (сервер хүчингүй гэж БАТАЛСАН)
+   *   - 'network' → токеныг ЗОРИУД ХАДГАЛНА (түр саатал, дараа сэргэнэ)
+   *
+   * Гэтэл 'network' үед ч эцэст нь ApiError(401) шидэгддэг. Хэрэв энд
+   * ялгалгүй clearTokens() хийвэл ТҮР СҮЛЖЭЭНИЙ СААТЛААС болж 30 хоногийн
+   * refresh token устаж, хэрэглэгч шалтгаангүй гардаг байв
+   * (Монгол↔Герман хооронд сүлжээ тогтворгүй тул бодит эрсдэл).
+   *
+   * Иймд `getRefreshToken()` шалгана: api() аль хэдийн цэвэрлэсэн бол
+   * (үнэхээр хүчингүй) л UI-г гаргана. Токен хэвээр байвал түр саатал
+   * гэж үзэж, ЮУ Ч ХИЙХГҮЙ — дараагийн refetch-д өөрөө сэргэнэ.
+   */
   useEffect(() => {
     const status = (error as { status?: number } | null)?.status;
-    if (status && [401, 403, 404].includes(status)) {
-      clearTokens();
-      useAuth.getState().setUser(null);
-      nextAuthSignOut({ redirect: false }).catch(() => null);
-    }
+    if (!status || ![401, 403, 404].includes(status)) return;
+    if (getRefreshToken()) return; // түр саатал — токен хэвээр, бүү гарга
+
+    clearTokens();
+    useAuth.getState().setUser(null);
+    nextAuthSignOut({ redirect: false }).catch(() => null);
   }, [error]);
 
   return null;

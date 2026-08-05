@@ -36,11 +36,11 @@ import { getAccessToken, getRefreshToken } from '@/lib/api';
 export function OAuthSessionSync() {
   const { data: session, status } = useSession();
   const syncFromOAuth = useAuth((s) => s.syncFromOAuth);
-  const synced = useRef(false);
+  /** Аль accessToken-оор сүүлд синк хийснийг санана (давхар синк хийхгүй) */
+  const syncedToken = useRef<string | null>(null);
 
   useEffect(() => {
     if (status !== 'authenticated') return;
-    if (synced.current) return;
 
     const accessToken = (session as { accessToken?: string } | null)?.accessToken;
     const refreshToken = (session as { refreshToken?: string } | null)?.refreshToken;
@@ -48,14 +48,23 @@ export function OAuthSessionSync() {
 
     /**
      * ⚠️ Өөрийн JWT аль хэдийн байвал session-ийн ХУУЧИН токеноор
-     * дарахгүй — дээрх тайлбарыг үз. Энэ мөр л 401 гогцоог таслана.
+     * ДАРАХГҮЙ — дээрх тайлбарыг үз. Энэ нөхцөл 401 гогцоог таслана.
+     *
+     * ⚠️⚠️ ЧУХАЛ: энд `synced` ТУГ ТАВИХГҮЙ.
+     * Өмнө нь энд туг тавьдаг байсан нь ХАГАС ТӨЛӨВ үүсгэдэг байв:
+     * хуудас ачаалахад токен байвал туг тавигдана → дараа нь 401 гарч
+     * clearTokens() хийгдэхэд localStorage хоосорно → гэтэл туг тавигдсан
+     * тул ДАХИН СИНК ХИЙГДЭХГҮЙ → NextAuth session хүчинтэй хэвээр
+     * мөртлөө хэрэглэгч токенгүй = "нэвтэрсэн байтлаа гарсан" төлөв.
+     * Одоо токен байвал зүгээр л буцна — дараагийн удаа (токен алга
+     * болсон бол) энэ effect дахин ажиллаж СЭРГЭЭНЭ.
      */
-    if (getAccessToken() || getRefreshToken()) {
-      synced.current = true;
-      return;
-    }
+    if (getAccessToken() || getRefreshToken()) return;
 
-    synced.current = true;
+    // Ижил токеноор дахин дахин синк хийхээс сэргийлнэ (гогцоо хамгаалалт)
+    if (syncedToken.current === accessToken) return;
+    syncedToken.current = accessToken;
+
     syncFromOAuth(accessToken, refreshToken).catch(() => null);
   }, [session, status, syncFromOAuth]);
 
