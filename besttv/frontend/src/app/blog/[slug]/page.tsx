@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { BlogDetailClient } from './blog-detail-client';
 import { SITE_URL } from '@/lib/seo';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   try {
-    const api = process.env.API_URL ?? 'http://localhost:4100';
+    const api = SERVER_API_URL;
     const res = await fetch(`${api}/api/blog/${slug}`, { next: { revalidate: 30 } });
     if (!res.ok) return {};
     const post = await res.json();

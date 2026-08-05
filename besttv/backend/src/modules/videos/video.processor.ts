@@ -29,6 +29,21 @@ export class VideoProcessor {
   @Process({ name: 'convert', concurrency: 1 })
   async handle(job: Job<VideoHlsJob>) {
     const { target, targetId, rawKey } = job.data;
+
+    /**
+     * ⚠️⚠️ АЛЬ ХЭДИЙН БЭЛЭН БОЛСОН БОЛ АЛГАСНА.
+     *
+     * Бодит алдаа: recovery cron давхардсан ажил үүсгэсний улмаас нэг кино
+     * 2-3 удаа дараалалд орсон. Эхнийх нь амжилттай хөрвүүлээд raw файлыг
+     * УСТГАНА → дараагийнх нь ажиллаад "The specified key does not exist"
+     * гээд унаж, БЭЛЭН БОЛСОН киног FAILED болгож дарж бичсэн (4 кино).
+     * Хэрэглэгчид үзэх боломжтой атал "амжилтгүй" харагдана.
+     */
+    if (target !== 'trailer' && (await this.alreadyReady(target, targetId))) {
+      this.logger.log(`Аль хэдийн бэлэн — алгаслаа: ${target}/${targetId}`);
+      return;
+    }
+
     this.logger.log(`HLS хөрвүүлэлт эхэллээ: ${target}/${targetId} (${rawKey})`);
 
     // ⚠️ Эхлэх мөчийг тэмдэглэнэ — гацсан ажлыг илрүүлэхэд ХЭРЭГТЭЙ
@@ -63,6 +78,16 @@ export class VideoProcessor {
           data: { trailerKey: result.playlistKey },
         });
       } else {
+        /**
+         * ⚠️ ПОСТЕР АВТОМАТААР НӨХНӨ — `convertKeyAndUpload` нь видеоны
+         * дунд хэсгээс `poster.jpg` гаргаад R2-д АЛЬ ХЭДИЙН тавьдаг байсан
+         * ч DB-д хэзээ ч бичигддэггүй, дэмий үрэгддэг байв.
+         *
+         * Зөвхөн постергүй үед л бичнэ — админ гараар оруулсан жинхэнэ
+         * постерыг ХЭЗЭЭ Ч дарж бичихгүй (кадр нь чанараар дутуу).
+         */
+        const posterFallback = await this.posterIfMissing(target, targetId, result.posterKey);
+
         await this.setState(target, targetId, {
           videoKey: result.playlistKey,
           durationSec: result.durationSec,
@@ -70,6 +95,7 @@ export class VideoProcessor {
           streamProgress: 100,
           streamError: null,
           videoRawKey: null,
+          ...posterFallback,
         });
       }
 
@@ -82,6 +108,18 @@ export class VideoProcessor {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`HLS хөрвүүлэлт амжилтгүй: ${target}/${targetId} — ${msg}`);
 
+      /**
+       * ⚠️ БЭЛЭН БОЛСОН видеог FAILED болгож ДАРЖ БИЧИХГҮЙ.
+       * Давхардсан/хоцрогдсон ажил унахад (raw аль хэдийн устсан) өмнө нь
+       * амжилттай хөрвүүлэгдсэн кино "амжилтгүй" гэж харагдаж байв.
+       */
+      if (target !== 'trailer' && (await this.alreadyReady(target, targetId))) {
+        this.logger.warn(
+          `Ажил унасан ч видео БЭЛЭН — статус хэвээр үлдээв: ${target}/${targetId}`,
+        );
+        return;
+      }
+
       // ⚠️ Алдааны шалтгааныг DB-д бичнэ — админ юу болсныг ХАРНА
       await this.setState(target, targetId, {
         streamStatus: 'FAILED',
@@ -90,6 +128,68 @@ export class VideoProcessor {
 
       throw err;
     }
+  }
+
+  /**
+   * Тухайн кино/анги АЛЬ ХЭДИЙН амжилттай хөрвүүлэгдсэн эсэх.
+   * `videoKey` + `READY` хоёул байвал дахин хөрвүүлэх шаардлагагүй.
+   */
+  private async alreadyReady(
+    target: VideoHlsJob['target'],
+    targetId: string,
+  ): Promise<boolean> {
+    try {
+      if (target === 'movie') {
+        const t = await this.prisma.title.findUnique({
+          where: { id: targetId },
+          select: { videoKey: true, streamStatus: true },
+        });
+        return Boolean(t?.videoKey && t.streamStatus === 'READY');
+      }
+      const e = await this.prisma.episode.findUnique({
+        where: { id: targetId },
+        select: { videoKey: true, streamStatus: true },
+      });
+      return Boolean(e?.videoKey && e.streamStatus === 'READY');
+    } catch {
+      // Шалгаж чадсангүй — хөрвүүлэлтийг үргэлжлүүлнэ (алгасахаас илүү аюулгүй)
+      return false;
+    }
+  }
+
+  /**
+   * Постер БАЙХГҮЙ бол видеоноос гарсан кадрыг постер болгоно.
+   *
+   * ⚠️ Байгаа постерыг ХЭЗЭЭ Ч дарж бичихгүй — админ гараар оруулсан
+   * жинхэнэ постер нь автомат кадраас үргэлж дээр.
+   * Title, Episode хоёул `posterKey` талбартай.
+   */
+  private async posterIfMissing(
+    target: VideoHlsJob['target'],
+    targetId: string,
+    posterKey: string,
+  ): Promise<Record<string, string>> {
+    try {
+      if (target === 'movie') {
+        const t = await this.prisma.title.findUnique({
+          where: { id: targetId },
+          select: { posterKey: true },
+        });
+        if (t && !t.posterKey) {
+          this.logger.log(`Постер алга — видеоноос гаргав: movie/${targetId}`);
+          return { posterKey };
+        }
+      } else if (target === 'episode') {
+        const e = await this.prisma.episode.findUnique({
+          where: { id: targetId },
+          select: { posterKey: true },
+        });
+        if (e && !e.posterKey) return { posterKey };
+      }
+    } catch {
+      // Постер бол нэмэлт зүйл — алдаа гарвал хөрвүүлэлтийг УНАГААХГҮЙ
+    }
+    return {};
   }
 
   /**

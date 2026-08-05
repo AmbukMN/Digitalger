@@ -1,20 +1,31 @@
 import type { MetadataRoute } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { SITE_URL } from '@/lib/seo';
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4100';
 
 /**
- * ⚠️ ЗААВАЛ RUNTIME — build үед backend унтарсан байдаг тул sitemap хоосон
- * (зөвхөн 6 статик зам) үүсээд, кино/блог ОГТ ороогүй байв.
- * Энэ мөр байхгүй бол Next нь sitemap-ыг build-д нэг л удаа үүсгэнэ.
+ * ⚠️ ISR — 1 цаг тутам шинэчилнэ, гэхдээ BUILD үед үүсгэхгүй.
+ *
+ * Түүх (2 удаагийн алдаа):
+ *   1) Эхэндээ ямар ч тохиргоогүй байсан — Next нь build-д НЭГ л удаа
+ *      үүсгэдэг. Build үед backend унтарсан тул sitemap хоосон (зөвхөн
+ *      статик зам) үүсээд кино/блог ОГТ ороогүй.
+ *   2) Дараа нь `force-dynamic` + `revalidate` ХОЁУЛАА тавьсан — эдгээр
+ *      зөрчилддөг: `force-dynamic` нь кэшийг БҮРЭН унтраадаг тул crawler
+ *      ирэх бүрд 77 кино + бүх блогийг DB-ээс дуудна (удаан).
+ *
+ * ЗӨВ шийдэл: ISR ганцаараа. Build үед backend хүрэхгүй бол хоосон
+ * үүснэ, ГЭХДЭЭ 1 цагийн дараа эхний хүсэлтээр ӨӨРӨӨ бүрэн шинэчлэгдэнэ
+ * (`safeFetch` нь алдааг барьдаг тул build ч унахгүй). Crawler өдөрт
+ * хэдхэн удаа ирдэг тул 1 цагийн саатал SEO-д ач холбогдолгүй, харин
+ * `force-dynamic`-ийн байнгын DB ачааллаас ХАМААГҮЙ дээр.
  */
-export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
 /** ⚠️ Sitemap-аас болж build унах ёсгүй — алдаа гарвал хоосон массив */
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
   try {
-    const res = await fetch(`${API_URL}/api${path}`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${SERVER_API_URL}/api${path}`, { next: { revalidate: 3600 } });
     if (!res.ok) return fallback;
     return (await res.json()) as T;
   } catch {

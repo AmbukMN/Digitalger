@@ -1,14 +1,20 @@
 import type { Metadata } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { buildPageMetadata, jsonLd } from '@/lib/seo';
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4100';
 
 /**
- * ⚠️ ЗААВАЛ RUNTIME — build үед backend унтарсан байдаг тул FAQ хоосон
- * буцаж, FAQPage JSON-LD статик HTML-д ОГТ ОРОХГҮЙ байсан.
- * (sitemap.ts-тэй яг ижил алдаа.)
+ * ⚠️ ISR — 10 минут тутам шинэчилнэ.
+ *
+ * Асуудал байсан: build үед backend унтарсан байдаг тул FAQ хоосон буцаж,
+ * FAQPage JSON-LD статик HTML-д ОГТ ОРОХГҮЙ байв.
+ *
+ * ⚠️⚠️ Өмнө нь `force-dynamic` + `revalidate` ХОЁУЛАА тавьсан нь ЗӨРЧИЛ:
+ * `force-dynamic` нь `revalidate`-ыг ХҮЧИНГҮЙ болгодог тул кэш ОГТ
+ * ажиллахгүй, хүсэлт БҮРД backend дуудагдана (удаан). ISR ганцаараа
+ * асуудлыг шийднэ — build-д амжилтгүй болбол эхний бодит хүсэлтээр
+ * үүсгээд кэшлэнэ.
  */
-export const dynamic = 'force-dynamic';
 export const revalidate = 600;
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,7 +34,7 @@ interface Faq {
 /** ⚠️ FAQ уншиж чадахгүй бол JSON-LD-гүй — хуудас унах ёсгүй */
 async function getFaqs(): Promise<Faq[]> {
   try {
-    const res = await fetch(`${API_URL}/api/faqs`, { next: { revalidate: 600 } });
+    const res = await fetch(`${SERVER_API_URL}/api/faqs`, { next: { revalidate: 600 } });
     if (!res.ok) return [];
     const json = await res.json();
     const rows = Array.isArray(json) ? json : (json.items ?? []);

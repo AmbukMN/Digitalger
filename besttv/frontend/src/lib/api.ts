@@ -5,26 +5,60 @@ const API_BASE = '/api';
 
 let refreshPromise: Promise<'ok' | 'invalid' | 'network'> | null = null;
 
-export function getAccessToken(): string | null {
+/**
+ * ⚠️⚠️ localStorage АЛДАА ШИДЭЖ БОЛНО — SSR-ээс гадна:
+ *   • Safari "Private Browsing" (хуучин iOS) — `setItem` QuotaExceededError
+ *   • Facebook/Instagram webview-д cookie/storage хориглосон тохиргоо
+ *   • Санах ой дүүрсэн үе
+ * Хамгаалалтгүй бол `setTokens` шидээд НЭВТРЭЛТ БҮХЭЛДЭЭ УНАНА (цагаан
+ * дэлгэц). Хуучин iPhone7/FB browser дэмждэг тул энэ нь бодит эрсдэл.
+ *
+ * Тиймээс уншихад `null`, бичихэд чимээгүй алгасна — хэрэглэгч тухайн
+ * session-д ажиллаж чадна (зөвхөн дараагийн ачаалалтад дахин нэвтэрнэ).
+ */
+function lsGet(key: string): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('btv_access');
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function lsSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage хаалттай — токен зөвхөн санах ойд үлдэнэ */
+  }
+}
+
+function lsDel(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* мөн адил */
+  }
+}
+
+export function getAccessToken(): string | null {
+  return lsGet('btv_access');
 }
 
 export function setTokens(access: string, refresh: string) {
-  localStorage.setItem('btv_access', access);
-  localStorage.setItem('btv_refresh', refresh);
+  lsSet('btv_access', access);
+  lsSet('btv_refresh', refresh);
 }
 
 export function clearTokens() {
-  localStorage.removeItem('btv_access');
-  localStorage.removeItem('btv_refresh');
+  lsDel('btv_access');
+  lsDel('btv_refresh');
 }
 
 // ⚠️ Зочны нэвтрэлт (guest) БҮРМӨСӨН ХАСАГДСАН — зөвхөн имэйл/Google/Facebook.
 
 export function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('btv_refresh');
+  return lsGet('btv_refresh');
 }
 
 /**

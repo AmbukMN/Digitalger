@@ -1,11 +1,11 @@
 import type { NextAuthOptions } from 'next-auth';
+import { SERVER_API_URL } from '@/lib/server-api';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import FacebookProvider from 'next-auth/providers/facebook';
 
 // Server-талд ажилладаг тул NEXT_PUBLIC_ шаардлагагүй — Docker/VPS дээр ч
 // runtime-д зөв утга уншина (build-д bake хийгдэхгүй).
-const BACKEND_URL = process.env.API_URL ?? 'http://localhost:4100';
 
 const providers: NextAuthOptions['providers'] = [];
 
@@ -46,7 +46,7 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.accessToken) return null;
         try {
-          const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          const res = await fetch(`${SERVER_API_URL}/api/auth/me`, {
             headers: { Authorization: `Bearer ${credentials.accessToken}` },
           });
           if (!res.ok) return null;
@@ -76,7 +76,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google' || account?.provider === 'facebook') {
         try {
-          const res = await fetch(`${BACKEND_URL}/api/auth/oauth`, {
+          const res = await fetch(`${SERVER_API_URL}/api/auth/oauth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

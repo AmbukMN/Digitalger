@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirm } from '@besttv/shared/ui';
 import { api } from './api';
 
 /**
@@ -33,6 +34,11 @@ export function useBulkSelect({
   label?: string;
 }) {
   const qc = useQueryClient();
+  /**
+   * ⚠️ `window.confirm()` БИШ — төслийн `useConfirm` модал. Уугуул confirm
+   * нь браузерын загвартай, харагдац эвдэж, mobile-д бүр өөр харагдана.
+   */
+  const confirm = useConfirm();
   const [ids, setIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -64,7 +70,14 @@ export function useBulkSelect({
 
   const remove = useCallback(async () => {
     if (!ids.length || busy) return;
-    if (!confirm(`Сонгосон ${ids.length} ${label}-ийг бүрмөсөн устгах уу? Буцаах боломжгүй.`)) return;
+    const ok = await confirm({
+      title: `${ids.length} ${label} устгах уу?`,
+      description: 'Энэ үйлдлийг буцаах боломжгүй.',
+      bullets: ['Сонгосон мөрүүд бүрмөсөн устана', 'Хамгаалалтад тээглэсэн мөр алгасагдана'],
+      confirmLabel: 'Тийм, устгана',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       /**

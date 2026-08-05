@@ -10,16 +10,33 @@ import { getAccessToken } from './api';
 
 const SESSION_KEY = 'btv_session_id';
 
-/** Browser session бүрд тогтмол ID — зочин хэрэглэгчийг ч мөрдөнө */
+/**
+ * Browser session бүрд тогтмол ID — зочин хэрэглэгчийг ч мөрдөнө.
+ *
+ * ⚠️ localStorage АЛДАА ШИДЭЖ БОЛНО (Safari private mode, FB webview-д
+ * storage хориглосон). Аналитик нь НЭМЭЛТ боломж — түүнээс болж хуудас
+ * унах ёсгүй тул уншиж/бичихийг хамгаална. Storage хаалттай үед session
+ * ID нь тухайн ачаалалтад л хүчинтэй (мөрдөлт бага зэрэг алдагдана,
+ * гэхдээ сайт хэвийн ажиллана).
+ */
 export function getSessionId(): string {
   if (typeof window === 'undefined') return '';
-  let id = localStorage.getItem(SESSION_KEY);
+  let id: string | null = null;
+  try {
+    id = localStorage.getItem(SESSION_KEY);
+  } catch {
+    /* storage хаалттай */
+  }
   if (!id) {
     id =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `s${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(SESSION_KEY, id);
+    try {
+      localStorage.setItem(SESSION_KEY, id);
+    } catch {
+      /* хадгалж чадсангүй — энэ ачаалалтад л хүчинтэй */
+    }
   }
   return id;
 }

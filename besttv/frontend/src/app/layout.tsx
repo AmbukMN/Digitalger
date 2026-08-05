@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { Manrope } from 'next/font/google';
 import Script from 'next/script';
 import { Providers } from './providers';
@@ -29,7 +30,7 @@ interface SeoSettings {
 
 async function getSeo(): Promise<SeoSettings | null> {
   try {
-    const api = process.env.API_URL ?? 'http://localhost:4100';
+    const api = SERVER_API_URL;
     const res = await fetch(`${api}/api/seo`, { next: { revalidate: 300 } });
     if (!res.ok) return null;
     return res.json();

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 
 /**
  * Сайтын үндсэн хаяг — canonical / og:url / sitemap-д ЗААВАЛ.
@@ -14,7 +15,6 @@ export const SITE_URL = (
 ).replace(/\/$/, '');
 
 /** Server талын API хаяг (container дотор шууд, nginx дамжихгүй) */
-const API_URL = process.env.API_URL ?? 'http://localhost:4100';
 
 /**
  * Сайтын анхдагч OG зураг — `app/opengraph-image.tsx` динамикаар үүсгэнэ.
@@ -37,7 +37,7 @@ export interface SeoPageOverride {
  */
 export async function getSeoOverride(path: string): Promise<SeoPageOverride | null> {
   try {
-    const res = await fetch(`${API_URL}/api/seo/override?path=${encodeURIComponent(path)}`, {
+    const res = await fetch(`${SERVER_API_URL}/api/seo/override?path=${encodeURIComponent(path)}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return null;

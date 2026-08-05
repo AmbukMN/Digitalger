@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { TitleDetailClient } from './title-detail-client';
 import { SITE_URL, jsonLd } from '@/lib/seo';
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4100';
 
 async function fetchTitle(slug: string) {
   try {
-    const res = await fetch(`${API_URL}/api/titles/${slug}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${SERVER_API_URL}/api/titles/${slug}`, { next: { revalidate: 60 } });
     if (!res.ok) return null;
     return res.json();
   } catch {

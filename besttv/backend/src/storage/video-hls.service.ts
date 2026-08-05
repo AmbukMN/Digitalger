@@ -117,9 +117,10 @@ export class VideoHlsService {
       report('download', 15);
 
       // ── 1) Үргэлжлэх хугацаа + нягтрал (ffprobe) ──
-      const [durationSec, sourceHeight] = await Promise.all([
+      const [durationSec, sourceHeight, hasAudio] = await Promise.all([
         this.probeDuration(inputPath),
         this.probeHeight(inputPath),
+        this.probeHasAudio(inputPath),
       ]);
 
       // ── 2) ABR HLS (3 түвшин re-encode) — 15-70% ──
@@ -129,6 +130,7 @@ export class VideoHlsService {
         durationSec,
         (pct) => report('convert', 15 + pct * 0.55),
         sourceHeight,
+        hasAudio,
       );
 
       // ── 3) Poster (эхний frame) ──
@@ -197,6 +199,28 @@ export class VideoHlsService {
   }
 
   /**
+   * Аудио урсгал БАЙГАА ЭСЭХ.
+   *
+   * ⚠️⚠️ ЧУХАЛ: `-var_stream_map "v:0,a:0 v:1,a:1"` нь аудиог ЗААВАЛ шаарддаг.
+   * Дуугүй видеонд `-map a:0?` (заавал биш) нь аудио урсгал ҮҮСГЭХГҮЙ тул
+   * map дахь `a:0` заалт хоосон зүйл рүү заана →
+   *   `Error opening output file v:1,a:1: Invalid argument` (exit 234)
+   * гээд хөрвүүлэлт УНАНА. 5 кино яг ийм шалтгаанаар унасан.
+   *
+   * Тиймээс аудио байхгүй бол `var_stream_map`-аас `,a:N`-ыг ХАСНА.
+   * ⚠️ Уншиж чадаагүй бол "аудиотой" гэж үзнэ — ихэнх видео дуутай бөгөөд
+   * `-map a:0?` нь байхгүй үед ч алдаа өгөхгүй (зөвхөн map л асуудалтай).
+   */
+  private probeHasAudio(filePath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      ffmpeg.ffprobe(filePath, (err, data) => {
+        if (err) return resolve(true);
+        resolve(Boolean(data?.streams?.some((s) => s.codec_type === 'audio')));
+      });
+    });
+  }
+
+  /**
    * Эх файлаас ДООШ буюу тэнцүү түвшнүүдийг сонгоно.
    *
    * ⚠️ 480p эх файлыг 1080p болгох нь зөвхөн хэмжээ өсгөж, чанар
@@ -221,6 +245,7 @@ export class VideoHlsService {
     durationSec: number,
     onPercent?: (p: number) => void,
     sourceHeight = 1080,
+    hasAudio = true,
   ): Promise<void> {
     const dir = path.dirname(playlistPath);
     const ladder = this.pickLadder(sourceHeight);
@@ -259,14 +284,22 @@ export class VideoHlsService {
       );
     });
 
-    // Аудио — түвшин бүрт нэг урсгал (HLS шаарддаг)
-    ladder.forEach((l, i) => {
-      opts.push('-map', 'a:0?', `-c:a:${i}`, 'aac', `-b:a:${i}`, l.audio, `-ac:a:${i}`, '2');
-    });
+    /**
+     * Аудио — түвшин бүрт нэг урсгал.
+     * ⚠️ ДУУГҮЙ видеонд ОГТ нэмэхгүй — `-map a:0?` нь урсгал үүсгэхгүй ч
+     * `var_stream_map` дахь `a:N` нь хоосон рүү зааж ffmpeg-ийг унагадаг.
+     */
+    if (hasAudio) {
+      ladder.forEach((l, i) => {
+        opts.push('-map', 'a:0?', `-c:a:${i}`, 'aac', `-b:a:${i}`, l.audio, `-ac:a:${i}`, '2');
+      });
+    }
 
     opts.push(
       // ⚠️ Утга нь ЗАЙТАЙ мөр — spawn-д тусдаа аргумент болж яг хэвээр очно
-      '-var_stream_map', ladder.map((_, i) => `v:${i},a:${i}`).join(' '),
+      // ⚠️ Дуугүй бол `,a:N` ХАСАГДАНА (эс бөгөөс exit 234 "Invalid argument")
+      '-var_stream_map',
+      ladder.map((_, i) => (hasAudio ? `v:${i},a:${i}` : `v:${i}`)).join(' '),
       '-master_pl_name', 'master.m3u8',
       '-hls_time', '6',
       '-hls_list_size', '0',
@@ -277,7 +310,8 @@ export class VideoHlsService {
     );
 
     this.logger.log(
-      `ABR: эх ${sourceHeight}p → ${ladder.map((l) => l.name).join(', ')} (${ladder.length} түвшин)`,
+      `ABR: эх ${sourceHeight}p → ${ladder.map((l) => l.name).join(', ')} ` +
+        `(${ladder.length} түвшин, аудио: ${hasAudio ? 'тийм' : 'ҮГҮЙ'})`,
     );
 
     /**

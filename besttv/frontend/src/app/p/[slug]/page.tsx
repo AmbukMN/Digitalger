@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { notFound } from 'next/navigation';
 import { SITE_URL } from '@/lib/seo';
 
@@ -12,7 +13,7 @@ interface PageData {
 
 async function getPage(slug: string): Promise<PageData | null> {
   try {
-    const api = process.env.API_URL ?? 'http://localhost:4100';
+    const api = SERVER_API_URL;
     // 30с — админ засвар хийсний дараа хурдан шинэчлэгдэнэ
     const res = await fetch(`${api}/api/pages/${slug}`, { next: { revalidate: 30 } });
     if (!res.ok) return null;
