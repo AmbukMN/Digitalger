@@ -258,6 +258,7 @@ export default function MoviesPage() {
                   onSort={toggleSort}
                 />
                 <th className="px-4 py-3 text-left font-semibold">Төрөл</th>
+                <th className="px-4 py-3 text-left font-semibold">Хэл</th>
                 <th className="px-4 py-3 text-left font-semibold">Жанр</th>
                 <th className="px-4 py-3 text-left font-semibold">Видео</th>
                 <th className="px-4 py-3 text-left font-semibold">Хандалт</th>
@@ -321,6 +322,19 @@ export default function MoviesPage() {
                     <span className="inline-flex items-center gap-1.5">
                       {t.type === 'MOVIE' ? <Film size={13} /> : <Tv size={13} />}
                       {t.type === 'MOVIE' ? 'Нэг ангит' : `${t._count.seasons} улирал`}
+                    </span>
+                  </td>
+                  {/* ⚠️ ХЭЛ — админ жагсаалтаас шууд харна */}
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold',
+                        t.language === 'SUB'
+                          ? 'bg-muted text-foreground'
+                          : 'bg-primary/10 text-primary',
+                      )}
+                    >
+                      {t.language === 'SUB' ? 'Хадмал' : 'Монгол хэл'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">

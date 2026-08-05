@@ -27,6 +27,8 @@ export interface AdminTitle {
   comingSoon: boolean;
   year: number | null;
   views: number;
+  /** Хэлний хувилбар — жагсаалтын "Хэл" баганад харагдана */
+  language?: 'MN' | 'SUB';
   /**
    * ⚠️ Backend-ийн `decorate()` нь Prisma-гийн `[{genre:{...}}]`-ийг
    * `[{...}]` болгож ХАВТГАЙРУУЛДАГ. Хуучин хэлбэр ирэх магадлалыг ч

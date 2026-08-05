@@ -289,7 +289,7 @@ export default function PricingPage() {
         зэрэгцээ нь ЗАМБАРААГҮЙ харагддаг байв (бодит гомдол).
         Нэг багана = бүх текст нэг мөрөнд багтаж, цэвэрхэн харагдана.
       */}
-      <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+      <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-4 min-[380px]:grid-cols-2 min-[380px]:gap-3 sm:gap-5 lg:grid-cols-3">
         {isLoading &&
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="skeleton-shimmer h-80 rounded-2xl" />
@@ -311,8 +311,8 @@ export default function PricingPage() {
               key={plan.id}
               className={cn(
                 // ⚠️ `h-full` — доторх `mt-auto` (товчны блок) ажиллахад ЗААВАЛ
-                'relative flex h-full flex-col rounded-2xl border p-4 transition-transform sm:p-6',
-                lastOdd && 'sm:col-span-2 lg:col-span-1',
+                'relative flex h-full flex-col rounded-2xl border p-3 transition-transform sm:p-6',
+                lastOdd && 'min-[380px]:col-span-2 lg:col-span-1',
                 !supersededByVip && 'hover:-translate-y-1',
                 supersededByVip && 'opacity-55',
                 plan.isVip
@@ -332,12 +332,12 @@ export default function PricingPage() {
                       ? `${expiryByPlan.get(plan.id)!.toLocaleDateString('mn-MN')} хүртэл`
                       : undefined
                   }
-                  className="absolute right-3 top-3 rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-bold text-success sm:right-4 sm:top-4 sm:text-[11px]"
+                  className="absolute right-2 top-2 rounded-full bg-success/20 px-1.5 py-0.5 text-[9px] font-bold text-success sm:right-4 sm:top-4 sm:px-2 sm:text-[11px]"
                 >
                   Идэвхтэй
                 </span>
               ) : supersededByVip ? (
-                <span className="absolute right-3 top-3 rounded-full bg-premium/20 px-2 py-0.5 text-[10px] font-bold text-premium sm:right-4 sm:top-4 sm:text-[11px]">
+                <span className="absolute right-2 top-2 rounded-full bg-premium/20 px-1.5 py-0.5 text-[9px] font-bold text-premium sm:right-4 sm:top-4 sm:px-2 sm:text-[11px]">
                   VIP-д багтсан
                 </span>
               ) : null}
@@ -347,7 +347,7 @@ export default function PricingPage() {
                 badge нь `absolute` байрлалтай тул урт нэртэй багцын
                 гарчиг ТҮҮНИЙ ДООГУУР ОРЖ ДАВХЦАДАГ байв. Зай үлдээв.
               */}
-              <h3 className="flex items-center gap-1.5 pr-24 text-base font-bold text-white sm:text-lg">
+              <h3 className="flex min-[380px]:min-h-[3.9rem] items-start gap-1.5 pr-14 text-sm font-bold leading-snug text-white sm:min-h-0 sm:pr-24 sm:text-lg">
                 {plan.isVip && <Crown size={16} className="text-premium" />}
                 {plan.name}
               </h3>
@@ -355,11 +355,11 @@ export default function PricingPage() {
               <div className="mt-3 flex items-baseline gap-2">
                 {appliedCoupon ? (
                   <>
-                    <p className="text-2xl font-black text-white sm:text-3xl">{formatPrice(finalPrice)}</p>
+                    <p className="text-xl font-black text-white sm:text-3xl">{formatPrice(finalPrice)}</p>
                     <p className="text-sm text-white/35 line-through">{formatPrice(plan.price)}</p>
                   </>
                 ) : (
-                  <p className="text-2xl font-black text-white sm:text-3xl">{formatPrice(plan.price)}</p>
+                  <p className="text-xl font-black text-white sm:text-3xl">{formatPrice(plan.price)}</p>
                 )}
               </div>
               <p className="mt-1 text-xs text-white/40">
@@ -368,8 +368,8 @@ export default function PricingPage() {
               </p>
 
               {/* Нээгдэх контент */}
-              <div className="mt-4 rounded-lg bg-black/20 p-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/35">
+              <div className="mt-3 rounded-lg bg-black/20 p-2 sm:mt-4 sm:p-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-white/35 sm:text-[11px]">
                   Нээгдэх контент
                 </p>
                 {plan.isVip ? (
@@ -392,9 +392,9 @@ export default function PricingPage() {
                 )}
               </div>
 
-              <ul className="mt-4 flex-1 space-y-2">
+              <ul className="mt-3 flex-1 space-y-1.5 sm:mt-4 sm:space-y-2">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-white/70">
+                  <li key={f} className="flex items-start gap-1.5 text-xs leading-snug text-white/70 sm:gap-2 sm:text-sm">
                     <Check size={15} className="mt-0.5 shrink-0 text-success" /> {f}
                   </li>
                 ))}
@@ -419,7 +419,7 @@ export default function PricingPage() {
                   disabled={!!loadingPlan}
                   className={cn(
                     // ⚠️ `whitespace-nowrap` — mobile-д текст мөр таслахгүй
-                    'flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg py-2.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50',
+                    'flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:py-2.5 sm:text-sm',
                     canPayWithWallet
                       ? plan.isVip
                         ? 'bg-premium text-premium-foreground hover:brightness-105'
@@ -440,7 +440,7 @@ export default function PricingPage() {
                   disabled={!!loadingPlan}
                   /* ⚠️ `whitespace-nowrap` — mobile-д текст 2 мөр болж
                      товчны өндөр зөрөхөөс сэргийлнэ (зэрэгцээ жигд) */
-                  className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-white/8 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-white/8 py-1.5 text-[11px] font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50 sm:gap-1.5 sm:py-2 sm:text-xs"
                 >
                   {loadingPlan === plan.id && <Loader2 size={12} className="animate-spin" />}
                   {/*

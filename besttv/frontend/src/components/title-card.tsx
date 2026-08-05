@@ -8,6 +8,7 @@ import { Check, Heart, Info, Play, Star, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
 import { cn } from '@besttv/shared';
+import { MnFlag } from './mn-flag';
 import { useAuth } from '@/lib/auth-store';
 import { useMyListStore } from '@/lib/my-list-store';
 import { usePlayGuard } from '@/lib/use-play-guard';
@@ -117,9 +118,11 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
         ) : access === 'owned' ? (
           <span
             title="Таны багцад багтсан"
+            /* ⚠️ "Үзэх боломжтой" ХЭТ УРТ байсан — картын өргөнийг эзэлж,
+               хэлний шошготой давхцах эрсдэлтэй. "Нээлттэй" богино, ойлгомжтой. */
             className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-success/85 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm"
           >
-            <Check size={9} strokeWidth={3} /> Үзэх боломжтой
+            <Check size={9} strokeWidth={3} /> Нээлттэй
           </span>
         ) : access === 'locked' ? (
           <span
@@ -136,24 +139,38 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
 
         {/* Жанр — картын ЗҮҮН доод (аль ангилалд багтахыг харуулна) */}
         {genreLabel && (
-          <span className="absolute bottom-1.5 left-1.5 max-w-[60%] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
+          /* ⚠️ Хэлний шошго ДЭЭШ зөөгдсөн тул доод мөр чөлөөтэй — жанр
+             өргөн авч болно (урт нэр таслагдахгүй) */
+          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
             {genreLabel}
           </span>
         )}
 
         {/*
-          ⚠️ ХЭЛНИЙ ШОШГО — картын БАРУУН доод (жанртай зэрэгцэхгүй).
-          Хэрэглэгч постер дээрээс шууд "монгол хэлтэй юу, хадмал уу"
-          гэдгийг мэднэ — киног нээхээс өмнө шийдвэр гаргахад чухал.
+          ⚠️ ХЭЛНИЙ ШОШГО — картын БАРУУН ДЭЭД булан.
+          Доод талд байхад жанрын шошготой нэг эгнээнд таарч, урт нэртэй
+          жанр дээр давхцах эрсдэлтэй байв. Дээд талд эрхийн badge (зүүн)
+          -тэй зэрэгцэнэ — хоёул богино тул давхцахгүй.
         */}
         {title.language && (
           <span
             className={cn(
-              'absolute bottom-1.5 right-1.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold shadow-sm backdrop-blur-sm',
+              'absolute right-1.5 top-1.5 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold shadow-sm backdrop-blur-sm',
               title.language === 'MN' ? 'bg-black/80 text-white' : 'bg-white/85 text-black',
             )}
           >
-            {title.language === 'MN' ? '🇲🇳 Хэл' : 'Хадмал'}
+            {/*
+              ⚠️ ЭМОДЖИ БИШ SVG — `🇲🇳` нь Windows дээр далбаа болж
+              рендерлэгддэггүй, "MN" гэсэн 2 үсэг болж харагддаг.
+            */}
+            {title.language === 'MN' ? (
+              <>
+                <MnFlag className="h-2.5 w-3.75 rounded-[1px]" />
+                Хэл
+              </>
+            ) : (
+              'Хадмал'
+            )}
           </span>
         )}
 
