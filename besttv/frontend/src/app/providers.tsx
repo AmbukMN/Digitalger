@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
 import { useMyListStore } from '@/lib/my-list-store';
-import { api, clearTokens, getAccessToken, ApiError } from '@/lib/api';
+import { api, clearTokens, getAccessToken } from '@/lib/api';
 import { OAuthSessionSync } from '@/components/auth/oauth-session-sync';
 import { PageTracker } from '@/components/page-tracker';
 
@@ -48,8 +48,20 @@ function AuthSessionWatcher() {
     if (data) useAuth.getState().setUser(data);
   }, [data]);
 
+  /**
+   * ⚠️⚠️ `instanceof ApiError` ХЭРЭГЛЭХГҮЙ.
+   *
+   * Production build minify хийгдэхэд ApiError класс өөр chunk-д хуулбарлагдаж,
+   * `instanceof` нь ХУДАЛ буцаадаг. Тэр үед 401 хэзээ ч баригдахгүй тул
+   * хүчингүй токен цэвэрлэгдэхгүй, хэрэглэгч мөнхийн 401 гогцоонд ордог.
+   * Иймд төрлөөр биш, ТАЛБАРААР шалгана.
+   *
+   * ⚠️ Мөн NextAuth session-ийг ЗААВАЛ signOut хийнэ — эс бөгөөс дараагийн
+   * ачаалалд OAuthSessionSync нь session доторх ХУУЧИН токеныг дахин бичнэ.
+   */
   useEffect(() => {
-    if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+    const status = (error as { status?: number } | null)?.status;
+    if (status && [401, 403, 404].includes(status)) {
       clearTokens();
       useAuth.getState().setUser(null);
       nextAuthSignOut({ redirect: false }).catch(() => null);

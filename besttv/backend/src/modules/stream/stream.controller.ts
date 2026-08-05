@@ -1,4 +1,5 @@
 import { Controller, Get, Header, Param, Query, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { StreamService } from './stream.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -35,6 +36,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 @Controller('admin/stream')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
+@SkipThrottle()
 export class AdminStreamController {
   constructor(private readonly stream: StreamService) {}
 
@@ -77,8 +79,25 @@ export class AdminStreamController {
 
 // ⚠️ OptionalJwtAuthGuard — үнэгүй контентыг нэвтрээгүй хүн ч үзнэ.
 // Premium эрх шалгалт service дотор (assertAccess).
+/**
+ * ⚠️⚠️ RATE LIMIT ХАМААРУУЛАХГҮЙ (`@SkipThrottle`).
+ *
+ * Глобал `short` хязгаар нь 1 СЕКУНДЭД 20 ХҮСЭЛТ. Гэтэл hls.js нь:
+ *   - ABR чанар солих бүрт `variant.m3u8` дуудна
+ *   - Seek хийхэд шинэ байрлалын playlist-ыг ДАХИН татна
+ *   - Алдаа гарвал `checkRetry`-аар олон удаа давтана
+ * тул секундэд хэдэн арван хүсэлт явуулдаг → лимит хэтэрч 403 Forbidden.
+ *
+ * Production nginx лог үүнийг тодорхой харуулав: ЯГ ИЖИЛ URL заримдаа
+ * 200, заримдаа 403 — эрхийн алдаа биш, rate limit.
+ *
+ * ⚠️ Аюулгүй байдал АЛДАГДАХГҮЙ: эрхийн шалгалт (`assertAccess`) хүсэлт
+ * бүрт хийгдсээр байна. Rate limit нь зөвхөн ДАВТАМЖИЙН хамгаалалт бөгөөд
+ * видео урсгалд утгагүй — нэг хэрэглэгч кино үзэхэд л олон хүсэлт явна.
+ */
 @Controller('stream')
 @UseGuards(OptionalJwtAuthGuard)
+@SkipThrottle()
 export class StreamController {
   constructor(private readonly stream: StreamService) {}
 
