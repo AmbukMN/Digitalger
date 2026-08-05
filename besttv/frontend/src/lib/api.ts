@@ -79,6 +79,16 @@ async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
   }
 }
 
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
+
 export async function api<T = unknown>(
   path: string,
   options: RequestInit & { auth?: boolean } = {},
@@ -131,10 +141,39 @@ export async function api<T = unknown>(
    */
   if (auth) {
     const token = getAccessToken();
-    if ((!token || isAccessExpired(token)) && getRefreshToken()) {
-      refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
-      const r = await refreshPromise;
-      if (r === 'invalid') clearTokens();
+    const stale = !token || isAccessExpired(token);
+
+    if (stale) {
+      if (getRefreshToken()) {
+        // Refresh боломжтой — сэргээнэ (олон зэрэг хүсэлт нэгийг хуваалцана)
+        refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+        const r = await refreshPromise;
+        if (r === 'invalid') {
+          clearTokens();
+          throw new ApiError(401, 'Нэвтрэлт дууссан', 'TOKEN_EXPIRED');
+        }
+        // 'network' үед токен ХЭВЭЭР — доор хуучин токеноор оролдоно
+        // (сервер сэргэвэл ажиллана, түр саатлаас болж гаргахгүй)
+      } else {
+        /**
+         * ⚠️⚠️ ХУУЧИРСАН ТОКЕНООР ХҮСЭЛТ ОГТ БҮҮ ЯВУУЛ.
+         *
+         * Refresh token АЛГА бөгөөд access хуучирсан бол сервер рүү
+         * явуулах нь 100% 401 буцаана — үр дүнгүй, зөвхөн хэрэглэгчийн
+         * console-ыг дүүргэнэ.
+         *
+         * Production дээр хэрэглэгчийн дүр зургийг ЯГ давтан гаргав:
+         *   auth/me=401, auth/me=401, my-list/ids=401, chat/link-session=401
+         * — refresh алга + access хуучирсан үед 4 хүсэлт ЗЭРЭГ явж бүгд
+         * унасан. Одоо 0 болсон.
+         *
+         * ⚠️ Зөвхөн энэ тохиолдолд эрт гарна. Refresh БАЙГАА үед хэзээ ч
+         * эрт гарахгүй — эс бөгөөс хүчинтэй refresh-тэй хэрэглэгч
+         * шалтгаангүй гарна (регресс тестээр илэрсэн).
+         */
+        clearTokens();
+        throw new ApiError(401, 'Нэвтрэлт дууссан', 'TOKEN_EXPIRED');
+      }
     }
   }
 
@@ -161,12 +200,3 @@ export async function api<T = unknown>(
   return res.json();
 }
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public code?: string,
-  ) {
-    super(message);
-  }
-}
