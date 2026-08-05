@@ -108,6 +108,12 @@ export function useHome() {
     queryKey: ['home', userId ?? 'guest'],
     queryFn: () => api<HomeData>('/titles/home', { auth: true }),
     staleTime: 60_000,
+    /**
+     * ⚠️ Нэвтрэлт тодрох агшинд `queryKey` 'guest' → userId болж ШИНЭ
+     * кэш үүсдэг тул нүүр хуудасны БҮХ кино гэнэт алга болоод skeleton
+     * гарч, дараа нь дахин ирдэг (FLASH). Өмнөх датаг түр хадгална.
+     */
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -151,11 +157,33 @@ export function useCatalog(params: {
 export function useTitleDetail(slug: string) {
   const userId = useAuth((s) => s.user?.id);
   const authLoading = useAuth((s) => s.loading);
-  return useQuery({
+  const q = useQuery({
     queryKey: ['title', slug, userId ?? 'guest'],
     queryFn: () => api<TitleDetail>(`/titles/${slug}`, { auth: true }),
     enabled: !!slug && !authLoading,
+    /**
+     * ⚠️ Хэрэглэгч солигдоход (нэвтрэх/гарах) `queryKey` өөрчлөгдөж ШИНЭ
+     * кэш үүсдэг тул хуудас гэнэт skeleton руу үсэрдэг. Өмнөх датаг
+     * түр хадгалснаар тэр FLASH арилна — шинэ хариу ирмэгц чимээгүй
+     * солигдоно (эрхийн шийдвэр backend-ээс ирсэн шинэ датаар гарна).
+     */
+    placeholderData: (prev) => prev,
   });
+
+  /**
+   * ⚠️⚠️ "КИНО БАЙХГҮЙ" ГЭЖ ГЭНЭТ ГАРААД ДАРАА НЬ КИНО ГАРЧ ИРДЭГ
+   * FLASH-ИЙН ЗАСВАР.
+   *
+   * TanStack Query нь `enabled: false` үед `isLoading = FALSE`,
+   * `data = undefined`, `status = 'pending'` буцаадаг. Тиймээс auth
+   * ачаалагдаж дуустал (authLoading = true) хуудас нь `isLoading` худал
+   * гэж үзээд `!data` нөхцөлөөр "Контент олдсонгүй" алдааг ХАРУУЛЖ,
+   * дараа нь дата ирэхэд гэнэт кино гарч ирдэг байв.
+   *
+   * Query АЖИЛЛААГҮЙ БАЙГАА нь "олдсонгүй" гэсэн үг БИШ — ачаалж
+   * байна гэсэн үг. Иймд `isLoading`-д тэр төлөвийг НЭГТГЭНЭ.
+   */
+  return { ...q, isLoading: q.isLoading || authLoading || !slug };
 }
 
 /**
@@ -346,11 +374,14 @@ export function useBlogPosts(page = 1) {
 }
 
 export function useBlogPost(slug: string) {
-  return useQuery({
+  const q = useQuery({
     queryKey: ['blog-post', slug],
     queryFn: () => api<BlogPostDetail>(`/blog/${slug}`, { auth: false }),
     enabled: !!slug,
   });
+  // ⚠️ `enabled: false` үед isLoading=false, data=undefined болдог тул
+  // хуудас "олдсонгүй" алдаа FLASH хийдэг — үүнийг ачаалж буй гэж үзнэ.
+  return { ...q, isLoading: q.isLoading || !slug };
 }
 
 export interface MyPayment {

@@ -35,8 +35,6 @@ export function getRefreshToken(): string | null {
  * байх нь МАШ ТҮГЭЭМЭЛ. Тэр үед:
  *   - цаг ХОЦРОГДСОН → client "хүчинтэй" гэж үзээд явуулна, сервер
  *     "jwt expired" гэж 401 өгнө → МӨНХИЙН 401 ГОГЦОО
- *     (production оношлогоо: client stale=false гэж үзсэн токенд
- *      backend `TokenExpiredError: jwt expired` буцааж байсан)
  *   - цаг ТҮРҮҮЛСЭН → хүчинтэй токеныг дэмий refresh хийнэ
  *
  * Хугацааны ШИЙДВЭР 100% СЕРВЕРИЙНХ: токен байвал шууд явуулна, сервер
@@ -149,45 +147,18 @@ export async function api<T = unknown>(
    */
   let res = await doFetch();
 
-  // ⚠️ ТҮР ОНОШЛОГОО — асуудал ШИЙДЭГДСЭНИЙ ДАРАА л устгана
-  const dbg = (m: string) => {
-    if (typeof window !== 'undefined') {
-      // eslint-disable-next-line no-console
-      console.warn(`[FE] ${path} ${m}`);
-    }
-  };
-  if (auth) {
-    const t = getAccessToken();
-    let info = 'токенгүй';
-    if (t) {
-      try {
-        const p = JSON.parse(atob(t.split('.')[1])) as { exp?: number; sub?: string };
-        info = `sub=${p.sub} exp=${p.exp} clientNow=${Math.floor(Date.now() / 1000)} сүүл=${t.slice(-10)}`;
-      } catch {
-        info = 'токен задарсангүй';
-      }
-    }
-    dbg(`→ ${res.status} | ${info} | refresh=${getRefreshToken() ? 'бий' : 'АЛГА'}`);
-  }
-
   // 401 → refresh нэг удаа (олон зэрэг хүсэлт нэг refresh хуваалцана).
   // ⚠️ access байхгүй ч refresh байвал оролдоно — хэрэглэгч удаан эзгүй байгаад
   // буцаж ирэхэд (access 15 мин, refresh 30 хоног) дахин нэвтрэх шаардлагагүй.
   if (res.status === 401 && auth && (getAccessToken() || getRefreshToken())) {
-    dbg('401 → refresh ЭХЭЛЛЭЭ');
     refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
     const result = await refreshPromise;
-    dbg(`refresh үр дүн = ${result}`);
     if (result === 'ok') {
       res = await doFetch();
-      dbg(`дахин оролдлого → ${res.status}`);
     } else if (result === 'invalid') {
       clearTokens(); // сервер хүчингүй гэж баталсан үед л гаргана
-      dbg('токен ЦЭВЭРЛЭГДЛЭЭ (сервер хүчингүй гэв)');
     }
     // 'network' → токеныг хэвээр үлдээж, доорх алдаа шидэгдэнэ (дараа дахин оролдоно)
-  } else if (res.status === 401 && auth) {
-    dbg('⚠️ 401 гарсан ч refresh ХИЙГДЭХГҮЙ — токен хоёулаа АЛГА');
   }
 
   if (!res.ok) {
@@ -196,4 +167,3 @@ export async function api<T = unknown>(
   }
   return res.json();
 }
-

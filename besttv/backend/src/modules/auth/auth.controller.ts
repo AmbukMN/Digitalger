@@ -57,29 +57,9 @@ export class AuthController {
   // ⚠️ Зочноор нэвтрэх (/auth/guest) болон convert-guest ХАСАГДСАН.
   // Зөвхөн имэйл+нууц үг, Google, Facebook-ээр л нэвтэрнэ.
 
-  /** ⚠️ ТҮР ОНОШЛОГОО — асуудал ШИЙДЭГДСЭНИЙ ДАРАА л устгана */
   @Post('refresh')
-  async refresh(@Body() dto: RefreshDto) {
-    let sub = '?';
-    try {
-      sub = (
-        JSON.parse(
-          Buffer.from(dto.refreshToken.split('.')[1], 'base64').toString('utf8'),
-        ) as { sub?: string }
-      ).sub!;
-    } catch {
-      /* задарсангүй */
-    }
-    try {
-      const r = await this.auth.refresh(dto.refreshToken);
-      // eslint-disable-next-line no-console
-      console.warn(`[DIAG-REFRESH] ✅ АМЖИЛТТАЙ sub=${sub}`);
-      return r;
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn(`[DIAG-REFRESH] ❌ УНАСАН sub=${sub} — ${(e as Error).message}`);
-      throw e;
-    }
+  refresh(@Body() dto: RefreshDto) {
+    return this.auth.refresh(dto.refreshToken);
   }
 
   @Get('me')
