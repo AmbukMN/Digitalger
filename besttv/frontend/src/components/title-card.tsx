@@ -123,6 +123,9 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
             - Эрх авсан (багц/VIP) → "Үзэх боломжтой" ✓ (үнийн шошго ХЭРЭГГҮЙ)
             - Төлбөртэй + эрхгүй  → 🔒 Төлбөртэй
             - Үнэгүй контент      → Үнэгүй
+          ⚠️ ЭРХИЙН ЭХ ҮҮСВЭРИЙГ ЯЛГАНА: "Багц эрх" (сарын багц) ба
+          "Түрээслэсэн" (нэг кино, хугацаатай) нь ӨӨР зүйл — хэрэглэгч
+          яагаад үзэж чадаж байгаагаа мэдэх ёстой.
           Өмнө нь багц авсан ч "Төлбөртэй" гэж харагдаад хэрэглэгч эргэлздэг
           байсан.
         */}
@@ -154,12 +157,14 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
           </span>
         ) : access === 'owned' ? (
           <span
-            title="Таны багцад багтсан"
-            /* ⚠️ "Үзэх боломжтой" ХЭТ УРТ байсан — картын өргөнийг эзэлж,
-               хэлний шошготой давхцах эрсдэлтэй. "Нээлттэй" богино, ойлгомжтой. */
-            className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-success/85 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm"
+            title="Таны идэвхтэй багцад багтсан"
+            /* ⚠️ "Үзэх боломжтой" ХЭТ УРТ байсан. "Багц эрх" нь
+               ТҮРЭЭСЭЭС ялгарч, эрх хаанаас гарсныг шууд хэлнэ. */
+            /* ⚠️ `max-w-[62%]` — баруун дээд булангийн ХЭЛНИЙ шошготой
+               давхцахаас сэргийлнэ (энэ badge бусдаас урт) */
+            className="absolute left-1.5 top-1.5 flex max-w-[62%] items-center gap-0.5 truncate rounded bg-success/85 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm"
           >
-            <Check size={9} strokeWidth={3} /> Нээлттэй
+            <Check size={9} strokeWidth={3} className="shrink-0" /> Багц эрх
           </span>
         ) : access === 'locked' ? (
           <span
