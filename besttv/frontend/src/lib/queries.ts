@@ -514,6 +514,11 @@ export interface BrandSettings {
   siteName: string;
   logoUrl: string | null;
   faviconUrl: string | null;
+  /**
+   * Хэрэглэгч АНХ ОРОХОД аль өнгөний горим идэвхжих (админаас удирдана).
+   * ⚠️ Хэрэглэгч header-ийн товчоор сонголт хийсэн бол ТҮҮНИЙХ давамгайлна.
+   */
+  defaultTheme?: 'dark' | 'light' | 'system';
 }
 
 /**

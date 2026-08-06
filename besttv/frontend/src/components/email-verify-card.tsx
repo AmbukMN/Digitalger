@@ -62,9 +62,9 @@ export function EmailVerifyCard() {
   };
 
   return (
-    <div className="rounded-2xl border border-premium/30 bg-premium/8 p-5">
+    <div className="rounded-2xl border border-premium/30 bg-premium-solid/8 p-5">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-premium/15 text-premium">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-premium-solid/15 text-premium">
           <ShieldAlert size={18} />
         </span>
         <div className="min-w-0 flex-1">
@@ -110,7 +110,7 @@ export function EmailVerifyCard() {
             <button
               onClick={request}
               disabled={busy}
-              className="mt-3 flex items-center gap-1.5 rounded-lg bg-premium px-4 py-2 text-sm font-bold text-premium-foreground hover:brightness-110 disabled:opacity-50"
+              className="mt-3 flex items-center gap-1.5 rounded-lg bg-premium-solid px-4 py-2 text-sm font-bold text-premium-foreground hover:brightness-110 disabled:opacity-50"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <MailCheck size={14} />}
               Код илгээх

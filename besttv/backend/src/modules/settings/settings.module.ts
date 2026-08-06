@@ -7,7 +7,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
-import { IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
@@ -38,6 +38,19 @@ class BrandDto {
   @IsString()
   @MaxLength(60)
   siteName?: string;
+
+  /**
+   * Хэрэглэгч АНХ ОРОХОД аль өнгөний горим идэвхжих вэ.
+   *   dark   — бараан (кино сайтын анхдагч)
+   *   light  — гэрэл
+   *   system — хэрэглэгчийн ҮЙЛДЛИЙН СИСТЕМИЙН сонголтыг дагана
+   *
+   * ⚠️ Зөвхөн АНХНЫ утга. Хэрэглэгч header-ийн товчоор өөрчилсөн бол
+   * түүний сонголт (localStorage) ДАВАМГАЙЛНА — админ дарж бичихгүй.
+   */
+  @IsOptional()
+  @IsIn(['dark', 'light', 'system'])
+  defaultTheme?: 'dark' | 'light' | 'system';
 }
 
 /**
@@ -113,12 +126,16 @@ export interface BrandSettings {
   logoKey: string | null;
   faviconKey: string | null;
   siteName: string;
+  /** Хэрэглэгч анх орох үеийн өнгөний горим (сонголтоо хийвэл тэр давамгайлна) */
+  defaultTheme: 'dark' | 'light' | 'system';
 }
 
 const DEFAULT_BRAND: BrandSettings = {
   logoKey: null,
   faviconKey: null,
   siteName: 'BestTV',
+  /* ⚠️ Кино сайт тул анхдагч нь БАРААН */
+  defaultTheme: 'dark',
 };
 
 /**
@@ -150,7 +167,9 @@ export class SettingsService {
       b.logoKey ? this.storage.publicAssetUrl(b.logoKey, 86400) : Promise.resolve(null),
       b.faviconKey ? this.storage.publicAssetUrl(b.faviconKey, 86400) : Promise.resolve(null),
     ]);
-    return { siteName: b.siteName, logoUrl, faviconUrl };
+    /* ⚠️ `defaultTheme` нийтэд ч хэрэгтэй — хэрэглэгч АНХ орох үед
+       frontend түүнийг уншиж, өнгөний горимоо тохируулна. */
+    return { siteName: b.siteName, logoUrl, faviconUrl, defaultTheme: b.defaultTheme ?? 'dark' };
   }
 
   /** Админ — key-тэй хамт (засварлахад хэрэгтэй) */
@@ -190,6 +209,7 @@ export class SettingsService {
       faviconKey:
         dto.faviconKey !== undefined ? (dto.faviconKey || null) : current.faviconKey,
       siteName: dto.siteName?.trim() || current.siteName,
+      defaultTheme: dto.defaultTheme ?? current.defaultTheme ?? 'dark',
     };
 
     await this.prisma.settings.upsert({

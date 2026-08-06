@@ -206,7 +206,7 @@ export function ReviewsSection({
                     <Star size={9} className="shrink-0 fill-premium text-premium" />
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/8">
                       <div
-                        className="h-full rounded-full bg-premium transition-all"
+                        className="h-full rounded-full bg-premium-solid transition-all"
                         style={{ width: `${(count / maxBar) * 100}%` }}
                       />
                     </div>
@@ -496,7 +496,7 @@ function ReviewCard({
             (r.hasSpoiler && !spoilerShown ? (
               <button
                 onClick={() => setSpoilerShown(true)}
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-premium/25 bg-premium/8 px-3 py-3 text-xs font-medium text-premium transition-colors hover:bg-premium/15"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-premium/25 bg-premium-solid/8 px-3 py-3 text-xs font-medium text-premium transition-colors hover:bg-premium-solid/15"
               >
                 <EyeOff size={13} /> Спойлер агуулсан — харахын тулд дарна уу
               </button>

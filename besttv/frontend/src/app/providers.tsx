@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SessionProvider, signOut as nextAuthSignOut } from 'next-auth/react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { ThemeProvider, useTheme } from 'next-themes';
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
+import { useBrand } from '@/lib/queries';
 import { useMyListStore } from '@/lib/my-list-store';
 import { api, clearTokens, getAccessToken, getRefreshToken } from '@/lib/api';
 import { OAuthSessionSync } from '@/components/auth/oauth-session-sync';
@@ -109,6 +110,38 @@ function ThemedUi({ children }: { children: React.ReactNode }) {
   return <UiProvider theme={resolvedTheme === 'light' ? 'light' : 'dark'}>{children}</UiProvider>;
 }
 
+/**
+ * АДМИНААС тохируулсан анхдагч өнгөний горимыг АНХНЫ зочинд хэрэглэнэ.
+ *
+ * ⚠️⚠️ ЗӨВХӨН СОНГОЛТ ХИЙГЭЭГҮЙ хэрэглэгчид. `next-themes` нь хэрэглэгч
+ * товч дарахад `btv_theme`-д бичдэг. Тэр түлхүүр байгаа бол хэрэглэгч
+ * өөрөө шийдсэн гэсэн үг — админ ДАРЖ БИЧВЭЛ сонголт нь бүрмөсөн
+ * ажиллахгүй болно (товч дарахад нүд ирмэхэд эргээд буцна).
+ *
+ * ⚠️ `system` сонголтыг `next-themes` өөрөө боловсруулна (үйлдлийн
+ * системийн `prefers-color-scheme`-ийг дагана).
+ */
+function BrandThemeSync() {
+  const { data: brand } = useBrand();
+  const { setTheme } = useTheme();
+  const applied = useRef(false);
+
+  useEffect(() => {
+    if (applied.current || !brand?.defaultTheme) return;
+    applied.current = true;
+
+    let userChose = false;
+    try {
+      userChose = localStorage.getItem('btv_theme') !== null;
+    } catch {
+      /* storage хаалттай — админы утгыг хэрэглэнэ */
+    }
+    if (!userChose) setTheme(brand.defaultTheme);
+  }, [brand?.defaultTheme, setTheme]);
+
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
     () => new QueryClient({ defaultOptions: { queries: { staleTime: 60_000 } } }),
@@ -130,13 +163,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider
       attribute="class"
       defaultTheme="dark"
-      enableSystem={false}
+      /**
+       * ⚠️ `enableSystem` ЗААВАЛ — админ "Системийн дагуу" сонголт
+       * хийвэл `next-themes` нь `prefers-color-scheme`-ийг дагах ёстой.
+       * `false` байвал тэр сонголт ЧИМЭЭГҮЙ ажиллахгүй болно.
+       */
+      enableSystem
       disableTransitionOnChange
       storageKey="btv_theme"
     >
       <SessionProvider>
         <QueryClientProvider client={client}>
           <ThemedUi>
+            <BrandThemeSync />
             <OAuthSessionSync />
             <MyListSync />
             <AuthSessionWatcher />

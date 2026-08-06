@@ -117,8 +117,28 @@ export function TitleDetailClient({ slug }: { slug: string }) {
             sizes="100vw"
             className="object-cover"
           />
+        ) : data.posterUrl ? (
+          /**
+           * ⚠️ BACKDROP БАЙХГҮЙ ҮЕД — ПОСТЕРЫГ дэвсгэр болгоно.
+           *
+           * Өмнө нь `bg-[#141414]` дээр жижиг icon гардаг байсан нь
+           * ХООСОН ХАР ТАЛБАЙ болж маш эвгүй харагддаг байв
+           * (хэрэглэгчийн гомдол). Одоо постерыг томруулж, хүчтэй
+           * бүдгэрүүлээд өнгөт дэвсгэр болгоно — Spotify/Netflix-ийн
+           * ашигладаг арга, кино бүрд өөрийн өнгөтэй болно.
+           */
+          <div className="h-full w-full overflow-hidden">
+            <Image
+              src={data.posterUrl}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="scale-110 object-cover blur-2xl"
+            />
+          </div>
         ) : (
-          <div className="flex h-full items-center justify-center bg-[#141414] text-foreground/10">
+          <div className="flex h-full items-center justify-center bg-muted text-foreground/15">
             <Film size={64} />
           </div>
         )}
@@ -229,7 +249,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     <Link
                       href="/pricing"
                       onClick={() => savePostPurchaseReturn()}
-                      className="flex items-center justify-center gap-2 rounded-lg bg-premium px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
+                      className="flex items-center justify-center gap-2 rounded-lg bg-premium-solid px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
                     >
                       <Lock size={17} />
                       Багц авах

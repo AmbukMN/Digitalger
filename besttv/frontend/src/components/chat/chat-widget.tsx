@@ -520,8 +520,8 @@ export function ChatWidget() {
           </span>
         ) : !open ? (
           <span className="absolute right-0.5 top-0.5 z-10 flex h-3.5 w-3.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-premium opacity-75" />
-            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-premium ring-2 ring-primary" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-premium-solid opacity-75" />
+            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-premium-solid ring-2 ring-primary" />
           </span>
         ) : null}
       </motion.button>

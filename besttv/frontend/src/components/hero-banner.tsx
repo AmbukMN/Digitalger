@@ -113,7 +113,7 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                   <Check size={10} strokeWidth={3} /> Үзэх боломжтой
                 </span>
               ) : bannerAccess === 'locked' ? (
-                <span className="flex items-center gap-1 rounded bg-premium px-2 py-0.5 font-bold uppercase tracking-wide text-premium-foreground">
+                <span className="flex items-center gap-1 rounded bg-premium-solid px-2 py-0.5 font-bold uppercase tracking-wide text-premium-foreground">
                   <Lock size={10} /> Төлбөртэй
                 </span>
               ) : (

@@ -211,7 +211,7 @@ export default function PricingPage() {
   return (
     <main className="min-h-screen bg-background px-4 pb-24 pt-28 md:px-8">
       <div className="mx-auto max-w-2xl text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-premium/12 px-3 py-1 text-xs font-bold text-premium">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-premium-solid/12 px-3 py-1 text-xs font-bold text-premium">
           <Sparkles size={12} /> BESTTV БАГЦУУД
         </span>
         <h1 className="mt-4 text-3xl font-black tracking-tight text-foreground md:text-5xl">
@@ -321,7 +321,7 @@ export default function PricingPage() {
               )}
             >
               {plan.isVip && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
                   Хамгийн ашигтай
                 </span>
               )}
@@ -337,7 +337,7 @@ export default function PricingPage() {
                   Идэвхтэй
                 </span>
               ) : supersededByVip ? (
-                <span className="absolute right-2 top-2 rounded-full bg-premium/20 px-1.5 py-0.5 text-[9px] font-bold text-premium sm:right-4 sm:top-4 sm:px-2 sm:text-[11px]">
+                <span className="absolute right-2 top-2 rounded-full bg-premium-solid/20 px-1.5 py-0.5 text-[9px] font-bold text-premium sm:right-4 sm:top-4 sm:px-2 sm:text-[11px]">
                   VIP-д багтсан
                 </span>
               ) : null}
@@ -408,7 +408,7 @@ export default function PricingPage() {
               */}
               <div className="mt-auto space-y-2 pt-5">
                 {supersededByVip && (
-                  <p className="rounded-lg bg-premium/10 px-3 py-2 text-center text-[11px] leading-relaxed text-premium">
+                  <p className="rounded-lg bg-premium-solid/10 px-3 py-2 text-center text-[11px] leading-relaxed text-premium">
                     VIP багц энэ бүх контентыг аль хэдийн нээсэн байна
                   </p>
                 )}
@@ -423,7 +423,7 @@ export default function PricingPage() {
                     'flex min-h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:py-2.5 sm:text-sm',
                     canPayWithWallet
                       ? plan.isVip
-                        ? 'bg-premium text-premium-foreground hover:brightness-105'
+                        ? 'bg-premium-solid text-premium-foreground hover:brightness-105'
                         : 'bg-primary text-primary-foreground hover:brightness-110'
                       : 'bg-foreground/8 text-foreground/50',
                   )}

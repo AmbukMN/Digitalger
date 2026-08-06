@@ -208,7 +208,7 @@ export function Navbar() {
                   /* ⚠️ `min-h-9` — хүрэх талбар (хэмжилтээр 29px байсан, дарахад хэцүү) */
                   'inline-flex min-h-9 min-w-0 max-w-[30vw] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all sm:max-w-none sm:gap-1.5 sm:px-3.5 sm:text-xs',
                   vip
-                    ? 'bg-premium text-premium-foreground hover:brightness-110'
+                    ? 'bg-premium-solid text-premium-foreground hover:brightness-110'
                     : 'bg-foreground/10 text-foreground hover:bg-foreground/16',
                 )}
               >
@@ -236,7 +236,7 @@ export function Navbar() {
             ) : (
               <Link
                 href="/pricing"
-                className="inline-flex items-center gap-1.5 rounded-full bg-premium px-3 py-1.5 text-xs font-bold text-premium-foreground transition-all hover:brightness-110 hover:shadow-lg hover:shadow-premium/25 sm:px-3.5"
+                className="inline-flex items-center gap-1.5 rounded-full bg-premium-solid px-3 py-1.5 text-xs font-bold text-premium-foreground transition-all hover:brightness-110 hover:shadow-lg hover:shadow-premium/25 sm:px-3.5"
               >
                 <Crown size={13} /> Багц авах
               </Link>
@@ -251,7 +251,7 @@ export function Navbar() {
                 aria-expanded={menuOpen}
                 className={cn(
                   'relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-foreground ring-2 transition-all',
-                  premium ? 'bg-premium/90 text-premium-foreground ring-premium/40' : 'bg-primary ring-white/15',
+                  premium ? 'bg-premium-solid/90 text-premium-foreground ring-premium/40' : 'bg-primary ring-white/15',
                   menuOpen && 'ring-white/40',
                 )}
               >
@@ -278,7 +278,7 @@ export function Navbar() {
                       </p>
                       <p className="truncate text-xs text-foreground/50">{user.email}</p>
                       {premium && (
-                        <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-premium/15 px-2 py-0.5 text-[10px] font-bold text-premium">
+                        <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-premium-solid/15 px-2 py-0.5 text-[10px] font-bold text-premium">
                           <Crown size={10} /> {user.subscription!.planName}
                         </span>
                       )}

@@ -132,11 +132,24 @@
 .title-card {
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
 }
+/*
+ * ⚠️ HOVER — ГЭРЭЛ горимд хатуу хар сүүдэр нь цагаан дэвсгэр дээр
+ * ХУРЦ ӨНЦӨГТ хайрцаг мэт харагддаг байв (хэрэглэгчийн гомдол).
+ * Зөөлөн, тархсан сүүдэр + бага өсөлт нь хоёр горимд ч гоё.
+ */
 .title-card:hover,
 .title-card:focus-visible {
-  transform: scale(1.05) translateY(-4px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  transform: scale(1.04) translateY(-4px);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.14);
   z-index: 10;
+}
+.dark .title-card:hover,
+.dark .title-card:focus-visible {
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.45),
+    0 20px 50px rgba(0, 0, 0, 0.65);
 }
 
 /* Hover үед quick action-ууд доороос зөөлөн гарч ирнэ */

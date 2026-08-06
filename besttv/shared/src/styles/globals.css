@@ -52,6 +52,15 @@
      */
     --premium: #a67800;
     --premium-foreground: #1a1200;
+    /**
+     * ⚠️ ДЭВСГЭРТ зориулсан ТОД алт (`bg-premium-solid`).
+     *
+     * `--premium` нь ТЕКСТЭД зориулж бараан болсон (цагаан дээр
+     * уншигдахын тулд). Гэтэл товчны ДЭВСГЭРТ тэр өнгө нь БОР/бүдэг
+     * харагддаг (хэрэглэгчийн гомдол: профайлын "Багц нэмэх" товч).
+     * Дэвсгэр дээр бараан текст тавьдаг тул тод алт л зөв.
+     */
+    --premium-solid: #f0b400;
     --radius: 0.625rem;
   }
 
@@ -89,6 +98,7 @@
     --success-foreground: #061206;
     --premium: #edb200;
     --premium-foreground: #1a1200;
+    --premium-solid: #edb200;
   }
 
   * {
@@ -161,6 +171,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-premium: var(--premium);
   --color-premium-foreground: var(--premium-foreground);
+  --color-premium-solid: var(--premium-solid);
   --radius: var(--radius);
 }
 

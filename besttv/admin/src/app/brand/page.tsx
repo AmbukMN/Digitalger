@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Image as ImageIcon, Loader2, Save, Trash2, UploadCloud } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Monitor, Moon, Save, Sun, Trash2, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { BrandLogo, useConfirm } from '@besttv/shared/ui';
@@ -31,6 +31,8 @@ export default function SettingsPage() {
   const confirm = useConfirm();
 
   const [siteName, setSiteName] = useState('');
+  /** Хэрэглэгч анх орох үеийн өнгөний горим */
+  const [defaultTheme, setDefaultTheme] = useState<'dark' | 'light' | 'system'>('dark');
   const [logoKey, setLogoKey] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -43,6 +45,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (data) {
       setSiteName(data.siteName);
+      setDefaultTheme((data as { defaultTheme?: 'dark' | 'light' | 'system' }).defaultTheme ?? 'dark');
       setLogoKey(data.logoKey);
       setLogoUrl(data.logoUrl);
     }
@@ -85,7 +88,7 @@ export default function SettingsPage() {
     try {
       await api('/admin/settings/brand', {
         method: 'PUT',
-        body: JSON.stringify({ siteName, logoKey }),
+        body: JSON.stringify({ siteName, logoKey, defaultTheme }),
       });
       // Бүх хуудасны лого шинэчлэгдэнэ
       await qc.invalidateQueries({ queryKey: ['admin-brand'] });
@@ -98,7 +101,11 @@ export default function SettingsPage() {
     }
   };
 
-  const dirty = data ? siteName !== data.siteName || logoKey !== data.logoKey : false;
+  const dirty = data
+    ? siteName !== data.siteName ||
+      logoKey !== data.logoKey ||
+      defaultTheme !== ((data as { defaultTheme?: string }).defaultTheme ?? 'dark')
+    : false;
 
   return (
     <AdminShell>
@@ -211,6 +218,43 @@ export default function SettingsPage() {
                   Лого байхгүй үед энэ нэр текстээр харагдана
                 </span>
               </label>
+
+              {/*
+                ⚠️ АНХДАГЧ ӨНГӨНИЙ ГОРИМ — сайтад АНХ орсон хүнд юу
+                харагдахыг заана. Сонголт хийсэн хэрэглэгчийн тохиргоо
+                ДАВАМГАЙЛНА (энэ утга түүнийг дарж бичихгүй).
+              */}
+              <div className="mt-5">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Анхдагч өнгөний горим
+                </span>
+                <div className="flex gap-2">
+                  {([
+                    { v: 'dark' as const, label: 'Бараан', icon: Moon },
+                    { v: 'light' as const, label: 'Гэрэл', icon: Sun },
+                    { v: 'system' as const, label: 'Системийн дагуу', icon: Monitor },
+                  ]).map(({ v, label, icon: Icon }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setDefaultTheme(v)}
+                      aria-pressed={defaultTheme === v}
+                      className={cn(
+                        'flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition-colors',
+                        defaultTheme === v
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-input text-muted-foreground hover:bg-accent',
+                      )}
+                    >
+                      <Icon size={14} /> {label}
+                    </button>
+                  ))}
+                </div>
+                <span className="mt-1 block text-[11px] text-muted-foreground">
+                  Сайтад анх орсон хүнд харагдах горим. Хэрэглэгч өөрөө
+                  сольсон бол түүний сонголт хадгалагдана.
+                </span>
+              </div>
             </div>
 
             {/* ── Урьдчилан харах ── */}

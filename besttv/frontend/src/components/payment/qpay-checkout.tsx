@@ -293,7 +293,7 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
                     />
                   </div>
                   <p className="flex items-center gap-1 text-[10px] text-foreground/40">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-premium" />
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-premium-solid" />
                     QR хүчинтэй хугацаа: 15 минут
                   </p>
                 </div>

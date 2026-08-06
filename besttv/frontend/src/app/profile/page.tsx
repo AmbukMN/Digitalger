@@ -250,7 +250,7 @@ export default function ProfilePage() {
             <div
               className={cn(
                 'relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full text-xl font-black ring-4',
-                premium ? 'bg-premium text-premium-foreground ring-premium/25' : 'bg-primary text-primary-foreground ring-primary/25',
+                premium ? 'bg-premium-solid text-premium-foreground ring-premium/25' : 'bg-primary text-primary-foreground ring-primary/25',
               )}
             >
               {user.avatarUrl ? (
@@ -401,7 +401,7 @@ export default function ProfilePage() {
               {!vip && (
                 <Link
                   href="/pricing"
-                  className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-premium py-2.5 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.01] hover:brightness-105"
+                  className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-premium-solid py-2.5 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.01] hover:brightness-105"
                 >
                   <Crown size={15} />
                   {user.subscriptions.length > 0 ? 'Багц нэмэх / сунгах' : 'Багц авах'}

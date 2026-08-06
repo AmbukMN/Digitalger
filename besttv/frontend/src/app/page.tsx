@@ -52,7 +52,7 @@ export default function HomePage() {
       <div
         className={cn(
           'relative z-10 space-y-9',
-          hasHero ? '-mt-8 md:-mt-12' : 'pt-24 md:pt-28',
+          hasHero ? 'pt-6 md:pt-8' : 'pt-24 md:pt-28',
         )}
       >
         {data.continueWatching.length > 0 && (

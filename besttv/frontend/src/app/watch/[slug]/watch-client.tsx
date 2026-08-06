@@ -152,7 +152,7 @@ export function WatchClient({ slug }: { slug: string }) {
   if (locked) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-5 bg-black px-4 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-premium/15 text-premium">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-premium-solid/15 text-premium">
           <Lock size={28} />
         </span>
         <div>
