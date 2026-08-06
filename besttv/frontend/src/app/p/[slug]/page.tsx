@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import DOMPurify from 'isomorphic-dompurify';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { notFound } from 'next/navigation';
 import { SITE_URL } from '@/lib/seo';
@@ -61,7 +62,10 @@ export default async function StaticPage({ params }: { params: Promise<{ slug: s
         <h1 className="text-2xl font-black tracking-tight text-foreground md:text-4xl">{page.title}</h1>
         <div
           className="static-page mt-8 text-foreground/75"
-          dangerouslySetInnerHTML={{ __html: page.content }}
+          /* ⚠️ SANITIZE ЗААВАЛ — контент нь админ/staff-аас ирдэг тул
+              бүрэн итгэмжлэгдэхгүй. Скрипт/onerror зэргийг DOMPurify
+              цэвэрлэнэ (XSS). Зөвшөөрөгдсөн таг/атрибут л үлдэнэ. */
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.content) }}
         />
       </article>
     </main>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Eye, FileText, Plus, Search, Trash2 } from 'lucide-react';
@@ -18,6 +19,12 @@ export default function BlogPage() {
   const [page, setPage] = useState(1);
   const { data, isFetching } = useAdminBlogPosts({ q, page });
   const qc = useQueryClient();
+  /* Олноор устгах — бусад админ жагсаалттай ижил зан төлөв */
+  const sel = useBulkSelect({
+    endpoint: '/admin/blog/bulk-delete',
+    invalidate: ['admin-blog'],
+    label: 'нийтлэл',
+  });
   const confirm = useConfirm();
 
   const remove = async (id: string, title: string) => {
@@ -64,6 +71,13 @@ export default function BlogPage() {
           <table className="w-full text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                <th className="w-10 px-4 py-3">
+                  <SelectBox
+                    checked={sel.allChecked((data?.items ?? []).map((p) => p.id))}
+                    onChange={() => sel.toggleAll((data?.items ?? []).map((p) => p.id))}
+                    ariaLabel="Хуудсан дээрх бүгдийг сонгох"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left font-semibold">Гарчиг</th>
                 <th className="px-4 py-3 text-left font-semibold">Зохиогч</th>
                 <th className="px-4 py-3 text-left font-semibold">Vзсэн</th>
@@ -75,6 +89,13 @@ export default function BlogPage() {
             <tbody className="divide-y divide-border">
               {data?.items.map((p) => (
                 <tr key={p.id} className="transition-colors hover:bg-accent/40">
+                  <td className="px-4 py-3">
+                    <SelectBox
+                      checked={sel.isSelected(p.id)}
+                      onChange={() => sel.toggle(p.id)}
+                      ariaLabel={`${p.title} сонгох`}
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <Link href={`/blog/${p.id}`} className="font-medium text-foreground hover:text-primary">
                       {p.title}
@@ -132,6 +153,7 @@ export default function BlogPage() {
           </div>
         )}
       </main>
+      <BulkBar {...sel.bar} />
     </AdminShell>
   );
 }

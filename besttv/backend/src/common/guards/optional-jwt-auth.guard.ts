@@ -12,6 +12,10 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
     return true;
   }
 
+  /* eslint-disable @typescript-eslint/no-explicit-any --
+     ⚠️ Passport-ийн `IAuthGuard.handleRequest` нь generic `TUser`-тэй тул
+     `unknown` болговол base type-тай зөрчилдөнө (TS2416). Энэ бол
+     framework-ийн шаардлага — өөрчилж болохгүй. */
   handleRequest(err: any, user: any) {
     return user || null;
   }

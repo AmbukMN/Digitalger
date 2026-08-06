@@ -10,7 +10,7 @@ import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { api } from '@/lib/api';
-import { useAdminGenres, useAdminTitle } from '@/lib/queries';
+import { useAdminGenres, useAdminTitle, type AdminSeason } from '@/lib/queries';
 import { ImageUpload } from '@/components/image-upload';
 import { VideoUpload } from '@/components/video-upload';
 import { BackdropMediaUpload } from '@/components/backdrop-media-upload';
@@ -452,7 +452,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 function SeasonsManager({ titleId }: { titleId: string }) {
-  const { data: title, refetch } = useAdminTitle(titleId) as { data: any; refetch: () => void };
+  const { data: title, refetch } = useAdminTitle(titleId);
   const [newSeasonName, setNewSeasonName] = useState('');
 
   const addSeason = async () => {
@@ -482,7 +482,7 @@ function SeasonsManager({ titleId }: { titleId: string }) {
       </div>
 
       <div className="space-y-4">
-        {title?.seasons?.map((s: any) => (
+        {title?.seasons?.map((s) => (
           <SeasonBlock key={s.id} season={s} onChange={refetch} />
         ))}
       </div>
@@ -490,7 +490,7 @@ function SeasonsManager({ titleId }: { titleId: string }) {
   );
 }
 
-function SeasonBlock({ season, onChange }: { season: any; onChange: () => void }) {
+function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const confirm = useConfirm();
 
@@ -506,7 +506,7 @@ function SeasonBlock({ season, onChange }: { season: any; onChange: () => void }
 
   const removeSeason = async () => {
     const episodeCount = season.episodes?.length ?? 0;
-    const withVideo = (season.episodes ?? []).filter((e: any) => e.streamStatus === 'READY').length;
+    const withVideo = (season.episodes ?? []).filter((e) => e.streamStatus === 'READY').length;
     const ok = await confirm({
       title: `${season.name ?? `${season.number}-р улирал`}-ыг устгах уу?`,
       description: `Энэ улирал ${episodeCount} ангитай${withVideo ? `, ${withVideo} нь видеотой` : ''}.`,
@@ -539,7 +539,7 @@ function SeasonBlock({ season, onChange }: { season: any; onChange: () => void }
       </div>
 
       <div className="mt-3 space-y-2">
-        {season.episodes?.map((ep: any) => (
+        {season.episodes?.map((ep) => (
           <div key={ep.id} className="rounded-md bg-muted/40 p-3">
             <button
               onClick={() => setExpanded(expanded === ep.id ? null : ep.id)}

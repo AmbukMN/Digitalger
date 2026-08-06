@@ -162,6 +162,20 @@ export function VideoPlayer({
   const onProviderChange = useCallback(
     (provider: MediaProviderAdapter | null, _e: MediaProviderChangeEvent) => {
       if (!isHLSProvider(provider)) return;
+
+      /**
+       * ⚠️⚠️ hls.js-ийг ЛОКАЛААС — CDN-ЭЭС БИШ.
+       *
+       * Vidstack анхдагчаар `cdn.jsdelivr.net`-ээс татдаг (хэмжилтээр
+       * баталсан). Энэ нь ноцтой эрсдэлтэй:
+       *   1) CDN унавал / блоклогдвол БҮХ КИНО тоглохгүй болно
+       *   2) Монголоос гадаад CDN руу нэмэлт RTT — эхлэх хугацаа уртсана
+       *   3) `hls.js` төсөлд аль хэдийн суусан байхад дэмий татаж байна
+       * `library` нь dynamic import хүлээж авдаг тул bundle-д тусдаа
+       * chunk болж, зөвхөн видео нээхэд ачаалагдана.
+       */
+      provider.library = () => import('hls.js');
+
       provider.config = {
         /**
          * ⚠️ Эхлэхэд ХАМГИЙН БАГА чанараар — ингэснээр эхний segment

@@ -49,7 +49,7 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
             <X size={22} />
           </button>
           <div className="relative h-[80vh] w-full max-w-4xl">
-            <Image src={active} alt="" fill sizes="90vw" className="object-contain" />
+            <Image src={active} alt="Киноны зураг" fill sizes="90vw" className="object-contain" />
           </div>
         </div>
       )}

@@ -72,8 +72,8 @@ export default function LoginPage() {
       else await register(mail, password, name.trim() || undefined);
       toast.success(mode === 'login' ? 'Тавтай морил!' : 'Бүртгэл амжилттай үүслээ');
       router.replace(nextUrl);
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Алдаа гарлаа');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Алдаа гарлаа');
     } finally {
       setLoading(false);
     }

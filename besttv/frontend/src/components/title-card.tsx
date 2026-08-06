@@ -107,7 +107,7 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
     >
       <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-muted">
         {title.posterUrl ? (
-          <Image src={title.posterUrl} alt="" fill sizes="180px" className="object-cover" />
+          <Image src={title.posterUrl} alt={title.title} fill sizes="180px" className="object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-white/25">
             <Play size={32} />

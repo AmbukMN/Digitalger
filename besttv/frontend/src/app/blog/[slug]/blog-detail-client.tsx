@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import DOMPurify from 'isomorphic-dompurify';
 import Link from 'next/link';
 import { ArrowLeft, Eye, FileText } from 'lucide-react';
 import { ErrorState } from '@besttv/shared/ui';
@@ -38,7 +39,7 @@ export function BlogDetailClient({ slug }: { slug: string }) {
 
         {data.coverUrl && (
           <div className="relative mt-5 aspect-video overflow-hidden rounded-xl bg-[#1a1a1a]">
-            <Image src={data.coverUrl} alt="" fill sizes="800px" className="object-cover" priority />
+            <Image src={data.coverUrl} alt={data.title} fill sizes="800px" className="object-cover" priority />
           </div>
         )}
 
@@ -62,7 +63,10 @@ export function BlogDetailClient({ slug }: { slug: string }) {
         {data.content ? (
           <div
             className="static-page mt-8 text-foreground/80"
-            dangerouslySetInnerHTML={{ __html: data.content }}
+            /* ⚠️ SANITIZE ЗААВАЛ — контент нь админ/staff-аас ирдэг тул
+              бүрэн итгэмжлэгдэхгүй. Скрипт/onerror зэргийг DOMPurify
+              цэвэрлэнэ (XSS). Зөвшөөрөгдсөн таг/атрибут л үлдэнэ. */
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(data.content) }}
           />
         ) : (
           <p className="mt-8 flex items-center gap-2 text-foreground/40">

@@ -24,8 +24,8 @@ export default function AdminLoginPage() {
     try {
       await login(email, password);
       router.push('/');
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Нэвтрэхэд алдаа гарлаа');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Нэвтрэхэд алдаа гарлаа');
     } finally {
       setLoading(false);
     }

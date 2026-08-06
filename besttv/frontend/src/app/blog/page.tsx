@@ -46,7 +46,7 @@ export default function BlogListPage() {
           >
             <div className="relative aspect-video overflow-hidden bg-[#1a1a1a]">
               {p.coverUrl ? (
-                <Image src={p.coverUrl} alt="" fill sizes="360px" className="object-cover transition-transform group-hover:scale-105" />
+                <Image src={p.coverUrl} alt={p.title} fill sizes="360px" className="object-cover transition-transform group-hover:scale-105" />
               ) : (
                 <div className="flex h-full items-center justify-center text-foreground/15">
                   <FileText size={32} />

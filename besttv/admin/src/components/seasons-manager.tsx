@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
-import { useAdminTitle } from '@/lib/queries';
+import { useAdminTitle, type AdminSeason } from '@/lib/queries';
 import { VideoUpload } from '@/components/video-upload';
 
 /**
@@ -16,7 +16,7 @@ import { VideoUpload } from '@/components/video-upload';
  * (өмнө нь зөвхөн хуудсанд дотоод функц байсан).
  */
 export function SeasonsManager({ titleId }: { titleId: string }) {
-  const { data: title, refetch } = useAdminTitle(titleId) as { data: any; refetch: () => void };
+  const { data: title, refetch } = useAdminTitle(titleId);
   const [newSeasonName, setNewSeasonName] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -66,7 +66,7 @@ export function SeasonsManager({ titleId }: { titleId: string }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {seasons.map((s: any) => (
+          {seasons.map((s) => (
             <SeasonBlock key={s.id} season={s} onChange={refetch} />
           ))}
         </div>
@@ -75,13 +75,13 @@ export function SeasonsManager({ titleId }: { titleId: string }) {
   );
 }
 
-function SeasonBlock({ season, onChange }: { season: any; onChange: () => void }) {
+function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [addingEp, setAddingEp] = useState(false);
   const confirm = useConfirm();
 
   const episodes = season.episodes ?? [];
-  const readyCount = episodes.filter((e: any) => e.streamStatus === 'READY').length;
+  const readyCount = episodes.filter((e) => e.streamStatus === 'READY').length;
 
   const addEpisode = async () => {
     setAddingEp(true);
@@ -155,7 +155,7 @@ function SeasonBlock({ season, onChange }: { season: any; onChange: () => void }
 
       {episodes.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          {episodes.map((ep: any) => (
+          {episodes.map((ep) => (
             <div key={ep.id} className="rounded-lg bg-accent/40 p-2.5">
               <button
                 onClick={() => setExpanded(expanded === ep.id ? null : ep.id)}

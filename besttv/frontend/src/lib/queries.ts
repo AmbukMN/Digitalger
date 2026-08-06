@@ -172,6 +172,8 @@ interface CatalogPage {
 export function useCatalogInfinite(params: { genre?: string; sort?: string }) {
   return useInfiniteQuery({
     queryKey: ['catalog-infinite', params],
+    /* Каталог 5 минут — шинэ кино тэр бүр нэмэгддэггүй */
+    staleTime: 5 * 60_000,
     initialPageParam: 1,
     queryFn: ({ pageParam }) => {
       const qs = new URLSearchParams();
@@ -332,6 +334,8 @@ export function useDeleteReview(titleId: string) {
 export function useSearch(q: string) {
   return useQuery({
     queryKey: ['search', q],
+    /* Хайлтын үр дүн 2 минут — ижил үг дахин бичихэд шууд */
+    staleTime: 2 * 60_000,
     queryFn: () => api<TitleCard[]>(`/titles/search?q=${encodeURIComponent(q)}`, { auth: false }),
     enabled: q.length > 1,
   });
@@ -410,6 +414,8 @@ export interface BlogPostDetail extends BlogPostCard {
 export function useBlogPosts(page = 1) {
   return useQuery({
     queryKey: ['blog', page],
+    /* Блог 10 минут — маш ховор өөрчлөгдөнө */
+    staleTime: 10 * 60_000,
     queryFn: () =>
       api<{ items: BlogPostCard[]; total: number; page: number; totalPages: number }>(
         `/blog?page=${page}`,

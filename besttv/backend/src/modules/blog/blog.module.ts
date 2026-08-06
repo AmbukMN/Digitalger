@@ -13,7 +13,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
@@ -171,6 +171,32 @@ export class BlogService {
    * `ok: true` буцаадаг байсан — хэрэглэгч "устгагдлаа" гэсэн мэдэгдэл авах
    * мөртлөө мөр хэвээр үлддэг байсан. Одоо алдааг ил гаргана.
    */
+  /**
+   * Олон нийтлэлийг нэг дор устгана (админ).
+   *
+   * ⚠️ R2 дээрх cover зургийг ч цэвэрлэнэ — эс бөгөөс DB-ээс устсан ч
+   * зураг үлдэж, storage дэмий дүүрнэ (нэгээр устгах `remove`-той ижил
+   * зарчим). Устгал амжилттай болсны ДАРАА, fire-and-forget.
+   */
+  async bulkDelete(ids: string[]) {
+    if (!ids.length) return { deleted: 0 };
+
+    const posts = await this.prisma.blogPost.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, coverKey: true },
+    });
+    if (!posts.length) return { deleted: 0 };
+
+    const res = await this.prisma.blogPost.deleteMany({
+      where: { id: { in: posts.map((p) => p.id) } },
+    });
+
+    for (const p of posts) {
+      if (p.coverKey) void this.storage.delete(p.coverKey).catch(() => null);
+    }
+    return { deleted: res.count };
+  }
+
   async remove(id: string) {
     const post = await this.prisma.blogPost.findUnique({
       where: { id },
@@ -204,6 +230,14 @@ export class BlogController {
   }
 }
 
+/** Олноор устгах — нэг дуудалтад дээд тал нь 100 нийтлэл */
+class BlogBulkDeleteDto {
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(100)
+  ids: string[];
+}
+
 @Controller('admin/blog')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -228,6 +262,16 @@ export class BlogAdminController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: Partial<BlogPostDto>) {
     return this.svc.update(id, dto);
+  }
+
+  /**
+   * Олноор устгах.
+   * ⚠️ `@Delete(':id')`-ЭЭС ӨМНӨ байрлана — эс бөгөөс Nest нь
+   * 'bulk-delete'-ыг `:id` гэж үзэж, буруу route барина.
+   */
+  @Post('bulk-delete')
+  bulkDelete(@Body() dto: BlogBulkDeleteDto) {
+    return this.svc.bulkDelete(dto.ids);
   }
 
   @Delete(':id')

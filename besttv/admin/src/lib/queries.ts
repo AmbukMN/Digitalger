@@ -78,18 +78,55 @@ export function useAdminTitleCounts(params: { q?: string; genre?: string; year?:
   });
 }
 
+
+/**
+ * Админы кино дэлгэрэнгүй — улирал/ангитай.
+ *
+ * ⚠️ Өмнө нь `any` байсан тул `season.episodes` бичихэд алдаа
+ * баригдахгүй, талбарын нэр солигдоход ЧИМЭЭГҮЙ эвдэрдэг байв.
+ */
+export interface AdminEpisode {
+  id: string;
+  number: number;
+  name: string | null;
+  streamStatus: 'NONE' | 'PROCESSING' | 'READY' | 'FAILED';
+  streamProgress: number;
+  streamError?: string | null;
+  durationSec: number | null;
+  posterUrl?: string | null;
+  isFreePreview: boolean;
+}
+
+export interface AdminSeason {
+  id: string;
+  number: number;
+  name: string | null;
+  episodes: AdminEpisode[];
+}
+
+export interface AdminTitleDetail {
+  id: string;
+  title: string;
+  slug: string;
+  type: 'MOVIE' | 'SERIES';
+  streamStatus: 'NONE' | 'PROCESSING' | 'READY' | 'FAILED';
+  streamProgress: number;
+  seasons?: AdminSeason[];
+  [key: string]: unknown;
+}
+
 export function useAdminTitle(id: string) {
   return useQuery({
     queryKey: ['admin-title', id],
-    queryFn: () => api<any>(`/admin/titles/${id}`),
+    queryFn: () => api<AdminTitleDetail>(`/admin/titles/${id}`),
     enabled: !!id && id !== 'new',
     // HLS хөрвvvлэлт (кино эсвэл аль нэг анги) явж байхад автоматаар polling
     // хийж, READY болмогц хуудас сэргээлтгvйгээр шинэчлэгдэнэ.
     refetchInterval: (query) => {
-      const data = query.state.data as any;
+      const data = query.state.data as AdminTitleDetail | undefined;
       const hasProcessing =
         data?.streamStatus === 'PROCESSING' ||
-        data?.seasons?.some((s: any) => s.episodes?.some((e: any) => e.streamStatus === 'PROCESSING'));
+        data?.seasons?.some((s) => s.episodes?.some((e) => e.streamStatus === 'PROCESSING'));
       return hasProcessing ? 5000 : false;
     },
   });

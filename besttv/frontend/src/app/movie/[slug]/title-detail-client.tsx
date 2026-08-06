@@ -400,7 +400,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     >
                       <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded bg-foreground/10">
                         {ep.posterUrl && (
-                          <Image src={ep.posterUrl} alt="" fill sizes="112px" className="object-cover" />
+                          <Image src={ep.posterUrl} alt={`${ep.number}-р анги`} fill sizes="112px" className="object-cover" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">

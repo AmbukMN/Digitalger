@@ -295,7 +295,7 @@ export function WatchClient({ slug }: { slug: string }) {
                       >
                         <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/10">
                           {ep.posterUrl && (
-                            <Image src={ep.posterUrl} alt="" fill sizes="80px" className="object-cover" />
+                            <Image src={ep.posterUrl} alt={`${ep.number}-р анги`} fill sizes="80px" className="object-cover" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
