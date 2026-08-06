@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentStatus } from '@prisma/client';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { WalletTxType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
@@ -126,12 +126,29 @@ export class PaymentsService {
     }
 
     const qpay = this.config.get('qpay');
-    const identifier = `BTV-${userId.slice(-6)}-${Date.now()}`;
+    /**
+     * ⚠️⚠️ QPay-Д ИЛГЭЭХ ТЕКСТ — БИЗНЕСИЙН НЭР ОРУУЛАХГҮЙ.
+     *
+     * ЯАГААД: QPay merchant данс нь DigitalGer-ийн нэр дээр гэрээтэй.
+     * Тэр данс руу "BestTV" гэсэн ТАНИХГҮЙ нэр орж ирвэл QPay тал нь
+     * гэрээнд заагаагүй өөр бизнест данс ашиглаж байна гэж үзэж, данс
+     * түдгэлзүүлэх эрсдэлтэй. Харин "DigitalGer" гэж бичих нь ч
+     * шаардлагагүй — ямар ч нэр байхгүй, зөвхөн САНАМСАРГҮЙ захиалгын
+     * дугаар байвал хамгийн аюулгүй (мөн хэрэглэгчийн нууцлалд ч дээр).
+     *
+     * ⚠️ Төлбөрийн УРСГАЛД НӨЛӨӨЛӨХГҮЙ: төлбөрийг `qpayInvoiceId`-аар
+     * таньдаг (`handleCallback` дотор), эдгээр талбар нь зөвхөн QPay-д
+     * харагдах ТЕКСТ. BestTV-ийн орлого BestTV рүүгээ л бүртгэгдэнэ.
+     *
+     * ⚠️ `randomUUID` — цаг хугацаанаас хамаарахгүй тул хэн нэгэн
+     * дугаарлалтаас захиалгын тоо/давтамжийг таамаглах боломжгүй.
+     */
+    const identifier = randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
     const invoiceBody = {
       invoice_code: qpay.invoiceCode,
       sender_invoice_no: identifier,
       invoice_receiver_code: userId.slice(0, 20),
-      invoice_description: `BestTV ${plan.name}`,
+      invoice_description: `Order ${identifier}`,
       amount,
       callback_url: qpay.callbackUrl,
     };
@@ -530,12 +547,14 @@ export class PaymentsService {
     }
 
     const qpay = this.config.get('qpay');
-    const identifier = `BTV-W-${userId.slice(-6)}-${Date.now()}`;
+    /* ⚠️ QPay-д бизнесийн нэр ОРУУЛАХГҮЙ — дэлгэрэнгүйг
+       `initiatePayment` доторх тайлбараас үз. */
+    const identifier = randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
     const invoiceBody = {
       invoice_code: qpay.invoiceCode,
       sender_invoice_no: identifier,
       invoice_receiver_code: userId.slice(0, 20),
-      invoice_description: `BestTV хэтэвч цэнэглэлт ${amount}₮`,
+      invoice_description: `Order ${identifier}`,
       amount,
       callback_url: qpay.callbackUrl,
     };
