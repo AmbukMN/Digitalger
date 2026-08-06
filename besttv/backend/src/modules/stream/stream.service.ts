@@ -55,6 +55,50 @@ export class StreamService {
     return this.rewritePlaylist(title.videoKey, `/api/stream/movie/${titleId}/variant.m3u8`);
   }
 
+  /**
+   * SEEK THUMBNAIL — WebVTT (sprite зураг руу заана).
+   *
+   * ⚠️ VTT доторх `thumbs.jpg#xywh=...` нь ХАРЬЦАНГУЙ зам. Player түүнийг
+   * VTT-ийн байрлалаас тооцдог тул sprite-ын БҮТЭН presigned URL болгож
+   * дарж бичнэ — эс бөгөөс browser нь манай API замаас хайж 404 авна.
+   *
+   * ⚠️ Эрх шалгана — thumbnail нь киноны агуулгыг харуулдаг тул
+   * задгай байвал төлбөргүй хүн киног кадраар нь үзэж болно.
+   */
+  async movieThumbnails(titleId: string, userId?: string | null): Promise<string> {
+    const title = await this.prisma.title.findUnique({
+      where: { id: titleId },
+      select: {
+        videoKey: true,
+        isPremium: true,
+        isActive: true,
+        streamStatus: true,
+        genres: { select: { genreId: true } },
+      },
+    });
+    if (!title?.videoKey || !title.isActive || title.streamStatus !== 'READY') {
+      throw new NotFoundException('Видео бэлэн биш байна');
+    }
+    await this.assertAccess(
+      title.isPremium,
+      title.genres.map((g) => g.genreId),
+      userId,
+    );
+
+    const prefix = title.videoKey.slice(0, title.videoKey.lastIndexOf('/') + 1);
+    let vtt: string;
+    try {
+      vtt = await this.storage.downloadText(`${prefix}thumbs.vtt`);
+    } catch {
+      /* ⚠️ Хуучин видеонд thumbnail байхгүй — ХООСОН VTT буцаана.
+         Player нь preview-гүй л ажиллана (алдаа гаргахгүй). */
+      return 'WEBVTT\n';
+    }
+
+    const spriteUrl = await this.storage.presignGet(`${prefix}thumbs.jpg`, this.SEGMENT_EXPIRES);
+    return vtt.replace(/^thumbs\.jpg(#[^\s]*)?$/gm, (_m, frag) => `${spriteUrl}${frag ?? ''}`);
+  }
+
   /** ABR дэд playlist — киноны v0/v1/v2 */
   async movieVariant(titleId: string, variant: string, userId?: string | null): Promise<string> {
     const title = await this.prisma.title.findUnique({

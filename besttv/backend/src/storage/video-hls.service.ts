@@ -45,14 +45,23 @@ const LADDER = [
 
 /**
  * x264 preset — хурд ↔ хэмжээний тэнцвэр.
+ *
  * `veryfast` нь `medium`-ээс ~4 дахин хурдан, файл ~10% том. VPS дээр
- * CPU л хязгаарлагч тул хурдыг сонгов.
+ * CPU л хязгаарлагч (4 цөм, хөрвүүлэлт үед 375% ачаалалтай) тул хурдыг
+ * сонгосон.
+ *
+ * ⚠️ ENV-ЭЭР ТОХИРУУЛНА — 70+ видео нэг дор оруулах үед (`veryfast` дээр
+ * нэг кино ~20-30 мин × 57 = 28 цаг) түр `superfast` болгож ~1.5-2 дахин
+ * хурдасгаж болно. Чанар (CRF) өөрчлөгдөхгүй, зөвхөн файл ~15% томорно.
+ * Ердийн үед `veryfast` (анхдагч) нь хамгийн зөв тэнцвэр.
  */
-const X264_PRESET = 'veryfast';
+const X264_PRESET = process.env.X264_PRESET ?? 'veryfast';
 
 export interface HlsResult {
   playlistKey: string; // R2 key: 'videos/{uuid}/video.m3u8' (videoKey-д хадгална — R2 KEY, URL БИШ!)
   posterKey: string; // R2 key: 'videos/{uuid}/poster.jpg'
+  /** Seek preview — 'videos/{uuid}/thumbs.vtt' (sprite нь хажууд нь) */
+  thumbnailsKey: string;
   durationSec: number;
   segmentCount: number;
 }
@@ -135,6 +144,12 @@ export class VideoHlsService {
 
       // ── 3) Poster (эхний frame) ──
       await this.makePoster(inputPath, posterPath).catch(() => null);
+
+      /* ⚠️ Seek thumbnail (sprite+VTT) — амжилтгүй болвол хөрвүүлэлт
+         УНАХГҮЙ (thumbnail бол нэмэлт тав тух, заавал биш) */
+      await this.makeThumbnails(inputPath, tmpDir, durationSec).catch((e) => {
+        this.logger.warn(`Thumbnail үүсгэж чадсангүй: ${String(e)}`);
+      });
       report('upload', 72);
 
       // ── 4) Гаралт → R2, ЗЭРЭГ (6-аар) — 72-99% ──
@@ -148,6 +163,7 @@ export class VideoHlsService {
         if (name.endsWith('.m3u8')) contentType = 'application/vnd.apple.mpegurl';
         else if (name.endsWith('.ts')) contentType = 'video/mp2t';
         else if (name.endsWith('.jpg')) contentType = 'image/jpeg';
+        else if (name.endsWith('.vtt')) contentType = 'text/vtt';
 
         const buf = await fs.readFile(path.join(tmpDir, name));
         await this.storage.upload(`${r2Prefix}/${name}`, buf, contentType);
@@ -164,6 +180,7 @@ export class VideoHlsService {
       return {
         playlistKey: `${r2Prefix}/${playlistName}`,
         posterKey: `${r2Prefix}/poster.jpg`,
+        thumbnailsKey: `${r2Prefix}/thumbs.vtt`,
         durationSec: Math.round(durationSec),
         segmentCount,
       };
@@ -371,5 +388,62 @@ export class VideoHlsService {
         .on('end', () => resolve())
         .on('error', (e) => reject(e));
     });
+  }
+
+  /**
+   * SEEK THUMBNAIL — sprite зураг + WebVTT.
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: өмнөх player нь НУУГДМАЛ 2 дахь `<video>`
+   * элемент үүсгээд түүнийг seek хийж preview гаргадаг байв. Тэр арга нь
+   * ГАР УТСАНД ОГТ АЖИЛЛАДАГГҮЙ (iOS/Android нь нэг дор 2 видео decode
+   * хийхийг хориглодог) тул код дотроо зориуд унтраасан байсан —
+   * "утсан дээр thumbnail харагдахгүй" гэсэн гомдлын шалтгаан.
+   *
+   * Зөв шийдэл (YouTube/Netflix-ийн арга): хөрвүүлэлтийн үед НЭГ УДАА
+   * sprite зураг бэлдэж, VTT-гээр хугацаа↔байрлалыг заана. Player зөвхөн
+   * ЗУРАГ татдаг тул бүх төхөөрөмжид, сүлжээ багатай ч ажиллана.
+   *
+   * Формат: 10 секунд тутам 1 кадр, 160px өргөн, 5 багана × N мөр.
+   */
+  private async makeThumbnails(
+    inputPath: string,
+    dir: string,
+    durationSec: number,
+  ): Promise<void> {
+    const INTERVAL = 10; // секунд
+    const COLS = 5;
+    const W = 160;
+    const H = 90; // 16:9
+
+    const count = Math.max(1, Math.min(600, Math.floor(durationSec / INTERVAL)));
+    const rows = Math.ceil(count / COLS);
+
+    // ── 1) Sprite (нэг том зураг) ──
+    await new Promise<void>((resolve, reject) => {
+      spawn(FFMPEG_BIN, [
+        '-y', '-i', inputPath,
+        '-vf', `fps=1/${INTERVAL},scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:-1:-1:color=black,tile=${COLS}x${rows}`,
+        '-frames:v', '1',
+        '-q:v', '5',
+        path.join(dir, 'thumbs.jpg'),
+      ], { stdio: ['ignore', 'ignore', 'ignore'] })
+        .on('close', (code) => (code === 0 ? resolve() : reject(new Error(`sprite exit ${code}`))))
+        .on('error', reject);
+    });
+
+    // ── 2) WebVTT — хугацаа бүрийг sprite доторх тэгш өнцөгттэй холбоно ──
+    const pad = (n: number) => String(Math.floor(n)).padStart(2, '0');
+    const stamp = (s: number) =>
+      `${pad(s / 3600)}:${pad((s % 3600) / 60)}:${pad(s % 60)}.000`;
+
+    let vtt = 'WEBVTT\n\n';
+    for (let i = 0; i < count; i++) {
+      const x = (i % COLS) * W;
+      const y = Math.floor(i / COLS) * H;
+      vtt += `${stamp(i * INTERVAL)} --> ${stamp((i + 1) * INTERVAL)}\n`;
+      /* ⚠️ Зам нь ХАРЬЦАНГУЙ — player нь VTT-ийн байрлалаас тооцно */
+      vtt += `thumbs.jpg#xywh=${x},${y},${W},${H}\n\n`;
+    }
+    await fs.writeFile(path.join(dir, 'thumbs.vtt'), vtt, 'utf8');
   }
 }

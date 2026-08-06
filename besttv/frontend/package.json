@@ -12,6 +12,7 @@
     "@besttv/shared": "*",
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.100.10",
+    "@vidstack/react": "^1.15.6",
     "framer-motion": "^12.38.0",
     "hls.js": "^1.6.16",
     "lucide-react": "^0.516.0",
@@ -22,7 +23,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.76.0",
     "sonner": "^2.0.7",
-    "vidstack": "^0.6.15",
+    "vidstack": "^1.15.6",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },

@@ -47,6 +47,7 @@ export class AdminStreamController {
     return this.stream.adminPreview('movie', titleId);
   }
 
+
   @Get('episode/:episodeId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
   @Header('Cache-Control', 'private, max-age=120')
@@ -114,6 +115,18 @@ export class StreamController {
   @Header('Cache-Control', 'private, max-age=120')
   movie(@Param('titleId') titleId: string, @CurrentUser() user: JwtPayload | null) {
     return this.stream.moviePlaylist(titleId, user?.sub);
+  }
+
+  /**
+   * Seek thumbnail (WebVTT) — player-ийн seek preview.
+   * ⚠️ `text/vtt` content-type ЗААВАЛ — эс бөгөөс browser нь track
+   * элементийг танихгүй, preview огт гарахгүй.
+   */
+  @Get('movie/:titleId/thumbnails.vtt')
+  @Header('Content-Type', 'text/vtt')
+  @Header('Cache-Control', 'private, max-age=300')
+  movieThumbs(@Param('titleId') titleId: string, @CurrentUser() user: JwtPayload | null) {
+    return this.stream.movieThumbnails(titleId, user?.sub);
   }
 
   @Get('episode/:episodeId/playlist.m3u8')
