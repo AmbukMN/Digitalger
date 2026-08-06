@@ -1,0 +1,22 @@
+# BestTV видео CDN Worker — wrangler тохиргоо
+#
+# ⚠️ DEPLOY:
+#   cd besttv/cloudflare-worker
+#   npx wrangler login                    # браузераар Cloudflare нэвтрэнэ
+#   npx wrangler secret put VIDEO_SIGN_SECRET   # backend-тэй ИЖИЛ утга
+#   npx wrangler deploy
+#
+# Дараа нь Cloudflare Dashboard → Workers → besttv-video-cdn →
+# Settings → Domains & Routes → Custom domain: cdn.besttv.us
+
+name = "besttv-video-cdn"
+main = "video-cdn.js"
+compatibility_date = "2026-01-01"
+
+# ⚠️ R2 binding — Worker нь bucket-аас ШУУД уншина (S3 API-гүй, хурдан)
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "buckets"
+
+# ⚠️ VIDEO_SIGN_SECRET нь SECRET — энд БҮҮ бич.
+#    `npx wrangler secret put VIDEO_SIGN_SECRET` командаар нэмнэ.

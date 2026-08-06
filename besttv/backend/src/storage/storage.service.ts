@@ -8,7 +8,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { randomUUID } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import { createReadStream, createWriteStream, existsSync } from 'fs';
 import * as path from 'path';
@@ -203,6 +203,36 @@ export class StorageService {
     );
     setCachedPresign(cacheKey, url, expiresIn);
     return url;
+  }
+
+  /**
+   * ВИДЕО SEGMENT-ийн CDN ЗАМ — гарын үсэгтэй, кэшлэгддэг.
+   *
+   * ⚠️⚠️ ЯАГААД presign-ЫН ОРОНД ВЭ:
+   * R2-ийн S3 endpoint (`*.r2.cloudflarestorage.com`) нь CDN БИШ —
+   * `cf-cache-status` огт байхгүй тул хэрэглэгч бүр, segment бүр ЭХ
+   * bucket руу очдог. Хол улсаас (Хятад/АНУ/Европ) RTT өндөр, ижил
+   * segment-ийг 100 хүн үзвэл 100 удаа R2-оос гарна.
+   * Хэмжилт (Монголоос): CDN кэштэй зураг 73ms · кэшгүй segment 256ms.
+   *
+   * Энэ метод нь Cloudflare Worker (`cloudflare-worker/video-cdn.js`)
+   * уншдаг хэлбэрийн зам үүсгэнэ:
+   *     https://cdn.besttv.us/v/<exp>/<hmac>/<key>
+   * Worker гарын үсгийг шалгаад R2-оос уншиж, Cloudflare нь 330+ хотод
+   * КЭШЛЭНЭ. Аюулгүй байдал presign-тай ижил түвшинд (хугацаа + гарын
+   * үсэг + prefix шалгалт).
+   *
+   * ⚠️ `VIDEO_CDN_URL` тохируулаагүй бол ХУУЧИН presign руу буцна —
+   * Worker deploy хийгээгүй байсан ч сайт ажилласаар байна.
+   */
+  videoCdnUrl(key: string, expiresIn = 4 * 3600): string | null {
+    const base = process.env.VIDEO_CDN_URL;
+    const secret = process.env.VIDEO_SIGN_SECRET;
+    if (!base || !secret) return null;
+
+    const exp = Math.floor(Date.now() / 1000) + expiresIn;
+    const sig = createHmac('sha256', secret).update(`${exp}:${key}`).digest('hex');
+    return `${base.replace(/\/$/, '')}/v/${exp}/${sig}/${key}`;
   }
 
   /**

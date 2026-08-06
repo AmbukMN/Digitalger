@@ -165,14 +165,31 @@ export class StreamService {
     return { done, skipped, failed };
   }
 
-  /** m3u8 уншаад segment мөр бүрийг presigned URL болгоно (нэг түвшин) */
+
+  /**
+   * Segment-ийн URL — CDN байвал ТҮҮГЭЭР, эс бөгөөс presign.
+   *
+   * ⚠️⚠️ ЯАГААД CDN нь ЧУХАЛ ВЭ: R2-ийн S3 endpoint нь кэш ХИЙДЭГГҮЙ
+   * (`cf-cache-status` байхгүй) тул хэрэглэгч бүр эх bucket руу очиж,
+   * хол улсаас удаан болдог. Cloudflare Worker (`VIDEO_CDN_URL`) нь
+   * ижил segment-ийг 330+ хотод кэшлэнэ.
+   *
+   * ⚠️ `VIDEO_CDN_URL` тохируулаагүй бол ХУУЧИН зан төлөв хэвээр —
+   * Worker deploy хийгээгүй байсан ч сайт ажилласаар байна.
+   */
+  private segmentUrl(key: string): Promise<string> {
+    const cdn = this.storage.videoCdnUrl(key, this.SEGMENT_EXPIRES);
+    return cdn ? Promise.resolve(cdn) : this.storage.presignGet(key, this.SEGMENT_EXPIRES);
+  }
+
+  /** m3u8 уншаад segment мөр бүрийг URL болгоно (нэг түвшин) */
   private async variantPlaylistRaw(m3u8Key: string, prefix: string): Promise<string> {
     const text = await this.storage.downloadText(m3u8Key);
     const lines = await Promise.all(
       text.split('\n').map(async (line) => {
         const t = line.trim();
         if (!t || t.startsWith('#')) return line;
-        return this.storage.presignGet(prefix + t, this.SEGMENT_EXPIRES);
+        return this.segmentUrl(prefix + t);
       }),
     );
     return lines.join('\n');
@@ -446,7 +463,7 @@ export class StreamService {
         if (isMaster && variantBase) {
           return `${variantBase}?v=${encodeURIComponent(trimmed)}`;
         }
-        return this.storage.presignGet(prefix + trimmed, this.SEGMENT_EXPIRES);
+        return this.segmentUrl(prefix + trimmed);
       }),
     );
 
