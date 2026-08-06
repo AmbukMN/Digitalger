@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { VideoHlsService } from '../../storage/video-hls.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /**
@@ -28,6 +29,8 @@ export class StreamService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly subs: SubscriptionsService,
+    /** ⚠️ Thumbnail backfill-д — sprite/VTT үүсгэнэ */
+    private readonly hls: VideoHlsService,
   ) {}
 
   /** Киноны үндсэн видео */
@@ -97,6 +100,82 @@ export class StreamService {
 
     const spriteUrl = await this.storage.presignGet(`${prefix}thumbs.jpg`, this.SEGMENT_EXPIRES);
     return vtt.replace(/^thumbs\.jpg(#[^\s]*)?$/gm, (_m, frag) => `${spriteUrl}${frag ?? ''}`);
+  }
+
+  /**
+   * ХУУЧИН кинонуудад seek thumbnail НӨХӨХ (админ).
+   *
+   * ⚠️ Thumbnail нь 2026-08-06-нд нэмэгдсэн тул түүнээс өмнө хөрвүүлсэн
+   * бүх кинонд байхгүй. Raw файл устсан тул R2 дээрх HLS-ээс уншина:
+   * segment бүрийг presign хийсэн playlist-ыг ffmpeg-д өгнө.
+   *
+   * @returns { done, skipped, failed } — тоо
+   */
+  async backfillThumbnails(limit = 5): Promise<{
+    done: string[];
+    skipped: string[];
+    failed: { title: string; reason: string }[];
+  }> {
+    const titles = await this.prisma.title.findMany({
+      where: { streamStatus: 'READY', videoKey: { not: null } },
+      select: { id: true, title: true, videoKey: true, durationSec: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const done: string[] = [];
+    const skipped: string[] = [];
+    const failed: { title: string; reason: string }[] = [];
+
+    for (const t of titles) {
+      if (done.length >= limit) break;
+      const prefix = t.videoKey!.slice(0, t.videoKey!.lastIndexOf('/') + 1);
+
+      // Аль хэдийн байвал алгасна (дахин ажиллуулж болно)
+      try {
+        await this.storage.downloadText(`${prefix}thumbs.vtt`);
+        skipped.push(t.title);
+        continue;
+      } catch {
+        /* байхгүй — үүсгэнэ */
+      }
+
+      try {
+        /**
+         * ⚠️ ХАМГИЙН БАГА чанарын дэд playlist-ыг ашиглана — sprite нь
+         * 160px өргөн тул өндөр чанар ХЭРЭГГҮЙ, харин татах хэмжээ
+         * хэд дахин бага (backfill хурдан дуусна).
+         */
+        const master = await this.storage.downloadText(t.videoKey!);
+        const variants = master
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => /^v\d+\.m3u8$/.test(l));
+        const variantName = variants.length ? variants[variants.length - 1] : null;
+
+        const listKey = variantName ? `${prefix}${variantName}` : t.videoKey!;
+        const playlist = await this.variantPlaylistRaw(listKey, prefix);
+
+        await this.hls.backfillThumbnails(playlist, prefix, t.durationSec ?? 0);
+        done.push(t.title);
+      } catch (e) {
+        failed.push({ title: t.title, reason: String(e).slice(0, 120) });
+      }
+    }
+
+    return { done, skipped, failed };
+  }
+
+  /** m3u8 уншаад segment мөр бүрийг presigned URL болгоно (нэг түвшин) */
+  private async variantPlaylistRaw(m3u8Key: string, prefix: string): Promise<string> {
+    const text = await this.storage.downloadText(m3u8Key);
+    const lines = await Promise.all(
+      text.split('\n').map(async (line) => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        return this.storage.presignGet(prefix + t, this.SEGMENT_EXPIRES);
+      }),
+    );
+    return lines.join('\n');
   }
 
   /** ABR дэд playlist — киноны v0/v1/v2 */

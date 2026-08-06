@@ -391,6 +391,44 @@ export class VideoHlsService {
   }
 
   /**
+   * ХУУЧИН видеонд thumbnail НӨХӨХ (backfill).
+   *
+   * ⚠️ Raw файл нь HLS бэлэн болмогц УСТДАГ тул эх сурвалж болгож
+   * ашиглаж болохгүй. Оронд нь R2 дээрх HLS-ээс уншина: ffmpeg нь
+   * presigned m3u8 URL-ыг шууд задалж чаддаг (segment-үүд нь дотроо
+   * presign хийгдсэн байх ёстой тул `rewritePlaylist`-ийн үр дүнг
+   * ТҮР ФАЙЛ болгож өгнө).
+   *
+   * @param playlistText segment бүр нь presigned URL болсон m3u8 агуулга
+   * @param prefix       R2 зам ('movies/{uuid}/')
+   */
+  async backfillThumbnails(
+    playlistText: string,
+    prefix: string,
+    durationSec: number,
+  ): Promise<void> {
+    const tmpDir = path.join(os.tmpdir(), `thumb_${randomUUID()}`);
+    await fs.mkdir(tmpDir, { recursive: true });
+    try {
+      const listPath = path.join(tmpDir, 'in.m3u8');
+      await fs.writeFile(listPath, playlistText, 'utf8');
+
+      await this.makeThumbnails(listPath, tmpDir, durationSec);
+
+      for (const name of ['thumbs.jpg', 'thumbs.vtt']) {
+        const buf = await fs.readFile(path.join(tmpDir, name));
+        await this.storage.upload(
+          `${prefix}${name}`,
+          buf,
+          name.endsWith('.vtt') ? 'text/vtt' : 'image/jpeg',
+        );
+      }
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => null);
+    }
+  }
+
+  /**
    * SEEK THUMBNAIL — sprite зураг + WebVTT.
    *
    * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: өмнөх player нь НУУГДМАЛ 2 дахь `<video>`
@@ -421,7 +459,14 @@ export class VideoHlsService {
     // ── 1) Sprite (нэг том зураг) ──
     await new Promise<void>((resolve, reject) => {
       spawn(FFMPEG_BIN, [
-        '-y', '-i', inputPath,
+        '-y',
+        /**
+         * ⚠️ HLS-ээс уншихад ЗААВАЛ — m3u8 доторх segment нь https URL тул
+         * ffmpeg анхдагчаар "аюулгүй биш" гэж үзэж татахаас ТАТГАЛЗДАГ
+         * (backfill энд гацна). Локал файлд нөлөөлөхгүй.
+         */
+        '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
+        '-i', inputPath,
         '-vf', `fps=1/${INTERVAL},scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:-1:-1:color=black,tile=${COLS}x${rows}`,
         '-frames:v', '1',
         '-q:v', '5',

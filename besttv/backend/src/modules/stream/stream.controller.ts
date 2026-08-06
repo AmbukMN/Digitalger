@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { StreamService } from './stream.service';
@@ -45,6 +45,17 @@ export class AdminStreamController {
   @Header('Cache-Control', 'private, max-age=120')
   movie(@Param('titleId') titleId: string) {
     return this.stream.adminPreview('movie', titleId);
+  }
+
+  /**
+   * Хуучин кинонуудад seek thumbnail НӨХӨХ.
+   * ⚠️ Удаан ажиллана (кино бүрийг ffmpeg-ээр уншина) тул нэг дуудалтад
+   * цөөхөн боловсруулна — дахин дуудаж үргэлжлүүлнэ (аль хэдийн
+   * үүссэнийг алгасдаг).
+   */
+  @Post('thumbnails/backfill')
+  backfillThumbs(@Query('limit') limit?: string) {
+    return this.stream.backfillThumbnails(Math.min(20, Number(limit) || 5));
   }
 
 
