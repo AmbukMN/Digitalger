@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { SERVER_API_URL } from '@/lib/server-api';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -24,7 +25,7 @@ import { authOptions } from '@/lib/auth';
  * cookie-г шалгана — хуурамчаар үүсгэх боломжгүй. Session-д байгаа
  * хэрэглэгчийн ID-аар л токен олгоно, өөр хэрэглэгчийнхийг олгохгүй.
  */
-const BACKEND_URL = process.env.API_URL ?? 'http://localhost:4100';
+const BACKEND_URL = SERVER_API_URL;
 
 export async function POST() {
   const session = await getServerSession(authOptions);

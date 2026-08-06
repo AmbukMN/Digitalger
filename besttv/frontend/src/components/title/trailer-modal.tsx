@@ -26,7 +26,7 @@ export function TrailerModal({ titleId, onClose }: { titleId: string; onClose: (
       <button
         onClick={onClose}
         aria-label="Хаах"
-        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        className="absolute right-4 top-4 rounded-full bg-foreground/10 p-2 text-foreground hover:bg-foreground/20"
       >
         <X size={22} />
       </button>

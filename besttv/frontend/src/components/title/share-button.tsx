@@ -40,8 +40,8 @@ export function ShareButton({
       title="Хуваалцах"
       className={
         compact
-          ? 'flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95'
-          : 'flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95'
+          ? 'flex h-9 w-9 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-all hover:bg-foreground/20 active:scale-95'
+          : 'flex h-11 w-11 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-all hover:bg-foreground/20 active:scale-95'
       }
     >
       {copied ? <Check size={compact ? 16 : 18} /> : <Share2 size={compact ? 16 : 18} />}

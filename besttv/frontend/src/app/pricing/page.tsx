@@ -214,24 +214,24 @@ export default function PricingPage() {
         <span className="inline-flex items-center gap-1.5 rounded-full bg-premium/12 px-3 py-1 text-xs font-bold text-premium">
           <Sparkles size={12} /> BESTTV БАГЦУУД
         </span>
-        <h1 className="mt-4 text-3xl font-black tracking-tight text-white md:text-5xl">
+        <h1 className="mt-4 text-3xl font-black tracking-tight text-foreground md:text-5xl">
           Хүссэн багцаа сонго
         </h1>
-        <p className="mt-3 text-white/55 md:text-lg">
+        <p className="mt-3 text-foreground/55 md:text-lg">
           Багц бүр өөрийн ангиллын контентыг нээнэ. VIP бол бүгдийг нэг дор.
         </p>
       </div>
 
       {/* Хэтэвчийн үлдэгдэл */}
       {user && (
-        <div className="mx-auto mt-8 flex max-w-md items-center justify-between rounded-xl border border-white/10 bg-white/4 px-4 py-3">
-          <span className="flex items-center gap-2 text-sm text-white/60">
+        <div className="mx-auto mt-8 flex max-w-md items-center justify-between rounded-xl border border-foreground/10 bg-foreground/4 px-4 py-3">
+          <span className="flex items-center gap-2 text-sm text-foreground/60">
             <Wallet size={16} className="text-primary" /> Хэтэвч:{' '}
-            <strong className="text-white">{formatPrice(user.walletBalance)}</strong>
+            <strong className="text-foreground">{formatPrice(user.walletBalance)}</strong>
           </span>
           <button
             onClick={() => router.push('/profile')}
-            className="rounded-lg bg-white/8 px-3 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/14"
+            className="rounded-lg bg-foreground/8 px-3 py-1.5 text-xs font-semibold text-foreground/80 hover:bg-foreground/14"
           >
             Цэнэглэх
           </button>
@@ -241,20 +241,20 @@ export default function PricingPage() {
       {/* Купон */}
       <div className="mx-auto mt-4 flex max-w-md items-center gap-2">
         <div className="relative flex-1">
-          <Tag size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+          <Tag size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35" />
           <input
             value={couponInput}
             onChange={(e) => setCouponInput(e.target.value)}
             placeholder="Купон код байвал энд оруулна уу"
             aria-label="Купон код"
             disabled={!!appliedCoupon}
-            className="w-full rounded-lg border border-white/12 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-primary disabled:opacity-60"
+            className="w-full rounded-lg border border-foreground/12 bg-foreground/5 py-2.5 pl-9 pr-3 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary disabled:opacity-60"
           />
         </div>
         {appliedCoupon ? (
           <button
             onClick={() => { setAppliedCoupon(null); setCouponInput(''); }}
-            className="shrink-0 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/16"
+            className="shrink-0 rounded-lg bg-foreground/10 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-foreground/16"
           >
             Цуцлах
           </button>
@@ -262,7 +262,7 @@ export default function PricingPage() {
           <button
             onClick={applyCoupon}
             disabled={validateCoupon.isPending || !couponInput.trim()}
-            className="shrink-0 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/16 disabled:opacity-50"
+            className="shrink-0 rounded-lg bg-foreground/10 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-foreground/16 disabled:opacity-50"
           >
             {validateCoupon.isPending ? <Loader2 size={15} className="animate-spin" /> : 'Хэрэглэх'}
           </button>
@@ -317,7 +317,7 @@ export default function PricingPage() {
                 supersededByVip && 'opacity-55',
                 plan.isVip
                   ? 'border-premium/60 bg-linear-to-b from-premium/10 to-transparent shadow-xl shadow-premium/10'
-                  : 'border-white/10 bg-white/3 hover:border-white/20',
+                  : 'border-foreground/10 bg-foreground/3 hover:border-foreground/20',
               )}
             >
               {plan.isVip && (
@@ -347,7 +347,7 @@ export default function PricingPage() {
                 badge нь `absolute` байрлалтай тул урт нэртэй багцын
                 гарчиг ТҮҮНИЙ ДООГУУР ОРЖ ДАВХЦАДАГ байв. Зай үлдээв.
               */}
-              <h3 className="flex min-[380px]:min-h-[3.9rem] items-start gap-1.5 pr-14 text-sm font-bold leading-snug text-white sm:min-h-0 sm:pr-24 sm:text-lg">
+              <h3 className="flex min-[380px]:min-h-[3.9rem] items-start gap-1.5 pr-14 text-sm font-bold leading-snug text-foreground sm:min-h-0 sm:pr-24 sm:text-lg">
                 {plan.isVip && <Crown size={16} className="text-premium" />}
                 {plan.name}
               </h3>
@@ -355,21 +355,21 @@ export default function PricingPage() {
               <div className="mt-3 flex items-baseline gap-2">
                 {appliedCoupon ? (
                   <>
-                    <p className="text-xl font-black text-white sm:text-3xl">{formatPrice(finalPrice)}</p>
-                    <p className="text-sm text-white/35 line-through">{formatPrice(plan.price)}</p>
+                    <p className="text-xl font-black text-foreground sm:text-3xl">{formatPrice(finalPrice)}</p>
+                    <p className="text-sm text-foreground/35 line-through">{formatPrice(plan.price)}</p>
                   </>
                 ) : (
-                  <p className="text-xl font-black text-white sm:text-3xl">{formatPrice(plan.price)}</p>
+                  <p className="text-xl font-black text-foreground sm:text-3xl">{formatPrice(plan.price)}</p>
                 )}
               </div>
-              <p className="mt-1 text-xs text-white/40">
+              <p className="mt-1 text-xs text-foreground/40">
                 {plan.durationDays} хоног
                 {plan.durationDays >= 30 && ` · ≈ ${formatPrice(Math.round(finalPrice / plan.durationDays))} / өдөр`}
               </p>
 
               {/* Нээгдэх контент */}
               <div className="mt-3 rounded-lg bg-black/20 p-2 sm:mt-4 sm:p-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-white/35 sm:text-[11px]">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground/35 sm:text-[11px]">
                   Нээгдэх контент
                 </p>
                 {plan.isVip ? (
@@ -381,7 +381,7 @@ export default function PricingPage() {
                         key={g.id}
                         className={cn(
                           'rounded px-1.5 py-0.5 text-[11px]',
-                          g.isAdult ? 'bg-destructive/20 text-destructive' : 'bg-white/8 text-white/65',
+                          g.isAdult ? 'bg-destructive/20 text-destructive' : 'bg-foreground/8 text-foreground/65',
                         )}
                       >
                         {g.isAdult && '🔞 '}
@@ -394,7 +394,7 @@ export default function PricingPage() {
 
               <ul className="mt-3 flex-1 space-y-1.5 sm:mt-4 sm:space-y-2">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5 text-xs leading-snug text-white/70 sm:gap-2 sm:text-sm">
+                  <li key={f} className="flex items-start gap-1.5 text-xs leading-snug text-foreground/70 sm:gap-2 sm:text-sm">
                     <Check size={15} className="mt-0.5 shrink-0 text-success" /> {f}
                   </li>
                 ))}
@@ -424,8 +424,8 @@ export default function PricingPage() {
                     canPayWithWallet
                       ? plan.isVip
                         ? 'bg-premium text-premium-foreground hover:brightness-105'
-                        : 'bg-primary text-white hover:brightness-110'
-                      : 'bg-white/8 text-white/50',
+                        : 'bg-primary text-primary-foreground hover:brightness-110'
+                      : 'bg-foreground/8 text-foreground/50',
                   )}
                 >
                   {loadingPlan === plan.id ? (
@@ -441,7 +441,10 @@ export default function PricingPage() {
                   disabled={!!loadingPlan}
                   /* ⚠️ `whitespace-nowrap` — mobile-д текст 2 мөр болж
                      товчны өндөр зөрөхөөс сэргийлнэ (зэрэгцээ жигд) */
-                  className="flex min-h-9 w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-white/8 py-1.5 text-[11px] font-semibold text-white/70 transition-colors hover:bg-white/14 hover:text-white disabled:opacity-50 sm:gap-1.5 sm:py-2 sm:text-xs"
+                  /* ⚠️ ХҮРЭЭТЭЙ — `bg-foreground/8` ганцаараа гэрэл горимд
+                     саарал картан дээр БҮДЭГ харагдаж, товч эсэхийг ялгахад
+                     хэцүү байв. Хүрээ + бараан текст нь хоёр горимд ч тод. */
+                  className="flex min-h-9 w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-foreground/15 bg-foreground/5 py-1.5 text-[11px] font-semibold text-foreground/85 transition-colors hover:border-foreground/30 hover:bg-foreground/12 hover:text-foreground disabled:opacity-50 sm:gap-1.5 sm:py-2 sm:text-xs"
                 >
                   {loadingPlan === plan.id && <Loader2 size={12} className="animate-spin" />}
                   {/*
@@ -458,7 +461,7 @@ export default function PricingPage() {
         })}
       </div>
 
-      <p className="mx-auto mt-10 max-w-md text-center text-xs text-white/35">
+      <p className="mx-auto mt-10 max-w-md text-center text-xs text-foreground/35">
         Олон багц зэрэг авч болно. Идэвхтэй багцаа дахин авбал хугацаа нь ДЭЭР НЬ нэмэгдэнэ. Автомат сунгалт байхгүй.
       </p>
 

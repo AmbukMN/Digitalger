@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { SessionProvider, signOut as nextAuthSignOut } from 'next-auth/react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { ThemeProvider, useTheme } from 'next-themes';
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
 import { useMyListStore } from '@/lib/my-list-store';
@@ -96,6 +97,18 @@ function AuthSessionWatcher() {
   return null;
 }
 
+/**
+ * Toast (sonner) нь идэвхтэй theme-ийг ДАГАНА.
+ *
+ * ⚠️ `UiProvider theme="dark"` гэж ХАТУУ бичсэн байсан тул light mode-д
+ * цагаан дэвсгэр дээр хар toast гарч, харагдац зөрчилддөг байв.
+ * `resolvedTheme` нь "system" сонголтыг ч бодит утга болгож өгнө.
+ */
+function ThemedUi({ children }: { children: React.ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  return <UiProvider theme={resolvedTheme === 'light' ? 'light' : 'dark'}>{children}</UiProvider>;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
     () => new QueryClient({ defaultOptions: { queries: { staleTime: 60_000 } } }),
@@ -107,16 +120,31 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [init]);
 
   return (
-    <SessionProvider>
-      <QueryClientProvider client={client}>
-        <UiProvider theme="dark">
-          <OAuthSessionSync />
-          <MyListSync />
-          <AuthSessionWatcher />
-          <PageTracker />
-          {children}
-        </UiProvider>
-      </QueryClientProvider>
-    </SessionProvider>
+    /**
+     * ⚠️ `attribute="class"` — Tailwind-ийн `.dark` class-ыг `<html>`-д тавина
+     * (shared/globals.css нь `:root` = light, `.dark` = dark гэж тодорхойлсон).
+     * ⚠️ `defaultTheme="dark"` — BestTV бол кино сайт, анхдагч нь бараан.
+     * ⚠️ `disableTransitionOnChange` — theme солиход бүх элемент зэрэг
+     *    шилжиж "анивчдаг" эффект гарахаас сэргийлнэ.
+     */
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      enableSystem={false}
+      disableTransitionOnChange
+      storageKey="btv_theme"
+    >
+      <SessionProvider>
+        <QueryClientProvider client={client}>
+          <ThemedUi>
+            <OAuthSessionSync />
+            <MyListSync />
+            <AuthSessionWatcher />
+            <PageTracker />
+            {children}
+          </ThemedUi>
+        </QueryClientProvider>
+      </SessionProvider>
+    </ThemeProvider>
   );
 }

@@ -1,13 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SearchX } from 'lucide-react';
-import type { TitleCard as TitleCardType } from '@besttv/shared';
+import { Loader2, SearchX } from 'lucide-react';
 import { ErrorState } from '@besttv/shared/ui';
-import { useCatalog, useGenres, useHome } from '@/lib/queries';
+import { useCatalogInfinite, useGenres, useHome } from '@/lib/queries';
 import { cn } from '@besttv/shared';
 import { TitleRow } from './title-row';
 import { TitleCard } from './title-card';
@@ -38,7 +35,6 @@ export function CatalogGrid({
   const searchParams = useSearchParams();
   const [genre, setGenre] = useState<string | undefined>(searchParams.get('genre') ?? undefined);
   // ⚠️ Эрэмбэ ҮРГЭЛЖ "шинэ" — сонголтын товч хасагдсан (илүүц байв)
-  const [page, setPage] = useState(1);
 
   // Нүүр хуудасны "Бүгдийг үзэх" (?genre=slug) холбоосыг тайлбарлана
   useEffect(() => {
@@ -48,8 +44,46 @@ export function CatalogGrid({
   }, []);
 
   const { data: genres } = useGenres();
-  // ⚠️ `type` ОГТ дамжуулахгүй — нэг ангит + олон ангит БҮГД харагдана
-  const { data, isFetching, isError, refetch } = useCatalog({ genre, sort: 'new', page });
+  /**
+   * ⚠️ `type` ОГТ дамжуулахгүй — нэг ангит + олон ангит БҮГД харагдана.
+   * ⚠️ Хуудаслалт (1 2 3) БИШ — доош гүйлгэхэд автоматаар нэмэгдэнэ.
+   */
+  const {
+    data,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    isError,
+    refetch,
+  } = useCatalogInfinite({ genre, sort: 'new' });
+
+  /** Бүх хуудсын кинонуудыг нэг жагсаалт болгоно */
+  const items = data?.pages.flatMap((p) => p.items) ?? [];
+  const total = data?.pages[0]?.total ?? 0;
+
+  /**
+   * ⚠️⚠️ ХЭРЭГЛЭГЧ ХАРААГҮЙ ҮЕД АЧААЛАХГҮЙ.
+   *
+   * Жагсаалтын ТӨГСГӨЛД байрлах "хамгаалагч" элемент дэлгэцэд орж ирмэгц
+   * л дараагийн хуудас татагдана. `rootMargin: 400px` — хэрэглэгч ёроолд
+   * ХҮРЭХЭЭС ӨМНӨ бага зэрэг эрт эхлүүлснээр гүйлгэлт тасалдахгүй,
+   * гэхдээ хараагүй хэдэн хуудсыг урьдчилж татахгүй.
+   */
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: '400px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, genre]);
 
   /**
    * ⚠️⚠️ "БҮГД" СОНГОСОН ҮЕД ЖАНРААР ЭГНЭЭ (нүүр хуудас шиг).
@@ -64,8 +98,8 @@ export function CatalogGrid({
 
   return (
     <main className="min-h-screen bg-background px-4 pb-16 pt-24 md:px-8">
-      <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">{heading}</h1>
-      <p className="mt-1.5 text-white/55">{subheading}</p>
+      <h1 className="text-2xl font-black tracking-tight text-foreground md:text-3xl">{heading}</h1>
+      <p className="mt-1.5 text-muted-foreground">{subheading}</p>
 
       {/*
         ⚠️ ТӨРЛИЙН (Кино/Олон ангит) ШҮҮЛТҮҮР ХАСАГДСАН — дээрх тайлбарыг үз.
@@ -84,11 +118,11 @@ export function CatalogGrid({
         role="group"
         aria-label="Жанраар шүүх"
       >
-        <FilterChip active={!genre} onClick={() => { setGenre(undefined); setPage(1); }}>
+        <FilterChip active={!genre} onClick={() => setGenre(undefined)}>
           Бүгд
         </FilterChip>
         {genres?.map((g) => (
-          <FilterChip key={g.id} active={genre === g.slug} onClick={() => { setGenre(g.slug); setPage(1); }}>
+          <FilterChip key={g.id} active={genre === g.slug} onClick={() => setGenre(g.slug)}>
             {g.name}
           </FilterChip>
         ))}
@@ -132,10 +166,12 @@ export function CatalogGrid({
         <div
           className={cn(
             'mt-7 grid grid-cols-2 gap-x-3 gap-y-6 transition-opacity sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
-            isFetching && 'opacity-50',
+            /* ⚠️ ЗӨВХӨН эхний ачаалалтад бүдгэрүүлнэ — дараагийн хуудас
+               нэмэгдэх бүрд бүх grid бүдгэрвэл нүд ядарна */
+            isFetching && !isFetchingNextPage && !items.length && 'opacity-50',
           )}
         >
-          {(data?.items ?? []).map((t) => (
+          {items.map((t) => (
             /**
              * ⚠️⚠️ `TitleCard` АШИГЛАНА (өмнө нь энд өөрийн `GridCard` байв).
              *
@@ -153,37 +189,48 @@ export function CatalogGrid({
              */
             <TitleCard key={t.id} title={t} inGrid />
           ))}
+
+          {/* Эхний ачаалалт — skeleton (spinner БИШ) */}
           {!data &&
             Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="skeleton-shimmer aspect-2/3 rounded-lg" />
             ))}
+
+          {/* Дараагийн хуудас ачаалж байхад — grid-ийн үргэлжлэл мэт skeleton */}
+          {isFetchingNextPage &&
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={`next-${i}`} className="skeleton-shimmer aspect-2/3 rounded-lg" />
+            ))}
         </div>
       )}
 
-      {/* ⚠️ Эгнээ горимд (Бүгд) хоосон мессеж/хуудаслалт харуулахгүй */}
-      {!showRows && data && data.items.length === 0 && (
-        <div className="mt-16 flex flex-col items-center text-white/35">
+      {/* ⚠️ Эгнээ горимд (Бүгд) хоосон мессеж харуулахгүй */}
+      {!showRows && data && items.length === 0 && (
+        <div className="mt-16 flex flex-col items-center text-muted-foreground">
           <SearchX size={40} />
           <p className="mt-3">Энэ шүүлтүүрт тохирох контент олдсонгүй</p>
         </div>
       )}
 
-      {!showRows && data && data.totalPages > 1 && (
-        <nav className="mt-10 flex justify-center gap-2" aria-label="Хуудаслалт">
-          {Array.from({ length: data.totalPages }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setPage(i + 1)}
-              aria-current={page === i + 1 ? 'page' : undefined}
-              className={cn(
-                'h-9 w-9 rounded-lg text-sm font-semibold transition-colors',
-                page === i + 1 ? 'bg-primary text-white' : 'bg-white/6 text-white/55 hover:bg-white/12',
-              )}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </nav>
+      {/*
+        ⚠️⚠️ ХУУДАСЛАЛТЫН ТОВЧ (1 2 3) ХАСАГДСАН — доош гүйлгэхэд автоматаар
+        нэмэгдэнэ. Энэ элемент дэлгэцэд орж ирэхэд л дараагийн хуудас татагдана
+        (`IntersectionObserver` дээрх useEffect-д). Хэрэглэгч хараагүй бол
+        ямар ч хүсэлт явахгүй.
+      */}
+      {!showRows && (
+        <div ref={sentinelRef} className="mt-8 flex justify-center" aria-hidden={!hasNextPage}>
+          {isFetchingNextPage ? (
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={16} className="animate-spin" /> Ачаалж байна…
+            </span>
+          ) : !hasNextPage && items.length > 0 ? (
+            /* Төгсгөлд хүрсэн — хэрэглэгч "бүгдийг харлаа" гэдгээ мэднэ */
+            <span className="text-sm text-muted-foreground">
+              Нийт {total} кино — бүгдийг харлаа
+            </span>
+          ) : null}
+        </div>
       )}
     </main>
   );
@@ -199,7 +246,12 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
            шахагдаж, нэр нь эвдрэхээс сэргийлнэ. `snap-start` — гүйлгэхэд
            chip-ийн ирмэг дээр цэвэрхэн зогсоно. */
         'shrink-0 snap-start whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-all',
-        active ? 'bg-white text-black shadow-md' : 'bg-white/6 text-white/65 hover:bg-white/12',
+        /* ⚠️ Идэвхтэй chip нь `bg-white text-black` байсан тул ГЭРЭЛ горимд
+           цагаан дээр цагаан болж алга болдог. Одоо `foreground` (theme-ийн
+           эсрэг өнгө) → хоёр горимд ч тод харагдана. */
+        active
+          ? 'bg-foreground text-background shadow-md'
+          : 'bg-foreground/8 text-foreground/70 hover:bg-foreground/15',
       )}
     >
       {children}

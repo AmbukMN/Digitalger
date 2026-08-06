@@ -11,6 +11,7 @@ import { BrandLogo } from '@besttv/shared/ui';
 import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useBrand } from '@/lib/queries';
 import { loginUrl } from '@/lib/auth-intent';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const NAV_LINKS = [
   { href: '/', label: 'Нүүр' },
@@ -86,7 +87,7 @@ export function Navbar() {
     >
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-60 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-60 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
       >
         Үндсэн контент руу шилжих
       </a>
@@ -109,8 +110,8 @@ export function Navbar() {
               className={cn(
                 'rounded-full px-3.5 py-1.5 transition-colors',
                 pathname === l.href
-                  ? 'bg-white/12 text-white font-semibold'
-                  : 'text-white/65 hover:text-white hover:bg-white/6',
+                  ? 'bg-foreground/12 text-foreground font-semibold'
+                  : 'text-foreground/65 hover:text-foreground hover:bg-foreground/6',
               )}
             >
               {l.label}
@@ -140,14 +141,14 @@ export function Navbar() {
                   onBlur={() => !query && setSearchOpen(false)}
                   placeholder="Кино хайх..."
                   aria-label="Хайх"
-                  className="w-full rounded-full border border-white/20 bg-black/60 px-4 py-1.5 text-sm text-white placeholder:text-white/40 outline-none focus:border-primary"
+                  className="w-full rounded-full border border-foreground/20 bg-foreground/8 px-4 py-1.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary"
                 />
               </motion.form>
             ) : (
               <motion.button
                 key="search-icon"
                 onClick={() => setSearchOpen(true)}
-                className="rounded-full p-2 text-white/75 hover:bg-white/8 hover:text-white"
+                className="rounded-full p-2 text-foreground/75 hover:bg-foreground/8 hover:text-foreground"
                 aria-label="Хайх"
               >
                 <Search size={19} />
@@ -157,9 +158,12 @@ export function Navbar() {
         </div>
 
         {/* Мобайл search icon (bottom nav-д Хайх таб байгаа ч navbar-аас хурдан хандалт) */}
-        <Link href="/search" className="rounded-full p-2 text-white/75 md:hidden" aria-label="Хайх">
+        <Link href="/search" className="rounded-full p-2 text-foreground/75 md:hidden" aria-label="Хайх">
           <Search size={19} />
         </Link>
+
+        {/* ⚠️ Гэрэл/бараан горим сэлгэх — desktop болон мобайл ХОЁУЛАНД */}
+        <ThemeToggle />
 
         {/*
           ⚠️ ЭХНИЙ АЧААЛАЛТ — `authLoading` үед skeleton.
@@ -199,7 +203,7 @@ export function Navbar() {
                   'inline-flex min-h-9 min-w-0 max-w-[30vw] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all sm:max-w-none sm:gap-1.5 sm:px-3.5 sm:text-xs',
                   vip
                     ? 'bg-premium text-premium-foreground hover:brightness-110'
-                    : 'bg-white/10 text-white hover:bg-white/16',
+                    : 'bg-foreground/10 text-foreground hover:bg-foreground/16',
                 )}
               >
                 <Crown size={13} className="shrink-0" />
@@ -240,7 +244,7 @@ export function Navbar() {
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 className={cn(
-                  'relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white ring-2 transition-all',
+                  'relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-foreground ring-2 transition-all',
                   premium ? 'bg-premium/90 text-premium-foreground ring-premium/40' : 'bg-primary ring-white/15',
                   menuOpen && 'ring-white/40',
                 )}
@@ -262,11 +266,11 @@ export function Navbar() {
                     transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                     className="glass absolute right-0 top-12 w-60 overflow-hidden rounded-xl shadow-2xl"
                   >
-                    <div className="border-b border-white/8 px-4 py-3">
-                      <p className="truncate text-sm font-semibold text-white">
+                    <div className="border-b border-foreground/8 px-4 py-3">
+                      <p className="truncate text-sm font-semibold text-foreground">
                         {user.name ?? 'Хэрэглэгч'}
                       </p>
-                      <p className="truncate text-xs text-white/50">{user.email}</p>
+                      <p className="truncate text-xs text-foreground/50">{user.email}</p>
                       {premium && (
                         <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-premium/15 px-2 py-0.5 text-[10px] font-bold text-premium">
                           <Crown size={10} /> {user.subscription!.planName}
@@ -296,7 +300,7 @@ export function Navbar() {
                           setMenuOpen(false);
                           router.push('/');
                         }}
-                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/8 hover:text-white"
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
                       >
                         <LogOut size={15} /> Гарах
                       </button>
@@ -310,7 +314,7 @@ export function Navbar() {
           <Link
             // ⚠️ Одоогийн хуудсыг санаж, нэвтэрсний дараа буцаана
             href={loginUrl(pathname)}
-            className="rounded-full bg-primary px-5 py-1.5 text-sm font-semibold text-white transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/30"
+            className="rounded-full bg-primary px-5 py-1.5 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/30"
           >
             Нэвтрэх
           </Link>
@@ -325,7 +329,7 @@ function MenuItem({ href, icon, label }: { href: string; icon: React.ReactNode; 
     <Link
       role="menuitem"
       href={href}
-      className="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/8 hover:text-white"
+      className="flex items-center gap-2.5 px-4 py-2 text-sm text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
     >
       {icon} {label}
     </Link>

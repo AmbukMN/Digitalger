@@ -15,7 +15,7 @@ export function CastRow({ cast }: { cast: CastMember[] }) {
 
   return (
     <section aria-labelledby="cast-heading">
-      <h2 id="cast-heading" className="mb-3 text-lg font-semibold text-white/95">
+      <h2 id="cast-heading" className="mb-3 text-lg font-semibold text-foreground/95">
         Жүжигчид
       </h2>
       <div
@@ -23,17 +23,17 @@ export function CastRow({ cast }: { cast: CastMember[] }) {
         className="hide-scrollbar flex gap-4 overflow-x-auto pb-1">
         {cast.map((c, i) => (
           <div key={`${c.name}-${i}`} className="w-24 shrink-0 text-center">
-            <div className="relative mx-auto h-24 w-24 overflow-hidden rounded-full bg-white/10">
+            <div className="relative mx-auto h-24 w-24 overflow-hidden rounded-full bg-foreground/10">
               {c.photoUrl ? (
                 <Image src={c.photoUrl} alt={c.name} fill sizes="96px" className="object-cover" />
               ) : (
-                <div className="flex h-full items-center justify-center text-white/30">
+                <div className="flex h-full items-center justify-center text-foreground/30">
                   <User size={32} />
                 </div>
               )}
             </div>
-            <p className="mt-2 truncate text-sm font-medium text-white/90">{c.name}</p>
-            {c.character && <p className="truncate text-xs text-white/50">{c.character}</p>}
+            <p className="mt-2 truncate text-sm font-medium text-foreground/90">{c.name}</p>
+            {c.character && <p className="truncate text-xs text-foreground/50">{c.character}</p>}
           </div>
         ))}
       </div>

@@ -75,10 +75,10 @@ export default function HomePage() {
         {/* Жанр бүгд хоосон бол хэрэглэгч цоо хоосон хуудас харахгүй */}
         {genreRows.length === 0 && data.continueWatching.length === 0 && (
           <div className="px-4 py-16 text-center md:px-8">
-            <p className="text-white/50">Контент удахгүй нэмэгдэнэ.</p>
+            <p className="text-foreground/50">Контент удахгүй нэмэгдэнэ.</p>
             <Link
               href="/movies"
-              className="mt-3 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110"
+              className="mt-3 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
             >
               Бүх контент үзэх
             </Link>

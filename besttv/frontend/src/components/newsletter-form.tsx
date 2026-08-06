@@ -87,14 +87,14 @@ export function NewsletterForm({ source = 'footer' }: { source?: string }) {
         onChange={(e) => setEmail(e.target.value)}
         placeholder="имэйл хаяг"
         aria-label="Имэйл хаяг"
-        className="w-full rounded-lg border border-white/12 bg-white/5 py-2 pl-3 pr-9 text-xs text-white placeholder:text-white/35 outline-none transition-colors focus:border-primary"
+        className="w-full rounded-lg border border-foreground/12 bg-foreground/5 py-2 pl-3 pr-9 text-xs text-foreground placeholder:text-foreground/35 outline-none transition-colors focus:border-primary"
       />
       <button
         type="submit"
         disabled={busy}
         aria-label="Бүртгүүлэх"
         title="Бүртгүүлэх"
-        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-primary text-white transition-all hover:brightness-110 active:scale-90 disabled:opacity-50"
+        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-90 disabled:opacity-50"
       >
         {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
       </button>

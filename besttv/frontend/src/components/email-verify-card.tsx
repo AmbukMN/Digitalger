@@ -68,8 +68,8 @@ export function EmailVerifyCard() {
           <ShieldAlert size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-white">Имэйл баталгаажаагүй байна</p>
-          <p className="mt-0.5 text-sm text-white/55">
+          <p className="font-semibold text-foreground">Имэйл баталгаажаагүй байна</p>
+          <p className="mt-0.5 text-sm text-foreground/55">
             {sent
               ? `${user.email} хаяг руу илгээсэн 6 оронтой кодыг оруулна уу`
               : 'Аюулгүй байдлын үүднээс имэйл хаягаа баталгаажуулна уу'}
@@ -84,13 +84,13 @@ export function EmailVerifyCard() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 aria-label="Баталгаажуулах код"
-                className="w-full rounded-lg border border-white/14 bg-black/30 px-3 py-2.5 text-center text-lg font-bold tracking-[0.4em] text-white placeholder:tracking-normal placeholder:text-white/25 outline-none focus:border-primary"
+                className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-center text-lg font-bold tracking-[0.4em] text-foreground placeholder:tracking-normal placeholder:text-foreground/25 outline-none focus:border-primary"
               />
               <div className="flex gap-2">
                 <button
                   onClick={verify}
                   disabled={busy || code.length !== 6}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                 >
                   {busy ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
                   Баталгаажуулах
@@ -99,7 +99,7 @@ export function EmailVerifyCard() {
                   onClick={request}
                   disabled={busy || cooldown > 0}
                   className={cn(
-                    'rounded-lg bg-white/8 px-4 py-2.5 text-sm font-medium text-white/70 hover:bg-white/14 disabled:opacity-50',
+                    'rounded-lg bg-foreground/8 px-4 py-2.5 text-sm font-medium text-foreground/70 hover:bg-foreground/14 disabled:opacity-50',
                   )}
                 >
                   {cooldown > 0 ? `${cooldown}с` : 'Дахин'}

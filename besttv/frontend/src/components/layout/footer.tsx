@@ -95,7 +95,7 @@ export function Footer() {
   ].filter((s): s is { href: string; label: string; Icon: typeof Facebook } => !!s.href);
 
   return (
-    <footer className="mt-16 border-t border-white/8 bg-[#0a0a0a]">
+    <footer className="mt-16 border-t border-foreground/8 bg-[#0a0a0a]">
       {/* ⚠️ pb — мобайлын bottom nav (h~60px + safe area) footer-ийн сүүлийн
           мөрийг бүрхэхээс сэргийлнэ */}
       <div className="mx-auto max-w-[1600px] px-4 pb-[calc(5rem+var(--safe-bottom))] pt-10 md:px-8 md:pb-12 md:pt-12">
@@ -115,7 +115,7 @@ export function Footer() {
               эзлээд input давчуурч байв. Одоо тогтмол харьцаа.
             */}
             <div className="mt-3 flex items-stretch gap-3 md:block">
-              <p className="min-w-0 basis-[58%] self-start text-sm leading-relaxed text-white/45 md:max-w-xs md:basis-auto">
+              <p className="min-w-0 basis-[58%] self-start text-sm leading-relaxed text-foreground/45 md:max-w-xs md:basis-auto">
                 Үз, мэдэр, дахин үз. Монголын киноны стриминг платформ.
               </p>
 
@@ -125,11 +125,11 @@ export function Footer() {
               */}
               <div
                 aria-hidden="true"
-                className="w-px shrink-0 self-stretch bg-white/10 md:hidden"
+                className="w-px shrink-0 self-stretch bg-foreground/10 md:hidden"
               />
 
               <div className="min-w-0 basis-[42%] md:mt-4 md:w-full md:max-w-[220px] md:basis-auto">
-                <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/40">
+                <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/40">
                   Шинэ кино авах
                 </h3>
                 <NewsletterForm />
@@ -137,11 +137,11 @@ export function Footer() {
             </div>
 
             {(socials?.email || socials?.phone) && (
-              <div className="mt-4 space-y-1.5 text-sm text-white/55">
+              <div className="mt-4 space-y-1.5 text-sm text-foreground/55">
                 {socials.email && (
                   <a
                     href={`mailto:${socials.email}`}
-                    className="flex items-center gap-2 transition-colors hover:text-white"
+                    className="flex items-center gap-2 transition-colors hover:text-foreground"
                   >
                     <Mail size={14} /> {socials.email}
                   </a>
@@ -149,7 +149,7 @@ export function Footer() {
                 {socials.phone && (
                   <a
                     href={`tel:${socials.phone.replace(/\s/g, '')}`}
-                    className="flex items-center gap-2 transition-colors hover:text-white"
+                    className="flex items-center gap-2 transition-colors hover:text-foreground"
                   >
                     <Phone size={14} /> {socials.phone}
                   </a>
@@ -166,7 +166,7 @@ export function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={label}
-                    className="rounded-full bg-white/8 p-2.5 text-white/60 transition-colors hover:bg-primary hover:text-white"
+                    className="rounded-full bg-foreground/8 p-2.5 text-foreground/60 transition-colors hover:bg-primary hover:text-primary-foreground"
                   >
                     <Icon size={16} />
                   </a>
@@ -179,7 +179,7 @@ export function Footer() {
           <div className="grid grid-cols-3 gap-4 sm:gap-8 md:contents">
             {FOOTER_LINKS.map((col) => (
               <nav key={col.heading} aria-label={col.heading}>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 sm:text-sm">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground/40 sm:text-sm">
                   {col.heading}
                 </h3>
                 <ul className="mt-3 space-y-2.5 md:mt-4">
@@ -187,7 +187,7 @@ export function Footer() {
                     <li key={l.href + l.label}>
                       <Link
                         href={l.href}
-                        className="text-[13px] text-white/65 transition-colors hover:text-white sm:text-sm"
+                        className="text-[13px] text-foreground/65 transition-colors hover:text-foreground sm:text-sm"
                       >
                         {l.label}
                       </Link>
@@ -209,7 +209,7 @@ export function Footer() {
           ⚠️ pb — мобайлд баруун доод буланд ХӨВӨГЧ чат товч байдаг тул
           сүүлийн мөрийг халхлахаас сэргийлж доод зай нэмнэ.
         */}
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-white/8 pb-14 pt-6 text-center text-xs text-white/35 sm:flex-row sm:items-start sm:pb-0 sm:text-left md:mt-10">
+        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-foreground/8 pb-14 pt-6 text-center text-xs text-foreground/35 sm:flex-row sm:items-start sm:pb-0 sm:text-left md:mt-10">
           <p>
             © {new Date().getFullYear()} {siteName}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
@@ -221,7 +221,7 @@ export function Footer() {
               {pages.map((p, i) => (
                 <span key={p.slug} className="flex items-center gap-1">
                   {i > 0 && <span aria-hidden>·</span>}
-                  <Link href={`/p/${p.slug}`} className="transition-colors hover:text-white/70">
+                  <Link href={`/p/${p.slug}`} className="transition-colors hover:text-foreground/70">
                     {p.title}
                   </Link>
                 </span>

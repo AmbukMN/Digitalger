@@ -45,11 +45,11 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
   return (
     <section className="px-4 md:px-8" aria-label={title}>
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-lg font-bold tracking-tight text-white/95 md:text-xl">{title}</h2>
+        <h2 className="text-lg font-bold tracking-tight text-foreground/95 md:text-xl">{title}</h2>
         {href && (
           <Link
             href={href}
-            className="group flex items-center gap-1 text-xs font-semibold text-white/45 transition-colors hover:text-primary"
+            className="group flex items-center gap-1 text-xs font-semibold text-foreground/45 transition-colors hover:text-primary"
           >
             Бүгдийг үзэх
             <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
@@ -62,7 +62,7 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
           onClick={() => scroll(-1)}
           aria-label="Зүүн тийш"
           className={cn(
-            'absolute -left-2 top-0 bottom-0 z-20 hidden w-12 items-center justify-center bg-linear-to-r from-black/85 to-transparent text-white transition-opacity md:flex',
+            'absolute -left-2 top-0 bottom-0 z-20 hidden w-12 items-center justify-center bg-linear-to-r from-background via-background/80 to-transparent text-foreground transition-opacity md:flex',
             canScroll.left ? 'opacity-0 group-hover/row:opacity-100' : 'pointer-events-none opacity-0',
           )}
         >
@@ -91,7 +91,7 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
           onClick={() => scroll(1)}
           aria-label="Баруун тийш"
           className={cn(
-            'absolute -right-2 top-0 bottom-0 z-20 hidden w-12 items-center justify-center bg-linear-to-l from-black/85 to-transparent text-white transition-opacity md:flex',
+            'absolute -right-2 top-0 bottom-0 z-20 hidden w-12 items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent text-foreground transition-opacity md:flex',
             canScroll.right ? 'opacity-0 group-hover/row:opacity-100' : 'pointer-events-none opacity-0',
           )}
         >

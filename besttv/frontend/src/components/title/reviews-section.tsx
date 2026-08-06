@@ -171,27 +171,27 @@ export function ReviewsSection({
 
   return (
     <section aria-labelledby="reviews-heading" className="mt-10">
-      <h2 id="reviews-heading" className="mb-4 text-lg font-semibold text-white/95">
+      <h2 id="reviews-heading" className="mb-4 text-lg font-semibold text-foreground/95">
         Сэтгэгдэл ба үнэлгээ
       </h2>
 
       {/* ── Үнэлгээний тойм ── */}
       {total > 0 && (
-        <div className="mb-6 flex flex-col gap-5 rounded-xl border border-white/10 bg-white/5 p-5 sm:flex-row sm:items-center">
+        <div className="mb-6 flex flex-col gap-5 rounded-xl border border-foreground/10 bg-foreground/5 p-5 sm:flex-row sm:items-center">
           <div className="flex shrink-0 flex-col items-center gap-1 sm:w-32">
-            <p className="text-4xl font-black text-white">{average?.toFixed(1)}</p>
+            <p className="text-4xl font-black text-foreground">{average?.toFixed(1)}</p>
             <div className="flex gap-0.5">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star
                   key={i}
                   size={13}
                   className={
-                    (average ?? 0) / 2 > i ? 'fill-premium text-premium' : 'text-white/20'
+                    (average ?? 0) / 2 > i ? 'fill-premium text-premium' : 'text-foreground/20'
                   }
                 />
               ))}
             </div>
-            <p className="text-xs text-white/45">{total} үнэлгээ</p>
+            <p className="text-xs text-foreground/45">{total} үнэлгээ</p>
           </div>
 
           {/* Одны тархалт */}
@@ -202,15 +202,15 @@ export function ReviewsSection({
                 if (n < 6 && count === 0) return null; // бага үнэлгээ хоосон бол нуух
                 return (
                   <div key={n} className="flex items-center gap-2">
-                    <span className="w-5 shrink-0 text-right text-[11px] text-white/45">{n}</span>
+                    <span className="w-5 shrink-0 text-right text-[11px] text-foreground/45">{n}</span>
                     <Star size={9} className="shrink-0 fill-premium text-premium" />
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/8">
                       <div
                         className="h-full rounded-full bg-premium transition-all"
                         style={{ width: `${(count / maxBar) * 100}%` }}
                       />
                     </div>
-                    <span className="w-6 shrink-0 text-[11px] text-white/45">{count}</span>
+                    <span className="w-6 shrink-0 text-[11px] text-foreground/45">{count}</span>
                   </div>
                 );
               })}
@@ -221,9 +221,9 @@ export function ReviewsSection({
 
       {/* ── Сэтгэгдэл бичих ── */}
       {user ? (
-        <form onSubmit={onSubmit} className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
+        <form onSubmit={onSubmit} className="mb-6 rounded-xl border border-foreground/10 bg-foreground/5 p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-white/80">
+            <p className="text-sm font-medium text-foreground/80">
               {myReview ? 'Таны үнэлгээ' : 'Үнэлгээ өгөх'}
             </p>
             {myReview && (
@@ -231,7 +231,7 @@ export function ReviewsSection({
                 type="button"
                 onClick={onDeleteMine}
                 disabled={del.isPending}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/45 transition-colors hover:bg-destructive/15 hover:text-destructive disabled:opacity-40"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-foreground/45 transition-colors hover:bg-destructive/15 hover:text-destructive disabled:opacity-40"
               >
                 {del.isPending ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Устгах
               </button>
@@ -262,7 +262,7 @@ export function ReviewsSection({
                     size={22}
                     className={cn(
                       'transition-colors',
-                      filled ? 'fill-premium text-premium' : 'text-white/20',
+                      filled ? 'fill-premium text-premium' : 'text-foreground/20',
                     )}
                   />
                 </button>
@@ -282,25 +282,25 @@ export function ReviewsSection({
             aria-label="Сэтгэгдэл"
             rows={3}
             maxLength={3000}
-            className="mt-3 w-full resize-none rounded-lg border border-white/12 bg-black/40 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-white/35 focus:border-primary"
+            className="mt-3 w-full resize-none rounded-lg border border-foreground/12 bg-black/40 px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-foreground/35 focus:border-primary"
           />
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/55">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground/55">
               <input
                 type="checkbox"
                 checked={hasSpoiler}
                 onChange={(e) => setHasSpoiler(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-white/20"
+                className="h-3.5 w-3.5 rounded border-foreground/20"
               />
               <EyeOff size={12} /> Спойлер агуулсан
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-white/30">{comment.length}/3000</span>
+              <span className="text-[11px] text-foreground/30">{comment.length}/3000</span>
               <button
                 type="submit"
                 disabled={submit.isPending || rating < 1}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-50"
               >
                 {submit.isPending && <Loader2 size={14} className="animate-spin" />}
                 {myReview ? 'Шинэчлэх' : 'Илгээх'}
@@ -309,8 +309,8 @@ export function ReviewsSection({
           </div>
         </form>
       ) : (
-        <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-          <p className="text-sm text-white/55">
+        <div className="mb-6 rounded-xl border border-foreground/10 bg-foreground/5 p-4 text-center">
+          <p className="text-sm text-foreground/55">
             Сэтгэгдэл бичихийн тулд{' '}
             <a href={loginUrl()} className="font-semibold text-primary hover:underline">
               нэвтэрнэ үү
@@ -333,8 +333,8 @@ export function ReviewsSection({
               className={cn(
                 'shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
                 sort === s.value
-                  ? 'bg-primary text-white'
-                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white',
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-foreground/5 text-foreground/55 hover:bg-foreground/10 hover:text-foreground',
               )}
             >
               {s.label}
@@ -347,7 +347,7 @@ export function ReviewsSection({
       {isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-white/5" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-foreground/5" />
           ))}
         </div>
       ) : data?.items.length ? (
@@ -376,10 +376,10 @@ export function ReviewsSection({
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-white/12 py-10 text-center">
-          <MessageSquare size={24} className="mx-auto mb-2 text-white/20" />
-          <p className="text-sm text-white/40">Одоогоор сэтгэгдэл байхгүй байна.</p>
-          <p className="mt-0.5 text-xs text-white/25">Хамгийн түрүүнд бичээрэй!</p>
+        <div className="rounded-xl border border-dashed border-foreground/12 py-10 text-center">
+          <MessageSquare size={24} className="mx-auto mb-2 text-foreground/20" />
+          <p className="text-sm text-foreground/40">Одоогоор сэтгэгдэл байхгүй байна.</p>
+          <p className="mt-0.5 text-xs text-foreground/25">Хамгийн түрүүнд бичээрэй!</p>
         </div>
       )}
 
@@ -392,7 +392,7 @@ export function ReviewsSection({
               onClick={() => setPage(i + 1)}
               className={cn(
                 'h-8 w-8 rounded-lg text-sm font-medium transition-colors',
-                page === i + 1 ? 'bg-primary text-white' : 'text-white/45 hover:bg-white/10',
+                page === i + 1 ? 'bg-primary text-primary-foreground' : 'text-foreground/45 hover:bg-foreground/10',
               )}
             >
               {i + 1}
@@ -461,15 +461,15 @@ function ReviewCard({
         r.isStaff
           ? 'border-primary/30 bg-primary/8'
           : isReply
-            ? 'border-white/8 bg-white/[0.03]'
-            : 'border-white/10 bg-white/5',
+            ? 'border-foreground/8 bg-white/[0.03]'
+            : 'border-foreground/10 bg-foreground/5',
       )}
     >
       <div className="flex items-start gap-2.5">
         <span
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-            r.isStaff ? 'bg-primary text-white' : 'bg-white/10 text-white/70',
+            r.isStaff ? 'bg-primary text-primary-foreground' : 'bg-foreground/10 text-foreground/70',
           )}
         >
           {r.isStaff ? <Shield size={14} /> : initial}
@@ -477,18 +477,18 @@ function ReviewCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-sm font-semibold text-white/90">
+            <p className="text-sm font-semibold text-foreground/90">
               {r.isStaff ? 'BestTV баг' : (r.user?.name ?? 'Хэрэглэгч')}
             </p>
             {isMine && (
-              <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/50">Та</span>
+              <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] text-foreground/50">Та</span>
             )}
             {!isReply && r.rating > 0 && (
               <span className="flex items-center gap-0.5 text-xs font-semibold text-premium">
                 <Star size={11} className="fill-premium" /> {r.rating}
               </span>
             )}
-            <span className="text-[11px] text-white/35">{timeAgo(r.createdAt)}</span>
+            <span className="text-[11px] text-foreground/35">{timeAgo(r.createdAt)}</span>
           </div>
 
           {/* Сэтгэгдлийн текст — спойлер бол бүрхэнэ */}
@@ -501,7 +501,7 @@ function ReviewCard({
                 <EyeOff size={13} /> Спойлер агуулсан — харахын тулд дарна уу
               </button>
             ) : (
-              <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-white/70">
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/70">
                 {r.comment}
               </p>
             ))}
@@ -515,7 +515,7 @@ function ReviewCard({
                 'flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors',
                 r.myVote === 1
                   ? 'bg-success/15 text-success'
-                  : 'text-white/45 hover:bg-white/8 hover:text-white/70',
+                  : 'text-foreground/45 hover:bg-foreground/8 hover:text-foreground/70',
               )}
             >
               <ThumbsUp size={12} /> {r.helpful > 0 ? r.helpful : ''}
@@ -527,7 +527,7 @@ function ReviewCard({
                 'flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors',
                 r.myVote === -1
                   ? 'bg-destructive/15 text-destructive'
-                  : 'text-white/45 hover:bg-white/8 hover:text-white/70',
+                  : 'text-foreground/45 hover:bg-foreground/8 hover:text-foreground/70',
               )}
             >
               <ThumbsDown size={12} /> {r.notHelpful > 0 ? r.notHelpful : ''}
@@ -536,7 +536,7 @@ function ReviewCard({
             {!isReply && isLoggedIn && (
               <button
                 onClick={() => setReplyOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/45 transition-colors hover:bg-white/8 hover:text-white/70"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-foreground/45 transition-colors hover:bg-foreground/8 hover:text-foreground/70"
               >
                 <CornerDownRight size={12} /> Хариулах
               </button>
@@ -545,14 +545,14 @@ function ReviewCard({
             {isMine ? (
               <button
                 onClick={() => onDelete(r.id)}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/45 transition-colors hover:bg-destructive/15 hover:text-destructive"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-foreground/45 transition-colors hover:bg-destructive/15 hover:text-destructive"
               >
                 <Trash2 size={12} /> Устгах
               </button>
             ) : isLoggedIn ? (
               <button
                 onClick={() => setReportOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/35 transition-colors hover:bg-white/8 hover:text-white/60"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-foreground/35 transition-colors hover:bg-foreground/8 hover:text-foreground/60"
               >
                 <Flag size={12} /> Мэдээлэх
               </button>
@@ -561,7 +561,7 @@ function ReviewCard({
 
           {/* Мэдээлэх шалтгаан */}
           {reportOpen && (
-            <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-white/10 bg-black/30 p-2">
+            <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-foreground/10 bg-black/30 p-2">
               {REPORT_REASONS.map((rr) => (
                 <button
                   key={rr.value}
@@ -569,7 +569,7 @@ function ReviewCard({
                     setReportOpen(false);
                     await onReport(rr.value);
                   }}
-                  className="rounded-md bg-white/5 px-2.5 py-1 text-[11px] text-white/60 transition-colors hover:bg-destructive/20 hover:text-destructive"
+                  className="rounded-md bg-foreground/5 px-2.5 py-1 text-[11px] text-foreground/60 transition-colors hover:bg-destructive/20 hover:text-destructive"
                 >
                   {rr.label}
                 </button>
@@ -594,12 +594,12 @@ function ReviewCard({
                 placeholder="Хариу бичих..."
                 aria-label="Хариу"
                 maxLength={3000}
-                className="flex-1 resize-none rounded-lg border border-white/12 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-white/30 focus:border-primary"
+                className="flex-1 resize-none rounded-lg border border-foreground/12 bg-black/40 px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/30 focus:border-primary"
               />
               <button
                 onClick={submitReply}
                 disabled={!replyText.trim() || replySending}
-                className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-40"
               >
                 {replySending ? <Loader2 size={13} className="animate-spin" /> : 'Илгээх'}
               </button>
@@ -621,7 +621,7 @@ function ReviewCard({
                 {r.replies.length} хариу
               </button>
               {repliesOpen && (
-                <div className="mt-2 space-y-2 border-l-2 border-white/8 pl-3">
+                <div className="mt-2 space-y-2 border-l-2 border-foreground/8 pl-3">
                   {/* ⚠️ onVote/onReport нь эх сэтгэгдлийн id-д бэхлэгдсэн тул
                       хариунд ЗААВАЛ өөрийнх нь id-гаар дахин холбоно */}
                   {r.replies.map((rep) => (

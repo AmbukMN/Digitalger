@@ -134,12 +134,12 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#141518] shadow-2xl"
+          className="relative w-full max-w-md overflow-hidden rounded-2xl border border-foreground/10 bg-[#141518] shadow-2xl"
         >
           <button
             onClick={onClose}
             aria-label="Хаах"
-            className="absolute right-3 top-3 rounded-full p-1.5 text-white/50 hover:bg-white/10 hover:text-white"
+            className="absolute right-3 top-3 rounded-full p-1.5 text-foreground/50 hover:bg-foreground/10 hover:text-foreground"
           >
             <X size={18} />
           </button>
@@ -147,8 +147,8 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
           {done ? (
             <div className="flex flex-col items-center px-6 py-12 text-center">
               <CheckCircle2 size={52} className="text-success" />
-              <p className="mt-4 text-lg font-bold text-white">Түрээс амжилттай</p>
-              <p className="mt-1 text-sm text-white/55">{hours} цагийн турш үзэх боломжтой</p>
+              <p className="mt-4 text-lg font-bold text-foreground">Түрээс амжилттай</p>
+              <p className="mt-1 text-sm text-foreground/55">{hours} цагийн турш үзэх боломжтой</p>
             </div>
           ) : (
             <div className="px-6 py-7">
@@ -157,14 +157,14 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                 <p className="text-sm font-bold uppercase tracking-wide">Ширхэгээр түрээслэх</p>
               </div>
 
-              <h3 className="mt-2 text-xl font-black leading-tight text-white">{titleName}</h3>
+              <h3 className="mt-2 text-xl font-black leading-tight text-foreground">{titleName}</h3>
 
-              <div className="mt-5 rounded-xl border border-white/10 bg-white/4 p-4">
+              <div className="mt-5 rounded-xl border border-foreground/10 bg-foreground/4 p-4">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-white/60">Түрээсийн үнэ</span>
-                  <span className="text-2xl font-black text-white">{formatPrice(price)}</span>
+                  <span className="text-sm text-foreground/60">Түрээсийн үнэ</span>
+                  <span className="text-2xl font-black text-foreground">{formatPrice(price)}</span>
                 </div>
-                <div className="mt-2 flex items-center gap-1.5 text-sm text-white/55">
+                <div className="mt-2 flex items-center gap-1.5 text-sm text-foreground/55">
                   <Clock size={14} /> Төлсөн үеэс {hours} цагийн турш хязгааргүй үзнэ
                 </div>
               </div>
@@ -176,14 +176,14 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                     // модал АВТОМАТ нээгдэнэ
                     router.push(loginUrlWithIntent({ type: 'rent-title', titleId }))
                   }
-                  className="mt-5 w-full rounded-lg bg-primary py-3 font-semibold text-white hover:brightness-110"
+                  className="mt-5 w-full rounded-lg bg-primary py-3 font-semibold text-primary-foreground hover:brightness-110"
                 >
                   Нэвтэрч түрээслэх
                 </button>
               ) : (
                 <>
-                  <div className="mt-4 flex items-center justify-between rounded-lg bg-white/4 px-3.5 py-2.5 text-sm">
-                    <span className="flex items-center gap-1.5 text-white/60">
+                  <div className="mt-4 flex items-center justify-between rounded-lg bg-foreground/4 px-3.5 py-2.5 text-sm">
+                    <span className="flex items-center gap-1.5 text-foreground/60">
                       <Wallet size={14} /> Хэтэвчийн үлдэгдэл
                     </span>
                     <span
@@ -198,7 +198,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                   <button
                     onClick={shortfall > 0 ? startTopup : rent}
                     disabled={busy}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 font-semibold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                   >
                     {busy && <Loader2 size={16} className="animate-spin" />}
                     {shortfall > 0
@@ -208,7 +208,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                 </>
               )}
 
-              <p className="mt-3 text-center text-xs text-white/35">
+              <p className="mt-3 text-center text-xs text-foreground/35">
                 Багц авбал энэ болон бусад киног хязгааргүй үзнэ
               </p>
             </div>

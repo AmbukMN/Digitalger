@@ -127,9 +127,9 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
           <a
             key={t.id ?? `${t.slug}-${i}`}
             href={t.url ?? (t.slug ? `/movie/${t.slug}` : '#')}
-            className="group flex w-[124px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5 transition-colors hover:border-primary"
+            className="group flex w-[124px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/10 bg-foreground/5 transition-colors hover:border-primary"
           >
-            <div className="relative aspect-2/3 w-full overflow-hidden bg-white/5">
+            <div className="relative aspect-2/3 w-full overflow-hidden bg-foreground/5">
               {t.posterUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -139,7 +139,7 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-white/25">
+                <div className="flex h-full w-full items-center justify-center text-foreground/25">
                   <Bot className="h-6 w-6" />
                 </div>
               )}
@@ -152,10 +152,10 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
             </div>
             <div className="flex flex-1 flex-col gap-0.5 p-2">
               {/* min-h — 1 мөрт ч 2 мөрт ч картын өндөр ижил (jitter-гүй) */}
-              <p className="line-clamp-2 min-h-8 text-[11px] font-semibold leading-tight text-white">
+              <p className="line-clamp-2 min-h-8 text-[11px] font-semibold leading-tight text-foreground">
                 {t.title}
               </p>
-              {t.year != null && <p className="mt-auto text-[10px] text-white/45">{t.year}</p>}
+              {t.year != null && <p className="mt-auto text-[10px] text-foreground/45">{t.year}</p>}
             </div>
           </a>
         ))}
@@ -166,7 +166,7 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
           type="button"
           onClick={() => scrollBy(-1)}
           aria-label="Өмнөх"
-          className="absolute -left-1 top-[38%] flex h-7 w-7 items-center justify-center rounded-full bg-background/95 text-white shadow-md ring-1 ring-white/10"
+          className="absolute -left-1 top-[38%] flex h-7 w-7 items-center justify-center rounded-full bg-background/95 text-foreground shadow-md ring-1 ring-white/10"
         >
           <ChevronLeft size={15} />
         </button>
@@ -176,7 +176,7 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
           type="button"
           onClick={() => scrollBy(1)}
           aria-label="Дараах"
-          className="absolute -right-1 top-[38%] flex h-7 w-7 items-center justify-center rounded-full bg-background/95 text-white shadow-md ring-1 ring-white/10"
+          className="absolute -right-1 top-[38%] flex h-7 w-7 items-center justify-center rounded-full bg-background/95 text-foreground shadow-md ring-1 ring-white/10"
         >
           <ChevronRight size={15} />
         </button>
@@ -484,7 +484,7 @@ export function ChatWidget() {
         // ⚠️ Хэмжээг inline-ээр хатуу бэхэлнэ — flex/badge нь товчийг гажуудуулдаг
         style={{ width: 60, height: 60, minWidth: 60, minHeight: 60, flex: '0 0 60px' }}
         // ⚠️ Мобайл дээр доод nav (h~60px + safe area) бүрхэхгүйн тулд дээш
-        className="fixed bottom-[calc(5.5rem+var(--safe-bottom))] right-4 z-[60] flex touch-none items-center justify-center rounded-full bg-primary text-white shadow-2xl shadow-primary/30 md:bottom-6 md:right-6"
+        className="fixed bottom-[calc(5.5rem+var(--safe-bottom))] right-4 z-[60] flex touch-none items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl shadow-primary/30 md:bottom-6 md:right-6"
       >
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
@@ -537,18 +537,18 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="fixed bottom-[calc(9.5rem+var(--safe-bottom))] right-3 z-[60] flex h-[65dvh] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-background shadow-2xl md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-7rem))]"
+            className="fixed bottom-[calc(9.5rem+var(--safe-bottom))] right-3 z-[60] flex h-[65dvh] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-foreground/10 bg-background shadow-2xl md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-7rem))]"
           >
             {/* Толгой */}
-            <div className="flex items-center gap-2.5 bg-primary px-4 py-3 text-white">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+            <div className="flex items-center gap-2.5 bg-primary px-4 py-3 text-primary-foreground">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground/15">
                 <Bot className="h-4.5 w-4.5" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold leading-tight">
                   {handedOff ? 'BestTV Багийн гишүүн' : 'BestTV AI'}
                 </p>
-                <p className="flex items-center gap-1 text-[11px] text-white/80">
+                <p className="flex items-center gap-1 text-[11px] text-foreground/80">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
                   {handedOff ? 'Шууд хариулж байна' : 'Онлайн · хариу өгөхөд бэлэн'}
                 </p>
@@ -557,7 +557,7 @@ export function ChatWidget() {
                 type="button"
                 onClick={resetChat}
                 aria-label="Чат цэвэрлэх"
-                className="rounded-md p-1.5 transition-colors hover:bg-white/15"
+                className="rounded-md p-1.5 transition-colors hover:bg-foreground/15"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
@@ -565,7 +565,7 @@ export function ChatWidget() {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Хаах"
-                className="rounded-md p-1.5 transition-colors hover:bg-white/15"
+                className="rounded-md p-1.5 transition-colors hover:bg-foreground/15"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -598,10 +598,10 @@ export function ChatWidget() {
                         className={cn(
                           'whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
                           isUser
-                            ? 'rounded-br-md bg-primary text-white'
+                            ? 'rounded-br-md bg-primary text-primary-foreground'
                             : isAdmin
-                              ? 'rounded-bl-md border border-green-800 bg-green-900/20 text-white'
-                              : 'rounded-bl-md border border-white/10 bg-white/5 text-white',
+                              ? 'rounded-bl-md border border-green-800 bg-green-900/20 text-foreground'
+                              : 'rounded-bl-md border border-foreground/10 bg-foreground/5 text-foreground',
                         )}
                       >
                         {/* ⚠️ Хэрэглэгчийн текстийг холбоос болгохгүй (аюулгүй) */}
@@ -617,11 +617,11 @@ export function ChatWidget() {
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-white/10 bg-white/5 px-4 py-3">
+                  <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-foreground/10 bg-foreground/5 px-4 py-3">
                     {[0, 1, 2].map((i) => (
                       <span
                         key={i}
-                        className="h-2 w-2 animate-bounce rounded-full bg-white/40"
+                        className="h-2 w-2 animate-bounce rounded-full bg-foreground/40"
                         style={{ animationDelay: `${i * 0.15}s` }}
                       />
                     ))}
@@ -631,7 +631,7 @@ export function ChatWidget() {
             </div>
 
             {/* Оруулах талбар */}
-            <div className="border-t border-white/10 bg-background p-3">
+            <div className="border-t border-foreground/10 bg-background p-3">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -653,18 +653,18 @@ export function ChatWidget() {
                   rows={1}
                   placeholder="Мессеж бичих..."
                   disabled={loading}
-                  className="max-h-24 min-h-[42px] flex-1 resize-none rounded-2xl border border-white/12 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-white/35 focus:border-primary/60 focus:bg-white/8 disabled:opacity-50"
+                  className="max-h-24 min-h-[42px] flex-1 resize-none rounded-2xl border border-foreground/12 bg-foreground/5 px-4 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-foreground/35 focus:border-primary/60 focus:bg-foreground/8 disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || loading}
                   aria-label="Илгээх"
-                  className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-primary text-white transition-all hover:brightness-110 disabled:opacity-40"
+                  className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:brightness-110 disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" />
                 </button>
               </form>
-              <p className="mt-1.5 text-center text-[10px] text-white/30">
+              <p className="mt-1.5 text-center text-[10px] text-foreground/30">
                 BestTV AI — кино сонгоход тусална
               </p>
             </div>

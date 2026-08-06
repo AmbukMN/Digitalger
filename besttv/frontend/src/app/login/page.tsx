@@ -89,14 +89,14 @@ export default function LoginPage() {
         />
         <div aria-hidden className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M0%2059h60M59%200v60%22%20stroke%3D%22%23ffffff08%22/%3E%3C/svg%3E')]" />
         <div className="relative z-10 max-w-md px-10">
-          <p className="text-4xl font-black leading-tight text-white">
+          <p className="text-4xl font-black leading-tight text-foreground">
             Үз. Мэдэр.
             <br />
             <span className="text-primary">Дахин үз.</span>
           </p>
           <ul className="mt-8 space-y-3.5">
             {PERKS.map((p) => (
-              <li key={p} className="flex items-center gap-3 text-white/75">
+              <li key={p} className="flex items-center gap-3 text-foreground/75">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
                   <Check size={13} strokeWidth={3} />
                 </span>
@@ -118,12 +118,12 @@ export default function LoginPage() {
           <h1 className="flex items-center">
             <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto sm:h-11" textSize="text-2xl sm:text-3xl" />
           </h1>
-          <p className="mt-1.5 text-sm text-white/55">
+          <p className="mt-1.5 text-sm text-foreground/55">
             {mode === 'login' ? 'Дахин тавтай морил 👋' : 'Шинэ бүртгэл үүсгэх'}
           </p>
 
           {/* Login/Register segmented toggle */}
-          <div className="mt-5 flex rounded-lg bg-white/6 p-1 sm:mt-6" role="tablist">
+          <div className="mt-5 flex rounded-lg bg-foreground/6 p-1 sm:mt-6" role="tablist">
             {(['login', 'register'] as const).map((m) => (
               <button
                 key={m}
@@ -132,7 +132,7 @@ export default function LoginPage() {
                 onClick={() => switchMode(m)}
                 className={cn(
                   'flex-1 rounded-md py-2 text-sm font-semibold transition-all',
-                  mode === m ? 'bg-primary text-white shadow-lg' : 'text-white/55 hover:text-white',
+                  mode === m ? 'bg-primary text-primary-foreground shadow-lg' : 'text-foreground/55 hover:text-foreground',
                 )}
               >
                 {m === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
@@ -146,9 +146,9 @@ export default function LoginPage() {
           {cameFrom && (
             <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/8 px-3.5 py-2.5">
               <ArrowLeft size={15} className="mt-0.5 shrink-0 text-primary" />
-              <p className="text-xs leading-relaxed text-white/70">
+              <p className="text-xs leading-relaxed text-foreground/70">
                 Нэвтэрсний дараа{' '}
-                <strong className="font-semibold text-white">үргэлжлүүлж байсан үйлдэл рүүгээ</strong>{' '}
+                <strong className="font-semibold text-foreground">үргэлжлүүлж байсан үйлдэл рүүгээ</strong>{' '}
                 буцна
               </p>
             </div>
@@ -193,7 +193,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Нууц үг нуух' : 'Нууц үг харах'}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-white/40 transition-colors hover:text-white/80"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-foreground/40 transition-colors hover:text-foreground/80"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -223,7 +223,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || passwordsMismatch}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-white transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/30 active:scale-[0.99] disabled:opacity-50 sm:py-3 sm:text-base"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-primary-foreground transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/30 active:scale-[0.99] disabled:opacity-50 sm:py-3 sm:text-base"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading
@@ -236,10 +236,10 @@ export default function LoginPage() {
             </button>
 
             {/* Нэвтрэлт автоматаар санагдана (refresh token 30 хоног) */}
-            <p className="flex items-center justify-center gap-1.5 pt-1 text-xs text-white/40">
+            <p className="flex items-center justify-center gap-1.5 pt-1 text-xs text-foreground/40">
               <ShieldCheck size={13} className="shrink-0 text-success" />
               Энэ төхөөрөмж дээр нэвтрэлт{' '}
-              <strong className="font-semibold text-white/60">30 хоног</strong> санагдана
+              <strong className="font-semibold text-foreground/60">30 хоног</strong> санагдана
             </p>
           </form>
 
@@ -249,13 +249,13 @@ export default function LoginPage() {
             <SocialButtons callbackUrl={nextUrl} />
           </div>
 
-          <p className="mt-5 text-center text-xs text-white/35">
+          <p className="mt-5 text-center text-xs text-foreground/35">
             Үргэлжлүүлснээр та манай{' '}
-            <Link href="/p/terms" className="text-white/55 underline hover:text-white/80">
+            <Link href="/p/terms" className="text-foreground/55 underline hover:text-foreground/80">
               үйлчилгээний нөхцөл
             </Link>{' '}
             болон{' '}
-            <Link href="/p/privacy" className="text-white/55 underline hover:text-white/80">
+            <Link href="/p/privacy" className="text-foreground/55 underline hover:text-foreground/80">
               нууцлалын бодлогыг
             </Link>{' '}
             зөвшөөрч байна.
@@ -292,7 +292,7 @@ export default function LoginPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-white/45">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-foreground/45">
         {label}
       </span>
       {children}

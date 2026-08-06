@@ -50,7 +50,7 @@ export function SearchResults() {
   return (
     <main className="min-h-screen bg-background px-4 pb-16 pt-28 md:px-8">
       <div className="relative mx-auto max-w-lg">
-        <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+        <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/35" />
         <input
           autoFocus
           value={input}
@@ -64,7 +64,7 @@ export function SearchResults() {
           }}
           placeholder="Кино хайх..."
           aria-label="Хайх"
-          className="w-full rounded-full border border-white/15 bg-white/5 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-white/35 outline-none transition-colors focus:border-primary focus:bg-white/8"
+          className="w-full rounded-full border border-foreground/15 bg-foreground/5 py-3.5 pl-12 pr-12 text-base text-foreground placeholder:text-foreground/35 outline-none transition-colors focus:border-primary focus:bg-foreground/8"
         />
         {/*
           ⚠️⚠️ ХААХ ТОВЧ — өмнө нь хайлтаас ГАРАХ АРГА БАЙХГҮЙ байв.
@@ -77,14 +77,14 @@ export function SearchResults() {
           type="button"
           onClick={() => (input ? setInput('') : closeSearch())}
           aria-label={input ? 'Хайлтыг цэвэрлэх' : 'Хайлтыг хаах'}
-          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-foreground/10 hover:text-foreground"
         >
           <X size={18} />
         </button>
       </div>
 
       {qParam && (
-        <h1 className="mx-auto mt-8 max-w-5xl text-lg font-semibold text-white/70">
+        <h1 className="mx-auto mt-8 max-w-5xl text-lg font-semibold text-foreground/70">
           &ldquo;{qParam}&rdquo; хайлтын үр дүн
         </h1>
       )}
@@ -103,7 +103,7 @@ export function SearchResults() {
         )}
 
         {!isLoading && !isError && qParam && data?.length === 0 && (
-          <div className="mt-16 flex flex-col items-center text-white/35">
+          <div className="mt-16 flex flex-col items-center text-foreground/35">
             <SearchX size={40} />
             <p className="mt-3">&ldquo;{qParam}&rdquo;-д тохирох илэрц олдсонгүй</p>
           </div>

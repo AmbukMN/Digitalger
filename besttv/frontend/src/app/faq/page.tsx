@@ -21,13 +21,13 @@ export default function FaqPage() {
   return (
     <main className="min-h-screen bg-background px-4 pb-16 pt-28 md:px-8">
       <div className="mx-auto max-w-2xl text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1 text-xs font-bold text-white/70">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/8 px-3 py-1 text-xs font-bold text-foreground/70">
           <HelpCircle size={12} /> ТУСЛАМЖ
         </span>
-        <h1 className="mt-4 text-3xl font-black tracking-tight text-white md:text-4xl">
+        <h1 className="mt-4 text-3xl font-black tracking-tight text-foreground md:text-4xl">
           Түгээмэл асуулт
         </h1>
-        <p className="mt-3 text-white/55">Танд хэрэгтэй мэдээллийг эндээс олоорой</p>
+        <p className="mt-3 text-foreground/55">Танд хэрэгтэй мэдээллийг эндээс олоорой</p>
       </div>
 
       {categories.length > 1 && (
@@ -36,7 +36,7 @@ export default function FaqPage() {
             onClick={() => setActiveCategory(null)}
             className={cn(
               'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
-              !activeCategory ? 'bg-primary text-white' : 'bg-white/8 text-white/60 hover:bg-white/12',
+              !activeCategory ? 'bg-primary text-primary-foreground' : 'bg-foreground/8 text-foreground/60 hover:bg-foreground/12',
             )}
           >
             Бүгд
@@ -47,7 +47,7 @@ export default function FaqPage() {
               onClick={() => setActiveCategory(c)}
               className={cn(
                 'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
-                activeCategory === c ? 'bg-primary text-white' : 'bg-white/8 text-white/60 hover:bg-white/12',
+                activeCategory === c ? 'bg-primary text-primary-foreground' : 'bg-foreground/8 text-foreground/60 hover:bg-foreground/12',
               )}
             >
               {c}
@@ -73,27 +73,27 @@ export default function FaqPage() {
         {filtered.map((f) => {
           const open = openId === f.id;
           return (
-            <div key={f.id} className="overflow-hidden rounded-xl bg-white/5">
+            <div key={f.id} className="overflow-hidden rounded-xl bg-foreground/5">
               <button
                 onClick={() => setOpenId(open ? null : f.id)}
                 aria-expanded={open}
                 className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
               >
-                <span className="font-medium text-white/90">{f.question}</span>
+                <span className="font-medium text-foreground/90">{f.question}</span>
                 <ChevronDown
                   size={18}
-                  className={cn('shrink-0 text-white/40 transition-transform', open && 'rotate-180')}
+                  className={cn('shrink-0 text-foreground/40 transition-transform', open && 'rotate-180')}
                 />
               </button>
               {open && (
-                <p className="px-5 pb-4 text-sm leading-relaxed text-white/60">{f.answer}</p>
+                <p className="px-5 pb-4 text-sm leading-relaxed text-foreground/60">{f.answer}</p>
               )}
             </div>
           );
         })}
 
         {!isLoading && filtered.length === 0 && (
-          <p className="py-10 text-center text-white/40">Асуулт олдсонгүй</p>
+          <p className="py-10 text-center text-foreground/40">Асуулт олдсонгүй</p>
         )}
       </div>
     </main>

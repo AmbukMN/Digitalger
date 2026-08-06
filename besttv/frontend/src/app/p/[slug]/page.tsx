@@ -58,9 +58,9 @@ export default async function StaticPage({ params }: { params: Promise<{ slug: s
   return (
     <main className="min-h-screen bg-background px-4 pb-20 pt-28 md:px-8">
       <article className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">{page.title}</h1>
+        <h1 className="text-2xl font-black tracking-tight text-foreground md:text-4xl">{page.title}</h1>
         <div
-          className="static-page mt-8 text-white/75"
+          className="static-page mt-8 text-foreground/75"
           dangerouslySetInnerHTML={{ __html: page.content }}
         />
       </article>

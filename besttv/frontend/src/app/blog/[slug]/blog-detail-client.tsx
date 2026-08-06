@@ -32,7 +32,7 @@ export function BlogDetailClient({ slug }: { slug: string }) {
   return (
     <main className="min-h-screen bg-background px-4 pb-16 pt-28 md:px-8">
       <div className="mx-auto max-w-3xl">
-        <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-white/50 hover:text-white">
+        <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-foreground/50 hover:text-foreground">
           <ArrowLeft size={14} /> Блог руу буцах
         </Link>
 
@@ -42,8 +42,8 @@ export function BlogDetailClient({ slug }: { slug: string }) {
           </div>
         )}
 
-        <h1 className="mt-6 text-2xl font-black tracking-tight text-white md:text-4xl">{data.title}</h1>
-        <div className="mt-3 flex items-center gap-3 text-sm text-white/45">
+        <h1 className="mt-6 text-2xl font-black tracking-tight text-foreground md:text-4xl">{data.title}</h1>
+        <div className="mt-3 flex items-center gap-3 text-sm text-foreground/45">
           {data.author && <span>{data.author}</span>}
           {data.publishedAt && <span>{new Date(data.publishedAt).toLocaleDateString('mn-MN')}</span>}
           <span className="flex items-center gap-1"><Eye size={13} /> {data.views}</span>
@@ -52,7 +52,7 @@ export function BlogDetailClient({ slug }: { slug: string }) {
         {data.tags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {data.tags.map((t) => (
-              <span key={t} className="rounded-full bg-white/8 px-3 py-1 text-xs text-white/60">
+              <span key={t} className="rounded-full bg-foreground/8 px-3 py-1 text-xs text-foreground/60">
                 {t}
               </span>
             ))}
@@ -61,11 +61,11 @@ export function BlogDetailClient({ slug }: { slug: string }) {
 
         {data.content ? (
           <div
-            className="static-page mt-8 text-white/80"
+            className="static-page mt-8 text-foreground/80"
             dangerouslySetInnerHTML={{ __html: data.content }}
           />
         ) : (
-          <p className="mt-8 flex items-center gap-2 text-white/40">
+          <p className="mt-8 flex items-center gap-2 text-foreground/40">
             <FileText size={16} /> Агуулга байхгүй
           </p>
         )}

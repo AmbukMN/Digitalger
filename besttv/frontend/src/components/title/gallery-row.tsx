@@ -16,7 +16,7 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
 
   return (
     <section aria-labelledby="gallery-heading">
-      <h2 id="gallery-heading" className="mb-3 text-lg font-semibold text-white/95">
+      <h2 id="gallery-heading" className="mb-3 text-lg font-semibold text-foreground/95">
         Зургийн цомог
       </h2>
       <div
@@ -27,7 +27,7 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
             key={url}
             onClick={() => setActive(url)}
             aria-label={`Зураг ${i + 1}-г томруулж харах`}
-            className="relative h-32 w-56 shrink-0 overflow-hidden rounded-md bg-white/10"
+            className="relative h-32 w-56 shrink-0 overflow-hidden rounded-md bg-foreground/10"
           >
             <Image src={url} alt={`Зураг ${i + 1}`} fill sizes="224px" className="object-cover" />
           </button>
@@ -44,7 +44,7 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
           <button
             onClick={() => setActive(null)}
             aria-label="Хаах"
-            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            className="absolute right-4 top-4 rounded-full bg-foreground/10 p-2 text-foreground hover:bg-foreground/20"
           >
             <X size={22} />
           </button>

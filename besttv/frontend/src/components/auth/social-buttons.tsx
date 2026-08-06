@@ -58,9 +58,9 @@ export function SocialButtons({ callbackUrl = '/' }: { callbackUrl?: string }) {
     <div className="space-y-2.5">
       {/* ⚠️ Хуваагч нь товчнуудын ДЭЭР — компонент формын доор байрладаг */}
       <div className="flex items-center gap-3 pb-1">
-        <div className="h-px flex-1 bg-white/10" />
-        <span className="text-xs text-white/35">эсвэл</span>
-        <div className="h-px flex-1 bg-white/10" />
+        <div className="h-px flex-1 bg-foreground/10" />
+        <span className="text-xs text-foreground/35">эсвэл</span>
+        <div className="h-px flex-1 bg-foreground/10" />
       </div>
 
       <div className={cn('grid gap-2.5', both ? 'grid-cols-2' : 'grid-cols-1')}>
@@ -69,7 +69,7 @@ export function SocialButtons({ callbackUrl = '/' }: { callbackUrl?: string }) {
             type="button"
             onClick={() => signIn('google', { callbackUrl })}
             aria-label="Google-ээр нэвтрэх"
-            className="flex items-center justify-center gap-2 rounded-lg border border-white/14 bg-white/95 py-2.5 text-sm font-semibold text-black transition-all hover:bg-white active:scale-[0.99]"
+            className="flex items-center justify-center gap-2 rounded-lg border border-foreground/14 bg-foreground/95 py-2.5 text-sm font-semibold text-black transition-all hover:bg-white active:scale-[0.99]"
           >
             <GoogleIcon />
             {/* Зэрэгцээ үед богино нэр (хоёр товч тэнцүү өргөнтэй байлгана) */}
@@ -81,7 +81,7 @@ export function SocialButtons({ callbackUrl = '/' }: { callbackUrl?: string }) {
             type="button"
             onClick={() => signIn('facebook', { callbackUrl })}
             aria-label="Facebook-ээр нэвтрэх"
-            className="flex items-center justify-center gap-2 rounded-lg bg-[#1877F2] py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99]"
+            className="flex items-center justify-center gap-2 rounded-lg bg-[#1877F2] py-2.5 text-sm font-semibold text-foreground transition-all hover:brightness-110 active:scale-[0.99]"
           >
             <FacebookIconWhite />
             <span>{both ? 'Facebook' : 'Facebook-ээр нэвтрэх'}</span>

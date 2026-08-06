@@ -28,7 +28,7 @@ export function MobileNav() {
   return (
     <nav
       aria-label="Мобайл цэс"
-      className="glass fixed inset-x-0 bottom-0 z-50 flex justify-around border-t border-white/10 pb-[var(--safe-bottom)] md:hidden"
+      className="glass fixed inset-x-0 bottom-0 z-50 flex justify-around border-t border-foreground/10 pb-[var(--safe-bottom)] md:hidden"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -42,7 +42,7 @@ export function MobileNav() {
               /* ⚠️ `min-h-12` — хүрэх талбар. Хэмжилтээр ердөө 18px байсан нь
                  хуруугаар оносон дарахад хэцүү (WCAG зөвлөмж ≥44px). */
               'flex min-h-12 flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors',
-              active ? 'text-primary' : 'text-white/55',
+              active ? 'text-primary' : 'text-foreground/55',
             )}
           >
             <Icon size={20} strokeWidth={active ? 2.4 : 2} />

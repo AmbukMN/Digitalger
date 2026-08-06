@@ -35,10 +35,10 @@ import { api } from '@/lib/api';
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   PAID: { label: 'Төлсөн', className: 'bg-success/15 text-success' },
-  PENDING: { label: 'Хүлээгдэж буй', className: 'bg-white/10 text-white/60' },
+  PENDING: { label: 'Хүлээгдэж буй', className: 'bg-foreground/10 text-foreground/60' },
   FAILED: { label: 'Амжилтгүй', className: 'bg-destructive/15 text-destructive' },
-  EXPIRED: { label: 'Хугацаа дууссан', className: 'bg-white/10 text-white/40' },
-  CANCELLED: { label: 'Цуцалсан', className: 'bg-white/10 text-white/40' },
+  EXPIRED: { label: 'Хугацаа дууссан', className: 'bg-foreground/10 text-foreground/40' },
+  CANCELLED: { label: 'Цуцалсан', className: 'bg-foreground/10 text-foreground/40' },
 };
 
 const TX_LABEL: Record<WalletTx['type'], { label: string; positive: boolean }> = {
@@ -250,7 +250,7 @@ export default function ProfilePage() {
             <div
               className={cn(
                 'relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full text-xl font-black ring-4',
-                premium ? 'bg-premium text-premium-foreground ring-premium/25' : 'bg-primary text-white ring-primary/25',
+                premium ? 'bg-premium text-premium-foreground ring-premium/25' : 'bg-primary text-primary-foreground ring-primary/25',
               )}
             >
               {user.avatarUrl ? (
@@ -260,7 +260,7 @@ export default function ProfilePage() {
               )}
               {uploadingAvatar && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <Loader2 size={18} className="animate-spin text-white" />
+                  <Loader2 size={18} className="animate-spin text-foreground" />
                 </div>
               )}
             </div>
@@ -281,48 +281,48 @@ export default function ProfilePage() {
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
                   autoFocus
-                  className="w-full rounded-lg border border-white/14 bg-black/30 px-2.5 py-1.5 text-sm text-white outline-none focus:border-primary"
+                  className="w-full rounded-lg border border-foreground/14 bg-black/30 px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary"
                 />
                 <button onClick={saveName} disabled={savingName} aria-label="Хадгалах" className="shrink-0 rounded-md p-1.5 text-success hover:bg-success/15">
                   {savingName ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                 </button>
-                <button onClick={() => setEditingName(false)} aria-label="Цуцлах" className="shrink-0 rounded-md p-1.5 text-white/40 hover:bg-white/10">
+                <button onClick={() => setEditingName(false)} aria-label="Цуцлах" className="shrink-0 rounded-md p-1.5 text-foreground/40 hover:bg-foreground/10">
                   <X size={15} />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-xl font-bold text-white">{user.name ?? 'Хэрэглэгч'}</h1>
-                <button onClick={() => setEditingName(true)} aria-label="Нэр засах" className="shrink-0 rounded-md p-1 text-white/30 hover:bg-white/10 hover:text-white/70">
+                <h1 className="truncate text-xl font-bold text-foreground">{user.name ?? 'Хэрэглэгч'}</h1>
+                <button onClick={() => setEditingName(true)} aria-label="Нэр засах" className="shrink-0 rounded-md p-1 text-foreground/30 hover:bg-foreground/10 hover:text-foreground/70">
                   <Pencil size={13} />
                 </button>
               </div>
             )}
-            <p className="truncate text-sm text-white/50">{user.email}</p>
+            <p className="truncate text-sm text-foreground/50">{user.email}</p>
           </div>
         </div>
 
         {/* ── Хэтэвчийн үлдэгдэл (үргэлж харагдана) ── */}
         <button
           onClick={() => setTab('wallet')}
-          className="mt-6 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-linear-to-br from-primary/12 to-transparent p-4 text-left transition-colors hover:border-primary/30"
+          className="mt-6 flex w-full items-center justify-between rounded-2xl border border-foreground/10 bg-linear-to-br from-primary/12 to-transparent p-4 text-left transition-colors hover:border-primary/30"
         >
           <span className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-primary">
               <Wallet size={17} />
             </span>
             <span>
-              <span className="block text-xs text-white/45">Хэтэвчийн үлдэгдэл</span>
-              <span className="block text-lg font-black text-white">{formatPrice(user.walletBalance)}</span>
+              <span className="block text-xs text-foreground/45">Хэтэвчийн үлдэгдэл</span>
+              <span className="block text-lg font-black text-foreground">{formatPrice(user.walletBalance)}</span>
             </span>
           </span>
-          <span className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white">
+          <span className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">
             {tab === 'wallet' ? 'Гүйлгээ харах' : 'Цэнэглэх'}
           </span>
         </button>
 
         {/* ── Табууд ── */}
-        <div className="mt-6 flex gap-1 rounded-xl bg-white/5 p-1">
+        <div className="mt-6 flex gap-1 rounded-xl bg-foreground/5 p-1">
           {([
             { id: 'profile', label: 'Профайл' },
             { id: 'wallet', label: 'Хэтэвч' },
@@ -333,7 +333,7 @@ export default function ProfilePage() {
               onClick={() => setTab(t.id)}
               className={cn(
                 'flex-1 rounded-lg py-2 text-sm font-medium transition-colors',
-                tab === t.id ? 'bg-white/12 text-white' : 'text-white/50 hover:text-white/80',
+                tab === t.id ? 'bg-foreground/12 text-foreground' : 'text-foreground/50 hover:text-foreground/80',
               )}
             >
               {t.label}
@@ -349,12 +349,12 @@ export default function ProfilePage() {
             <div
               className={cn(
                 'rounded-2xl border p-5',
-                premium ? 'border-premium/35 bg-linear-to-br from-premium/10 to-transparent' : 'border-white/10 bg-white/3',
+                premium ? 'border-premium/35 bg-linear-to-br from-premium/10 to-transparent' : 'border-foreground/10 bg-foreground/3',
               )}
             >
               <div className="flex items-center gap-2">
-                <Crown size={17} className={premium ? 'text-premium' : 'text-white/40'} />
-                <span className="text-sm font-semibold text-white/85">Идэвхтэй багц</span>
+                <Crown size={17} className={premium ? 'text-premium' : 'text-foreground/40'} />
+                <span className="text-sm font-semibold text-foreground/85">Идэвхтэй багц</span>
               </div>
 
               {user.subscriptions.length > 0 ? (
@@ -362,11 +362,11 @@ export default function ProfilePage() {
                   {user.subscriptions.map((s) => (
                     <div key={s.planId} className="rounded-lg bg-black/20 px-3 py-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-sm font-medium text-white/90">
+                        <span className="flex items-center gap-1.5 text-sm font-medium text-foreground/90">
                           {s.isVip && <Crown size={12} className="text-premium" />}
                           {s.planName}
                         </span>
-                        <span className="text-xs text-white/45">
+                        <span className="text-xs text-foreground/45">
                           {new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл
                         </span>
                       </div>
@@ -379,7 +379,7 @@ export default function ProfilePage() {
                       {!s.isVip && s.genres.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {s.genres.map((g) => (
-                            <span key={g.id} className="rounded bg-white/8 px-1.5 py-0.5 text-[11px] text-white/50">
+                            <span key={g.id} className="rounded bg-foreground/8 px-1.5 py-0.5 text-[11px] text-foreground/50">
                               {g.name}
                             </span>
                           ))}
@@ -389,7 +389,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-white/55">Одоогоор идэвхтэй багц байхгүй байна.</p>
+                <p className="mt-2 text-sm text-foreground/55">Одоогоор идэвхтэй багц байхгүй байна.</p>
               )}
 
               {/*
@@ -411,10 +411,10 @@ export default function ProfilePage() {
 
             {/* Идэвхтэй түрээс — ширхэгээр авсан кинонууд */}
             {rentals && rentals.length > 0 && (
-              <div className="rounded-2xl border border-white/10 bg-white/3 p-5">
+              <div className="rounded-2xl border border-foreground/10 bg-foreground/3 p-5">
                 <div className="flex items-center gap-2">
                   <Ticket size={17} className="text-primary" />
-                  <span className="text-sm font-semibold text-white/85">Түрээсэлсэн кино</span>
+                  <span className="text-sm font-semibold text-foreground/85">Түрээсэлсэн кино</span>
                 </div>
                 <div className="mt-3 space-y-2">
                   {rentals.map((r) => (
@@ -432,23 +432,23 @@ export default function ProfilePage() {
                         />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white/90">{r.title.title}</p>
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-white/45">
+                        <p className="truncate text-sm font-medium text-foreground/90">{r.title.title}</p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-foreground/45">
                           <Clock size={11} /> {rentLeft(r.expiresAt)} үлдлээ
                         </p>
                       </div>
-                      <span className="shrink-0 text-xs text-white/40">{formatPrice(r.amount)}</span>
+                      <span className="shrink-0 text-xs text-foreground/40">{formatPrice(r.amount)}</span>
                     </Link>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className="divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10 bg-white/3">
+            <div className="divide-y divide-foreground/8 overflow-hidden rounded-2xl border border-foreground/10 bg-foreground/3">
               {/* Имэйл — зөвхөн имэйл/нууц үгээр бүртгүүлсэн хэрэглэгч сольж чадна */}
               {editingEmail ? (
                 <div className="p-4">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-medium text-white/80">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground/80">
                     <Mail size={16} /> Имэйл солих
                   </p>
                   <input
@@ -457,7 +457,7 @@ export default function ProfilePage() {
                     onChange={(e) => setEmailInput(e.target.value)}
                     placeholder="Шинэ имэйл"
                     aria-label="Шинэ имэйл"
-                    className="w-full rounded-lg border border-white/14 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-primary"
+                    className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                   />
                   <input
                     type="password"
@@ -466,16 +466,16 @@ export default function ProfilePage() {
                     placeholder="Одоогийн нууц үг"
                     aria-label="Одоогийн нууц үг"
                     autoComplete="current-password"
-                    className="mt-2 w-full rounded-lg border border-white/14 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-primary"
+                    className="mt-2 w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                   />
-                  <p className="mt-2 text-xs text-white/40">
+                  <p className="mt-2 text-xs text-foreground/40">
                     Аюулгүй байдлын үүднээс нууц үгээ баталгаажуулна уу
                   </p>
                   <div className="mt-3 flex gap-2">
                     <button
                       onClick={saveEmail}
                       disabled={savingEmail}
-                      className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                      className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                     >
                       {savingEmail && <Loader2 size={14} className="animate-spin" />} Хадгалах
                     </button>
@@ -485,7 +485,7 @@ export default function ProfilePage() {
                         setEmailInput(user.email);
                         setEmailPassword('');
                       }}
-                      className="rounded-lg bg-white/8 px-4 py-2 text-sm text-white/70 hover:bg-white/12"
+                      className="rounded-lg bg-foreground/8 px-4 py-2 text-sm text-foreground/70 hover:bg-foreground/12"
                     >
                       Болих
                     </button>
@@ -494,18 +494,18 @@ export default function ProfilePage() {
               ) : (
                 <div className="flex items-center justify-between gap-3 px-4 py-3.5">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="text-white/40">
+                    <span className="text-foreground/40">
                       <Mail size={16} />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-xs text-white/40">Имэйл хаяг</p>
-                      <p className="truncate text-sm text-white/85">{user.email}</p>
+                      <p className="text-xs text-foreground/40">Имэйл хаяг</p>
+                      <p className="truncate text-sm text-foreground/85">{user.email}</p>
                     </div>
                   </div>
                   {user.provider === 'LOCAL' && (
                     <button
                       onClick={() => setEditingEmail(true)}
-                      className="shrink-0 rounded-lg bg-white/8 px-3 py-1.5 text-xs font-medium text-white/75 hover:bg-white/14"
+                      className="shrink-0 rounded-lg bg-foreground/8 px-3 py-1.5 text-xs font-medium text-foreground/75 hover:bg-foreground/14"
                     >
                       Солих
                     </button>
@@ -522,16 +522,16 @@ export default function ProfilePage() {
             </div>
 
             {user.provider === 'LOCAL' && (
-              <div className="rounded-2xl border border-white/10 bg-white/3 p-5">
+              <div className="rounded-2xl border border-foreground/10 bg-foreground/3 p-5">
                 <div className="flex items-center gap-2">
-                  <KeyRound size={16} className="text-white/40" />
-                  <span className="text-sm font-semibold text-white/85">Нууц үг</span>
+                  <KeyRound size={16} className="text-foreground/40" />
+                  <span className="text-sm font-semibold text-foreground/85">Нууц үг</span>
                 </div>
 
                 {!changingPassword ? (
                   <button
                     onClick={() => setChangingPassword(true)}
-                    className="mt-3 rounded-lg bg-white/8 px-4 py-2 text-sm font-medium text-white/80 hover:bg-white/12"
+                    className="mt-3 rounded-lg bg-foreground/8 px-4 py-2 text-sm font-medium text-foreground/80 hover:bg-foreground/12"
                   >
                     Нууц үг солих
                   </button>
@@ -543,7 +543,7 @@ export default function ProfilePage() {
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="Одоогийн нууц үг"
                     aria-label="Одоогийн нууц үг"
-                      className="w-full rounded-lg border border-white/14 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-primary"
+                      className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                     />
                     <input
                       type="password"
@@ -551,19 +551,19 @@ export default function ProfilePage() {
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Шинэ нууц үг (8+ тэмдэгт)"
                     aria-label="Шинэ нууц үг"
-                      className="w-full rounded-lg border border-white/14 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-primary"
+                      className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={submitPasswordChange}
                         disabled={savingPassword}
-                        className="flex-1 rounded-lg bg-primary py-2 text-sm font-bold text-white hover:brightness-110 disabled:opacity-50"
+                        className="flex-1 rounded-lg bg-primary py-2 text-sm font-bold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                       >
                         {savingPassword ? <Loader2 size={15} className="mx-auto animate-spin" /> : 'Хадгалах'}
                       </button>
                       <button
                         onClick={() => { setChangingPassword(false); setCurrentPassword(''); setNewPassword(''); }}
-                        className="rounded-lg bg-white/8 px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/12"
+                        className="rounded-lg bg-foreground/8 px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-foreground/12"
                       >
                         Цуцлах
                       </button>
@@ -578,9 +578,9 @@ export default function ProfilePage() {
         {/* ── ХЭТЭВЧ таб ── */}
         {tab === 'wallet' && (
           <div className="mt-5 space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-white/3 p-5">
-              <p className="text-sm font-semibold text-white/85">Хэтэвч цэнэглэх</p>
-              <p className="mt-1 text-xs text-white/45">QPay-ээр цэнэглээд багц худалдан авахад ашиглана</p>
+            <div className="rounded-2xl border border-foreground/10 bg-foreground/3 p-5">
+              <p className="text-sm font-semibold text-foreground/85">Хэтэвч цэнэглэх</p>
+              <p className="mt-1 text-xs text-foreground/45">QPay-ээр цэнэглээд багц худалдан авахад ашиглана</p>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {TOPUP_PRESETS.map((amt) => (
@@ -590,8 +590,8 @@ export default function ProfilePage() {
                     className={cn(
                       'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                       Number(topupAmount) === amt
-                        ? 'bg-primary text-white'
-                        : 'bg-white/8 text-white/70 hover:bg-white/12',
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-foreground/8 text-foreground/70 hover:bg-foreground/12',
                     )}
                   >
                     {formatPrice(amt)}
@@ -606,12 +606,12 @@ export default function ProfilePage() {
                   onChange={(e) => setTopupAmount(e.target.value)}
                   placeholder="Дүн (₮)"
                   aria-label="Цэнэглэх дүн"
-                  className="flex-1 rounded-lg border border-white/14 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-primary"
+                  className="flex-1 rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                 />
                 <button
                   onClick={startTopup}
                   disabled={topupLoading || !topupAmount}
-                  className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-50"
+                  className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                 >
                   {topupLoading ? <Loader2 size={15} className="animate-spin" /> : 'Цэнэглэх'}
                 </button>
@@ -633,8 +633,8 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/3 p-5">
-              <p className="text-sm font-semibold text-white/85">Гүйлгээний түүх</p>
+            <div className="rounded-2xl border border-foreground/10 bg-foreground/3 p-5">
+              <p className="text-sm font-semibold text-foreground/85">Гүйлгээний түүх</p>
 
               {walletTxs?.length ? (
                 <div className="mt-3 space-y-2">
@@ -652,21 +652,21 @@ export default function ProfilePage() {
                             {meta.positive ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}
                           </span>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-white/85">
+                            <p className="truncate text-sm font-medium text-foreground/85">
                               {tx.planName ?? meta.label}
                             </p>
-                            <p className="truncate text-xs text-white/40">
+                            <p className="truncate text-xs text-foreground/40">
                               {new Date(tx.createdAt).toLocaleString('mn-MN')}
                               {tx.description && ` · ${tx.description}`}
                             </p>
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className={cn('text-sm font-bold', meta.positive ? 'text-success' : 'text-white/85')}>
+                          <p className={cn('text-sm font-bold', meta.positive ? 'text-success' : 'text-foreground/85')}>
                             {meta.positive ? '+' : ''}
                             {formatPrice(tx.amount)}
                           </p>
-                          <p className="text-[11px] text-white/35">
+                          <p className="text-[11px] text-foreground/35">
                             Үлдэгдэл: {formatPrice(tx.balanceAfter)}
                           </p>
                         </div>
@@ -681,7 +681,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-white/40">Гүйлгээ хийгдээгүй байна</p>
+                <p className="mt-3 text-sm text-foreground/40">Гүйлгээ хийгдээгүй байна</p>
               )}
             </div>
           </div>
@@ -689,16 +689,16 @@ export default function ProfilePage() {
 
         {/* ── ЗАХИАЛГА таб ── */}
         {tab === 'orders' && (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/3 p-5">
+          <div className="mt-5 rounded-2xl border border-foreground/10 bg-foreground/3 p-5">
             <div className="flex items-center gap-2">
-              <Receipt size={16} className="text-white/40" />
-              <span className="text-sm font-semibold text-white/85">Захиалгын түүх</span>
+              <Receipt size={16} className="text-foreground/40" />
+              <span className="text-sm font-semibold text-foreground/85">Захиалгын түүх</span>
             </div>
 
             {payments?.length ? (
               <div className="mt-3 space-y-2">
                 {payments.map((p) => {
-                  const st = STATUS_LABEL[p.status] ?? { label: p.status, className: 'bg-white/10 text-white/50' };
+                  const st = STATUS_LABEL[p.status] ?? { label: p.status, className: 'bg-foreground/10 text-foreground/50' };
                   /**
                    * ⚠️⚠️ MOBILE-Д БАГАНААР ӨРНӨ (`flex-col`).
                    * Өмнө нь нэг эгнээнд нэр + үнэ + төлөв гурвуулаа шахагдаж,
@@ -713,8 +713,8 @@ export default function ProfilePage() {
                       className="flex flex-col gap-1.5 rounded-lg bg-black/20 px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-white/85">{p.plan?.name ?? 'Хэтэвч цэнэглэлт'}</p>
-                        <p className="text-[11px] leading-snug text-white/40 sm:text-xs">
+                        <p className="truncate font-medium text-foreground/85">{p.plan?.name ?? 'Хэтэвч цэнэглэлт'}</p>
+                        <p className="text-[11px] leading-snug text-foreground/40 sm:text-xs">
                           {new Date(p.createdAt).toLocaleDateString('mn-MN')}
                           {p.couponCode && ` · Купон: ${p.couponCode}`}
                           {/* ⚠️ Админаас гараар олгосон эрх — төлбөр байхгүй */}
@@ -724,7 +724,7 @@ export default function ProfilePage() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
-                        <span className="font-semibold text-white/85">
+                        <span className="font-semibold text-foreground/85">
                           {p.grantedByAdmin ? 'Үнэгүй' : formatPrice(p.amount)}
                         </span>
                         <span className={cn('shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium sm:text-xs', st.className)}>
@@ -742,7 +742,7 @@ export default function ProfilePage() {
                 ))}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-white/40">Захиалга хийгдээгүй байна</p>
+              <p className="mt-3 text-sm text-foreground/40">Захиалга хийгдээгүй байна</p>
             )}
           </div>
         )}
@@ -761,7 +761,7 @@ export default function ProfilePage() {
             toast.success('Амжилттай гарлаа');
             router.push('/');
           }}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-white/6 py-3 font-semibold text-white/80 transition-colors hover:bg-destructive/15 hover:text-destructive"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-foreground/6 py-3 font-semibold text-foreground/80 transition-colors hover:bg-destructive/15 hover:text-destructive"
         >
           <LogOut size={17} /> Гарах
         </button>
@@ -773,9 +773,9 @@ export default function ProfilePage() {
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3.5">
-      <span className="text-white/35">{icon}</span>
-      <span className="flex-1 text-sm text-white/50">{label}</span>
-      <span className="text-sm font-medium text-white/85">{value}</span>
+      <span className="text-foreground/35">{icon}</span>
+      <span className="flex-1 text-sm text-foreground/50">{label}</span>
+      <span className="text-sm font-medium text-foreground/85">{value}</span>
     </div>
   );
 }

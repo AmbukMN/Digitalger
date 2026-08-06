@@ -1,4 +1,9 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  useMutation,
+  useInfiniteQuery,
+} from '@tanstack/react-query';
 import { api } from './api';
 import { useAuth } from './auth-store';
 import type { GenreRow, PlanInfo, TitleCard } from '@besttv/shared';
@@ -141,6 +146,42 @@ export function useCatalog(params: {
         `/titles?${qs.toString()}`,
         { auth: false },
       ),
+    placeholderData: (prev) => prev,
+  });
+}
+
+interface CatalogPage {
+  items: TitleCard[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+/**
+ * Каталог — ХЯЗГААРГҮЙ ГҮЙЛГЭЛТ (infinite scroll).
+ *
+ * ⚠️ Хуудаслалтын товч (1 2 3) БИШ: хэрэглэгч доош гүйлгэхэд дараагийн
+ * хуудас АВТОМАТААР ачаална. Ингэснээр "жанраар харахад бүх кино" нэг
+ * урсгалаар харагдана.
+ *
+ * ⚠️⚠️ ХЭРЭГЛЭГЧ ХАРААГҮЙ ҮЕД АЧААЛАХГҮЙ — `fetchNextPage` нь зөвхөн
+ * жагсаалтын ТӨГСГӨЛ дэлгэцэд ОРЖ ИРЭХЭД (IntersectionObserver) л
+ * дуудагдана. Урьдчилж бүх хуудсыг татвал зочин эхний дэлгэцийг ч
+ * хараагүй байхад 5 хүсэлт явж, дата/батарей дэмий үрэгдэнэ.
+ */
+export function useCatalogInfinite(params: { genre?: string; sort?: string }) {
+  return useInfiniteQuery({
+    queryKey: ['catalog-infinite', params],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => {
+      const qs = new URLSearchParams();
+      if (params.genre) qs.set('genre', params.genre);
+      if (params.sort) qs.set('sort', params.sort);
+      qs.set('page', String(pageParam));
+      return api<CatalogPage>(`/titles?${qs.toString()}`, { auth: false });
+    },
+    /** Сүүлийн хуудсанд хүрсэн бол `undefined` — өөр хүсэлт явахгүй */
+    getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
     placeholderData: (prev) => prev,
   });
 }

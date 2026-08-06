@@ -83,7 +83,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const seo = await getSeo();
 
   return (
-    <html lang="mn" className={`dark ${manrope.variable}`}>
+    /**
+     * ⚠️ `suppressHydrationWarning` ЗААВАЛ — `next-themes` нь хадгалсан
+     * сонголтыг уншаад `<html>`-д class-ыг ХУУДАС ЗУРАГДАХААС ӨМНӨ
+     * (blocking script) тавьдаг. Тэр нь server-ийн HTML-ээс зөрөх тул
+     * энэ тугийг тавихгүй бол React hydration warning шидэнэ.
+     *
+     * ⚠️ `className`-д `dark` ХАТУУ БИЧИХГҮЙ — `ThemeProvider` удирдана.
+     */
+    <html lang="mn" className={manrope.variable} suppressHydrationWarning>
       <body className="antialiased font-sans" style={{ fontFamily: 'var(--font-manrope), system-ui, sans-serif' }}>
         {seo?.googleAnalyticsId && (
           <>

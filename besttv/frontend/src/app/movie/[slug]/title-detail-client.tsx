@@ -118,7 +118,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
             className="object-cover"
           />
         ) : (
-          <div className="flex h-full items-center justify-center bg-[#141414] text-white/10">
+          <div className="flex h-full items-center justify-center bg-[#141414] text-foreground/10">
             <Film size={64} />
           </div>
         )}
@@ -128,11 +128,11 @@ export function TitleDetailClient({ slug }: { slug: string }) {
 
       <div className="relative -mt-24 px-4 md:px-8">
         <div className="flex flex-col gap-6 md:flex-row">
-          <div className="relative aspect-2/3 w-40 shrink-0 overflow-hidden rounded-lg bg-white/5 shadow-2xl md:w-56">
+          <div className="relative aspect-2/3 w-40 shrink-0 overflow-hidden rounded-lg bg-foreground/5 shadow-2xl md:w-56">
             {data.posterUrl ? (
               <Image src={data.posterUrl} alt={data.title} fill sizes="220px" className="object-cover" />
             ) : (
-              <div className="flex h-full items-center justify-center text-white/20">
+              <div className="flex h-full items-center justify-center text-foreground/20">
                 <Film size={40} />
               </div>
             )}
@@ -146,7 +146,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               ДЕСКТОПТ хуучнаар товчнуудын хажууд үлдэнэ.
             */}
             <div className="flex items-start gap-3">
-              <h1 className="min-w-0 flex-1 text-2xl font-black text-white md:text-4xl">
+              <h1 className="min-w-0 flex-1 text-2xl font-black text-foreground md:text-4xl">
                 {data.title}
               </h1>
               <div className="flex shrink-0 items-center gap-2 md:hidden">
@@ -161,10 +161,10 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                 <ShareButton title={data.title} slug={data.slug} compact />
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/70">
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-foreground/70">
               {data.year && <span>{data.year}</span>}
               {data.ageRating && (
-                <span className="rounded border border-white/30 px-1.5 py-0.5 text-xs font-semibold">
+                <span className="rounded border border-foreground/30 px-1.5 py-0.5 text-xs font-semibold">
                   {data.ageRating}
                 </span>
               )}
@@ -182,14 +182,14 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     <Star size={14} className="fill-premium text-premium" />
                     {score.toFixed(1)}
                     {data.reviewStats.count > 0 && (
-                      <span className="text-white/40">({data.reviewStats.count})</span>
+                      <span className="text-foreground/40">({data.reviewStats.count})</span>
                     )}
                   </span>
                 );
               })()}
               {data.director && <span>Найруулагч: {data.director}</span>}
               {data.genres?.map((g) => (
-                <span key={g.id} className="rounded bg-white/10 px-2 py-0.5">
+                <span key={g.id} className="rounded bg-foreground/10 px-2 py-0.5">
                   {g.name}
                 </span>
               ))}
@@ -197,7 +197,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
 
             {/* ⚠️ Тайлбар хоосон бол хоосон зай үлдээхгүй */}
             {data.description?.trim() && (
-              <p className="mt-4 max-w-2xl text-sm text-white/80 md:text-base">
+              <p className="mt-4 max-w-2xl text-sm text-foreground/80 md:text-base">
                 {data.description}
               </p>
             )}
@@ -215,7 +215,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     {data.rental?.available && (
                       <button
                         onClick={() => setRentOpen(true)}
-                        className="flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white transition-all hover:brightness-110 active:scale-[0.98] sm:py-2.5"
+                        className="flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] sm:py-2.5"
                       >
                         <Ticket size={17} />
                         {formatPrice(data.rental.price)} · {data.rental.hours}ц түрээслэх
@@ -238,12 +238,12 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                 ) : watchHref ? (
                   <Link
                     href={watchHref}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white px-8 py-3 font-semibold text-black transition-all hover:bg-white/85 active:scale-[0.98] sm:py-2.5"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-white px-8 py-3 font-semibold text-black transition-all hover:bg-foreground/85 active:scale-[0.98] sm:py-2.5"
                   >
                     <Play size={18} fill="black" /> Үзэх
                   </Link>
                 ) : (
-                  <span className="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-6 py-3 font-semibold text-white/40 sm:py-2.5">
+                  <span className="flex items-center justify-center gap-2 rounded-lg bg-foreground/10 px-6 py-3 font-semibold text-foreground/40 sm:py-2.5">
                     Удахгүй гарна
                   </span>
                 )}
@@ -258,7 +258,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     onClick={() => setTrailerOpen(true)}
                     title="Трейлер үзэх"
                     aria-label="Трейлер үзэх"
-                    className="flex h-11 items-center justify-center gap-1.5 rounded-full bg-white/10 px-4 text-sm font-medium text-white transition-all hover:bg-white/20 active:scale-95"
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-full bg-foreground/10 px-4 text-sm font-medium text-foreground transition-all hover:bg-foreground/20 active:scale-95"
                   >
                     <Film size={16} /> Трейлер
                   </button>
@@ -273,8 +273,8 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                   title={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
                   aria-label={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
                   className={cn(
-                    'hidden h-11 w-11 items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-50 md:flex',
-                    inList ? 'bg-primary hover:brightness-110' : 'bg-white/10 hover:bg-white/20',
+                    'hidden h-11 w-11 items-center justify-center rounded-full text-foreground transition-all active:scale-95 disabled:opacity-50 md:flex',
+                    inList ? 'bg-primary hover:brightness-110' : 'bg-foreground/10 hover:bg-foreground/20',
                   )}
                 >
                   <Heart size={19} className={inList ? 'fill-current' : ''} />
@@ -315,7 +315,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                       onClick={() => setActiveSeason(i)}
                       className={cn(
                         'rounded-md px-4 py-2 text-sm font-medium',
-                        activeSeason === i ? 'bg-primary text-white' : 'bg-white/10 text-white/70',
+                        activeSeason === i ? 'bg-primary text-primary-foreground' : 'bg-foreground/10 text-foreground/70',
                       )}
                     >
                       {s.name ?? `${s.number}-р улирал`}
@@ -333,25 +333,25 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                       href={epLocked ? '/pricing' : ep.playable ? `/watch/${data.slug}?ep=${ep.id}` : '#'}
                       aria-disabled={!ep.playable && !epLocked}
                       className={cn(
-                        'flex items-center gap-4 rounded-md bg-white/5 p-3 hover:bg-white/10',
+                        'flex items-center gap-4 rounded-md bg-foreground/5 p-3 hover:bg-foreground/10',
                         !ep.playable && !epLocked && 'pointer-events-none opacity-50',
                       )}
                     >
-                      <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded bg-white/10">
+                      <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded bg-foreground/10">
                         {ep.posterUrl && (
                           <Image src={ep.posterUrl} alt="" fill sizes="112px" className="object-cover" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white">
+                        <p className="font-medium text-foreground">
                           {ep.number}. {ep.name ?? `Анги ${ep.number}`}
                         </p>
                         {ep.description && (
-                          <p className="mt-0.5 line-clamp-1 text-xs text-white/50">{ep.description}</p>
+                          <p className="mt-0.5 line-clamp-1 text-xs text-foreground/50">{ep.description}</p>
                         )}
                         {ep.isFreePreview && <span className="text-xs text-success">Үнэгүй үзэх</span>}
                       </div>
-                      {!ep.playable && <span className="shrink-0 text-xs text-white/40">Удахгүй</span>}
+                      {!ep.playable && <span className="shrink-0 text-xs text-foreground/40">Удахгүй</span>}
                     </Link>
                   );
                 })}
@@ -429,8 +429,8 @@ function IconAction({
       aria-label={label}
       title={label}
       className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-50',
-        pressed ? 'bg-primary hover:brightness-110' : 'bg-white/10 hover:bg-white/20',
+        'flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-all active:scale-95 disabled:opacity-50',
+        pressed ? 'bg-primary hover:brightness-110' : 'bg-foreground/10 hover:bg-foreground/20',
       )}
     >
       {children}

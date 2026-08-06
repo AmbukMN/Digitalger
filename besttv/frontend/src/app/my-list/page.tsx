@@ -30,8 +30,8 @@ export default function MyListPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 pb-16 pt-28 md:px-8">
-      <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">Дуртай кино</h1>
-      <p className="mt-1.5 text-white/55">
+      <h1 className="text-2xl font-black tracking-tight text-foreground md:text-3xl">Дуртай кино</h1>
+      <p className="mt-1.5 text-foreground/55">
         {user
           ? 'Хадгалсан кино'
           : 'Энэ төхөөрөмжид хадгалагдсан — нэвтрэхэд таны хаягтай холбогдоно'}
@@ -47,14 +47,14 @@ export default function MyListPage() {
 
       {!isLoading && items.length === 0 && (
         <div className="mt-20 flex flex-col items-center text-center">
-          <div className="rounded-full bg-white/6 p-5 text-white/30">
+          <div className="rounded-full bg-foreground/6 p-5 text-foreground/30">
             <Heart size={32} />
           </div>
-          <p className="mt-4 font-semibold text-white/70">Дуртай кино алга байна</p>
-          <p className="mt-1 text-sm text-white/40">Киноны зурган дээрх ♥ товчийг дарж нэмээрэй</p>
+          <p className="mt-4 font-semibold text-foreground/70">Дуртай кино алга байна</p>
+          <p className="mt-1 text-sm text-foreground/40">Киноны зурган дээрх ♥ товчийг дарж нэмээрэй</p>
           <Link
             href="/movies"
-            className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+            className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:brightness-110"
           >
             Кино үзэх
           </Link>

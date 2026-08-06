@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Heart, Info, Play, Star, Lock } from 'lucide-react';
+import { Check, Clock, Heart, Info, Play, Star, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
 import { cn } from '@besttv/shared';
@@ -58,11 +58,22 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
    * нэвтрээгүй хэрэглэгч хоосон плеер дээр гацдаг байсан.
    */
   const play = usePlayGuard();
+  /**
+   * ⚠️ Видео бэлэн эсэх. `streamStatus` нь ХУУЧИН кэшлэгдсэн хариунд
+   * байхгүй байж болно (`undefined`) — тэр үед БЭЛЭН гэж үзнэ (хуучин
+   * бүх кино бэлэн байсан тул буруу анхааруулга гаргахгүй).
+   */
+  const notReady = title.streamStatus != null && title.streamStatus !== 'READY';
   /** Хэрэглэгчийн багц энэ контентыг нээсэн эсэх (badge/товч хоёуланд) */
   const access = accessState(user, { isPremium: title.isPremium, genres: title.genres });
   const goWatch = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    /* ⚠️ Бэлэн бус видеог тоглуулах гэж оролдохгүй — шалтгааныг хэлнэ */
+    if (notReady) {
+      toast.info('Энэ кино бэлтгэгдэж байна. Түр хүлээгээд дахин оролдоно уу.');
+      return;
+    }
     /**
      * ⚠️ ЭРХИЙГ ДАМЖУУЛНА — эс бөгөөс `usePlayGuard` дотор
      * `undefined !== true` үнэн болж, ЭРХТЭЙ хэрэглэгчийг ч
@@ -114,6 +125,19 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
         {title.comingSoon ? (
           <span className="absolute left-1.5 top-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
             Удахгүй
+          </span>
+        ) : notReady ? (
+          /**
+           * ⚠️ ВИДЕО БЭЛЭН БИШ — хөрвүүлэлт (HLS) дуусаагүй.
+           * Өмнө нь ялгагдахгүй харагдаж, хэрэглэгч дараад л "Видео
+           * бэлтгэгдэж байна" гэсэн бичигтэй тулгардаг байсан нь
+           * "сайт ажиллахгүй байна" гэж ойлгогддог.
+           */
+          <span
+            title="Видео хөрвүүлэгдэж байна — удахгүй бэлэн болно"
+            className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+          >
+            <Clock size={9} /> Бэлтгэж байна
           </span>
         ) : access === 'owned' ? (
           <span
