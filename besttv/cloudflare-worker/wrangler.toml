@@ -13,6 +13,18 @@ name = "besttv-video-cdn"
 main = "video-cdn.js"
 compatibility_date = "2026-01-01"
 
+# ⚠️⚠️ ROUTE — Worker нь `cdn.besttv.us`-ын БҮХ хүсэлтийг барина.
+#
+# ЯАГААД ЗААВАЛ ВЭ: тэр домэйн одоо R2 custom domain болж БҮХ объектыг
+# ХАМГААЛАЛТГҮЙ буцааж байна (`/movies/...` → HTTP 200). Өөрөөр хэлбэл
+# линк мэдсэн хүн төлбөргүй кино үзнэ. Worker урд нь суусны дараа зөвхөн
+# гарын үсэгтэй `/v/<exp>/<sig>/<key>` зам л ажиллана.
+#
+# ⚠️ `zone_name` — домэйн Cloudflare дээрх аль бүсэд харьяалагдахыг заана.
+[[routes]]
+pattern = "cdn.besttv.us/*"
+zone_name = "besttv.us"
+
 # ⚠️ R2 binding — Worker нь bucket-аас ШУУД уншина (S3 API-гүй, хурдан)
 [[r2_buckets]]
 binding = "BUCKET"
