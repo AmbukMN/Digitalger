@@ -109,7 +109,7 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
         {title.posterUrl ? (
           <Image src={title.posterUrl} alt="" fill sizes="180px" className="object-cover" />
         ) : (
-          <div className="flex h-full items-center justify-center text-white/20">
+          <div className="flex h-full items-center justify-center text-white/25">
             <Play size={32} />
           </div>
         )}
@@ -218,14 +218,14 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
               aria-label={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
               className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-full transition-transform hover:scale-110',
-                inList ? 'bg-primary text-white' : 'glass-light text-white',
+                inList ? 'bg-primary text-white' : 'bg-black/55 text-white backdrop-blur-sm',
               )}
             >
               <Heart size={14} className={inList ? 'fill-current' : ''} />
             </button>
             <span
               aria-hidden
-              className="glass-light ml-auto flex h-8 w-8 items-center justify-center rounded-full text-white"
+              className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm"
             >
               <Info size={14} />
             </span>
@@ -244,9 +244,9 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-1">
-        <p className="truncate text-sm font-medium text-white/90">{title.title}</p>
+        <p className="truncate text-sm font-medium text-foreground">{title.title}</p>
         {title.rating ? (
-          <span className="flex items-center gap-0.5 text-xs text-white/50 shrink-0">
+          <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0">
             <Star size={11} className="fill-premium text-premium" />
             {title.rating.toFixed(1)}
           </span>
@@ -271,7 +271,7 @@ export function Top10Card({ title, rank }: { title: TitleCardType; rank: number 
         {title.posterUrl ? (
           <Image src={title.posterUrl} alt="" fill sizes="150px" className="object-cover" />
         ) : (
-          <div className="flex h-full items-center justify-center text-white/20">
+          <div className="flex h-full items-center justify-center text-white/25">
             <Play size={28} />
           </div>
         )}

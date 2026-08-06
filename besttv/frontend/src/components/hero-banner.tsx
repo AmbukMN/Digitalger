@@ -200,7 +200,7 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
               })()}
               <Link
                 href={`/movie/${banner.slug}`}
-                className="glass-light flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.03] hover:bg-white/16 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                className="flex items-center gap-1.5 rounded-lg bg-black/45 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:scale-[1.03] hover:bg-black/65 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
               >
                 <Info size={18} /> Дэлгэрэнгүй
               </Link>

@@ -134,7 +134,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-md overflow-hidden rounded-2xl border border-foreground/10 bg-[#141518] shadow-2xl"
+          className="relative w-full max-w-md overflow-hidden rounded-2xl border border-foreground/10 bg-card shadow-2xl"
         >
           <button
             onClick={onClose}

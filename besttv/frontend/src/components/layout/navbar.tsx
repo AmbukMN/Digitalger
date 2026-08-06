@@ -82,7 +82,13 @@ export function Navbar() {
     <header
       className={cn(
         'fixed top-0 inset-x-0 z-50 transition-all duration-300',
-        scrolled ? 'navbar-solid' : 'navbar-transparent',
+        /**
+         * ⚠️ ТУНГАЛАГ navbar нь ЗУРАГ (hero) дээр байхад л зөв.
+         * Hero нь ЗӨВХӨН нүүр хуудсанд бий. Бусад хуудсанд гүйлгээгүй
+         * үед тунгалаг байвал гэрэл горимд цагаан дээр бараан градиент
+         * үлдэж эвгүй харагдана — тиймээс шууд `solid` болгоно.
+         */
+        scrolled || pathname !== '/' ? 'navbar-solid' : 'navbar-transparent',
       )}
     >
       <a

@@ -15,6 +15,51 @@
  * ашиглана.
  */
 
+/* ═══════════════════════════════════════════════════════════════
+   ГЭРЭЛ ГОРИМЫН ТОДРУУЛГА
+   ═══════════════════════════════════════════════════════════════
+   ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ:
+
+   UI-д `text-foreground/40`, `/55` мэтийн ТУНГАЛАГ өнгө 200+ газар
+   хэрэглэгдсэн. Бараан горимд цагаан текстийн 40% нь саарал болж
+   ЗӨӨЛӨН харагддаг — зөв. Гэтэл гэрэл горимд ХАР текстийн 40% нь
+   цайвар саарал болж ЦАГААН дэвсгэр дээр БАРАГ АЛГА болдог
+   (хэрэглэгчийн гомдол: "хэтэрхий бүдэг байна").
+
+   Файл болгонд гараар засах нь 200+ өөрчлөлт бөгөөд ирээдүйд шинэ
+   код бичихэд дахин давтагдана. Тиймээс ЭНД нэг л удаа — гэрэл
+   горимд тунгалаг бүрийг нэг шат ТОД болгоно.
+
+   ⚠️ Зөвхөн `:root:not(.dark)` буюу ГЭРЭЛ горимд — бараан горим
+   огт хөндөгдөхгүй.
+   ⚠️ `!important` ЗААВАЛ: Tailwind-ийн utility класс нь ижил
+   тодорхойлолттой тул эс бөгөөс дарагдана.
+   ─────────────────────────────────────────────────────────────── */
+:root:not(.dark) .text-foreground\/35 { color: color-mix(in srgb, var(--foreground) 60%, transparent) !important; }
+:root:not(.dark) .text-foreground\/40 { color: color-mix(in srgb, var(--foreground) 62%, transparent) !important; }
+:root:not(.dark) .text-foreground\/45 { color: color-mix(in srgb, var(--foreground) 65%, transparent) !important; }
+:root:not(.dark) .text-foreground\/50 { color: color-mix(in srgb, var(--foreground) 68%, transparent) !important; }
+:root:not(.dark) .text-foreground\/55 { color: color-mix(in srgb, var(--foreground) 72%, transparent) !important; }
+:root:not(.dark) .text-foreground\/60 { color: color-mix(in srgb, var(--foreground) 75%, transparent) !important; }
+:root:not(.dark) .text-foreground\/65 { color: color-mix(in srgb, var(--foreground) 78%, transparent) !important; }
+:root:not(.dark) .text-foreground\/70 { color: color-mix(in srgb, var(--foreground) 82%, transparent) !important; }
+:root:not(.dark) .text-foreground\/75 { color: color-mix(in srgb, var(--foreground) 85%, transparent) !important; }
+:root:not(.dark) .text-foreground\/80,
+:root:not(.dark) .text-foreground\/85,
+:root:not(.dark) .text-foreground\/90 { color: var(--foreground) !important; }
+
+/* `text-muted-foreground` — жижиг тайлбар, огноо, тоо */
+:root:not(.dark) .text-muted-foreground { color: #3f4653 !important; }
+
+/* Хүрээ/дэвсгэр — гэрэл горимд бага зэрэг тод (эс бөгөөс "хайрцаг"
+   мэдэгдэхгүй, товч эсэхийг ялгахад хэцүү) */
+:root:not(.dark) .border-foreground\/8  { border-color: color-mix(in srgb, var(--foreground) 14%, transparent) !important; }
+:root:not(.dark) .border-foreground\/10 { border-color: color-mix(in srgb, var(--foreground) 16%, transparent) !important; }
+:root:not(.dark) .border-foreground\/12 { border-color: color-mix(in srgb, var(--foreground) 18%, transparent) !important; }
+:root:not(.dark) .bg-foreground\/5  { background-color: color-mix(in srgb, var(--foreground) 7%, transparent) !important; }
+:root:not(.dark) .bg-foreground\/8  { background-color: color-mix(in srgb, var(--foreground) 9%, transparent) !important; }
+:root:not(.dark) .bg-foreground\/10 { background-color: color-mix(in srgb, var(--foreground) 11%, transparent) !important; }
+
 /* ─── Hero градиентууд ──────────────────────────────────────────
    ⚠️ ЗУРГИЙН дээр байрлана — доторх текст ҮРГЭЛЖ ЦАГААН тул overlay нь
    хоёр горимд ч БАРААН үлдэнэ (гэрэл болговол текст уншигдахгүй).
@@ -22,15 +67,38 @@
    ⚠️⚠️ ГАНЦ ЯЛГАА: ХАМГИЙН ДООД ирмэг нь хуудасны дэвсгэртэй УУЛЗАНА.
    Тэнд `--background` ашиглана — эс бөгөөс гэрэл горимд hero-ийн хар
    ёроол цагаан контент руу ОГЦОМ шилжиж, тод зураас гарна. */
+/*
+ * ⚠️⚠️ ХОЁР ДАВХАРГА:
+ *   1) БАРААН overlay — зураг дээрх цагаан текстийг уншуулна (theme-ээс
+ *      ХАМААРАХГҮЙ, хоёр горимд ижил).
+ *   2) Хуудасны дэвсгэр рүү шилжих ЯГ ЁРООЛЫН нимгэн зурвас (`::after`).
+ *
+ * Өмнө нь `--background`-ыг градиентын 18% хүртэл холисон нь ГЭРЭЛ горимд
+ * ЦАГААН МАНАН үүсгэж, hero-ийн доод гуравны нэг болон доорх эгнээний
+ * гарчгийг бүдгэрүүлж байв. Одоо цагаан нь зөвхөн доод 12%-д л орно.
+ */
 .hero-gradient {
+  position: relative;
   background: linear-gradient(
     to top,
-    var(--background) 0%,
-    color-mix(in srgb, var(--background) 70%, rgba(5, 5, 5, 0.6)) 18%,
-    rgba(5, 5, 5, 0.55) 34%,
-    rgba(5, 5, 5, 0.15) 60%,
+    rgba(5, 5, 5, 0.95) 0%,
+    rgba(5, 5, 5, 0.75) 20%,
+    rgba(5, 5, 5, 0.45) 45%,
+    rgba(5, 5, 5, 0.15) 70%,
     rgba(5, 5, 5, 0.4) 100%
   );
+}
+/* Ёроолын шилжилт — hero ба хуудасны дэвсгэрийн зааг мэдэгдэхгүй болно.
+   ⚠️ 12% байхад ГЭРЭЛ горимд цагаан манан хэт өндөр гарч, hero-ийн зураг
+   болон доорх эгнээний гарчгийг бүдгэрүүлж байв. 6% + огцом шилжилт нь
+   заагийг зөөлрүүлэхэд хангалттай. */
+.hero-gradient::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 6%;
+  background: linear-gradient(to top, var(--background) 15%, transparent);
 }
 .hero-gradient-side {
   background: linear-gradient(
@@ -96,8 +164,19 @@
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
+/*
+ * ⚠️ ГҮЙЛГЭЭГҮЙ ҮЕИЙН navbar нь HERO ЗУРАГ дээр байрлана.
+ * Цагаан 82% байхад гэрэл горимд hero-ийн дээд тал ЦАЙЖ, лого/цэс
+ * бүдгэрч байв. Зурган дээр тул БАРААН зөөлөн градиент л зөв —
+ * navbar-ийн текст нь тэр үед цагаан байдаг (`.dark`-тай ижил).
+ */
 .navbar-transparent {
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0));
+  background: linear-gradient(to bottom, rgba(5, 5, 5, 0.55), rgba(5, 5, 5, 0));
+}
+/* ⚠️ Тунгалаг navbar нь ЗУРАГ дээр тул текст ҮРГЭЛЖ цагаан */
+:root:not(.dark) .navbar-transparent .text-foreground,
+:root:not(.dark) .navbar-transparent [class*='text-foreground\/'] {
+  color: #fff !important;
 }
 .dark .navbar-solid {
   background: rgba(5, 5, 5, 0.88);

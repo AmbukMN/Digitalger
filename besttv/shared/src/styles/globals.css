@@ -43,8 +43,14 @@
     --warning-foreground: #2b2300;
     --success: #00a544;
     --success-foreground: #ffffff;
-    /* Premium badge — алт */
-    --premium: #edb200;
+    /**
+     * Premium badge — алт.
+     *
+     * ⚠️ ГЭРЭЛ ГОРИМД БАРААН АЛТ: `#edb200` нь цагаан дэвсгэр дээр
+     * контраст ердөө 1.9:1 болж УНШИГДАХГҮЙ (хэмжилтээр илэрсэн).
+     * Бараан горимд тод алт хэвээр (`.dark`-д дарж бичнэ).
+     */
+    --premium: #a67800;
     --premium-foreground: #1a1200;
     --radius: 0.625rem;
   }

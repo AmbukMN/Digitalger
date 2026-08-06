@@ -95,7 +95,10 @@ export function Footer() {
   ].filter((s): s is { href: string; label: string; Icon: typeof Facebook } => !!s.href);
 
   return (
-    <footer className="mt-16 border-t border-foreground/8 bg-[#0a0a0a]">
+    <footer /* ⚠️ THEME ДАГАНА — `bg-[#0a0a0a]` хатуу байсан тул гэрэл горимд
+         footer ГАНЦААРАА хар үлдэж, хуудасны доод хэсэг тасарсан мэт
+         харагддаг байв. `bg-muted` нь хоёр горимд ч зөв ялгарна. */
+      className="mt-16 border-t border-foreground/8 bg-muted">
       {/* ⚠️ pb — мобайлын bottom nav (h~60px + safe area) footer-ийн сүүлийн
           мөрийг бүрхэхээс сэргийлнэ */}
       <div className="mx-auto max-w-[1600px] px-4 pb-[calc(5rem+var(--safe-bottom))] pt-10 md:px-8 md:pb-12 md:pt-12">

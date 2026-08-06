@@ -69,7 +69,7 @@ export function SocialButtons({ callbackUrl = '/' }: { callbackUrl?: string }) {
             type="button"
             onClick={() => signIn('google', { callbackUrl })}
             aria-label="Google-ээр нэвтрэх"
-            className="flex items-center justify-center gap-2 rounded-lg border border-foreground/14 bg-foreground/95 py-2.5 text-sm font-semibold text-black transition-all hover:bg-white active:scale-[0.99]"
+            className="flex items-center justify-center gap-2 rounded-lg border border-black/15 bg-white py-2.5 text-sm font-semibold text-[#1f1f1f] shadow-sm transition-all hover:bg-[#f5f5f5] active:scale-[0.99]"
           >
             <GoogleIcon />
             {/* Зэрэгцээ үед богино нэр (хоёр товч тэнцүү өргөнтэй байлгана) */}
@@ -81,7 +81,7 @@ export function SocialButtons({ callbackUrl = '/' }: { callbackUrl?: string }) {
             type="button"
             onClick={() => signIn('facebook', { callbackUrl })}
             aria-label="Facebook-ээр нэвтрэх"
-            className="flex items-center justify-center gap-2 rounded-lg bg-[#1877F2] py-2.5 text-sm font-semibold text-foreground transition-all hover:brightness-110 active:scale-[0.99]"
+            className="flex items-center justify-center gap-2 rounded-lg bg-[#1877F2] py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99]"
           >
             <FacebookIconWhite />
             <span>{both ? 'Facebook' : 'Facebook-ээр нэвтрэх'}</span>

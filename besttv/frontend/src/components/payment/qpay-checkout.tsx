@@ -230,7 +230,7 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="fixed left-1/2 top-1/2 z-100 flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-foreground/10 bg-[#141518] shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-100 flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-foreground/10 bg-card shadow-2xl"
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-foreground/8 px-5 py-3.5">
@@ -351,7 +351,7 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
 
         {/* Footer — алхмууд + гар шалгах товч (үргэлж харагдана) */}
         {!paid && !expired && (
-          <div className="shrink-0 space-y-3 border-t border-foreground/8 bg-[#141518] px-5 py-4">
+          <div className="shrink-0 space-y-3 border-t border-foreground/8 bg-card px-5 py-4">
             <StepsDesktop />
             <StepsMobile />
 

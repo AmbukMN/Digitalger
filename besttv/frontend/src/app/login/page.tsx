@@ -85,9 +85,12 @@ export default function LoginPage() {
       <div className="relative hidden flex-1 items-center justify-center overflow-hidden lg:flex">
         <div
           aria-hidden
-          className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(229,9,20,0.28),transparent_55%),radial-gradient(ellipse_at_bottom_right,rgba(237,178,0,0.14),transparent_55%)]"
+          /* ⚠️ Цацраг нь БАРААН дэвсгэрт зориулсан хүч (28%/14%). Гэрэл горимд
+             цагаан дээр УЛААН/ШАР МАНАН болж бүх зүйлийг бүдгэрүүлдэг байв
+             (хэрэглэгчийн гомдол) — тиймээс `light:` үед хамаагүй сулруулна. */
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(229,9,20,0.07),transparent_55%),radial-gradient(ellipse_at_bottom_right,rgba(237,178,0,0.04),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_left,rgba(229,9,20,0.28),transparent_55%),radial-gradient(ellipse_at_bottom_right,rgba(237,178,0,0.14),transparent_55%)]"
         />
-        <div aria-hidden className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M0%2059h60M59%200v60%22%20stroke%3D%22%23ffffff08%22/%3E%3C/svg%3E')]" />
+        <div aria-hidden className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M0%2059h60M59%200v60%22%20stroke%3D%22%2300000010%22/%3E%3C/svg%3E')]" />
         <div className="relative z-10 max-w-md px-10">
           <p className="text-4xl font-black leading-tight text-foreground">
             Үз. Мэдэр.
@@ -264,22 +267,26 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
+        /* THEME ДАГАНА — нэр нь input-dark ч гэсэн.
+           Өмнө нь цагаан хүрээ/дэвсгэр/текст ХАТУУ байсан тул гэрэл
+           горимд талбар ОГТ ХАРАГДАХГҮЙ, бичсэн текст ч алга болдог
+           байв (нэвтрэх боломжгүй). Одоо theme хувьсагч ашиглана. */
         .input-dark {
           width: 100%;
           border-radius: 0.5rem;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--foreground) 5%, transparent);
           padding: 0.72rem 1rem;
-          color: white;
+          color: var(--foreground);
           outline: none;
           transition: border-color 0.15s ease, background 0.15s ease;
         }
         .input-dark::placeholder {
-          color: rgba(255, 255, 255, 0.35);
+          color: color-mix(in srgb, var(--foreground) 45%, transparent);
         }
         .input-dark:focus {
           border-color: var(--primary);
-          background: rgba(255, 255, 255, 0.07);
+          background: color-mix(in srgb, var(--foreground) 8%, transparent);
         }
         .input-dark-error {
           border-color: var(--destructive);

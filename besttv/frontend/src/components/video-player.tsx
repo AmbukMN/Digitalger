@@ -263,7 +263,21 @@ export function VideoPlayer({
       >
         <MediaProvider>
           {poster && (
-            <Poster className="absolute inset-0 h-full w-full object-cover" src={poster} alt={title ?? ''} />
+            /**
+             * ⚠️⚠️ `vds-poster` КЛАСС ЗААВАЛ — эс бөгөөс Vidstack-ийн
+             * "тоглож эхлэхэд нуух" CSS дүрэм хамаарахгүй тул постер
+             * зураг видеог ҮҮРД халхалж, кино явж байхад ч зураг л
+             * харагддаг байв (бодит алдаа).
+             *
+             * ⚠️ `pointer-events-none` — постер дээр дарахад play/pause
+             * ажиллах ёстой (зураг нь дарагдалтыг залгичихвал player
+             * "хөшсөн" мэт мэдрэгдэнэ).
+             */
+            <Poster
+              className="vds-poster pointer-events-none absolute inset-0 h-full w-full object-cover"
+              src={poster}
+              alt={title ?? ''}
+            />
           )}
         </MediaProvider>
 
