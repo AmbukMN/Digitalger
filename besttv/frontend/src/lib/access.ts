@@ -6,6 +6,8 @@ import type { AuthUser } from './auth-store';
 export interface AccessTarget {
   isPremium?: boolean;
   genres?: { id: string; name?: string }[] | null;
+  /** Түрээс шалгахад — контентын ID */
+  id?: string;
 }
 
 export type AccessState =
@@ -13,6 +15,8 @@ export type AccessState =
   | 'free'
   /** Хэрэглэгчийн багц энэ жанрыг нээсэн (эсвэл VIP) */
   | 'owned'
+  /** Ширхэгээр түрээслэсэн — хугацаатай эрх */
+  | 'rented'
   /** Төлбөртэй + эрхгүй (эсвэл нэвтрээгүй) */
   | 'locked';
 
@@ -24,12 +28,17 @@ export type AccessState =
  *   - Жанрын багц → ЗӨВХӨН тухайн жанрын контент (контентын аль нэг
  *     жанр нээлттэй байхад хангалттай)
  *
- * ⚠️ Түрээс энд ОРОХГҮЙ — түрээс нь контент тус бүрийн зүйл тул зөвхөн
- * дэлгэрэнгүй хуудасны `hasAccess`-аар мэдэгдэнэ (жагсаалтад ирдэггүй).
+ * ⚠️⚠️ ТҮРЭЭС ЧУ ОРНО — өмнө нь ороогүй тул хэрэглэгч киног
+ * ширхэгээр түрээслэсэн атлаа жагсаалтад "🔒 Төлбөртэй" гэж
+ * харагдсаар байв (эрх нь ажилладаг ч хэрэглэгч эргэлздэг).
+ * `auth/me` одоо `rentedTitleIds` буцаадаг болсон.
  */
 export function accessState(user: AuthUser | null, t: AccessTarget): AccessState {
   if (!t.isPremium) return 'free';
   if (!user) return 'locked';
+
+  /* ⚠️ Түрээс ЭХЛЭЭД — багцгүй ч тухайн киног үзэх эрхтэй */
+  if (t.id && user.rentedTitleIds?.includes(t.id)) return 'rented';
 
   const acc = user.accessGenreIds;
   if (acc === 'ALL') return 'owned';

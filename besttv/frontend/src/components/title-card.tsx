@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Clock, Heart, Info, Play, Star, Lock } from 'lucide-react';
+import { Check, Clock, Heart, Info, Play, Star, Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
 import { cn } from '@besttv/shared';
@@ -65,7 +65,11 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
    */
   const notReady = title.streamStatus != null && title.streamStatus !== 'READY';
   /** Хэрэглэгчийн багц энэ контентыг нээсэн эсэх (badge/товч хоёуланд) */
-  const access = accessState(user, { isPremium: title.isPremium, genres: title.genres });
+  const access = accessState(user, {
+    id: title.id,
+    isPremium: title.isPremium,
+    genres: title.genres,
+  });
   const goWatch = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -86,7 +90,7 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
         comingSoon: title.comingSoon,
         type: title.type,
       },
-      access === 'owned' || access === 'free',
+      access === 'owned' || access === 'free' || access === 'rented',
     );
   };
 
@@ -138,6 +142,15 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
             className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
           >
             <Clock size={9} /> Бэлтгэж байна
+          </span>
+        ) : access === 'rented' ? (
+          /* ⚠️ ТҮРЭЭСЛЭСЭН — багцаас ялгаатай тул ӨӨР өнгө/үг.
+             Хэрэглэгч "хугацаатай эрх" гэдгээ шууд ойлгоно. */
+          <span
+            title="Түрээслэсэн — хугацаа дуустал үзнэ"
+            className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-primary/90 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm"
+          >
+            <Ticket size={9} /> Түрээслэсэн
           </span>
         ) : access === 'owned' ? (
           <span

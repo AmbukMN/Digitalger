@@ -53,6 +53,15 @@ export class StreamService {
       title.isPremium,
       title.genres.map((g) => g.genreId),
       userId,
+      /**
+       * ⚠️⚠️ `titleId` ЗААВАЛ — эс бөгөөс ТҮРЭЭС ОГТ ШАЛГАГДАХГҮЙ.
+       *
+       * `canAccessTitle` нь titleId байвал л идэвхтэй түрээс байгаа
+       * эсэхийг хардаг. Өмнө нь энэ параметрийг дамжуулаагүй тул
+       * ширхэгээр түрээслэсэн хэрэглэгч 403 авч, кино мөнхөд ачаалж
+       * байв (багцтай хүн л үзэж чаддаг байсан).
+       */
+      titleId,
     );
     // ⚠️ ABR master бол дэд playlist-ыг манай API руу чиглүүлнэ (эрх дахин шалгагдана)
     return this.rewritePlaylist(title.videoKey, `/api/stream/movie/${titleId}/variant.m3u8`);
@@ -86,6 +95,15 @@ export class StreamService {
       title.isPremium,
       title.genres.map((g) => g.genreId),
       userId,
+      /**
+       * ⚠️⚠️ `titleId` ЗААВАЛ — эс бөгөөс ТҮРЭЭС ОГТ ШАЛГАГДАХГҮЙ.
+       *
+       * `canAccessTitle` нь titleId байвал л идэвхтэй түрээс байгаа
+       * эсэхийг хардаг. Өмнө нь энэ параметрийг дамжуулаагүй тул
+       * ширхэгээр түрээслэсэн хэрэглэгч 403 авч, кино мөнхөд ачаалж
+       * байв (багцтай хүн л үзэж чаддаг байсан).
+       */
+      titleId,
     );
 
     const prefix = title.videoKey.slice(0, title.videoKey.lastIndexOf('/') + 1);
@@ -214,6 +232,15 @@ export class StreamService {
       title.isPremium,
       title.genres.map((g) => g.genreId),
       userId,
+      /**
+       * ⚠️⚠️ `titleId` ЗААВАЛ — эс бөгөөс ТҮРЭЭС ОГТ ШАЛГАГДАХГҮЙ.
+       *
+       * `canAccessTitle` нь titleId байвал л идэвхтэй түрээс байгаа
+       * эсэхийг хардаг. Өмнө нь энэ параметрийг дамжуулаагүй тул
+       * ширхэгээр түрээслэсэн хэрэглэгч 403 авч, кино мөнхөд ачаалж
+       * байв (багцтай хүн л үзэж чаддаг байсан).
+       */
+      titleId,
     );
     return this.variantPlaylist(title.videoKey, variant);
   }
@@ -230,6 +257,8 @@ export class StreamService {
           select: {
             title: {
               select: {
+                /* Rental нь TITLE дээр бүртгэгддэг тул эцгийн id хэрэгтэй */
+                id: true,
                 isPremium: true,
                 isActive: true,
                 genres: { select: { genreId: true } },
@@ -253,6 +282,8 @@ export class StreamService {
       premium,
       episode.season.title.genres.map((g) => g.genreId),
       userId,
+      /* ⚠️ Түрээс нь ЦУВРАЛ дээр ч боломжтой — эцэг титулын id-аар шалгана */
+      episode.season.title.id,
     );
     return this.rewritePlaylist(
       episode.videoKey,
@@ -276,6 +307,8 @@ export class StreamService {
           select: {
             title: {
               select: {
+                /* Rental нь TITLE дээр бүртгэгддэг тул эцгийн id хэрэгтэй */
+                id: true,
                 isPremium: true,
                 isActive: true,
                 genres: { select: { genreId: true } },
@@ -293,6 +326,8 @@ export class StreamService {
       premium,
       episode.season.title.genres.map((g) => g.genreId),
       userId,
+      /* ⚠️ Түрээс нь ЦУВРАЛ дээр ч боломжтой — эцэг титулын id-аар шалгана */
+      episode.season.title.id,
     );
     return this.variantPlaylist(episode.videoKey, variant);
   }

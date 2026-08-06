@@ -194,6 +194,18 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                   <Play size={16} fill="currentColor" /> Үзэх
                 </Link>
               ) : null}
+
+              {/*
+                ⚠️ ТҮРЭЭСИЙН ҮЛДЭГДЭЛ — МОБАЙЛД товчны ЯГ ДООР.
+                Өмнө нь гарчиг/тайлбарын доор байсан тул хэрэглэгч
+                товчоо дараад доош гүйлгэж байж л хугацаагаа хардаг байв.
+              */}
+              {data.rental?.active && (
+                <p className="flex items-center justify-center gap-1 rounded-lg bg-success/12 px-2 py-1.5 text-[11px] font-semibold leading-tight text-success">
+                  <Clock size={11} className="shrink-0" />
+                  {formatRentLeft(data.rental.active.expiresAt)} үлдлээ
+                </p>
+              )}
             </div>
           </div>
 
@@ -347,9 +359,9 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               </div>
             </div>
 
-            {/* Идэвхтэй түрээс — хэдэн цаг үлдснийг харуулна */}
+            {/* Идэвхтэй түрээс — ДЕСКТОПТ (мобайлд Үзэх товчны доор) */}
             {data.rental?.active && (
-              <div className="mt-4 flex max-w-2xl items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-2.5 text-sm text-success">
+              <div className="mt-4 hidden max-w-2xl items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-2.5 text-sm text-success md:flex">
                 <Clock size={15} />
                 Түрээсэлсэн — {formatRentLeft(data.rental.active.expiresAt)} үлдлээ
               </div>

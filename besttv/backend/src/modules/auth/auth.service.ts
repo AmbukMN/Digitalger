@@ -151,6 +151,19 @@ export class AuthService {
       },
     });
 
+    /**
+     * ⚠️⚠️ ИДЭВХТЭЙ ТҮРЭЭС — картын badge зөв харуулахад ЗААВАЛ.
+     *
+     * Түрээс нь БАГЦ БИШ, кино тус бүрийн эрх. Өмнө нь энэ мэдээлэл
+     * frontend-д ОГТ ирдэггүй байсан тул хэрэглэгч киног түрээслэсэн
+     * атлаа жагсаалтад "🔒 Төлбөртэй" гэж харагдсаар байв (эрх нь
+     * ажилладаг ч хэрэглэгч эргэлздэг).
+     */
+    const activeRentals = await this.prisma.rental.findMany({
+      where: { userId, expiresAt: { gt: new Date() } },
+      select: { titleId: true },
+    });
+
     const activeSub = activeSubs[0] ?? null;
 
     return {
@@ -183,6 +196,8 @@ export class AuthService {
       accessGenreIds: activeSubs.some((s) => s.plan.isVip)
         ? 'ALL'
         : [...new Set(activeSubs.flatMap((s) => s.plan.genres.map((g) => g.genre.id)))],
+      /** Ширхэгээр түрээслэсэн киноны ID — картын badge-д (багцаас ТУСДАА) */
+      rentedTitleIds: activeRentals.map((r) => r.titleId),
     };
   }
 

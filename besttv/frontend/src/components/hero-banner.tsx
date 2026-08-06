@@ -43,6 +43,8 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
   const banner = banners[active];
   /** Хэрэглэгчийн багц энэ баннерын контентыг нээсэн эсэх */
   const bannerAccess = accessState(user, {
+    /* ⚠️ `id` — түрээслэсэн киног "Төлбөртэй" гэж харуулахгүйн тулд */
+    id: banner.id,
     isPremium: banner.isPremium,
     genres: banner.genres,
   });

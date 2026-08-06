@@ -32,6 +32,11 @@ export interface AuthUser {
   subscriptions: UserSubscription[];
   /** 'ALL' = VIP, эсвэл нээлттэй жанруудын ID */
   accessGenreIds: 'ALL' | string[];
+  /**
+   * Ширхэгээр ТҮРЭЭСЛЭСЭН киноны ID-ууд (идэвхтэй).
+   * ⚠️ Багцаас ТУСДАА — түрээс нь кино тус бүрийн эрх.
+   */
+  rentedTitleIds?: string[];
   /** VIP багц идэвхтэй эсэх */
   hasVip?: boolean;
 }
