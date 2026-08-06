@@ -105,7 +105,7 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
         inGrid ? 'w-full' : 'w-37.5 shrink-0 sm:w-45',
       )}
     >
-      <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-[#1a1a1a]">
+      <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-muted">
         {title.posterUrl ? (
           <Image src={title.posterUrl} alt="" fill sizes="180px" className="object-cover" />
         ) : (
@@ -267,7 +267,7 @@ export function Top10Card({ title, rank }: { title: TitleCardType; rank: number 
       <span aria-hidden className={cn('top10-number relative z-0 -mr-7 shrink-0')}>
         {rank}
       </span>
-      <div className="relative z-10 aspect-2/3 w-32 overflow-hidden rounded-lg bg-[#1a1a1a] sm:w-36">
+      <div className="relative z-10 aspect-2/3 w-32 overflow-hidden rounded-lg bg-muted sm:w-36">
         {title.posterUrl ? (
           <Image src={title.posterUrl} alt="" fill sizes="150px" className="object-cover" />
         ) : (

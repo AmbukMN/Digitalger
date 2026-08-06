@@ -148,14 +148,53 @@ export function TitleDetailClient({ slug }: { slug: string }) {
 
       <div className="relative -mt-24 px-4 md:px-8">
         <div className="flex flex-col gap-6 md:flex-row">
-          <div className="relative aspect-2/3 w-40 shrink-0 overflow-hidden rounded-lg bg-foreground/5 shadow-2xl md:w-56">
-            {data.posterUrl ? (
-              <Image src={data.posterUrl} alt={data.title} fill sizes="220px" className="object-cover" />
-            ) : (
-              <div className="flex h-full items-center justify-center text-foreground/20">
-                <Film size={40} />
-              </div>
-            )}
+          {/*
+            ⚠️⚠️ МОБАЙЛД — постер ЗҮҮН, үндсэн товч БАРУУН талд зэрэгцэнэ.
+            Өмнө нь товчнууд постерын ДООР байсан тул хэрэглэгч "Үзэх"
+            хүртэл гүйлгэх шаардлагатай байв (хамгийн чухал үйлдэл нь
+            эхний дэлгэцэд ҮЛ ХАРАГДДАГ). Десктопт хуучин байрлал хэвээр.
+          */}
+          <div className="flex items-end gap-4 md:block">
+            <div className="relative aspect-2/3 w-32 shrink-0 overflow-hidden rounded-lg bg-foreground/5 shadow-2xl sm:w-40 md:w-56">
+              {data.posterUrl ? (
+                <Image src={data.posterUrl} alt={data.title} fill sizes="220px" className="object-cover" />
+              ) : (
+                <div className="flex h-full items-center justify-center text-foreground/20">
+                  <Film size={40} />
+                </div>
+              )}
+            </div>
+
+            {/* Мобайлын үндсэн үйлдэл — постерын хажууд, шууд харагдана */}
+            <div className="flex min-w-0 flex-1 flex-col gap-2 pb-1 md:hidden">
+              {locked ? (
+                <>
+                  {data.rental?.available && (
+                    <button
+                      onClick={() => setRentOpen(true)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground active:scale-[0.98]"
+                    >
+                      <Ticket size={15} />
+                      {formatPrice(data.rental.price)} · {data.rental.hours}ц
+                    </button>
+                  )}
+                  <Link
+                    href="/pricing"
+                    onClick={() => savePostPurchaseReturn()}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-premium-solid px-3 py-2.5 text-xs font-bold text-premium-foreground active:scale-[0.98]"
+                  >
+                    <Lock size={15} /> Багц авах
+                  </Link>
+                </>
+              ) : watchHref ? (
+                <Link
+                  href={watchHref}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 py-3 text-sm font-bold text-background shadow-lg active:scale-[0.98]"
+                >
+                  <Play size={16} fill="currentColor" /> Үзэх
+                </Link>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex-1 pt-2">
@@ -228,7 +267,9 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               нүд эргэдэг. Мобайлд үндсэн товч бүтэн өргөн, icon-ууд доор.
             */}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-              <div className="flex flex-col gap-2.5 sm:flex-row">
+              {/* ⚠️ МОБАЙЛД НУУНА — эдгээр товч постерын хажууд аль хэдийн
+                  гарсан (дээр). Хоёр газар харуулбал давхардана. */}
+              <div className="hidden flex-col gap-2.5 sm:flex-row md:flex">
                 {locked ? (
                   <>
                     {/* Ширхэгээр түрээслэх — багц авахгүйгээр яг энэ киног үзнэ */}
@@ -258,7 +299,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                 ) : watchHref ? (
                   <Link
                     href={watchHref}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white px-8 py-3 font-semibold text-black transition-all hover:bg-foreground/85 active:scale-[0.98] sm:py-2.5"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-foreground px-8 py-3 font-semibold text-background shadow-lg transition-all hover:opacity-90 active:scale-[0.98] sm:py-2.5"
                   >
                     <Play size={18} fill="black" /> Үзэх
                   </Link>

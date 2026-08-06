@@ -137,19 +137,34 @@
  * ХУРЦ ӨНЦӨГТ хайрцаг мэт харагддаг байв (хэрэглэгчийн гомдол).
  * Зөөлөн, тархсан сүүдэр + бага өсөлт нь хоёр горимд ч гоё.
  */
+/*
+ * ⚠️⚠️ СҮҮДЭР нь ЗӨВХӨН ПОСТЕРТ (эхний хүү элемент) — БҮХЭЛ картад БИШ.
+ *
+ * Карт нь [постер] + [доорх нэр/үнэлгээ] гэсэн 2 хэсэгтэй. Сүүдрийг
+ * бүхэлд нь өгвөл дэвсгэргүй ТЕКСТИЙН хэсэгт ч сүүдэр зурагдаж, гэрэл
+ * горимд ХУРЦ ӨНЦӨГТ ХАЙРЦАГ мэт харагддаг байв (хэрэглэгчийн гомдол:
+ * "hover муухай өнцөгтэй"). Постер нь дугуйрсан булантай тул сүүдэр нь
+ * зөөлөн, байгалийн харагдана.
+ */
 .title-card:hover,
 .title-card:focus-visible {
   transform: scale(1.04) translateY(-4px);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    0 18px 40px rgba(0, 0, 0, 0.14);
   z-index: 10;
 }
-.dark .title-card:hover,
-.dark .title-card:focus-visible {
+.title-card > div:first-child {
+  transition: box-shadow 0.28s ease;
+}
+.title-card:hover > div:first-child,
+.title-card:focus-visible > div:first-child {
   box-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.45),
-    0 20px 50px rgba(0, 0, 0, 0.65);
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 14px 34px rgba(0, 0, 0, 0.16);
+}
+.dark .title-card:hover > div:first-child,
+.dark .title-card:focus-visible > div:first-child {
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    0 20px 50px rgba(0, 0, 0, 0.7);
 }
 
 /* Hover үед quick action-ууд доороос зөөлөн гарч ирнэ */

@@ -267,7 +267,7 @@ export default function ProfilePage() {
             <button
               onClick={() => fileRef.current?.click()}
               aria-label="Зураг солих"
-              className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-black shadow-md hover:scale-110"
+              className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background shadow-md hover:scale-110"
             >
               <Camera size={12} />
             </button>
