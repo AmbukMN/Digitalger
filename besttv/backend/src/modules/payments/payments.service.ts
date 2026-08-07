@@ -14,6 +14,7 @@ import { EmailService } from '../email/email.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CouponsService } from '../coupons/coupons.module';
 import { WalletService } from '../wallet/wallet.module';
+import { RentalsService } from '../rentals/rentals.module';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -44,6 +45,8 @@ export class PaymentsService {
     private readonly coupons: CouponsService,
     private readonly wallet: WalletService,
     private readonly email: EmailService,
+    /* ⚠️ Ширхэгээр түрээслэх QPay урсгалд (үнэ/хугацаа тэнд тодорхойлогдоно) */
+    private readonly rentals: RentalsService,
   ) {}
 
   isQPayConfigured(): boolean {
@@ -125,6 +128,42 @@ export class PaymentsService {
       return { devMode: true, paymentId: devPayment.id, status: 'PAID' };
     }
 
+    const invoice = await this.createQPayInvoice(userId, amount);
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId,
+        planId,
+        amount,
+        status: PaymentStatus.PENDING,
+        couponCode: normalizedCoupon,
+        originalAmount: normalizedCoupon ? plan.price : undefined,
+        qpayInvoiceId: invoice.invoice_id,
+        qpayQrText: invoice.qr_text,
+        qpayQrImage: invoice.qr_image,
+        qpayUrls: invoice.urls as object,
+      },
+    });
+
+    return {
+      devMode: false,
+      paymentId: payment.id,
+      invoiceId: invoice.invoice_id,
+      qrText: invoice.qr_text,
+      qrImage: invoice.qr_image,
+      urls: invoice.urls,
+      amount,
+    };
+  }
+
+  /**
+   * QPay нэхэмжлэл үүсгэх — багц БА түрээс ХОЁУЛАА энийг дуудна.
+   *
+   * ⚠️ Тусад нь салгасан шалтгаан: түрээсийн зам нэмэхэд token retry,
+   * анонимчлол, алдаа боловсруулалт ХУУЛБАРЛАГДАХ байсан. Нэг газарт
+   * байвал QPay-ийн дүрэм өөрчлөгдөхөд нэг л газар засна.
+   */
+  private async createQPayInvoice(userId: string, amount: number): Promise<QPayInvoiceResponse> {
     const qpay = this.config.get('qpay');
     /**
      * ⚠️⚠️ QPay-Д ИЛГЭЭХ ТЕКСТ — БИЗНЕСИЙН НЭР ОРУУЛАХГҮЙ.
@@ -174,16 +213,79 @@ export class PaymentsService {
       throw new BadRequestException('QPay нэхэмжлэл үүсгэж чадсангүй');
     }
 
-    const invoice = (await response.json()) as QPayInvoiceResponse;
+    /* ⚠️ Payment бичлэгийг ДУУДАГЧ тал үүсгэнэ — багц/түрээс өөр талбартай */
+    return (await response.json()) as QPayInvoiceResponse;
+  }
 
+  /**
+   * ШИРХЭГЭЭР ТҮРЭЭСЛЭХ — QPay нэхэмжлэл үүсгэнэ.
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: өмнө нь түрээслэх ЦОРЫН ГАНЦ зам нь
+   * хэтэвч байсан. Хэтэвчгүй хэрэглэгч эхлээд цэнэглээд дараа нь
+   * түрээслэх 2 алхамт урсгалд ордог — олонх нь тэндээ орхидог.
+   * Одоо шууд QPay-ээр төлж болно.
+   *
+   * ⚠️ `completePayment` нь `rentalTitleId` байвал Rental үүсгэнэ.
+   */
+  async initiateRental(titleId: string, userId: string) {
+    const info = await this.rentals.priceFor(titleId);
+    if (!info.available) {
+      throw new BadRequestException('Энэ киног ширхэгээр түрээслэх боломжгүй');
+    }
+
+    /* ⚠️ Аль хэдийн эрхтэй бол дахин төлүүлэхгүй */
+    const active = await this.subs.activeRental(userId, titleId);
+    if (active) {
+      return { already: true as const, expiresAt: active.expiresAt };
+    }
+
+    /**
+     * ⚠️ IDEMPOTENT — сүүлийн 30 минутын PENDING нэхэмжлэлийг дахин
+     * ашиглана. Эс бөгөөс хэрэглэгч буцаад дахин дарах бүрд QPay-д
+     * шинэ нэхэмжлэл үүсч, хог хуримтлагдана (мөн QPay-ийн хязгаар).
+     */
+    const existing = await this.prisma.payment.findFirst({
+      where: {
+        userId,
+        rentalTitleId: titleId,
+        status: PaymentStatus.PENDING,
+        qpayInvoiceId: { not: null },
+        amount: info.price,
+        createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      return {
+        devMode: false,
+        paymentId: existing.id,
+        invoiceId: existing.qpayInvoiceId,
+        qrText: existing.qpayQrText ?? '',
+        qrImage: existing.qpayQrImage ?? '',
+        urls: (existing.qpayUrls as object[]) ?? [],
+        amount: existing.amount,
+      };
+    }
+
+    const base = {
+      userId,
+      rentalTitleId: titleId,
+      amount: info.price,
+      status: PaymentStatus.PENDING,
+    };
+
+    /* ⚠️ QPay тохируулаагүй (dev) — шууд төлөгдсөнд тооцно */
+    if (!this.isQPayConfigured()) {
+      const dev = await this.prisma.payment.create({ data: base });
+      this.logger.warn('QPay тохируулаагүй — dev mode: түрээс автомат баталгаажлаа');
+      await this.completePayment(dev.id);
+      return { devMode: true, paymentId: dev.id, status: 'PAID' };
+    }
+
+    const invoice = await this.createQPayInvoice(userId, info.price);
     const payment = await this.prisma.payment.create({
       data: {
-        userId,
-        planId,
-        amount,
-        status: PaymentStatus.PENDING,
-        couponCode: normalizedCoupon,
-        originalAmount: normalizedCoupon ? plan.price : undefined,
+        ...base,
         qpayInvoiceId: invoice.invoice_id,
         qpayQrText: invoice.qr_text,
         qpayQrImage: invoice.qr_image,
@@ -198,11 +300,10 @@ export class PaymentsService {
       qrText: invoice.qr_text,
       qrImage: invoice.qr_image,
       urls: invoice.urls,
-      amount,
+      amount: info.price,
     };
   }
 
-  /** Хэрэглэгчийн өөрийн захиалгын тvvх (profile хуудсанд) */
   /**
    * Захиалгын түүх.
    *
@@ -401,6 +502,15 @@ export class PaymentsService {
       return;
     }
 
+    // ── Ширхэгээр түрээслэх ─────────────────────────────────────────────
+    if (payment.rentalTitleId) {
+      await this.rentals.grantFromPayment(payment.id, payment.userId, payment.rentalTitleId);
+      this.logger.log(
+        `Түрээс нээгдлээ (QPay): user=${payment.userId} title=${payment.rentalTitleId}`,
+      );
+      return;
+    }
+
     // ── Багц худалдан авалт ─────────────────────────────────────────────
     if (!payment.plan) {
       this.logger.error(`Payment ${payment.id}: багц олдсонгүй (planId=${payment.planId})`);
@@ -464,6 +574,22 @@ export class PaymentsService {
     if (payment.status === PaymentStatus.PAID) {
       throw new BadRequestException('Энэ төлбөр аль хэдийн баталгаажсан байна');
     }
+    /**
+     * ⚠️⚠️ ЦУЦЛАГДСАН төлбөрийг ДАХИН баталгаажуулахыг ХОРИГЛОНО.
+     *
+     * `adminCancel` нь эрхийг хүчингүй болгож, хэтэвчийн мөнгийг
+     * БУЦААСАН байдаг. Үүнийг дахин PAID болговол эрх ДАХИН олгогдох
+     * ба буцаасан мөнгө хэрэглэгчид ҮЛДЭНЭ → мөнгө хэвлэгдэнэ.
+     * Мөн `PAID→CANCELLED→PAID` мөчлөгт `WalletTransaction` түүх
+     * хуурамч томорч, `balanceAfter` snapshot-ууд утгагүй болно.
+     *
+     * Алдаатай цуцалсан бол ШИНЭ төлбөр үүсгэх нь зөв (түүх тодорхой).
+     */
+    if (payment.status === PaymentStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Цуцлагдсан төлбөрийг дахин баталгаажуулах боломжгүй — шинэ төлбөр үүсгэнэ үү',
+      );
+    }
 
     // ⚠️ completePayment нь PENDING-ээс л шилжүүлдэг тул эхлээд PENDING болгоно
     // (FAILED/EXPIRED-ээс сэргээх тохиолдол).
@@ -519,6 +645,49 @@ export class PaymentsService {
             paymentId,
             tx,
           });
+        } else {
+          /**
+           * ⚠️⚠️ ХЭТЭВЧЭЭР ТӨЛСӨН БАГЦЫГ ЦУЦЛАХАД МӨНГИЙГ БУЦААНА.
+           *
+           * Өмнө нь ЗӨВХӨН `isWalletTopup` салбар байсан тул хэрэглэгч
+           * хэтэвчээр 29,000₮-ийн багц авч, админ цуцлахад ЭРХ НЬ
+           * ХААГДААД МӨНГӨ НЬ Ч АЛГА болдог байв — бүрэн алдагдал,
+           * санхүүгийн маргаан.
+           *
+           * ⚠️ QPay-ээр ШУУД төлсөн бол хэтэвчинд буцаахгүй — тэр мөнгө
+           * хэтэвчээр ороогүй тул банкаар буцаах ёстой (гараар).
+           * Тиймээс `WalletTransaction`-оос ЯГ хэдийг хассаныг олж,
+           * түүнийг л буцаана — таамаглахгүй.
+           *
+           * ⚠️ Купоноор 0₮ болсон бол гүйлгээ огт үүсээгүй → буцаах юм
+           * байхгүй (`spent` олдохгүй, алгасна).
+           */
+          const [spent, alreadyRefunded] = await Promise.all([
+            tx.walletTransaction.findFirst({
+              where: { paymentId, type: WalletTxType.PURCHASE },
+              select: { amount: true },
+            }),
+            /**
+             * ⚠️ ДАВХАР БУЦААЛТААС сэргийлнэ. `adminMarkPaid` нь
+             * цуцлагдсан төлбөрийг PENDING болгож дахин PAID хийж чадна
+             * — тэр мөчлөгт REFUND давтагдвал хэрэглэгч мөнгө хэвлэнэ.
+             */
+            tx.walletTransaction.findFirst({
+              where: { paymentId, type: WalletTxType.REFUND },
+              select: { id: true },
+            }),
+          ]);
+          if (spent && spent.amount < 0 && !alreadyRefunded) {
+            await this.wallet.applyTransaction({
+              userId: payment.userId,
+              type: WalletTxType.REFUND,
+              /* ⚠️ `spent.amount` нь СӨРӨГ (хасалт) тул эргүүлж эерэг болгоно */
+              amount: -spent.amount,
+              description: `Цуцлагдсан багцын буцаалт${reason ? `: ${reason}` : ''}`,
+              paymentId,
+              tx,
+            });
+          }
         }
       }
     });

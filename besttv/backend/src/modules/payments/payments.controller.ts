@@ -31,6 +31,22 @@ export class PaymentsController {
     return this.payments.initiate(planId, user.sub, couponCode);
   }
 
+  /**
+   * ШИРХЭГЭЭР ТҮРЭЭСЛЭХ — QPay нэхэмжлэл.
+   *
+   * ⚠️ Өмнө нь түрээслэх цорын ганц зам нь ХЭТЭВЧ байсан тул хэтэвчгүй
+   * хэрэглэгч эхлээд цэнэглээд дараа нь түрээслэх 2 алхамт урсгалд
+   * ордог байв. Одоо шууд төлж болно.
+   * ⚠️ `:id/check`-ЭЭС ӨМНӨ бичигдэнэ — эс бөгөөс "rental" гэдгийг `:id`
+   * гэж уншиж, буруу route таарна.
+   */
+  @Post('rental/initiate')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  initiateRental(@CurrentUser() user: JwtPayload, @Body('titleId') titleId: string) {
+    return this.payments.initiateRental(titleId, user.sub);
+  }
+
   @Get(':id/check')
   @UseGuards(JwtAuthGuard)
   check(@CurrentUser() user: JwtPayload, @Param('id') id: string) {

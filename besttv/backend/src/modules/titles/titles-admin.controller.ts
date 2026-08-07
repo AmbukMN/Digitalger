@@ -71,8 +71,15 @@ export class TitlesAdminController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  remove(
+    @Param('id') id: string,
+    /**
+     * ⚠️ `?force=1` — идэвхтэй ТҮРЭЭСТЭЙ байсан ч устгана.
+     * Эс бөгөөс 400 + ямар түрээс байгааг буцаана (админ баталгаажуулна).
+     */
+    @Query('force') force?: string,
+  ) {
+    return this.svc.remove(id, force === '1' || force === 'true');
   }
 
   // ── Bulk үйлдлүүд ───────────────────────────────────────────────────────────

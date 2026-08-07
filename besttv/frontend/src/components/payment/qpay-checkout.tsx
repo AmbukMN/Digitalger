@@ -12,6 +12,12 @@ export interface QPayInvoice {
   qrText?: string;
   urls?: { name: string; link: string; logo: string }[];
   amount?: number;
+  /**
+   * ⚠️ Төлбөрийн ТӨРӨЛ — дуудагч тал `onPaid` дотор ялгахад хэрэгтэй.
+   * `rental` бол backend аль хэдийн эрхийг нээсэн байна; дахин
+   * түрээслэх дуудлага хийвэл ХОЁР ДАХЬ удаа мөнгө хасагдана.
+   */
+  kind?: 'plan' | 'topup' | 'rental';
 }
 
 interface Props {

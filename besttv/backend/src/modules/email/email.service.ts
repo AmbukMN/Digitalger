@@ -29,7 +29,12 @@ export type EmailTemplate =
   | 'payment'
   | 'subscription'
   | 'rental'
+  /** Багц дуусах сануулга (хоногоор) */
   | 'expiring'
+  /** ⚠️ Түрээс дуусах сануулга — `expiring`-ЭЭС ТУСДАА: давхар илгээхээс
+   *  сэргийлэх `EmailLog` шалгалт нь `template`-ээр ялгадаг тул нэг нэр
+   *  хэрэглэвэл багцын сануулга ирсэн хүнд түрээсийнх очихгүй болно. */
+  | 'rental-expiring'
   | 'marketing';
 
 /**
@@ -411,6 +416,46 @@ ${pre}
       subject: `${opts.titleName} — түрээс баталгаажлаа`,
       html,
       template: 'rental',
+      userId: opts.userId,
+    });
+  }
+
+  /**
+   * Түрээс дуусах гэж байна (сануулга).
+   *
+   * ⚠️ ЦАГААР тооцно — түрээс ихэвчлэн 48 цаг тул "3 хоногийн дараа"
+   * гэсэн багцын хэв маяг тохирохгүй.
+   * ⚠️ Сунгах биш ДУУСГАХ мессеж: түрээсийг сунгах боломж байхгүй тул
+   * "хугацаанд багтаж үзээрэй" гэж уриална (дахин түрээслүүлэх нь
+   * шударга бус мэдрэгдэнэ).
+   */
+  sendRentalExpiring(opts: {
+    to: string;
+    name?: string | null;
+    titleName: string;
+    titleSlug: string;
+    expiresAt: Date | string;
+    hoursLeft: number;
+    userId?: string;
+  }) {
+    const html = this.layout({
+      heading: `Түрээс ${opts.hoursLeft} цагийн дараа дуусна`,
+      preheader: `${opts.titleName} — үзэж амжаарай`,
+      bodyHtml:
+        this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
+        this.box([
+          ['Кино', opts.titleName],
+          ['Дуусах', this.date(opts.expiresAt)],
+        ]) +
+        this.p('Хугацаа дуусахаас өмнө үзэж амжаарай.'),
+      ctaText: 'Одоо үзэх',
+      ctaUrl: `${this.siteUrl}/movie/${opts.titleSlug}`,
+    });
+    this.queueSend({
+      to: opts.to,
+      subject: `${opts.titleName} — түрээс удахгүй дуусна`,
+      html,
+      template: 'rental-expiring',
       userId: opts.userId,
     });
   }

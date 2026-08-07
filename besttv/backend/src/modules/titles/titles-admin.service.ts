@@ -13,6 +13,22 @@ import {
   UpdateTitleDto,
 } from './dto/title-admin.dto';
 
+/**
+ * `Title.cast` (Json) доторх зургийн key-үүдийг гаргана.
+ *
+ * ⚠️ Кино устгахад ЭДГЭЭРИЙГ ч устгах ёстой — өмнө нь орхигдож R2-д
+ * үүрд үлддэг байв. TMDB импорт нэг кинонд 8 зураг mirror хийдэг тул
+ * 77 кино = ~600 орхигдсон файл.
+ */
+function castPhotoKeys(cast: Prisma.JsonValue | null): string[] {
+  if (!Array.isArray(cast)) return [];
+  return cast
+    .map((c) =>
+      c && typeof c === 'object' && 'photoKey' in c ? (c as { photoKey?: unknown }).photoKey : null,
+    )
+    .filter((k): k is string => typeof k === 'string' && k.length > 0);
+}
+
 @Injectable()
 export class TitlesAdminService {
   private readonly logger = new Logger(TitlesAdminService.name);
@@ -22,6 +38,36 @@ export class TitlesAdminService {
     private readonly storage: StorageService,
     private readonly media: TitleMediaHelper,
   ) {}
+
+  /**
+   * R2 файл/хавтас цэвэрлэх — DB устгал амжилттай болсны ДАРАА, дэвсгэрт.
+   *
+   * ⚠️⚠️ АЛДААГ ЗААВАЛ БҮРТГЭНЭ. Өмнө нь 4 газарт `.catch(() => null)`
+   * гэж ЧИМЭЭГҮЙ залгидаг байсан тул R2 дуудалт унавал файлууд бүрмөсөн
+   * орхигдож, хаана байсныг мэдэх DB мөр ч үлдэхгүй байв. Лог байвал
+   * админ дараа нь гараар цэвэрлэж чадна.
+   *
+   * ⚠️ Устгал нь `await` хийгддэггүй (fire-and-forget) — хэрэглэгчийг
+   * R2-ын хариу хүлээлгэх шаардлагагүй, DB аль хэдийн цэвэрхэн.
+   */
+  private cleanupR2(keys: (string | null | undefined)[], prefixes: string[] = []): void {
+    const files = keys.filter((k): k is string => !!k);
+    void Promise.allSettled([
+      ...files.map((k) => this.storage.delete(k)),
+      ...prefixes.map((p) => this.storage.deletePrefix(p)),
+    ]).then((results) => {
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (!failed.length) return;
+      /* ⚠️ Орхигдсон key-г бүртгэнэ — гараар цэвэрлэхэд хэрэгтэй */
+      const all = [...files, ...prefixes];
+      const lost = results
+        .map((r, i) => (r.status === 'rejected' ? all[i] : null))
+        .filter(Boolean);
+      this.logger.error(
+        `R2 цэвэрлэгээ ${failed.length}/${results.length} амжилтгүй — ОРХИГДСОН: ${lost.join(', ')}`,
+      );
+    });
+  }
 
   // ─── Title CRUD ─────────────────────────────────────────────────────────────
 
@@ -206,18 +252,52 @@ export class TitlesAdminService {
     });
   }
 
-  async remove(id: string) {
+  /**
+   * @param force ⚠️ Идэвхтэй түрээстэй байсан ч устгах (админ баталсан)
+   */
+  async remove(id: string, force = false) {
     const title = await this.prisma.title.findUnique({
       where: { id },
-      include: { seasons: { include: { episodes: true } } },
+      include: {
+        seasons: { include: { episodes: true } },
+        rentals: { where: { expiresAt: { gt: new Date() } }, select: { amount: true } },
+      },
     });
     if (!title) throw new NotFoundException('Контент олдсонгүй');
+
+    /**
+     * ⚠️⚠️ ТӨЛБӨР ТӨЛСӨН ТҮРЭЭСИЙГ ХАМГААЛНА.
+     *
+     * `Rental` нь `onDelete: Cascade` тул кино устахад идэвхтэй түрээс
+     * ЧИМЭЭГҮЙ устдаг — хэрэглэгч 4,900₮ төлсөн, кино алга, буцаалт
+     * байхгүй, лог ч үлдэхгүй. `bulkDelete` энэ хамгаалалттай байсан
+     * атлаа ганцаарчилсан устгал ямар ч шалгалтгүй байв.
+     */
+    if (title.rentals.length && !force) {
+      const sum = title.rentals.reduce((s, r) => s + r.amount, 0);
+      throw new BadRequestException({
+        code: 'ACTIVE_RENTALS',
+        message:
+          `Энэ кинонд ${title.rentals.length} идэвхтэй түрээс байна ` +
+          `(${sum.toLocaleString()}₮). Устгавал тэд эрхээ алдана. ` +
+          `Хугацаа дуусахыг хүлээх эсвэл "хүчээр устгах"-ыг сонгоно уу.`,
+        activeRentals: title.rentals.length,
+        rentalAmount: sum,
+      });
+    }
 
     // R2 цэвэрлэгээ — HLS хавтаснууд + зургууд
     const keys = [
       title.posterKey,
       title.backdropKey,
       title.videoRawKey,
+      /**
+       * ⚠️ ГАЛЕРЕЙ + ЖҮЖИГЧДИЙН ЗУРАГ — өмнө нь цэвэрлэгээнд ОРООГҮЙ
+       * тул кино устсаны дараа R2-д үүрд орхигдож, сарын хадгалалтын
+       * төлбөр дэмий өсдөг байв (TMDB импорт 8 зураг mirror хийдэг).
+       */
+      ...title.galleryKeys,
+      ...castPhotoKeys(title.cast),
     ].filter(Boolean) as string[];
     const prefixes: string[] = [];
     if (title.videoKey) prefixes.push(this.hlsPrefix(title.videoKey));
@@ -233,10 +313,7 @@ export class TitlesAdminService {
     await this.prisma.title.delete({ where: { id } });
 
     // Fire-and-forget цэвэрлэгээ (DB устгал амжилттай болсны ДАРАА)
-    void Promise.all([
-      ...keys.map((k) => this.storage.delete(k).catch(() => null)),
-      ...prefixes.map((p) => this.storage.deletePrefix(p).catch(() => null)),
-    ]);
+    this.cleanupR2(keys, prefixes);
 
     return { ok: true };
   }
@@ -334,6 +411,8 @@ export class TitlesAdminService {
     const prefixes: string[] = [];
     for (const t of titles) {
       for (const k of [t.posterKey, t.backdropKey, t.videoRawKey]) if (k) keys.push(k);
+      /* ⚠️ Галерей + жүжигчдийн зураг — өмнө нь орхигдож R2-д үлддэг байв */
+      keys.push(...t.galleryKeys, ...castPhotoKeys(t.cast));
       if (t.videoKey) prefixes.push(this.hlsPrefix(t.videoKey));
       if (t.trailerKey) prefixes.push(this.hlsPrefix(t.trailerKey));
       for (const s of t.seasons) {
@@ -349,10 +428,7 @@ export class TitlesAdminService {
     const { count } = await this.prisma.title.deleteMany({ where: { id: { in: foundIds } } });
 
     // Fire-and-forget цэвэрлэгээ (DB устгал амжилттай болсны ДАРАА)
-    void Promise.all([
-      ...keys.map((k) => this.storage.delete(k).catch(() => null)),
-      ...prefixes.map((p) => this.storage.deletePrefix(p).catch(() => null)),
-    ]);
+    this.cleanupR2(keys, prefixes);
 
     this.logger.log(
       `Bulk устгал: ${count} контент, ${keys.length} файл, ${prefixes.length} HLS хавтас`,
@@ -424,13 +500,12 @@ export class TitlesAdminService {
     if (!season) throw new NotFoundException('Улирал олдсонгүй');
 
     await this.prisma.season.delete({ where: { id } });
-    void Promise.all(
-      season.episodes.flatMap((e) => [
-        e.videoKey ? this.storage.deletePrefix(this.hlsPrefix(e.videoKey)) : null,
-        e.videoRawKey ? this.storage.delete(e.videoRawKey) : null,
-        e.posterKey ? this.storage.delete(e.posterKey) : null,
-      ]),
-    ).catch(() => null);
+    this.cleanupR2(
+      season.episodes.flatMap((e) => [e.videoRawKey, e.posterKey]),
+      season.episodes
+        .filter((e) => e.videoKey)
+        .map((e) => this.hlsPrefix(e.videoKey as string)),
+    );
     return { ok: true };
   }
 
@@ -447,11 +522,10 @@ export class TitlesAdminService {
     if (!ep) throw new NotFoundException('Анги олдсонгүй');
 
     await this.prisma.episode.delete({ where: { id } });
-    void Promise.all([
-      ep.videoKey ? this.storage.deletePrefix(this.hlsPrefix(ep.videoKey)) : null,
-      ep.videoRawKey ? this.storage.delete(ep.videoRawKey) : null,
-      ep.posterKey ? this.storage.delete(ep.posterKey) : null,
-    ]).catch(() => null);
+    this.cleanupR2(
+      [ep.videoRawKey, ep.posterKey],
+      ep.videoKey ? [this.hlsPrefix(ep.videoKey)] : [],
+    );
     return { ok: true };
   }
 }

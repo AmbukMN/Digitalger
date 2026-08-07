@@ -192,10 +192,28 @@ export class RentalsService {
 
     const expiresAt = new Date(Date.now() + info.hours * 3600_000);
 
+    /**
+     * ⚠️⚠️ ДАВХАР ТҮРЭЭСЛЭХЭЭС СЭРГИЙЛНЭ (бодит эрсдэл байсан).
+     *
+     * Дээрх `existing` шалгалт нь транзакцаас ГАДНА байсан тул хоёр
+     * хүсэлт ЗЭРЭГ ирвэл (давхар товшилт, сүлжээний retry) хоёулаа
+     * `existing = null` уншаад ХОЁР Rental үүсч, ХОЁР УДАА мөнгө
+     * хасагдана. Хэрэглэгч 4,900₮-ийн оронд 9,800₮ төлнө.
+     *
+     * ⚠️ `Rental`-д `@@unique([userId, titleId])` тавьж БОЛОХГҮЙ —
+     * хугацаа дууссаны дараа ДАХИН түрээслэх нь хэвийн (түүхэн олон
+     * мөр байх ёстой). Тиймээс шалгалтыг транзакц дотор давтана.
+     *
+     * ⚠️ Мөн ДАРААЛЛЫГ СОЛИВ: эхлээд МӨНГӨ хасаад дараа нь эрх олгоно.
+     * `applyTransaction` нь атомар `updateMany(walletBalance >= amount)`
+     * тул үлдэгдэл хүрэхгүй бол ЭНД шидэгдэж, эрх огт олгогдохгүй.
+     */
     const rental = await this.prisma.$transaction(async (tx) => {
-      const r = await tx.rental.create({
-        data: { userId, titleId, amount: info.price, expiresAt },
+      const dup = await tx.rental.findFirst({
+        where: { userId, titleId, expiresAt: { gt: new Date() } },
+        select: { id: true, expiresAt: true },
       });
+      if (dup) return { ...dup, duplicate: true as const };
 
       if (info.price > 0) {
         await this.wallet.applyTransaction({
@@ -206,8 +224,17 @@ export class RentalsService {
           tx,
         });
       }
-      return r;
+
+      const r = await tx.rental.create({
+        data: { userId, titleId, amount: info.price, expiresAt },
+      });
+      return { ...r, duplicate: false as const };
     });
+
+    /* ⚠️ Зэрэг ирсэн хоёр дахь хүсэлт — имэйл ДАХИН илгээхгүй */
+    if (rental.duplicate) {
+      return { ok: true, already: true, expiresAt: rental.expiresAt };
+    }
 
     // ── Түрээсийн баталгаажуулах имэйл ──
     const [renter, title] = await Promise.all([
@@ -228,6 +255,71 @@ export class RentalsService {
     }
 
     return { ok: true, rentalId: rental.id, expiresAt, hours: info.hours };
+  }
+
+  /**
+   * QPay төлбөр амжилттай болсны ДАРАА түрээс олгоно.
+   *
+   * ⚠️⚠️ ИДЕМПОТЕНТ БАЙХ ЁСТОЙ: QPay callback, polling (`check`) болон
+   * reconcile cron ГУРВУУЛАА ижил төлбөрийг баталгаажуулж болно.
+   * `Rental.paymentId` дээр `@unique` тавьсан тул хоёр дахь оролдлого
+   * DB түвшинд унана — гэхдээ алдаа шидэхийн оронд ЧИМЭЭГҮЙ өнгөрнө
+   * (төлбөр аль хэдийн боловсруулагдсан, хэрэглэгчид эрх нь бий).
+   *
+   * ⚠️ Мөнгө ЭНД хасахгүй — QPay-д аль хэдийн төлөгдсөн.
+   */
+  async grantFromPayment(paymentId: string, userId: string, titleId: string) {
+    const existingForPayment = await this.prisma.rental.findUnique({
+      where: { paymentId },
+      select: { id: true, expiresAt: true },
+    });
+    if (existingForPayment) return existingForPayment;
+
+    const info = await this.priceFor(titleId);
+    const expiresAt = new Date(Date.now() + info.hours * 3600_000);
+
+    /**
+     * ⚠️ Хэрэглэгч QPay төлж байх зуур ХЭТЭВЧЭЭР ч түрээслэсэн байж
+     * болно (эсвэл багц авсан). Тэр тохиолдолд ДАВХАР эрх үүсгэхийн
+     * оронд байгаа түрээсийн хугацааг СУНГАНА — төлсөн мөнгө үрэгдэхгүй.
+     */
+    const active = await this.prisma.rental.findFirst({
+      where: { userId, titleId, expiresAt: { gt: new Date() } },
+      orderBy: { expiresAt: 'desc' },
+      select: { id: true, expiresAt: true },
+    });
+
+    const rental = active
+      ? await this.prisma.rental.update({
+          where: { id: active.id },
+          data: {
+            expiresAt: new Date(active.expiresAt.getTime() + info.hours * 3600_000),
+            amount: { increment: info.price },
+          },
+          select: { id: true, expiresAt: true },
+        })
+      : await this.prisma.rental.create({
+          data: { userId, titleId, amount: info.price, expiresAt, paymentId },
+          select: { id: true, expiresAt: true },
+        });
+
+    const [renter, title] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+      this.prisma.title.findUnique({ where: { id: titleId }, select: { slug: true } }),
+    ]);
+    if (renter && title) {
+      this.email.sendRentalConfirmation({
+        to: renter.email,
+        name: renter.name,
+        titleName: info.titleName,
+        titleSlug: title.slug,
+        amount: info.price,
+        expiresAt: rental.expiresAt,
+        hours: info.hours,
+        userId,
+      });
+    }
+    return rental;
   }
 }
 

@@ -73,6 +73,55 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     }
   };
 
+  /**
+   * ⚠️⚠️ ШУУД QPay-ЭЭР ТҮРЭЭСЛЭХ — хэтэвч ОГТ дамжихгүй.
+   *
+   * Өмнө нь цорын ганц зам нь "хэтэвч цэнэглэх" байсан тул хэрэглэгч
+   * кино түрээслэх гэтэл "ХЭТЭВЧ ЦЭНЭГЛЭХ" гэсэн БУРУУ гарчиг харж,
+   * "би кино авах гээд байхад яагаад хэтэвч?" гэж эргэлздэг байв
+   * (бодит гомдол). Мөн 1,000₮-ийн доод хязгаараас болж 4,900₮-ийн
+   * кинонд 5,000₮ цэнэглэгдэж, үлдэгдэл гацдаг.
+   *
+   * Одоо ЯГ киноны үнээр төлнө. Төлбөр батлагдмагц backend өөрөө
+   * `Rental` үүсгэнэ (`completePayment` → `rentals.grantFromPayment`).
+   */
+  const payDirect = async () => {
+    setBusy(true);
+    try {
+      const res = await api<QPayInvoice & { devMode?: boolean; already?: boolean }>(
+        '/payments/rental/initiate',
+        { method: 'POST', body: JSON.stringify({ titleId }) },
+      );
+      /* ⚠️ Хэрэглэгч өөр таб дээр аль хэдийн түрээсэлсэн байж болно */
+      if (res.already) {
+        onRented();
+        toast.success('Энэ кино аль хэдийн нээлттэй байна');
+        onClose();
+        return;
+      }
+      if (res.devMode) {
+        setDone(true);
+        onRented();
+        setTimeout(onClose, 1200);
+        return;
+      }
+      setInvoice({
+        paymentId: res.paymentId,
+        qrImage: res.qrImage,
+        qrText: res.qrText,
+        urls: res.urls,
+        amount: price,
+        /* ⚠️ Энэ нэхэмжлэл нь ШУУД түрээс — төлөгдмөгц кино нээгдэнэ,
+           хэтэвч рүү мөнгө ОРОХГҮЙ (`onPaid` дотор ялгана) */
+        kind: 'rental',
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'QPay нэхэмжлэл үүсгэж чадсангүй');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** Дутуу дүнг QPay-ээр цэнэглэх → батлагдмагц автомат түрээслэнэ */
   const startTopup = async () => {
     setBusy(true);
@@ -92,6 +141,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
         qrText: res.qrText,
         urls: res.urls,
         amount: topupAmount,
+        kind: 'topup',
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'QPay нэхэмжлэл үүсгэж чадсангүй');
@@ -110,6 +160,18 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
         subtitle={`${titleName} — ${hours}ц түрээс`}
         successText="Кино нээгдэж байна…"
         onPaid={async () => {
+          /**
+           * ⚠️ ХОЁР ӨӨР УРСГАЛ:
+           *  `rental` — backend аль хэдийн Rental үүсгэсэн. Дахин
+           *             `rent()` дуудвал ХОЁР ДАХЬ удаа мөнгө хасагдана.
+           *  `topup`  — зөвхөн хэтэвч цэнэглэгдсэн, түрээсийг ЭНД хийнэ.
+           */
+          if (invoice.kind === 'rental') {
+            setDone(true);
+            onRented();
+            setTimeout(onClose, 1500);
+            return;
+          }
           await refreshMe();
           await rent();
         }}
@@ -195,16 +257,39 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                     </span>
                   </div>
 
+                  {/*
+                    ⚠️⚠️ ҮНДСЭН ТОВЧ нь ҮРГЭЛЖ "төлж түрээслэх".
+                    Хэтэвч хүрвэл хэтэвчээр, эс бөгөөс ШУУД QPay-ээр —
+                    хоёр тохиолдолд ч хэрэглэгч ЯГ киноны үнийг л төлнө.
+                    Өмнө нь хүрэхгүй үед "5,000₮ цэнэглээд түрээслэх"
+                    гэж гардаг байсан нь: (1) илүү мөнгө шаардаж байгаа
+                    мэт харагдана, (2) "хэтэвч" гэдэг нь киноны хуудсанд
+                    хамааралгүй ойлголт (бодит гомдол).
+                  */}
                   <button
-                    onClick={shortfall > 0 ? startTopup : rent}
+                    onClick={shortfall > 0 ? payDirect : rent}
                     disabled={busy}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 font-semibold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                   >
                     {busy && <Loader2 size={16} className="animate-spin" />}
-                    {shortfall > 0
-                      ? `${formatPrice(topupAmount)} цэнэглээд түрээслэх`
-                      : `${formatPrice(price)} төлж түрээслэх`}
+                    {formatPrice(price)} төлж түрээслэх
                   </button>
+
+                  {/*
+                    ⚠️ Хэтэвч цэнэглэх нь НЭМЭЛТ сонголт болов — олон
+                    кино авах хүнд хэрэгтэй (нэг цэнэглээд олон удаа).
+                    Зөвхөн үлдэгдэл хүрэхгүй үед харуулна.
+                  */}
+                  {shortfall > 0 && (
+                    <button
+                      onClick={startTopup}
+                      disabled={busy}
+                      className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-foreground/12 py-2.5 text-sm font-medium text-foreground/70 transition-colors hover:bg-foreground/5 disabled:opacity-50"
+                    >
+                      <Wallet size={14} />
+                      Эсвэл {formatPrice(topupAmount)} хэтэвчээ цэнэглэх
+                    </button>
+                  )}
                 </>
               )}
 

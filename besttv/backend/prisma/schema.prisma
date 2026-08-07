@@ -224,6 +224,9 @@ model Title {
   myList        MyListItem[]
   reviews       Review[]
   rentals       Rental[]
+  /// ⚠️ Энэ киног ширхэгээр түрээслэх QPay төлбөрүүд (`onDelete: SetNull`
+  /// тул кино устсан ч төлбөрийн түүх үлдэнэ)
+  rentalPayments Payment[] @relation("RentalPayments")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -231,6 +234,18 @@ model Title {
   @@index([type, isActive])
   @@index([isBanner, isActive])
   @@index([comingSoon, isActive])
+  /**
+   * ⚠️ ЭРЭМБЭЛЭЛТИЙН ИНДЕКСҮҮД — эдгээргүй үед Postgres БҮТЭН СКАН + sort
+   * хийдэг байв (77 кинод мэдрэгдэхгүй ч 5000+ болоход секундэд хүрнэ).
+   *   `views`     → "Их үзсэн" мөр, related (`titles.service.ts`)
+   *   `createdAt` → каталогийн АНХДАГЧ эрэмбэ (хамгийн их дуудагддаг)
+   *   `rating`    → "Үнэлгээгээр" шүүлт
+   * ⚠️ `isActive`-ийг ЭХЭНД тавьсан — бүх асуулга түүгээр шүүдэг тул
+   * composite индекс бүтнээрээ ашиглагдана.
+   */
+  @@index([isActive, createdAt])
+  @@index([isActive, comingSoon, views])
+  @@index([isActive, rating])
 }
 
 model Genre {
@@ -377,6 +392,13 @@ model Payment {
   /// true = хэтэвч цэнэглэх төлбөр (багц худалдан авалт биш)
   isWalletTopup Boolean @default(false)
 
+  /// ⚠️ ШИРХЭГЭЭР ТҮРЭЭСЛЭХ төлбөр — энэ талбар байвал `planId` NULL байна.
+  /// Төлбөр амжилттай болмогц `completePayment` нь Rental үүсгэнэ.
+  /// ⚠️ `onDelete: SetNull` — кино устсан ч ТӨЛБӨРИЙН ТҮҮХ үлдэх ёстой
+  /// (санхүүгийн бүртгэл; Cascade бол мөнгөний мөр алга болно).
+  rentalTitleId String?
+  rentalTitle   Title?  @relation("RentalPayments", fields: [rentalTitleId], references: [id], onDelete: SetNull)
+
   couponCode     String? // хэрэглэсэн купон код (лог зорилгоор, snapshot)
   originalAmount Int? // купон хэрэглэхээс өмнөх дvн (хямдрал харуулахад)
 
@@ -389,11 +411,15 @@ model Payment {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan         Plan?         @relation(fields: [planId], references: [id])
   subscription Subscription?
+  /// ⚠️ Ширхэгээр түрээслэх төлбөрөөр үүссэн түрээс (нэгээс илүүгүй)
+  rental       Rental?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, status])
+  /// ⚠️ `initiateRental`-ийн idempotent хайлтад (userId+rentalTitleId+status)
+  @@index([rentalTitleId])
 }
 
 // ─── Үзэлтийн явц + жагсаалт ─────────────────────────────────────────────────
@@ -736,8 +762,14 @@ model Rental {
 
   /// Төлсөн дүн (₮) — түүхэнд үлдэнэ (үнэ хожим өөрчлөгдсөн ч)
   amount    Int
-  /// Холбогдох төлбөр (QPay эсвэл хэтэвч)
-  paymentId String?
+  /**
+   * Холбогдох төлбөр (QPay эсвэл хэтэвч).
+   * ⚠️ `@unique` — нэг төлбөр ЗӨВХӨН нэг түрээс үүсгэнэ. Webhook давхар
+   * ирвэл (QPay callback + polling + reconcile зэрэг ажилладаг) хоёр
+   * дахь `create` DB түвшинд унана → хэрэглэгч 2 удаа төлөхгүй.
+   */
+  paymentId String?  @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   /// Хүчинтэй хугацаа дуусах — энэ хүртэл үзнэ
   expiresAt DateTime
