@@ -57,6 +57,19 @@ export class TmdbService {
       rating: r.vote_average,
       overview: r.overview,
       posterUrl: r.poster_path ? `${this.imgBase}/w342${r.poster_path}` : null,
+      /**
+       * ⚠️⚠️ ГАРАЛ ҮҮСЭЛ — АВТОМАТ нөхөлтөд ЗААВАЛ шаардлагатай.
+       *
+       * Бодит алдаа: манай "Love MAP" (Монгол кино) нь TMDB-ийн
+       * америк "Love Map (2021)"-тэй нэр нь ЯГ таарсан тул шалгуур
+       * давж, америк жүжигчид/backdrop/он бүгд орж ирсэн.
+       * Нэр таарах нь ХАНГАЛТГҮЙ — улс нь ч таарах ёстой.
+       *
+       * ⚠️ Админ ГАРААР сонгоход энэ нь ЗӨВХӨН мэдээлэл (хориглохгүй) —
+       * хүн харж байгаа тул өөрөө шийднэ.
+       */
+      originalLanguage: r.original_language ?? null,
+      originCountry: r.origin_country ?? null,
     }));
   }
 
@@ -235,11 +248,33 @@ export class TmdbService {
        *      үр дүнгийн нэр нь ГАЛИГ таарах ёстой (жишээ: "49 хоног"
        *      → "49 Khonog"). Эс бөгөөс АЛГАСНА.
        */
-      let hit: { tmdbId: number; title?: string; year?: string } | undefined;
+      type Cand = {
+        tmdbId: number;
+        title?: string;
+        year?: string;
+        originalLanguage?: string | null;
+        originCountry?: string[] | null;
+      };
+      let hit: Cand | undefined;
       try {
-        const results = await this.search(q, type as 'movie' | 'tv');
-        const cand = results[0] as { tmdbId: number; title?: string; year?: string } | undefined;
-        if (cand && this.isLikelyMatch(q, cand.title ?? '')) hit = cand;
+        const results = (await this.search(q, type as 'movie' | 'tv')) as Cand[];
+        /**
+         * ⚠️⚠️ ЭХНИЙ үр дүнг СОХРООР авахгүй — МОНГОЛ гаралтайг ЭРЖ олно.
+         *
+         * Бодит алдаа: манай "Love MAP" (Монгол кино) нь TMDB-ийн америк
+         * "Love Map (2021)"-тэй нэр ЯГ таарсан тул шалгуур давж, америк
+         * жүжигчид/backdrop/он бүгд орсон. "Litsoneras" дээр филиппин
+         * кино орсон. Нэр таарах нь ХАНГАЛТГҮЙ БАЙВ.
+         *
+         * Тиймээс автомат нөхөлт нь ЗӨВХӨН Монгол гаралтай (`mn` хэл
+         * эсвэл `MN` улс) үр дүнг хүлээн авна. Бусад тохиолдолд админ
+         * гараар сонгоно — тэнд хүн харж байгаа тул хориглох шаардлагагүй.
+         */
+        hit = results.find(
+          (r) =>
+            this.isLikelyMatch(q, r.title ?? '') &&
+            (r.originalLanguage === 'mn' || (r.originCountry ?? []).includes('MN')),
+        );
       } catch {
         /* хайлт унавал алгасна */
       }
@@ -301,6 +336,77 @@ export class TmdbService {
     }
 
     return { done, skipped, checked: titles.length };
+  }
+
+  /**
+   * TMDB-д БАЙХГҮЙ Монгол кинонуудад AI-аар SEO бичнэ.
+   *
+   * ⚠️⚠️ ЯАГААД ЭНЭ ХЭРЭГТЭЙ ВЭ: манай 77 киноны 73 нь TMDB-д байхгүй
+   * тул `enrichExisting` тэдэнд хүрэхгүй. Тэдний тайлбар МОНГОЛ бөгөөс
+   * SEO нь ХООСОН — Google-д огт индексжихгүй. Энэ нь TMDB-ээс огт
+   * хамааралгүй, зөвхөн байгаа тайлбар дээр тулгуурлаж SEO үүсгэнэ.
+   *
+   * ⚠️ Тайлбаргүй киног АЛГАСНА — юунаас ч үүсгэх аргагүй.
+   */
+  async generateMissingSeo(limit = 10, dryRun = false) {
+    if (!this.translate.enabled) {
+      throw new BadRequestException(
+        'AI тохируулаагүй байна — .env-д OPENAI_API_KEY эсвэл ANTHROPIC_API_KEY нэмнэ үү',
+      );
+    }
+
+    const titles = await this.prisma.title.findMany({
+      where: {
+        /* ⚠️ Тайлбартай МӨРТЛӨӨ SEO-гүй кинонууд */
+        description: { not: '' },
+        OR: [{ metaDescription: null }, { metaDescription: '' }],
+      },
+      select: {
+        id: true, title: true, description: true, year: true,
+        genres: { select: { genre: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+
+    /**
+     * ⚠️ ЗӨВХӨН нэрийг биш, БИЧИГДЭХ ТЕКСТИЙГ буцаана — эс бөгөөс
+     * `dry=1` нь утгагүй: админ юу бичигдэхийг харалгүй баталгаажуулна.
+     */
+    const done: { title: string; metaTitle: string; metaDescription: string }[] = [];
+    const skipped: string[] = [];
+
+    for (const t of titles) {
+      const seo = await this.translate.generateSeo({
+        title: t.title,
+        description: t.description,
+        year: t.year,
+        genres: t.genres.map((g) => g.genre.name),
+      });
+      if (!seo) { skipped.push(t.title); continue; }
+
+      if (!dryRun) {
+        await this.prisma.title.update({
+          where: { id: t.id },
+          data: { metaTitle: seo.metaTitle, metaDescription: seo.metaDescription },
+        });
+      }
+      done.push({ title: t.title, ...seo });
+    }
+
+    /**
+     * ⚠️ Үлдсэн тоог хэлнэ — админ дахин ажиллуулах эсэхээ мэдэхэд.
+     * ⚠️ Бичсэний ДАРАА тоолж байгаа тул `done`-ыг ДАХИН ХАСАХГҮЙ
+     * (DB аль хэдийн шинэчлэгдсэн). `dryRun` үед л тэд тоонд үлдэнэ.
+     */
+    const remaining = await this.prisma.title.count({
+      where: {
+        description: { not: '' },
+        OR: [{ metaDescription: null }, { metaDescription: '' }],
+      },
+    });
+
+    return { done, skipped, checked: titles.length, remaining };
   }
 
   /**
@@ -407,6 +513,16 @@ export class TmdbController {
       dry === '1',
       Math.max(0, Number(offset) || 0),
     );
+  }
+
+  /**
+   * TMDB-д БАЙХГҮЙ Монгол кинонуудад AI-аар SEO бичнэ.
+   * ⚠️ `/enrich`-ЭЭС ӨӨР: энэ нь TMDB огт дуудахгүй, зөвхөн байгаа
+   * монгол тайлбар дээр тулгуурлана.
+   */
+  @Post('seo')
+  seo(@Query('limit') limit?: string, @Query('dry') dry?: string) {
+    return this.svc.generateMissingSeo(Math.min(30, Number(limit) || 10), dry === '1');
   }
 
   @Get('import/:id')

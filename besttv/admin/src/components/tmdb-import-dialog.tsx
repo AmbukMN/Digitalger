@@ -14,7 +14,22 @@ interface TmdbResult {
   rating: number;
   overview: string;
   posterUrl: string | null;
+  /**
+   * ⚠️ ГАРАЛ ҮҮСЭЛ — админ ЯЛГАХАД чухал. Ижил нэртэй ГАДААД кино
+   * байх нь энгийн: манай "Love MAP" (Монгол) ↔ америк "Love Map (2021)".
+   * Улсыг харуулахгүй бол админ андуурч гадаад кино импортлоно.
+   */
+  originalLanguage?: string | null;
+  originCountry?: string[] | null;
 }
+
+/** ISO хэл/улсын код → монгол нэр (бүгдийг биш, түгээмэлийг) */
+const ORIGIN_LABEL: Record<string, string> = {
+  mn: '🇲🇳 Монгол', en: '🇺🇸 Англи', ko: '🇰🇷 Солонгос', ja: '🇯🇵 Япон',
+  zh: '🇨🇳 Хятад', ru: '🇷🇺 Орос', hi: '🇮🇳 Энэтхэг', tl: '🇵🇭 Филиппин',
+  th: '🇹🇭 Тайланд', fr: '🇫🇷 Франц', es: '🇪🇸 Испани', de: '🇩🇪 Герман',
+  tr: '🇹🇷 Турк', it: '🇮🇹 Итали', kk: '🇰🇿 Казах',
+};
 
 export interface TmdbImportResult {
   titleEn: string;
@@ -168,8 +183,26 @@ export function TmdbImportDialog({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-foreground">{r.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {r.year} {r.rating ? `· ★ ${r.rating.toFixed(1)}` : ''}
+                <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                  <span>{r.year}</span>
+                  {r.rating ? <span>· ★ {r.rating.toFixed(1)}</span> : null}
+                  {/*
+                    ⚠️ ГАРАЛ ҮҮСЛИЙГ ТОДООР — ижил нэртэй гадаад киног
+                    андуурч импортлохоос сэргийлнэ (бодит алдаа гарсан:
+                    Монгол "Love MAP" ↔ америк "Love Map").
+                    Монгол бол НОГООН, бусад нь АНХААРУУЛГА өнгөөр.
+                  */}
+                  {r.originalLanguage && (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                        r.originalLanguage === 'mn'
+                          ? 'bg-emerald-500/15 text-emerald-500'
+                          : 'bg-amber-500/15 text-amber-600'
+                      }`}
+                    >
+                      {ORIGIN_LABEL[r.originalLanguage] ?? r.originalLanguage.toUpperCase()}
+                    </span>
+                  )}
                 </p>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.overview}</p>
               </div>
