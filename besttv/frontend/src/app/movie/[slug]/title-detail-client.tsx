@@ -196,6 +196,22 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               ) : null}
 
               {/*
+                ⚠️ ТРЕЙЛЕР — МОБАЙЛД "Үзэх" товчны ЯГ ДООР.
+                Өмнө нь тайлбарын доод талд байсан тул үндсэн товчноос
+                САЛЖ, хооронд нь мета/тайлбар орж, хэрэглэгч доош гүйлгэж
+                байж л олдог байв. Десктопт хуучнаар үйлдлийн мөрөнд.
+                ⚠️ Хоёрдогч үйлдэл тул СУЛ өнгөөр — "Үзэх"-тэй өрсөлдөхгүй.
+              */}
+              {data.trailerAvailable && (
+                <button
+                  onClick={() => setTrailerOpen(true)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground/10 px-3 py-2.5 text-xs font-semibold text-foreground active:scale-[0.98]"
+                >
+                  <Film size={15} /> Трейлер
+                </button>
+              )}
+
+              {/*
                 ⚠️ ТҮРЭЭСИЙН ҮЛДЭГДЭЛ — МОБАЙЛД товчны ЯГ ДООР.
                 Өмнө нь гарчиг/тайлбарын доор байсан тул хэрэглэгч
                 товчоо дараад доош гүйлгэж байж л хугацаагаа хардаг байв.
@@ -322,16 +338,23 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                 )}
               </div>
 
-              {/* Трейлер / Дуртай / Хуваалцах — ЗӨВХӨН icon */}
-              <div className="flex items-center gap-2.5">
+              {/*
+                Трейлер / Дуртай / Хуваалцах — ЗӨВХӨН icon.
+                ⚠️ САВЫГ ӨӨРИЙГ НЬ нуув: доторх 3 товч бүгд `md:` тул
+                мобайлд сав ХООСОН үлдэж, эцгийн `gap-3` дэмий зай эзэлнэ.
+              */}
+              <div className="hidden items-center gap-2.5 md:flex">
                 {/* ⚠️ Трейлер нь баннерын буланд НУУГДМАЛ байсан — үйлдлийн
-                    мөрөнд гаргаж ил болгов */}
+                    мөрөнд гаргаж ил болгов.
+                    ⚠️ ЗӨВХӨН ДЕСКТОПТ (`hidden md:flex`) — мобайлд "Үзэх"
+                    товчны яг доор аль хэдийн гарсан (дээрээс харна уу).
+                    Хоёр газар харуулбал ДАВХАРДАНА. */}
                 {data.trailerAvailable && (
                   <button
                     onClick={() => setTrailerOpen(true)}
                     title="Трейлер үзэх"
                     aria-label="Трейлер үзэх"
-                    className="flex h-11 items-center justify-center gap-1.5 rounded-full bg-foreground/10 px-4 text-sm font-medium text-foreground transition-all hover:bg-foreground/20 active:scale-95"
+                    className="hidden h-11 items-center justify-center gap-1.5 rounded-full bg-foreground/10 px-4 text-sm font-medium text-foreground transition-all hover:bg-foreground/20 active:scale-95 md:flex"
                   >
                     <Film size={16} /> Трейлер
                   </button>

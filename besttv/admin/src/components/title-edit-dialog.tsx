@@ -199,15 +199,33 @@ export function TitleEditDialog({
   const slugTouched = useRef(false);
 
   useEffect(() => {
-    if (!form.title.trim()) return;
-    setForm((f) => {
-      const next = { ...f };
-      if (!seoTouched.current.title) next.metaTitle = autoMetaTitle(f.title, f.year);
-      if (!seoTouched.current.desc) {
-        next.metaDescription = autoMetaDescription(f.title, f.description);
-      }
-      return next;
-    });
+    /**
+     * ⚠️⚠️ ХЭТ БОГИНО гарчигт SEO ҮҮСГЭХГҮЙ.
+     *
+     * Бодит алдаа: админ "Avatar" гэж бичихээр эхний "a" үсэг дээр
+     * `useEffect` асаад "а — BestTV дээр онлайнаар үзэх" гэсэн SEO
+     * бичигдэнэ. Дараа нь `debounce` дуусах хүртэл харагдаад,
+     * админ анзаараагүй бол ТЭР ЧИГЭЭРЭЭ хадгалагдана.
+     * 3 тэмдэгтээс богино нэр бодит кинонд ховор.
+     */
+    if (form.title.trim().length < 3) return;
+
+    /**
+     * ⚠️ DEBOUNCE — товчлуур дарах БҮРД дахин тооцвол хагас бичсэн
+     * гарчигаар SEO үүснэ. 600мс завсарласны дараа л бичнэ (админ
+     * бичиж дуусаад бодит утга орно).
+     */
+    const timer = setTimeout(() => {
+      setForm((f) => {
+        const next = { ...f };
+        if (!seoTouched.current.title) next.metaTitle = autoMetaTitle(f.title, f.year);
+        if (!seoTouched.current.desc) {
+          next.metaDescription = autoMetaDescription(f.title, f.description);
+        }
+        return next;
+      });
+    }, 600);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.title, form.year, form.description]);
 

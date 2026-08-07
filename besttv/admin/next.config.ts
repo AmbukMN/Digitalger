@@ -19,6 +19,15 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
       { protocol: 'https', hostname: '**.r2.dev' },
+      /**
+       * ⚠️⚠️ TMDB ХАЙЛТЫН ПОСТЕР — эс бөгөөс `next/image` домэйныг
+       * БЛОКЛОЖ, админ хайхад зураг ХООСОН харагдана (бодит алдаа).
+       *
+       * ⚠️ Энэ нь ЗӨВХӨН хайлтын урьдчилсан харагдац. Импорт хийхэд
+       * зураг R2 руу mirror хийгддэг тул сайт дээр TMDB-ээс hotlink
+       * хийдэггүй (`mirrorImage`-ыг харна уу).
+       */
+      { protocol: 'https', hostname: 'image.tmdb.org' },
       ...(assetsHost ? [{ protocol: 'https' as const, hostname: assetsHost }] : []),
       { protocol: 'http', hostname: 'localhost', port: '4100', pathname: '/media/**' },
       { protocol: 'https', hostname: '**', pathname: '/media/**' },

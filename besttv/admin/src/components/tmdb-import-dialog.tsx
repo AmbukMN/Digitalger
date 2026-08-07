@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import { Languages, Loader2, Search, X } from 'lucide-react';
+import { ImageOff, Languages, Loader2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
@@ -180,8 +180,14 @@ export function TmdbImportDialog({
               disabled={importingId !== null}
               className="flex w-full items-center gap-3 rounded-md border border-border p-2.5 text-left hover:bg-muted disabled:opacity-50"
             >
-              <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded bg-muted">
-                {r.posterUrl && <Image src={r.posterUrl} alt="" fill sizes="56px" className="object-cover" />}
+              <div className="relative flex h-20 w-14 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                {r.posterUrl ? (
+                  <Image src={r.posterUrl} alt="" fill sizes="56px" className="object-cover" />
+                ) : (
+                  /* ⚠️ TMDB-д постергүй кино цөөнгүй — хоосон дөрвөлжин биш
+                     тодорхой дүрс харуулбал "ачаалж байна уу" гэж эргэлзэхгүй */
+                  <ImageOff size={18} className="text-muted-foreground/50" />
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-foreground">{r.title}</p>
