@@ -5,6 +5,7 @@ import { expandQuery } from '../../common/transliterate';
 import { mnStem, parseQuery } from '../../common/search-text';
 import { TitleMediaHelper } from './title-media.helper';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { CacheService } from '../../common/cache/cache.service';
 
 // Card жагсаалтад хэрэгтэй хөнгөн select (videoKey зэрэг нууц талбар ОРОХГҮЙ)
 const CARD_SELECT = {
@@ -52,12 +53,35 @@ export class TitlesService {
     private readonly prisma: PrismaService,
     private readonly media: TitleMediaHelper,
     private readonly subs: SubscriptionsService,
+    /* ⚠️ Нүүрний кэш + үзэлтийн давхардал шүүлт (@Global тул import хэрэггүй) */
+    private readonly cache: CacheService,
   ) {}
 
   // ─── Нүүр хуудас ────────────────────────────────────────────────────────────
 
+  /**
+   * Нүүр хуудас.
+   *
+   * ⚠️⚠️ ХОЁР ХЭСЭГТ ХУВААСАН:
+   *   `homeShared()` — БҮХ зочинд ижил (banner/шинэ/жанр/top10) → КЭШТЭЙ
+   *   `continueWatching` — хэрэглэгч тус бүрийнх → кэшлэхгүй
+   *
+   * ЯАГААД: нүүр бол хамгийн их зочилдог хуудас бөгөөд хүсэлт бүрд
+   * 6 их асуулга хийдэг байв (жанр бүрд nested 20 кино). 1000 зэрэг
+   * зочин = 6000 асуулга/минут. Одоо 90 секундэд НЭГ л удаа.
+   *
+   * ⚠️ Кэш унасан ч сайт ажиллана (`wrap` нь алдааг залгиж шууд тооцно).
+   */
   async home(userId?: string | null) {
-    const [banners, newReleases, comingSoon, genres, continueWatching, popular] =
+    const [shared, continueWatching] = await Promise.all([
+      this.cache.wrap('home:v1', 90, () => this.homeShared()),
+      userId ? this.continueWatching(userId) : Promise.resolve([]),
+    ]);
+    return { ...shared, continueWatching };
+  }
+
+  private async homeShared() {
+    const [banners, newReleases, comingSoon, genres, popular] =
       await Promise.all([
         // Hero carousel — backdrop + trailer
         this.prisma.title.findMany({
@@ -93,7 +117,19 @@ export class TitlesService {
         // ⚠️ 18+ жанрыг НҮҮРЭНД ХАРУУЛНА (админ хүсэлт). Тухайн мөрийн
         // кинонууд эрхгүй үед lock тэмдэгтэй харагдана — багц авбал нээгдэнэ.
         this.prisma.genre.findMany({
+          /**
+           * ⚠️ ХООСОН ЖАНРЫГ DB ТАЛД шүүнэ. Өмнө нь бүх жанрыг татаад
+           * JS-д `titles.length > 0` гэж шүүдэг байсан тул хоосон жанр
+           * бүрд nested LATERAL JOIN дэмий явдаг байв.
+           */
+          where: { titles: { some: { title: { isActive: true, comingSoon: false } } } },
           orderBy: { order: 'asc' },
+          /**
+           * ⚠️ ГАДНА `take` — админ 50 жанр нэмбэл 50×20 = 1000 мөр нэг
+           * хариунд орно. Нүүрэнд 15 эгнээ хангалттай (доош гүйлгэхэд
+           * хэрэглэгч ядардаг), илүү нь `/movies` каталогт бий.
+           */
+          take: 15,
           include: {
             titles: {
               where: { title: { isActive: true, comingSoon: false } },
@@ -116,7 +152,6 @@ export class TitlesService {
             },
           },
         }),
-        userId ? this.continueWatching(userId) : Promise.resolve([]),
         // Top 10 — хамгийн их үзэлттэй (Netflix-ийн Top 10 мөр)
         this.prisma.title.findMany({
           where: { isActive: true, comingSoon: false, ...NOT_ADULT },
@@ -135,15 +170,14 @@ export class TitlesService {
       })),
     );
 
+    /* ⚠️ Хоосон жанрыг DB талд шүүсэн тул энд `filter` шаардлагагүй */
     const genreRows = await Promise.all(
-      genres
-        .filter((g) => g.titles.length > 0)
-        .map(async (g) => ({
-          id: g.id,
-          name: g.name,
-          slug: g.slug,
-          titles: await this.media.decorateMany(g.titles.map((t) => t.title)),
-        })),
+      genres.map(async (g) => ({
+        id: g.id,
+        name: g.name,
+        slug: g.slug,
+        titles: await this.media.decorateMany(g.titles.map((t) => t.title)),
+      })),
     );
 
     return {
@@ -151,7 +185,6 @@ export class TitlesService {
       newReleases: await this.media.decorateMany(newReleases),
       comingSoon: await this.media.decorateMany(comingSoon),
       popular: await this.media.decorateMany(popular),
-      continueWatching,
       genreRows,
     };
   }
@@ -443,10 +476,29 @@ export class TitlesService {
       throw new NotFoundException('Контент олдсонгүй');
     }
 
-    // views +1 (fire-and-forget)
-    void this.prisma.title
-      .update({ where: { id: title.id }, data: { views: { increment: 1 } } })
-      .catch(() => null);
+    /**
+     * ⚠️⚠️ ҮЗЭЛТИЙН ТОО — 30 МИНУТЫН ДАВХАРДАЛ ШҮҮЛТТЭЙ.
+     *
+     * Өмнө нь дуудалт БҮРД +1 болдог байсан тул:
+     *   • хэрэглэгч refresh дарах бүрд +1
+     *   • Google/Facebook crawler, SEO сканнер бүрд +1
+     *   • скриптээр давтан дуудвал хязгааргүй
+     * `views` нь "Их үзсэн" мөр болон `related`-ийн ЭРЭМБЭД
+     * хэрэглэгддэг тул хуурамч тоо нүүр хуудсыг гуйвуулна.
+     *
+     * ⚠️ Redis байхгүй/унасан бол ХУУЧНААР ажиллана (тоолохоо болихоос
+     * тоолсон нь дээр) — `incr` нь `null` буцаана.
+     */
+    void (async () => {
+      const who = userId ?? 'anon';
+      const seen = await this.cache.incr(`view:${title.id}:${who}`, 1800);
+      /* `seen === 1` → энэ 30 минутын цонхонд АНХ удаа */
+      if (seen === null || seen === 1) {
+        await this.prisma.title
+          .update({ where: { id: title.id }, data: { views: { increment: 1 } } })
+          .catch(() => null);
+      }
+    })();
 
     const titleGenreIds = title.genres.map((g) => g.genreId);
 

@@ -10,10 +10,12 @@ import {
   Patch,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheInvalidateInterceptor } from '../../common/cache/cache-invalidate.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -92,6 +94,8 @@ export class GenresController {
 @Controller('admin/genres')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
+/* ⚠️ Жанрын нэр/эрэмбэ нүүрний эгнээнд харагддаг тул кэш цэвэрлэнэ */
+@UseInterceptors(CacheInvalidateInterceptor)
 export class GenresAdminController {
   constructor(private readonly svc: GenresService) {}
 

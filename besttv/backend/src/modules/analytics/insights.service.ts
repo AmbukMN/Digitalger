@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 
 /** Хугацааны сонголт — dashboard-тай ижил */
 /** ⚠️ AnalyticsService-ийн RANGE_DAYS-тэй ЯГ ИЖИЛ байх ёстой */
@@ -25,7 +26,10 @@ const RANGE_DAYS: Record<string, number> = {
  */
 @Injectable()
 export class InsightsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   private bounds(range: string) {
     const days = RANGE_DAYS[range] ?? 30;
@@ -33,7 +37,17 @@ export class InsightsService {
     return { days, from };
   }
 
+  /**
+   * ⚠️ 5 МИНУТ КЭШЛЭНЭ — админ dashboard нь real-time байх шаардлагагүй.
+   * Энэ нь 12 хүнд асуулга (groupBy, distinct, count) зэрэг ажиллуулдаг
+   * тул админ хуудсаа refresh дарах бүрд DB-г дарамтална.
+   * ⚠️ `range` нь түлхүүрт орно — 7d/30d/365d тус тусдаа кэштэй.
+   */
   async overview(range = '30d') {
+    return this.cache.wrap(`insights:${range}`, 300, () => this.overviewFresh(range));
+  }
+
+  private async overviewFresh(range: string) {
     const { days, from } = this.bounds(range);
 
     const [
@@ -130,10 +144,25 @@ export class InsightsService {
         orderBy: { _count: { query: 'desc' } },
         take: 12,
       }),
-      this.prisma.pageView.findMany({
-        where: { createdAt: { gte: from } },
-        select: { createdAt: true },
-      }),
+      /**
+       * ⚠️⚠️ ЦАГИЙН ХУВААРИЛАЛТЫГ SQL-ЭЭР бүлэглэнэ.
+       *
+       * Өмнө нь `findMany({ select: { createdAt } })` — `take` БАЙХГҮЙ.
+       * `range=365d` сонговол ЖИЛИЙН БҮХ PageView мөр Node процессын
+       * санах ойд ордог (1 сая мөр = 1 сая Date объект) → GC даралт,
+       * магадгүй OOM-оор backend унана. Postgres тал дээр бүлэглэвэл
+       * 24 мөр л буцна.
+       *
+       * ⚠️ `date_part('hour', ...)` нь UTC-ээр тооцно. `getHours()` нь
+       * серверийн цагийн бүсээр тооцдог байсан — сервер UTC тул үр дүн
+       * ИЖИЛ (Германд байрлалтай ч контейнер UTC).
+       */
+      this.prisma.$queryRaw<{ h: number; c: bigint }[]>`
+        SELECT date_part('hour', "createdAt")::int AS h, count(*)::bigint AS c
+        FROM "PageView"
+        WHERE "createdAt" >= ${from}
+        GROUP BY 1
+      `,
     ]);
 
     const evt = (t: string) => titleEvents.find((e) => e.type === t)?._count ?? 0;
@@ -143,7 +172,8 @@ export class InsightsService {
 
     // Цагийн хуваарилалт — хэзээ хамгийн их үздэгийг мэдэх
     const byHour = Array.from({ length: 24 }, () => 0);
-    for (const p of hourly) byHour[p.createdAt.getHours()] += 1;
+    /* ⚠️ `count(*)` нь bigint буцаана — JSON-д хөрвүүлэхэд алдана */
+    for (const row of hourly) byHour[row.h] = Number(row.c);
     const peakHour = byHour.indexOf(Math.max(...byHour));
 
     return {

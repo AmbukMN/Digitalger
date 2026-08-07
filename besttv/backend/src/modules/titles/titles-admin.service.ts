@@ -148,7 +148,20 @@ export class TitlesAdminService {
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
-        include: {
+        /**
+         * ⚠️⚠️ `include` БИШ `select` — `include` нь Title-ийн БҮХ баганыг
+         * татдаг: `description`, `descriptionEn`, `cast` (JSON, олон KB),
+         * `galleryKeys[]`, `actors[]`, `metaDescription`, бүх `*Key`.
+         * Админ хүснэгтэд эдгээрийн НЭГ Ч харагддаггүй.
+         * `limit` нь 200 хүртэл тул 200 × cast JSON = хэдэн MB дэмий.
+         * ⚠️ Шинэ багана хүснэгтэд нэмэх бол ЭНД ч нэмнэ.
+         */
+        select: {
+          id: true, title: true, slug: true, type: true, year: true,
+          isActive: true, isPremium: true, language: true, views: true,
+          streamStatus: true, posterKey: true, createdAt: true,
+          /* ⚠️ Хэмжээ тооцоход (админ жагсаалтын "Хэмжээ" багана) */
+          videoKey: true, videoRawKey: true, trailerKey: true, durationSec: true,
           genres: { include: { genre: { select: { id: true, name: true } } } },
           _count: { select: { seasons: true } },
         },
@@ -189,17 +202,23 @@ export class TitlesAdminService {
       trailerUrl: await this.media.url(title.trailerKey),
       cast: castRaw.map((c, i) => ({ ...c, photoUrl: castPhotoUrls[i] })),
       galleryUrls,
-      seasons: await Promise.all(
-        title.seasons.map(async (s) => ({
+      /**
+       * ⚠️⚠️ ANGI-ийн постерыг BATCH presign — өмнө нь давталт дотор
+       * `await` байсан (жинхэнэ N+1). `R2_PUBLIC_URL` тохируулсан үед
+       * нөлөө бага (шууд string), ГЭВЧ тохируулаагүй орчинд 100 ангитай
+       * цуврал = 100 ДАРААЛСАН crypto presign → хуудас олон секунд гацна.
+       * Нийтийн тал (`titles.service.ts`) үүнийг зөв хийсэн байсан
+       * атлаа админ талд засагдаагүй үлдсэн.
+       */
+      seasons: await (async () => {
+        const allEps = title.seasons.flatMap((s) => s.episodes);
+        const epUrls = await this.media.urlMany(allEps.map((e) => e.posterKey));
+        const urlById = new Map(allEps.map((e, i) => [e.id, epUrls[i]]));
+        return title.seasons.map((s) => ({
           ...s,
-          episodes: await Promise.all(
-            s.episodes.map(async (e) => ({
-              ...e,
-              posterUrl: await this.media.url(e.posterKey),
-            })),
-          ),
-        })),
-      ),
+          episodes: s.episodes.map((e) => ({ ...e, posterUrl: urlById.get(e.id) ?? null })),
+        }));
+      })(),
     };
   }
 

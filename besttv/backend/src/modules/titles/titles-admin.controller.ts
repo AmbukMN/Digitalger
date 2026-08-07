@@ -8,8 +8,10 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { CacheInvalidateInterceptor } from '../../common/cache/cache-invalidate.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -28,6 +30,12 @@ import {
 
 @Controller('admin/titles')
 @UseGuards(JwtAuthGuard, RolesGuard)
+/**
+ * ⚠️ Контент өөрчлөгдмөгц нүүрний кэш ЦЭВЭРЛЭГДЭНЭ — эс бөгөөс админ
+ * кино нэмээд 90 секунд хүлээх шаардлагатай болж, "нэмсэн кино
+ * харагдахгүй байна" гэж гомдоно.
+ */
+@UseInterceptors(CacheInvalidateInterceptor)
 @Roles(Role.ADMIN)
 export class TitlesAdminController {
   constructor(private readonly svc: TitlesAdminService) {}

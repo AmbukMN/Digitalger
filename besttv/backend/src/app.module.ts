@@ -7,6 +7,7 @@ import { CfThrottlerGuard } from './common/cf-throttler.guard';
 import { BullModule } from '@nestjs/bull';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { AppCacheModule } from './common/cache/cache.module';
 import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TitlesModule } from './modules/titles/titles.module';
@@ -71,6 +72,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       }),
     }),
     PrismaModule,
+    /* ⚠️ Кэш — @Global(). Redis унтарсан ч сайт хэвийн ажиллана. */
+    AppCacheModule,
     StorageModule,
     SubscriptionsModule,
     AuthModule,
