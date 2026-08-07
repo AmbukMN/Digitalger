@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Sparkles, Trash2, Youtube } from 'lucide-react';
@@ -18,6 +18,7 @@ import { TmdbImportDialog, type TmdbImportResult } from '@/components/tmdb-impor
 import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
 import { genreId } from '@/lib/genre';
+import { autoMetaDescription, autoMetaTitle, SEO_MIN_TITLE_LEN } from '@/lib/seo';
 
 export default function TitleEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -100,6 +101,46 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
     }
   }, [existing, isNew]);
 
+  /**
+   * ⚠️⚠️ SEO АВТОМАТ — гарчиг/тайлбар бичихэд талбарт ШУУД бичигдэнэ.
+   *
+   * Өмнө нь энэ хуудсанд автомат ОГТ БАЙХГҮЙ байсан тул (модалд л
+   * байсан) эндээс хадгалсан кино SEO-ГҮЙ үлддэг байв.
+   *
+   * ⚠️ Гараар засвал ДАРЖ БИЧИХГҮЙ (`seoTouched`), хуучин контентын
+   * хадгалсан SEO-г "гараар бичсэн" гэж үзнэ.
+   * ⚠️ 600мс debounce + богино нэрийг алгасах — эс бөгөөс "Avatar"
+   * бичихэд эхний "a" үсгээр SEO үүснэ (production дээр гарсан алдаа).
+   */
+  const seoTouched = useRef({ title: false, desc: false });
+  useEffect(() => {
+    if (form.title.trim().length < SEO_MIN_TITLE_LEN) return;
+    const timer = setTimeout(() => {
+      setForm((f) => {
+        const next = { ...f };
+        if (!seoTouched.current.title) next.metaTitle = autoMetaTitle(f.title, f.year);
+        if (!seoTouched.current.desc) {
+          next.metaDescription = autoMetaDescription(f.title, f.description);
+        }
+        return next;
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.title, form.year, form.description]);
+
+  /* ⚠️ Хуучин контент нээхэд хадгалсан SEO-г "гараар бичсэн" гэж үзнэ —
+     эс бөгөөс дээрх автомат нь админы бичсэн текстийг ДАРЖ БИЧНЭ */
+  useEffect(() => {
+    if (isNew) { seoTouched.current = { title: false, desc: false }; return; }
+    const e = existing as { metaTitle?: string; metaDescription?: string } | undefined;
+    if (!e) return;
+    seoTouched.current = {
+      title: Boolean(e.metaTitle?.trim()),
+      desc: Boolean(e.metaDescription?.trim()),
+    };
+  }, [existing, isNew]);
+
   const applyTmdbImport = (result: TmdbImportResult) => {
     setForm((f) => ({
       ...f,
@@ -112,11 +153,10 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
       /* ⚠️ Найруулагч — TMDB `credits.crew`-ээс; гараар бичсэнийг хөндөхгүй */
       director: f.director || result.director || '',
       /**
-       * ⚠️ SEO — АРАЙ гараар бичсэн байвал ДАРЖ БИЧИХГҮЙ.
-       * AI орчуулга унтраалттай бол хоосон ирнэ → байгаа нь үлдэнэ.
+       * ⚠️ SEO-г TMDB-ээс АВАХГҮЙ — backend хоосон буцаана.
+       * Энэ хуудсанд SEO нь хадгалах үед `save()` дотор гарчиг+тайлбараас
+       * үүсдэг тул энд хөндөх шаардлагагүй.
        */
-      metaTitle: f.metaTitle || result.metaTitle || '',
-      metaDescription: f.metaDescription || result.metaDescription || '',
       /* ⚠️ YouTube трейлер — манай HLS трейлерээс ТУСДАА талбар */
       trailerYoutubeKey: result.trailerYoutubeKey || f.trailerYoutubeKey,
       genreIds: [
@@ -188,8 +228,21 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         director: form.director || undefined,
         ageRating: form.ageRating || undefined,
         trailerYoutubeKey: form.trailerYoutubeKey || undefined,
-        metaTitle: form.metaTitle || undefined,
-        metaDescription: form.metaDescription || undefined,
+        /**
+         * ⚠️ SEO хоосон орхивол гарчиг/тайлбараас үүсгэнэ — кино бүр
+         * SEO-той байх ёстой. Гараар бичсэн бол ХҮНДЭТГЭНЭ.
+         * ⚠️ Богино нэрэнд утгагүй SEO үүсгэхгүй (`undefined` үлдээнэ).
+         */
+        metaTitle:
+          form.metaTitle.trim() ||
+          (form.title.trim().length >= SEO_MIN_TITLE_LEN
+            ? autoMetaTitle(form.title, form.year)
+            : undefined),
+        metaDescription:
+          form.metaDescription.trim() ||
+          (form.title.trim().length >= SEO_MIN_TITLE_LEN
+            ? autoMetaDescription(form.title, form.description)
+            : undefined),
         cast: cast.filter((c) => c.name.trim()).map((c) => ({
           name: c.name,
           character: c.character || undefined,

@@ -40,6 +40,7 @@ import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
 import { SeasonsManager } from '@/components/seasons-manager';
 import { genreId } from '@/lib/genre';
+import { autoMetaDescription, autoMetaTitle, SEO_MIN_TITLE_LEN } from '@/lib/seo';
 
 const EMPTY_FORM = {
   type: 'MOVIE' as 'MOVIE' | 'SERIES',
@@ -69,23 +70,9 @@ const EMPTY_FORM = {
   genreIds: [] as string[],
 };
 
-/** SEO meta title — 60 тэмдэгтэд багтаана (Google таслахгүй) */
-function autoMetaTitle(title: string, year?: string): string {
-  const base = year ? `${title} (${year})` : title;
-  const full = `${base} — BestTV дээр онлайнаар үзэх`;
-  return full.length <= 60 ? full : `${base} — BestTV`.slice(0, 60);
-}
-
-/** SEO meta description — 150-160 тэмдэгт (хайлтын хэсэгт таслагдахгүй) */
-function autoMetaDescription(title: string, description: string): string {
-  const clean = description.replace(/\s+/g, ' ').trim();
-  if (clean.length >= 80) {
-    return clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}...`;
-  }
-  // Тайлбар богино бол бүтэн өгүүлбэр болгоно
-  const filled = `${clean ? `${clean} ` : ''}${title} киног BestTV дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
-  return filled.length <= 160 ? filled : `${filled.slice(0, 157).trimEnd()}...`;
-}
+/* ⚠️ SEO үүсгэгч нь `@/lib/seo`-д — модал БА `/movies/[id]` хуудас
+   ХОЁУЛАА хэрэглэнэ (өмнө нь зөвхөн энд байсан тул тэр хуудсанд
+   SEO ХООСОН хадгалагддаг байв). */
 
 /**
  * Кино нэмэх-засах МОДАЛ.
@@ -208,7 +195,7 @@ export function TitleEditDialog({
      * админ анзаараагүй бол ТЭР ЧИГЭЭРЭЭ хадгалагдана.
      * 3 тэмдэгтээс богино нэр бодит кинонд ховор.
      */
-    if (form.title.trim().length < 3) return;
+    if (form.title.trim().length < SEO_MIN_TITLE_LEN) return;
 
     /**
      * ⚠️ DEBOUNCE — товчлуур дарах БҮРД дахин тооцвол хагас бичсэн
@@ -250,16 +237,11 @@ export function TitleEditDialog({
 
   const applyTmdb = (result: TmdbImportResult) => {
     /**
-     * ⚠️⚠️ AI-ийн бичсэн SEO-г АВТОМАТ ЗАГВАР ДАРЖ БИЧИХЭЭС сэргийлнэ.
-     *
-     * Доорх `useEffect` нь `form.title` өөрчлөгдөхөд `autoMetaTitle()`
-     * загвараар SEO-г ДАХИН бичдэг. TMDB импорт нь гарчиг+тайлбарыг
-     * зэрэг өөрчилдөг тул AI-ийн утгачилсан SEO шууд устана.
-     * `seoTouched` тэмдэглэвэл автомат хөндөхгүй.
+     * ⚠️ SEO-г TMDB-ээс АВАХГҮЙ (админы шийдвэр) — backend хоосон
+     * буцаана. Гарчиг+тайлбар орсны дараа доорх `useEffect` нь
+     * `autoMetaTitle`/`autoMetaDescription` ЗАГВАРААР өөрөө бөглөнө.
+     * Тиймээс `seoTouched` тэмдэглэхгүй — автомат ажиллах ёстой.
      */
-    if (result.metaTitle) seoTouched.current.title = true;
-    if (result.metaDescription) seoTouched.current.desc = true;
-
     setForm((f) => ({
       ...f,
       title: f.title || result.titleEn,
@@ -270,9 +252,7 @@ export function TitleEditDialog({
       rating: result.rating ? String(result.rating) : f.rating,
       /* ⚠️ Найруулагч — TMDB `credits.crew`-ээс; гараар бичсэнийг хөндөхгүй */
       director: f.director || result.director || '',
-      /* ⚠️ Гараар бичсэн SEO байвал ДАРЖ БИЧИХГҮЙ */
-      metaTitle: f.metaTitle || result.metaTitle || '',
-      metaDescription: f.metaDescription || result.metaDescription || '',
+      /* ⚠️ SEO-г энд хөндөхгүй — `useEffect` загвараар өөрөө бөглөнө */
       /* ⚠️ YouTube трейлер — манай HLS трейлерээс ТУСДАА талбар */
       trailerYoutubeKey: result.trailerYoutubeKey || f.trailerYoutubeKey,
       genreIds: [
@@ -351,9 +331,17 @@ export function TitleEditDialog({
          * Гараар бичсэн бол ХҮНДЭТГЭНЭ (дарж бичихгүй). Ингэснээр кино
          * бүр SEO-той болж, админ нэмэлт ажил хийхгүй.
          */
-        metaTitle: form.metaTitle.trim() || autoMetaTitle(form.title, form.year),
+        /* ⚠️ Богино нэрэнд утгагүй SEO үүсгэхгүй ("а — BestTV…") */
+        metaTitle:
+          form.metaTitle.trim() ||
+          (form.title.trim().length >= SEO_MIN_TITLE_LEN
+            ? autoMetaTitle(form.title, form.year)
+            : undefined),
         metaDescription:
-          form.metaDescription.trim() || autoMetaDescription(form.title, form.description),
+          form.metaDescription.trim() ||
+          (form.title.trim().length >= SEO_MIN_TITLE_LEN
+            ? autoMetaDescription(form.title, form.description)
+            : undefined),
         cast: cast
           .filter((c) => c.name.trim())
           .map((c) => ({ name: c.name, character: c.character || undefined, photoKey: c.photoKey })),

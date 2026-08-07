@@ -45,10 +45,11 @@ export class TranslateService {
   }): Promise<{
     description: string;
     characters: string[];
-    /** SEO — 60 тэмдэгт орчим гарчиг */
-    metaTitle: string;
-    /** SEO — 160 тэмдэгт орчим тайлбар */
-    metaDescription: string;
+    /**
+     * ⚠️ SEO ЭНД БАЙХГҮЙ (зориуд). SEO нь гарчиг+тайлбараас тогтсон
+     * ЗАГВАРААР үүсдэг (`TmdbService.autoSeo`) — AI-аар бичүүлбэл
+     * кино бүр өөр өнгө аястай болж, брэндийн түлхүүр үг алдагдана.
+     */
   } | null> {
     if (!this.enabled) return null;
 
@@ -78,18 +79,13 @@ export class TranslateService {
       '      Captain→Ахмад, Sergeant→Түрүүч, General→Генерал.',
       '4. Газар/биетийн нэрийг монголд тогтсон хэлбэрээр (Pandora → Пандора).',
       '5. Тайлбарыг 2-4 өгүүлбэрт багтаа. Сүүлийг "..." гэж таслахгүй.',
-      /* ⚠️ Тест дээр латин нэр үлдсэн — гарчгийг ч галиглахыг ЗААНА */
-      '6. metaTitle: киноны нэрийг КИРИЛЛЭЭР + богино тодотгол. 60 тэмдэгтээс хэтрэхгүй.',
-      '   Жишээ: "Аватар (2009) — шинжлэх ухааны зөгнөлт кино"',
-      '7. metaDescription: киноны агуулга + үзэх уриалга. 160 тэмдэгтээс хэтрэхгүй,',
-      '   БҮТЭН өгүүлбэрээр төгс.',
       '',
       `КИНОНЫ НЭР: ${input.title}`,
       `ТАЙЛБАР: ${input.description || '(байхгүй)'}`,
       chars.length ? `ДҮРИЙН НЭРС: ${JSON.stringify(chars)}` : '',
       '',
       'ЗӨВХӨН JSON буцаа, өөр тайлбар бичихгүй:',
-      '{"description":"...","characters":[...],"metaTitle":"...","metaDescription":"..."}',
+      '{"description":"...","characters":[...]}',
       chars.length
         ? `⚠️ characters массив нь ЯГ ${chars.length} элементтэй, ижил дараалалтай байна.`
         : '⚠️ characters нь хоосон массив [].',
@@ -128,8 +124,6 @@ export class TranslateService {
       return {
         description: String(parsed.description ?? '').trim() || input.description,
         characters: outChars,
-        metaTitle: String(parsed.metaTitle ?? '').trim(),
-        metaDescription: String(parsed.metaDescription ?? '').trim(),
       };
     } catch (err) {
       /* ⚠️ Орчуулга унасан нь импортыг унагаах ёсгүй — англи эх үлдэнэ */
@@ -138,67 +132,6 @@ export class TranslateService {
     }
   }
 
-  /**
-   * АЛЬ ХЭДИЙН МОНГОЛ байгаа кинонд SEO үүсгэнэ (орчуулга ХИЙХГҮЙ).
-   *
-   * ⚠️⚠️ ЯАГААД ТУСДАА ФУНКЦ ВЭ: манай 77 киноны 73 нь TMDB-д БАЙХГҮЙ
-   * Монгол кино. Тэдний тайлбар гараар бичигдсэн МОНГОЛ — орчуулах
-   * зүйл байхгүй ч SEO нь хоосон. `autoMetaDescription()` загвар нь
-   * тайлбарыг эхний 160 тэмдэгтээр ТАСЛАДАГ тул өгүүлбэр дунд тасарч,
-   * Google-д муу харагдана. AI бол бүтэн, уншигдахуйц өгүүлбэр бичнэ.
-   *
-   * @returns null — AI байхгүй/унасан үед (дуудагч тал загвар руу шилжинэ)
-   */
-  async generateSeo(input: {
-    title: string;
-    description: string;
-    year?: number | null;
-    genres?: string[];
-  }): Promise<{ metaTitle: string; metaDescription: string } | null> {
-    if (!this.enabled || !input.title.trim()) return null;
-
-    const prompt = [
-      'Чи бол монгол кино сайтын SEO мэргэжилтэн.',
-      'Доорх киноны хайлтын оновчлолын текстийг МОНГОЛООР бич.',
-      '',
-      'ДҮРЭМ:',
-      '1. metaTitle: киноны нэр + богино тодотгол + "BestTV". 60 тэмдэгтээс ХЭТРЭХГҮЙ.',
-      '2. metaDescription: 140-160 тэмдэгт. БҮТЭН өгүүлбэрээр төгсгө, "..." хэрэглэхгүй.',
-      '3. Хэт сурталчилгаа биш — киноны АГУУЛГЫГ хэлж, дараа нь үзэх уриалга.',
-      '4. Түлхүүр үг байгалиар ор (киноны нэр, жанр, "онлайн үзэх").',
-      '',
-      `КИНО: ${input.title}${input.year ? ` (${input.year})` : ''}`,
-      input.genres?.length ? `ЖАНР: ${input.genres.join(', ')}` : '',
-      `ТАЙЛБАР: ${input.description}`,
-      '',
-      'ЗӨВХӨН JSON: {"metaTitle":"...","metaDescription":"..."}',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    try {
-      const raw = await this.complete(prompt);
-      if (!raw) return null;
-      const parsed = this.parseJson(raw);
-      if (!parsed) return null;
-
-      const metaTitle = String(parsed.metaTitle ?? '').trim();
-      const metaDescription = String(parsed.metaDescription ?? '').trim();
-      if (!metaTitle || !metaDescription) return null;
-
-      /**
-       * ⚠️ УРТЫГ ЭНД ХЯЗГААРЛАНА — LLM хэлсэн хязгаарыг үе үе давдаг.
-       * Google 60/160-аас хойшхыг таслах тул давсныг нь өөрсдөө таслая.
-       */
-      return {
-        metaTitle: metaTitle.slice(0, 60),
-        metaDescription: metaDescription.slice(0, 160),
-      };
-    } catch (err) {
-      this.logger.warn(`AI SEO амжилтгүй: ${String(err)}`);
-      return null;
-    }
-  }
 
   /**
    * Богино текст (жанр, дүрийн нэр гэх мэт) орчуулах.

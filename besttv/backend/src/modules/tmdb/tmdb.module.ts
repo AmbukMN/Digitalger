@@ -134,6 +134,18 @@ export class TmdbService {
       description: englishDescription,
       characters: castWithPhotos.map((c) => c.character),
     });
+    /**
+     * ⚠️⚠️ SEO-Г AI-ААР БИЧҮҮЛЭХГҮЙ (админы шийдвэр).
+     *
+     * SEO нь гарчиг+тайлбараас АВТОМАТААР үүсдэг тогтсон загвартай
+     * (admin талын `autoMetaTitle`/`autoMetaDescription`). Тэр нь
+     * ТААМАГЛАЛГҮЙ, тогтвортой, брэндийн хэв маягтай.
+     * AI-аар бичүүлбэл кино бүр өөр өнгө аястай болж, "BestTV дээр
+     * онлайнаар үзэх" гэсэн түлхүүр үг ч алдагдана.
+     *
+     * ⚠️ Орчуулга (тайлбар/дүрийн нэр) нь AI-аар ХЭВЭЭР — тэр нь
+     * загвараар хийх боломжгүй ажил.
+     */
 
     /* ⚠️ Дүрийн нэрийг орчуулсан бол СОЛИНО — тоо таарсан эсэхийг
        TranslateService дотор шалгасан (таарахгүй бол эхийг буцаана) */
@@ -147,9 +159,14 @@ export class TmdbService {
       description: tr?.description || englishDescription,
       /** ⚠️ Англи ЭХ хувилбар — орчуулгаас үл хамааран ҮРГЭЛЖ хадгална */
       descriptionEn: englishDescription,
-      /** SEO — монголоор (AI байхгүй бол хоосон, админ гараар бичнэ) */
-      metaTitle: tr?.metaTitle ?? '',
-      metaDescription: tr?.metaDescription ?? '',
+      /**
+       * ⚠️ SEO-г TMDB импорт БУЦААХГҮЙ — админ тал гарчиг+тайлбараас
+       * автоматаар үүсгэнэ (`autoMetaTitle`/`autoMetaDescription`).
+       * Хоосон буцаах нь ЗОРИУД: дуудагч тал `f.metaTitle || ''` гэж
+       * уншдаг тул байгаа/автомат утга хөндөгдөхгүй.
+       */
+      metaTitle: '',
+      metaDescription: '',
       /** Орчуулга ҮНЭХЭЭР хийгдсэн эсэх — админд toast-оор мэдэгдэнэ */
       translated: !!tr,
       year: Number((d.release_date ?? d.first_air_date ?? '').slice(0, 4)) || null,
@@ -338,12 +355,11 @@ export class TmdbService {
         data.trailerYoutubeKey = d.trailerYoutubeKey;
         filled.push('трейлер');
       }
-      /* ⚠️ SEO — AI орчуулга идэвхтэй үед л утга ирнэ (эс бөгөөс хоосон) */
-      if (!t.metaTitle && d.metaTitle) { data.metaTitle = d.metaTitle; filled.push('SEO гарчиг'); }
-      if (!t.metaDescription && d.metaDescription) {
-        data.metaDescription = d.metaDescription;
-        filled.push('SEO тайлбар');
-      }
+      /**
+       * ⚠️ SEO-г ЭНД БИЧИХГҮЙ — `autoSeo()` нь тайлбар бөглөгдсөний
+       * ДАРАА, бүх талбар бэлэн болмогц доор нэг мөрөнд үүсгэнэ.
+       * Энд бичвэл ХУУЧИН (эсвэл хоосон) тайлбараар үүснэ.
+       */
       /**
        * ⚠️⚠️ ТАЙЛБАРЫГ ЗӨВХӨН ХООСОН үед бөглөнө.
        * Монгол киноны тайлбарыг админ ГАРААР бичсэн байдаг — TMDB-ийн
@@ -352,6 +368,25 @@ export class TmdbService {
       if (!t.description?.trim() && d.description?.trim()) {
         data.description = d.description;
         filled.push(d.translated ? 'тайлбар (орчуулсан)' : 'тайлбар');
+      }
+
+      /**
+       * ⚠️⚠️ SEO — ХАМГИЙН СҮҮЛД, бүх талбар бэлэн болмогц.
+       *
+       * Дээрх шатанд бичвэл ХУУЧИН тайлбараар (эсвэл хоосноор) SEO
+       * үүснэ. Энд `data.description ?? t.description` гэж ШИНЭЧЛЭГДСЭН
+       * утгыг авснаар TMDB-ээс дөнгөж орсон тайлбар SEO-д тусна.
+       * ⚠️ Гараар бичсэн SEO байвал ХӨНДӨХГҮЙ.
+       */
+      if (!t.metaTitle || !t.metaDescription) {
+        const desc = String(data.description ?? t.description ?? '');
+        const yr = (data.year as number | undefined) ?? t.year;
+        const seo = this.autoSeo(t.title, desc, yr);
+        if (!t.metaTitle) { data.metaTitle = seo.metaTitle; filled.push('SEO гарчиг'); }
+        if (!t.metaDescription) {
+          data.metaDescription = seo.metaDescription;
+          filled.push('SEO тайлбар');
+        }
       }
 
       if (!filled.length) { skipped.push(t.title); continue; }
@@ -363,22 +398,41 @@ export class TmdbService {
   }
 
   /**
-   * TMDB-д БАЙХГҮЙ Монгол кинонуудад AI-аар SEO бичнэ.
+   * SEO-г гарчиг+тайлбараас АВТОМАТААР үүсгэнэ (AI БИШ).
    *
-   * ⚠️⚠️ ЯАГААД ЭНЭ ХЭРЭГТЭЙ ВЭ: манай 77 киноны 73 нь TMDB-д байхгүй
-   * тул `enrichExisting` тэдэнд хүрэхгүй. Тэдний тайлбар МОНГОЛ бөгөөс
-   * SEO нь ХООСОН — Google-д огт индексжихгүй. Энэ нь TMDB-ээс огт
-   * хамааралгүй, зөвхөн байгаа тайлбар дээр тулгуурлаж SEO үүсгэнэ.
+   * ⚠️⚠️ Admin талын `autoMetaTitle`/`autoMetaDescription`-тай ИЖИЛ
+   * логик байх ЁСТОЙ — эс бөгөөс админаар хадгалсан кино болон
+   * бөөнөөр нөхсөн кино ӨӨР хэв маягтай SEO-той болно.
+   * ⚠️ Тэр хоёрын нэгийг өөрчилвөл НӨГӨӨГ НЬ ч засах хэрэгтэй.
+   */
+  private autoSeo(title: string, description: string, year?: number | null) {
+    const base = year ? `${title} (${year})` : title;
+    const fullTitle = `${base} — BestTV дээр онлайнаар үзэх`;
+    const metaTitle =
+      fullTitle.length <= 60 ? fullTitle : `${base} — BestTV`.slice(0, 60);
+
+    const clean = description.replace(/\s+/g, ' ').trim();
+    let metaDescription: string;
+    if (clean.length >= 80) {
+      metaDescription = clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}...`;
+    } else {
+      /* ⚠️ Тайлбар богино бол бүтэн өгүүлбэр болгоно */
+      const filled = `${clean ? `${clean} ` : ''}${title} киног BestTV дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
+      metaDescription = filled.length <= 160 ? filled : `${filled.slice(0, 157).trimEnd()}...`;
+    }
+    return { metaTitle, metaDescription };
+  }
+
+  /**
+   * SEO-гүй кинонуудад гарчиг+тайлбараас АВТОМАТААР SEO үүсгэнэ.
+   *
+   * ⚠️⚠️ AI ХЭРЭГЛЭХГҮЙ (админы шийдвэр). SEO нь тогтсон загвартай,
+   * таамаглалгүй байх ёстой — AI-аар бичүүлбэл кино бүр өөр өнгө
+   * аястай болж, "BestTV дээр онлайнаар үзэх" түлхүүр үг ч алдагдана.
    *
    * ⚠️ Тайлбаргүй киног АЛГАСНА — юунаас ч үүсгэх аргагүй.
    */
   async generateMissingSeo(limit = 10, dryRun = false) {
-    if (!this.translate.enabled) {
-      throw new BadRequestException(
-        'AI тохируулаагүй байна — .env-д OPENAI_API_KEY эсвэл ANTHROPIC_API_KEY нэмнэ үү',
-      );
-    }
-
     const titles = await this.prisma.title.findMany({
       where: {
         /* ⚠️ Тайлбартай МӨРТЛӨӨ SEO-гүй кинонууд */
@@ -401,13 +455,13 @@ export class TmdbService {
     const skipped: string[] = [];
 
     for (const t of titles) {
-      const seo = await this.translate.generateSeo({
-        title: t.title,
-        description: t.description,
-        year: t.year,
-        genres: t.genres.map((g) => g.genre.name),
-      });
-      if (!seo) { skipped.push(t.title); continue; }
+      /**
+       * ⚠️ Гарчиг ХЭТ БОГИНО бол алгасна — "а — BestTV дээр онлайнаар
+       * үзэх" гэсэн утгагүй SEO үүсэхээс сэргийлнэ (production дээр
+       * бодит алдаа гарсан).
+       */
+      if (t.title.trim().length < 3) { skipped.push(t.title); continue; }
+      const seo = this.autoSeo(t.title, t.description, t.year);
 
       if (!dryRun) {
         await this.prisma.title.update({
