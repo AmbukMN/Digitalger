@@ -408,6 +408,36 @@ export interface AdminUserDetail extends AdminUser {
     updatedAt: string;
     title: { id: string; title: string; slug: string };
   }[];
+  /** ⚠️ Ширхэгээр түрээслэсэн — БАГЦААС тусдаа эрх */
+  rentals: {
+    id: string;
+    createdAt: string;
+    expiresAt: string;
+    amount: number;
+    title: { id: string; title: string; slug: string };
+  }[];
+  /** Бичсэн сэтгэгдэл — зохисгүй агуулга шалгах */
+  reviews: {
+    id: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    title: { title: string; slug: string };
+  }[];
+  /** Хэтэвчний гүйлгээ — мөнгө хаашаа явсныг мөрдөх */
+  walletTxs: {
+    id: string;
+    amount: number;
+    type: string;
+    description: string | null;
+    createdAt: string;
+  }[];
+  /** Идэвхийн хураангуй */
+  activity: {
+    viewCount: number;
+    searchCount: number;
+    lastSeen: { createdAt: string; path: string; device: string | null } | null;
+  };
 }
 
 export function useAdminUser(id: string) {

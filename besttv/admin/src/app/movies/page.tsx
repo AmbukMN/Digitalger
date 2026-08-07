@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { TableSkeleton } from '@/components/table-skeleton';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Check, Clapperboard, Film, Lock, Pencil, Plus, Settings2, Tv, X } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatBytes } from '@besttv/shared';
 import { api } from '@/lib/api';
 import { BulkBar, type BulkImpact } from '@/components/bulk-bar';
 import { AdminShell } from '@/components/admin-shell';
@@ -53,6 +54,22 @@ export default function MoviesPage() {
   /** null = хаалттай, 'new' = шинэ, id = засах */
   const [editing, setEditing] = useState<string | null | 'new'>(null);
   const qc = useQueryClient();
+
+  /**
+   * ⚠️ КИНО ТУС БҮРИЙН R2 ХЭМЖЭЭ — аль кино хамгийн их зай эзэлж
+   * байгааг админ шууд харна (сангийн зардал хянахад чухал).
+   *
+   * ⚠️ `/admin/analytics/storage` нь КЭШТЭЙ (R2 ListObjects удаан тул
+   * дахин тооцоолохгүй). Жагсаалт руу орох бүрд дахин татахгүйн тулд
+   * `staleTime` урт — хэмжээ тэр бүр өөрчлөгддөггүй.
+   */
+  const { data: storage } = useQuery({
+    queryKey: ['admin-storage-usage'],
+    queryFn: () => api<{ titles: { id: string; bytes: number }[] }>('/admin/analytics/storage'),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+  });
+  const sizeById = new Map<string, number>((storage?.titles ?? []).map((t) => [t.id, t.bytes]));
 
   /** Bulk үйлдэлд сонгосон мөрүүд */
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -261,6 +278,7 @@ export default function MoviesPage() {
                 <th className="px-4 py-3 text-left font-semibold">Хэл</th>
                 <th className="px-4 py-3 text-left font-semibold">Жанр</th>
                 <th className="px-4 py-3 text-left font-semibold">Видео</th>
+                <th className="px-4 py-3 text-right font-semibold">Хэмжээ</th>
                 <th className="px-4 py-3 text-left font-semibold">Хандалт</th>
                 <SortHeader
                   label="Үзэлт"
@@ -354,6 +372,10 @@ export default function MoviesPage() {
                       {STATUS_LABEL[t.streamStatus] ?? t.streamStatus}
                     </span>
                   </td>
+                  {/* ⚠️ R2 дээрх бодит хэмжээ — HLS segment+постер+трейлер бүгд */}
+                  <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">
+                    {sizeById.has(t.id) ? formatBytes(sizeById.get(t.id)!) : '—'}
+                  </td>
                   <td className="px-4 py-3">
                     {t.isPremium ? (
                       <span className="inline-flex items-center gap-1 rounded-md bg-premium/15 px-2 py-0.5 text-xs font-medium text-premium">
@@ -400,6 +422,10 @@ export default function MoviesPage() {
               ))}
             </tbody>
           </table>
+
+          {/* ⚠️ ЭХНИЙ ачаалалт — spinner БИШ skeleton (төслийн дүрэм).
+              Дараагийн шүүлтэд хуучин дата `opacity-60`-той үлдэнэ. */}
+          {!data && <TableSkeleton rows={8} cols={7} hasAvatar={false} />}
           {!data?.items.length && !isFetching && (
             <TableEmptyState
               icon={Clapperboard}

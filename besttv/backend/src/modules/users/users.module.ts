@@ -253,7 +253,7 @@ export class UsersService {
         },
         watchProgress: {
           orderBy: { updatedAt: 'desc' },
-          take: 10,
+          take: 20,
           select: {
             positionSec: true,
             durationSec: true,
@@ -261,10 +261,59 @@ export class UsersService {
             title: { select: { id: true, title: true, slug: true } },
           },
         },
+        /**
+         * ⚠️ ТҮРЭЭС — багцаас ТУСДАА эрх. Өмнө нь админд ОГТ харагддаггүй
+         * байсан тул "төлбөр төлсөн атлаа юу авсан нь мэдэгдэхгүй" гэсэн
+         * гомдол шийдэхэд хэцүү байв.
+         */
+        rentals: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            createdAt: true,
+            expiresAt: true,
+            amount: true,
+            title: { select: { id: true, title: true, slug: true } },
+          },
+        },
+        /** Сэтгэгдэл — зохисгүй агуулга шалгах, хэрэглэгчийн идэвх харах */
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          select: {
+            id: true,
+            rating: true,
+            comment: true,
+            createdAt: true,
+            title: { select: { title: true, slug: true } },
+          },
+        },
+        /** Хэтэвчний гүйлгээ — мөнгө хаашаа явсныг мөрдөнө */
+        walletTxs: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: { id: true, amount: true, type: true, description: true, createdAt: true },
+        },
       },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
-    return user;
+
+    /**
+     * ⚠️ ИДЭВХИЙН ХУРААНГУЙ — тусад нь тоолно (relation-д `take` тавьсан
+     * тул `_count` нь буруу гарна). Хэрэглэгч хэр идэвхтэйг нэг харцаар.
+     */
+    const [viewCount, searchCount, lastSeen] = await Promise.all([
+      this.prisma.pageView.count({ where: { userId: id } }),
+      this.prisma.searchEvent.count({ where: { userId: id } }),
+      this.prisma.pageView.findFirst({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, path: true, device: true },
+      }),
+    ]);
+
+    return { ...user, activity: { viewCount, searchCount, lastSeen } };
   }
 
   async update(id: string, dto: UpdateUserDto) {

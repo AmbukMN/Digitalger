@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatBytes } from '@besttv/shared';
 import { useQuery } from '@tanstack/react-query';
 import { HardDrive, RefreshCw, Film, Image as ImageIcon, Clapperboard, FileVideo } from 'lucide-react';
 import { cn } from '@besttv/shared';
@@ -30,13 +31,8 @@ interface StorageUsage {
 }
 
 /** Байтыг хүн уншихад ойлгомжтой болгоно (KB/MB/GB/TB) */
-function fmtBytes(bytes: number): string {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  const v = bytes / 1024 ** i;
-  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
-}
+/* ⚠️ `fmtBytes` ХАСАГДСАН — `@besttv/shared`-ийн `formatBytes` (нэг эх сурвалж) */
+const fmtBytes = formatBytes;
 
 const CATEGORY_META = [
   { key: 'video' as const, label: 'Кино (HLS)', icon: Film, color: 'bg-primary' },

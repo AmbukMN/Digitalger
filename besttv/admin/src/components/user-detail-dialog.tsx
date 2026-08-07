@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatPrice } from '@besttv/shared';
 import {
   Badge,
   Dialog,
@@ -436,6 +436,44 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
             </TabsContent>
 
             <TabsContent value="library" className="space-y-4">
+              {/*
+                ⚠️⚠️ ТҮРЭЭС — БАГЦААС ТУСДАА эрх (нэг кино, хугацаатай).
+                Өмнө нь админд ОГТ харагддаггүй байсан тул "төлбөр төлсөн
+                атлаа юу авсан нь мэдэгдэхгүй" гэсэн гомдол шийдэхэд хэцүү
+                байв. Хамгийн ДЭЭД талд — хамгийн их асуудал үүсгэдэг зүйл.
+              */}
+              <div>
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Ticket size={12} /> Түрээс ({data.rentals?.length ?? 0})
+                </p>
+                <div className="space-y-1.5">
+                  {!data.rentals?.length && (
+                    <p className="text-sm text-muted-foreground">Түрээс байхгүй</p>
+                  )}
+                  {(data.rentals ?? []).map((r) => {
+                    const active = new Date(r.expiresAt) > new Date();
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-foreground">
+                          {r.title.title}
+                        </span>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                          {formatPrice(r.amount)}
+                        </span>
+                        <Badge variant={active ? 'success' : 'secondary'} className="shrink-0 text-[10px]">
+                          {active
+                            ? `${new Date(r.expiresAt).toLocaleDateString('mn-MN')} хүртэл`
+                            : 'Дууссан'}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Жагсаалт ({data.myList.length})

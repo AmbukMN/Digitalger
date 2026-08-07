@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { TableSkeleton } from '@/components/table-skeleton';
 import { Ban, Check, CreditCard, Loader2, Ticket, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
@@ -387,6 +388,10 @@ export default function PaymentsPage() {
               ))}
             </tbody>
           </table>
+
+          {/* ⚠️ ЭХНИЙ ачаалалт — spinner БИШ skeleton (төслийн дүрэм).
+              Дараагийн шүүлтэд хуучин дата `opacity-60`-той үлдэнэ. */}
+          {!data && <TableSkeleton rows={8} cols={6} hasAvatar={false} />}
           {!data?.items.length && !isFetching && (
             <TableEmptyState
               icon={CreditCard}

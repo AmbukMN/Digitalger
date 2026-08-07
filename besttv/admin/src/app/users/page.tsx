@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { TableSkeleton } from '@/components/table-skeleton';
 import { useQueryClient } from '@tanstack/react-query';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { Loader2, ShieldCheck, UserCheck, Users, Wallet } from 'lucide-react';
@@ -309,6 +310,10 @@ export default function UsersPage() {
               ))}
             </tbody>
           </table>
+
+          {/* ⚠️ ЭХНИЙ ачаалалт — spinner БИШ skeleton (төслийн дүрэм).
+              Дараагийн шүүлтэд хуучин дата `opacity-60`-той үлдэнэ. */}
+          {!data && <TableSkeleton rows={8} cols={6} hasAvatar={true} />}
           {!data?.items.length && !isFetching && (
             <TableEmptyState
               icon={Users}
