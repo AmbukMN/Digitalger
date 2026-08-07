@@ -250,6 +250,20 @@ function LogsTab() {
                         ? 'Амжилтгүй'
                         : 'Хориглосон'}
                   </span>
+                  {/*
+                    ⚠️ АЛДААНЫ ШАЛТГААН — өмнө нь зөвхөн `title` атрибутад
+                    байсан тул хулганаа удаан барихгүй бол ХАРАГДАХГҮЙ.
+                    Админ яагаад очоогүйг (буруу хаяг / bounce / SES хязгаар)
+                    шууд мэдэх ёстой.
+                  */}
+                  {l.error && (
+                    <p
+                      className="mt-1 line-clamp-2 max-w-[260px] text-[11px] leading-tight text-destructive/80"
+                      title={l.error}
+                    >
+                      {l.error}
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
                   {new Date(l.createdAt).toLocaleString('mn-MN')}

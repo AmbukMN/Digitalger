@@ -116,6 +116,25 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
       setBackdropKey(result.backdropKey);
       setBackdropUrl(result.backdropUrl);
     }
+    /**
+     * ⚠️ ЖҮЖИГЧИД — нэр + дүр + ЗУРАГ автоматаар бөглөнө.
+     * Өмнө нь TMDB-ээс ирдэг байсан ч ХЭРЭГЛЭГДЭХГҮЙ өнгөрдөг тул
+     * админ 8 жүжигчийг нэг бүрчлэн гараар бичдэг байв.
+     * ⚠️ Гараар оруулсан cast байвал ДАРЖ БИЧИХГҮЙ (админы ажил үрэгдэхгүй).
+     */
+    if (result.cast?.length && cast.length === 0) {
+      setCast(
+        result.cast.map((c) => ({
+          name: c.name,
+          character: c.character,
+          photoKey: c.photoKey ?? undefined,
+        })),
+      );
+    }
+    /* ⚠️ Трейлер олдвол админд мэдэгдэнэ — R2 HLS-тэй ӨӨР тул гараар авна */
+    if (result.trailerYoutubeKey) {
+      toast.info(`TMDB трейлер олдлоо: youtu.be/${result.trailerYoutubeKey}`, { duration: 8000 });
+    }
   };
 
   const save = async () => {

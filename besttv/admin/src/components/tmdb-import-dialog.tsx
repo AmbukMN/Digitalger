@@ -28,6 +28,10 @@ export interface TmdbImportResult {
   backdropKey: string | null;
   posterUrl: string | null;
   backdropUrl: string | null;
+  /** ⚠️ Дэлгэрэнгүй cast — нэр + дүр + ЗУРАГ (R2-д mirror хийгдсэн) */
+  cast?: { name: string; character: string; photoKey: string | null }[];
+  /** YouTube трейлерийн key — админд харуулна (R2 HLS-тэй ӨӨР зүйл) */
+  trailerYoutubeKey?: string | null;
 }
 
 /** TMDB-ээс хайж, сонгосон контентын мэдээлэл+зургийг R2-д татаж импортлоно */

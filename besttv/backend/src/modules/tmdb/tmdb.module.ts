@@ -6,11 +6,13 @@ import {
   Injectable,
   Logger,
   Param,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -30,6 +32,8 @@ export class TmdbService {
   constructor(
     private readonly config: ConfigService,
     private readonly storage: StorageService,
+    /* ⚠️ Бөөнөөр нөхөхөд (enrichExisting) DB-д бичнэ */
+    private readonly prisma: PrismaService,
   ) {}
 
   private get apiKey(): string {
@@ -55,7 +59,7 @@ export class TmdbService {
 
   /** Дэлгэрэнгүй + зургуудыг R2-д татаж хадгална */
   async importDetails(tmdbId: string, type: 'movie' | 'tv') {
-    const url = `${this.base}/${type}/${tmdbId}?api_key=${this.apiKey}&language=en-US&append_to_response=credits`;
+    const url = `${this.base}/${type}/${tmdbId}?api_key=${this.apiKey}&language=en-US&append_to_response=credits,videos`;
     const res = await fetch(url);
     if (!res.ok) throw new BadRequestException('TMDB мэдээлэл татаж чадсангүй');
     const d = await res.json();
@@ -69,6 +73,17 @@ export class TmdbService {
         : null,
     ]);
 
+    /* ⚠️ Зэрэг татна — 8 зураг дараалан татвал импорт удаан */
+    const castWithPhotos = await Promise.all(
+      (d.credits?.cast ?? []).slice(0, 8).map(async (c: { name: string; character?: string; profile_path?: string | null }) => ({
+        name: c.name,
+        character: c.character ?? '',
+        photoKey: c.profile_path
+          ? await this.mirrorImage(`${this.imgBase}/w185${c.profile_path}`, 'cast')
+          : null,
+      })),
+    );
+
     return {
       titleEn: d.title ?? d.name,
       description: d.overview ?? '',
@@ -76,13 +91,183 @@ export class TmdbService {
       rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
       durationSec: d.runtime ? d.runtime * 60 : null,
       actors: (d.credits?.cast ?? []).slice(0, 10).map((c: any) => c.name),
+      /**
+       * ⚠️ ДЭЛГЭРЭНГҮЙ CAST — нэр + дүр + ЗУРАГ.
+       *
+       * `actors` нь зөвхөн нэрсийн жагсаалт (хуучин талбар). Кино
+       * дэлгэрэнгүй хуудсанд жүжигчдийн зураг харуулдаг тул `cast`-ыг
+       * бөглөвөл админ гараар нэг бүрчлэн оруулах шаардлагагүй болно.
+       *
+       * ⚠️ Зөвхөн ЭХНИЙ 8 — зураг бүр R2 руу mirror хийгддэг тул илүү
+       * олон бол импорт удаан болж, сан дэмий дүүрнэ.
+       */
+      cast: castWithPhotos,
       genreNames: (d.genres ?? []).map((g: any) => g.name),
       seasonCount: d.number_of_seasons ?? null,
       posterKey,
       backdropKey,
+      /**
+       * ⚠️ ТРЕЙЛЕР — YouTube-ийн key (`dQw4w9WgXcQ` гэх мэт).
+       *
+       * `Title.trailerKey` нь МАНАЙ R2 дээрх HLS m3u8 зам тул энд
+       * ХАДГАЛАХГҮЙ — YouTube линк тэр талбарт таарахгүй, player
+       * эвдэрнэ. Оронд нь админд ХАРУУЛЖ, хүсвэл гараар авах
+       * боломжтой болгоно (ирээдүйд тусдаа талбар нэмж болно).
+       */
+      trailerYoutubeKey:
+        (d.videos?.results ?? []).find(
+          (v: { site?: string; type?: string; key?: string }) =>
+            v.site === 'YouTube' && v.type === 'Trailer',
+        )?.key ?? null,
       posterUrl: posterKey ? await this.storage.publicAssetUrl(posterKey, 7200) : null,
       backdropUrl: backdropKey ? await this.storage.publicAssetUrl(backdropKey, 7200) : null,
     };
+  }
+
+  /**
+   * ОДОО БАЙГАА кинонуудын ДУТУУ мэдээллийг TMDB-ээс нөхнө.
+   *
+   * ⚠️⚠️ ЗӨВХӨН ХООСОН талбарыг бөглөнө — админ гараар оруулсан
+   * тайлбар/зураг/жүжигчдийг ХЭЗЭЭ Ч дарж бичихгүй. Монгол киноны
+   * тайлбар нь ихэвчлэн гараар бичигдсэн, TMDB-ийнх англи тул
+   * дарж бичвэл ажил үрэгдэнэ.
+   *
+   * ⚠️ TMDB-д Монгол киноны ~50% л байдаг (хэмжилтээр). Олдоогүйг
+   * АЛГАСНА — алдаа биш.
+   *
+   * ⚠️ Нэрээр хайхдаа `titleEn` байвал ТҮҮГЭЭР (илүү нарийн таарна),
+   * эс бөгөөс кирилл нэрээр.
+   */
+  async enrichExisting(limit = 5, dryRun = false, offset = 0) {
+    const titles = await this.prisma.title.findMany({
+      where: {
+        OR: [
+          { rating: null },
+          { year: null },
+          { backdropKey: null },
+          { director: null },
+          { cast: { equals: Prisma.DbNull } },
+        ],
+      },
+      select: {
+        id: true, title: true, titleEn: true, type: true,
+        year: true, rating: true, description: true,
+        backdropKey: true, director: true, cast: true,
+      },
+      /**
+       * ⚠️ `skip` — олдоогүй кино `where`-д ҮЛДСЭЭР байдаг тул тогтмол
+       * эрэмбээр дуудвал ҮРГЭЛЖ ижил эхний N-ийг шалгана. Дуудагч тал
+       * `offset` нэмж бүх кинонд хүрнэ.
+       */
+      orderBy: { createdAt: 'asc' },
+      skip: offset,
+      take: limit,
+    });
+
+    const done: { title: string; filled: string[] }[] = [];
+    const skipped: string[] = [];
+
+    for (const t of titles) {
+      const q = t.titleEn?.trim() || t.title;
+      const type = t.type === 'SERIES' ? 'tv' : 'movie';
+
+      /**
+       * ⚠️⚠️ ТААРЛЫГ ХАТУУ ШАЛГАНА — БУРУУ ДАТА ОРУУЛАХААС СЭРГИЙЛНЭ.
+       *
+       * Бодит жишээ: "Хүсэл" гэж хайхад TMDB нь `Lust and Caution (1993)`
+       * гэсэн ОГТ ӨӨР кино буцаадаг. Эхний үр дүнг сохроор авбал 77
+       * Монгол кинонд гадаад киноны жүжигчид/он/зураг орж, дата бохирдоно.
+       *
+       * Шалгуур:
+       *   1) `titleEn` тохирсон бол — нэр нь ОЙРОЛЦООХ байх ёстой
+       *   2) `titleEn` байхгүй (кирилл нэрээр хайсан) бол — TMDB-ийн
+       *      үр дүнгийн нэр нь ГАЛИГ таарах ёстой (жишээ: "49 хоног"
+       *      → "49 Khonog"). Эс бөгөөс АЛГАСНА.
+       */
+      let hit: { tmdbId: number; title?: string; year?: string } | undefined;
+      try {
+        const results = await this.search(q, type as 'movie' | 'tv');
+        const cand = results[0] as { tmdbId: number; title?: string; year?: string } | undefined;
+        if (cand && this.isLikelyMatch(q, cand.title ?? '')) hit = cand;
+      } catch {
+        /* хайлт унавал алгасна */
+      }
+      if (!hit) { skipped.push(t.title); continue; }
+
+      let d: Awaited<ReturnType<typeof this.importDetails>>;
+      try {
+        d = await this.importDetails(String(hit.tmdbId), type as 'movie' | 'tv');
+      } catch {
+        skipped.push(t.title); continue;
+      }
+
+      /* ⚠️ ЗӨВХӨН хоосон талбар — байгааг хөндөхгүй */
+      const data: Record<string, unknown> = {};
+      const filled: string[] = [];
+      if (t.rating == null && d.rating != null) { data.rating = d.rating; filled.push('үнэлгээ'); }
+      if (t.year == null && d.year != null) { data.year = d.year; filled.push('он'); }
+      if (!t.backdropKey && d.backdropKey) { data.backdropKey = d.backdropKey; filled.push('backdrop'); }
+      if (!t.titleEn && d.titleEn) { data.titleEn = d.titleEn; filled.push('англи нэр'); }
+      if ((!t.cast || (Array.isArray(t.cast) && t.cast.length === 0)) && d.cast?.length) {
+        data.cast = d.cast as unknown as Prisma.InputJsonValue;
+        filled.push(`${d.cast.length} жүжигчин`);
+      }
+
+      if (!filled.length) { skipped.push(t.title); continue; }
+      if (!dryRun) await this.prisma.title.update({ where: { id: t.id }, data });
+      done.push({ title: t.title, filled });
+    }
+
+    return { done, skipped, checked: titles.length };
+  }
+
+  /**
+   * Хайсан нэр ↔ TMDB-ийн нэр ҮНЭХЭЭР нэг кино мөн эсэх.
+   *
+   * ⚠️ Монгол нэрийг ГАЛИГААР харьцуулна ("49 хоног" ↔ "49 Khonog").
+   * Тоо/үг давхцаж байвал л зөвшөөрнө — эс бөгөөс огт өөр кино орно.
+   */
+  private isLikelyMatch(query: string, tmdbTitle: string): boolean {
+    const TR: Record<string, string> = {
+      а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'j',з:'z',и:'i',й:'i',к:'k',
+      л:'l',м:'m',н:'n',о:'o',ө:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ү:'u',ф:'f',
+      х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sh',ъ:'',ы:'i',ь:'',э:'e',ю:'yu',я:'ya',
+    };
+    const norm = (v: string) =>
+      v.toLowerCase()
+        .split('').map((c) => TR[c] ?? c).join('')
+        .replace(/kh/g, 'h')
+        .replace(/[^a-z0-9]/g, '');
+
+    const a = norm(query);
+    const b = norm(tmdbTitle);
+    if (!a || !b) return false;
+
+    /**
+     * ⚠️⚠️ ЗӨВХӨН ЯГ ТААРАХ эсвэл БҮТЭН АГУУЛАГДАХ үед л зөвшөөрнө.
+     *
+     * "Эхний 6 тэмдэгт таарвал болно" гэсэн ЗӨӨЛӨН дүрэм байсан нь
+     * production дээр БУРУУ ДАТА оруулсан (бодит жишээ):
+     *   "Шим"   → "Мегащенки Электролапы и Шиммер и Шайн"  ❌
+     *   "RHYME" → "Nursery Rhyme"                          ❌
+     * Ийм алдаа нь хэрэглэгчид ХАРАГДАХ тул хатуу байх нь зөв —
+     * олдохгүй өнгөрөх нь буруу дата оруулахаас ХАМААГҮЙ дээр.
+     *
+     * ⚠️ Богино нэр (<5 тэмдэгт) нь санамсаргүй таарах магадлал өндөр
+     * тул ЯГ ТААРАХЫГ шаардана ("shim" ⊄ "shimmer").
+     */
+    if (a === b) return true;
+    if (a.length < 5 || b.length < 5) return false;
+
+    /**
+     * ⚠️ АГУУЛАГДАХ нь ГАНЦААРАА ХАНГАЛТГҮЙ — урт нь хэт зөрвөл өөр кино:
+     *   "rhyme"  ⊂ "nurseryrhyme"  → ӨӨР кино ❌ (2.4 дахин урт)
+     *   "49honog" ⊂ "49honog2024"  → ИЖИЛ кино ✅ (1.6 дахин)
+     * Тиймээс богино нь уртынхаа 60%-иас багагүй байхыг шаардана.
+     */
+    if (!(a.includes(b) || b.includes(a))) return false;
+    const [shortLen, longLen] = a.length < b.length ? [a.length, b.length] : [b.length, a.length];
+    return shortLen / longLen >= 0.6;
   }
 
   private async mirrorImage(url: string, kind: string): Promise<string | null> {
@@ -111,6 +296,23 @@ export class TmdbController {
   @Get('search')
   search(@Query('q') q: string, @Query('type') type: 'movie' | 'tv' = 'movie') {
     return this.svc.search(q ?? '', type);
+  }
+
+  /**
+   * Бөөнөөр нөхөх — дутуу мэдээлэлтэй кинонуудыг TMDB-ээс бөглөнө.
+   * ⚠️ Удаан (кино бүрд 2 API дуудалт + зураг татах) тул `limit` багаар.
+   */
+  @Post('enrich')
+  enrich(
+    @Query('limit') limit?: string,
+    @Query('dry') dry?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.svc.enrichExisting(
+      Math.min(20, Number(limit) || 5),
+      dry === '1',
+      Math.max(0, Number(offset) || 0),
+    );
   }
 
   @Get('import/:id')

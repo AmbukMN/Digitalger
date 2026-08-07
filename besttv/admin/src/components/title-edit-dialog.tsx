@@ -245,7 +245,29 @@ export function TitleEditDialog({
       setBackdropKey(result.backdropKey);
       setBackdropUrl(result.backdropUrl);
     }
-    toast.success('TMDB-ээс мэдээлэл татагдлаа');
+    /**
+     * ⚠️ ЖҮЖИГЧИД — нэр + дүр + ЗУРАГ автоматаар.
+     * Гараар оруулсан байвал ДАРЖ БИЧИХГҮЙ (админы ажил үрэгдэхгүй).
+     */
+    if (result.cast?.length && cast.length === 0) {
+      setCast(
+        result.cast.map((c) => ({
+          name: c.name,
+          character: c.character,
+          photoKey: c.photoKey ?? undefined,
+        })),
+      );
+    }
+    const extra = [
+      result.cast?.length ? `${result.cast.length} жүжигчин` : null,
+      result.trailerYoutubeKey ? 'трейлер' : null,
+    ].filter(Boolean);
+    toast.success(
+      `TMDB-ээс мэдээлэл татагдлаа${extra.length ? ` (${extra.join(', ')})` : ''}`,
+    );
+    if (result.trailerYoutubeKey) {
+      toast.info(`Трейлер: youtu.be/${result.trailerYoutubeKey}`, { duration: 8000 });
+    }
   };
 
   const save = async (closeAfter = false) => {

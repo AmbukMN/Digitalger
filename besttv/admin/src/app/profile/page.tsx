@@ -292,6 +292,13 @@ export default function AdminProfilePage() {
                 aria-invalid={pwTooShort}
                 className={cn('admin-input', pwTooShort && 'border-destructive')}
               />
+              {/*
+                ⚠️ ХҮЧНИЙ ЗААГЧ — админ данс нь БҮХ контент, төлбөр,
+                хэрэглэгчийн датад хандах эрхтэй. "8 тэмдэгт" гэсэн доод
+                хязгаар хангалтгүй; хэрэглэгчид сул нууц үг сонгож байгааг
+                нь ШУУД харуулж, сайжруулахыг түлхнэ.
+              */}
+              {newPassword.length > 0 && <PasswordStrength value={newPassword} />}
             </Field>
             <Field label="Давтах">
               <input
@@ -383,5 +390,49 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+
+/**
+ * Нууц үгийн хүчийг үнэлж 3 түвшнээр харуулна.
+ *
+ * ⚠️ Онооны логик энгийн ч ХАНГАЛТТАЙ: урт + төрлийн олон янз байдал.
+ * Zxcvbn мэтийн сан нэмбэл ~400KB bundle нэмэгдэх тул админ нэг талбарт
+ * зориулж татах нь зохисгүй.
+ */
+function PasswordStrength({ value }: { value: string }) {
+  const score =
+    (value.length >= 8 ? 1 : 0) +
+    (value.length >= 12 ? 1 : 0) +
+    (/[a-z]/.test(value) && /[A-Z]/.test(value) ? 1 : 0) +
+    (/\d/.test(value) ? 1 : 0) +
+    (/[^A-Za-z0-9]/.test(value) ? 1 : 0);
+
+  const level = score <= 2 ? 0 : score <= 3 ? 1 : 2;
+  const meta = [
+    { label: 'Сул', color: 'bg-destructive', text: 'text-destructive' },
+    { label: 'Дунд', color: 'bg-warning', text: 'text-warning' },
+    { label: 'Хүчтэй', color: 'bg-success', text: 'text-success' },
+  ][level];
+
+  return (
+    <div className="mt-1.5">
+      <div className="flex gap-1" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={cn(
+              'h-1 flex-1 rounded-full transition-colors',
+              i <= level ? meta.color : 'bg-foreground/12',
+            )}
+          />
+        ))}
+      </div>
+      <p className={cn('mt-1 text-[11px] font-medium', meta.text)}>
+        {meta.label}
+        {level < 2 && ' — том/жижиг үсэг, тоо, тэмдэгт холивол хүчтэй болно'}
+      </p>
+    </div>
   );
 }
