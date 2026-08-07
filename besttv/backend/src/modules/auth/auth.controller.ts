@@ -69,7 +69,14 @@ export class AuthController {
   // ⚠️ Зочноор нэвтрэх (/auth/guest) болон convert-guest ХАСАГДСАН.
   // Зөвхөн имэйл+нууц үг, Google, Facebook-ээр л нэвтэрнэ.
 
+  /**
+   * ⚠️ Throttle — дуудалт бүрт `jwt.verify` + DB унших ажил хийдэг.
+   * Мөн refresh token нь 30 хоног хүчинтэй бөгөөд revoke хийх
+   * механизм байхгүй тул энэ endpoint-ыг нягт хянах шаардлагатай.
+   * Хэвийн клиент 15 минутад нэг л дуудна — 30/мин элбэг хангалттай.
+   */
   @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   refresh(@Body() dto: RefreshDto) {
     return this.auth.refresh(dto.refreshToken);
   }

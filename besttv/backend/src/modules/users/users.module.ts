@@ -17,6 +17,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsEnum,
   IsOptional,
   IsString,
   Min,
@@ -39,8 +40,15 @@ class UpdateUserDto {
   @IsString()
   name?: string;
 
+  /**
+   * ⚠️⚠️ `@IsEnum` — `@IsString()` байсан нь эрх нэмэгдүүлэх талбарт
+   * ХАНГАЛТГҮЙ: TypeScript-ийн `Role` төрөл нь зөвхөн compile-time.
+   * "SUPERADMIN", "admin" (жижиг үсгээр) гэх мэт дурын мөр Prisma руу
+   * шууд дамжина. Жижиг үсгээр DB-д орвол `RolesGuard`-ийн
+   * `user.role === role` харьцуулалт таарахаа болино.
+   */
   @IsOptional()
-  @IsString()
+  @IsEnum(Role)
   role?: Role;
 }
 
@@ -316,10 +324,42 @@ export class UsersService {
     return { ...user, activity: { viewCount, searchCount, lastSeen } };
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+  /**
+   * @param actorId — үйлдэл хийж буй АДМИНЫ id (өөрийгөө хамгаалахад)
+   */
+  async update(id: string, dto: UpdateUserDto, actorId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
-    return this.prisma.user.update({ where: { id }, data: dto });
+
+    /**
+     * ⚠️ Админ ӨӨРИЙНХӨӨ эрхийг бууруулахыг хориглоно — эс бөгөөс
+     * санамсаргүй USER болж, админ панелиас БҮРМӨСӨН гарна (сэргээх
+     * цорын ганц зам нь DB-д гараар засах). `bulkDelete` нь өөрийгөө
+     * устгахаас 3 хамгаалалттай атлаа энд ижил бодол байгаагүй.
+     */
+    if (dto.role && dto.role !== user.role && id === actorId) {
+      throw new BadRequestException('Өөрийн эрхийг өөрчлөх боломжгүй');
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: dto,
+      /**
+       * ⚠️⚠️ `select` ЗААВАЛ — эс бөгөөс Prisma БҮХ баганыг буцаана:
+       * `passwordHash` (bcrypt), `googleId`, `facebookId`. Тэр нь HTTP
+       * хариунд орж админы browser/proxy/лог/Sentry-д хадгалагдана.
+       * Ижил файлын `list()`/`get()` нь `select`-ээ зөв бичсэн байсан
+       * атлаа энд орхигдсон.
+       */
+      select: {
+        id: true, email: true, name: true, role: true, isActive: true,
+        provider: true, emailVerified: true, walletBalance: true,
+        avatarKey: true, createdAt: true, updatedAt: true,
+      },
+    });
   }
 
   async setPassword(id: string, password: string) {
@@ -473,8 +513,13 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.svc.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    /* ⚠️ Админ ӨӨРИЙНХӨӨ эрхийг бууруулахаас сэргийлнэ */
+    @CurrentUser() me: JwtPayload,
+  ) {
+    return this.svc.update(id, dto, me.sub);
   }
 
   @Post(':id/password')

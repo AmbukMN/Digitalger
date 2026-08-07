@@ -43,14 +43,36 @@ export class LibraryService {
   ) {}
 
   async saveProgress(userId: string, dto: ProgressDto) {
+    /**
+     * ⚠️⚠️ ЯВЦЫГ ЦЭВЭРЛЭЖ ХАДГАЛНА — "Үргэлжлүүлэн үзэх" эгнээ эвдрэхээс
+     * сэргийлнэ (энэ нь нүүрний хамгийн үнэ цэнэтэй мөр).
+     *
+     * 1. ⚠️ `episodeId` нь ТУХАЙН кинонд харьяалагдах эсэхийг шалгана.
+     *    Урьд нь шалгагддаггүй тул өөр киноны ангийн id бичигдэж,
+     *    хэрэглэгч "үргэлжлүүлэх" дархад ОГТ ӨӨР кино нээгддэг байв.
+     * 2. ⚠️ `positionSec` нь `durationSec`-ээс их байж БОЛОХГҮЙ —
+     *    100%-иас их явц (progress bar давна).
+     * ⚠️ Эрхийн шалгалт ЭНД ХИЙХГҮЙ: видео нь `stream` gate-ээр
+     *    хамгаалагдсан тул эрхгүй хүн үзэж чадахгүй → явц ч үүсэхгүй.
+     *    Энд шалгавал багц дуусахад хуучин явц шинэчлэгдэхээ болино.
+     */
+    let episodeId: string | null = null;
+    if (dto.episodeId) {
+      const ep = await this.prisma.episode.findUnique({
+        where: { id: dto.episodeId },
+        select: { season: { select: { titleId: true } } },
+      });
+      if (ep?.season.titleId === dto.titleId) episodeId = dto.episodeId;
+    }
+    const positionSec = dto.durationSec > 0
+      ? Math.min(dto.positionSec, dto.durationSec)
+      : dto.positionSec;
+
+    const data = { positionSec, durationSec: dto.durationSec, episodeId };
     return this.prisma.watchProgress.upsert({
       where: { userId_titleId: { userId, titleId: dto.titleId } },
-      create: { userId, ...dto },
-      update: {
-        positionSec: dto.positionSec,
-        durationSec: dto.durationSec,
-        episodeId: dto.episodeId ?? null,
-      },
+      create: { userId, titleId: dto.titleId, ...data },
+      update: data,
     });
   }
 

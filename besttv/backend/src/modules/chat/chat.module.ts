@@ -12,6 +12,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ArrayMaxSize, IsArray, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -29,27 +30,41 @@ export class ChatController {
   constructor(private readonly chat: ChatService) {}
 
   /** Handoff үед widget шууд энд бичнэ (n8n дамжуулахгүй) */
+  /**
+   * ⚠️⚠️ ХОЁР ЦООРХОЙ ХААСАН:
+   *
+   * 1. `role: 'admin'` — халдлагч хохирогчийн `sessionId`-д "админ"
+   *    нэрийн өмнөөс мессеж бичиж phishing хийж болно ("картын
+   *    мэдээллээ энд илгээнэ үү"). Одоо `user`-ээс өөр role-ыг
+   *    ХҮЛЭЭН АВАХГҮЙ — админы хариу нь `adminReply`-аар л ирнэ,
+   *    AI-ийнх нь `/chat/ingest`-ээр.
+   *
+   * 2. `userId`-г BODY-ООС авдаг байсан — дурын яриаг өөр хэрэглэгчид
+   *    зүүх боломжтой байв. Одоо ЗӨВХӨН token-оос (`linkSession`-той
+   *    ижил зарчим).
+   */
   @Throttle({ default: { limit: 240, ttl: 60_000 } })
+  @UseGuards(OptionalJwtAuthGuard)
   @Post('save')
   save(
     @Body()
     body: {
       channel?: string;
       sessionId?: string;
-      role?: string;
       text?: string;
       userName?: string;
-      userId?: string;
       titles?: ChatTitleCard[];
     },
+    @CurrentUser() me?: JwtPayload,
   ) {
     return this.chat.saveMessage({
       channel: body.channel,
       sessionId: body.sessionId ?? '',
-      role: body.role ?? 'user',
+      /* ⚠️ Widget нь ЗӨВХӨН хэрэглэгчийн мессеж бичдэг */
+      role: 'user',
       text: body.text ?? '',
       userName: body.userName,
-      userId: body.userId,
+      userId: me?.sub,
       titles: body.titles,
     });
   }
@@ -109,16 +124,30 @@ export class ChatController {
     return this.chat.linkSession(body.sessionId ?? '', me.sub);
   }
 
+  /**
+   * ⚠️⚠️ `OptionalJwtAuthGuard` — нэвтэрсэн бол хэн болохыг МЭДНЭ,
+   * зочин бол `me` нь `undefined` (хүсэлт унахгүй).
+   *
+   * Яриа хэрэглэгчид холбогдсон бол ЗӨВХӨН тэр хүн уншина. Урьд нь
+   * шалгалт огт байгаагүй тул `sessionId` мэдсэн хүн бусдын ярианы
+   * бүх мессеж + ярианаас салгасан ИМЭЙЛийг уншиж чаддаг байв.
+   */
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('messages')
-  messages(@Query('sessionId') sessionId: string, @Query('after') after?: string) {
-    return this.chat.getMessagesForUser(sessionId ?? '', after);
+  messages(
+    @Query('sessionId') sessionId: string,
+    @CurrentUser() me?: JwtPayload,
+    @Query('after') after?: string,
+  ) {
+    return this.chat.getMessagesForUser(sessionId ?? '', after, me?.sub);
   }
 
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('unread')
-  unread(@Query('sessionId') sessionId: string) {
-    return this.chat.getUnreadForUser(sessionId ?? '');
+  unread(@Query('sessionId') sessionId: string, @CurrentUser() me?: JwtPayload) {
+    return this.chat.getUnreadForUser(sessionId ?? '', me?.sub);
   }
 }
 

@@ -36,17 +36,35 @@ const WELCOME: ChatMessage = {
   text: 'Сайн байна уу! 👋 Би BestTV-ийн AI туслах. Кино хайх, багц сонгох, төлбөрийн талаар асуугаарай.',
 };
 
-/** Төхөөрөмж бүрд тогтмол sessionId — n8n санах ой яриаг сэргээнэ */
+/**
+ * Төхөөрөмж бүрд тогтмол sessionId — n8n санах ой яриаг сэргээнэ.
+ *
+ * ⚠️⚠️ `crypto.randomUUID()` — ЭНЭ НЬ ХАМГААЛАЛТЫН ХИЛ.
+ *
+ * `sessionId`-г мэдсэн хүн тухайн ярианы БҮХ мессежийг уншиж чадна
+ * (мөн ярианаас автоматаар салгасан ИМЭЙЛ). Өмнөх `Math.random()` нь
+ * криптографийн хувьд найдваргүй — үр дүнг таамаглах боломжтой.
+ *
+ * ⚠️ Хуучин `web_anon` fallback нь БҮХ хүнд ИЖИЛ утга байсан тул
+ * `crypto` дэмжихгүй хөтөч дээр хэрэглэгчид бие биенийхээ яриаг
+ * харах байсан. Одоо `Math.random()`-руу л унана (муу ч ялгаатай).
+ */
 function getSessionId(): string {
   try {
     let s = localStorage.getItem(STORAGE_SESSION);
     if (!s) {
-      s = 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      s =
+        'web_' +
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID().replace(/-/g, '')
+          : Math.random().toString(36).slice(2) + Date.now().toString(36));
       localStorage.setItem(STORAGE_SESSION, s);
     }
     return s;
   } catch {
-    return 'web_anon';
+    /* ⚠️ localStorage хаалттай (private горим) — санамсаргүй утга буцаана,
+       яриа хадгалагдахгүй ч БУСДЫНХ уншигдахгүй */
+    return 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 }
 

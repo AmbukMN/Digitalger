@@ -2,7 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const ALLOWED_CHANNELS = new Set(['web']);
-const ALLOWED_ROLES = new Set(['user', 'assistant', 'admin']);
+/**
+ * ⚠️⚠️ `admin` ЗОРИУД БАЙХГҮЙ — `saveMessage` нь НЭЭЛТТЭЙ endpoint-оос
+ * дуудагддаг тул халдлагч "админ" нэрийн өмнөөс мессеж бичиж phishing
+ * хийж болно ("картын мэдээллээ энд илгээнэ үү").
+ * Админы хариу нь `adminReply()`-аар л бичигдэнэ (тэр нь `saveMessage`
+ * дамждаггүй, `@Roles(ADMIN)` хамгаалалттай).
+ */
+const ALLOWED_ROLES = new Set(['user', 'assistant']);
 const MAX_TEXT_LENGTH = 8000;
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 
@@ -126,17 +133,36 @@ export class ChatService {
   }
 
   /** Хэрэглэгчийн polling — админы шинэ хариу авах */
-  async getMessagesForUser(sessionId: string, after?: string) {
+  /**
+   * @param meId — нэвтэрсэн хэрэглэгчийн id (token-оос). Зочин бол null.
+   */
+  async getMessagesForUser(sessionId: string, after?: string, meId?: string | null) {
     const sid = (sessionId ?? '').trim().slice(0, 64);
     if (!sid) return { handedOff: false, messages: [] };
 
     const conv = await this.prisma.chatConversation
       .findUnique({
         where: { sessionId: sid },
-        select: { id: true, handedOff: true, userUnreadCount: true },
+        select: { id: true, handedOff: true, userUnreadCount: true, userId: true },
       })
       .catch(() => null);
     if (!conv) return { handedOff: false, messages: [] };
+
+    /**
+     * ⚠️⚠️ ЭЗЭМШЛИЙН ШАЛГАЛТ — БУСДЫН ЯРИА УНШИХААС хамгаална.
+     *
+     * `sessionId` нь localStorage-д хадгалагддаг бөгөөд лог, Referer,
+     * дэлгэцийн зураг зэргээр задарч болно. Урьд нь шалгалт ОГТ
+     * байгаагүй тул мэдсэн хүн ярианы БҮХ мессежийг (мөн ярианаас
+     * автоматаар салгасан ИМЭЙЛ) уншиж чаддаг байв.
+     *
+     * ⚠️ Яриа хэрэглэгчид ХОЛБОГДСОН (`userId != null`) байвал ЗӨВХӨН
+     * тэр хүн уншина. Зочны яриа (`userId == null`) нь sessionId-аараа
+     * л хамгаалагдана — тэнд нэвтрэлт байхгүй тул өөр арга байхгүй.
+     */
+    if (conv.userId && conv.userId !== meId) {
+      return { handedOff: false, messages: [] };
+    }
 
     const afterDate = after ? new Date(after) : undefined;
     const messages = await this.prisma.chatMessage.findMany({
@@ -159,15 +185,17 @@ export class ChatService {
     return { handedOff: conv.handedOff, messages };
   }
 
-  async getUnreadForUser(sessionId: string) {
+  async getUnreadForUser(sessionId: string, meId?: string | null) {
     const sid = (sessionId ?? '').trim().slice(0, 64);
     if (!sid) return { unread: 0, handedOff: false };
     const conv = await this.prisma.chatConversation
       .findUnique({
         where: { sessionId: sid },
-        select: { userUnreadCount: true, handedOff: true },
+        select: { userUnreadCount: true, handedOff: true, userId: true },
       })
       .catch(() => null);
+    /* ⚠️ `getMessagesForUser`-тэй ижил эзэмшлийн шалгалт */
+    if (conv?.userId && conv.userId !== meId) return { unread: 0, handedOff: false };
     return { unread: conv?.userUnreadCount ?? 0, handedOff: conv?.handedOff ?? false };
   }
 
