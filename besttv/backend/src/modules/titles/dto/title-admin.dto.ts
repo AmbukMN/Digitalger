@@ -129,6 +129,22 @@ export class CreateTitleDto {
   @IsString({ each: true })
   galleryKeys?: string[];
 
+  /**
+   * ⚠️ Англи ЭХ тайлбар — TMDB-ээс ирнэ, AI орчуулгын ЭХ ҮҮСВЭР.
+   * `description` нь МОНГОЛ (орчуулсан), энэ нь англи хэвээр.
+   */
+  @IsOptional()
+  @IsString()
+  descriptionEn?: string;
+
+  /**
+   * ⚠️ YouTube трейлерийн key — манай R2 HLS трейлер (`trailerKey`)-ЭЭС
+   * ТУСДАА. HLS байхгүй үед л энийг тоглуулна.
+   */
+  @IsOptional()
+  @IsString()
+  trailerYoutubeKey?: string;
+
   @IsOptional()
   @IsString()
   metaTitle?: string;

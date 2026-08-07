@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Plus, Sparkles, Trash2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
@@ -31,10 +31,14 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
     type: 'MOVIE' as 'MOVIE' | 'SERIES',
     title: '',
     description: '',
+    /** ⚠️ Англи эх тайлбар (TMDB) — `description` нь МОНГОЛ орчуулга */
+    descriptionEn: '',
     year: '',
     rating: '',
     director: '',
     ageRating: '',
+    /** ⚠️ YouTube трейлерийн key — R2 HLS трейлерээс ТУСДАА */
+    trailerYoutubeKey: '',
     metaTitle: '',
     metaDescription: '',
     isPremium: true,
@@ -64,10 +68,12 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         type: e.type,
         title: e.title,
         description: e.description ?? '',
+        descriptionEn: e.descriptionEn ?? '',
         year: e.year ? String(e.year) : '',
         rating: e.rating ? String(e.rating) : '',
         director: e.director ?? '',
         ageRating: e.ageRating ?? '',
+        trailerYoutubeKey: e.trailerYoutubeKey ?? '',
         metaTitle: e.metaTitle ?? '',
         metaDescription: e.metaDescription ?? '',
         isPremium: e.isPremium,
@@ -99,8 +105,18 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
       ...f,
       title: f.title || result.titleEn,
       description: result.description || f.description,
+      /* ⚠️ Англи ЭХ хувилбар — орчуулга буруу гарвал тулгах эх сурвалж */
+      descriptionEn: result.descriptionEn || f.descriptionEn,
       year: result.year ? String(result.year) : f.year,
       rating: result.rating ? String(result.rating) : f.rating,
+      /**
+       * ⚠️ SEO — АРАЙ гараар бичсэн байвал ДАРЖ БИЧИХГҮЙ.
+       * AI орчуулга унтраалттай бол хоосон ирнэ → байгаа нь үлдэнэ.
+       */
+      metaTitle: f.metaTitle || result.metaTitle || '',
+      metaDescription: f.metaDescription || result.metaDescription || '',
+      /* ⚠️ YouTube трейлер — манай HLS трейлерээс ТУСДАА талбар */
+      trailerYoutubeKey: result.trailerYoutubeKey || f.trailerYoutubeKey,
       genreIds: [
         ...f.genreIds,
         ...(genres ?? [])
@@ -128,12 +144,32 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
           name: c.name,
           character: c.character,
           photoKey: c.photoKey ?? undefined,
+          /**
+           * ⚠️⚠️ `photoUrl` ЗААВАЛ — `CastEditor` ҮҮГЭЭР зураг харуулна.
+           * Зөвхөн `photoKey` өгвөл R2-д зураг БАЙГАА мөртлөө хоосон
+           * дүрс харагдана (bucket нь private тул key-гээр шууд болохгүй).
+           */
+          photoUrl: c.photoUrl ?? null,
         })),
       );
     }
-    /* ⚠️ Трейлер олдвол админд мэдэгдэнэ — R2 HLS-тэй ӨӨР тул гараар авна */
-    if (result.trailerYoutubeKey) {
-      toast.info(`TMDB трейлер олдлоо: youtu.be/${result.trailerYoutubeKey}`, { duration: 8000 });
+
+    /* ⚠️ Юу орсныг ТОДОРХОЙ хэлнэ — админ дахин шалгах шаардлагагүй */
+    const parts = [
+      result.posterKey ? 'постер' : null,
+      result.backdropKey ? 'backdrop' : null,
+      result.cast?.length && cast.length === 0 ? `${result.cast.length} жүжигчин` : null,
+      result.trailerYoutubeKey ? 'трейлер' : null,
+      result.translated ? 'монгол орчуулга' : null,
+    ].filter(Boolean);
+    toast.success(parts.length ? `TMDB: ${parts.join(', ')} орлоо` : 'TMDB мэдээлэл орлоо');
+
+    /**
+     * ⚠️ AI орчуулга УНТРААЛТТАЙ бол админд ХЭЛНЭ — эс бөгөөс англи
+     * тайлбар орсныг анзаарахгүй хадгалж, сайт дээр англиар гарна.
+     */
+    if (!result.translated && result.description) {
+      toast.warning('AI орчуулга идэвхгүй — тайлбар АНГЛИ хэвээр байна', { duration: 7000 });
     }
   };
 
@@ -144,10 +180,12 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         type: form.type,
         title: form.title,
         description: form.description,
+        descriptionEn: form.descriptionEn || undefined,
         year: form.year ? Number(form.year) : undefined,
         rating: form.rating ? Number(form.rating) : undefined,
         director: form.director || undefined,
         ageRating: form.ageRating || undefined,
+        trailerYoutubeKey: form.trailerYoutubeKey || undefined,
         metaTitle: form.metaTitle || undefined,
         metaDescription: form.metaDescription || undefined,
         cast: cast.filter((c) => c.name.trim()).map((c) => ({
@@ -300,6 +338,40 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
             trailerAvailable={(existing as any)?.trailerUrl != null}
             onTrailerDone={() => qc.invalidateQueries({ queryKey: ['admin-title', savedId] })}
           />
+
+          {/*
+            ⚠️ YOUTUBE ТРЕЙЛЕР — TMDB-ээс автоматаар ирнэ.
+            Дээрх R2 HLS трейлерээс ТУСДАА: HLS байхгүй үед л энийг тоглуулна.
+          */}
+          <div className="mt-4 border-t border-border pt-4">
+            <label className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <Youtube size={15} /> YouTube трейлер
+            </label>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Манай трейлер байхгүй үед энийг тоглуулна. TMDB импортоор автоматаар бөглөгдөнө.
+            </p>
+            <input
+              value={form.trailerYoutubeKey}
+              onChange={(e) => {
+                /* ⚠️ Бүтэн линк буулгасан ч key-г салгаж авна */
+                const v = e.target.value.trim();
+                const m = v.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
+                setForm((f) => ({ ...f, trailerYoutubeKey: m?.[1] ?? v }));
+              }}
+              placeholder="dQw4w9WgXcQ эсвэл бүтэн линк"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+            />
+            {form.trailerYoutubeKey && (
+              <a
+                href={`https://youtu.be/${form.trailerYoutubeKey}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block text-xs text-primary hover:underline"
+              >
+                youtu.be/{form.trailerYoutubeKey} — шалгах
+              </a>
+            )}
+          </div>
         </div>
 
         <div className="admin-card mt-5 rounded-xl p-6">

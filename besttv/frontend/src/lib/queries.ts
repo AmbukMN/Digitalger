@@ -55,6 +55,11 @@ export interface TitleDetail extends Omit<TitleCard, 'comingSoon'> {
   castMembers: CastMember[];
   galleryUrls: (string | null)[];
   trailerAvailable: boolean;
+  /**
+   * ⚠️ YouTube трейлерийн key — ЗӨВХӨН манай HLS трейлер БАЙХГҮЙ үед ирнэ.
+   * Байвал `TrailerModal` нь VideoPlayer-ийн оронд YouTube embed үзүүлнэ.
+   */
+  trailerYoutubeKey?: string | null;
   playable?: boolean;
   genres: { id: string; name: string; slug: string; isAdult?: boolean }[];
   seasons: Season[];

@@ -447,7 +447,14 @@ export function TitleDetailClient({ slug }: { slug: string }) {
         </div>
       </div>
 
-      {trailerOpen && <TrailerModal titleId={data.id} onClose={() => setTrailerOpen(false)} />}
+      {trailerOpen && (
+        <TrailerModal
+          titleId={data.id}
+          /* ⚠️ Манай HLS байхгүй үед л backend утга илгээнэ (эс бөгөөс null) */
+          youtubeKey={data.trailerYoutubeKey}
+          onClose={() => setTrailerOpen(false)}
+        />
+      )}
 
       {data.rental?.available && (
         <RentDialog

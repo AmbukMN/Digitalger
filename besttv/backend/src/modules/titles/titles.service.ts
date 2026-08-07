@@ -513,7 +513,17 @@ export class TitlesService {
       castMembers: cast,
       galleryUrls,
       galleryKeys: undefined,
-      trailerAvailable: !!title.trailerKey,
+      /**
+       * ⚠️ Трейлер БАЙГАА эсэх — манай HLS ЭСВЭЛ YouTube.
+       * Хоёулаа байвал HLS давуу (өөрийн CDN, зар сурталчилгаагүй).
+       */
+      trailerAvailable: !!title.trailerKey || !!title.trailerYoutubeKey,
+      /**
+       * ⚠️ ЗӨВХӨН манай HLS БАЙХГҮЙ үед YouTube-ийг явуулна — клиент тал
+       * аль тоглуулагчийг сонгохоо ҮҮГЭЭР шийднэ. HLS байвал `null` тул
+       * гадаад embed дэмий ачаалахгүй.
+       */
+      trailerYoutubeKey: title.trailerKey ? null : title.trailerYoutubeKey,
       playable: title.type === 'MOVIE' ? title.streamStatus === 'READY' : undefined,
       genres: title.genres.map((g) => g.genre),
       seasons,

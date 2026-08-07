@@ -56,6 +56,23 @@ export default () => ({
   tmdb: {
     apiKey: process.env.TMDB_API_KEY ?? null,
   },
+  /**
+   * AI орчуулга — TMDB-ээс ирсэн АНГЛИ тайлбар/дүрийн нэрийг монгол руу.
+   *
+   * ⚠️ Машин орчуулга биш — LLM-ээр УТГАЧИЛЖ орчуулна (киноны тайлбар нь
+   * зүйрлэл ихтэй тул шууд орчуулга эвгүй гардаг).
+   *
+   * ⚠️ Түлхүүр БАЙХГҮЙ бол орчуулга АЛГАСНА (алдаа биш) — англи эх
+   * хувилбар нь `descriptionEn`-д хадгалагдсан хэвээр үлдэнэ.
+   */
+  ai: {
+    /** OpenAI эсвэл Anthropic — аль нь тохируулагдсан түүнийг хэрэглэнэ */
+    openaiKey: process.env.OPENAI_API_KEY ?? null,
+    anthropicKey: process.env.ANTHROPIC_API_KEY ?? null,
+    /** ⚠️ Загварыг hardcode хийхгүй — үнэ/чанар өөрчлөгдвөл .env-ээс солино */
+    openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+    anthropicModel: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+  },
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3100',
   adminUrl: process.env.ADMIN_URL ?? 'http://localhost:3101',
   // R2 тохируулаагүй үед локал дискний файлыг энэ хаягаар serve хийнэ

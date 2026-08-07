@@ -15,6 +15,7 @@ import {
   UploadCloud,
   Users as UsersIcon,
   X,
+  Youtube,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
@@ -45,10 +46,14 @@ const EMPTY_FORM = {
   title: '',
   slug: '',
   description: '',
+  /** ⚠️ Англи эх тайлбар (TMDB) — `description` нь МОНГОЛ орчуулга */
+  descriptionEn: '',
   year: '',
   rating: '',
   director: '',
   ageRating: '',
+  /** ⚠️ YouTube трейлерийн key — R2 HLS трейлерээс ТУСДАА */
+  trailerYoutubeKey: '',
   // ⚠️ Анхдагч нь монгол хэлтэй (одоогийн бүх кино тийм)
   language: 'MN' as 'MN' | 'SUB',
   metaTitle: '',
@@ -148,10 +153,12 @@ export function TitleEditDialog({
       title: e.title,
       slug: e.slug ?? '',
       description: e.description ?? '',
+      descriptionEn: e.descriptionEn ?? '',
       year: e.year ? String(e.year) : '',
       rating: e.rating ? String(e.rating) : '',
       director: e.director ?? '',
       ageRating: e.ageRating ?? '',
+      trailerYoutubeKey: e.trailerYoutubeKey ?? '',
       language: (e.language ?? 'MN') as 'MN' | 'SUB',
       metaTitle: e.metaTitle ?? '',
       metaDescription: e.metaDescription ?? '',
@@ -224,12 +231,30 @@ export function TitleEditDialog({
   }, [open, titleId, existing]);
 
   const applyTmdb = (result: TmdbImportResult) => {
+    /**
+     * ⚠️⚠️ AI-ийн бичсэн SEO-г АВТОМАТ ЗАГВАР ДАРЖ БИЧИХЭЭС сэргийлнэ.
+     *
+     * Доорх `useEffect` нь `form.title` өөрчлөгдөхөд `autoMetaTitle()`
+     * загвараар SEO-г ДАХИН бичдэг. TMDB импорт нь гарчиг+тайлбарыг
+     * зэрэг өөрчилдөг тул AI-ийн утгачилсан SEO шууд устана.
+     * `seoTouched` тэмдэглэвэл автомат хөндөхгүй.
+     */
+    if (result.metaTitle) seoTouched.current.title = true;
+    if (result.metaDescription) seoTouched.current.desc = true;
+
     setForm((f) => ({
       ...f,
       title: f.title || result.titleEn,
       description: result.description || f.description,
+      /* ⚠️ Англи ЭХ хувилбар — орчуулга буруу гарвал тулгах эх сурвалж */
+      descriptionEn: result.descriptionEn || f.descriptionEn,
       year: result.year ? String(result.year) : f.year,
       rating: result.rating ? String(result.rating) : f.rating,
+      /* ⚠️ Гараар бичсэн SEO байвал ДАРЖ БИЧИХГҮЙ */
+      metaTitle: f.metaTitle || result.metaTitle || '',
+      metaDescription: f.metaDescription || result.metaDescription || '',
+      /* ⚠️ YouTube трейлер — манай HLS трейлерээс ТУСДАА талбар */
+      trailerYoutubeKey: result.trailerYoutubeKey || f.trailerYoutubeKey,
       genreIds: [
         ...f.genreIds,
         ...(genres ?? [])
@@ -255,18 +280,28 @@ export function TitleEditDialog({
           name: c.name,
           character: c.character,
           photoKey: c.photoKey ?? undefined,
+          /**
+           * ⚠️⚠️ `photoUrl` ЗААВАЛ — `CastEditor` ҮҮГЭЭР зураг харуулна.
+           * Зөвхөн `photoKey` өгвөл R2-д зураг БАЙГАА мөртлөө хоосон
+           * дүрс харагдана (bucket private тул key-гээр шууд болохгүй).
+           */
+          photoUrl: c.photoUrl ?? null,
         })),
       );
     }
     const extra = [
-      result.cast?.length ? `${result.cast.length} жүжигчин` : null,
+      result.posterKey ? 'постер' : null,
+      result.backdropKey ? 'backdrop' : null,
+      result.cast?.length && cast.length === 0 ? `${result.cast.length} жүжигчин` : null,
       result.trailerYoutubeKey ? 'трейлер' : null,
+      result.translated ? 'монгол орчуулга' : null,
     ].filter(Boolean);
     toast.success(
       `TMDB-ээс мэдээлэл татагдлаа${extra.length ? ` (${extra.join(', ')})` : ''}`,
     );
-    if (result.trailerYoutubeKey) {
-      toast.info(`Трейлер: youtu.be/${result.trailerYoutubeKey}`, { duration: 8000 });
+    /* ⚠️ Орчуулга унтраалттай бол ХЭЛНЭ — англи хэвээр хадгалагдахаас сэргийлнэ */
+    if (!result.translated && result.description) {
+      toast.warning('AI орчуулга идэвхгүй — тайлбар АНГЛИ хэвээр байна', { duration: 7000 });
     }
   };
 
@@ -284,10 +319,12 @@ export function TitleEditDialog({
         // ⚠️ Хоосон бол backend гарчигаас галиг slug үүсгэнэ (кирилл→латин)
         slug: form.slug.trim() || undefined,
         description: form.description,
+        descriptionEn: form.descriptionEn || undefined,
         year: form.year ? Number(form.year) : undefined,
         rating: form.rating ? Number(form.rating) : undefined,
         director: form.director || undefined,
         ageRating: form.ageRating || undefined,
+        trailerYoutubeKey: form.trailerYoutubeKey || undefined,
         language: form.language,
         /**
          * ⚠️ SEO АВТОМАТ — хоосон орхивол гарчиг/тайлбараас үүсгэнэ.
@@ -756,6 +793,39 @@ export function TitleEditDialog({
                       qc.invalidateQueries({ queryKey: ['admin-title', savedId] })
                     }
                   />
+
+                  {/*
+                    ⚠️ YOUTUBE ТРЕЙЛЕР — TMDB-ээс автоматаар ирнэ.
+                    Манай R2 HLS трейлер (дээрх upload)-ААС ТУСДАА талбар:
+                    HLS байхгүй үед л энийг тоглуулна (нөөц хувилбар).
+                  */}
+                  <div className="mt-3">
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Youtube size={13} /> YouTube трейлер
+                    </label>
+                    <input
+                      value={form.trailerYoutubeKey}
+                      onChange={(e) => {
+                        /* ⚠️ Бүтэн линк буулгасан ч key-г нь салгаж авна —
+                           админ youtube.com/watch?v=... хуулах нь ЭНГИЙН */
+                        const v = e.target.value.trim();
+                        const m = v.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
+                        setForm((f) => ({ ...f, trailerYoutubeKey: m?.[1] ?? v }));
+                      }}
+                      placeholder="dQw4w9WgXcQ эсвэл бүтэн линк"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+                    />
+                    {form.trailerYoutubeKey && (
+                      <a
+                        href={`https://youtu.be/${form.trailerYoutubeKey}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block text-xs text-primary hover:underline"
+                      >
+                        youtu.be/{form.trailerYoutubeKey} — шалгах
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
 

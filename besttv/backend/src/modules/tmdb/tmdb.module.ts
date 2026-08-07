@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { StorageService } from '../../storage/storage.service';
+import { TranslateService } from './translate.service';
 
 /**
  * TMDB import — админ контент оруулах хурдасгагч.
@@ -34,6 +35,8 @@ export class TmdbService {
     private readonly storage: StorageService,
     /* ⚠️ Бөөнөөр нөхөхөд (enrichExisting) DB-д бичнэ */
     private readonly prisma: PrismaService,
+    /* ⚠️ TMDB бүх текст АНГЛИ ирнэ — монгол сайтад тэр чигээр нь тавьж болохгүй */
+    private readonly translate: TranslateService,
   ) {}
 
   private get apiKey(): string {
@@ -75,18 +78,67 @@ export class TmdbService {
 
     /* ⚠️ Зэрэг татна — 8 зураг дараалан татвал импорт удаан */
     const castWithPhotos = await Promise.all(
-      (d.credits?.cast ?? []).slice(0, 8).map(async (c: { name: string; character?: string; profile_path?: string | null }) => ({
-        name: c.name,
-        character: c.character ?? '',
-        photoKey: c.profile_path
+      (d.credits?.cast ?? []).slice(0, 8).map(async (c: { name: string; character?: string; profile_path?: string | null }) => {
+        const photoKey = c.profile_path
           ? await this.mirrorImage(`${this.imgBase}/w185${c.profile_path}`, 'cast')
-          : null,
-      })),
+          : null;
+        return {
+          name: c.name,
+          character: c.character ?? '',
+          photoKey,
+          /**
+           * ⚠️⚠️ `photoUrl` ЗААВАЛ — эс бөгөөс админд ЗУРАГ ХАРАГДАХГҮЙ.
+           *
+           * Bucket нь PRIVATE тул key-гээр шууд харуулж болдоггүй.
+           * `CastEditor` нь `entry.photoUrl`-ыг уншдаг ба зөвхөн `photoKey`
+           * буцаавал R2-д зураг БАЙГАА мөртлөө хоосон дүрс харагдана
+           * (бодит алдаа байсан).
+           */
+          photoUrl: photoKey ? await this.storage.publicAssetUrl(photoKey, 7200) : null,
+        };
+      }),
     );
+
+    const englishDescription: string = d.overview ?? '';
+    const trailerYoutubeKey: string | null =
+      (d.videos?.results ?? []).find(
+        (v: { site?: string; type?: string; key?: string }) =>
+          v.site === 'YouTube' && v.type === 'Trailer',
+      )?.key ?? null;
+
+    /**
+     * ⚠️⚠️ AI ОРЧУУЛГА — TMDB бүх текстийг АНГЛИ өгдөг.
+     *
+     * Монгол сайтад англи тайлбар тавих нь хэрэглэгчийн туршлагыг
+     * унагаана. Тиймээс тайлбар/дүрийн нэр/SEO-г монгол руу утгачилж
+     * хөрвүүлнэ. Англи эх хувилбарыг `descriptionEn`-д хадгална
+     * (EN UI дараа нэмэхэд бэлэн, мөн орчуулга буруу гарвал эхтэй нь тулгана).
+     *
+     * ⚠️ AI тохируулаагүй бол `null` ирнэ — англи хэвээр үлдэнэ, алдаа биш.
+     */
+    const tr = await this.translate.translateTitle({
+      title: d.title ?? d.name ?? '',
+      description: englishDescription,
+      characters: castWithPhotos.map((c) => c.character),
+    });
+
+    /* ⚠️ Дүрийн нэрийг орчуулсан бол СОЛИНО — тоо таарсан эсэхийг
+       TranslateService дотор шалгасан (таарахгүй бол эхийг буцаана) */
+    const cast = tr
+      ? castWithPhotos.map((c, i) => ({ ...c, character: tr.characters[i] ?? c.character }))
+      : castWithPhotos;
 
     return {
       titleEn: d.title ?? d.name,
-      description: d.overview ?? '',
+      /** ⚠️ Орчуулсан МОНГОЛ тайлбар (AI байхгүй бол англи эх) */
+      description: tr?.description || englishDescription,
+      /** ⚠️ Англи ЭХ хувилбар — орчуулгаас үл хамааран ҮРГЭЛЖ хадгална */
+      descriptionEn: englishDescription,
+      /** SEO — монголоор (AI байхгүй бол хоосон, админ гараар бичнэ) */
+      metaTitle: tr?.metaTitle ?? '',
+      metaDescription: tr?.metaDescription ?? '',
+      /** Орчуулга ҮНЭХЭЭР хийгдсэн эсэх — админд toast-оор мэдэгдэнэ */
+      translated: !!tr,
       year: Number((d.release_date ?? d.first_air_date ?? '').slice(0, 4)) || null,
       rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
       durationSec: d.runtime ? d.runtime * 60 : null,
@@ -101,7 +153,7 @@ export class TmdbService {
        * ⚠️ Зөвхөн ЭХНИЙ 8 — зураг бүр R2 руу mirror хийгддэг тул илүү
        * олон бол импорт удаан болж, сан дэмий дүүрнэ.
        */
-      cast: castWithPhotos,
+      cast,
       genreNames: (d.genres ?? []).map((g: any) => g.name),
       seasonCount: d.number_of_seasons ?? null,
       posterKey,
@@ -109,16 +161,11 @@ export class TmdbService {
       /**
        * ⚠️ ТРЕЙЛЕР — YouTube-ийн key (`dQw4w9WgXcQ` гэх мэт).
        *
-       * `Title.trailerKey` нь МАНАЙ R2 дээрх HLS m3u8 зам тул энд
-       * ХАДГАЛАХГҮЙ — YouTube линк тэр талбарт таарахгүй, player
-       * эвдэрнэ. Оронд нь админд ХАРУУЛЖ, хүсвэл гараар авах
-       * боломжтой болгоно (ирээдүйд тусдаа талбар нэмж болно).
+       * `Title.trailerKey` нь МАНАЙ R2 дээрх HLS m3u8 зам тул тэнд
+       * ХАДГАЛАХГҮЙ — тусдаа `trailerYoutubeKey` талбарт орно.
+       * Манай HLS трейлер байхгүй үед л энийг тоглуулна.
        */
-      trailerYoutubeKey:
-        (d.videos?.results ?? []).find(
-          (v: { site?: string; type?: string; key?: string }) =>
-            v.site === 'YouTube' && v.type === 'Trailer',
-        )?.key ?? null,
+      trailerYoutubeKey,
       posterUrl: posterKey ? await this.storage.publicAssetUrl(posterKey, 7200) : null,
       backdropUrl: backdropKey ? await this.storage.publicAssetUrl(backdropKey, 7200) : null,
     };
@@ -147,12 +194,16 @@ export class TmdbService {
           { backdropKey: null },
           { director: null },
           { cast: { equals: Prisma.DbNull } },
+          { trailerYoutubeKey: null },
+          { metaDescription: null },
         ],
       },
       select: {
         id: true, title: true, titleEn: true, type: true,
         year: true, rating: true, description: true,
         backdropKey: true, director: true, cast: true,
+        descriptionEn: true, trailerYoutubeKey: true,
+        metaTitle: true, metaDescription: true,
       },
       /**
        * ⚠️ `skip` — олдоогүй кино `where`-д ҮЛДСЭЭР байдаг тул тогтмол
@@ -209,8 +260,39 @@ export class TmdbService {
       if (!t.backdropKey && d.backdropKey) { data.backdropKey = d.backdropKey; filled.push('backdrop'); }
       if (!t.titleEn && d.titleEn) { data.titleEn = d.titleEn; filled.push('англи нэр'); }
       if ((!t.cast || (Array.isArray(t.cast) && t.cast.length === 0)) && d.cast?.length) {
-        data.cast = d.cast as unknown as Prisma.InputJsonValue;
+        /**
+         * ⚠️ `photoUrl`-ыг DB-д ХАДГАЛАХГҮЙ — presign URL нь 2 цагийн
+         * дараа хүчингүй болно. Зөвхөн `photoKey` үлдээж, харуулах үед
+         * шинээр presign хийнэ (уншихад `titles.service` хөрвүүлдэг).
+         */
+        data.cast = d.cast.map(({ name, character, photoKey }) => ({
+          name, character, photoKey,
+        })) as unknown as Prisma.InputJsonValue;
         filled.push(`${d.cast.length} жүжигчин`);
+      }
+      /* ⚠️ Англи эх тайлбар — орчуулга шалгах/EN UI-д хэрэгтэй */
+      if (!t.descriptionEn && d.descriptionEn) {
+        data.descriptionEn = d.descriptionEn;
+        filled.push('англи тайлбар');
+      }
+      if (!t.trailerYoutubeKey && d.trailerYoutubeKey) {
+        data.trailerYoutubeKey = d.trailerYoutubeKey;
+        filled.push('трейлер');
+      }
+      /* ⚠️ SEO — AI орчуулга идэвхтэй үед л утга ирнэ (эс бөгөөс хоосон) */
+      if (!t.metaTitle && d.metaTitle) { data.metaTitle = d.metaTitle; filled.push('SEO гарчиг'); }
+      if (!t.metaDescription && d.metaDescription) {
+        data.metaDescription = d.metaDescription;
+        filled.push('SEO тайлбар');
+      }
+      /**
+       * ⚠️⚠️ ТАЙЛБАРЫГ ЗӨВХӨН ХООСОН үед бөглөнө.
+       * Монгол киноны тайлбарыг админ ГАРААР бичсэн байдаг — TMDB-ийн
+       * орчуулгаар дарж бичвэл тэр ажил үрэгдэнэ.
+       */
+      if (!t.description?.trim() && d.description?.trim()) {
+        data.description = d.description;
+        filled.push(d.translated ? 'тайлбар (орчуулсан)' : 'тайлбар');
       }
 
       if (!filled.length) { skipped.push(t.title); continue; }
@@ -291,11 +373,23 @@ export class TmdbService {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 export class TmdbController {
-  constructor(private readonly svc: TmdbService) {}
+  constructor(
+    private readonly svc: TmdbService,
+    private readonly translate: TranslateService,
+  ) {}
 
   @Get('search')
   search(@Query('q') q: string, @Query('type') type: 'movie' | 'tv' = 'movie') {
     return this.svc.search(q ?? '', type);
+  }
+
+  /**
+   * AI орчуулга идэвхтэй эсэх — админ UI-д "орчуулна/орчуулахгүй" гэдгийг
+   * УРЬДЧИЛЖ харуулна (импорт хийсний дараа англи гарч ирвэл гайхахгүй).
+   */
+  @Get('status')
+  status() {
+    return { translation: this.translate.enabled };
   }
 
   /**
@@ -323,6 +417,6 @@ export class TmdbController {
 
 @Module({
   controllers: [TmdbController],
-  providers: [TmdbService],
+  providers: [TmdbService, TranslateService],
 })
 export class TmdbModule {}

@@ -166,6 +166,11 @@ model Title {
   posterKey   String? // 2:3 (300x450 хэлбэр)
   backdropKey String? // 16:9 hero (1920x1080)
   trailerKey  String? // HLS m3u8 key — hero autoplay
+  /// ⚠️ YouTube трейлерийн key (ж: "dQw4w9WgXcQ") — TMDB-ээс ирнэ.
+  /// `trailerKey`-ЭЭС ТУСДАА байх ёстой: тэр нь манай R2 дээрх HLS зам,
+  /// энэ нь гадаад YouTube. Хоёуланг нэг талбарт хийвэл player эвдэрнэ.
+  /// Манай HLS трейлер БАЙХГҮЙ үед л энийг тоглуулна (нөөц хувилбар).
+  trailerYoutubeKey String?
   videoRawKey String? // upload хийсэн оригинал (HLS болмогц устгана)
   videoKey    String? // HLS m3u8 key (зөвхөн MOVIE)
 

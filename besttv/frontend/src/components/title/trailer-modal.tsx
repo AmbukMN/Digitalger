@@ -4,7 +4,19 @@ import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { VideoPlayer } from '@/components/video-player';
 
-export function TrailerModal({ titleId, onClose }: { titleId: string; onClose: () => void }) {
+export function TrailerModal({
+  titleId,
+  /**
+   * ⚠️ YouTube трейлерийн key — МАНАЙ HLS трейлер БАЙХГҮЙ үед л backend
+   * үүнийг илгээнэ (хоёулаа байвал HLS давуу: өөрийн CDN, зар байхгүй).
+   */
+  youtubeKey,
+  onClose,
+}: {
+  titleId: string;
+  youtubeKey?: string | null;
+  onClose: () => void;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
@@ -31,7 +43,26 @@ export function TrailerModal({ titleId, onClose }: { titleId: string; onClose: (
         <X size={22} />
       </button>
       <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-        <VideoPlayer src={`/api/stream/trailer/${titleId}/playlist.m3u8`} />
+        {youtubeKey ? (
+          /*
+            ⚠️ YOUTUBE НӨӨЦ ХУВИЛБАР — манай HLS трейлер байхгүй үед.
+            ⚠️ `youtube-nocookie.com` — хэрэглэгчийг мөрдөх cookie тавихгүй
+               (GDPR-д ээлтэй, YouTube-ийн албан ёсны private горим).
+            ⚠️ `aspect-video` — модал доторх өндөр тогтмол байлгана,
+               эс бөгөөс iframe 0px өндөртэй гарч ХООСОН харагдана.
+          */
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${youtubeKey}?autoplay=1&rel=0&modestbranding=1`}
+              title="Трейлер"
+              className="h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <VideoPlayer src={`/api/stream/trailer/${titleId}/playlist.m3u8`} />
+        )}
       </div>
     </div>
   );

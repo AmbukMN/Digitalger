@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Loader2, Search, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Languages, Loader2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
@@ -17,7 +18,15 @@ interface TmdbResult {
 
 export interface TmdbImportResult {
   titleEn: string;
+  /** ⚠️ МОНГОЛ руу орчуулсан тайлбар (AI унтраалттай бол англи хэвээр) */
   description: string;
+  /** ⚠️ Англи ЭХ хувилбар — орчуулгаас үл хамааран ҮРГЭЛЖ ирнэ */
+  descriptionEn?: string;
+  /** SEO — монголоор (AI идэвхгүй бол хоосон) */
+  metaTitle?: string;
+  metaDescription?: string;
+  /** AI орчуулга ҮНЭХЭЭР хийгдсэн эсэх — админд toast-оор мэдэгдэнэ */
+  translated?: boolean;
   year: number | null;
   rating: number | null;
   durationSec: number | null;
@@ -28,9 +37,13 @@ export interface TmdbImportResult {
   backdropKey: string | null;
   posterUrl: string | null;
   backdropUrl: string | null;
-  /** ⚠️ Дэлгэрэнгүй cast — нэр + дүр + ЗУРАГ (R2-д mirror хийгдсэн) */
-  cast?: { name: string; character: string; photoKey: string | null }[];
-  /** YouTube трейлерийн key — админд харуулна (R2 HLS-тэй ӨӨР зүйл) */
+  /**
+   * ⚠️ Дэлгэрэнгүй cast — нэр + дүр + ЗУРАГ (R2-д mirror хийгдсэн).
+   * ⚠️ `photoUrl` ЗААВАЛ хэрэгтэй: bucket private тул `photoKey`-гээр
+   * шууд харуулж болохгүй, `CastEditor` нь URL уншдаг.
+   */
+  cast?: { name: string; character: string; photoKey: string | null; photoUrl?: string | null }[];
+  /** YouTube трейлерийн key — R2 HLS трейлер (`trailerKey`)-ЭЭС ТУСДАА */
   trailerYoutubeKey?: string | null;
 }
 
@@ -49,6 +62,17 @@ export function TmdbImportDialog({
   const [searching, setSearching] = useState(false);
   const [importingId, setImportingId] = useState<number | null>(null);
 
+  /**
+   * ⚠️ AI орчуулга идэвхтэй эсэхийг УРЬДЧИЛЖ мэдэж админд харуулна —
+   * эс бөгөөс англи тайлбар орсныг анзаарахгүй хадгална.
+   * ⚠️ Тохиргоо солигдохгүй тул 5 минут кэшлэнэ (дэмий дуудалт хэрэггүй).
+   */
+  const { data: status } = useQuery({
+    queryKey: ['tmdb-status'],
+    queryFn: () => api<{ translation: boolean }>('/admin/tmdb/status'),
+    staleTime: 5 * 60_000,
+  });
+
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!q.trim()) return;
@@ -65,13 +89,24 @@ export function TmdbImportDialog({
 
   const importItem = async (tmdbId: number) => {
     setImportingId(tmdbId);
+    /**
+     * ⚠️ Импорт 5-15 секунд болдог (8 зураг R2 руу mirror + AI орчуулга).
+     * Тэр хугацаанд юу болж байгааг ХЭЛЭХГҮЙ бол админ гацсан гэж бодоод
+     * дахин дарна. Тиймээс loading toast харуулж, дуусахад солино.
+     */
+    const tid = toast.loading(
+      status?.translation
+        ? 'TMDB-ээс татаж, монгол руу орчуулж байна…'
+        : 'TMDB-ээс татаж байна…',
+    );
     try {
       const result = await api<TmdbImportResult>(`/admin/tmdb/import/${tmdbId}?type=${type}`);
+      /* ⚠️ Дэлгэрэнгүйг дуудагч тал (onImport) toast-оор харуулна */
+      toast.dismiss(tid);
       onImport(result);
-      toast.success('TMDB мэдээлэл импортлогдлоо');
       onClose();
     } catch {
-      toast.error('Импорт амжилтгүй боллоо');
+      toast.error('Импорт амжилтгүй боллоо', { id: tid });
     } finally {
       setImportingId(null);
     }
@@ -81,8 +116,24 @@ export function TmdbImportDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl bg-card p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-foreground">TMDB-ээс импорт</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-foreground">TMDB-ээс импорт</h2>
+            {/* ⚠️ Орчуулга идэвхтэй эсэхийг ЭХЛЭЭД харуулна — импорт хийсний
+                дараа англи гарч ирвэл гайхахгүй */}
+            {status && (
+              <p
+                className={`mt-0.5 flex items-center gap-1 text-xs ${
+                  status.translation ? 'text-emerald-500' : 'text-amber-500'
+                }`}
+              >
+                <Languages size={13} />
+                {status.translation
+                  ? 'Тайлбар, дүрийн нэр автоматаар монгол болно'
+                  : 'AI орчуулга идэвхгүй — англи хэвээр орно'}
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="shrink-0 text-muted-foreground hover:text-foreground">
             <X size={20} />
           </button>
         </div>
