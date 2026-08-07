@@ -20,6 +20,8 @@ import { Badge, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { NewBadge } from '@/components/new-badge';
 import { api } from '@/lib/api';
 import { useNewSince } from '@/lib/use-new-since';
@@ -46,7 +48,7 @@ export default function ReviewsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const { data, isFetching } = useAdminReviews({
+  const { data, isFetching, isError, error, refetch } = useAdminReviews({
     q,
     rating,
     page,
@@ -278,13 +280,25 @@ export default function ReviewsPage() {
           )}
         </div>
 
+        {/* ⚠️ API унавал хоосон хүснэгт биш АЛДАА харуулна */}
+        {isError ? (
+          <div className="admin-card mt-5 rounded-xl">
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          </div>
+        ) : !data ? (
+          /* ⚠️ Эхний ачаалалтад `opacity-60` нь юу ч харуулдаггүй байв */
+          <div className="admin-card mt-5 overflow-hidden rounded-xl">
+            <TableSkeleton rows={8} cols={6} />
+          </div>
+        ) : (
         <div
           className={cn(
-            'admin-card mt-5 overflow-hidden rounded-xl transition-opacity',
+            'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
             isFetching && 'opacity-60',
           )}
         >
-          <table className="w-full text-sm">
+          {/* ⚠️ Мобайлд 7 багана шахагдаж текст давхцдаг байв */}
+          <table className="w-full min-w-200 text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="w-10 px-4 py-3">
@@ -292,6 +306,8 @@ export default function ReviewsPage() {
                     type="checkbox"
                     checked={!!data?.items.length && selected.size === data.items.length}
                     onChange={toggleSelectAll}
+                    /* ⚠️ Скрин ридер зөвхөн "checkbox" гэж уншдаг байв */
+                    aria-label="Бүх сэтгэгдлийг сонгох"
                     className="h-4 w-4 rounded border-input"
                   />
                 </th>
@@ -318,6 +334,7 @@ export default function ReviewsPage() {
                       type="checkbox"
                       checked={selected.has(r.id)}
                       onChange={() => toggleSelect(r.id)}
+                      aria-label={`${r.user.name ?? r.user.email}-ийн сэтгэгдлийг сонгох`}
                       className="h-4 w-4 rounded border-input"
                     />
                   </td>
@@ -420,9 +437,30 @@ export default function ReviewsPage() {
                     ? 'Нуусан сэтгэгдэл байхгүй'
                     : 'Сэтгэгдэл олдсонгүй'
               }
+              description={
+                q || rating
+                  ? 'Өөр түлхүүр үг эсвэл үнэлгээ сонгож үзнэ үү.'
+                  : filter === 'reported'
+                    ? 'Хэрэглэгчид гомдол мэдүүлээгүй байна.'
+                    : undefined
+              }
+              action={
+                q || rating ? (
+                  <button
+                    onClick={() => {
+                      setQ('');
+                      setRating(undefined);
+                    }}
+                    className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Шүүлт цэвэрлэх
+                  </button>
+                ) : undefined
+              }
             />
           )}
         </div>
+        )}
 
         {data && data.totalPages > 1 && (
           <div className="mt-5 flex gap-1.5">

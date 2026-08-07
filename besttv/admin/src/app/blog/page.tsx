@@ -11,13 +11,15 @@ import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
 import { useAdminBlogPosts } from '@/lib/queries';
 
 export default function BlogPage() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
-  const { data, isFetching } = useAdminBlogPosts({ q, page });
+  const { data, isFetching, isError, error, refetch } = useAdminBlogPosts({ q, page });
   const qc = useQueryClient();
   /* Олноор устгах — бусад админ жагсаалттай ижил зан төлөв */
   const sel = useBulkSelect({
@@ -67,8 +69,24 @@ export default function BlogPage() {
           </Link>
         </div>
 
-        <div className={cn('admin-card mt-5 overflow-hidden rounded-xl transition-opacity', isFetching && 'opacity-60')}>
-          <table className="w-full text-sm">
+        {/*
+          ⚠️ `isError` — API унавал ХООСОН ХҮСНЭГТ харагдаж, админ
+          "бүх нийтлэл устсан" гэж сандардаг байв.
+        */}
+        {isError ? (
+          <div className="admin-card mt-5 rounded-xl">
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          </div>
+        ) : !data ? (
+          /* ⚠️ ЭХНИЙ ачаалалтад `opacity-60` нь ЮУ Ч харуулдаггүй байв
+             (хоосон хүснэгтийн толгой л). Skeleton нь бүтцийг харуулна. */
+          <div className="admin-card mt-5 overflow-hidden rounded-xl">
+            <TableSkeleton rows={8} cols={6} />
+          </div>
+        ) : (
+        <div className={cn('admin-card mt-5 overflow-x-auto rounded-xl transition-opacity', isFetching && 'opacity-60')}>
+          {/* ⚠️ Мобайлд 7 багана шахагдаж текст давхцдаг байв */}
+          <table className="w-full min-w-200 text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="w-10 px-4 py-3">
@@ -133,8 +151,36 @@ export default function BlogPage() {
               ))}
             </tbody>
           </table>
-          {!data?.items.length && <TableEmptyState icon={FileText} message="Нийтлэл олдсонгvй" />}
+          {!data.items.length && (
+            <TableEmptyState
+              icon={FileText}
+              message={q ? 'Хайлтад тохирох нийтлэл олдсонгүй' : 'Нийтлэл байхгүй байна'}
+              description={
+                q
+                  ? 'Өөр түлхүүр үгээр хайж үзнэ үү.'
+                  : 'Блог нийтлэл нэмбэл /blog хуудсанд харагдана.'
+              }
+              action={
+                q ? (
+                  <button
+                    onClick={() => setQ('')}
+                    className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Хайлт цэвэрлэх
+                  </button>
+                ) : (
+                  <Link
+                    href="/blog/new"
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+                  >
+                    <Plus size={15} /> Эхний нийтлэл
+                  </Link>
+                )
+              }
+            />
+          )}
         </div>
+        )}
 
         {data && data.totalPages > 1 && (
           <div className="mt-5 flex gap-1.5">

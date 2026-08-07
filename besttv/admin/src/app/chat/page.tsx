@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowLeft,
   Bot,
   Headphones,
   Loader2,
@@ -17,7 +18,9 @@ import { Badge, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { CardSkeleton } from '@/components/table-skeleton';
 import { api } from '@/lib/api';
+import { runMutation } from '@/lib/mutate';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 
 interface ConvListItem {
@@ -130,13 +133,22 @@ export default function ChatPage() {
       tone: turningOn ? 'warning' : 'info',
     });
     if (!ok) return;
-    await api(`/admin/chat/conversations/${detail.id}/handoff`, {
-      method: 'POST',
-      body: JSON.stringify({ handedOff: turningOn }),
-    });
-    await qc.invalidateQueries({ queryKey: ['admin-chat-detail', selected] });
-    qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
-    toast.success(turningOn ? 'Та одоо шууд хариулж байна' : 'AI туслах идэвхжлээ');
+    /* ⚠️ try/catch БАЙГААГҮЙ — алдаа гарвал toast ч гарахгүй, админ
+       "AI унтарсан" гэж бодоод хариулахгүй өнгөрөх эрсдэлтэй байв */
+    await runMutation(
+      () =>
+        api(`/admin/chat/conversations/${detail.id}/handoff`, {
+          method: 'POST',
+          body: JSON.stringify({ handedOff: turningOn }),
+        }),
+      {
+        success: turningOn ? 'Та одоо шууд хариулж байна' : 'AI туслах идэвхжлээ',
+        onDone: () => {
+          void qc.invalidateQueries({ queryKey: ['admin-chat-detail', selected] });
+          qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
+        },
+      },
+    );
   };
 
   const items = list?.items ?? [];
@@ -148,9 +160,22 @@ export default function ChatPage() {
         subtitle={list ? `${list.total} яриа · ${list.unreadTotal} шинэ` : undefined}
       />
 
-      <main className="flex h-[calc(100vh-4rem)] gap-4 p-6 pt-4">
-        {/* ── Ярианы жагсаалт ── */}
-        <div className="admin-card flex w-80 shrink-0 flex-col overflow-hidden rounded-xl">
+      <main className="flex h-[calc(100vh-4rem)] gap-4 p-3 pt-3 sm:p-6 sm:pt-4">
+        {/*
+          ── Ярианы жагсаалт ──
+          ⚠️⚠️ МОБАЙЛД ЖАГСААЛТ↔ЯРИА СЭЛГЭНЭ.
+          Өмнө нь `w-80 shrink-0` тогтмол байсан тул 375px дэлгэцэнд
+          жагсаалт 320px эзэлж, чат цонхонд ~40px үлддэг байв —
+          админ утаснаас чат хариулах БОЛОМЖГҮЙ.
+          Одоо яриа сонгогдоогүй үед л жагсаалт харагдана (десктопт
+          `md:flex` тул хоёулаа зэрэг).
+        */}
+        <div
+          className={cn(
+            'admin-card w-full shrink-0 flex-col overflow-hidden rounded-xl md:flex md:w-80',
+            selected ? 'hidden' : 'flex',
+          )}
+        >
           <div className="flex items-center gap-2 border-b border-border p-2.5">
             <button
               onClick={() => setOnlyUnread(false)}
@@ -174,8 +199,10 @@ export default function ChatPage() {
 
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
-              <div className="flex justify-center py-10 text-muted-foreground">
-                <Loader2 size={18} className="animate-spin" />
+              /* ⚠️ Spinner БИШ skeleton — ярианы мөрийн бүтэц урьдчилж
+                 харагдана (аватар + 2 мөр текст) */
+              <div className="p-2.5">
+                <CardSkeleton count={5} />
               </div>
             ) : items.length === 0 ? (
               <TableEmptyState icon={MessagesSquare} message="Яриа байхгүй байна" />
@@ -242,12 +269,21 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* ── Яриа ── */}
-        <div className="admin-card flex flex-1 flex-col overflow-hidden rounded-xl">
+        {/* ── Яриа ── ⚠️ Мобайлд зөвхөн СОНГОГДСОН үед харагдана */}
+        <div
+          className={cn(
+            'admin-card flex-1 flex-col overflow-hidden rounded-xl md:flex',
+            selected ? 'flex' : 'hidden md:flex',
+          )}
+        >
           {!selected ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground">
               <MessagesSquare size={32} className="opacity-40" />
-              <p className="text-sm">Зүүн талаас яриа сонгоно уу</p>
+              {/* ⚠️ Жагсаалт хоосон үед "зүүн талаас сонго" гэдэг нь
+                  ЗӨРЧИЛТЭЙ — сонгох юм байхгүй */}
+              <p className="text-sm">
+                {items.length ? 'Зүүн талаас яриа сонгоно уу' : 'Одоогоор яриа байхгүй байна'}
+              </p>
             </div>
           ) : !detail && loadingDetail ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -257,6 +293,15 @@ export default function ChatPage() {
             <>
               {/* Толгой */}
               <div className="flex items-center gap-3 border-b border-border p-3.5">
+                {/* ⚠️ Мобайлд жагсаалт руу БУЦАХ — эс бөгөөс ярианаас
+                    гарах ямар ч зам байхгүй болно */}
+                <button
+                  onClick={() => setSelected(null)}
+                  aria-label="Жагсаалт руу буцах"
+                  className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
+                >
+                  <ArrowLeft size={18} />
+                </button>
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
                   {(detail.user?.name ?? detail.userName ?? detail.user?.email ?? 'З')[0]?.toUpperCase()}
                 </span>

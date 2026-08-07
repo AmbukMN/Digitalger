@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Pencil, Plus, Tags, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
+import { runMutation } from '@/lib/mutate';
 import { useAdminGenres, type AdminGenre } from '@/lib/queries';
 
 interface FormState {
@@ -22,13 +25,24 @@ interface FormState {
 const EMPTY: FormState = { name: '', nameEn: '', order: '0', isAdult: false };
 
 export default function GenresPage() {
-  const { data, isLoading } = useAdminGenres();
+  const { data, isLoading, isError, error, refetch } = useAdminGenres();
   const qc = useQueryClient();
   const confirm = useConfirm();
 
   const [editing, setEditing] = useState<AdminGenre | 'new' | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
+
+  /**
+   * ⚠️ Шүүлт CLIENT талд — жанрын жагсаалт богино (ихэвчлэн 30-аас цөөн)
+   * тул сервер рүү дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
+   */
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return data ?? [];
+    return (data ?? []).filter((g) => g.name.toLowerCase().includes(needle));
+  }, [data, q]);
 
   const openEdit = (genre: AdminGenre | 'new') => {
     setEditing(genre);
@@ -90,6 +104,9 @@ export default function GenresPage() {
     }
   };
 
+  /* ⚠️ `runMutation` — өмнө нь try/catch БАЙХГҮЙ байсан тул жанр
+     ашиглагдаж байгаа (FK) эсвэл 403 гарвал toast ч гарахгүй, мөр ч
+     арилахгүй → админ устсан гэж бодно */
   const remove = async (g: AdminGenre) => {
     const ok = await confirm({
       title: `"${g.name}" жанрыг устгах уу?`,
@@ -103,9 +120,10 @@ export default function GenresPage() {
       tone: 'danger',
     });
     if (!ok) return;
-    await api(`/admin/genres/${g.id}`, { method: 'DELETE' });
-    qc.invalidateQueries({ queryKey: ['admin-genres'] });
-    toast.success('Жанр устгагдлаа');
+    await runMutation(() => api(`/admin/genres/${g.id}`, { method: 'DELETE' }), {
+      success: 'Жанр устгагдлаа',
+      onDone: () => qc.invalidateQueries({ queryKey: ['admin-genres'] }),
+    });
   };
 
   return (
@@ -115,7 +133,7 @@ export default function GenresPage() {
         subtitle={data ? `Нийт ${data.length} жанр · ${data.filter((g) => g.isAdult).length} нь 18+` : undefined}
       />
 
-      <main className="mx-auto max-w-3xl p-8 pt-6">
+      <main className="mx-auto max-w-3xl p-4 pt-5 sm:p-8 sm:pt-6">
         <div className="mb-4 rounded-lg border border-primary/25 bg-primary/8 p-3 text-xs leading-relaxed text-muted-foreground">
           <strong className="text-foreground">Жанр = багцын хандалт.</strong> Багц бүр сонгосон
           жанруудын контентыг нээдэг. Улс/төрлөөр (Монгол кино, Солонгос кино гэх мэт) жанр үүсгээд{' '}
@@ -123,21 +141,48 @@ export default function GenresPage() {
           ерөнхий каталогт харагдахгүй.
         </div>
 
-        <button
-          onClick={() => openEdit('new')}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
-        >
-          <Plus size={15} /> Жанр нэмэх
-        </button>
+        {/* ⚠️ Хайлт — өмнө нь ЗӨВХӨН доош гүйлгэж хайх боломжтой байв
+            (жанр 40+ болоход хэрэгтэйгээ олохгүй) */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Жанрын нэрээр хайх…"
+              aria-label="Жанр хайх"
+              className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
+            />
+          </div>
+          <button
+            onClick={() => openEdit('new')}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
+          >
+            <Plus size={15} /> Жанр нэмэх
+          </button>
+        </div>
 
-        <div className="admin-card mt-5 overflow-hidden rounded-xl">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-14 text-muted-foreground">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
+        {/* ⚠️ Шүүлтийн үр дүнгийн тоо — админ "хайлт ажиллав уу" гэдгийг
+            шууд харна (хоосон үр дүн нь эвдэрсэн гэж ойлгогдохгүй) */}
+        {q && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {rows.length} / {data?.length ?? 0} жанр
+          </p>
+        )}
+
+        <div className="admin-card mt-4 overflow-hidden rounded-xl">
+          {isError ? (
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
+            /* ⚠️ Spinner БИШ skeleton — төслийн дүрэм (бүтэц урьдчилж
+               харагдаж, дата ирэхэд layout үсэрдэггүй) */
+            <TableSkeleton rows={6} cols={3} />
           ) : (
             <div className="divide-y divide-border">
-              {data?.map((g) => (
+              {rows.map((g) => (
                 <div
                   key={g.id}
                   className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-accent/40"
@@ -161,26 +206,58 @@ export default function GenresPage() {
                         🔞 18+
                       </span>
                     )}
+                    {/* ⚠️ 36px — өмнөх 26px (`p-1.5`+14px) нь хүрэлцэх
+                        зөвлөмжөөс хамаагүй бага, таблет дээр устгахыг
+                        андуурч дардаг байв */}
                     <button
                       onClick={() => openEdit(g)}
                       aria-label="Засах"
-                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
-                      <Pencil size={14} />
+                      <Pencil size={15} />
                     </button>
                     <button
                       onClick={() => remove(g)}
                       aria-label="Устгах"
-                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                      className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-          {!isLoading && !data?.length && <TableEmptyState icon={Tags} message="Жанр байхгүй байна" />}
+          {!isLoading && !isError && !rows.length && (
+            /* ⚠️ Хайлтын үр дүн хоосон БА дата огт байхгүй хоёрыг ЯЛГАНА —
+               эс бөгөөс админ "бүх жанр устсан" гэж сандарна */
+            <TableEmptyState
+              icon={Tags}
+              message={q ? 'Хайлтад тохирох жанр олдсонгүй' : 'Жанр байхгүй байна'}
+              description={
+                q
+                  ? 'Өөр түлхүүр үг оруулж үзнэ үү.'
+                  : 'Улс/төрлөөр жанр үүсгээд Багц хуудаснаас холбоно.'
+              }
+              action={
+                q ? (
+                  <button
+                    onClick={() => setQ('')}
+                    className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Шүүлт цэвэрлэх
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => openEdit('new')}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+                  >
+                    <Plus size={15} /> Эхний жанр нэмэх
+                  </button>
+                )
+              }
+            />
+          )}
         </div>
       </main>
 

@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Pencil, Plus, Ticket, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Search, Ticket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
+import { runMutation } from '@/lib/mutate';
 import { useAdminCoupons, type AdminCoupon } from '@/lib/queries';
 
 interface FormState {
@@ -32,13 +35,52 @@ const EMPTY: FormState = {
   isActive: true,
 };
 
+type Status = 'live' | 'expired' | 'used-up' | 'off';
+
+/**
+ * ⚠️⚠️ Купоны БОДИТ төлөв — `isActive` дангаараа ХУДАЛ хэлдэг.
+ * Хугацаа нь өнгөрсөн эсвэл ашиглалтын хязгаар дүүрсэн купон DB-д
+ * `isActive: true` хэвээр үлддэг тул хүснэгтэд "Идэвхтэй" гэж
+ * харагдана — гэтэл хэрэглэгч тэр кодыг ашиглаж ЧАДАХГҮЙ.
+ * Админ "яагаад ажиллахгүй байна вэ" гэж гайхах гол шалтгаан энэ.
+ */
+function statusOf(c: AdminCoupon): Status {
+  if (!c.isActive) return 'off';
+  if (c.expiresAt && new Date(c.expiresAt).getTime() < Date.now()) return 'expired';
+  if (c.maxUses != null && c.usedCount >= c.maxUses) return 'used-up';
+  return 'live';
+}
+
+const STATUS_LABEL: Record<Status, string> = {
+  live: 'Идэвхтэй',
+  expired: 'Хугацаа дууссан',
+  'used-up': 'Хязгаар дүүрсэн',
+  off: 'Идэвхгүй',
+};
+
 export default function CouponsPage() {
-  const { data, isLoading } = useAdminCoupons();
+  const { data, isLoading, isError, error, refetch } = useAdminCoupons();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AdminCoupon | 'new' | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState<'' | Status>('');
   const confirm = useConfirm();
+
+  /**
+   * ⚠️ Шүүлт CLIENT талд — купон ихэвчлэн хэдэн арваар тоологддог тул
+   * сервер рүү дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
+   */
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (data ?? []).filter((c) => {
+      if (status && statusOf(c) !== status) return false;
+      if (!needle) return true;
+      const label = c.discountType === 'PERCENT' ? `${c.amount}%` : `${c.amount}₮`;
+      return c.code.toLowerCase().includes(needle) || label.toLowerCase().includes(needle);
+    });
+  }, [data, q, status]);
 
   const openEdit = (coupon: AdminCoupon | 'new') => {
     setEditing(coupon);
@@ -100,9 +142,26 @@ export default function CouponsPage() {
       tone: 'danger',
     });
     if (!ok) return;
-    await api(`/admin/coupons/${c.id}`, { method: 'DELETE' });
-    qc.invalidateQueries({ queryKey: ['admin-coupons'] });
-    toast.success('Купон устгагдлаа');
+    /* ⚠️ `runMutation` — өмнө нь try/catch БАЙХГҮЙ байсан тул 403/500
+       гарвал toast ч гарахгүй, мөр ч устахгүй (админ болсон гэж бодно) */
+    await runMutation(() => api(`/admin/coupons/${c.id}`, { method: 'DELETE' }), {
+      success: 'Купон устгагдлаа',
+      onDone: () => qc.invalidateQueries({ queryKey: ['admin-coupons'] }),
+    });
+  };
+
+  const toggleActive = async (c: AdminCoupon) => {
+    await runMutation(
+      () =>
+        api(`/admin/coupons/${c.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: !c.isActive }),
+        }),
+      {
+        success: c.isActive ? 'Купон идэвхгүй боллоо' : 'Купон идэвхжлээ',
+        onDone: () => qc.invalidateQueries({ queryKey: ['admin-coupons'] }),
+      },
+    );
   };
 
   const generateCode = () => {
@@ -117,20 +176,62 @@ export default function CouponsPage() {
       <AdminTopbar title="Хямдралын купон" subtitle={data ? `Нийт ${data.length} купон` : undefined} />
 
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
-        <button
-          onClick={() => openEdit('new')}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
-        >
-          <Plus size={15} /> Купон нэмэх
-        </button>
+        {/* ⚠️ Хайлт + төлөвийн шүүлт — өмнө нь ЗӨВХӨН доош гүйлгэж хайх
+            боломжтой байв (кампанит ажил бүрд купон нэмэгдсээр байдаг) */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Код, хямдралын дүнгээр хайх…"
+              aria-label="Купон хайх"
+              className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
+            />
+          </div>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as '' | Status)}
+            aria-label="Төлөвөөр шүүх"
+            className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+          >
+            <option value="">Бүх төлөв</option>
+            <option value="live">Идэвхтэй</option>
+            <option value="expired">Хугацаа дууссан</option>
+            <option value="used-up">Хязгаар дүүрсэн</option>
+            <option value="off">Идэвхгүй</option>
+          </select>
+          <button
+            onClick={() => openEdit('new')}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+          >
+            <Plus size={15} /> Купон нэмэх
+          </button>
+        </div>
 
-        <div className="admin-card mt-5 overflow-hidden rounded-xl">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-14 text-muted-foreground">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
+        {/* ⚠️ Шүүлтийн үр дүнгийн тоо — хоосон үр дүн нь "дата устсан"
+            гэж ойлгогдохгүй байх зорилготой */}
+        {(q || status) && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {rows.length} / {data?.length ?? 0} купон
+          </p>
+        )}
+
+        <div className="admin-card mt-4 overflow-hidden rounded-xl">
+          {isError ? (
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
+            /* ⚠️ Spinner БИШ skeleton — төслийн дүрэм (бүтэц урьдчилж
+               харагдаж, дата ирэхэд layout үсэрдэггүй) */
+            <TableSkeleton rows={6} cols={6} />
           ) : (
-            <table className="w-full text-sm">
+            /* ⚠️ Мобайлд хэвтээ гүйлт — 6 багана 375px дэлгэцэнд шахагдаж
+               текст давхцдаг байв */
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-180 text-sm">
               <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Код</th>
@@ -142,44 +243,109 @@ export default function CouponsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data?.map((c) => (
-                  <tr key={c.id} className="transition-colors hover:bg-accent/40">
-                    <td className="px-4 py-3 font-mono font-semibold text-foreground">{c.code}</td>
+                {rows.map((c) => {
+                  const st = statusOf(c);
+                  /* Ажиллахаа больсон купон — админ хараад ШУУД ялгах ёстой */
+                  const dead = st !== 'live';
+                  return (
+                  <tr
+                    key={c.id}
+                    className={cn(
+                      'transition-colors hover:bg-accent/40',
+                      /* ⚠️ Бүдэгрүүлэлт нь мөрийг БҮХЭЛД нь хамарна — зөвхөн
+                         badge солих нь 6 баганын дунд анзаарагдахгүй өнгөрдөг */
+                      dead && 'opacity-55',
+                    )}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-mono font-semibold text-foreground">{c.code}</span>
+                      {dead && (
+                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                          {st === 'off' ? 'Идэвхгүй' : 'Дууссан'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-foreground">
                       {c.discountType === 'PERCENT' ? `${c.amount}%` : `${c.amount.toLocaleString()}₮`}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className={cn('px-4 py-3', st === 'used-up' ? 'font-medium text-destructive' : 'text-muted-foreground')}>
                       {c.usedCount}{c.maxUses ? ` / ${c.maxUses}` : ''}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('mn-MN') : 'Хугацаагvй'}
+                    <td className={cn('px-4 py-3', st === 'expired' ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                      {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('mn-MN') : 'Хугацаагүй'}
                     </td>
                     <td className="px-4 py-3">
-                      <span
+                      <button
+                        onClick={() => toggleActive(c)}
+                        /* ⚠️ `aria-pressed` — төлөвийг ЗӨВХӨН өнгө/текстээр
+                           илэрхийлбэл скрин ридер уншихгүй */
+                        aria-pressed={c.isActive}
+                        aria-label={c.isActive ? 'Идэвхгүй болгох' : 'Идэвхжүүлэх'}
                         className={cn(
-                          'rounded-md px-2 py-1 text-xs font-medium',
-                          c.isActive ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive',
+                          'whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+                          st === 'live'
+                            ? 'bg-success/15 text-success hover:bg-success/25'
+                            : st === 'off'
+                              ? 'bg-destructive/15 text-destructive hover:bg-destructive/25'
+                              : 'bg-muted text-muted-foreground hover:bg-accent',
                         )}
                       >
-                        {c.isActive ? 'Идэвхтэй' : 'Идэвхгvй'}
-                      </span>
+                        {STATUS_LABEL[st]}
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(c)} aria-label="Засах" className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
-                          <Pencil size={14} />
+                        {/* ⚠️ 36px — өмнөх 26px (`p-1.5`+14px) нь хүрэлцэх
+                            зөвлөмжөөс хамаагүй бага, таблет дээр устгахыг
+                            андуурч дардаг байв */}
+                        <button onClick={() => openEdit(c)} aria-label="Засах" className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                          <Pencil size={15} />
                         </button>
-                        <button onClick={() => remove(c)} aria-label="Устгах" className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive">
-                          <Trash2 size={14} />
+                        <button onClick={() => remove(c)} aria-label="Устгах" className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/15 hover:text-destructive">
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
+            </div>
           )}
-          {!isLoading && !data?.length && <TableEmptyState icon={Ticket} message="Купон олдсонгүй" />}
+          {!isLoading && !isError && !rows.length && (
+            /* ⚠️ Хайлтын үр дүн хоосон БА купон огт байхгүй хоёрыг ЯЛГАНА —
+               эс бөгөөс админ "бүх купон устсан" гэж сандарна */
+            <TableEmptyState
+              icon={Ticket}
+              message={q || status ? 'Хайлтад тохирох купон олдсонгүй' : 'Купон байхгүй байна'}
+              description={
+                q || status
+                  ? 'Өөр код эсвэл төлөв сонгож үзнэ үү.'
+                  : 'Купон нэмбэл хэрэглэгч төлбөрийн хуудсанд кодоо оруулж хямдрал авна.'
+              }
+              action={
+                q || status ? (
+                  <button
+                    onClick={() => {
+                      setQ('');
+                      setStatus('');
+                    }}
+                    className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Шүүлт цэвэрлэх
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => openEdit('new')}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+                  >
+                    <Plus size={15} /> Эхний купон нэмэх
+                  </button>
+                )
+              }
+            />
+          )}
         </div>
       </main>
 
@@ -203,7 +369,7 @@ export default function CouponsPage() {
                     type="button"
                     className="shrink-0 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/70"
                   >
-                    Vvсгэх
+                    Үүсгэх
                   </button>
                 </div>
               </div>
@@ -242,7 +408,7 @@ export default function CouponsPage() {
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs text-muted-foreground">Хамгийн бага дvн (₮)</label>
+                  <label className="mb-1 block text-xs text-muted-foreground">Хамгийн бага дүн (₮)</label>
                   <input
                     type="number"
                     value={form.minPrice}

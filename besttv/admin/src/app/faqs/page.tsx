@@ -1,26 +1,53 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { HelpCircle, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { HelpCircle, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
+import { runMutation } from '@/lib/mutate';
 import { useAdminFaqs, type AdminFaq } from '@/lib/queries';
 
 const EMPTY: Omit<AdminFaq, 'id'> = { question: '', answer: '', category: 'Ерөнхий', order: 0, isActive: true };
 
 export default function FaqsPage() {
-  const { data, isLoading } = useAdminFaqs();
+  const { data, isLoading, isError, error, refetch } = useAdminFaqs();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AdminFaq | 'new' | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('');
   const confirm = useConfirm();
+
+  /* ⚠️ Ангиллын жагсаалтыг ДАТАНААС үүсгэнэ — hardcode хийвэл админ
+     шинэ ангилал нэмэхэд шүүлтэд гарахгүй */
+  const categories = useMemo(
+    () => [...new Set((data ?? []).map((f) => f.category).filter(Boolean))].sort(),
+    [data],
+  );
+
+  /**
+   * ⚠️ Шүүлт CLIENT талд — FAQ нь ихэвчлэн 50-аас цөөн тул сервер рүү
+   * дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
+   */
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (data ?? []).filter(
+      (f) =>
+        (!cat || f.category === cat) &&
+        (!needle ||
+          f.question.toLowerCase().includes(needle) ||
+          f.answer.toLowerCase().includes(needle)),
+    );
+  }, [data, q, cat]);
 
   const openEdit = (faq: AdminFaq | 'new') => {
     setEditing(faq);
@@ -50,6 +77,8 @@ export default function FaqsPage() {
     }
   };
 
+  /* ⚠️ `runMutation` — өмнө нь try/catch БАЙХГҮЙ байсан тул алдаа
+     гарвал toast ч гарахгүй, мөр ч устахгүй (админ болсон гэж бодно) */
   const remove = async (f: AdminFaq) => {
     const ok = await confirm({
       title: 'Асуултыг устгах уу?',
@@ -57,14 +86,26 @@ export default function FaqsPage() {
       tone: 'danger',
     });
     if (!ok) return;
-    await api(`/admin/faqs/${f.id}`, { method: 'DELETE' });
-    qc.invalidateQueries({ queryKey: ['admin-faqs'] });
-    toast.success('Асуулт устгагдлаа');
+    await runMutation(() => api(`/admin/faqs/${f.id}`, { method: 'DELETE' }), {
+      success: 'Асуулт устгагдлаа',
+      onDone: () => qc.invalidateQueries({ queryKey: ['admin-faqs'] }),
+    });
   };
 
   const toggleActive = async (faq: AdminFaq) => {
-    await api(`/admin/faqs/${faq.id}`, { method: 'PATCH', body: JSON.stringify({ isActive: !faq.isActive }) });
-    qc.invalidateQueries({ queryKey: ['admin-faqs'] });
+    await runMutation(
+      () =>
+        api(`/admin/faqs/${faq.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: !faq.isActive }),
+        }),
+      {
+        /* ⚠️ Өмнө нь амжилтын toast ч БАЙГААГҮЙ — админ дарсан эсэхээ
+           мэдэхгүй дахин дахин дардаг байв */
+        success: faq.isActive ? 'Идэвхгүй болголоо' : 'Идэвхжүүллээ',
+        onDone: () => qc.invalidateQueries({ queryKey: ['admin-faqs'] }),
+      },
+    );
   };
 
   return (
@@ -72,20 +113,63 @@ export default function FaqsPage() {
       <AdminTopbar title="Түгээмэл асуулт" subtitle={data ? `Нийт ${data.length} асуулт` : undefined} />
 
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
-        <button
-          onClick={() => openEdit('new')}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
-        >
-          <Plus size={15} /> Асуулт нэмэх
-        </button>
+        {/* ⚠️ Хайлт + ангиллын шүүлт — өмнө нь ЗӨВХӨН доош гүйлгэж
+            хайх боломжтой байв (100+ асуулт болоход ашиглах аргагүй) */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Асуулт, хариултаас хайх…"
+              aria-label="Асуулт хайх"
+              className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
+            />
+          </div>
+          <select
+            value={cat}
+            onChange={(e) => setCat(e.target.value)}
+            aria-label="Ангилал шүүх"
+            className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+          >
+            <option value="">Бүх ангилал</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => openEdit('new')}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+          >
+            <Plus size={15} /> Асуулт нэмэх
+          </button>
+        </div>
 
-        <div className="admin-card mt-5 overflow-hidden rounded-xl">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-14 text-muted-foreground">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
+        {/* ⚠️ Шүүлтийн үр дүнгийн тоо — админ "хайлт ажиллав уу" гэдгийг
+            шууд харна (хоосон үр дүн нь эвдэрсэн гэж ойлгогдохгүй) */}
+        {(q || cat) && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {rows.length} / {data?.length ?? 0} асуулт
+          </p>
+        )}
+
+        <div className="admin-card mt-4 overflow-hidden rounded-xl">
+          {isError ? (
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
+            /* ⚠️ Spinner БИШ skeleton — төслийн дүрэм (бүтэц урьдчилж
+               харагдаж, дата ирэхэд layout үсэрдэггүй) */
+            <TableSkeleton rows={6} cols={5} />
           ) : (
-            <table className="w-full text-sm">
+            /* ⚠️ Мобайлд хэвтээ гүйлт — 5 багана 375px дэлгэцэнд шахагдаж
+               текст давхцдаг байв */
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-180 text-sm">
               <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Асуулт</th>
@@ -96,7 +180,7 @@ export default function FaqsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data?.map((f) => (
+                {rows.map((f) => (
                   <tr key={f.id} className="transition-colors hover:bg-accent/40">
                     <td className="max-w-md px-4 py-3">
                       <p className="truncate font-medium text-foreground">{f.question}</p>
@@ -107,21 +191,28 @@ export default function FaqsPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => toggleActive(f)}
+                        /* ⚠️ `aria-pressed` — төлөвийг ЗӨВХӨН өнгө/текстээр
+                           илэрхийлбэл скрин ридер уншихгүй */
+                        aria-pressed={f.isActive}
+                        aria-label={f.isActive ? 'Идэвхгүй болгох' : 'Идэвхжүүлэх'}
                         className={cn(
-                          'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                          'rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
                           f.isActive ? 'bg-success/15 text-success hover:bg-success/25' : 'bg-destructive/15 text-destructive hover:bg-destructive/25',
                         )}
                       >
-                        {f.isActive ? 'Идэвхтэй' : 'Идэвхгvй'}
+                        {f.isActive ? 'Идэвхтэй' : 'Идэвхгүй'}
                       </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(f)} aria-label="Засах" className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
-                          <Pencil size={14} />
+                        {/* ⚠️ 36px — өмнөх 26px (`p-1.5`+14px) нь хүрэлцэх
+                            зөвлөмжөөс хамаагүй бага, таблет дээр устгахыг
+                            андуурч дардаг байв */}
+                        <button onClick={() => openEdit(f)} aria-label="Засах" className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                          <Pencil size={15} />
                         </button>
-                        <button onClick={() => remove(f)} aria-label="Устгах" className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive">
-                          <Trash2 size={14} />
+                        <button onClick={() => remove(f)} aria-label="Устгах" className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/15 hover:text-destructive">
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -129,8 +220,41 @@ export default function FaqsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
-          {!isLoading && !data?.length && <TableEmptyState icon={HelpCircle} message="Асуулт олдсонгүй" />}
+          {!isLoading && !isError && !rows.length && (
+            /* ⚠️ Хайлтын үр дүн хоосон БА дата огт байхгүй хоёрыг ЯЛГАНА —
+               эс бөгөөс админ "бүх FAQ устсан" гэж сандарна */
+            <TableEmptyState
+              icon={HelpCircle}
+              message={q || cat ? 'Хайлтад тохирох асуулт олдсонгүй' : 'Асуулт байхгүй байна'}
+              description={
+                q || cat
+                  ? 'Өөр түлхүүр үг эсвэл ангилал сонгож үзнэ үү.'
+                  : 'Хэрэглэгчийн түгээмэл асуултыг нэмбэл /faq хуудсанд харагдана.'
+              }
+              action={
+                q || cat ? (
+                  <button
+                    onClick={() => {
+                      setQ('');
+                      setCat('');
+                    }}
+                    className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Шүүлт цэвэрлэх
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => openEdit('new')}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+                  >
+                    <Plus size={15} /> Эхний асуулт нэмэх
+                  </button>
+                )
+              }
+            />
+          )}
         </div>
       </main>
 

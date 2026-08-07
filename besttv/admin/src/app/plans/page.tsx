@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Crown, Loader2, Pencil, Plus, Trash2, Wallet } from 'lucide-react';
+import { Crown, Loader2, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice, cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
+import { runMutation } from '@/lib/mutate';
 import { useAdminGenres, useAdminPlans, type AdminPlan } from '@/lib/queries';
 
 interface FormState {
@@ -44,14 +47,40 @@ const DURATION_PRESETS = [
   { label: '1 жил', days: 365 },
 ];
 
+/** Багцын шүүлтийн төрөл */
+type Filter = '' | 'active' | 'inactive' | 'vip';
+
 export default function PlansPage() {
-  const { data, isLoading } = useAdminPlans();
+  const { data, isLoading, isError, error, refetch } = useAdminPlans();
   const { data: genres } = useAdminGenres();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AdminPlan | 'new' | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<Filter>('');
   const confirm = useConfirm();
+
+  /**
+   * ⚠️ Шүүлт CLIENT талд — багц ихэвчлэн 10-20 л байдаг тул сервер рүү
+   * дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
+   * ⚠️ Жанрын нэрээр ч хайна — админ "энэ жанрыг ямар багц нээдэг вэ"
+   * гэдгийг олох нь хамгийн түгээмэл хэрэглээ.
+   */
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (data ?? []).filter((p) => {
+      if (filter === 'active' && !p.isActive) return false;
+      if (filter === 'inactive' && p.isActive) return false;
+      if (filter === 'vip' && !p.isVip) return false;
+      if (!needle) return true;
+      return (
+        p.name.toLowerCase().includes(needle) ||
+        (p.description ?? '').toLowerCase().includes(needle) ||
+        p.genres.some((g) => g.name.toLowerCase().includes(needle))
+      );
+    });
+  }, [data, q, filter]);
 
   const openEdit = (plan: AdminPlan | 'new') => {
     setEditing(plan);
@@ -164,16 +193,18 @@ export default function PlansPage() {
   };
 
   const toggleActive = async (p: AdminPlan) => {
-    try {
-      await api(`/admin/plans/${p.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive: !p.isActive }),
-      });
-      await qc.invalidateQueries({ queryKey: ['admin-plans'] });
-      toast.success(p.isActive ? 'Багц идэвхгүй боллоо' : 'Багц идэвхжлээ');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Өөрчилж чадсангүй');
-    }
+    await runMutation(
+      () =>
+        api(`/admin/plans/${p.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: !p.isActive }),
+        }),
+      {
+        success: p.isActive ? 'Багц идэвхгүй боллоо' : 'Багц идэвхжлээ',
+        error: 'Өөрчилж чадсангүй',
+        onDone: () => qc.invalidateQueries({ queryKey: ['admin-plans'] }),
+      },
+    );
   };
 
   const toggleGenre = (id: string) => {
@@ -197,20 +228,61 @@ export default function PlansPage() {
           сонгохгүйгээр БҮХ контентыг нээнэ.
         </div>
 
-        <button
-          onClick={() => openEdit('new')}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
-        >
-          <Plus size={15} /> Багц нэмэх
-        </button>
+        {/* ⚠️ Хайлт + шүүлт — багц олширвол (улирлын урамшуулал, VIP хувилбар)
+            зөвхөн гүйлгэж хайх нь ашиглах аргагүй болно */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Багцын нэр, тайлбар, жанраар хайх…"
+              aria-label="Багц хайх"
+              className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
+            />
+          </div>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as Filter)}
+            aria-label="Багц шүүх"
+            className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+          >
+            <option value="">Бүх багц</option>
+            <option value="active">Зөвхөн идэвхтэй</option>
+            <option value="inactive">Зөвхөн идэвхгүй</option>
+            <option value="vip">Зөвхөн VIP</option>
+          </select>
+          <button
+            onClick={() => openEdit('new')}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+          >
+            <Plus size={15} /> Багц нэмэх
+          </button>
+        </div>
 
-        <div className="admin-card mt-5 overflow-hidden rounded-xl">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-14 text-muted-foreground">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
+        {/* ⚠️ Шүүлтийн үр дүнгийн тоо — хоосон үр дүн нь "дата устсан"
+            гэж ойлгогдохгүй байх зорилготой */}
+        {(q || filter) && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {rows.length} / {data?.length ?? 0} багц
+          </p>
+        )}
+
+        <div className="admin-card mt-4 overflow-hidden rounded-xl">
+          {isError ? (
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
+            /* ⚠️ Spinner БИШ skeleton — төслийн дүрэм (бүтэц урьдчилж
+               харагдаж, дата ирэхэд layout үсэрдэггүй) */
+            <TableSkeleton rows={6} cols={6} />
           ) : (
-            <table className="w-full text-sm">
+            /* ⚠️ Мобайлд хэвтээ гүйлт — 6 багана (жанрын badge-ууд орно)
+               375px дэлгэцэнд шахагдаж текст давхцдаг байв */
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-180 text-sm">
               <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Багц</th>
@@ -222,8 +294,16 @@ export default function PlansPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data?.map((p) => (
-                  <tr key={p.id} className="transition-colors hover:bg-accent/40">
+                {rows.map((p) => (
+                  <tr
+                    key={p.id}
+                    className={cn(
+                      'transition-colors hover:bg-accent/40',
+                      /* Идэвхгүй багц сайтад ХАРАГДАХГҮЙ — мөрийг бүдгэрүүлж
+                         админд шууд ялгаж өгнө */
+                      !p.isActive && 'opacity-55',
+                    )}
+                  >
                     <td className="px-4 py-3">
                       <p className="flex items-center gap-1.5 font-medium text-foreground">
                         {p.isVip && <Crown size={13} className="text-premium" />}
@@ -261,8 +341,12 @@ export default function PlansPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => toggleActive(p)}
+                        /* ⚠️ `aria-pressed` — төлөвийг ЗӨВХӨН өнгө/текстээр
+                           илэрхийлбэл скрин ридер уншихгүй */
+                        aria-pressed={p.isActive}
+                        aria-label={p.isActive ? 'Идэвхгүй болгох' : 'Идэвхжүүлэх'}
                         className={cn(
-                          'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                          'whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
                           p.isActive
                             ? 'bg-success/15 text-success hover:bg-success/25'
                             : 'bg-muted text-muted-foreground hover:bg-accent',
@@ -273,19 +357,22 @@ export default function PlansPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {/* ⚠️ 36px — өмнөх 26px (`p-1.5`+14px) нь хүрэлцэх
+                            зөвлөмжөөс хамаагүй бага, таблет дээр устгахыг
+                            андуурч дардаг байв */}
                         <button
                           onClick={() => openEdit(p)}
                           aria-label="Засах"
-                          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
-                          <Pencil size={14} />
+                          <Pencil size={15} />
                         </button>
                         <button
                           onClick={() => remove(p)}
                           aria-label="Устгах"
-                          className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -293,8 +380,41 @@ export default function PlansPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
-          {!isLoading && !data?.length && <TableEmptyState icon={Wallet} message="Багц байхгүй байна" />}
+          {!isLoading && !isError && !rows.length && (
+            /* ⚠️ Хайлтын үр дүн хоосон БА багц огт байхгүй хоёрыг ЯЛГАНА —
+               эс бөгөөс админ "бүх багц устсан" гэж сандарна */
+            <TableEmptyState
+              icon={Wallet}
+              message={q || filter ? 'Хайлтад тохирох багц олдсонгүй' : 'Багц байхгүй байна'}
+              description={
+                q || filter
+                  ? 'Өөр түлхүүр үг эсвэл шүүлт сонгож үзнэ үү.'
+                  : 'Багц нэмбэл хэрэглэгч үнийн хуудсанд сонгож худалдан авах боломжтой болно.'
+              }
+              action={
+                q || filter ? (
+                  <button
+                    onClick={() => {
+                      setQ('');
+                      setFilter('');
+                    }}
+                    className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Шүүлт цэвэрлэх
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => openEdit('new')}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
+                  >
+                    <Plus size={15} /> Эхний багц нэмэх
+                  </button>
+                )
+              }
+            />
+          )}
         </div>
       </main>
 
