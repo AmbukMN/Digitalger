@@ -50,7 +50,11 @@ export async function POST() {
    */
   const res = await fetch(`${BACKEND_URL}/api/auth/oauth`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      /* ⚠️ Backend-ийн хамгаалалт — байхгүй бол 401 (lib/auth.ts-ийг харна уу) */
+      'x-oauth-secret': process.env.OAUTH_SHARED_SECRET ?? '',
+    },
     body: JSON.stringify({
       provider: s?.provider ?? 'google',
       providerAccountId: s?.providerAccountId ?? user.id ?? user.email,

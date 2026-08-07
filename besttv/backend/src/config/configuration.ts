@@ -28,6 +28,20 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
+  auth: {
+    /**
+     * ⚠️⚠️ `/auth/oauth`-ийг хамгаалах СЕРВЕР ХООРОНДЫН нууц.
+     *
+     * Тэр endpoint нь имэйлээр хэрэглэгч олоод ТҮҮНИЙ токеныг буцаадаг
+     * тул баталгаажуулалтгүй бол ХЭН Ч admin@besttv.mn гэж бичээд ADMIN
+     * эрх авна (production дээр бодитоор тестлэж баталсан цоорхой).
+     *
+     * ⚠️ Frontend-ийн `NEXTAUTH_OAUTH_SECRET`-тэй ЯГ ИЖИЛ байх ёстой.
+     * ⚠️ Тохируулаагүй бол OAuth нэвтрэлт АЖИЛЛАХГҮЙ — задгай үлдээхээс
+     *    унасан нь дээр (`auth.service.ts:oauthLogin`-ыг харна уу).
+     */
+    oauthSharedSecret: process.env.OAUTH_SHARED_SECRET ?? null,
+  },
   // R2 storage.
   //
   // ⚠️ ХОЁР ГОРИМ:

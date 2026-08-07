@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Patch,
   Post,
   UploadedFile,
@@ -50,8 +51,19 @@ export class AuthController {
   /** NextAuth (frontend) OAuth signIn callback-аас дуудагдана */
   @Post('oauth')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  oauth(@Body() dto: OAuthLoginDto) {
-    return this.auth.oauthLogin(dto);
+  oauth(
+    @Body() dto: OAuthLoginDto,
+    /**
+     * ⚠️⚠️ ХУВААЛЦСАН НУУЦ — энэ header БАЙХГҮЙ бол хүсэлт татгалзана.
+     *
+     * Энэ endpoint нь имэйлээр хэрэглэгч олоод ТҮҮНИЙ токеныг буцаадаг
+     * тул баталгаажуулалтгүй бол ХЭН Ч admin@besttv.mn гэж бичээд
+     * ADMIN эрх авна (production дээр бодитоор тестлэж баталсан).
+     * Зөвхөн манай Next.js СЕРВЕР дууддаг тул browser-т нууц задрахгүй.
+     */
+    @Headers('x-oauth-secret') secret?: string,
+  ) {
+    return this.auth.oauthLogin(dto, secret);
   }
 
   // ⚠️ Зочноор нэвтрэх (/auth/guest) болон convert-guest ХАСАГДСАН.

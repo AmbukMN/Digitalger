@@ -78,7 +78,19 @@ export const authOptions: NextAuthOptions = {
         try {
           const res = await fetch(`${SERVER_API_URL}/api/auth/oauth`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              /**
+               * ⚠️⚠️ Энэ header БАЙХГҮЙ бол backend ТАТГАЛЗАНА.
+               *
+               * `/api/auth/oauth` нь имэйлээр хэрэглэгч олоод түүний
+               * токеныг буцаадаг тул баталгаажуулалтгүй бол ХЭН Ч
+               * admin@besttv.mn гэж бичээд ADMIN эрх авна.
+               * ⚠️ Энэ код СЕРВЕРТ л ажиллана (NextAuth callback) —
+               * browser-т нууц задрахгүй. `NEXT_PUBLIC_` угтвар БҮҮ тавь.
+               */
+              'x-oauth-secret': process.env.OAUTH_SHARED_SECRET ?? '',
+            },
             body: JSON.stringify({
               provider: account.provider,
               providerAccountId: account.providerAccountId,

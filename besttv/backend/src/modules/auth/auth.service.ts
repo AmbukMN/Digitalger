@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { SubscriberService } from '../email/email.module';
@@ -207,7 +207,45 @@ export class AuthService {
    * нь эхлээд имэйлээр бүртгүүлсэн хэрэглэгч дараа Google-аар нэвтрэхэд ижил
    * акаунт руу холбогдоно) → аль нь ч биш бол шинэ хэрэглэгч үүсгэнэ.
    */
-  async oauthLogin(dto: OAuthLoginDto): Promise<AuthResult> {
+  async oauthLogin(dto: OAuthLoginDto, sharedSecret?: string): Promise<AuthResult> {
+    /**
+     * ⚠️⚠️⚠️ ЭНЭ ШАЛГАЛТЫГ ХЭЗЭЭ Ч БҮҮ ХАС — БҮРТГЭЛ БУЛААХ ЦООРХОЙ.
+     *
+     * Энэ endpoint нь `providerAccountId` + `email`-ийг ИТГЭЖ авдаг:
+     * имэйлээр хэрэглэгчийг олоод ТҮҮНИЙ токеныг буцаана. Өмнө нь ямар
+     * ч баталгаажуулалт байгаагүй тул production дээр дараах curl
+     * АЖИЛЛАЖ БАЙВ (бодитоор тестлэсэн — ADMIN токен гарсан):
+     *
+     *   POST /api/auth/oauth
+     *   {"provider":"google","providerAccountId":"хоосон утга",
+     *    "email":"admin@besttv.mn"}
+     *
+     * → admin@besttv.mn-ий ЖИНХЭНЭ токен, `role: ADMIN`-тай.
+     * Нууц үг огт хэрэггүй. Ингээд `/admin/wallet/:id/credit` (мөнгө),
+     * `/admin/users/:id/password` (бүртгэл булаах) бүгд нээгдэнэ.
+     *
+     * ЯАГААД ХУВААЛЦСАН НУУЦ ВЭ (id_token шалгахын оронд):
+     * Энэ endpoint-ыг ЗӨВХӨН манай Next.js СЕРВЕР дууддаг (browser БИШ)
+     * — `/api/auth/bridge` болон `lib/auth.ts`. Google/Facebook-ийн
+     * жинхэнэ баталгаажуулалтыг NextAuth аль хэдийн хийсэн байдаг тул
+     * дахин шалгах нь давхардал. Сервер хоорондын дуудлагад нууц
+     * хуваалцах нь хангалттай бөгөөд провайдер бүрд SDK нэмэхгүй.
+     *
+     * ⚠️ `timingSafeEqual` — энгийн `!==` нь тэмдэгт бүрээр эрт зогсдог
+     * тул нууцыг таамаглах цагийн халдлага (timing attack) боломжтой.
+     */
+    const expected = this.config.get<string>('auth.oauthSharedSecret');
+    if (!expected) {
+      /* ⚠️ Нууц тохируулаагүй бол ХААНА — задгай үлдээхээс нэвтрэлт
+         унасан нь ДЭЭР (админ .env-д нэмбэл шууд сэргэнэ). */
+      throw new UnauthorizedException('OAuth тохиргоо дутуу байна');
+    }
+    const got = Buffer.from(sharedSecret ?? '');
+    const want = Buffer.from(expected);
+    if (got.length !== want.length || !timingSafeEqual(got, want)) {
+      throw new UnauthorizedException('Зөвшөөрөлгүй хүсэлт');
+    }
+
     const isGoogle = dto.provider === 'google';
     const email = dto.email?.toLowerCase().trim();
     const providerEnum: 'GOOGLE' | 'FACEBOOK' = isGoogle ? 'GOOGLE' : 'FACEBOOK';
