@@ -45,6 +45,8 @@ export interface TmdbImportResult {
   year: number | null;
   rating: number | null;
   durationSec: number | null;
+  /** Найруулагч — TMDB `credits.crew` (цувралд `created_by`) */
+  director?: string | null;
   actors: string[];
   genreNames: string[];
   seasonCount: number | null;

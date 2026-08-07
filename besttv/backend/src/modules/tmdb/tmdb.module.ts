@@ -155,6 +155,17 @@ export class TmdbService {
       year: Number((d.release_date ?? d.first_air_date ?? '').slice(0, 4)) || null,
       rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
       durationSec: d.runtime ? d.runtime * 60 : null,
+      /**
+       * ⚠️ НАЙРУУЛАГЧ — `credits.crew` дотроос салгана.
+       * ⚠️ Цуврал (`tv`) дээр "Director" ховор, "Creator"-ыг ч авна —
+       * эс бөгөөс цувралын найруулагч ҮРГЭЛЖ хоосон үлдэнэ.
+       */
+      director:
+        (d.credits?.crew ?? []).find(
+          (c: { job?: string }) => c.job === 'Director' || c.job === 'Creator',
+        )?.name ??
+        (d.created_by ?? [])[0]?.name ??
+        null,
       actors: (d.credits?.cast ?? []).slice(0, 10).map((c: any) => c.name),
       /**
        * ⚠️ ДЭЛГЭРЭНГҮЙ CAST — нэр + дүр + ЗУРАГ.
@@ -200,15 +211,27 @@ export class TmdbService {
    */
   async enrichExisting(limit = 5, dryRun = false, offset = 0) {
     const titles = await this.prisma.title.findMany({
+      /**
+       * ⚠️⚠️ ШҮҮЛТҮҮРТ ЗӨВХӨН TMDB БӨГЛӨДӨГ талбарыг тавина.
+       *
+       * `director` нь `importDetails`-д ОГТ бөглөгддөггүй (TMDB-ийн
+       * `credits.crew`-ээс салгадаггүй) тул шүүлтүүрт байвал бүх кино
+       * ҮҮРД тааран, олдохгүй хэдий ч дахин дахин API дуудагдана.
+       * `trailerYoutubeKey`/`metaDescription` ч мөн адил: TMDB-д
+       * БАЙХГҮЙ 73 Монгол киног үүрд татсаар байх болно.
+       *
+       * Тиймээс тэднийг ХАСАВ — тэдгээрийг нөхөх өөр зам бий:
+       * SEO нь `/admin/tmdb/seo` (AI, TMDB-гүй), трейлер/найруулагч нь
+       * админ гараар. Ингэснээр `/enrich` нь ҮНЭХЭЭР дутуу кинонд л
+       * хүрч, дэмий API дуудалт/хязгаар зарцуулахгүй.
+       */
       where: {
         OR: [
           { rating: null },
           { year: null },
           { backdropKey: null },
-          { director: null },
           { cast: { equals: Prisma.DbNull } },
-          { trailerYoutubeKey: null },
-          { metaDescription: null },
+          { descriptionEn: null },
         ],
       },
       select: {
@@ -294,6 +317,7 @@ export class TmdbService {
       if (t.year == null && d.year != null) { data.year = d.year; filled.push('он'); }
       if (!t.backdropKey && d.backdropKey) { data.backdropKey = d.backdropKey; filled.push('backdrop'); }
       if (!t.titleEn && d.titleEn) { data.titleEn = d.titleEn; filled.push('англи нэр'); }
+      if (!t.director && d.director) { data.director = d.director; filled.push('найруулагч'); }
       if ((!t.cast || (Array.isArray(t.cast) && t.cast.length === 0)) && d.cast?.length) {
         /**
          * ⚠️ `photoUrl`-ыг DB-д ХАДГАЛАХГҮЙ — presign URL нь 2 цагийн

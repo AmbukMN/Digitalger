@@ -109,6 +109,8 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
       descriptionEn: result.descriptionEn || f.descriptionEn,
       year: result.year ? String(result.year) : f.year,
       rating: result.rating ? String(result.rating) : f.rating,
+      /* ⚠️ Найруулагч — TMDB `credits.crew`-ээс; гараар бичсэнийг хөндөхгүй */
+      director: f.director || result.director || '',
       /**
        * ⚠️ SEO — АРАЙ гараар бичсэн байвал ДАРЖ БИЧИХГҮЙ.
        * AI орчуулга унтраалттай бол хоосон ирнэ → байгаа нь үлдэнэ.

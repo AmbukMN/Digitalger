@@ -250,6 +250,8 @@ export function TitleEditDialog({
       descriptionEn: result.descriptionEn || f.descriptionEn,
       year: result.year ? String(result.year) : f.year,
       rating: result.rating ? String(result.rating) : f.rating,
+      /* ⚠️ Найруулагч — TMDB `credits.crew`-ээс; гараар бичсэнийг хөндөхгүй */
+      director: f.director || result.director || '',
       /* ⚠️ Гараар бичсэн SEO байвал ДАРЖ БИЧИХГҮЙ */
       metaTitle: f.metaTitle || result.metaTitle || '',
       metaDescription: f.metaDescription || result.metaDescription || '',
