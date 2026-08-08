@@ -36,6 +36,24 @@ const EMPTY = {
 /** `2026-08-08T10:00:00.000Z` → `2026-08-08T10:00` (datetime-local) */
 const toLocalInput = (iso: string | null) => (iso ? iso.slice(0, 16) : '');
 
+/**
+ * Баннерын БОДИТ төлөв — `isActive` дангаараа хангалтгүй.
+ *
+ * ⚠️ Компонентын ГАДНА — `rows` useMemo нь үүнийг дууддаг тул дотор
+ * нь `const`-оор зарлавал TDZ алдаа (ашиглахаас өмнө тодорхойлогдоно).
+ */
+function statusOf(b: AdminBanner) {
+  if (!b.isActive) return { label: 'Идэвхгүй', tone: 'off' as const };
+  const now = Date.now();
+  if (b.startsAt && new Date(b.startsAt).getTime() > now) {
+    return { label: 'Хүлээгдэж буй', tone: 'wait' as const };
+  }
+  if (b.endsAt && new Date(b.endsAt).getTime() < now) {
+    return { label: 'Дууссан', tone: 'off' as const };
+  }
+  return { label: 'Идэвхтэй', tone: 'on' as const };
+}
+
 export default function BannersPage() {
   const { data, isLoading, isError, error, refetch } = useAdminBanners();
   const qc = useQueryClient();
@@ -44,17 +62,29 @@ export default function BannersPage() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
+  /**
+   * ⚠️⚠️ ТӨЛӨВӨӨР ШҮҮХ — `statusOf` нь "Идэвхтэй/Хүлээгдэж буй/
+   * Дууссан" гэж тооцоолж badge харуулдаг МӨРТЛӨӨ шүүх арга
+   * байгаагүй. Хугацаа дууссан баннеруудыг олж цэвэрлэх ажил
+   * гараар бүх жагсаалт гүйлгэж хийгддэг байв.
+   * (`coupons` хуудсанд яг ижил `statusOf` загварт шүүлт БАЙГАА —
+   * тогтворгүй байдлыг ч арилгав.)
+   */
+  const [status, setStatus] = useState<'ALL' | 'on' | 'wait' | 'off'>('ALL');
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return data ?? [];
-    return (data ?? []).filter(
-      (b) =>
+    return (data ?? []).filter((b) => {
+      if (status !== 'ALL' && statusOf(b).tone !== status) return false;
+      if (!needle) return true;
+      return (
         b.title.toLowerCase().includes(needle) ||
         b.subtitle.toLowerCase().includes(needle) ||
-        b.ctaHref.toLowerCase().includes(needle),
-    );
-  }, [data, q]);
+        b.ctaHref.toLowerCase().includes(needle)
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, q, status]);
 
   const openEdit = (b: AdminBanner | 'new') => {
     setEditing(b);
@@ -145,18 +175,6 @@ export default function BannersPage() {
   };
 
   /** Хугацаа дууссан/эхлээгүй эсэх — админ бодит төлөвийг шууд харна */
-  const statusOf = (b: AdminBanner) => {
-    if (!b.isActive) return { label: 'Идэвхгүй', tone: 'off' as const };
-    const now = Date.now();
-    if (b.startsAt && new Date(b.startsAt).getTime() > now) {
-      return { label: 'Хүлээгдэж буй', tone: 'wait' as const };
-    }
-    if (b.endsAt && new Date(b.endsAt).getTime() < now) {
-      return { label: 'Дууссан', tone: 'off' as const };
-    }
-    return { label: 'Идэвхтэй', tone: 'on' as const };
-  };
-
   return (
     <AdminShell>
       <AdminTopbar
@@ -179,6 +197,21 @@ export default function BannersPage() {
               className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
             />
           </div>
+
+          {/* ⚠️ Төлөвөөр шүүх — badge аль хэдийн харуулдаг байсан ч
+              шүүх арга байгаагүй (хугацаа дууссаныг олох боломжгүй) */}
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as typeof status)}
+            aria-label="Төлөвөөр шүүх"
+            className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+          >
+            <option value="ALL">Бүх төлөв</option>
+            <option value="on">Идэвхтэй</option>
+            <option value="wait">Хүлээгдэж буй</option>
+            <option value="off">Идэвхгүй / Дууссан</option>
+          </select>
+
           <button
             onClick={() => openEdit('new')}
             className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"

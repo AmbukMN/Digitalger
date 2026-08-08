@@ -661,10 +661,12 @@ export interface AdminBlogPost {
   createdAt: string;
 }
 
-export function useAdminBlogPosts(params: { q?: string; page?: number }) {
+export function useAdminBlogPosts(params: { q?: string; page?: number; status?: string }) {
   const qs = new URLSearchParams();
   if (params.q) qs.set('q', params.q);
   if (params.page) qs.set('page', String(params.page));
+  /* ⚠️ 'published' | 'draft' — ноорогоо олоход хэрэгтэй */
+  if (params.status && params.status !== 'ALL') qs.set('status', params.status);
 
   return useQuery({
     queryKey: ['admin-blog', params],

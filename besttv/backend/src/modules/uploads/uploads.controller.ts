@@ -162,6 +162,15 @@ export class UploadsController {
     if (!key || !uploadId || !Array.isArray(parts) || !parts.length) {
       throw new BadRequestException('key, uploadId, parts шаардлагатай');
     }
+    /**
+     * ⚠️⚠️ `raw/` ШАЛГАЛТ — `multipartUrls`-д байсан ч ЭНД БАЙГААГҮЙ.
+     *
+     * Админ токен алдагдвал (эсвэл дотоод хортой этгээд) дурын key
+     * дээр multipart дуусгаж, HLS хавтас доторх m3u8/segment-ийг
+     * дарж бичих оролдлого хийж болно. Гурван endpoint БҮГД ижил
+     * хамгаалалттай байх ёстой.
+     */
+    if (!key.startsWith('raw/')) throw new BadRequestException('Буруу key');
     await this.storage.completeMultipart(key, uploadId, parts);
     return { key };
   }
@@ -170,6 +179,9 @@ export class UploadsController {
   @Post('video/multipart/abort')
   async abortMultipart(@Body() body: { key: string; uploadId: string }) {
     if (!body.key || !body.uploadId) throw new BadRequestException('key, uploadId шаардлагатай');
+    /* ⚠️ `raw/` шалгалт — дурын замын multipart-ыг таслахаас сэргийлнэ
+       (ж: өөр админы явж буй байршуулалтыг зогсоох) */
+    if (!body.key.startsWith('raw/')) throw new BadRequestException('Буруу key');
     await this.storage.abortMultipart(body.key, body.uploadId);
     return { ok: true };
   }

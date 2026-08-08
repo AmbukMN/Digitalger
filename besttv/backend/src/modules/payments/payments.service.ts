@@ -387,6 +387,28 @@ export class PaymentsService {
    */
   async handleWebhook(body: Record<string, unknown>, rawBody: string, signature?: string) {
     const webhookSecret = this.config.get<string>('qpay.webhookSecret');
+
+    /**
+     * ⚠️⚠️ PRODUCTION-Д SECRET ЗААВАЛ — байхгүй бол endpoint-ыг ХААНА.
+     *
+     * Өмнө нь `if (webhookSecret)` байсан тул secret арилвал (env
+     * буруу хуулагдсан, deploy алдаа) гарын үсгийн шалгалт БҮХЭЛДЭЭ
+     * ЧИМЭЭГҮЙ унтардаг байв — хэн ч callback руу дурын `invoice_id`
+     * илгээж болно.
+     *
+     * ⚠️ Мөнгө шууд хулгайлагдахгүй (`verifyPaymentWithQpay` давах
+     * шаардлагатай) ч хязгааргүй нээлттэй хүсэлт нь QPay merchant API
+     * руу amplification үүсгэж, rate-limit/ban авахад хүргэнэ.
+     *
+     * ⚠️ FAIL-CLOSED: тохиргоо дутуу бол ХҮЛЭЭН АВАХГҮЙ (нээлттэй
+     * үлдээхээс төлбөр түр саатах нь дээр — polling/reconcile нь
+     * эрхийг ямар ч тохиолдолд олгоно).
+     */
+    const isProd = this.config.get<string>('nodeEnv') === 'production';
+    if (!webhookSecret && isProd) {
+      this.logger.error('QPAY_WEBHOOK_SECRET тохируулаагүй — webhook хаагдлаа');
+      throw new UnauthorizedException('Webhook тохиргоо дутуу');
+    }
     if (webhookSecret) {
       if (!signature || !this.verifyWebhookSignature(rawBody, signature)) {
         throw new UnauthorizedException('Webhook гарын үсэг буруу');

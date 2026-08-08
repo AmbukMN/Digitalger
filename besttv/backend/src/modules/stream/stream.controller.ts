@@ -1,5 +1,5 @@
 import { Controller, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { StreamService } from './stream.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -114,10 +114,24 @@ export class AdminStreamController {
  * ⚠️ Аюулгүй байдал АЛДАГДАХГҮЙ: эрхийн шалгалт (`assertAccess`) хүсэлт
  * бүрт хийгдсээр байна. Rate limit нь зөвхөн ДАВТАМЖИЙН хамгаалалт бөгөөд
  * видео урсгалд утгагүй — нэг хэрэглэгч кино үзэхэд л олон хүсэлт явна.
+ *
+ * ⚠️⚠️ ГЭХДЭЭ БҮРЭН ХЯЗГААРГҮЙ БИШ — `default` throttler ҮЛДЭНЭ.
+ *
+ * `short`/`medium`/`long` нь дээрх шалтгаанаар унтарсан, харин
+ * `default`-ыг 600/мин болгож үлдээв. Эс бөгөөс нэг эрхтэй хэрэглэгч
+ * (эсвэл 4,900₮-өөр НЭГ кино түрээсэлсэн хүн) `variant.m3u8`-ыг
+ * хязгааргүй давтан дуудаж болно — дуудалт бүр DB query + (кэш хоосон
+ * үед) R2 `downloadText` + segment бүрд presign үүсгэдэг тул хэдхэн
+ * клиентээр backend-ийг ачаалж болох байв.
+ *
+ * ⚠️ 600/мин нь бодит үзэлтээс ХАМААГҮЙ өндөр: HLS плеер 6 секундын
+ * segment-тэй тул минутад ~10 playlist дуудалт хийнэ. 60 дахин нөөцтэй
+ * — жинхэнэ хэрэглэгч ХЭЗЭЭ Ч цохихгүй, харин скриптийн үер зогсоно.
  */
 @Controller('stream')
 @UseGuards(OptionalJwtAuthGuard)
-@SkipThrottle({ default: true, short: true, medium: true, long: true })
+@SkipThrottle({ short: true, medium: true, long: true })
+@Throttle({ default: { limit: 600, ttl: 60_000 } })
 export class StreamController {
   constructor(private readonly stream: StreamService) {}
 

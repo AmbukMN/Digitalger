@@ -95,12 +95,28 @@ export class BlogService {
     return this.decorate(post);
   }
 
-  async adminList(params: { q?: string; page?: number; limit?: number }) {
+  async adminList(params: {
+    q?: string;
+    page?: number;
+    limit?: number;
+    /** 'published' | 'draft' — ХООСОН бол бүгд */
+    status?: string;
+  }) {
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(100, params.limit ?? 20);
-    const where = params.q
-      ? { title: { contains: params.q, mode: 'insensitive' as const } }
-      : {};
+    /**
+     * ⚠️ НООРОГ/НИЙТЛЭГДСЭН ШҮҮЛТ — хүснэгтэд badge харуулдаг мөртлөө
+     * шүүх арга байгаагүй тул админ дуусгаагүй ноорогуудаа ОЛОХ
+     * боломжгүй байв (20-оор хуудаслагдсан жагсаалт гүйлгэх л).
+     */
+    const where = {
+      ...(params.q ? { title: { contains: params.q, mode: 'insensitive' as const } } : {}),
+      ...(params.status === 'published'
+        ? { isPublished: true }
+        : params.status === 'draft'
+          ? { isPublished: false }
+          : {}),
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.blogPost.findMany({
@@ -245,8 +261,14 @@ export class BlogAdminController {
   constructor(private readonly svc: BlogService) {}
 
   @Get()
-  list(@Query('q') q?: string, @Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.svc.adminList({ q, page, limit });
+  list(
+    @Query('q') q?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    /* ⚠️ 'published' | 'draft' — ноорогоо олох цорын ганц зам */
+    @Query('status') status?: string,
+  ) {
+    return this.svc.adminList({ q, page, limit, status });
   }
 
   @Get(':id')

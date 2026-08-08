@@ -20,7 +20,10 @@ import { useAdminBlogPosts } from '@/lib/queries';
 export default function BlogPage() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
-  const { data, isFetching, isError, error, refetch } = useAdminBlogPosts({ q, page });
+  /* ⚠️ Ноорог/нийтлэгдсэн шүүлт — хүснэгтэд badge харуулдаг мөртлөө
+     шүүх арга байгаагүй тул дуусгаагүй ноорогоо ОЛОХ боломжгүй байв */
+  const [status, setStatus] = useState<'ALL' | 'published' | 'draft'>('ALL');
+  const { data, isFetching, isError, error, refetch } = useAdminBlogPosts({ q, page, status });
   const qc = useQueryClient();
   /* Олноор устгах — бусад админ жагсаалттай ижил зан төлөв */
   const sel = useBulkSelect({
@@ -62,6 +65,16 @@ export default function BlogPage() {
               className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
             />
           </div>
+          <select
+            value={status}
+            onChange={(e) => { setStatus(e.target.value as typeof status); setPage(1); }}
+            aria-label="Төлөвөөр шүүх"
+            className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+          >
+            <option value="ALL">Бүгд</option>
+            <option value="published">Нийтлэгдсэн</option>
+            <option value="draft">Ноорог</option>
+          </select>
           <Link
             href="/blog/new"
             className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
