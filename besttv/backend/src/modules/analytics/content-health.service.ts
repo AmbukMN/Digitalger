@@ -44,33 +44,57 @@ export class ContentHealthService {
   async check(): Promise<ContentHealthResult> {
     const issues: HealthIssue[] = [];
 
-    const [plans, brokenTitles, failed, stuck, noPoster] = await Promise.all([
+    const [plans, brokenTitles, failed, failedEpisodes, stuck, noPoster] = await Promise.all([
       this.prisma.plan.findMany({
         where: { isActive: true },
         include: { genres: { select: { genreId: true } } },
       }),
-      /* Идэвхтэй мөртлөө ТОГЛОХГҮЙ кино — хэрэглэгч дарж ороод юу ч болохгүй.
-         ⚠️ `comingSoon` нь ЗОРИУД видеогүй тул хасна. */
+      /**
+       * Хөрвүүлэлт явж буй кино (доорх №2-т мэдээлнэ).
+       *
+       * ⚠️ `comingSoon` нь ЗОРИУД видеогүй тул хасна.
+       * ⚠️ `type: MOVIE` ЗААВАЛ — SERIES-ийн `Title.streamStatus` нь
+       * үргэлж `NONE` (видео нь анги дээр) тул шүүхгүй бол бүх цуврал
+       * "боловсруулагдаж байна" гэж ХУДАЛ тоологдоно.
+       */
       this.prisma.title.findMany({
-        where: { isActive: true, comingSoon: false, streamStatus: { notIn: ['READY'] } },
+        where: {
+          isActive: true,
+          comingSoon: false,
+          type: 'MOVIE',
+          streamStatus: { notIn: ['READY'] },
+        },
         select: { id: true, title: true, streamStatus: true },
         take: 200,
       }),
+      /* ⚠️ АНГИ ч унаж болно — өмнө нь зөвхөн Title шалгадаг байсан тул
+         10 ангийн бүгд FAILED болсон ч админд ОГТ мэдэгдэхгүй байв */
       this.prisma.title.findMany({
         where: { streamStatus: 'FAILED' },
         select: { title: true, streamError: true },
         take: 50,
       }),
+      this.prisma.episode.findMany({
+        where: { streamStatus: 'FAILED' },
+        select: {
+          number: true,
+          streamError: true,
+          season: { select: { title: { select: { title: true } } } },
+        },
+        take: 50,
+      }),
       /**
-       * ⚠️ 6 ЦАГААС УДСАН хөрвүүлэлт — гацсан гэж үзнэ.
-       * ffmpeg таймаут нь 180 мин (3 ц); 4 ажил зэрэг явахад CPU
-       * өрсөлдөөнөөс удааширдаг тул 2 дахин зай авав. Үүнээс дээш
-       * бол queue сэргээх cron ажиллаагүй гэсэн үг.
+       * ⚠️ 9 ЦАГААС УДСАН хөрвүүлэлт — гацсан гэж үзнэ.
+       *
+       * ⚠️ `video-hls.service.ts`-ийн ЭЦСИЙН таймаут нь 8 цаг тул
+       * түүнээс ДЭЭГҮҮР байх ёстой — эс бөгөөс ffmpeg өөрөө зогсоохоос
+       * ӨМНӨ "гацсан" гэж худал мэдээлнэ. (Жинхэнэ гацааг 25 минутын
+       * явцын хяналт хамаагүй хурдан барина.)
        */
       this.prisma.title.findMany({
         where: {
           streamStatus: 'PROCESSING',
-          streamStartedAt: { lt: new Date(Date.now() - 6 * 3600_000) },
+          streamStartedAt: { lt: new Date(Date.now() - 9 * 3600_000) },
         },
         select: { title: true, streamStartedAt: true },
         take: 50,
@@ -81,14 +105,34 @@ export class ContentHealthService {
     ]);
 
     /* ─── 1. Багц бүр — үзэх боломжтой контент байна уу ─────────────── */
-    const readyIds = new Set(
-      (
-        await this.prisma.title.findMany({
-          where: { isActive: true, comingSoon: false, streamStatus: 'READY' },
-          select: { id: true },
-        })
-      ).map((t) => t.id),
-    );
+    /**
+     * ⚠️⚠️ ЦУВРАЛЫН ВИДЕО НЬ TITLE ДЭЭР БИШ, АНГИ ДЭЭР.
+     *
+     * `Title.streamStatus` нь SERIES-д ХЭЗЭЭ Ч `READY` болдоггүй
+     * (тэр талбарыг зөвхөн MOVIE ашигладаг). Тиймээс зөвхөн түүгээр
+     * шүүвэл 10 анги нь бүрэн бэлэн цуврал ч "тоглох боломжгүй" гэж
+     * тоологдож, багц мөнхөд "🔴 үзэх кино алга" гэж ХУДАЛ
+     * сэрэмжлүүлнэ.
+     *
+     * MOVIE  → `Title.streamStatus = READY`
+     * SERIES → НЭГ Ч анги `READY` бол үзэх боломжтой
+     */
+    const [readyMovies, readySeries] = await Promise.all([
+      this.prisma.title.findMany({
+        where: { isActive: true, comingSoon: false, streamStatus: 'READY' },
+        select: { id: true },
+      }),
+      this.prisma.title.findMany({
+        where: {
+          isActive: true,
+          comingSoon: false,
+          type: 'SERIES',
+          seasons: { some: { episodes: { some: { streamStatus: 'READY' } } } },
+        },
+        select: { id: true },
+      }),
+    ]);
+    const readyIds = new Set([...readyMovies, ...readySeries].map((t) => t.id));
 
     for (const plan of plans) {
       const genreIds = plan.genres.map((g) => g.genreId);
@@ -166,6 +210,27 @@ export class ContentHealthService {
           : 'Дэлгэрэнгүйг кино засварлах хуудаснаас харна уу.',
         href: '/movies',
         items: failed.slice(0, MAX_NAMES).map((t) => t.title),
+      });
+    }
+
+    /**
+     * ⚠️ АНГИЙН амжилтгүй хөрвүүлэлт — ТУСДАА мэдээлнэ.
+     *
+     * Өмнө нь зөвхөн `Title` шалгадаг байсан тул цувралын 10 анги
+     * бүгд унасан ч админд ОГТ мэдэгдэхгүй байв — цуврал "бэлэн"
+     * харагдаж, хэрэглэгч дарахад юу ч тоглохгүй.
+     */
+    if (failedEpisodes.length) {
+      issues.push({
+        level: 'critical',
+        title: `${failedEpisodes.length} ангийн хөрвүүлэлт амжилтгүй`,
+        detail: failedEpisodes[0].streamError
+          ? `Жишээ алдаа: ${failedEpisodes[0].streamError.slice(0, 120)}`
+          : 'Дэлгэрэнгүйг цувралын засварлах хуудаснаас харна уу.',
+        href: '/movies',
+        items: failedEpisodes
+          .slice(0, MAX_NAMES)
+          .map((e) => `${e.season?.title?.title ?? 'Цуврал'} — ${e.number}-р анги`),
       });
     }
 

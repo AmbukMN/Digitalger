@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { StorageUsageCard } from '@/components/storage-usage-card';
+import { ContentHealthCard } from '@/components/content-health-card';
 import {
   ArrowRight,
   Clock,
@@ -149,6 +150,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* ⚠️ Sticky мөрийн ДАРАА — «мөнгө авчихаад үзүүлэх юмгүй»
+            байдлыг админ хамгийн түрүүнд хардаг байх ёстой.
+            Асуудалгүй үед нимгэн ногоон мөр л харагдана. */}
+        <ContentHealthCard />
 
         {isLoading || !data ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
