@@ -270,7 +270,26 @@ async function main() {
    * Redis түлхүүрт орж, worker ХЭЗЭЭ Ч авахгүй — чимээгүй алдаа болно.
    */
   const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
-  const queue = new Bull(VIDEO_QUEUE_NAME, redisUrl, { prefix: 'besttv' });
+  /**
+   * ⚠️⚠️ SSH TUNNEL-ЭЭР ХОЛБОГДОХОД ЗААВАЛ ТЭСВЭРТЭЙ БАЙХ ЁСТОЙ.
+   *
+   * Бодит алдаа: "Reached the max retries per request limit (20)" —
+   * 10 файл зэрэг байршиж байхад tunnel түр ачаалагдаж Redis-ийн
+   * хариу удааширсан. Анхдагч 20 оролдлого хүрэлцээгүй тул script
+   * дунд замдаа УНАСАН (8 видео байршсан ч цааш явахгүй).
+   *
+   * ⚠️ `enableOfflineQueue` — холболт унасан үед командыг ХАЯХГҮЙ,
+   * сэргэмэгц илгээнэ (`withRetry`-тэй давхар хамгаалалт).
+   */
+  const queue = new Bull(VIDEO_QUEUE_NAME, redisUrl, {
+    prefix: 'besttv',
+    redis: {
+      maxRetriesPerRequest: null,
+      enableOfflineQueue: true,
+      connectTimeout: 30_000,
+      retryStrategy: (times: number) => Math.min(times * 1000, 15_000),
+    },
+  });
 
   const startedAll = Date.now();
   let doneCount = 0;
@@ -362,15 +381,33 @@ async function main() {
           }),
         'DB бичилт',
       );
-      await withRetry(
-        () =>
-          queue.add(
-            'convert',
-            { target: 'movie', targetId: item.title.id, rawKey: key },
-            { attempts: 2, backoff: { type: 'fixed', delay: 30_000 }, removeOnComplete: 50 },
-          ),
-        'Queue нэмэлт',
-      );
+      /**
+       * ⚠️⚠️ QUEUE АЛДАА нь БАЙРШУУЛАЛТЫГ ЗОГСООХ ЁСГҮЙ.
+       *
+       * Бодит алдаа: Redis холболт унахад script ДУНД ЗАМДАА зогсож,
+       * үлдсэн 38 видео огт байршаагүй. Гэтэл файл R2-д ОРСОН, DB-д
+       * `videoRawKey` + PROCESSING бичигдсэн байсан.
+       *
+       * Тэр тохиолдолд `video-recovery.service.ts` (10 мин тутам
+       * ажиллаж, 45 минутаас удсан PROCESSING-ыг шалгана) queue-д
+       * байхгүй ажлыг ӨӨРӨӨ илрүүлж дахин нэмдэг. Тиймээс энд алдаа
+       * гарвал ЗӨВХӨН сануулж үргэлжилнэ — байршуулалт үнэтэй,
+       * queue нэмэлт хямд.
+       */
+      try {
+        await withRetry(
+          () =>
+            queue.add(
+              'convert',
+              { target: 'movie', targetId: item.title.id, rawKey: key },
+              { attempts: 2, backoff: { type: 'fixed', delay: 30_000 }, removeOnComplete: 50 },
+            ),
+          'Queue нэмэлт',
+          3,
+        );
+      } catch {
+        console.log('    ⚠️ Queue-д нэмэгдсэнгүй — recovery cron ~45 мин дотор аварна');
+      }
 
       sentBytes += item.size;
       const spentMin = mins(Date.now() - started);

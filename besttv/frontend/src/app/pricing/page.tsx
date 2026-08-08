@@ -289,7 +289,9 @@ export default function PricingPage() {
         зэрэгцээ нь ЗАМБАРААГҮЙ харагддаг байв (бодит гомдол).
         Нэг багана = бүх текст нэг мөрөнд багтаж, цэвэрхэн харагдана.
       */}
-      <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-4 min-[380px]:grid-cols-2 min-[380px]:gap-3 sm:gap-5 lg:grid-cols-3">
+      {/* ⚠️ lg дээр 6 БАГАНА — карт бүр 2 эзэлнэ (доорх `lg:col-span-2`).
+          Ингэснээр сүүлийн мөрийг хагас багана шилжүүлж ГОЛЛУУЛЖ болно. */}
+      <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-4 min-[380px]:grid-cols-2 min-[380px]:gap-3 sm:gap-5 lg:grid-cols-6">
         {isLoading &&
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="skeleton-shimmer h-80 rounded-2xl" />
@@ -315,10 +317,24 @@ export default function PricingPage() {
            * ⚠️ Зөвхөн ҮЛДЭГДЭЛ 2 үед — 1 үлдвэл `lg:col-start-2` нь
            * дунд баганад тавина.
            */
+          /**
+           * ⚠️⚠️ СҮҮЛИЙН МӨРИЙГ ГОЛЛУУЛНА (lg = 6 багана, карт бүр 2).
+           *
+           * ЯАГААД 6 БАГАНА: 3 багана дээр 2 картыг ЖИНХЭНЭ голлуулах
+           * арга байхгүй — `lg:col-start-2` нь 2-3 багана эзэлж БАРУУН
+           * тийш түлхдэг (миний өмнөх буруу оролдлого).
+           * 6 багана дээр карт бүр 2 эзэлбэл:
+           *   3 карт → 1-2, 3-4, 5-6 (бүтэн мөр)
+           *   2 үлдэх → 2-3, 4-5 гэж эхлэвэл ЯГ ДУНД
+           *   1 үлдэх → 3-4 гэж эхлэвэл ЯГ ДУНД
+           */
           const rem = plans.length % 3;
-          /* ⚠️ 1 үлдвэл ч, 2 үлдвэл ч эхнийхийг 2-р баганаас эхлүүлнэ:
-             1 → дунд байрлана · 2 → 2-3 багана эзэлж голлоно */
-          const lgCenter = rem !== 0 && i === plans.length - rem ? 'lg:col-start-2' : '';
+          const isFirstOfLastRow = rem !== 0 && i === plans.length - rem;
+          const lgCenter = isFirstOfLastRow
+            ? rem === 2
+              ? 'lg:col-start-2' // 2 үлдсэн → 2-3, дараагийнх нь 4-5
+              : 'lg:col-start-3' // 1 үлдсэн → 3-4 (яг дунд)
+            : '';
           const canPayWithWallet = !!user && user.walletBalance >= finalPrice;
 
           return (
@@ -327,7 +343,9 @@ export default function PricingPage() {
               className={cn(
                 // ⚠️ `h-full` — доторх `mt-auto` (товчны блок) ажиллахад ЗААВАЛ
                 'relative flex h-full flex-col rounded-2xl border p-3 transition-transform sm:p-6',
-                lastOdd && 'min-[380px]:col-span-2 lg:col-span-1',
+                /* ⚠️ lg дээр grid нь 6 багана — карт бүр 2 эзэлнэ (=3 багана) */
+                'lg:col-span-2',
+                lastOdd && 'min-[380px]:col-span-2',
                 lgCenter,
                 !supersededByVip && 'hover:-translate-y-1',
                 supersededByVip && 'opacity-55',
