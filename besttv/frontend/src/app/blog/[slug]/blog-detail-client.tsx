@@ -25,7 +25,7 @@ export function BlogDetailClient({ slug }: { slug: string }) {
   if (isError || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4 pt-16">
-        <ErrorState title="Нийтлэл олдсонгvй" message="Хайж буй нийтлэл байхгvй эсвэл устгагдсан байна." onRetry={() => refetch()} />
+        <ErrorState title="Нийтлэл олдсонгүй" message="Хайж буй нийтлэл байхгүй эсвэл устгагдсан байна." onRetry={() => refetch()} />
       </main>
     );
   }

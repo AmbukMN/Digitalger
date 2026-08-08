@@ -120,8 +120,8 @@ export function useAdminTitle(id: string) {
     queryKey: ['admin-title', id],
     queryFn: () => api<AdminTitleDetail>(`/admin/titles/${id}`),
     enabled: !!id && id !== 'new',
-    // HLS хөрвvvлэлт (кино эсвэл аль нэг анги) явж байхад автоматаар polling
-    // хийж, READY болмогц хуудас сэргээлтгvйгээр шинэчлэгдэнэ.
+    // HLS хөрвүүлэлт (кино эсвэл аль нэг анги) явж байхад автоматаар polling
+    // хийж, READY болмогц хуудас сэргээлтгүйгээр шинэчлэгдэнэ.
     refetchInterval: (query) => {
       const data = query.state.data as AdminTitleDetail | undefined;
       const hasProcessing =

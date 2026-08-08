@@ -24,7 +24,8 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+/* ⚠️ `formatRentLeft as rentLeft` — доорх дуудлагууд хэвээр ажиллана */
+import { cn, formatPrice, formatRentLeft as rentLeft } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useMyPayments, useMyRentals, useWalletTransactions, type WalletTx } from '@/lib/queries';
@@ -423,13 +424,20 @@ export default function ProfilePage() {
                       href={`/movie/${r.title.slug}`}
                       className="flex items-center gap-3 rounded-lg bg-black/20 p-2.5 transition-colors hover:bg-black/35"
                     >
+                      {/* ⚠️ `<img>` БИШ `next/image` — постер нь ихэвчлэн
+                          500×750+, харин энд 40×56px-д шахагдана. 5 кино
+                          түрээсэлсэн хүн ~1.5MB татдаг байсныг (хэрэгтэй
+                          нь ~5KB) `sizes="40px"` шийднэ. */}
                       {r.title.posterUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={r.title.posterUrl}
-                          alt=""
-                          className="h-14 w-10 shrink-0 rounded object-cover"
-                        />
+                        <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded">
+                          <Image
+                            src={r.title.posterUrl}
+                            alt=""
+                            fill
+                            sizes="40px"
+                            className="object-cover"
+                          />
+                        </div>
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-foreground/90">{r.title.title}</p>
@@ -780,11 +788,5 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   );
 }
 
-/** Түрээс дуусах хүртэлх хугацаа — "12 цаг 30 мин" хэлбэрээр */
-function rentLeft(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return '0 мин';
-  const h = Math.floor(ms / 3600_000);
-  const m = Math.floor((ms % 3600_000) / 60_000);
-  return h > 0 ? `${h} цаг ${m} мин` : `${m} мин`;
-}
+/* ⚠️ `rentLeft` ХАСАГДАВ — `@besttv/shared`-ийн `formatRentLeft`-тэй
+   мөр мөрөөрөө ижил байв (доорх import-оор нэрлэн авав) */

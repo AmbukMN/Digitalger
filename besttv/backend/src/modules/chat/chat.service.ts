@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const ALLOWED_CHANNELS = new Set(['web']);
@@ -201,10 +202,40 @@ export class ChatService {
 
   // ─── Админ ────────────────────────────────────────────────────────────────
 
-  async listConversations(opts: { page?: number; pageSize?: number; onlyUnread?: boolean }) {
+  async listConversations(opts: {
+    page?: number;
+    pageSize?: number;
+    onlyUnread?: boolean;
+    q?: string;
+  }) {
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
-    const where = opts.onlyUnread ? { adminUnread: true } : {};
+
+    /**
+     * ⚠️⚠️ ХАЙЛТ — өмнө нь ОГТ БАЙГААГҮЙ.
+     *
+     * `pageSize` дээд тал нь 50 тул 51 дэх яриа руу хүрэх ямар ч арга
+     * байхгүй байв (хуудаслалт ч админ талд байхгүй). Хэрэглэгч
+     * "миний бичсэн зурвасыг хараарай" гэж залгахад тэр яриаг ОЛОХ
+     * боломжгүй — тусламжийн ажил бүтэхгүй.
+     *
+     * ⚠️ Имэйл/нэрээс ГАДНА мессежийн агуулгаар ч хайна — зочин
+     * хэрэглэгч (userId = null) нь имэйлгүй тул зөвхөн бичсэн
+     * зурвасаараа л олдоно.
+     */
+    const needle = opts.q?.trim();
+    const where: Prisma.ChatConversationWhereInput = {
+      ...(opts.onlyUnread ? { adminUnread: true } : {}),
+      ...(needle
+        ? {
+            OR: [
+              { user: { email: { contains: needle, mode: 'insensitive' } } },
+              { user: { name: { contains: needle, mode: 'insensitive' } } },
+              { messages: { some: { text: { contains: needle, mode: 'insensitive' } } } },
+            ],
+          }
+        : {}),
+    };
 
     const [items, total, unreadTotal] = await Promise.all([
       this.prisma.chatConversation.findMany({
@@ -222,7 +253,8 @@ export class ChatService {
       this.prisma.chatConversation.count({ where: { adminUnread: true } }),
     ]);
 
-    return { items, total, unreadTotal, page, pageSize };
+    /* ⚠️ `totalPages` — админы `<Pagination>` энэ талбарыг шаардана */
+    return { items, total, unreadTotal, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
   async getConversation(id: string) {

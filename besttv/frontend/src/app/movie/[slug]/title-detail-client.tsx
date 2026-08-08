@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Heart, Film, Lock, Play, Star, Ticket, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, episodeLabel, formatPrice } from '@besttv/shared';
+import { cn, episodeLabel, formatPrice, formatRentLeft } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useTitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
@@ -504,15 +504,6 @@ export function TitleDetailClient({ slug }: { slug: string }) {
       )}
     </main>
   );
-}
-
-/** Түрээс дуусах хүртэлх хугацаа — "12 цаг 30 мин" хэлбэрээр */
-function formatRentLeft(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return '0 мин';
-  const h = Math.floor(ms / 3600_000);
-  const m = Math.floor((ms % 3600_000) / 60_000);
-  return h > 0 ? `${h} цаг ${m} мин` : `${m} мин`;
 }
 
 /**

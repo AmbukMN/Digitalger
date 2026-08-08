@@ -135,7 +135,7 @@ export function BackdropMediaUpload({
           </span>
         ) : (
           <span className="flex items-center gap-1 text-muted-foreground">
-            <Film size={13} /> Трейлер оруулаагvй (заавал биш)
+            <Film size={13} /> Трейлер оруулаагүй (заавал биш)
           </span>
         )}
       </div>

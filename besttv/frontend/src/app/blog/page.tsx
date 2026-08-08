@@ -66,7 +66,7 @@ export default function BlogListPage() {
       </div>
 
       {!isLoading && data?.items.length === 0 && (
-        <p className="mt-16 text-center text-foreground/40">Одоогоор нийтлэл байхгvй байна</p>
+        <p className="mt-16 text-center text-foreground/40">Одоогоор нийтлэл байхгүй байна</p>
       )}
 
       {data && data.totalPages > 1 && (

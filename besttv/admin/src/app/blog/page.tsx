@@ -12,6 +12,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
+import { Pagination } from '@/components/pagination';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
 import { useAdminBlogPosts } from '@/lib/queries';
@@ -98,7 +99,7 @@ export default function BlogPage() {
                 </th>
                 <th className="px-4 py-3 text-left font-semibold">Гарчиг</th>
                 <th className="px-4 py-3 text-left font-semibold">Зохиогч</th>
-                <th className="px-4 py-3 text-left font-semibold">Vзсэн</th>
+                <th className="px-4 py-3 text-left font-semibold">Үзсэн</th>
                 <th className="px-4 py-3 text-left font-semibold">Огноо</th>
                 <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
                 <th className="px-4 py-3"></th>
@@ -182,22 +183,14 @@ export default function BlogPage() {
         </div>
         )}
 
-        {data && data.totalPages > 1 && (
-          <div className="mt-5 flex gap-1.5">
-            {Array.from({ length: data.totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setPage(i + 1)}
-                className={cn(
-                  'h-8 w-8 rounded-lg text-sm font-medium transition-colors',
-                  page === i + 1 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
-                )}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* ⚠️ Бүх хуудсын товч БИШ — `<Pagination>` (эргэн тойрон + "…") */}
+        <Pagination
+          page={data?.page ?? page}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total}
+          limit={20}
+          onPage={setPage}
+        />
       </main>
       <BulkBar {...sel.bar} />
     </AdminShell>

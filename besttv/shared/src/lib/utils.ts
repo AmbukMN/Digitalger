@@ -42,3 +42,27 @@ export function formatBytes(bytes: number): string {
 export function episodeLabel(number: number, name?: string | null): string {
   return name?.trim() ? `${number}. ${name.trim()}` : `${number}-р анги`;
 }
+
+/**
+ * Түрээс дуусах хүртэлх хугацаа — "2 өдөр 3 цаг", "12 цаг 30 мин".
+ *
+ * ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ — өмнө нь `title-detail-client.tsx`
+ * (`formatRentLeft`) болон `profile/page.tsx` (`rentLeft`) хоёрт мөр
+ * мөрөөрөө ижил хуулагдсан байв. Нэгийг нь зассан үед киноны хуудас
+ * ба профайл ӨӨР хугацаа харуулж, хэрэглэгч аль нь үнэн болохыг
+ * мэдэхгүй болно.
+ *
+ * ⚠️ ӨДӨР нэмэв: түрээс ихэвчлэн 48 цаг тул хуучин хувилбар "47 цаг
+ * 12 мин" гэж харуулдаг байсныг хүн ойлгоход хэцүү.
+ */
+export function formatRentLeft(expiresAt: string | Date): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return '0 мин';
+
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+
+  if (d > 0) return `${d} өдөр ${h} цаг`;
+  return h > 0 ? `${h} цаг ${m} мин` : `${m} мин`;
+}

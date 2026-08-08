@@ -364,7 +364,7 @@ export class AuthService {
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.passwordHash) {
-      throw new UnauthorizedException('Энэ бүртгэлд нууц үг тохируулаагvй байна');
+      throw new UnauthorizedException('Энэ бүртгэлд нууц үг тохируулаагүй байна');
     }
     const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Одоогийн нууц үг буруу байна');

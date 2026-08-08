@@ -75,7 +75,7 @@ export default function BlogEditPage({ params }: { params: Promise<{ id: string 
       } else {
         const created = await api<{ id: string }>('/admin/blog', { method: 'POST', body: JSON.stringify(payload) });
         setSavedId(created.id);
-        toast.success('Нийтлэл vvсгэгдлээ');
+        toast.success('Нийтлэл vүсгэгдлээ');
         router.replace(`/blog/${created.id}`);
       }
       qc.invalidateQueries({ queryKey: ['admin-blog'] });

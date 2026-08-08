@@ -21,6 +21,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
+import { Pagination } from '@/components/pagination';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { NewBadge } from '@/components/new-badge';
 import { api } from '@/lib/api';
@@ -462,24 +463,16 @@ export default function ReviewsPage() {
         </div>
         )}
 
-        {data && data.totalPages > 1 && (
-          <div className="mt-5 flex gap-1.5">
-            {Array.from({ length: data.totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setPage(i + 1)}
-                className={cn(
-                  'h-8 w-8 rounded-lg text-sm font-medium transition-colors',
-                  page === i + 1
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent',
-                )}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* ⚠️ `Array.from({length: totalPages})` ХАСАВ — 5000 сэтгэгдэл
+            = 250 товч дэлгэц дүүргэнэ. `<Pagination>` нь идэвхтэйн
+            эргэн тойрон ±1 + "…" харуулж, "1–20 / 340" тоог ч гаргана. */}
+        <Pagination
+          page={data?.page ?? page}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total}
+          limit={20}
+          onPage={setPage}
+        />
       </main>
     </AdminShell>
   );

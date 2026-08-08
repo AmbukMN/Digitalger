@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
+import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { DataToolbar } from '@/components/data-toolbar';
@@ -140,19 +141,19 @@ function LogsTab() {
   return (
     <>
       <div className="mb-5 grid gap-3 grid-cols-1 sm:grid-cols-3">
-        <MiniStat
+        <StatCard
           icon={<CheckCircle2 size={17} />}
           label="Илгээгдсэн"
           value={data?.stats?.sent ?? 0}
           tone="success"
         />
-        <MiniStat
+        <StatCard
           icon={<XCircle size={17} />}
           label="Амжилтгүй"
           value={data?.stats?.failed ?? 0}
           tone="danger"
         />
-        <MiniStat
+        <StatCard
           icon={<ShieldOff size={17} />}
           label="Хориглосон"
           value={data?.stats?.suppressed ?? 0}
@@ -336,18 +337,18 @@ function SubscribersTab() {
   return (
     <>
       <div className="mb-5 grid gap-3 grid-cols-1 sm:grid-cols-3">
-        <MiniStat
+        <StatCard
           icon={<Users size={17} />}
           label="Идэвхтэй"
           value={data?.stats?.ACTIVE ?? 0}
           tone="success"
         />
-        <MiniStat
+        <StatCard
           icon={<XCircle size={17} />}
           label="Цуцалсан"
           value={data?.stats?.UNSUBSCRIBED ?? 0}
         />
-        <MiniStat
+        <StatCard
           icon={<AlertTriangle size={17} />}
           label="Bounce"
           value={data?.stats?.BOUNCED ?? 0}
@@ -674,34 +675,3 @@ function SuppressionsTab() {
   );
 }
 
-function MiniStat({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone?: 'success' | 'danger' | 'warning';
-}) {
-  return (
-    <div className="admin-card flex items-center gap-3 rounded-xl p-3.5">
-      <span
-        className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-          tone === 'success' && 'bg-success/12 text-success',
-          tone === 'danger' && 'bg-destructive/12 text-destructive',
-          tone === 'warning' && 'bg-warning/12 text-warning',
-          !tone && 'bg-primary/12 text-primary',
-        )}
-      >
-        {icon}
-      </span>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-lg font-bold text-foreground">{value.toLocaleString()}</p>
-      </div>
-    </div>
-  );
-}

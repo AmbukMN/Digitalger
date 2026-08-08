@@ -230,8 +230,8 @@ export class UploadsController {
           data: { videoRawKey: rawKey, streamStatus: 'PROCESSING' },
         });
       }
-      // trailer: streamStatus нь movie-д зориулагдсан тул хөндөхгvй, HLS
-      // хөрвvvлэлт дуусахад worker шууд trailerKey-г бичнэ.
+      // trailer: streamStatus нь movie-д зориулагдсан тул хөндөхгүй, HLS
+      // хөрвүүлэлт дуусахад worker шууд trailerKey-г бичнэ.
     } else {
       const ep = await this.prisma.episode.findUnique({ where: { id: targetId } });
       if (!ep) throw new NotFoundException('Анги олдсонгүй');

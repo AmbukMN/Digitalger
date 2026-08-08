@@ -108,8 +108,8 @@ export function VideoUpload({
         await xhrUpload(uploadUrl, 'PUT', file, file.type || 'video/mp4', false);
         rawKey = key;
       } else {
-        // ⚠️ Next.js rewrite (/api/*) том файл upload-д тохирохгvй (dev/production
-        // сервер дундуур stream дамжуулалт найдваргvй, "100%" дээр гацдаг) —
+        // ⚠️ Next.js rewrite (/api/*) том файл upload-д тохирохгүй (dev/production
+        // сервер дундуур stream дамжуулалт найдваргүй, "100%" дээр гацдаг) —
         // backend руу ШУУД absolute URL-аар (Next rewrite тойрч) явуулна.
         // ⚠️ SAME-ORIGIN ЗААВАЛ — cross-origin preflight дээр Authorization
         //    алдагдаж 401 буцдаг (зураг upload-тай яг ижил шалтгаан).

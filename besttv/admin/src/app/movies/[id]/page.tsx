@@ -384,7 +384,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         <div className="admin-card mt-5 rounded-xl p-6">
           <label className="mb-1 block text-sm font-semibold text-foreground">Backdrop &amp; Трейлер</label>
           <p className="mb-3 text-xs text-muted-foreground">
-            16:9 hero зураг эсвэл трейлер видео сонгоно уу. Зураг WebP болгож автоматаар optimize хийнэ, видео HLS-рvv хөрвvvлэгдэнэ (1-3 мин).
+            16:9 hero зураг эсвэл трейлер видео сонгоно уу. Зураг WebP болгож автоматаар optimize хийнэ, видео HLS-рүv хөрвүүлэгдэнэ (1-3 мин).
           </p>
           <BackdropMediaUpload
             titleId={savedId ?? undefined}
@@ -431,13 +431,13 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
 
         <div className="admin-card mt-5 rounded-xl p-6">
           <label className="mb-1 block text-sm font-semibold text-foreground">Жүжигчид</label>
-          <p className="mb-3 text-xs text-muted-foreground">Гол дvрvvдийг нэмээрэй — нэр, дvрийн нэр, зураг (заавал биш).</p>
+          <p className="mb-3 text-xs text-muted-foreground">Гол дүрүүдийг нэмээрэй — нэр, дүрийн нэр, зураг (заавал биш).</p>
           <CastEditor cast={cast} onChange={setCast} />
         </div>
 
         <div className="admin-card mt-5 rounded-xl p-6">
           <label className="mb-1 block text-sm font-semibold text-foreground">Зургийн цомог</label>
-          <p className="mb-3 text-xs text-muted-foreground">Дэлгэрэнгvй хуудсанд харагдах нэмэлт screenshot/зурагнууд.</p>
+          <p className="mb-3 text-xs text-muted-foreground">Дэлгэрэнгүй хуудсанд харагдах нэмэлт screenshot/зурагнууд.</p>
           <GalleryEditor images={gallery} onChange={setGallery} />
         </div>
 

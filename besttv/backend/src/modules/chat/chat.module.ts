@@ -170,11 +170,15 @@ export class ChatAdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('onlyUnread') onlyUnread?: string,
+    /* ⚠️ Хайлт — имэйл/нэр/мессежийн агуулгаар (51+ дэх яриа руу
+       хүрэх цорын ганц зам байсан) */
+    @Query('q') q?: string,
   ) {
     return this.chat.listConversations({
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       onlyUnread: onlyUnread === '1' || onlyUnread === 'true',
+      q,
     });
   }
 

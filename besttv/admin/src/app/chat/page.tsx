@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Bot,
   Headphones,
   Loader2,
   MessagesSquare,
+  Search,
   Send,
   Sparkles,
   User as UserIcon,
@@ -19,6 +20,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { CardSkeleton } from '@/components/table-skeleton';
+import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
@@ -61,6 +63,9 @@ function timeAgo(iso: string): string {
 export default function ChatPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
+  /* ⚠️ Хайлт — 51+ дэх яриа руу хүрэх цорын ганц зам байсан */
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const qc = useQueryClient();
@@ -75,13 +80,17 @@ export default function ChatPage() {
 
   // Жагсаалт — 15 сек тутам шинэчилнэ (шинэ чат ирэхийг барина)
   const { data: list, isLoading } = useQuery({
-    queryKey: ['admin-chat-list', onlyUnread],
+    queryKey: ['admin-chat-list', onlyUnread, q, page],
     queryFn: () =>
-      api<{ items: ConvListItem[]; total: number; unreadTotal: number }>(
-        `/admin/chat/conversations?pageSize=50${onlyUnread ? '&onlyUnread=1' : ''}`,
+      api<{ items: ConvListItem[]; total: number; unreadTotal: number; totalPages?: number }>(
+        `/admin/chat/conversations?pageSize=30&page=${page}` +
+          (onlyUnread ? '&onlyUnread=1' : '') +
+          (q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''),
       ),
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
+    /* ⚠️ Хайх/хуудас солиход жагсаалт АНИВЧИХГҮЙ (хуучин дата үлдэнэ) */
+    placeholderData: keepPreviousData,
   });
 
   // Сонгосон яриа — 6 сек тутам (хэрэглэгчийн шинэ мессежийг хурдан харах)
@@ -176,9 +185,22 @@ export default function ChatPage() {
             selected ? 'hidden' : 'flex',
           )}
         >
+          {/* ⚠️ Хайлт — хэрэглэгчийн имэйл/нэр эсвэл зурвасын агуулгаар.
+              Зочин хэрэглэгч имэйлгүй тул агуулгаар л олдоно. */}
+          <div className="border-b border-border p-2.5">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={q}
+                onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                placeholder="Имэйл, нэр, зурвасаар хайх..."
+                className="w-full rounded-md border border-input bg-card py-1.5 pl-8 pr-2.5 text-xs text-foreground outline-none focus:border-primary"
+              />
+            </div>
+          </div>
           <div className="flex items-center gap-2 border-b border-border p-2.5">
             <button
-              onClick={() => setOnlyUnread(false)}
+              onClick={() => { setOnlyUnread(false); setPage(1); }}
               className={cn(
                 'flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors',
                 !onlyUnread ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
@@ -187,7 +209,7 @@ export default function ChatPage() {
               Бүгд
             </button>
             <button
-              onClick={() => setOnlyUnread(true)}
+              onClick={() => { setOnlyUnread(true); setPage(1); }}
               className={cn(
                 'flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors',
                 onlyUnread ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
@@ -267,6 +289,22 @@ export default function ChatPage() {
               })
             )}
           </div>
+
+          {/* ⚠️⚠️ ХУУДАСЛАЛТ — өмнө нь `pageSize=50` тогтмол байсан тул
+              51 дэх яриа руу хүрэх ЯМАР Ч арга байгаагүй. Одоо 30-аар
+              хуудаслаж, доод талд байрлана (жагсаалт гүйлгэхэд хамт
+              гүйхгүй — `shrink-0`). */}
+          {(list?.totalPages ?? 1) > 1 && (
+            <div className="shrink-0 border-t border-border px-2.5 py-1.5">
+              <Pagination
+                page={page}
+                totalPages={list?.totalPages ?? 1}
+                total={list?.total}
+                limit={30}
+                onPage={setPage}
+              />
+            </div>
+          )}
         </div>
 
         {/* ── Яриа ── ⚠️ Мобайлд зөвхөн СОНГОГДСОН үед харагдана */}
@@ -347,7 +385,7 @@ export default function ChatPage() {
                         </p>
                         <div
                           className={cn(
-                            'whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm',
+                            'whitespace-pre-wrap wrap-break-word rounded-2xl px-3.5 py-2.5 text-sm',
                             isUser
                               ? 'rounded-bl-md bg-card text-foreground'
                               : isAdmin
@@ -390,12 +428,12 @@ export default function ChatPage() {
                     rows={2}
                     placeholder="Хариу бичих... (Enter илгээх, Shift+Enter шинэ мөр)"
                     disabled={sending}
-                    className="max-h-32 min-h-[52px] flex-1 resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary disabled:opacity-50"
+                    className="max-h-32 min-h-13 flex-1 resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary disabled:opacity-50"
                   />
                   <button
                     onClick={send}
                     disabled={!reply.trim() || sending}
-                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:brightness-110 disabled:opacity-40"
+                    className="flex h-13 w-13 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:brightness-110 disabled:opacity-40"
                   >
                     {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                   </button>

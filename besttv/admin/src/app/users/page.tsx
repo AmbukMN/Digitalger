@@ -8,6 +8,7 @@ import { Loader2, ShieldCheck, UserCheck, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
 import { AdminShell } from '@/components/admin-shell';
+import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { AdminErrorState } from '@/components/admin-error-state';
@@ -110,20 +111,20 @@ export default function UsersPage() {
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
         {/* Товч статистик */}
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MiniStat icon={<Users size={17} />} label="Нийт" value={counts?.ALL ?? 0} />
-          <MiniStat
+          <StatCard icon={<Users size={17} />} label="Нийт" value={counts?.ALL ?? 0} />
+          <StatCard
             icon={<UserCheck size={17} />}
             label="Идэвхтэй"
             value={counts?.active ?? 0}
             tone="success"
           />
-          <MiniStat
+          <StatCard
             icon={<Wallet size={17} />}
             label="Багцтай"
             value={counts?.withSub ?? 0}
             tone="premium"
           />
-          <MiniStat
+          <StatCard
             icon={<ShieldCheck size={17} />}
             label="Хаагдсан"
             value={counts?.blocked ?? 0}
@@ -356,34 +357,3 @@ export default function UsersPage() {
   );
 }
 
-function MiniStat({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone?: 'success' | 'premium' | 'danger';
-}) {
-  return (
-    <div className="admin-card flex items-center gap-3 rounded-xl p-3.5">
-      <span
-        className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-          tone === 'success' && 'bg-success/12 text-success',
-          tone === 'premium' && 'bg-premium/12 text-premium',
-          tone === 'danger' && 'bg-destructive/12 text-destructive',
-          !tone && 'bg-primary/12 text-primary',
-        )}
-      >
-        {icon}
-      </span>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-lg font-bold text-foreground">{value.toLocaleString()}</p>
-      </div>
-    </div>
-  );
-}

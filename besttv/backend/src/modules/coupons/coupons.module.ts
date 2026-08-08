@@ -139,19 +139,19 @@ export class CouponsService {
     return { ok: true };
   }
 
-  /** Хямдрал тооцох (захиалга vvсгэхээс өмнө frontend талд шалгахад) — ашиглалт
-   * ЗӨВХӨН энд нэмэгддэггvй, бодит incrementUse нь payment амжилттай болоход дуудагдана. */
+  /** Хямдрал тооцох (захиалга vүсгэхээс өмнө frontend талд шалгахад) — ашиглалт
+   * ЗӨВХӨН энд нэмэгддэггүй, бодит incrementUse нь payment амжилттай болоход дуудагдана. */
   async validate(dto: ValidateCouponDto) {
     const coupon = await this.prisma.coupon.findUnique({ where: { code: dto.code.toUpperCase().trim() } });
-    if (!coupon || !coupon.isActive) throw new BadRequestException('Хvчингvй купон код байна');
+    if (!coupon || !coupon.isActive) throw new BadRequestException('Хүчингүй купон код байна');
     if (coupon.expiresAt && coupon.expiresAt < new Date()) {
       throw new BadRequestException('Купон хугацаа дууссан байна');
     }
     if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
-      throw new BadRequestException('Купон дvvрсэн байна');
+      throw new BadRequestException('Купон дүүрсэн байна');
     }
     if (dto.price < coupon.minPrice) {
-      throw new BadRequestException(`Хамгийн бага дvн ${coupon.minPrice}₮`);
+      throw new BadRequestException(`Хамгийн бага дүн ${coupon.minPrice}₮`);
     }
 
     /**
@@ -176,11 +176,11 @@ export class CouponsService {
   }
 
   /**
-   * Payments service дотроос дуудагдана (нэг удаагийн зарцуулалт бvртгэх).
+   * Payments service дотроос дуудагдана (нэг удаагийн зарцуулалт бүртгэх).
    *
    * ⚠️ updateMany + maxUses нөхцөл — олон төлбөр ЗЭРЭГ баталгаажихад (webhook +
-   * polling + reconcile) usedCount нь maxUses-аас ХЭТЭРЧ болохгvй. Нөхцөл нь
-   * DB тvвшинд шалгагдаж атомар инкремент хийгдэнэ.
+   * polling + reconcile) usedCount нь maxUses-аас ХЭТЭРЧ болохгүй. Нөхцөл нь
+   * DB түвшинд шалгагдаж атомар инкремент хийгдэнэ.
    */
   async incrementUse(code: string) {
     const normalized = code.toUpperCase().trim();
@@ -195,9 +195,9 @@ export class CouponsService {
       .catch(() => null);
 
     if (!res || res.count === 0) {
-      // Хязгаар дvvрсэн ч төлбөр аль хэдийн хийгдсэн тул эрхийг vгvйсгэхгvй —
-      // зөвхөн бvртгэнэ (админ хожим шалгах боломжтой).
-      this.logger.warn(`Купон "${normalized}" ашиглалт нэмэгдсэнгvй (хязгаар дvvрсэн байж болзошгvй)`);
+      // Хязгаар дүүрсэн ч төлбөр аль хэдийн хийгдсэн тул эрхийг үгүйсгэхгүй —
+      // зөвхөн бүртгэнэ (админ хожим шалгах боломжтой).
+      this.logger.warn(`Купон "${normalized}" ашиглалт нэмэгдсэнгүй (хязгаар дүүрсэн байж болзошгүй)`);
     }
   }
 }

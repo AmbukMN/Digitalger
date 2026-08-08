@@ -42,7 +42,7 @@ class FaqDto {
 export class FaqService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Public — зөвхөн идэвхтэй, ангиллаар бvлэглэхэд бэлэн дараалалтай */
+  /** Public — зөвхөн идэвхтэй, ангиллаар бүлэглэхэд бэлэн дараалалтай */
   list() {
     return this.prisma.faq.findMany({
       where: { isActive: true },

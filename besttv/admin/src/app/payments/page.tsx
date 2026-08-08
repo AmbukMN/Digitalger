@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
+import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { AdminErrorState } from '@/components/admin-error-state';
@@ -164,6 +165,7 @@ export default function PaymentsPage() {
         {/* ── Статистик — ШҮҮЛТЭД тохирсон дүн (зөвхөн энэ хуудас биш) ── */}
         <div className="mb-5 grid gap-3 grid-cols-1 sm:grid-cols-3">
           <StatCard
+            layout="stack"
             icon={<TrendingUp size={18} />}
             label="Төлөгдсөн орлого"
             value={formatPrice(stats?.paidAmount ?? 0)}
@@ -171,12 +173,14 @@ export default function PaymentsPage() {
             tone="success"
           />
           <StatCard
+            layout="stack"
             icon={<CreditCard size={18} />}
             label="Нийт дүн (бүх төлөв)"
             value={formatPrice(stats?.totalAmount ?? 0)}
             hint={`${(data?.total ?? 0).toLocaleString()} гүйлгээ`}
           />
           <StatCard
+            layout="stack"
             icon={<Wallet size={18} />}
             label="Дундаж дүн"
             value={formatPrice(
@@ -406,36 +410,3 @@ export default function PaymentsPage() {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: 'success';
-}) {
-  return (
-    <div className="admin-card rounded-xl p-4">
-      <div className="flex items-center gap-2.5">
-        <span
-          className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-lg',
-            tone === 'success' ? 'bg-success/12 text-success' : 'bg-primary/12 text-primary',
-          )}
-        >
-          {icon}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-xs text-muted-foreground">{label}</p>
-          <p className="text-lg font-bold text-foreground">{value}</p>
-        </div>
-      </div>
-      {hint && <p className="mt-1.5 text-[11px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}

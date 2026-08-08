@@ -143,14 +143,14 @@ export class AuthController {
     return this.auth.changePassword(user.sub, dto);
   }
 
-  /** Хэрэглэгч өөрийн профайл зураг upload хийнэ (admin эрхгvйгээр) */
+  /** Хэрэглэгч өөрийн профайл зураг upload хийнэ (admin эрхгүйгээр) */
   @Post('me/avatar')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: AVATAR_SIZE_LIMIT } }))
   async uploadAvatar(@CurrentUser() user: JwtPayload, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('Файл сонгоогүй байна');
     if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
-      throw new BadRequestException(`Зөвшөөрөгдөөгvй зургийн төрөл: ${file.mimetype}`);
+      throw new BadRequestException(`Зөвшөөрөгдөөгүй зургийн төрөл: ${file.mimetype}`);
     }
 
     const sharp = (await import('sharp')).default;
