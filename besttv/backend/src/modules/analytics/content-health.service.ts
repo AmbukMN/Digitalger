@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 
 /**
  * КОНТЕНТЫН ЭРҮҮЛ МЭНД — «мөнгө авчихаад үзүүлэх юмгүй» байдлыг илрүүлнэ.
@@ -39,7 +40,11 @@ const MAX_NAMES = 8;
 
 @Injectable()
 export class ContentHealthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    /* ⚠️ Имэйл тохиргоо алдагдсаныг илрүүлэхэд (`isConfigured`) */
+    private readonly email: EmailService,
+  ) {}
 
   async check(): Promise<ContentHealthResult> {
     const issues: HealthIssue[] = [];
@@ -253,6 +258,37 @@ export class ContentHealthService {
         title: `${noPoster} кино постергүй`,
         detail: 'Нүүр хуудсанд саарал хайрцаг харагдана — хэрэглэгчийн итгэл буурна.',
         href: '/movies',
+      });
+    }
+
+    /* ─── 6. Имэйл илгээх боломжгүй ─────────────────────────────────
+     *
+     * ⚠️⚠️ ЧИМЭЭГҮЙ АЛДАГДАЛ: AWS түлхүүр `.env`-ээс алга болоход
+     * систем ажилласаар байв — зөвхөн startup дээр нэг `warn` мөр.
+     * Худалдан авагч баримт авахгүй, нууц үг сэргээх холбоос хэзээ ч
+     * ирэхгүй, хэрэглэгч "сайт эвдэрсэн" гэж бодно. Админ логоо
+     * уншихгүй бол ХЭЗЭЭ Ч мэдэхгүй.
+     */
+    if (!this.email.isConfigured) {
+      issues.push({
+        level: 'critical',
+        title: 'Имэйл илгээх тохиргоо дутуу',
+        detail:
+          'AWS түлхүүр байхгүй тул НЭГ Ч имэйл илгээгдэхгүй байна — худалдан авалтын баримт, нууц үг сэргээх холбоос, баталгаажуулалт бүгд явахгүй. `.env`-д AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY нэмнэ үү.',
+        href: '/email',
+      });
+    }
+
+    /* ─── 7. Сүүлийн үеийн амжилтгүй имэйл ──────────────────────────── */
+    const failedEmails = await this.prisma.emailLog.count({
+      where: { status: 'failed', createdAt: { gt: new Date(Date.now() - 24 * 3600_000) } },
+    });
+    if (failedEmails > 0) {
+      issues.push({
+        level: 'warning',
+        title: `${failedEmails} имэйл сүүлийн 24 цагт амжилтгүй`,
+        detail: 'Имэйлийн бүртгэлээс шалтгааныг харна уу.',
+        href: '/email',
       });
     }
 

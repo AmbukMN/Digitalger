@@ -59,6 +59,19 @@ export type EmailTemplate =
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly ses: SESClient | null;
+
+  /**
+   * ⚠️⚠️ ИМЭЙЛ ИЛГЭЭХ БОЛОМЖТОЙ ЭСЭХ — эрүүл мэндийн шалгалтад.
+   *
+   * БОДИТ АСУУДАЛ: AWS түлхүүр `.env`-ээс алга болоход систем
+   * ЧИМЭЭГҮЙ ажилласаар байв — зөвхөн startup дээр нэг `warn` мөр
+   * гарч, дараа нь имэйл бүр `failed` гэж бүртгэгдэнэ. Админ
+   * логоо уншихгүй бол ХЭЗЭЭ Ч мэдэхгүй: худалдан авагч баримт
+   * авахгүй, нууц үг сэргээх холбоос хэзээ ч ирэхгүй.
+   */
+  get isConfigured(): boolean {
+    return this.ses !== null;
+  }
   private readonly from: string;
   private readonly siteUrl: string;
   private readonly queue: Array<() => Promise<unknown>> = [];
