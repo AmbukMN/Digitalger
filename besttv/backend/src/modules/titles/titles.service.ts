@@ -272,6 +272,24 @@ export class TitlesService {
       ...(params.year ? { year: params.year } : {}),
     };
 
+    /**
+     * ⚠️⚠️ ЖАНРААР ШҮҮХЭД АДМИНЫ ЭРЭМБИЙГ ДАГАНА.
+     *
+     * Нүүр хуудасны жанрын эгнээ нь `TitleGenre.order`-оор эрэмбэлэгддэг
+     * (админ панелийн "Эрэмбэлэх" хуудсаар тохируулна). Гэтэл "Бүгд"
+     * товч дарж каталогт орвол ЗӨВХӨН `createdAt desc` байсан тул
+     * ХОЁР ХУУДАС ӨӨР дараалал үзүүлж, админы тохируулсан эрэмбэ
+     * алга болдог байв ("яагаад миний онцлох кино эхэнд байхгүй вэ?").
+     *
+     * ⚠️ Prisma нь олон-олон холбоосын талбараар (`genres.order`)
+     * эрэмбэлж ЧАДДАГГҮЙ тул холбоосын хүснэгт талаас query хийнэ.
+     *
+     * ⚠️ Зөвхөн АНХНЫ (`new`) эрэмбэд — хэрэглэгч "Алдартай"/"Үнэлгээ"
+     * гэж ЗОРИУД сонгосон бол түүнийг нь хүндэтгэнэ.
+     */
+    const useGenreOrder = !!params.genre && (!params.sort || params.sort === 'new');
+    if (useGenreOrder) return this.listByGenreOrder(where, params.genre!, page, limit);
+
     const orderBy: Prisma.TitleOrderByWithRelationInput =
       params.sort === 'popular'
         ? { views: 'desc' }
@@ -292,6 +310,53 @@ export class TitlesService {
 
     return {
       items: await this.media.decorateMany(items),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Жанрын каталог — АДМИНЫ тохируулсан дарааллаар (нүүр хуудастай ижил).
+   *
+   * ⚠️⚠️ ЯАГААД ХОЛБООСЫН ХҮСНЭГТ ТАЛААС ВЭ:
+   * Prisma-д `title.findMany({ orderBy: { genres: { order } } })` гэж
+   * бичих БОЛОМЖГҮЙ (олон-олон холбоосын талбараар эрэмбэлэхийг
+   * дэмждэггүй). Тиймээс `titleGenre`-ээс эхэлж, дотор нь `title`-ыг
+   * татна — эрэмбэ нь холбоосын мөр дээр байгаа тул шууд ажиллана.
+   *
+   * ⚠️ `order` тэнцүү (админ гараар эрэмбэлээгүй, бүгд 0) үед
+   * `createdAt desc` — нүүр хуудасны `genreRows` query-тэй ЯГ ИЖИЛ
+   * хоёрдогч түлхүүр. Эс бөгөөс Postgres дурын дараалал буцаана.
+   */
+  private async listByGenreOrder(
+    where: Prisma.TitleWhereInput,
+    genreSlug: string,
+    page: number,
+    limit: number,
+  ) {
+    /* ⚠️ `where`-ээс жанрын нөхцөлийг ХАСНА — энд `genreId`-гээр
+       шүүж байгаа тул давхардвал дэмий JOIN нэмэгдэнэ */
+    const { genres: _drop, ...titleWhere } = where;
+
+    const linkWhere: Prisma.TitleGenreWhereInput = {
+      genre: { slug: genreSlug },
+      title: titleWhere,
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.titleGenre.findMany({
+        where: linkWhere,
+        orderBy: [{ order: 'asc' }, { title: { createdAt: 'desc' } }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: { title: { select: CARD_SELECT } },
+      }),
+      this.prisma.titleGenre.count({ where: linkWhere }),
+    ]);
+
+    return {
+      items: await this.media.decorateMany(rows.map((r) => r.title)),
       total,
       page,
       totalPages: Math.ceil(total / limit),

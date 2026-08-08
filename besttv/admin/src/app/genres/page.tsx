@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpDown, Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
@@ -205,6 +206,18 @@ export default function GenresPage() {
                       <span className="rounded-md bg-destructive/15 px-2 py-1 text-xs font-medium text-destructive">
                         🔞 18+
                       </span>
+                    )}
+                    {/* ⚠️ Кинотой жанрт л эрэмбэлэх утгатай — хоосон жанрт
+                        товч гарвал хоосон хуудас нээгдэж будлиан үүснэ */}
+                    {(g._count?.titles ?? 0) > 1 && (
+                      <Link
+                        href={`/genres/${g.id}/order`}
+                        aria-label="Кино эрэмбэлэх"
+                        title="Нүүрэнд гарах дарааллыг өөрчлөх"
+                        className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+                      >
+                        <ArrowUpDown size={15} />
+                      </Link>
                     )}
                     {/* ⚠️ 36px — өмнөх 26px (`p-1.5`+14px) нь хүрэлцэх
                         зөвлөмжөөс хамаагүй бага, таблет дээр устгахыг
