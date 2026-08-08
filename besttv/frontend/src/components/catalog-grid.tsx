@@ -106,15 +106,24 @@ export function CatalogGrid({
         Ангилал зөвхөн ЖАНРААР.
       */}
       {/*
-        ⚠️⚠️ MOBILE-Д НЭГ МӨРӨНД — хэвтээ гүйлгэнэ (`flex-nowrap` + scroll).
-        Өмнө нь `flex-wrap` байсан тул жанр 3+ болоход 2 дахь мөр рүү
-        буугаад доод контентыг түлхэж, эвгүй харагддаг байв.
-        `-mx-4 px-4` — гүйлгэх талбар дэлгэцийн ирмэг хүртэл үргэлжилнэ
-        (chip таслагдаж дуусаагүй мэт харагдана → үргэлжлэлтэй гэдэг нь
-        мэдэгдэнэ). sm-ээс дээш эргээд wrap болно.
+        ⚠️⚠️ БҮХ ДЭЛГЭЦЭД WRAP — хэвтээ гүйлт БАЙХГҮЙ.
+
+        Өмнө нь мобайлд `overflow-x-auto` байсан нь БУРУУ болсон: жанрын
+        нэр урт (“Хятад болон Ай кино”) тул 4 chip нэг мөрөнд багтахгүй,
+        сүүлийн жанр(ууд) дэлгэцийн БАРУУН ГАДНА бүрэн далд үлддэг байв.
+        Гүйлгэх боломжтой гэдгийг заасан юу ч байхгүй (scrollbar нуусан,
+        fade ч алга) тул хэрэглэгч тэр жанр БАЙХГҮЙ гэж ойлгоно —
+        каталогийн гол шүүлтүүр нь ҮЛ ҮЗЭГДЭХ болж байлаа.
+
+        ⚠️ Хоёр дахь мөр рүү бууж контентыг доош түлхэх нь далд орохоос
+        ХАМААГҮЙ ДЭЭР: 2-3 мөр chip нь ердөө ~40px нэмнэ, харин далд
+        жанрыг хэрэглэгч ХЭЗЭЭ Ч олохгүй.
+
+        ⚠️ `snap-*`, `hide-scrollbar` ХАСАВ — гүйлт байхгүй болсон тул
+        утгагүй (snap нь wrap-тай хамт ажиллахгүй).
       */}
       <div
-        className="hide-scrollbar -mx-4 mt-6 flex snap-x snap-mandatory items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        className="mt-6 flex flex-wrap items-center gap-2"
         role="group"
         aria-label="Жанраар шүүх"
       >
@@ -242,10 +251,11 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        /* ⚠️ `shrink-0 whitespace-nowrap` — хэвтээ гүйлгэх горимд chip
-           шахагдаж, нэр нь эвдрэхээс сэргийлнэ. `snap-start` — гүйлгэхэд
-           chip-ийн ирмэг дээр цэвэрхэн зогсоно. */
-        'shrink-0 snap-start whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-all',
+        /* ⚠️ `whitespace-nowrap` — жанрын нэр ДОТРОО таслагдахгүй (chip
+           бүхэлдээ дараагийн мөр рүү бууна).
+           ⚠️ `shrink-0 snap-start` ХАСАВ — эцэг элемент wrap болсон тул
+           гүйлт байхгүй (snap утгагүй), шахагдах ч аюул алга. */
+        'whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-all',
         /* ⚠️ Идэвхтэй chip нь `bg-white text-black` байсан тул ГЭРЭЛ горимд
            цагаан дээр цагаан болж алга болдог. Одоо `foreground` (theme-ийн
            эсрэг өнгө) → хоёр горимд ч тод харагдана. */

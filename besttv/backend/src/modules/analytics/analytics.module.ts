@@ -7,6 +7,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { InsightsService } from './insights.service';
 import { StorageUsageService } from './storage-usage.service';
+import { ContentHealthService } from './content-health.service';
 
 /**
  * Хянах самбарын хугацааны сонголт.
@@ -232,6 +233,7 @@ export class AnalyticsController {
     private readonly svc: AnalyticsService,
     private readonly insights: InsightsService,
     private readonly storageUsage: StorageUsageService,
+    private readonly health: ContentHealthService,
   ) {}
 
   /** Хэрэглэгчийн зан төлөвийн шинжилгээ (хандалт, юүлүүр, хайлт) */
@@ -253,10 +255,19 @@ export class AnalyticsController {
   storage(@Query('refresh') refresh?: string) {
     return this.storageUsage.usage(refresh === '1' || refresh === 'true');
   }
+
+  /**
+   * Контентын эрүүл мэнд — «мөнгө авчихаад үзүүлэх юмгүй» байдлыг илрүүлнэ.
+   * ⚠️ Зөвхөн тайлан — юу ч автоматаар өөрчлөхгүй.
+   */
+  @Get('health')
+  contentHealth() {
+    return this.health.check();
+  }
 }
 
 @Module({
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, InsightsService, StorageUsageService],
+  providers: [AnalyticsService, InsightsService, StorageUsageService, ContentHealthService],
 })
 export class AnalyticsModule {}

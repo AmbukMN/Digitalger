@@ -319,9 +319,13 @@ export function ReviewsSection({
         </div>
       )}
 
-      {/* ── Эрэмбэлэлт ── */}
+      {/* ── Эрэмбэлэлт ──
+          ⚠️ `flex-wrap` — өмнө нь `overflow-x-auto` байсан тул нарийн
+          дэлгэцэд сүүлийн эрэмбийн товч далд ордог байв (гүйлгэх
+          боломжтой гэдгийг заасан юу ч байхгүй). Товч цөөн тул wrap
+          хийхэд хамгийн ихдээ 1 мөр нэмэгдэнэ. */}
       {total > 0 && (
-        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="mb-3 flex flex-wrap items-center gap-2 pb-1">
           {SORT_LABELS.map((s) => (
             <button
               key={s.value}
@@ -461,7 +465,7 @@ function ReviewCard({
         r.isStaff
           ? 'border-primary/30 bg-primary/8'
           : isReply
-            ? 'border-foreground/8 bg-white/[0.03]'
+            ? 'border-foreground/8 bg-white/3'
             : 'border-foreground/10 bg-foreground/5',
       )}
     >
@@ -501,7 +505,7 @@ function ReviewCard({
                 <EyeOff size={13} /> Спойлер агуулсан — харахын тулд дарна уу
               </button>
             ) : (
-              <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/70">
+              <p className="mt-1.5 whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground/70">
                 {r.comment}
               </p>
             ))}
