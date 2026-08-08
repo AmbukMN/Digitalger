@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { SubscriberService } from '../email/email.module';
@@ -22,6 +22,14 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * Нууц үг сэргээх линкийн хүчинтэй хугацаа.
+ * ⚠️ Богино байх тусам аюулгүй (имэйл хайрцаг задарсан үед ашиглагдах
+ * цонх багасна), гэхдээ хэрэглэгч имэйлээ шалгаж амжих ёстой — 1 цаг
+ * нь салбарын нийтлэг тэнцвэр.
+ */
+const RESET_TTL_MS = 60 * 60 * 1000;
 
 export interface AuthResult extends AuthTokens {
   user: {
@@ -365,6 +373,195 @@ export class AuthService {
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
     await this.tracking.audit(userId, 'password');
     return { ok: true };
+  }
+
+  // ─── Нууц үг сэргээх (forgot / reset) ───────────────────────────────────────
+
+  /**
+   * Сэргээх линк илгээх.
+   *
+   * ⚠️⚠️ ХЭРЭГЛЭГЧ БАЙГАА ЭСЭХИЙГ ХЭЗЭЭ Ч БҮҮ ЗАДРУУЛ.
+   *
+   * "Ийм имэйл олдсонгүй" гэж хэлбэл халдлагч энэ endpoint-ыг жагсаалттай
+   * имэйлээр дараалан дуудаж, МАНАЙ хэрэглэгч ХЭН БЭ гэдгийг бүрэн
+   * тоочино (user enumeration). Тэр жагсаалт нь дараа нь фишинг,
+   * credential-stuffing халдлагад шууд ашиглагдана.
+   *
+   * Тиймээс ДООРХ БҮХ тохиолдолд ЯГ ИЖИЛ хариу буцна:
+   *   • имэйл огт бүртгэлгүй
+   *   • бүртгэлтэй, линк илгээгдсэн
+   *   • OAuth (Google/Facebook) бүртгэл — нууц үг байхгүй тул илгээхгүй
+   *   • бүртгэл хаагдсан (isActive=false)
+   *   • suppression-д орсон хаяг (SES bounce)
+   */
+  async forgotPassword(
+    email: string,
+    meta: { ip?: string | null; userAgent?: string | null } = {},
+  ): Promise<{ ok: true; message: string }> {
+    /* ⚠️ Энэ хариуг БҮХ салбарт ИЖИЛХЭН буцаана — доорх `return`-ууд
+       ялгаатай байвал халдлагч ялгааг хараад л enumeration хийнэ. */
+    const SAME_RESPONSE = {
+      ok: true as const,
+      message: 'Хэрэв энэ имэйл бүртгэлтэй бол сэргээх линк илгээгдлээ.',
+    };
+
+    const mail = email.toLowerCase().trim();
+    const user = await this.prisma.user.findUnique({ where: { email: mail } });
+
+    /**
+     * Илгээхгүй тохиолдлууд — гэхдээ хариу ИЖИЛ:
+     *   • `!user`         — бүртгэлгүй
+     *   • `!passwordHash` — Google/Facebook-аар бүртгүүлсэн. Нууц үг
+     *     ОГТ БАЙХГҮЙ тул "сэргээх" утгагүй. Мөн энд нууц үг ҮҮСГЭЖ
+     *     болохгүй: имэйл эзэмшигч нь OAuth эзэмшигчтэй ижил гэдэг нь
+     *     баталгаагүй тул шинэ нэвтрэх зам нээх нь эрсдэлтэй.
+     *   • `!isActive`     — хаагдсан бүртгэл дахин нээгдэх ёсгүй
+     *   • `isGuest`       — зочин бүртгэл нэвтрэх боломжгүй болсон
+     */
+    if (!user || !user.passwordHash || !user.isActive || user.isGuest) {
+      return SAME_RESPONSE;
+    }
+
+    /**
+     * ⚠️ Хуучин идэвхтэй токенуудыг УСТГАНА — нэг хэрэглэгчид нэг л
+     * идэвхтэй линк. Эс бөгөөс хэрэглэгч 10 удаа дарахад 10 хүчинтэй
+     * линк үлдэж, аль нэг нь задарвал (дамжуулсан имэйл, лог) удаан
+     * хугацаанд ашиглагдах цонх нээгдэнэ.
+     */
+    await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+
+    // ⚠️ 32 байт (256 бит) — таамаглах боломжгүй. `Math.random()` ХЭЗЭЭ Ч БОЛОХГҮЙ.
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: this.hashResetToken(token),
+        ip: meta.ip ?? null,
+        userAgent: meta.userAgent?.slice(0, 300) ?? null,
+        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      },
+    });
+
+    const siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
+    const resetUrl = `${siteUrl}/reset-password?token=${token}`;
+
+    /**
+     * ⚠️ Имэйл илгээлт амжилтгүй болсныг ч ХЭРЭГЛЭГЧИД ХЭЛЭХГҮЙ —
+     * "илгээж чадсангүй" гэсэн хариу нь "энэ имэйл БҮРТГЭЛТЭЙ" гэдгийг
+     * шууд баталчихна (бүртгэлгүй имэйлд бид огт илгээхийг оролддоггүй).
+     * Алдааг зөвхөн лог + EmailLog-д үлдээнэ (админ хянана).
+     */
+    const sent = await this.email
+      .sendPasswordReset({
+        to: mail,
+        resetUrl,
+        name: user.name,
+        expiresMinutes: RESET_TTL_MS / 60_000,
+        userId: user.id,
+      })
+      .catch(() => false);
+    if (!sent) {
+      this.logger.error(`Нууц үг сэргээх имэйл илгээгдсэнгүй: ${mail}`);
+    }
+
+    await this.tracking.audit(user.id, 'password_reset_request', { ip: meta.ip });
+    return SAME_RESPONSE;
+  }
+
+  /**
+   * Токеноор нууц үг солих.
+   *
+   * ⚠️ Токен ХЭШЛЭЖ хадгалагдсан тул ирсэн утгыг хэшлээд хайна —
+   * DB-д түүхий токен ХЭЗЭЭ Ч байхгүй.
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string,
+    meta: { ip?: string | null } = {},
+  ): Promise<{ ok: true }> {
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.hashResetToken(token) },
+      include: { user: true },
+    });
+
+    /* ⚠️ Хугацаа дууссан/олдоогүй хоёрт ИЖИЛ мессеж — токен бодитоор
+       байсан эсэхийг ялгаж мэдэх нь халдлагчид хэрэгтэй мэдээлэл. */
+    if (!row || row.expiresAt < new Date()) {
+      // Хугацаа дууссан бол шууд цэвэрлэнэ (хог хуримтлагдахгүй)
+      if (row) {
+        await this.prisma.passwordResetToken.delete({ where: { id: row.id } }).catch(() => null);
+      }
+      throw new BadRequestException(
+        'Линк хүчингүй эсвэл хугацаа нь дууссан байна. Дахин хүсэлт илгээнэ үү.',
+      );
+    }
+
+    const user = row.user;
+    if (!user.isActive || user.isGuest) {
+      throw new BadRequestException('Энэ бүртгэлээр нэвтрэх боломжгүй байна');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    /**
+     * ⚠️ Нэг гүйлгээнд — нууц үг солих БОЛОН токен устгах хоёрын хооронд
+     * алдаа гарвал токен хүчинтэй үлдэж, ДАХИН ашиглагдах боломжтой
+     * болно (нэг удаагийн баталгаа алдагдана).
+     */
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          /* ⚠️ Сэргээх линкийг зөвхөн имэйлийн ЖИНХЭНЭ эзэн авч чадна —
+             тиймээс энэ нь имэйл эзэмшлийн баталгаа болно. */
+          emailVerified: true,
+        },
+      }),
+      // Тухайн хэрэглэгчийн БҮХ токен (энэ болон бусад) устана
+      this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
+    ]);
+
+    /**
+     * ⚠️⚠️ ХИЙГДЭЭГҮЙ — ИРЭЭДҮЙД ХИЙХ: БҮХ SESSION-ыг ХҮЧИНГҮЙ БОЛГОХ.
+     *
+     * Нууц үг сэргээх гол шалтгаан нь ихэвчлэн "бүртгэл булаагдсан".
+     * Гэтэл манай refresh token нь STATELESS JWT — DB-д хадгалагддаггүй
+     * тул ганцаарчлан хүчингүй болгох боломжгүй. Үр дүнд халдлагчийн
+     * гарт байгаа refresh token нь нууц үг солигдсоны ДАРАА Ч 30 хоног
+     * ажилласаар байна.
+     *
+     * ЗАСАХ ХУВИЛБАРУУД (аль нэгийг сонгоно):
+     *   A) `User.tokenVersion Int @default(0)` багана нэмэх → JWT payload-д
+     *      оруулж, `JwtStrategy`-д харьцуулах. Энд `increment: 1` хийвэл
+     *      бүх хуучин токен нэг дор үхнэ. (ХАМГИЙН ЭНГИЙН — DB нэг багана,
+     *      нэмэлт хүснэгт/Redis хэрэггүй.)
+     *   B) `RefreshToken` хүснэгт үүсгэж бүх refresh-ийг DB-д хадгалах
+     *      (revoke жагсаалттай). Илүү уян хатан ч илүү нарийн.
+     *
+     * Одоохондоо: нууц үг солигдсоныг хэрэглэгчид ИМЭЙЛЭЭР мэдэгдэж,
+     * сэжигтэй үед гараар арга хэмжээ авах боломж олгож байна.
+     */
+
+    await this.tracking.audit(user.id, 'password', {
+      newValue: 'reset',
+      actor: 'self',
+      ip: meta.ip,
+    });
+    this.email.sendPasswordChanged({ to: user.email, name: user.name, userId: user.id });
+
+    return { ok: true };
+  }
+
+  /**
+   * ⚠️ SHA-256 (bcrypt БИШ) — сэргээх токен нь 256 бит САНАМСАРГҮЙ утга
+   * тул brute-force боломжгүй, удаан хэш хэрэггүй. Мөн bcrypt-ийн хэш нь
+   * давс (salt) агуулдаг тул НЭГ утга ХЭД ХЭДЭН хэш өгдөг → `WHERE
+   * tokenHash = ?` гэж индексээр хайх БОЛОМЖГҮЙ болно (бүх мөрийг
+   * гүйлгэж compare хийх шаардлагатай болно).
+   */
+  private hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   /**

@@ -182,6 +182,32 @@ export interface AdminPage {
   updatedAt: string;
 }
 
+/** Нүүрний ДУНД баннер — hero carousel-ЭЭС ТУСДАА */
+export interface AdminBanner {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageKey: string;
+  mobileImageKey: string | null;
+  ctaText: string;
+  ctaHref: string;
+  /** Хэддэх жанрын эгнээний ДАРАА орох (0 = хамгийн дээр) */
+  position: number;
+  order: number;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  imageUrl: string | null;
+  mobileImageUrl: string | null;
+}
+
+export function useAdminBanners() {
+  return useQuery({
+    queryKey: ['admin-banners'],
+    queryFn: () => api<AdminBanner[]>('/admin/banners'),
+  });
+}
+
 export function useAdminPages() {
   return useQuery({
     queryKey: ['admin-pages'],

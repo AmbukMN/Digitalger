@@ -35,6 +35,12 @@ export type EmailTemplate =
    *  сэргийлэх `EmailLog` шалгалт нь `template`-ээр ялгадаг тул нэг нэр
    *  хэрэглэвэл багцын сануулга ирсэн хүнд түрээсийнх очихгүй болно. */
   | 'rental-expiring'
+  /** ⚠️ Нууц үг сэргээх линк — `verify`-ЭЭС ТУСДАА: EmailLog-оор хайхад
+   *  "хэн нууц үгээ сэргээх гэж оролдсон" гэдгийг тусад нь мөрдөх
+   *  шаардлагатай (аюулгүй байдлын мөрдлөг). */
+  | 'password-reset'
+  /** Нууц үг АМЖИЛТТАЙ солигдсоны мэдэгдэл (халдлага илрүүлэх сануулга) */
+  | 'password-changed'
   | 'marketing';
 
 /**
@@ -343,6 +349,81 @@ ${pre}
       subject: `BestTV баталгаажуулах код: ${opts.code}`,
       html,
       template: 'verify',
+      userId: opts.userId,
+    });
+  }
+
+  /**
+   * Нууц үг сэргээх линк.
+   *
+   * ⚠️ ХҮЛЭЭЛТТЭЙ илгээлт (`send`, `queueSend` БИШ) — хэрэглэгч имэйлээ
+   * шинэчилж хүлээж сууна. Мөн илгээлт амжилтгүй болбол сервис талд
+   * мэдэгдэх хэрэгтэй (гэхдээ хэрэглэгчид ЯЛГААТАЙ хариу өгөхгүй —
+   * `auth.service.ts` дахь тайлбарыг үз).
+   */
+  async sendPasswordReset(opts: {
+    to: string;
+    resetUrl: string;
+    name?: string | null;
+    expiresMinutes: number;
+    userId?: string;
+  }) {
+    const html = this.layout({
+      heading: 'Нууц үг сэргээх',
+      preheader: 'Нууц үгээ сэргээх линк — 1 цаг хүчинтэй',
+      bodyHtml:
+        this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
+        this.p(
+          'Та BestTV бүртгэлийнхээ нууц үгийг сэргээх хүсэлт илгээлээ. Доорх товчийг дарж шинэ нууц үгээ тохируулна уу.',
+        ) +
+        this.p(
+          `Энэ линк <strong style="color:#fff">${opts.expiresMinutes} минутын дотор</strong> хүчинтэй бөгөөд <strong style="color:#fff">ганц удаа</strong> ашиглагдана.`,
+        ) +
+        /* ⚠️ "Би хүсээгүй" гэсэн заавар ЗААВАЛ — хэрэв хэн нэгэн өөр
+           хүний имэйлээр хүсэлт илгээвэл жинхэнэ эзэн нь сандрахгүй,
+           бас юу ч хийхгүй байхад аюулгүй гэдгээ мэднэ. */
+        this.p(
+          'Хэрэв та энэ хүсэлтийг илгээгээгүй бол энэ имэйлийг үл тоомсорлоно уу — таны нууц үг хэвээр хадгалагдана.',
+        ) +
+        /* Зарим имэйл клиент товчийг блоклодог тул түүхий URL-ыг ч өгнө */
+        `<p style="margin:16px 0 0;font-size:11px;line-height:1.6;color:#777;word-break:break-all">
+           Товч ажиллахгүй бол энэ хаягийг browser-т хуулна уу:<br>${opts.resetUrl}
+         </p>`,
+      ctaText: 'Нууц үг сэргээх',
+      ctaUrl: opts.resetUrl,
+    });
+    return this.send({
+      to: opts.to,
+      subject: 'BestTV — нууц үг сэргээх',
+      html,
+      template: 'password-reset',
+      userId: opts.userId,
+    });
+  }
+
+  /**
+   * Нууц үг амжилттай солигдлоо (мэдэгдэл).
+   * ⚠️ Энэ имэйл нь ЗӨВХӨН мэдээлэх зорилготой биш — халдлагч бүртгэл
+   * булаасан тохиолдолд жинхэнэ эзэн нь ШУУД мэдэж, арга хэмжээ авна.
+   */
+  sendPasswordChanged(opts: { to: string; name?: string | null; userId?: string }) {
+    const html = this.layout({
+      heading: 'Нууц үг солигдлоо ✅',
+      preheader: 'Таны BestTV бүртгэлийн нууц үг амжилттай солигдлоо',
+      bodyHtml:
+        this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
+        this.p('Таны BestTV бүртгэлийн нууц үг саяхан солигдлоо.') +
+        this.p(
+          '<strong style="color:#fff">Хэрэв та үүнийг хийгээгүй бол</strong> яаралтай бидэнтэй холбогдож, бүртгэлээ хамгаална уу.',
+        ),
+      ctaText: 'Нэвтрэх',
+      ctaUrl: `${this.siteUrl}/login`,
+    });
+    this.queueSend({
+      to: opts.to,
+      subject: 'BestTV — нууц үг солигдлоо',
+      html,
+      template: 'password-changed',
       userId: opts.userId,
     });
   }

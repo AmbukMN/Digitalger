@@ -117,6 +117,33 @@ export interface ReviewStats {
  * `queryKey`-д `userId` ЗААВАЛ (эс бөгөөс өмнөх хэрэглэгчийн жагсаалт
  * үлдэнэ).
  */
+/** Нүүрний ДУНД баннер — админ панелиас удирдана */
+export interface HomeBanner {
+  id: string;
+  title: string;
+  subtitle: string;
+  ctaText: string;
+  ctaHref: string;
+  /** Хэддэх жанрын эгнээний ДАРАА орох (0 = хамгийн дээр) */
+  position: number;
+  imageUrl: string | null;
+  /** ⚠️ Хоосон бол `imageUrl` — өргөн зураг утсанд нарийн харагдана */
+  mobileImageUrl: string | null;
+}
+
+/**
+ * ⚠️ Нүүрний датанаас ТУСДАА query — баннер нь БҮХ зочинд ижил
+ * (хэрэглэгчээс хамаарахгүй) тул `useHome`-той нэгтгэвэл нэвтрэлт
+ * тодрох бүрд дахин татагдана.
+ */
+export function useHomeBanners() {
+  return useQuery({
+    queryKey: ['home-banners'],
+    queryFn: () => api<HomeBanner[]>('/banners'),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useHome() {
   const userId = useAuth((s) => s.user?.id);
   return useQuery({

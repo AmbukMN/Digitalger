@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
-import { MobileNav } from '@/components/layout/mobile-nav';
+import { MobileBottomNav } from '@/components/mobile-bottom-nav';
 import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
 
 /**
@@ -31,7 +31,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <Footer />
-      <MobileNav />
+      <MobileBottomNav />
       <ChatWidgetLazy />
     </>
   );

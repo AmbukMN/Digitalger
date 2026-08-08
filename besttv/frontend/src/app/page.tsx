@@ -1,15 +1,22 @@
 'use client';
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
-import { useHome } from '@/lib/queries';
+import { useHome, useHomeBanners } from '@/lib/queries';
 import { HeroBanner } from '@/components/hero-banner';
 import { TitleRow } from '@/components/title-row';
+import { HomeBannerStrip } from '@/components/home-banner-strip';
 import { HomeSkeleton } from '@/components/home-skeleton';
 
 export default function HomePage() {
   const { data, isLoading, isError, refetch } = useHome();
+  /**
+   * ⚠️ Баннер нь нүүрний датанаас ТУСДАА — ачаалагдаагүй ч хуудас
+   * харагдана (`?? []`). Сурталчилгааны төлөө контентыг хүлээлгэхгүй.
+   */
+  const { data: banners = [] } = useHomeBanners();
 
   if (isLoading) return <HomeSkeleton />;
 
@@ -35,6 +42,17 @@ export default function HomePage() {
   );
 
   const genreRows = data.genreRows.filter((r) => r.titles.length > 0);
+
+  /**
+   * ⚠️ Баннерыг `position`-оор бүлэглэнэ — эгнээ бүрийн дараа шалгахад
+   * `filter` дуудвал O(эгнээ × баннер). Map нь нэг дамжилтаар бэлдэнэ.
+   */
+  const bannersByPosition = new Map<number, typeof banners>();
+  for (const b of banners) {
+    const arr = bannersByPosition.get(b.position);
+    if (arr) arr.push(b);
+    else bannersByPosition.set(b.position, [b]);
+  }
   /**
    * ⚠️ Banner БАЙХГҮЙ үед `-mt-8` сөрөг margin нь эхний мөрийг header
    * ДООГУУР татаж, гарчиг navbar-тай давхцдаг байв. Сөрөг margin нь
@@ -63,14 +81,40 @@ export default function HomePage() {
           />
         )}
 
-        {genreRows.map((row) => (
-          <TitleRow
-            key={row.id}
-            title={row.name}
-            items={row.titles}
-            href={`/movies?genre=${row.slug}`}
-          />
+        {/* ⚠️ `position=0` — эгнээнүүдийн ӨМНӨ (хамгийн дээр) */}
+        {bannersByPosition.get(0)?.map((b) => (
+          <HomeBannerStrip key={b.id} banner={b} />
         ))}
+
+        {/*
+          ⚠️ ЖАНРЫН ЭГНЭЭ + ДУНД БАННЕР.
+          Баннер бүр `position` талбартай — хэддэх эгнээний ДАРАА орохыг
+          админ панелиас тохируулна. Ижил `position`-той олон баннер
+          байвал `order`-оор эрэмбэлэгдэнэ (backend талд).
+        */}
+        {genreRows.map((row, i) => (
+          <Fragment key={row.id}>
+            <TitleRow
+              title={row.name}
+              items={row.titles}
+              href={`/movies?genre=${row.slug}`}
+            />
+            {bannersByPosition.get(i + 1)?.map((b) => (
+              <HomeBannerStrip key={b.id} banner={b} />
+            ))}
+          </Fragment>
+        ))}
+
+        {/*
+          ⚠️ Эгнээнээс ХЭТЭРСЭН байрлалтай баннерууд — админ `position=99`
+          гэж тохируулбал хаана ч гарахгүй алга болно. Тэднийг эцэст нь
+          харуулна ("яагаад гарахгүй байна?" гэсэн гомдол гарахгүй).
+        */}
+        {banners
+          .filter((b) => b.position > genreRows.length)
+          .map((b) => (
+            <HomeBannerStrip key={b.id} banner={b} />
+          ))}
 
         {/* Жанр бүгд хоосон бол хэрэглэгч цоо хоосон хуудас харахгүй */}
         {genreRows.length === 0 && data.continueWatching.length === 0 && (

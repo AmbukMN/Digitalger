@@ -120,6 +120,7 @@ model User {
   rentals           Rental[]
   emailOtps         EmailOtp[]
   adminSeens        AdminSeen[]
+  passwordResets    PasswordResetToken[]
 
   @@index([provider])
 }
@@ -626,6 +627,49 @@ model Settings {
   updatedAt DateTime @updatedAt
 }
 
+/// Нүүр хуудасны ДУНД байрлах сурталчилгааны баннер.
+///
+/// ⚠️ `Title.isBanner` (hero carousel)-ЭЭС ТУСДАА. Тэр нь кинонд
+/// холбогдсон, дээд талын том carousel. Энэ нь жанрын эгнээнүүдийн
+/// ДУНД орох бие даасан зурвас — кино биш ямар ч зүйл сурталчилж
+/// болно (багц, урамшуулал, гадаад холбоос).
+model HomeBanner {
+  id       String @id @default(cuid())
+  /// Баннер дээр гарах гарчиг (заавал биш — зөвхөн зурагтай ч болно)
+  title    String @default("")
+  subtitle String @default("")
+
+  /// 16:9 өргөн зураг — R2 key
+  imageKey String
+  /// ⚠️ Мобайлд өөр зураг (заавал биш). Хоосон бол `imageKey`-г
+  /// хэрэглэнэ — өргөн зураг утсан дээр хэт нарийн харагддаг.
+  mobileImageKey String?
+
+  /// Товчны текст. Хоосон бол товч ХАРАГДАХГҮЙ (зөвхөн зураг).
+  ctaText String @default("")
+  /// Дарахад очих зам (`/movie/slug`, `/pricing`, гадаад URL)
+  ctaHref String @default("")
+
+  /**
+   * ⚠️ БАЙРЛАЛ — хэддэх жанрын эгнээний ДАРАА орох вэ.
+   * 0 = хамгийн дээр, 2 = 2 эгнээний дараа. Нүүрэнд 15 эгнээ гардаг
+   * тул үүнээс их утга нь баннерыг ХЭЗЭЭ Ч харуулахгүй болно.
+   */
+  position Int @default(2)
+  /// Хэд хэдэн баннер ижил `position`-той бол энэ эрэмбээр
+  order    Int @default(0)
+
+  isActive Boolean @default(true)
+  /// ⚠️ Хугацаат урамшуулалд — NULL бол хязгааргүй
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position, order])
+}
+
 // ─── Tracking / Analytics ────────────────────────────────────────────────────
 // ⚠️ Fail-open хэв маяг: titleId/episodeId-д хатуу FK ТАВИХГҮЙ — устсан эсвэл
 // хуурамч id-аас болж sendBeacon-ий insert унахаас сэргийлнэ. Зөвхөн userId л
@@ -807,6 +851,39 @@ model EmailOtp {
   @@index([expiresAt])
 }
 
+/// Нууц үг сэргээх линкийн токен.
+///
+/// ⚠️ ЯАГААД `EmailOtp`-ыг ДАХИН АШИГЛААГҮЙ ВЭ:
+///   1. EmailOtp = 6 оронтой КОД, 10 мин, хэрэглэгч ГАРААР бичдэг.
+///      Энд = 32 байт санамсаргүй ТОКЕН, 1 цаг, ЛИНКЭЭР ирнэ.
+///   2. Шалгалт нь өөр: OTP-г `userId`-аар олдог (нэвтэрсэн хэрэглэгч),
+///      энд хэрэглэгч НЭВТРЭЭГҮЙ тул токеноор л олох ёстой →
+///      `tokenHash` дээр UNIQUE индекс хэрэгтэй.
+///   3. Хутгавал "имэйл баталгаажуулах код нууц үг солиход ажиллана"
+///      гэсэн эрхийн давхцал (privilege confusion) үүсэх эрсдэлтэй.
+///
+/// ⚠️ `tokenHash` — түүхий токеныг ХЭЗЭЭ Ч хадгалахгүй. DB задарсан ч
+/// халдлагчид линк сэргээх боломжгүй (SHA-256, урвуулж болохгүй).
+model PasswordResetToken {
+  id     String @id @default(cuid())
+  userId String
+
+  /// SHA-256(token) — түүхий токен зөвхөн имэйл дэх линкэнд л байна
+  tokenHash String @unique
+
+  /// Хүсэлт ирсэн IP/browser — сэжигтэй үйлдэл мөрдөхөд
+  ip        String?
+  userAgent String?
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
 /// Bounce/complaint ирсэн хаягууд — дахин илгээхгүй (SES reputation хамгаална).
 model EmailSuppression {
   id        String   @id @default(cuid())
@@ -825,7 +902,8 @@ model EmailLog {
   id        String   @id @default(cuid())
   to        String
   subject   String
-  /// welcome | verify | payment | subscription | rental | expiring | marketing
+  /// welcome | verify | payment | subscription | rental | expiring |
+  /// rental-expiring | password-reset | password-changed | marketing
   template  String
   /// sent | failed | suppressed
   status    String   @default("sent")

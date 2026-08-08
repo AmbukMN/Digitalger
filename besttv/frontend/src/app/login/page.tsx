@@ -252,6 +252,19 @@ export default function LoginPage() {
             <SocialButtons callbackUrl={nextUrl} />
           </div>
 
+          {/* ⚠️ ЗӨВХӨН нэвтрэх горимд — бүртгүүлж байгаа хүнд "нууц үг
+              сэргээх" утгагүй бөгөөд төөрөгдөл үүсгэнэ. */}
+          {mode === 'login' && (
+            <p className="mt-4 text-center text-sm">
+              <Link
+                href="/forgot-password"
+                className="text-foreground/55 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                Нууц үг сэргээх
+              </Link>
+            </p>
+          )}
+
           <p className="mt-5 text-center text-xs text-foreground/35">
             Үргэлжлүүлснээр та манай{' '}
             <Link href="/p/terms" className="text-foreground/55 underline hover:text-foreground/80">

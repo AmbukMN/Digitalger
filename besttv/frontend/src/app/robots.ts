@@ -20,6 +20,10 @@ export default function robots(): MetadataRoute.Robots {
           '/profile',
           '/my-list',
           '/login',
+          // ⚠️ Нууц үг сэргээх — /reset-password?token=... нь НУУЦ токен
+          // агуулдаг тул crawl хийгдэх нь ЭРСДЭЛТЭЙ (referrer/лог задрал)
+          '/forgot-password',
+          '/reset-password',
           '/search', // хайлтын үр дүн индексжүүлэхгүй (thin content)
         ],
       },

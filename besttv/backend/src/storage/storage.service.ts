@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHmac, randomUUID } from 'crypto';
@@ -247,6 +251,72 @@ export class StorageService {
       new PutObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn },
     );
+  }
+
+  /**
+   * ─── MULTIPART UPLOAD (том видео) ──────────────────────────────────────
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: энгийн presigned PUT нь S3/R2-ийн дүрмээр
+   * 5 GB-аас том биетийг ХҮЛЭЭЖ АВДАГГҮЙ. Манай кинонуудын дунджаар
+   * 4.2 GB, дээд нь 7.4 GB тул тэдгээр нь ЧИМЭЭГҮЙ УНАДАГ байв.
+   *
+   * ⚠️ Нэмэлт ашиг: browser хаагдсан ч `uploadId` хадгалагдвал дараа нь
+   * үлдсэн хэсгээс ҮРГЭЛЖЛҮҮЛЖ болно (single PUT бол эхнээс нь дахин).
+   *
+   * ⚠️ Дуусаагүй multipart нь R2-д ХАДГАЛАГДАЖ ТӨЛБӨР төлүүлнэ —
+   * `abortMultipart`-ыг алдаа гарахад ЗААВАЛ дуудна.
+   */
+  async createMultipart(key: string, contentType = 'video/mp4'): Promise<string> {
+    if (!this.client) throw new Error('R2 тохируулаагүй — multipart боломжгүй');
+    const res = await this.client.send(
+      new CreateMultipartUploadCommand({ Bucket: this.bucket, Key: key, ContentType: contentType }),
+    );
+    return res.UploadId!;
+  }
+
+  /** Хэсэг бүрд presigned URL — browser ШУУД R2 руу илгээнэ */
+  async presignPart(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresIn = 6 * 3600,
+  ): Promise<string> {
+    if (!this.client) throw new Error('R2 тохируулаагүй');
+    return getSignedUrl(
+      this.client,
+      new UploadPartCommand({
+        Bucket: this.bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+      }),
+      { expiresIn },
+    );
+  }
+
+  /** ⚠️ `parts` нь PartNumber-ээр ЭРЭМБЭЛЭГДСЭН байх ёстой — эс бөгөөс R2 татгалзана */
+  async completeMultipart(
+    key: string,
+    uploadId: string,
+    parts: { ETag: string; PartNumber: number }[],
+  ): Promise<void> {
+    if (!this.client) throw new Error('R2 тохируулаагүй');
+    await this.client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: [...parts].sort((a, b) => a.PartNumber - b.PartNumber) },
+      }),
+    );
+  }
+
+  /** ⚠️ Цуцлахгүй бол дуусаагүй хэсгүүд R2-д үлдэж төлбөр төлүүлнэ */
+  async abortMultipart(key: string, uploadId: string): Promise<void> {
+    if (!this.client) return;
+    await this.client
+      .send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId }))
+      .catch((e) => this.logger.warn(`Multipart цуцлаж чадсангүй (${key}): ${String(e)}`));
   }
 
   async delete(key: string): Promise<void> {

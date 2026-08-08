@@ -36,7 +36,6 @@ import {
  * нэмсэн ажлыг worker ХЭЗЭЭ Ч авахгүй (чимээгүй алдаа).
  */
 import Bull from 'bull';
-import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
@@ -169,6 +168,30 @@ function readChunk(filePath: string, start: number, length: number): Promise<Buf
   });
 }
 
+/**
+ * Сүлжээний түр саатлыг тэсвэрлэх дахин оролдлого.
+ *
+ * ⚠️⚠️ БОДИТ ШАЛТГААН: 4 GB видео 10+ минут байршдаг. Тэр хугацаанд
+ * SSH tunnel/DB холболт САЛЖ, файл R2-д ОРСОН атлаа DB бичигдэхгүй
+ * үлдсэн (production дээр тохиолдсон). Дараагийн ажиллалт тэр 4 GB-ыг
+ * ДАХИН илгээнэ — 10 минут + урсгал дэмий.
+ */
+async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 5): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (i === attempts) break;
+      const wait = i * 10_000;
+      console.log(`    ⚠️ ${label} оролдлого ${i}/${attempts} унав — ${wait / 1000}с хүлээнэ`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
+
 /** R2-д объект аль хэдийн байгаа эсэх (дахин илгээхээс сэргийлнэ) */
 async function existsInR2(key: string): Promise<boolean> {
   try {
@@ -253,13 +276,21 @@ async function main() {
     const label = `[${n}/${list.length}] ${item.drama.title}`;
     console.log(`${label}  (${gb(item.size)} GB)`);
 
-    const key = `videos/raw/${item.title.id}-${randomUUID()}${path.extname(item.file)}`;
+    /**
+     * ⚠️⚠️ ТОГТМОЛ KEY (санамсаргүй UUID БИШ) — `titleId` дээр суурилна.
+     *
+     * ЯАГААД: өмнө нь `randomUUID()` байсан тул ажиллалт бүрд ШИНЭ key
+     * үүсэж, R2-д аль хэдийн байгаа файлыг ОЛОХ АРГАГҮЙ байв. DB бичих
+     * үед холболт тасарвал (бодитоор тохиолдсон) 4 GB дахин илгээгдэнэ.
+     * Одоо key нь урьдчилан таамаглах боломжтой тул `existsInR2` ажиллана.
+     */
+    const key = `videos/raw/${item.title.id}${path.extname(item.file)}`;
     const started = Date.now();
 
     try {
       /* ⚠️ Өмнөх ажиллалтад дуусаад DB бичихээс өмнө тасарсан байж болно */
       if (await existsInR2(key)) {
-        console.log('    ↩️  R2-д аль хэдийн байна');
+        console.log('    ↩️  R2-д аль хэдийн байна — дахин илгээхгүй');
       } else {
         let lastPct = -1;
         await uploadMultipart(item.file, key, (done, total) => {
@@ -277,15 +308,28 @@ async function main() {
       /**
        * ⚠️ DB + queue-г байршуулалт ДУУССАНЫ ДАРАА — өмнө нь тавьвал
        * worker байхгүй файл руу хандаж FAILED болно.
+       *
+       * ⚠️⚠️ ДАХИН ОРОЛДЛОГОТОЙ: 4 GB видео 10+ минут байршдаг бөгөөд
+       * тэр хугацаанд SSH tunnel эсвэл DB холболт САЛЖ болно (бодитоор
+       * тохиолдсон — "Can't reach database server"). Файл R2-д ОРСОН
+       * атлаа DB бичигдэхгүй бол дараагийн ажиллалт ДАХИН 4 GB илгээнэ.
        */
-      await prisma.title.update({
-        where: { id: item.title.id },
-        data: { videoRawKey: key, streamStatus: 'PROCESSING' },
-      });
-      await queue.add(
-        'convert',
-        { target: 'movie', targetId: item.title.id, rawKey: key },
-        { attempts: 2, backoff: { type: 'fixed', delay: 30_000 }, removeOnComplete: 50 },
+      await withRetry(
+        () =>
+          prisma.title.update({
+            where: { id: item.title.id },
+            data: { videoRawKey: key, streamStatus: 'PROCESSING' },
+          }),
+        'DB бичилт',
+      );
+      await withRetry(
+        () =>
+          queue.add(
+            'convert',
+            { target: 'movie', targetId: item.title.id, rawKey: key },
+            { attempts: 2, backoff: { type: 'fixed', delay: 30_000 }, removeOnComplete: 50 },
+          ),
+        'Queue нэмэлт',
       );
 
       sentBytes += item.size;

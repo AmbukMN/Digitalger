@@ -32,6 +32,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { BannersModule } from './modules/banners/banners.module';
 import { RentalsModule } from './modules/rentals/rentals.module';
 import { EmailModule } from './modules/email/email.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -98,6 +99,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     TrackingModule,
     ChatModule,
     SettingsModule,
+    BannersModule,
     RentalsModule,
     EmailModule,
     NotificationsModule,

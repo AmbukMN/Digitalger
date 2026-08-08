@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Clapperboard, CreditCard, FileText, HelpCircle, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
+import { Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
@@ -30,6 +30,9 @@ const NAV_GROUPS = [
       { href: '/blog', label: 'Блог', icon: FileText },
       { href: '/faqs', label: 'Түгээмэл асуулт', icon: HelpCircle },
       { href: '/pages', label: 'Хуудсууд', icon: ScrollText },
+      /* ⚠️ Нүүрний ДУНД баннер — киноны hero carousel-ЭЭС ТУСДАА
+         (тэр нь `/movies` дотор "Нүүрний баннер" тэмдэглэгээгээр) */
+      { href: '/banners', label: 'Нүүрний баннер', icon: GalleryHorizontalEnd },
     ],
   },
   {

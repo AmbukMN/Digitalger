@@ -4,17 +4,28 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
   Patch,
   Post,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { ChangePasswordDto, LoginDto, RefreshDto, RegisterDto, UpdateProfileDto } from './dto/auth.dto';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDto,
+  ResetPasswordDto,
+  UpdateProfileDto,
+} from './dto/auth.dto';
 import { OAuthLoginDto } from './dto/oauth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -79,6 +90,38 @@ export class AuthController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   refresh(@Body() dto: RefreshDto) {
     return this.auth.refresh(dto.refreshToken);
+  }
+
+  /**
+   * Нууц үг сэргээх линк хүсэх.
+   *
+   * ⚠️⚠️ THROTTLE ЗААВАЛ (5 хүсэлт / 5 минут) — хоёр шалтгаан:
+   *   1. ИМЭЙЛ ҮЕР — халдлагч нэг хүний хаяг руу мянган линк илгээж
+   *      хайрцгийг нь боох боломжтой (mail bomb). Мөн манай SES-ийн
+   *      reputation унаж, БҮХ имэйл блоклогдох эрсдэлтэй.
+   *   2. ENUMERATION-ыг УДААШРУУЛНА — хариу нь ижил ч бөгөөд халдлагч
+   *      их хэмжээгээр туршихыг хязгаарлана.
+   */
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  @HttpCode(200)
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.auth.forgotPassword(dto.email, {
+      ip: req.ip ?? null,
+      userAgent: req.headers['user-agent'] ?? null,
+    });
+  }
+
+  /**
+   * Линкийн токеноор шинэ нууц үг тавих.
+   * ⚠️ Throttle — токеныг таамаглах оролдлогыг хязгаарлана (256 бит тул
+   * практикт боломжгүй ч гэсэн хамгаалалтын давхарга).
+   */
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  @HttpCode(200)
+  resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.auth.resetPassword(dto.token, dto.password, { ip: req.ip ?? null });
   }
 
   @Get('me')

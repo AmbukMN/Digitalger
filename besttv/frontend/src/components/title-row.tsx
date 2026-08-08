@@ -44,14 +44,24 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
 
   return (
     <section className="px-4 md:px-8" aria-label={title}>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-lg font-bold tracking-tight text-foreground/95 md:text-xl">{title}</h2>
+      {/*
+        ⚠️ Жанрын толгой — гарчиг ЗҮҮН, "БҮГД" УЛААН ТОВЧ БАРУУН.
+        Өмнө нь "Бүгдийг үзэх" нь бүдэг текст (`text-foreground/45`)
+        байсан тул хэрэглэгч ТОВЧ гэдгийг анзаардаггүй, жанрын бүх
+        киног хардаггүй байв. Дүүрэн улаан нь брэндийн өнгө бөгөөд
+        нүд шууд тусна.
+      */}
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="truncate text-lg font-bold tracking-tight text-foreground md:text-xl">
+          {title}
+        </h2>
         {href && (
           <Link
             href={href}
-            className="group flex items-center gap-1 text-xs font-semibold text-foreground/45 transition-colors hover:text-primary"
+            /* ⚠️ `shrink-0` — урт жанрын нэр товчийг шахаж эвдэхээс сэргийлнэ */
+            className="group flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-primary-foreground transition-all hover:brightness-110 active:scale-95"
           >
-            Бүгдийг үзэх
+            Бүгд
             <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
           </Link>
         )}

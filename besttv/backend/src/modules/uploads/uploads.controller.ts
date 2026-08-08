@@ -105,6 +105,76 @@ export class UploadsController {
   }
 
   /**
+   * ─── MULTIPART (том видео) ────────────────────────────────────────────
+   *
+   * ⚠️⚠️ Энгийн presigned PUT нь S3/R2-ийн дүрмээр 5 GB-аас том биетийг
+   * ХҮЛЭЭЖ АВДАГГҮЙ. Манай кинонууд дунджаар 4.2 GB, дээд нь 7.4 GB тул
+   * тэдгээр нь ЧИМЭЭГҮЙ УНАДАГ байв. Multipart-д ХЭМЖЭЭНИЙ ХЯЗГААР
+   * ПРАКТИКТ БАЙХГҮЙ (10,000 хэсэг × 100 MB ≈ 1 TB).
+   *
+   * ⚠️ Нэмэлт ашиг: `uploadId`-г хадгалснаар browser хаагдсан ч дараа нь
+   * ҮРГЭЛЖЛҮҮЛЖ болно.
+   */
+  @Post('video/multipart/init')
+  async initMultipart(@Body() body: { fileName: string }) {
+    const { fileName } = body;
+    if (!fileName) throw new BadRequestException('fileName шаардлагатай');
+    const ext = path.extname(fileName).toLowerCase();
+    if (!VIDEO_EXTENSIONS.has(ext)) {
+      throw new BadRequestException(`Видео файлын төрөл биш: ${ext}`);
+    }
+    const key = this.storage.buildKey('raw', fileName);
+    const uploadId = await this.storage.createMultipart(key);
+    return { key, uploadId };
+  }
+
+  /**
+   * Хэсгүүдэд presigned URL — browser ШУУД R2 руу илгээнэ.
+   * ⚠️ Багцаар (10-аар) авна — хэсэг бүрд нэг дуудалт хийвэл 4 GB файлд
+   * 40+ удаа сервер рүү очно.
+   */
+  @Post('video/multipart/urls')
+  async multipartUrls(
+    @Body() body: { key: string; uploadId: string; partNumbers: number[] },
+  ) {
+    const { key, uploadId, partNumbers } = body;
+    if (!key || !uploadId || !Array.isArray(partNumbers) || !partNumbers.length) {
+      throw new BadRequestException('key, uploadId, partNumbers шаардлагатай');
+    }
+    /* ⚠️ Дурын key-д гарын үсэг зурахгүй — зөвхөн raw/ доторх */
+    if (!key.startsWith('raw/')) throw new BadRequestException('Буруу key');
+    if (partNumbers.length > 50) throw new BadRequestException('Хэт олон хэсэг (дээд 50)');
+
+    const urls = await Promise.all(
+      partNumbers.map(async (n) => ({
+        partNumber: n,
+        url: await this.storage.presignPart(key, uploadId, n),
+      })),
+    );
+    return { urls };
+  }
+
+  @Post('video/multipart/complete')
+  async completeMultipart(
+    @Body() body: { key: string; uploadId: string; parts: { ETag: string; PartNumber: number }[] },
+  ) {
+    const { key, uploadId, parts } = body;
+    if (!key || !uploadId || !Array.isArray(parts) || !parts.length) {
+      throw new BadRequestException('key, uploadId, parts шаардлагатай');
+    }
+    await this.storage.completeMultipart(key, uploadId, parts);
+    return { key };
+  }
+
+  /** ⚠️ Цуцлахгүй бол дуусаагүй хэсгүүд R2-д үлдэж ТӨЛБӨР төлүүлнэ */
+  @Post('video/multipart/abort')
+  async abortMultipart(@Body() body: { key: string; uploadId: string }) {
+    if (!body.key || !body.uploadId) throw new BadRequestException('key, uploadId шаардлагатай');
+    await this.storage.abortMultipart(body.key, body.uploadId);
+    return { ok: true };
+  }
+
+  /**
    * ЛОКАЛ ДИСК горим — R2 байхгүй үед видеог шууд backend-ээр дискэнд бичнэ
    * (browser→backend, R2 presign боломжгүй тул). Том файл тул memoryStorage
    * биш diskStorage ашиглана (RAM дүүргэхгүй, шууд tmp зам руу stream бичнэ).
@@ -120,7 +190,14 @@ export class UploadsController {
         },
         filename: (req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
       }),
-      limits: { fileSize: 5 * 1024 * 1024 * 1024 }, // 5GB дээд
+      /**
+       * ⚠️ ХЭМЖЭЭНИЙ ХЯЗГААР ХАСАВ — 5 GB байсан нь 7.4 GB кино байршуулах
+       * гэхэд унагаадаг байв. `diskStorage` тул RAM дүүрэхгүй (шууд tmp
+       * зам руу stream бичнэ), хязгаарлах бодит шалтгаан байхгүй.
+       * ⚠️ Энэ зам нь ЗӨВХӨН R2 тохируулаагүй үед (dev) ажиллана —
+       * production дээр multipart presign л хэрэглэгддэг.
+       */
+      limits: {},
       fileFilter: (req, file, cb) => {
         const ext = path.extname(file.originalname).toLowerCase();
         cb(null, VIDEO_EXTENSIONS.has(ext));

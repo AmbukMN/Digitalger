@@ -233,7 +233,128 @@ export function uploadImage(
 }
 
 /**
- * ВИДЕО байршуулах — R2 горимд browser-оос ШУУД R2 руу (presigned PUT).
+ * MULTIPART байршуулалт — том видеонд (5 GB+).
+ *
+ * ⚠️⚠️ ЯАГААД: ганц presigned PUT нь S3/R2-ийн дүрмээр 5 GB-аас том
+ * биетийг ХҮЛЭЭЖ АВДАГГҮЙ. Манай кинонууд дунджаар 4.2 GB, дээд нь
+ * 7.4 GB тул тэдгээр нь ЧИМЭЭГҮЙ УНАДАГ байв.
+ *
+ * ⚠️ Хэсэг унавал ТҮҮНИЙГ л дахин илгээнэ — 7 GB файлын сүүлийн хэсэг
+ * дээр унаад эхнээс нь эхлэх нь хүлээн зөвшөөрөхгүй.
+ *
+ * ⚠️ Алдаа гарвал `abort` ЗААВАЛ — дуусаагүй хэсгүүд R2-д үлдэж
+ * ТӨЛБӨР төлүүлнэ.
+ */
+async function uploadVideoMultipart(
+  file: File,
+  onProgress: (percent: number) => void,
+  signal: { xhr: XMLHttpRequest | null },
+): Promise<string> {
+  /** ⚠️ 100 MB — PUT тоо ба дахин илгээх эрсдэлийн тэнцвэр */
+  const PART_SIZE = 100 * 1024 * 1024;
+  /** Нэг хэсэг хэдэн удаа дахин оролдох */
+  const PART_RETRIES = 3;
+  /** ⚠️ Зэрэг илгээх хэсгийн тоо — сүлжээг дүүргэхгүй, гэхдээ хурдан */
+  const CONCURRENCY = 3;
+
+  const { key, uploadId } = await api<{ key: string; uploadId: string }>(
+    '/admin/uploads/video/multipart/init',
+    { method: 'POST', body: JSON.stringify({ fileName: file.name }) },
+  );
+
+  const partCount = Math.ceil(file.size / PART_SIZE);
+  const parts: { ETag: string; PartNumber: number }[] = [];
+  /* ⚠️ Явцыг БАЙТААР тоолно — хэсгийн тоогоор бол сүүлийн хэсэг жижиг
+     байхад хувь үсэрдэг */
+  let uploadedBytes = 0;
+
+  try {
+    /* Presigned URL-уудыг багцаар авна (50-аар) — хэсэг бүрд нэг дуудалт
+       хийвэл 7 GB файлд 70+ удаа сервер рүү очно */
+    const urlMap = new Map<number, string>();
+    for (let from = 1; from <= partCount; from += 50) {
+      const nums = Array.from(
+        { length: Math.min(50, partCount - from + 1) },
+        (_, i) => from + i,
+      );
+      const { urls } = await api<{ urls: { partNumber: number; url: string }[] }>(
+        '/admin/uploads/video/multipart/urls',
+        { method: 'POST', body: JSON.stringify({ key, uploadId, partNumbers: nums }) },
+      );
+      for (const u of urls) urlMap.set(u.partNumber, u.url);
+    }
+
+    /** Нэг хэсгийг илгээх — дахин оролдлоготой */
+    const sendPart = async (partNumber: number) => {
+      const start = (partNumber - 1) * PART_SIZE;
+      const blob = file.slice(start, Math.min(start + PART_SIZE, file.size));
+      const url = urlMap.get(partNumber)!;
+
+      for (let attempt = 1; attempt <= PART_RETRIES; attempt++) {
+        try {
+          const etag = await new Promise<string>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', url);
+            /* ⚠️ Authorization ИЛГЭЭХГҮЙ — R2 presign signature эвдэрнэ */
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                /* ⚠️ ETag нь хашилттай ирдэг — `complete`-д ТЭР ЧИГЭЭР нь
+                   явуулна, хасвал R2 татгалзана */
+                const tag = xhr.getResponseHeader('ETag');
+                tag ? resolve(tag) : reject(new Error('ETag ирсэнгүй'));
+              } else {
+                reject(Object.assign(new Error(`HTTP ${xhr.status}`), { status: xhr.status }));
+              }
+            };
+            xhr.onerror = () => reject(new Error('Сүлжээний алдаа'));
+            xhr.onabort = () => reject(new Error('Цуцлагдлаа'));
+            signal.xhr = xhr;
+            xhr.send(blob);
+          });
+          uploadedBytes += blob.size;
+          onProgress(Math.min(99, Math.round((uploadedBytes / file.size) * 100)));
+          return { ETag: etag, PartNumber: partNumber };
+        } catch (e) {
+          if (attempt === PART_RETRIES) throw e;
+          /* ⚠️ Өсөн нэмэгдэх хүлээлт — түр саатал дээр шууд дахин
+             оролдвол мөн унана */
+          await new Promise((r) => setTimeout(r, attempt * 3000));
+        }
+      }
+      throw new Error(`Хэсэг ${partNumber} илгээгдсэнгүй`);
+    };
+
+    /* ⚠️ Хязгаартай зэрэгцээ — бүгдийг зэрэг илгээвэл browser болон
+       сүлжээ дүүрч бүгд удаашрана */
+    const queue = Array.from({ length: partCount }, (_, i) => i + 1);
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, partCount) }, async () => {
+        for (;;) {
+          const n = queue.shift();
+          if (n === undefined) return;
+          parts.push(await sendPart(n));
+        }
+      }),
+    );
+
+    await api('/admin/uploads/video/multipart/complete', {
+      method: 'POST',
+      body: JSON.stringify({ key, uploadId, parts }),
+    });
+    onProgress(100);
+    return key;
+  } catch (e) {
+    /* ⚠️ Цуцлахгүй бол дуусаагүй хэсгүүд R2-д үлдэж төлбөр төлүүлнэ */
+    await api('/admin/uploads/video/multipart/abort', {
+      method: 'POST',
+      body: JSON.stringify({ key, uploadId }),
+    }).catch(() => null);
+    throw e;
+  }
+}
+
+/**
+ * ВИДЕО байршуулах — R2 горимд browser-оос ШУУД R2 руу (multipart).
  * Backend-ээр дамжуулбал том файлд Node-ийн socket buffer унадаг (ENOBUFS).
  *
  * Upload дуусмагц HLS хөрвүүлэлт queue-д орно — тоглуулахад БЭЛЭН БИШ.
@@ -265,13 +386,15 @@ export function uploadVideo(
       };
 
       if (mode === 'r2') {
-        const { uploadUrl, key } = await api<{ uploadUrl: string; key: string }>(
-          '/admin/uploads/video/presign',
-          { method: 'POST', body: JSON.stringify({ fileName: file.name }) },
-        );
-        // ⚠️ R2 presigned URL — Authorization header ИЛГЭЭХГҮЙ (signature эвдэрнэ)
-        await xhrUpload(uploadUrl, 'PUT', file, { onProgress: track, auth: false, signal });
-        rawKey = key;
+        /**
+         * ⚠️⚠️ MULTIPART — ХЭМЖЭЭНИЙ ХЯЗГААР АРИЛСАН.
+         *
+         * Өмнө нь ганц presigned PUT байсан нь S3/R2-ийн дүрмээр
+         * 5 GB-аас том биетийг ХҮЛЭЭЖ АВДАГГҮЙ тул 7.4 GB кино
+         * ЧИМЭЭГҮЙ УНАДАГ байв. Одоо 100 MB хэсгээр илгээнэ —
+         * практикт хязгааргүй (10,000 × 100 MB ≈ 1 TB).
+         */
+        rawKey = await uploadVideoMultipart(file, track, signal);
       } else {
         // ⚠️ SAME-ORIGIN — зурагтай ижил шалтгаан (cross-origin preflight
         //    дээр Authorization алдагдаж 401 буцдаг). Next rewrite дамжуулна.
