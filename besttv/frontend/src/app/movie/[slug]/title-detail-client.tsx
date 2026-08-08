@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Heart, Film, Lock, Play, Star, Ticket, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+import { cn, episodeLabel, formatPrice } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useTitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
@@ -448,7 +448,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-foreground">
-                          {ep.number}. {ep.name ?? `Анги ${ep.number}`}
+                          {episodeLabel(ep.number, ep.name)}
                         </p>
                         {ep.description && (
                           <p className="mt-0.5 line-clamp-1 text-xs text-foreground/50">{ep.description}</p>

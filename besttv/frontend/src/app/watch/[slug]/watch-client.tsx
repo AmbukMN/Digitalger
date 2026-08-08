@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useTitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
@@ -262,7 +262,7 @@ export function WatchClient({ slug }: { slug: string }) {
                 onClick={() => goToEpisode(nextEpisode.id)}
                 className="mt-3 rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
               >
-                Дараагийн анги: {nextEpisode.number}. {nextEpisode.name ?? `Анги ${nextEpisode.number}`} →
+                Дараагийн анги: {episodeLabel(nextEpisode.number, nextEpisode.name)} →
               </button>
             )}
           </div>
@@ -300,7 +300,7 @@ export function WatchClient({ slug }: { slug: string }) {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className={cn('truncate text-sm', active ? 'text-primary font-medium' : 'text-white/90')}>
-                            {ep.number}. {ep.name ?? `Анги ${ep.number}`}
+                            {episodeLabel(ep.number, ep.name)}
                           </p>
                           {!ep.playable && <span className="text-xs text-white/40">Удахгүй</span>}
                         </div>

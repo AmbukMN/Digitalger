@@ -27,3 +27,18 @@ export function formatBytes(bytes: number): string {
   const v = bytes / 1024 ** i;
   return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
+
+/**
+ * Ангийн харагдах нэр.
+ *
+ * ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ — өмнө нь ГУРВАН газарт `${ep.number}. ${ep.name ??
+ * \`Анги ${ep.number}\`}` гэж давхардсан байв (кино дэлгэрэнгүй, үзэх
+ * хуудасны жагсаалт, "Дараагийн анги" товч). Тэр хэв нь нэргүй ангийг
+ * `1. Анги 1` гэж ДУГААРЫГ ХОЁР УДАА бичдэг байсан.
+ *
+ * Нэртэй  → "3. Эцсийн тулаан"
+ * Нэргүй  → "3-р анги"
+ */
+export function episodeLabel(number: number, name?: string | null): string {
+  return name?.trim() ? `${number}. ${name.trim()}` : `${number}-р анги`;
+}
