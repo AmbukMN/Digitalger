@@ -147,7 +147,12 @@ export class TitlesService {
                * үед л шинэ нь урьтна.
                */
               orderBy: [{ order: 'asc' }, { title: { createdAt: 'desc' } }],
-              take: 20,
+              /**
+               * ⚠️ 24 — жанрын эгнээ ХОЁР МӨР болсон тул (`title-row.tsx`).
+               * 20 бол ердөө 10 багана өгч, хэвтээ гүйлт бараг байхгүй
+               * болно. 24 нь 12 багана — дэлгэц дүүрч, гүйлгэх утгатай.
+               */
+              take: 24,
               include: { title: { select: CARD_SELECT } },
             },
           },

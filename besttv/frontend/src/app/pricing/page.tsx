@@ -300,10 +300,25 @@ export default function PricingPage() {
           const owned = ownedPlanIds.has(plan.id);
           // VIP идэвхтэй үед энгийн багц илүүдэл (VIP өөрөө биш)
           const supersededByVip = hasVip && !plan.isVip;
-          // ⚠️ sm-ээс дээш (2 багана) сондгой тоотой бол СҮҮЛИЙН карт 2
+          // ⚠️ 2 багана (min-[380px]) сондгой тоотой бол СҮҮЛИЙН карт 2
           // баганыг эзэлнэ — хажуудаа хоосон нүх үлдээхгүй.
-          // ⚠️ Mobile нь `grid-cols-1` тул тэнд хамаарахгүй.
           const lastOdd = plans.length % 2 === 1 && i === plans.length - 1;
+
+          /**
+           * ⚠️⚠️ 3 БАГАНА (lg) ҮЕД СҮҮЛИЙН МӨРИЙГ ГОЛЛУУЛНА.
+           *
+           * 5 багц бол 3 + 2 болж, сүүлийн 2 нь ЗҮҮН талд наалдан
+           * баруун талд ХООСОН НҮХ үлддэг байв (screenshot дээр
+           * харагдсан). Grid-д "төвлөрүүлэх" шууд арга байхгүй тул
+           * эхний картыг ХАГАС багана (`col-start`) руу түлхэнэ.
+           *
+           * ⚠️ Зөвхөн ҮЛДЭГДЭЛ 2 үед — 1 үлдвэл `lg:col-start-2` нь
+           * дунд баганад тавина.
+           */
+          const rem = plans.length % 3;
+          /* ⚠️ 1 үлдвэл ч, 2 үлдвэл ч эхнийхийг 2-р баганаас эхлүүлнэ:
+             1 → дунд байрлана · 2 → 2-3 багана эзэлж голлоно */
+          const lgCenter = rem !== 0 && i === plans.length - rem ? 'lg:col-start-2' : '';
           const canPayWithWallet = !!user && user.walletBalance >= finalPrice;
 
           return (
@@ -313,6 +328,7 @@ export default function PricingPage() {
                 // ⚠️ `h-full` — доторх `mt-auto` (товчны блок) ажиллахад ЗААВАЛ
                 'relative flex h-full flex-col rounded-2xl border p-3 transition-transform sm:p-6',
                 lastOdd && 'min-[380px]:col-span-2 lg:col-span-1',
+                lgCenter,
                 !supersededByVip && 'hover:-translate-y-1',
                 supersededByVip && 'opacity-55',
                 plan.isVip
@@ -347,12 +363,19 @@ export default function PricingPage() {
                 badge нь `absolute` байрлалтай тул урт нэртэй багцын
                 гарчиг ТҮҮНИЙ ДООГУУР ОРЖ ДАВХЦАДАГ байв. Зай үлдээв.
               */}
-              <h3 className="flex min-[380px]:min-h-[3.9rem] items-start gap-1.5 pr-14 text-sm font-bold leading-snug text-foreground sm:min-h-0 sm:pr-24 sm:text-lg">
+              {/* ⚠️ `min-h` БАГАСГАВ (3.9rem → 2.6rem) — ихэнх багцын нэр
+                  2 мөрөнд багтдаг тул 3 мөрийн зай дэмий үлддэг байв */}
+              <h3 className="flex min-[380px]:min-h-[2.6rem] items-start gap-1.5 pr-14 text-sm font-bold leading-snug text-foreground sm:min-h-0 sm:pr-24 sm:text-lg">
                 {plan.isVip && <Crown size={16} className="text-premium" />}
                 {plan.name}
               </h3>
 
-              <div className="mt-3 flex items-baseline gap-2">
+              {/*
+                ⚠️ МОБАЙЛД НЯГТРУУЛАВ — үнэ ба хугацаа НЭГ мөрөнд.
+                Өмнө нь тусад нь 2 мөр байсан тул карт өндөр болж,
+                утсан дээр 1.5 багц л дэлгэцэнд багтдаг байв.
+              */}
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:mt-3">
                 {appliedCoupon ? (
                   <>
                     <p className="text-xl font-black text-foreground sm:text-3xl">{formatPrice(finalPrice)}</p>
@@ -361,14 +384,13 @@ export default function PricingPage() {
                 ) : (
                   <p className="text-xl font-black text-foreground sm:text-3xl">{formatPrice(plan.price)}</p>
                 )}
+                {/* ⚠️ "≈ 330₮ / өдөр" ХАСАВ — үндсэн үнээс анхаарал
+                    сарниулж, картыг дүүргэдэг байв (админы шийдвэр) */}
+                <span className="text-xs text-foreground/40">/ {plan.durationDays} хоног</span>
               </div>
-              <p className="mt-1 text-xs text-foreground/40">
-                {plan.durationDays} хоног
-                {plan.durationDays >= 30 && ` · ≈ ${formatPrice(Math.round(finalPrice / plan.durationDays))} / өдөр`}
-              </p>
 
               {/* Нээгдэх контент */}
-              <div className="mt-3 rounded-lg bg-black/20 p-2 sm:mt-4 sm:p-2.5">
+              <div className="mt-2.5 rounded-lg bg-black/20 p-2 sm:mt-4 sm:p-2.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground/35 sm:text-[11px]">
                   Нээгдэх контент
                 </p>
@@ -392,13 +414,26 @@ export default function PricingPage() {
                 )}
               </div>
 
-              <ul className="mt-3 flex-1 space-y-1.5 sm:mt-4 sm:space-y-2">
+              {/*
+                ⚠️ МОБАЙЛД БОЛОМЖУУДЫГ НУУВ (`hidden min-[380px]:block`
+                биш — `hidden sm:block`).
+
+                "Завсаргүй үзвэр / FHD чанар / Олон төхөөрөмж" нь БҮХ
+                багцад ИЖИЛ тул харьцуулахад тус болохгүй атлаа карт
+                бүрд 3 мөр (≈70px) эзэлдэг байв. Утсан дээр тэр нь
+                нэг дэлгэцэнд багтах багцын тоог ХАГАСЛАНА.
+                Оронд нь доор НЭГ УДАА нэгтгэж харуулна.
+              */}
+              <ul className="mt-3 hidden flex-1 space-y-1.5 sm:mt-4 sm:block sm:space-y-2">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-1.5 text-xs leading-snug text-foreground/70 sm:gap-2 sm:text-sm">
                     <Check size={15} className="mt-0.5 shrink-0 text-success" /> {f}
                   </li>
                 ))}
               </ul>
+              {/* ⚠️ Мобайлд `flex-1`-ийг ЭНД барина — эс бөгөөс `mt-auto`
+                  ажиллахгүй, товч картын дунд гацна */}
+              <div className="flex-1 sm:hidden" />
 
               {/*
                 ⚠️ `mt-auto` — товчны блокыг картын ЁРООЛД бэхлэнэ.
@@ -459,6 +494,20 @@ export default function PricingPage() {
             </div>
           );
         })}
+      </div>
+
+      {/*
+        ⚠️ МОБАЙЛД БОЛОМЖУУДЫГ НЭГ УДАА — карт бүрд давтахын оронд.
+        Эдгээр нь БҮХ багцад ижил тул харьцуулахад тус болохгүй атлаа
+        карт бүрд ~70px эзэлж, нэг дэлгэцэнд багтах багцын тоог
+        хагаслаж байв.
+      */}
+      <div className="mx-auto mt-5 flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-xl border border-foreground/10 bg-foreground/3 px-4 py-3 sm:hidden">
+        {['Завсаргүй үзвэр', 'FHD чанар', 'Олон төхөөрөмж'].map((f) => (
+          <span key={f} className="flex items-center gap-1.5 text-xs text-foreground/70">
+            <Check size={14} className="shrink-0 text-success" /> {f}
+          </span>
+        ))}
       </div>
 
       <p className="mx-auto mt-10 max-w-md text-center text-xs text-foreground/35">

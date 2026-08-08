@@ -50,8 +50,13 @@ const VIDEO_QUEUE_NAME = 'besttv-video-hls';
 const DATA_FILE = path.join(__dirname, 'mgldrama-seed-data.json');
 const R2_BUCKET = process.env.R2_BUCKET_NAME ?? 'besttv';
 
-/** ⚠️ 100 MB — PUT тоо ба дахин илгээх эрсдэлийн тэнцвэр */
-const PART_SIZE = 100 * 1024 * 1024;
+/**
+ * ⚠️ 32 MB — PUT тоо ба дахин илгээх эрсдэлийн тэнцвэр.
+ * ⚠️ 100 MB байсныг БАГАСГАВ: 10 файл ЗЭРЭГ явахад тус бүр нэг хэсгийг
+ * санах ойд барьдаг тул 10 × 100 MB = 1 GB RAM. 32 MB бол ~320 MB.
+ * 7 GB файл = 220 хэсэг, R2-ийн 10,000 хязгаарт хол багтана.
+ */
+const PART_SIZE = 32 * 1024 * 1024;
 /** Нэг хэсэг хэдэн удаа дахин оролдох */
 const PART_RETRIES = 4;
 
@@ -271,7 +276,35 @@ async function main() {
   let doneCount = 0;
   let sentBytes = 0;
 
-  for (const item of list) {
+  /**
+   * ⚠️⚠️ ЗЭРЭГЦЭЭ БАЙРШУУЛАЛТ (`UPLOAD_CONCURRENCY`, анхдагч 10).
+   *
+   * Нэг файл дараалан явуулахад сүлжээний БҮРЭН хүчийг ашиглаж
+   * чадахгүй: хэсэг бүрийн хооронд latency (хүлээлт) байдаг тул
+   * 7.8 MB/s хүрдэг ч холболт сул зогсох хугацаа их. Олон файл
+   * зэрэг явуулбал тэр завсрууд дүүрч, нийт хурд өснө.
+   *
+   * ⚠️ Хязгаартай — 47-г БҮГДИЙГ зэрэг явуулбал: (1) RAM 47×100MB
+   * буфер, (2) R2 rate limit, (3) аль нь ч дуусахгүй удаан
+   * (бүгд 1/47 хурдтай).
+   *
+   * ⚠️ Сервер тал АСУУДАЛГҮЙ: HLS хөрвүүлэлт queue-тэй тул хэдэн ч
+   * ажил хүлээж болно, worker дарааллаар (4 зэрэг) боловсруулна.
+   */
+  const CONCURRENCY = Math.max(1, Number(process.env.UPLOAD_CONCURRENCY) || 10);
+  console.log(`⚡ ${CONCURRENCY} файл зэрэг байршуулна\n`);
+
+  const queueItems = [...list];
+
+  const worker = async () => {
+    for (;;) {
+      const item = queueItems.shift();
+      if (!item) return;
+      await uploadOne(item);
+    }
+  };
+
+  async function uploadOne(item: (typeof list)[0]) {
     const n = ++doneCount;
     const label = `[${n}/${list.length}] ${item.drama.title}`;
     console.log(`${label}  (${gb(item.size)} GB)`);
@@ -295,12 +328,19 @@ async function main() {
         let lastPct = -1;
         await uploadMultipart(item.file, key, (done, total) => {
           const pct = Math.floor((done / total) * 100);
-          /* ⚠️ 10% тутамд л хэвлэнэ — лог хэт урт болохгүй */
-          if (pct >= lastPct + 10) {
+          /**
+           * ⚠️ 25% тутамд л хэвлэнэ (10% байсан) — 10 файл ЗЭРЭГ
+           * ажиллахад лог 10 урсгалаас холилдож уншигдахгүй болно.
+           * ⚠️ Киноны нэрийг мөр бүрд бичнэ — эс бөгөөс аль файлын
+           * явц болохыг ялгах аргагүй.
+           */
+          if (pct >= lastPct + 25) {
             lastPct = pct;
             const spent = (Date.now() - started) / 1000;
             const mbps = done / 1024 / 1024 / spent;
-            process.stdout.write(`    ${pct}% · ${mbps.toFixed(1)} MB/s\n`);
+            process.stdout.write(
+              `    ${pct.toString().padStart(3)}% ${mbps.toFixed(1)} MB/s · ${item.drama.title}\n`,
+            );
           }
         });
       }
@@ -345,6 +385,12 @@ async function main() {
       console.error(`    ❌ АЛДАА: ${String(e)}\n`);
     }
   }
+
+  /* ⚠️ `Promise.all` — worker бүр дараалалаас нэг нэгээр авч ажиллана.
+     Нэг worker унасан ч бусад нь үргэлжилнэ (`uploadOne` дотор catch). */
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, list.length) }, () => worker()),
+  );
 
   console.log(`\n📊 ${doneCount} видео боловсруулав · ${gb(sentBytes)} GB · ${mins(Date.now() - startedAll)} мин`);
   console.log('⏳ HLS хөрвүүлэлт дэвсгэрт үргэлжилнэ (админ панелиас явцыг хараарай).');

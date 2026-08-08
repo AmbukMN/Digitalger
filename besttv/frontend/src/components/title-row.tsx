@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
 import { cn } from '@besttv/shared';
-import { useWheelScroll } from '@/lib/use-wheel-scroll';
+/* ⚠️ `useWheelScroll` ХАСАГДСАН — доод тайлбарыг харна уу.
+   Hook нь бусад газар (cast-row, gallery-row) хэвээр ажиллана. */
 import { TitleCard, Top10Card } from './title-card';
 
 interface TitleRowProps {
@@ -22,6 +23,17 @@ interface TitleRowProps {
 /** Жанрын карусель мөр — hide-scrollbar + чиглэл товч + edge fade (Netflix загвар) */
 export function TitleRow({ title, items, href, variant = 'default', progressById }: TitleRowProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * ⚠️⚠️ ХОЁР ЭГНЭЭ — гэхдээ ЗӨВХӨН хангалттай кино байвал.
+   *
+   * 6-аас цөөн кинотой жанрыг 2 мөр болговол хоёр дахь мөр хагас
+   * хоосон үлдэж эвгүй харагдана ("Үргэлжлүүлэн үзэх" нь ихэвчлэн
+   * 1-3 кинотой). Тэр тохиолдолд нэг мөр илүү цэвэрхэн.
+   *
+   * ⚠️ TOP10 нь эрэмбэ 1→10 гэж уншигддаг тул ҮРГЭЛЖ нэг мөр.
+   */
+  const twoRows = variant !== 'top10' && items.length >= 6;
   const [canScroll, setCanScroll] = useState({ left: false, right: true });
 
   const updateScrollState = () => {
@@ -34,11 +46,34 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
   };
 
   const scroll = (dir: 1 | -1) => {
-    trackRef.current?.scrollBy({ left: dir * 720, behavior: 'smooth' });
+    const el = trackRef.current;
+    if (!el) return;
+    /**
+     * ⚠️⚠️ ХАРАГДАХ ӨРГӨНӨӨР гүйлгэнэ (тогтмол 720px БИШ).
+     *
+     * 720px нь картын өргөнтэй (150/180px + gap) таардаггүй тул
+     * гүйлт бүрд кино ХАГАСААР тасарч, эцэст нь зарим кино огт
+     * харагдахгүй өнгөрдөг байв.
+     *
+     * ⚠️ `clientWidth` нь ЯГ харагдах хэсэг — түүгээр гүйлгэвэл өмнөх
+     * дэлгэцийн сүүлчийн карт шинэ дэлгэцийн эхэнд ирнэ.
+     * ⚠️ `- 40` — нэг картын багахан хэсэг үлдээж "цааш үргэлжилж
+     * байна" гэдгийг харуулна (чиг баримжаа алдагдахгүй).
+     */
+    el.scrollBy({ left: dir * Math.max(200, el.clientWidth - 40), behavior: 'smooth' });
   };
 
   // Хулганы дугуйгаар хэвтээ гүйлгэнэ (desktop)
-  useWheelScroll(trackRef, updateScrollState);
+  /**
+   * ⚠️⚠️ ХУЛГАНЫ ДУГУЙГААР ХЭВТЭЭ ГҮЙЛГЭХИЙГ ХАСАВ (`useWheelScroll`).
+   *
+   * Хэрэглэгч хуудсыг ДООШ гүйлгэж явахад курсор киноны эгнээ дээр
+   * тааралдмагц гүйлт нь ХЭВТЭЭ болж хувирдаг байв — хуудас гацаж,
+   * кино хажуу тийш гүйнэ. Энэ нь хамгийн түгээмэл гомдол.
+   *
+   * Эгнээг гүйлгэх бусад зам БҮГД хэвээр: хажуугийн сум товч,
+   * чирэх (drag), мобайлд хуруу, трекпадын хэвтээ дохио.
+   */
 
   if (items.length === 0) return null;
 
@@ -94,7 +129,21 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
             // ⚠️ snap нь ЗӨВХӨН мобайлд (хуруугаар гүйлгэхэд карт цэгцтэй
             // зогсоно). Desktop дээр snap-mandatory нь хулганы дугуй/чирэлтийг
             // гацаадаг тул md-ээс дээш унтраана.
-            'hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-2 pt-1 md:snap-none',
+            /**
+             * ⚠️ `snap-*` ХАСАВ — картад `snap-start` тавиагүй тул snap
+             * ОГТ ажиллахгүй байсан (зөвхөн `md:snap-none`-оор
+             * унтраадаг байдал). Хэрэглэхгүй CSS нь зөвхөн будлиан
+             * үүсгэнэ. Мобайлд чөлөөт гүйлт илүү жигд мэдрэгдэнэ.
+             */
+            'hide-scrollbar gap-3 overflow-x-auto scroll-smooth pb-2 pt-1',
+            /**
+             * ⚠️ `grid-flow-col` — элементүүд БАГАНААР дүүрнэ (1-2 нь
+             * эхний багана, 3-4 нь хоёр дахь…). `grid-flow-row` бол
+             * хэвтээ гүйлт утгагүй болно.
+             * ⚠️ `auto-cols-max` — багана нь картын өргөнөөр (`w-37.5`)
+             * тогтоно, эс бөгөөс grid тэдгээрийг тэнцүү сунгана.
+             */
+            twoRows ? 'grid grid-flow-col grid-rows-2 auto-cols-max' : 'flex',
             canScroll.right && 'row-fade-right',
           )}
         >
