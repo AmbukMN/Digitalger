@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { CacheService } from '../../common/cache/cache.service';
 
 /**
  * Cloudflare R2 зай эзлэлтийн шинжилгээ — кино тус бүр хэдэн GB эзэлж
@@ -18,6 +20,8 @@ import { StorageService } from '../../storage/storage.service';
 
 /** Кэш хадгалах хугацаа */
 const CACHE_TTL_MS = 10 * 60 * 1000;
+/** Redis түлхүүр — процессын санах ойгоос ГАДНА (restart даана) */
+const CACHE_KEY = 'storage:usage:v1';
 
 /** Хэмжээ хэтэрсэн үед сэрэмжлүүлэх босго (R2 үнэгүй багц = 10GB) */
 const FREE_TIER_GB = 10;
@@ -59,12 +63,66 @@ export class StorageUsageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    /* ⚠️ Redis кэш — процессын санах ой restart-д алга болдог (@Global) */
+    private readonly appCache: CacheService,
   ) {}
+
+  /**
+   * ⚠️⚠️ УРЬДЧИЛЖ ТООЦНО — админ ХЭЗЭЭ Ч ХҮЛЭЭХГҮЙ.
+   *
+   * Скан нь 98 СЕКУНД болдог (93,491 объект). Кэш хугацаа дуусмагц
+   * ДАРААГИЙН админ тэр бүхнийг хүлээх ба proxy таймаут цохино
+   * (логонд 22 удаа `socket hang up` гарсан).
+   * 8 минут тутам урьдчилж шинэчилснээр кэш ХЭЗЭЭ Ч хоосрохгүй
+   * (TTL 10 мин > 8 мин интервал).
+   *
+   * ⚠️ Дэвсгэрт ажиллана — HTTP хүсэлт хүлээлгэхгүй.
+   */
+  @Cron('*/8 * * * *')
+  async warmCache() {
+    try {
+      await this.usage(true);
+    } catch (e) {
+      /* ⚠️ Cron унасан нь админ хуудсыг эвдэх ёсгүй — хуучин кэш үлдэнэ */
+      this.logger.warn(`Storage кэш урьдчилан тооцоолж чадсангүй: ${String(e)}`);
+    }
+  }
 
   async usage(refresh = false): Promise<UsageResult> {
     if (!refresh && this.cache && Date.now() - this.cache.at < CACHE_TTL_MS) {
       return { ...this.cache.data, cached: true };
     }
+
+    /**
+     * ⚠️⚠️ REDIS КЭШ — процессын санах ой BACKEND RESTART-Д АЛГА БОЛНО.
+     *
+     * Бодит алдаа: deploy хийсний дараа админ storage хуудас нээхэд
+     * `socket hang up` (22 удаа логонд). Скан нь 98 СЕКУНД болдог
+     * (93,491 объект / 94 хуудас) тул proxy таймаут цохидог.
+     * Redis-д хадгалснаар restart-ын дараа ч шууд хариу өгнө.
+     */
+    if (!refresh) {
+      const hit = await this.appCache.get<UsageResult>(CACHE_KEY);
+      if (hit) {
+        this.cache = { at: Date.now(), data: hit };
+        return { ...hit, cached: true };
+      }
+    }
+
+    /**
+     * ⚠️⚠️ ХУГАЦАА ХЭТЭРСЭН ДАТАГ ШУУД буцаана, шинэчлэлт нь ДЭВСГЭРТ.
+     *
+     * Эс бөгөөс кэш хоосорсон эхний хүсэлт 98 секунд хүлээж таймаут
+     * болно. Бага зэрэг хуучин тоо нь ГАЦСАН хуудаснаас ХАМААГҮЙ дээр
+     * (зай эзэлхүүн 10 минутад мэдэгдэхүйц өөрчлөгддөггүй).
+     */
+    if (this.cache) {
+      const stale = this.cache.data;
+      this.inflight ??= this.compute().finally(() => (this.inflight = null));
+      void this.inflight.catch(() => null);
+      return { ...stale, cached: true };
+    }
+
     this.inflight ??= this.compute().finally(() => (this.inflight = null));
     return this.inflight;
   }
@@ -196,6 +254,8 @@ export class StorageUsageService {
     };
 
     this.cache = { at: Date.now(), data: result };
+    /* ⚠️ Redis-д ч хадгална — backend restart-ыг даана (дээрх тайлбар) */
+    void this.appCache.set(CACHE_KEY, result, CACHE_TTL_MS / 1000);
     this.logger.log(
       `R2 скан: ${objects.length} объект, ${(totalBytes / 1024 ** 3).toFixed(2)} GB, ${Date.now() - started}мс`,
     );
