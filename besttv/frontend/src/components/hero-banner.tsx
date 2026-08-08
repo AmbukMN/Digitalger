@@ -68,13 +68,15 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
         >
           {banner.backdropUrl && (
             <div className="animate-ken-burns absolute inset-0" key={`kb-${banner.id}`}>
+              {/* ⚠️ `object-top` — анхдагч `object-cover` нь ГОЛООС
+                  тайрдаг тул жүжигчдийн ТОЛГОЙ таслагддаг байв */}
               <Image
                 src={banner.backdropUrl}
                 alt=""
                 fill
                 priority
                 sizes="100vw"
-                className="object-cover"
+                className="object-cover object-top"
               />
             </div>
           )}

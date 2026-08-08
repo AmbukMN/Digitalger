@@ -109,13 +109,21 @@ export function TitleDetailClient({ slug }: { slug: string }) {
     <main className="min-h-screen bg-background pb-16">
       <section className="relative h-[46vw] max-h-[520px] min-h-[300px] w-full">
         {data.backdropUrl ? (
+          /**
+           * ⚠️⚠️ `object-top` — ДЭЭД ТАЛ таслагдахгүй.
+           *
+           * Анхдагч `object-cover` нь ГОЛООС тайрдаг тул киноны
+           * backdrop дээрх жүжигчдийн ТОЛГОЙ таслагддаг байв
+           * (Agent Kim дээр бодитоор харагдсан). Постер/backdrop-д
+           * гол зүйл (нүүр, гарчиг, лого) дээд талдаа байдаг.
+           */
           <Image
             src={data.backdropUrl}
             alt=""
             fill
             priority
             sizes="100vw"
-            className="object-cover"
+            className="object-cover object-top"
           />
         ) : data.posterUrl ? (
           /**
