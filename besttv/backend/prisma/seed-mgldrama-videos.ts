@@ -28,6 +28,7 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
+  ListMultipartUploadsCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 /**
@@ -100,6 +101,32 @@ async function uploadMultipart(
   onProgress: (done: number, total: number) => void,
 ): Promise<void> {
   const { size } = await fsp.stat(filePath);
+
+  /**
+   * ⚠️⚠️ ЭНЭ KEY-ИЙН ХУУЧИН MULTIPART-ЫГ ЦЭВЭРЛЭНЭ.
+   *
+   * Script тасалдвал (Ctrl+C, унтраалт) дуусаагүй multipart R2-д
+   * ҮЛДЭЖ ТӨЛБӨР төлүүлдэг. Дахин ажиллуулах бүрд шинэ upload үүсэх
+   * тул нэг файлд 3-4 хог хуримтлагдана (бодитоор 25 үлдсэн).
+   *
+   * ⚠️ Гараар цэвэрлэх нь АЮУЛТАЙ — идэвхтэй байршуулалтыг устгаж
+   * "NoSuchUpload" алдаа өгсөн (бодитоор тохиолдсон). Тиймээс энд,
+   * ЯГ ЭХЛЭХИЙН ӨМНӨ, зөвхөн ТУХАЙН key-ийнхийг л устгана.
+   */
+  try {
+    const old = await s3.send(
+      new ListMultipartUploadsCommand({ Bucket: R2_BUCKET, Prefix: key }),
+    );
+    for (const u of old.Uploads ?? []) {
+      if (u.Key !== key || !u.UploadId) continue;
+      await s3
+        .send(new AbortMultipartUploadCommand({ Bucket: R2_BUCKET, Key: key, UploadId: u.UploadId }))
+        .catch(() => null);
+    }
+  } catch {
+    /* ⚠️ Цэвэрлэж чадаагүй нь байршуулалтыг зогсоох шалтгаан биш */
+  }
+
   const created = await s3.send(
     new CreateMultipartUploadCommand({ Bucket: R2_BUCKET, Key: key, ContentType: 'video/mp4' }),
   );
