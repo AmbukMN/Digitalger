@@ -25,18 +25,32 @@ export function HomeBannerStrip({ banner }: { banner: HomeBanner }) {
   const isExternal = href?.startsWith('http');
 
   const inner = (
-    <div className="relative aspect-[21/9] w-full overflow-hidden rounded-xl bg-foreground/5 sm:aspect-[3/1] md:aspect-[4/1]">
+    <div className="relative aspect-21/9 w-full overflow-hidden rounded-xl bg-foreground/5 sm:aspect-3/1 md:aspect-4/1">
       {/*
         ⚠️ Мобайлд өөр зураг — `hidden sm:block` / `sm:hidden` хосоор.
         CSS-ээр солих нь `useMediaQuery`-ээс ДЭЭР: SSR дээр ч зөв гарч,
         hydration зөрчил үүсгэхгүй.
+      */}
+      {/*
+        ⚠️⚠️ `object-top` — ДЕСКТОПТ зургийн ДЭЭД ТАЛ БҮТЭН харагдана.
+
+        Анхдагч `object-cover` нь ГОЛООС тайрдаг тул өргөн баннер дээрх
+        хүмүүсийн ТОЛГОЙ таслагдаж байв (бодит гомдол). Сурталчилгааны
+        зурагт гол зүйл (нүүр, лого, гарчиг) дээд талдаа байдаг тул
+        дээрээс нь тогтоох нь зөв.
+        ⚠️ Мобайлд `object-center` хэвээр — тэнд аль хэдийн зөв
+        харагддаг ба босоо тайралт өөр байдалтай.
       */}
       <Image
         src={banner.imageUrl}
         alt={banner.title || 'Сурталчилгаа'}
         fill
         sizes="(min-width: 768px) 1200px, 100vw"
-        className={banner.mobileImageUrl ? 'hidden object-cover sm:block' : 'object-cover'}
+        className={
+          banner.mobileImageUrl
+            ? 'hidden object-cover object-center sm:block sm:object-top'
+            : 'object-cover object-center sm:object-top'
+        }
       />
       {banner.mobileImageUrl && (
         <Image
@@ -51,7 +65,7 @@ export function HomeBannerStrip({ banner }: { banner: HomeBanner }) {
       {hasText && (
         <>
           {/* ⚠️ Зүүнээс градиент — текст ямар ч зураг дээр уншигдана */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-r from-black/80 via-black/45 to-transparent" />
           <div className="absolute inset-y-0 left-0 flex max-w-[72%] flex-col justify-center gap-1.5 p-4 sm:max-w-[55%] sm:gap-2.5 sm:p-7 md:p-9">
             {banner.title && (
               <h3 className="text-lg font-black leading-tight text-white drop-shadow sm:text-2xl md:text-3xl">

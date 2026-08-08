@@ -45,21 +45,30 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
   return (
     <section className="px-4 md:px-8" aria-label={title}>
       {/*
-        ⚠️ Жанрын толгой — гарчиг ЗҮҮН, "БҮГД" УЛААН ТОВЧ БАРУУН.
-        Өмнө нь "Бүгдийг үзэх" нь бүдэг текст (`text-foreground/45`)
-        байсан тул хэрэглэгч ТОВЧ гэдгийг анзаардаггүй, жанрын бүх
-        киног хардаггүй байв. Дүүрэн улаан нь брэндийн өнгө бөгөөд
-        нүд шууд тусна.
+        ⚠️ ЖАНРЫН ТОЛГОЙ — гарчиг ЗҮҮН, доогуур нь БҮХ ӨРГӨНӨӨР улаан
+        зураас, түүний БАРУУН ҮЗҮҮРТ "БҮГД" товч НААЛДСАН.
+
+        ЯАГААД зураас вэ: өмнө нь зөвхөн товч байсан тул жанрууд хооронд
+        хараагаар ЯЛГАРАХГҮЙ, эгнээ бүр нэг урсгал мэт харагддаг байв.
+        Зураас нь хэсгийн ХИЛ болж, нүд эгнээ тус бүрийг тусад нь уншина.
+
+        ⚠️ Зураас нь `flex-1` — товч байхгүй үед ч баруун захад хүрнэ.
       */}
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="truncate text-lg font-bold tracking-tight text-foreground md:text-xl">
+      <div className="mb-3 flex items-end gap-3">
+        <h2 className="shrink-0 text-lg font-bold tracking-tight text-foreground md:text-xl">
           {title}
         </h2>
+
+        {/* ⚠️ `min-w-0` — урт жанрын нэр байхад зураас шахагдаж алга
+            болохоос сэргийлнэ (flex-ийн анхдагч min-width: auto) */}
+        <div className="mb-1.5 h-0.5 min-w-0 flex-1 bg-primary" />
+
         {href && (
           <Link
             href={href}
-            /* ⚠️ `shrink-0` — урт жанрын нэр товчийг шахаж эвдэхээс сэргийлнэ */
-            className="group flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-primary-foreground transition-all hover:brightness-110 active:scale-95"
+            /* ⚠️ `-mb-0` + `rounded-t-md` — товч зурааснаас "ургаж"
+               гарсан мэт нийлнэ (зураас товчны ёроолтой нэг шугамд) */
+            className="group flex shrink-0 items-center gap-1 rounded-t-md bg-primary px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-primary-foreground transition-all hover:brightness-110 active:scale-95"
           >
             Бүгд
             <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
