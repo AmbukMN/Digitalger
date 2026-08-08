@@ -16,13 +16,24 @@ export function SearchResults() {
 
   // URL query хоцроод бичсэн, 400мс debounce-той — хайлт бүр дуудахгүй
   useEffect(() => {
+    /**
+     * ⚠️⚠️ URL-ТЭЙ АЛЬ ХЭДИЙН ТААРЧ БАЙВАЛ ГАРНА.
+     *
+     * Доорх `setInput(qParam)` effect нь URL өөрчлөгдөхөд `input`-ыг
+     * шинэчилдэг → энэ effect дахин асна → ижил URL руу дахин
+     * `router.replace` дуудагдана. Утсан дээр `autoFocus`-аар гар
+     * нээгдэж байх үед энэ нэмэлт re-render нь гарын анимацитай
+     * давхцаж дэлгэц чичирхийлдэг.
+     */
+    if (input.trim() === qParam) return;
+
     const t = setTimeout(() => {
       const url = input.trim() ? `/search?q=${encodeURIComponent(input.trim())}` : '/search';
       router.replace(url);
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input]);
+  }, [input, qParam]);
 
   useEffect(() => setInput(qParam), [qParam]);
 

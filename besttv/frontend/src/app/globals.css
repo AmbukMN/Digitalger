@@ -312,10 +312,30 @@ video {
   animation: shimmer 1.6s infinite;
 }
 
-/* ─── Мобайл bottom nav-д зориулсан доод зай ─────────────────── */
+/* ─── Мобайл bottom nav-д зориулсан доод зай ───────────────────
+ *
+ * ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ — `--mobile-nav-h`.
+ *
+ * Өмнө нь доод менюний өндрийг ГУРВАН газарт ГАРААР тааруулсан байв:
+ *   `.pb-mobile-nav`      → 4.5rem
+ *   чатын хөвөгч товч     → 5.5rem
+ *   footer-ийн padding    → 5rem
+ * Гэтэл бодит меню нь `min-h-14` = 3.5rem. Тоонууд зөрсөн тул
+ * менюний өндрийг өөрчлөхөд гурвуулаа тус тусдаа засагдах шаардлагатай
+ * болж, аль нэг нь хоцроход контент/товч хучигдана.
+ *
+ * ⚠️ `--mobile-nav-h` нь safe-area-г АЛЬ ХЭДИЙН агуулна — хэрэглэх
+ * газартаа дахин `+ var(--safe-bottom)` нэмэх ШААРДЛАГАГҮЙ.
+ */
+:root {
+  /* 3.5rem = `min-h-14` (доод меню) + iOS safe-area */
+  --mobile-nav-h: calc(3.5rem + var(--safe-bottom));
+}
+
 @media (max-width: 767px) {
   .pb-mobile-nav {
-    padding-bottom: calc(4.5rem + var(--safe-bottom));
+    /* ⚠️ +1rem — контент менюнд ШАХАГДАЖ наалдахгүй амьсгал */
+    padding-bottom: calc(var(--mobile-nav-h) + 1rem);
   }
 }
 

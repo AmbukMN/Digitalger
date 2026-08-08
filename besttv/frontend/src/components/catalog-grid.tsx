@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Loader2, SearchX } from 'lucide-react';
+import { SearchX } from 'lucide-react';
 import { ErrorState } from '@besttv/shared/ui';
 import { useCatalogInfinite, useGenres, useHome } from '@/lib/queries';
 import { cn } from '@besttv/shared';
@@ -236,11 +236,11 @@ export function CatalogGrid({
       */}
       {!showRows && (
         <div ref={sentinelRef} className="mt-8 flex justify-center" aria-hidden={!hasNextPage}>
-          {isFetchingNextPage ? (
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 size={16} className="animate-spin" /> Ачаалж байна…
-            </span>
-          ) : !hasNextPage && items.length > 0 ? (
+          {/* ⚠️ SPINNER ХАСАВ — дээрх grid-д АЛЬ ХЭДИЙН 6 skeleton карт
+              гарч байхад доор нь дахин "Ачаалж байна…" эргэлдэх нь нэг
+              үйлдлийг ХОЁР УДАА зарлаж, дэлгэц шуугиантай болгодог.
+              Skeleton дангаараа хангалттай (төслийн дүрэмтэй ч нийцнэ). */}
+          {!isFetchingNextPage && !hasNextPage && items.length > 0 ? (
             /* Төгсгөлд хүрсэн — хэрэглэгч "бүгдийг харлаа" гэдгээ мэднэ */
             <span className="text-sm text-muted-foreground">
               Нийт {total} кино — бүгдийг харлаа

@@ -502,7 +502,7 @@ export function ChatWidget() {
         // ⚠️ Хэмжээг inline-ээр хатуу бэхэлнэ — flex/badge нь товчийг гажуудуулдаг
         style={{ width: 60, height: 60, minWidth: 60, minHeight: 60, flex: '0 0 60px' }}
         // ⚠️ Мобайл дээр доод nav (h~60px + safe area) бүрхэхгүйн тулд дээш
-        className="fixed bottom-[calc(5.5rem+var(--safe-bottom))] right-4 z-[60] flex touch-none items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl shadow-primary/30 md:bottom-6 md:right-6"
+        className="fixed bottom-[calc(var(--mobile-nav-h)+1rem)] right-4 z-[60] flex touch-none items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl shadow-primary/30 md:bottom-6 md:right-6"
       >
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
@@ -555,7 +555,7 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="fixed bottom-[calc(9.5rem+var(--safe-bottom))] right-3 z-[60] flex h-[65dvh] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-foreground/10 bg-background shadow-2xl md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-7rem))]"
+            className="fixed bottom-[calc(var(--mobile-nav-h)+5rem)] right-3 z-[60] flex h-[65dvh] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-foreground/10 bg-background shadow-2xl md:bottom-24 md:right-6 md:h-[min(620px,calc(100dvh-7rem))]"
           >
             {/* Толгой */}
             <div className="flex items-center gap-2.5 bg-primary px-4 py-3 text-primary-foreground">

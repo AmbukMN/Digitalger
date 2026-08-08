@@ -1,5 +1,19 @@
 'use client';
 
+/**
+ * ⚠️⚠️ ХЭРЭГЛЭГДЭХГҮЙ ФАЙЛ — `components/mobile-bottom-nav.tsx` ОРЛОСОН.
+ *
+ * `site-chrome.tsx` нь ЗӨВХӨН `MobileBottomNav`-ыг рендерлэдэг; энэ
+ * компонентыг импортолсон газар НЭГ Ч БАЙХГҮЙ (grep-ээр шалгасан).
+ *
+ * ⚠️ ЗАСВАР ХИЙХ БОЛ `mobile-bottom-nav.tsx`-Д ХИЙНЭ — энд хийсэн
+ * өөрчлөлт сайт дээр ОГТ гарахгүй. Энэ файл нь `--safe-bottom`,
+ * `glass`, `min-h-12` гэсэн ӨӨР шийдэл агуулж байгаа тул андуурч
+ * засах эрсдэлтэй.
+ *
+ * ⚠️ УСТГААГҮЙ — хэрэглэгчийн зөвшөөрөл шаардлагатай (төслийн дүрэм).
+ */
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Heart, Clapperboard, Home, Search } from 'lucide-react';

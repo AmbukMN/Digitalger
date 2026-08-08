@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
@@ -34,16 +34,41 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
    * ⚠️ TOP10 нь эрэмбэ 1→10 гэж уншигддаг тул ҮРГЭЛЖ нэг мөр.
    */
   const twoRows = variant !== 'top10' && items.length >= 6;
-  const [canScroll, setCanScroll] = useState({ left: false, right: true });
+  /**
+   * ⚠️ Анхны утга `right: false` — өмнө нь `true` байсан тул гүйлгэх
+   * зүйл БАЙХГҮЙ эгнээнд ч баруун fade харагдаж, "цааш кино бий"
+   * гэж ХУУРДАГ байв (доорх `useEffect` бодит утгыг тавина).
+   */
+  const [canScroll, setCanScroll] = useState({ left: false, right: false });
 
-  const updateScrollState = () => {
+  const updateScrollState = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
     setCanScroll({
       left: el.scrollLeft > 8,
       right: el.scrollLeft + el.clientWidth < el.scrollWidth - 8,
     });
-  };
+  }, []);
+
+  /**
+   * ⚠️⚠️ MOUNT + ХЭМЖЭЭ ӨӨРЧЛӨГДӨХӨД шалгана.
+   *
+   * `onScroll` нь хэрэглэгч ГҮЙЛГЭТЭЛ дуудагддаггүй тул анхны төлөв
+   * хэзээ ч зөв болдоггүй байв. Мобайлд сум товч байхгүй (`md:flex`),
+   * scrollbar нуугдсан тул fade нь гүйлгэж болохыг заах ЦОРЫН ГАНЦ
+   * дохио — тэр нь буруу байвал хэрэглэгч кино байгааг мэдэхгүй.
+   *
+   * ⚠️ `ResizeObserver` — дэлгэц эргүүлэх/цонх өөрчлөхөд картын тоо
+   * өөрчлөгдөж gүйлт шаардлагатай эсэх нь өөрчлөгдөнө.
+   */
+  useEffect(() => {
+    updateScrollState();
+    const el = trackRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [items.length, updateScrollState]);
 
   const scroll = (dir: 1 | -1) => {
     const el = trackRef.current;

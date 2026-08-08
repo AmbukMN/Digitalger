@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useQuery,
   useQueryClient,
   useMutation,
@@ -402,11 +403,25 @@ export function useMyList(enabled = true) {
  * Нэвтэрсэн үед useMyList() ашиглана.
  */
 export function useTitlesByIds(ids: string[], enabled = true) {
-  const key = ids.join(',');
+  /**
+   * ⚠️⚠️ ЭРЭМБЭЛЖ түлхүүр үүсгэнэ.
+   *
+   * `ids` нь `Set`-ээс задарсан массив тул ижил агуулгатай ч ДАРААЛАЛ
+   * өөр байж болно (нэмэх/хасах дарааллаас хамаарна). Эрэмбэлээгүй бол
+   * ижил жагсаалтад ӨӨР queryKey үүсч, кэш ажиллахгүй.
+   */
+  const key = [...ids].sort().join(',');
   return useQuery({
     queryKey: ['titles-by-ids', key],
     queryFn: () => api<TitleCard[]>(`/titles/by-ids?ids=${encodeURIComponent(key)}`),
     enabled: enabled && ids.length > 0,
+    /**
+     * ⚠️ Зочин ♥ дарж НЭГ кино хасахад БҮХ жагсаалт дахин татагдаж,
+     * бүх постер анивчиж layout үсэрдэг байв (20 кинотой хүнд
+     * харагдахуйц). `keepPreviousData` нь хуучин датаг байрандаа
+     * үлдээж, шинэ нь ирэхэд л солино.
+     */
+    placeholderData: keepPreviousData,
   });
 }
 

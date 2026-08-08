@@ -219,6 +219,31 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
           </span>
         )}
 
+        {/*
+          ⚠️⚠️ МОБАЙЛД БАЙНГА ХАРАГДАХ "ДУРТАЙ" ТОВЧ.
+
+          Доорх overlay нь `group-hover` тул хүрэлтэт төхөөрөмжид ОГТ
+          гарахгүй — картад хуруу хүрмэгц `Link` ажиллаж дэлгэрэнгүй рүү
+          шилжинэ. Үр дүнд утаснаас ♥ дарах БОЛОМЖГҮЙ байв: хэрэглэгч
+          заавал дэлгэрэнгүй хуудас руу орох шаардлагатай болдог.
+
+          ⚠️ `md:hidden` — десктопт overlay-гийн товч ажиллах тул
+          давхардуулахгүй. `h-9 w-9` (36px) нь хүрэлцэх доод хязгаар.
+          ⚠️ `z-10` — `Link`-ээс ДЭЭР байрлаж, дарахад навигац болохгүй.
+        */}
+        {!title.comingSoon && (
+          <button
+            onClick={addToList}
+            aria-label={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
+            className={cn(
+              'absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors md:hidden',
+              inList ? 'bg-primary text-white' : 'bg-black/45 text-white',
+            )}
+          >
+            <Heart size={15} className={inList ? 'fill-current' : ''} />
+          </button>
+        )}
+
         {/* Hover overlay — quick actions */}
         <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/85 via-black/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
           <div className="card-actions flex items-center gap-1.5 p-2.5">

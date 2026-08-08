@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Lock, Ticket } from 'lucide-react';
+import { Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
@@ -120,10 +120,35 @@ export function WatchClient({ slug }: { slug: string }) {
     if (nextEpisode?.playable) goToEpisode(nextEpisode.id);
   }, [data, slug, episodeId, nextEpisode, goToEpisode]);
 
+  /**
+   * ⚠️⚠️ SPINNER БИШ SKELETON — төслийн дүрэм.
+   *
+   * Өмнө нь хар дэлгэц дээр жижиг эргэлдэх дугуй байсан тул дата
+   * ирмэгц плеер + ангиудын жагсаалт ГЭНЭТ орж ирж layout БҮРЭН
+   * үсэрдэг байв (CLS). Утсан дээр ангиудын хэсэг `w-full` тул
+   * үсрэлт нь бүр том.
+   *
+   * Skeleton нь эцсийн бүтцийг (16:9 плеер + гарчиг + ангиуд)
+   * урьдчилж эзэлдэг тул дата ирэхэд юу ч хөдлөхгүй.
+   */
   if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-black">
-        <Loader2 className="animate-spin text-white/50" size={40} aria-label="Ачааллаж байна" />
+      <main className="min-h-screen bg-black">
+        <div className="mx-auto max-w-400 px-3 py-4 md:px-6">
+          <div className="skeleton-shimmer aspect-video w-full rounded-lg bg-white/5" />
+          <div className="mt-4 space-y-2">
+            <div className="skeleton-shimmer h-6 w-2/3 rounded bg-white/5" />
+            <div className="skeleton-shimmer h-4 w-1/3 rounded bg-white/5" />
+          </div>
+          <div className="mt-6 space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="skeleton-shimmer h-12 w-20 shrink-0 rounded bg-white/5" />
+                <div className="skeleton-shimmer h-4 flex-1 rounded bg-white/5" />
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     );
   }

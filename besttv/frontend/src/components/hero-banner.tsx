@@ -224,13 +224,38 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
           aria-label="Слайд сонгох"
         >
           {banners.map((b, i) => (
+            /**
+             * ⚠️⚠️ ХҮРЭХ ТАЛБАЙН WRAPPER — `py-3 -my-3`.
+             *
+             * Зураас нь 4px өндөр (`h-1`) тул хуруугаар онох бараг
+             * БОЛОМЖГҮЙ байв: хэрэглэгч 3-4 удаа оролдоод бууж өгч,
+             * 6 секунд хүлээж автомат солигдохыг хүлээдэг.
+             *
+             * `py-3 -my-3` нь ЗАЙ ЭЗЛЭХГҮЙГЭЭР (сөрөг margin нөхнө)
+             * дарах өндрийг 4px → 28px болгоно. Товч дээр шууд тавьж
+             * болохгүй — `h-1`-тэй зөрчилдөж зураас өөрөө өргөснө.
+             */
+            <span key={b.id} className="-my-3 flex items-center py-3">
             <button
-              key={b.id}
               role="tab"
               aria-selected={i === active}
               aria-label={`${b.title} слайд`}
               onClick={() => setActive(i)}
               className={cn(
+                /**
+                 * ⚠️⚠️ ХҮРЭХ ТАЛБАЙ — `before:` псевдо-элементээр өргөснө.
+                 *
+                 * Зураас нь 4px өндөр (`h-1`) тул хуруугаар онох бараг
+                 * БОЛОМЖГҮЙ байв — хэрэглэгч 3-4 удаа оролдоод бууж
+                 * өгч, 6 секунд хүлээж автомат солигдохыг хүлээдэг.
+                 *
+                 * ⚠️ `before:-inset-y-3` нь ХАРАГДАХ хэмжээг
+                 * ӨӨРЧЛӨХГҮЙГЭЭР хүрэх өндрийг 4px → 28px болгоно
+                 * (загвар хэвээр, ашиглалт л сайжирна).
+                 */
+                /* ⚠️ `overflow-hidden` ХЭВЭЭР — дэвшилтийн зураас хүрээнээс
+                   халихгүй. Хүрэх талбайг доорх `<span>`-аар өргөснө
+                   (`before:` нь overflow-д таслагдана). */
                 'relative h-1 overflow-hidden rounded-full transition-all duration-300',
                 i === active ? 'w-12 bg-white/25' : 'w-5 bg-white/20 hover:bg-white/35',
               )}
@@ -245,6 +270,7 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                 <span className="absolute inset-y-0 left-0 w-1/2 rounded-full bg-primary" />
               )}
             </button>
+            </span>
           ))}
         </div>
       )}

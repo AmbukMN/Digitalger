@@ -101,7 +101,7 @@ export function Footer() {
       className="mt-16 border-t border-foreground/8 bg-muted">
       {/* ⚠️ pb — мобайлын bottom nav (h~60px + safe area) footer-ийн сүүлийн
           мөрийг бүрхэхээс сэргийлнэ */}
-      <div className="mx-auto max-w-[1600px] px-4 pb-[calc(5rem+var(--safe-bottom))] pt-10 md:px-8 md:pb-12 md:pt-12">
+      <div className="mx-auto max-w-[1600px] px-4 pb-[calc(var(--mobile-nav-h)+1.5rem)] pt-10 md:px-8 md:pb-12 md:pt-12">
         <div className="grid gap-8 md:grid-cols-[1.4fr_repeat(3,1fr)] md:gap-10">
           <div>
             <Link href="/" className="inline-flex items-center">
