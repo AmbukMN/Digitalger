@@ -45,30 +45,29 @@ export function TitleRow({ title, items, href, variant = 'default', progressById
   return (
     <section className="px-4 md:px-8" aria-label={title}>
       {/*
-        ⚠️ ЖАНРЫН ТОЛГОЙ — гарчиг ЗҮҮН, доогуур нь БҮХ ӨРГӨНӨӨР улаан
-        зураас, түүний БАРУУН ҮЗҮҮРТ "БҮГД" товч НААЛДСАН.
+        ⚠️⚠️ ЖАНРЫН ТОЛГОЙ — зураас нь бүх өргөнөөр ДООГУУР нь явна.
 
-        ЯАГААД зураас вэ: өмнө нь зөвхөн товч байсан тул жанрууд хооронд
-        хараагаар ЯЛГАРАХГҮЙ, эгнээ бүр нэг урсгал мэт харагддаг байв.
-        Зураас нь хэсгийн ХИЛ болж, нүд эгнээ тус бүрийг тусад нь уншина.
+        БҮТЭЦ: гарчиг болон "БҮГД" товч нь НЭГ мөрөнд, тэдний ДООР
+        (эцэг элементийн `border-b`) улаан зураас. Товч нь зурааснаас
+        ДЭЭШЭЭ сууж, баруун үзүүрт нь нийлнэ.
 
-        ⚠️ Зураас нь `flex-1` — товч байхгүй үед ч баруун захад хүрнэ.
+        ⚠️ Өмнө нь зураасыг гарчиг ба товчны ХООРОНД `flex-1` div-ээр
+        тавьсан нь БУРУУ байв — зураас нь гарчгийн ХАЖУУГААР явж,
+        доогуур нь ОРООГҮЙ.
+
+        ЯАГААД зураас вэ: жанрууд хооронд хараагаар ЯЛГАРАХГҮЙ, эгнээ
+        бүр нэг урсгал мэт харагддаг байв. Зураас нь хэсгийн ХИЛ болно.
       */}
-      <div className="mb-3 flex items-end gap-3">
-        <h2 className="shrink-0 text-lg font-bold tracking-tight text-foreground md:text-xl">
+      <div className="mb-3 flex items-end justify-between gap-3 border-b-2 border-primary">
+        <h2 className="truncate pb-1.5 text-lg font-bold tracking-tight text-foreground md:text-xl">
           {title}
         </h2>
-
-        {/* ⚠️ `min-w-0` — урт жанрын нэр байхад зураас шахагдаж алга
-            болохоос сэргийлнэ (flex-ийн анхдагч min-width: auto) */}
-        <div className="mb-1.5 h-0.5 min-w-0 flex-1 bg-primary" />
-
         {href && (
+          /* ⚠️ `rounded-t-md` + padding зөвхөн дээр — товч зураасан
+             дээр СУУСАН мэт харагдана (доод ирмэг нь зурааст нийлнэ) */
           <Link
             href={href}
-            /* ⚠️ `-mb-0` + `rounded-t-md` — товч зурааснаас "ургаж"
-               гарсан мэт нийлнэ (зураас товчны ёроолтой нэг шугамд) */
-            className="group flex shrink-0 items-center gap-1 rounded-t-md bg-primary px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-primary-foreground transition-all hover:brightness-110 active:scale-95"
+            className="group flex shrink-0 items-center gap-1 rounded-t-md bg-primary px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-primary-foreground transition-all hover:brightness-110"
           >
             Бүгд
             <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />

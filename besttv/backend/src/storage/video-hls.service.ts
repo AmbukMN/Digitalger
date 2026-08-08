@@ -283,7 +283,20 @@ export class VideoHlsService {
       ...ladder.map((l, i) => `[s${i}]scale=-2:${l.height}[v${i}]`),
     ].join(';');
 
-    const opts: string[] = ['-filter_complex', filter];
+    /**
+     * ⚠️⚠️ THREAD ХЯЗГААР — олон ажил ЗЭРЭГ хөрвүүлэхэд ЗААВАЛ.
+     *
+     * ffmpeg нь анхдагчаар БҮХ цөмийг эзэлдэг. Worker-ийн concurrency
+     * 4 болгоход 4 × (бүх цөм) = 16+ thread нь 4 цөм дээр өрсөлдөж,
+     * context switch-д цаг үрэгдэн БҮГД удаашрана. Мөн вэб сервер
+     * CPU авч чадахгүй болж сайт гацна.
+     *
+     * `HLS_THREADS` — ажил тус бүрийн дээд thread. Тохируулаагүй бол 1
+     * (concurrency өндөр үед аюулгүй анхдагч). Ганцаар ажиллуулах бол
+     * .env-д 4 гэж тавьж болно.
+     */
+    const threads = process.env.HLS_THREADS ?? '1';
+    const opts: string[] = ['-threads', threads, '-filter_complex', filter];
 
     ladder.forEach((l, i) => {
       opts.push(

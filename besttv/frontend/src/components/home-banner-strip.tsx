@@ -24,8 +24,16 @@ export function HomeBannerStrip({ banner }: { banner: HomeBanner }) {
   /* ⚠️ Гадаад холбоосыг шинэ табд — сайтаас гаргахгүй */
   const isExternal = href?.startsWith('http');
 
+  /**
+   * ⚠️ ДЕСКТОПТ НАРИЙН — өргөн дэлгэцэнд `aspect-4/1` ч гэсэн 400px+
+   * өндөр болж, доорх жанрын эгнээг дэлгэцээс шахаж гаргадаг байв
+   * (сурталчилгаа контентоос илүү зай эзлэх нь буруу).
+   * ⚠️ `max-h` нэмсэн шалтгаан: зөвхөн харьцаа ХАНГАЛТГҮЙ — 2560px
+   * мониторт `6/1` ч 420px өндөр өгнө. Дээд хязгаар тэнд барина.
+   * ⚠️ Мобайлд ХЭВЭЭР (`aspect-21/9`) — тэнд зөв харагдаж байгаа.
+   */
   const inner = (
-    <div className="relative aspect-21/9 w-full overflow-hidden rounded-xl bg-foreground/5 sm:aspect-3/1 md:aspect-4/1">
+    <div className="relative aspect-21/9 max-h-70 w-full overflow-hidden rounded-xl bg-foreground/5 sm:aspect-4/1 md:aspect-6/1">
       {/*
         ⚠️ Мобайлд өөр зураг — `hidden sm:block` / `sm:hidden` хосоор.
         CSS-ээр солих нь `useMediaQuery`-ээс ДЭЭР: SSR дээр ч зөв гарч,
@@ -66,9 +74,11 @@ export function HomeBannerStrip({ banner }: { banner: HomeBanner }) {
         <>
           {/* ⚠️ Зүүнээс градиент — текст ямар ч зураг дээр уншигдана */}
           <div className="absolute inset-0 bg-linear-to-r from-black/80 via-black/45 to-transparent" />
-          <div className="absolute inset-y-0 left-0 flex max-w-[72%] flex-col justify-center gap-1.5 p-4 sm:max-w-[55%] sm:gap-2.5 sm:p-7 md:p-9">
+          {/* ⚠️ Баннер нарийссан тул padding/фонтыг ч багасгав — эс
+              бөгөөс текст ирмэгт наалдаж шахуу харагдана */}
+          <div className="absolute inset-y-0 left-0 flex max-w-[72%] flex-col justify-center gap-1 p-4 sm:max-w-[55%] sm:gap-2 sm:p-6 md:p-7">
             {banner.title && (
-              <h3 className="text-lg font-black leading-tight text-white drop-shadow sm:text-2xl md:text-3xl">
+              <h3 className="text-lg font-black leading-tight text-white drop-shadow sm:text-xl md:text-2xl">
                 {banner.title}
               </h3>
             )}

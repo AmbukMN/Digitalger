@@ -26,7 +26,24 @@ export class VideoProcessor {
     private readonly hls: VideoHlsService,
   ) {}
 
-  @Process({ name: 'convert', concurrency: 1 })
+  /**
+   * ⚠️⚠️ CONCURRENCY 4 — 49 драм бөөнөөр хөрвүүлэхэд хурдасгав.
+   *
+   * ⚠️ ЗААВАЛ `HLS_THREADS`-ТАЙ ХАМТ: ffmpeg анхдагчаар БҮХ цөмийг
+   * эзэлдэг тул 4 зэрэг ажил × 4 цөм = 16 thread нь VPS-ийн 4 цөм дээр
+   * өрсөлдөж, context switch-д цаг үрэгдэн БҮГД удаашрана. Мөн вэб
+   * сервер CPU авч чадахгүй болж САЙТ ГАЦНА.
+   * Тохиргоо: `HLS_THREADS=3` (worker .env-д) → 4×3=12 нь 4 цөмд
+   * зохимжтой дарамт, systemd/nginx-д ч зай үлдэнэ.
+   *
+   * ⚠️ ДИСК: ажил бүр raw файл (4-7 GB) + HLS гаралт (~4 GB) татдаг.
+   * 4 зэрэг ≈ 40 GB түр зай. VPS-д 33 GB сул тул ЭРСДЭЛТЭЙ — гэхдээ
+   * ажлууд өөр өөр цагт дуусдаг тул бодит оргил нь бага. Хэрэв
+   * "no space left" гарвал энийг 2 болгоно.
+   *
+   * ⚠️ Энэ файлыг өөрчилбөл worker-ийг ЗААВАЛ rebuild!
+   */
+  @Process({ name: 'convert', concurrency: 4 })
   async handle(job: Job<VideoHlsJob>) {
     const { target, targetId, rawKey } = job.data;
 
@@ -42,6 +59,25 @@ export class VideoProcessor {
     if (target !== 'trailer' && (await this.alreadyReady(target, targetId))) {
       this.logger.log(`Аль хэдийн бэлэн — алгаслаа: ${target}/${targetId}`);
       return;
+    }
+
+    /**
+     * ⚠️⚠️ ДИСКНИЙ ЗАЙ ШАЛГАНА — concurrency 4 үед ЗААВАЛ.
+     *
+     * Ажил бүр raw файл (4-7 GB) татаж, HLS гаралт (~4 GB) үүсгэдэг.
+     * 4 зэрэг ажиллахад ~40 GB түр зай хэрэгтэй. Зай дуусвал ffmpeg
+     * дунд замдаа унаж, кино FAILED болно — дараа нь 5 GB дахин татаж
+     * дахин оролдоно (урсгал, цаг дэмий).
+     *
+     * Зай багатай бол ажлыг ХОЙШЛУУЛНА (throw → BullMQ retry). Өмнөх
+     * ажил дуусаад зай чөлөөлөгдмөгц үргэлжилнэ.
+     */
+    const freeGb = await this.freeDiskGb();
+    if (freeGb !== null && freeGb < 12) {
+      this.logger.warn(
+        `Дискний зай багадлаа (${freeGb.toFixed(1)} GB) — ажлыг хойшлууллаа: ${target}/${targetId}`,
+      );
+      throw new Error(`Дискний зай хүрэлцэхгүй (${freeGb.toFixed(1)} GB)`);
     }
 
     this.logger.log(`HLS хөрвүүлэлт эхэллээ: ${target}/${targetId} (${rawKey})`);
@@ -134,6 +170,22 @@ export class VideoProcessor {
    * Тухайн кино/анги АЛЬ ХЭДИЙН амжилттай хөрвүүлэгдсэн эсэх.
    * `videoKey` + `READY` хоёул байвал дахин хөрвүүлэх шаардлагагүй.
    */
+  /**
+   * Ажлын хавтас байрлах дискний СУЛ зай (GB).
+   *
+   * ⚠️ `statfs` — Node 18.15+. Алдаа гарвал `null` буцаана: зай шалгаж
+   * чадаагүй нь хөрвүүлэлтийг ЗОГСООХ шалтгаан биш (false-safe).
+   */
+  private async freeDiskGb(): Promise<number | null> {
+    try {
+      const { statfs } = await import('fs/promises');
+      const s = await statfs(process.cwd());
+      return (s.bavail * s.bsize) / 1024 ** 3;
+    } catch {
+      return null;
+    }
+  }
+
   private async alreadyReady(
     target: VideoHlsJob['target'],
     targetId: string,
