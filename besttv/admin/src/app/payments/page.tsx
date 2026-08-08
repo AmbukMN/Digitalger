@@ -9,9 +9,11 @@ import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { DataToolbar, SortHeader } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
+import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { useAdminPaymentCounts, useAdminPayments, type PaymentFilters } from '@/lib/queries';
 import { NewBadge } from '@/components/new-badge';
 import { useNewSince } from '@/lib/use-new-since';
@@ -116,7 +118,7 @@ export default function PaymentsPage() {
     }
   };
 
-  const { data, isFetching } = useAdminPayments(f);
+  const { data, isFetching, isError, error, refetch } = useAdminPayments(f);
   const { data: counts } = useAdminPaymentCounts({
     search: f.search,
     from: f.from,
@@ -144,26 +146,9 @@ export default function PaymentsPage() {
   /** CSV татах — шүүсэн БҮХ мөр (хуудаслалтгүй) */
   const exportCsv = async () => {
     setExporting(true);
-    try {
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries(f)) {
-        if (!v || v === 'ALL' || ['page', 'limit', 'sort', 'dir'].includes(k)) continue;
-        qs.set(k, String(v));
-      }
-      const res = await api<{ csv: string; count: number }>(`/admin/payments/export?${qs}`);
-      const blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`${res.count} мөр татагдлаа`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Татахад алдаа гарлаа');
-    } finally {
-      setExporting(false);
-    }
+    /* ⚠️ Blob/URL/toast логик `lib/export-csv.ts`-д НЭГ эх сурвалж */
+    await downloadCsv(`/admin/payments/export?${filtersToQuery(f)}`, 'payments');
+    setExporting(false);
   };
 
   const stats = data?.stats;
@@ -244,13 +229,21 @@ export default function PaymentsPage() {
           onReset={() => setF(EMPTY)}
         />
 
+        {/* ⚠️⚠️ МӨНГӨНИЙ хуудсанд алдааны төлөв ЗААВАЛ — API унахад
+            хоосон хүснэгт харагдвал админ "өнөөдөр гүйлгээ ороогүй"
+            гэж эндүүрч, бодит орлогыг мэдэхгүй өнгөрнө */}
+        {isError ? (
+          <div className="mt-5">
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          </div>
+        ) : (
         <div
           className={cn(
             'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
             isFetching && 'opacity-60',
           )}
         >
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-215 text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Хэрэглэгч</th>
@@ -399,6 +392,7 @@ export default function PaymentsPage() {
             />
           )}
         </div>
+        )}
 
         <Pagination
           page={data?.page ?? 1}

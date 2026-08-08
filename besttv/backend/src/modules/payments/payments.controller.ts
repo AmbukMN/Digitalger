@@ -15,6 +15,7 @@ import { Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { PurchasePlanDto, RentTitleDto, TopupDto } from './dto/payments.dto';
 
 @Controller('payments')
 export class PaymentsController {
@@ -23,12 +24,8 @@ export class PaymentsController {
   @Post('initiate')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  initiate(
-    @CurrentUser() user: JwtPayload,
-    @Body('planId') planId: string,
-    @Body('couponCode') couponCode?: string,
-  ) {
-    return this.payments.initiate(planId, user.sub, couponCode);
+  initiate(@CurrentUser() user: JwtPayload, @Body() dto: PurchasePlanDto) {
+    return this.payments.initiate(dto.planId, user.sub, dto.couponCode);
   }
 
   /**
@@ -43,8 +40,8 @@ export class PaymentsController {
   @Post('rental/initiate')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  initiateRental(@CurrentUser() user: JwtPayload, @Body('titleId') titleId: string) {
-    return this.payments.initiateRental(titleId, user.sub);
+  initiateRental(@CurrentUser() user: JwtPayload, @Body() dto: RentTitleDto) {
+    return this.payments.initiateRental(dto.titleId, user.sub);
   }
 
   @Get(':id/check')
@@ -63,20 +60,18 @@ export class PaymentsController {
   @Post('wallet/topup')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  topup(@CurrentUser() user: JwtPayload, @Body('amount') amount: number) {
-    return this.payments.topupWallet(user.sub, Number(amount));
+  topup(@CurrentUser() user: JwtPayload, @Body() dto: TopupDto) {
+    /* ⚠️ `Number()` ХЭРЭГГҮЙ — DTO нь бүхэл тоо байхыг
+       аль хэдийн баталгаажуулсан (NaN/бутархай хүрэхгүй) */
+    return this.payments.topupWallet(user.sub, dto.amount);
   }
 
   /** Хэтэвчийн үлдэгдлээр багц худалдан авах (QPay дамжихгүй) */
   @Post('wallet/purchase')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  purchaseWithWallet(
-    @CurrentUser() user: JwtPayload,
-    @Body('planId') planId: string,
-    @Body('couponCode') couponCode?: string,
-  ) {
-    return this.payments.purchaseWithWallet(user.sub, planId, couponCode);
+  purchaseWithWallet(@CurrentUser() user: JwtPayload, @Body() dto: PurchasePlanDto) {
+    return this.payments.purchaseWithWallet(user.sub, dto.planId, dto.couponCode);
   }
 
   /** QPay callback — нээлттэй endpoint, дотор нь QPay API-аар баталгаажуулна */

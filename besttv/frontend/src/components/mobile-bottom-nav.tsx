@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Film, Home, LayoutGrid, LogIn, Search, User } from 'lucide-react';
+import { Film, Heart, Home, LogIn, Search, User } from 'lucide-react';
 import { cn } from '@besttv/shared';
 import { useAuth } from '@/lib/auth-store';
 import { loginUrl } from '@/lib/auth-intent';
@@ -44,14 +44,26 @@ const TABS: Tab[] = [
     href: '/movies',
     label: 'КИНО',
     icon: Film,
-    // ⚠️ Жанр сонгоогүй үед л "Кино" идэвхтэй — сонгосон бол "Төрөл" идэвхжинэ
-    isActive: (p, s) => p === '/movies' && !s,
+    isActive: (p) => p === '/movies',
   },
+  /**
+   * ⚠️⚠️ "ТӨРӨЛ" таб ХАСАГДАВ — "КИНО"-ТОЙ ЯГ ИЖИЛ хуудас нээдэг байв.
+   *
+   * `href: '/movies?genre='` нь ХООСОН утга: `catalog-grid` дээр
+   * `searchParams.get('genre')` нь `''` буцаана, `'' ?? undefined`
+   * нь `''` (nullish БИШ) → `showRows = !genre` = `true` → яг "Бүгд"
+   * горим. Өөрөөр хэлбэл 5 табны 2 нь ижил контент харуулж, зөвхөн
+   * идэвхтэй таб солигдож хэрэглэгчийг төөрөгдүүлдэг байв.
+   *
+   * Оронд нь "ДУРТАЙ" — мобайл менюнээс БҮРЭН алга байсан бодит хуудас
+   * (хэрэглэгч ♥ дарж хадгалсан киногоо олох цорын ганц зам нь
+   * профайл руу орох байв).
+   */
   {
-    href: '/movies?genre=',
-    label: 'ТӨРӨЛ',
-    icon: LayoutGrid,
-    isActive: (p, s) => p === '/movies' && !!s,
+    href: '/my-list',
+    label: 'ДУРТАЙ',
+    icon: Heart,
+    isActive: (p) => p.startsWith('/my-list'),
   },
   {
     href: '/search',

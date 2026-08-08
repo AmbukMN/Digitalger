@@ -13,6 +13,7 @@ import { BulkBar, type BulkImpact } from '@/components/bulk-bar';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { DataToolbar, SortHeader } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
@@ -48,7 +49,7 @@ const EMPTY: TitleFilters = {
 
 export default function MoviesPage() {
   const [f, setF] = useState<TitleFilters>(EMPTY);
-  const { data, isFetching } = useAdminTitles(f);
+  const { data, isFetching, isError, error, refetch } = useAdminTitles(f);
   const { data: counts } = useAdminTitleCounts({ q: f.q, genre: f.genre, year: f.year });
   const { data: genres } = useAdminGenres();
   /** null = хаалттай, 'new' = шинэ, id = засах */
@@ -249,13 +250,20 @@ export default function MoviesPage() {
           }}
         />
 
+        {/* ⚠️ Алдааны төлөв ЗААВАЛ — эс бөгөөс доорх `!data &&`
+            skeleton API унасан үед мөнх эргэлдэнэ */}
+        {isError ? (
+          <div className="mt-5">
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          </div>
+        ) : (
         <div
           className={cn(
             'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
             isFetching && 'opacity-60',
           )}
         >
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-225 text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="w-10 px-3 py-3">
@@ -437,6 +445,7 @@ export default function MoviesPage() {
             />
           )}
         </div>
+        )}
 
         <Pagination
           page={data?.page ?? 1}

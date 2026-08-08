@@ -17,13 +17,27 @@ const FFMPEG_BIN = existsSync(SYSTEM_FFMPEG) ? SYSTEM_FFMPEG : ffmpegInstaller.p
 ffmpeg.setFfmpegPath(FFMPEG_BIN);
 
 /**
- * ⚠️ Хөрвүүлэлт мөнхөд гацахаас сэргийлэх хугацаа.
+ * ⚠️⚠️ ЭЦСИЙН хамгаалалт — ffmpeg төгсгөлгүй давталтад орсон ч зогсооно.
  *
- * ABR (3 түвшин re-encode) нь `-c copy`-оос ХАМААГҮЙ удаан:
- * VPS-т хэмжсэнээр ~3.3x realtime (30с видео → 9с) тул 2 цагийн кино
- * ~36 минут. 3 цагийн кино + удаан татах хугацааг тооцож 3 цаг тавив.
+ * ⚠️ 3 цаг байсныг 8 БОЛГОВ. Хуучин тооцоо нь ажил ДАНГААРАА явахаар
+ * (~3.3x realtime) хийгдсэн байв. Гэтэл processor нь `concurrency: 4`
+ * — CPU дөрөв хуваагдана. Үр дүнд 2 БОДИТ кино «180 минут хэтэрлээ»
+ * гэж унасан ч ffmpeg гацаагүй, зүгээр удаан явж байсан.
+ *
+ * Жинхэнэ гацааг доорх `STALL_TIMEOUT_MS` (явц зогсох) барих тул
+ * энэ нь зөвхөн онолын хамгаалалт — өндөр байх нь аюулгүй.
  */
-const FFMPEG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+const FFMPEG_TIMEOUT_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * ⚠️⚠️ ЖИНХЭНЭ ГАЦААНЫ хэмжүүр — сүүлийн явцаас хойш хэдэн минут.
+ *
+ * Ажиллаж буй ffmpeg нь `time=…` мөрийг тасралтгүй гаргадаг (удаан
+ * байсан ч). Гацвал тэр урсгал ЗОГСДОГ. 25 минут явцгүй байхыг
+ * гацсан гэж үзнэ — хамгийн ачаалалтай үед ч (4 ажил + байршуулалт)
+ * ffmpeg 25 минут дуугүй байдаггүй.
+ */
+const STALL_TIMEOUT_MS = 25 * 60 * 1000;
 
 /** R2 руу зэрэг илгээх segment-ийн тоо — хурд ба санах ойн тэнцвэр */
 const UPLOAD_CONCURRENCY = 6;
@@ -357,10 +371,48 @@ export class VideoHlsService {
       const args = ['-y', '-i', inputPath, ...opts, path.join(dir, 'v%v.m3u8')];
       const proc = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 
-      const timer = setTimeout(() => {
+      /**
+       * ⚠️⚠️ ЯВЦ ЗОГССОНЫГ хэмжинэ — нийт хугацааг БИШ.
+       *
+       * БОДИТ АЛДАА: 2 кино «180 минут хэтэрлээ» гэж унасан. Гэтэл
+       * ffmpeg ГАЦААГҮЙ — 4 ажил зэрэг явж CPU-г хуваасан тул удаан
+       * байсан. 99%-д хүрсэн ажил ч тогтмол хугацааны таймераар
+       * алагдана — тэр 3 цагийн CPU ажил бүрэн дэмий үрэгдэнэ.
+       *
+       * Гацсан ffmpeg нь `time=` мөр гаргахаа БОЛЬДОГ. Тиймээс
+       * "сүүлийн явцаас хойш хэр удлаа" гэдгээр шүүх нь ЖИНХЭНЭ
+       * гацааг илрүүлж, зүгээр л удаан ажлыг алдаггүй.
+       *
+       * ⚠️ Нийт хугацааны хязгаар БАС үлдэнэ (`FFMPEG_TIMEOUT_MS`) —
+       * ffmpeg төгсгөлгүй давталтад орж `time=` гаргасаар байвал
+       * эцсийн хамгаалалт хэрэгтэй. Гэхдээ 3→8 цаг болгов: явцын
+       * хяналт нь жинхэнэ гацааг хамаагүй хурдан барина.
+       */
+      let lastProgressAt = Date.now();
+      let killed = false;
+
+      const kill = (reason: string) => {
+        if (killed) return;
+        killed = true;
         proc.kill('SIGKILL');
-        reject(new Error(`ffmpeg ${FFMPEG_TIMEOUT_MS / 60000} минут хэтэрлээ (гацсан)`));
+        reject(new Error(reason));
+      };
+
+      const stallTimer = setInterval(() => {
+        const idleMin = (Date.now() - lastProgressAt) / 60000;
+        if (idleMin >= STALL_TIMEOUT_MS / 60000) {
+          kill(`ffmpeg ${Math.round(idleMin)} минут явцгүй зогслоо (гацсан)`);
+        }
+      }, 60_000);
+
+      const hardTimer = setTimeout(() => {
+        kill(`ffmpeg нийт ${FFMPEG_TIMEOUT_MS / 3600000} цаг хэтэрлээ`);
       }, FFMPEG_TIMEOUT_MS);
+
+      const cleanup = () => {
+        clearInterval(stallTimer);
+        clearTimeout(hardTimer);
+      };
 
       let lastErr = '';
       proc.stderr.on('data', (buf: Buffer) => {
@@ -369,6 +421,8 @@ export class VideoHlsService {
           // Явц — `time=00:01:23.45` хэлбэрээс тооцоолно
           const m = line.match(/time=(\d+):(\d+):(\d+)/);
           if (m && durationSec > 0) {
+            /* ⚠️ Явц ГАРСАН — гацаагүй гэсэн үг (хэдий удаан ч) */
+            lastProgressAt = Date.now();
             const sec = +m[1] * 3600 + +m[2] * 60 + +m[3];
             onPercent?.(Math.min(100, (sec / durationSec) * 100));
           }
@@ -377,12 +431,16 @@ export class VideoHlsService {
       });
 
       proc.on('error', (e) => {
-        clearTimeout(timer);
-        reject(new Error(`ffmpeg эхлүүлж чадсангүй: ${e.message}`));
+        cleanup();
+        if (!killed) reject(new Error(`ffmpeg эхлүүлж чадсангүй: ${e.message}`));
       });
 
       proc.on('close', (code) => {
-        clearTimeout(timer);
+        cleanup();
+        /* ⚠️ Таймераар аллаа бол `reject` аль хэдийн дуудагдсан —
+           давхар дуудвал Promise-ийн хоёр дахь шийдэл үл тоогдоно
+           ч ойлгомжгүй лог үлдэнэ */
+        if (killed) return;
         if (code === 0) return resolve();
         reject(new Error(`ffmpeg exited with code ${code}${lastErr ? ` — ${lastErr}` : ''}`));
       });

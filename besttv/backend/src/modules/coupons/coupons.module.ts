@@ -70,7 +70,21 @@ export class CouponsService {
     return this.prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
+  /**
+   * ⚠️⚠️ PERCENT нь 1-100 байх ЁСТОЙ.
+   *
+   * `@Max` декоратор нь `discountType`-аас хамаарсан шалгалт хийж
+   * чаддаггүй (FIXED купон 50,000₮ байж БОЛНО). Тиймээс энд шалгана.
+   */
+  private assertValidAmount(discountType: DiscountType | undefined, amount: number | undefined) {
+    if (discountType !== 'PERCENT' || amount == null) return;
+    if (amount < 1 || amount > 100) {
+      throw new BadRequestException('Хувиар хөнгөлөх купон 1-100 хооронд байна');
+    }
+  }
+
   async create(dto: CouponDto) {
+    this.assertValidAmount(dto.discountType, dto.amount);
     const code = dto.code.toUpperCase().trim();
     const exists = await this.prisma.coupon.findUnique({ where: { code } });
     if (exists) throw new BadRequestException('Энэ код аль хэдийн бүртгэлтэй байна');
@@ -91,6 +105,15 @@ export class CouponsService {
   async update(id: string, dto: Partial<CouponDto>) {
     const coupon = await this.prisma.coupon.findUnique({ where: { id } });
     if (!coupon) throw new NotFoundException('Купон олдсонгүй');
+    /**
+     * ⚠️ Хэсэгчилсэн засварт ЭЦСИЙН утгаар шалгана — админ зөвхөн
+     * `discountType`-ыг FIXED→PERCENT болговол хуучин `amount`
+     * (ж: 50000) хэвээр үлдэж 500 дахин хөнгөлөлт өгнө.
+     */
+    this.assertValidAmount(
+      dto.discountType ?? coupon.discountType,
+      dto.amount ?? coupon.amount,
+    );
     return this.prisma.coupon.update({
       where: { id },
       data: {
@@ -131,9 +154,21 @@ export class CouponsService {
       throw new BadRequestException(`Хамгийн бага дvн ${coupon.minPrice}₮`);
     }
 
+    /**
+     * ⚠️⚠️ PERCENT-ийг 100-аар ТАСЛАНА (хоёр дахь хамгаалалт).
+     *
+     * БОДИТ ЭРСДЭЛ: `amount = 500` бүхий PERCENT купон үүсвэл
+     * `discount = price × 5` болж `finalPrice = 0` гарна. Тэгвэл
+     * `payments.service` нь `amount <= 0` салаагаар QPay-г ОГТ
+     * дуудахгүй шууд `completePayment` хийж, багцыг ҮНЭГҮЙ нээнэ.
+     *
+     * DTO-д `@Max(100)` нэмсэн ч ӨМНӨ НЬ үүссэн буруу купон DB-д
+     * үлдсэн байж болзошгүй тул тооцооны үед ч хамгаална.
+     */
+    const pct = Math.min(100, Math.max(0, coupon.amount));
     const discount =
       coupon.discountType === 'PERCENT'
-        ? Math.round((dto.price * coupon.amount) / 100)
+        ? Math.round((dto.price * pct) / 100)
         : Math.min(coupon.amount, dto.price);
     const finalPrice = Math.max(0, dto.price - discount);
 

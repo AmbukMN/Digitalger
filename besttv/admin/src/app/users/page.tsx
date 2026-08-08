@@ -10,6 +10,7 @@ import { cn, formatPrice } from '@besttv/shared';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { UserDetailDialog } from '@/components/user-detail-dialog';
 import { DataToolbar, SortHeader } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
@@ -46,7 +47,10 @@ const EMPTY: UserFilters = {
 
 export default function UsersPage() {
   const [f, setF] = useState<UserFilters>(EMPTY);
-  const { data, isFetching } = useAdminUsers(f);
+  /* ⚠️ `isError`/`refetch` ЗААВАЛ — эс бөгөөс API унахад `data`
+     undefined үлдэж skeleton МӨНХ эргэлдэнэ (доорх `!data &&` нөхцөл).
+     Админ "сервер удаан байна" гэж хүлээнэ, үнэндээ 500 буцаасан. */
+  const { data, isFetching, isError, error, refetch } = useAdminUsers(f);
   const { data: counts } = useAdminUserCounts({ q: f.q, from: f.from, to: f.to });
   const qc = useQueryClient();
   /* Олноор устгах — тест хэрэглэгч их хуримтлагддаг (hook давхардлыг арилгасан) */
@@ -184,13 +188,20 @@ export default function UsersPage() {
           onReset={() => setF(EMPTY)}
         />
 
+        {/* ⚠️ Алдааны төлөв ЗААВАЛ хүснэгтээс ӨМНӨ — эс бөгөөс API
+            унахад `!data && <TableSkeleton>` мөнх эргэлдэнэ */}
+        {isError ? (
+          <div className="mt-5">
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
+          </div>
+        ) : (
         <div
           className={cn(
             'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
             isFetching && 'opacity-60',
           )}
         >
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-205 text-sm">
             <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 {/* ⚠️ Bulk сонголт — тест хэрэглэгч олноор үүсдэг тул заавал */}
@@ -325,6 +336,7 @@ export default function UsersPage() {
             />
           )}
         </div>
+        )}
 
         <Pagination
           page={data?.page ?? 1}

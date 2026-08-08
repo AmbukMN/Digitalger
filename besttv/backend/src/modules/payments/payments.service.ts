@@ -828,8 +828,46 @@ export class PaymentsService {
       return p;
     });
 
-    // Эрх нээх (transaction гадна — subs.grant өөрийн логиктой)
-    await this.subs.grant(userId, plan.id, plan.durationDays, payment.id);
+    /**
+     * ⚠️⚠️ ЭРХ ОЛГОЛТ УНАВАЛ МӨНГИЙГ БУЦААНА.
+     *
+     * `subs.grant` нь өөрийн `$transaction`-той тул дээрх хасалттай
+     * НЭГ транзакцад багтахгүй. Хэрэв энэ шатанд унавал (DB timeout,
+     * plan мөр устсан, процесс restart) хэрэглэгчийн мөнгө хасагдчихаад
+     * багц НЭЭГДЭХГҮЙ үлдэнэ. `Payment.status = PAID` тул reconcile ч
+     * дахин олгохгүй — гараар засахаас өөр сэргэлт байхгүй байв.
+     *
+     * ⚠️ Буцаалт нь `REFUND` төрлөөр бүртгэгдэнэ — хэрэглэгч хэтэвчийн
+     * түүхээсээ юу болсныг ХАРНА (чимээгүй алдагдал биш).
+     */
+    try {
+      await this.subs.grant(userId, plan.id, plan.durationDays, payment.id);
+    } catch (e) {
+      this.logger.error(
+        `Хэтэвчээр эрх олгож чадсангүй — мөнгө буцаана: user=${userId} plan=${plan.id} — ${String(e)}`,
+      );
+      if (amount > 0) {
+        await this.wallet
+          .applyTransaction({
+            userId,
+            type: WalletTxType.REFUND,
+            amount,
+            description: `${plan.name} — эрх нээгдээгүй тул буцаалт`,
+            paymentId: payment.id,
+            planId: plan.id,
+          })
+          .catch((re) =>
+            /* ⚠️ Буцаалт ч унавал ЗААВАЛ логлоно — админ гараар засна */
+            this.logger.error(`⚠️ БУЦААЛТ ЧУ УНАВ: payment=${payment.id} — ${String(re)}`),
+          );
+      }
+      await this.prisma.payment
+        .update({ where: { id: payment.id }, data: { status: PaymentStatus.FAILED } })
+        .catch(() => null);
+      throw new BadRequestException(
+        'Эрх нээхэд алдаа гарлаа. Мөнгө хэтэвч рүү буцаагдлаа, дахин оролдоно уу.',
+      );
+    }
     if (normalizedCoupon) await this.coupons.incrementUse(normalizedCoupon);
 
     /**

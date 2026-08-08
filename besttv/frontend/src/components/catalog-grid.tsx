@@ -93,7 +93,10 @@ export function CatalogGrid({
    * болохыг ялгаж чадахгүй. Одоо "Бүгд" үед жанр бүр ТУСДАА эгнээ
    * болж, тодорхой жанр сонгосон үед л grid харагдана.
    */
-  const { data: home } = useHome();
+  /* ⚠️ `isError`/`refetch` ЗААВАЛ — эс бөгөөс "Бүгд" горимд
+     `/titles/home` унахад доорх skeleton МӨНХ эргэлдэнэ (дахин
+     оролдох товч ч байхгүй, зөвхөн хуудас шинэчлэх гарц үлдэнэ) */
+  const { data: home, isError: homeError, refetch: refetchHome } = useHome();
   const showRows = !genre;
 
   return (
@@ -141,11 +144,15 @@ export function CatalogGrid({
         */}
       </div>
 
-      {isError ? (
+      {isError || (showRows && homeError) ? (
         <ErrorState
           className="mt-10"
           message="Контент ачаалахад алдаа гарлаа."
-          onRetry={() => refetch()}
+          /* ⚠️ Аль эх сурвалж унасныг мэдэхгүй тул ХОЁУЛАНГ дахин татна */
+          onRetry={() => {
+            void refetch();
+            if (homeError) void refetchHome();
+          }}
         />
       ) : showRows ? (
         /* ⚠️ "Бүгд" — ЖАНР БҮР ТУСДАА ЭГНЭЭ (нүүр хуудас шиг), холилдохгүй */

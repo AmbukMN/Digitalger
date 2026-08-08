@@ -22,6 +22,7 @@ import { DataToolbar } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { NewBadge } from '@/components/new-badge';
 import { api } from '@/lib/api';
+import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { useNewSince } from '@/lib/use-new-since';
 
@@ -328,23 +329,8 @@ function SubscribersTab() {
 
   const exportCsv = async () => {
     setExporting(true);
-    try {
-      const res = await api<{ csv: string; count: number }>(
-        `/admin/email/subscribers/export?status=${f.status}`,
-      );
-      const blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`${res.count} мөр татагдлаа`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
-    } finally {
-      setExporting(false);
-    }
+    await downloadCsv(`/admin/email/subscribers/export?status=${f.status}`, 'subscribers');
+    setExporting(false);
   };
 
   return (

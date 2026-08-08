@@ -40,11 +40,22 @@ export interface RentSettings {
   enabled: boolean;
 }
 
-class RentDto {
-  @IsOptional()
-  @IsString()
-  couponCode?: string;
-}
+/**
+ * ⚠️⚠️ ХООСОН БИЕТЭЙ — түрээсэд КУПОН ДЭМЖИГДЭХГҮЙ.
+ *
+ * Өмнө нь `couponCode?: string` талбартай байсан ч `rentWallet` нь
+ * түүнийг ОГТ АШИГЛАДАГГҮЙ байв (`_dto` гэж зөвхөн залгидаг). Хэрэглэгч
+ * купон илгээвэл чимээгүй үл тоомсорлогдож БҮТЭН үнэ хасагдана —
+ * frontend "хямдрал орлоо" гэж харуулсан бол шууд гомдол.
+ *
+ * Хуурамч амлалт өгөхөөс талбарыг ХАСАХ нь шударга. Түрээсэд купон
+ * хэрэгтэй болбол `rentWithWallet`-д бодитоор хэрэгжүүлж, дараа нь
+ * энд буцааж нэмнэ.
+ *
+ * ⚠️ Класс өөрөө ҮЛДЭНЭ — глобал `ValidationPipe`-ийн
+ * `forbidNonWhitelisted` нь илүү талбар илгээвэл 400 буцаана.
+ */
+class RentDto {}
 
 /** Админ — сайтын нийтлэг түрээсийн тохиргоо */
 class RentSettingsDto {
@@ -286,22 +297,51 @@ export class RentalsService {
     const active = await this.prisma.rental.findFirst({
       where: { userId, titleId, expiresAt: { gt: new Date() } },
       orderBy: { expiresAt: 'desc' },
-      select: { id: true, expiresAt: true },
+      select: { id: true, expiresAt: true, paymentId: true },
     });
 
-    const rental = active
-      ? await this.prisma.rental.update({
-          where: { id: active.id },
-          data: {
-            expiresAt: new Date(active.expiresAt.getTime() + info.hours * 3600_000),
-            amount: { increment: info.price },
-          },
-          select: { id: true, expiresAt: true },
-        })
-      : await this.prisma.rental.create({
-          data: { userId, titleId, amount: info.price, expiresAt, paymentId },
-          select: { id: true, expiresAt: true },
-        });
+    /**
+     * ⚠️⚠️ СУНГАХ ҮЕД `paymentId`-Г ЗААВАЛ БИЧНЭ.
+     *
+     * БОДИТ АЛДАА: `update` салаа нь `paymentId`-г бичдэггүй байв.
+     * Идемпотентын хамгаалалт бүхэлдээ `Rental.paymentId @unique`
+     * дээр тулгуурладаг тул тэр алдагдвал ДЭЭРХ `findUnique` дахин
+     * `null` буцаана. QPay нь webhook + polling + reconcile ГУРВАН
+     * замаар баталгаажуулдаг → нэг төлбөрөөр хугацаа 2-3 ДАХИН
+     * сунгагдана.
+     *
+     * ⚠️ Идэвхтэй түрээс нь ӨӨР төлбөртэй холбогдсон байвал түүнийг
+     * дарж бичиж БОЛОХГҮЙ (тэр төлбөрийн идемпотент хамгаалалт
+     * алдагдана). Тэр тохиолдолд ШИНЭ мөр үүсгэнэ — `@unique` нь
+     * давхардлаас хамгаална, эрх нь хоёулангаас нь нийлж ажиллана.
+     */
+    const canAttach = active && !active.paymentId;
+
+    const rental =
+      active && canAttach
+        ? await this.prisma.rental.update({
+            where: { id: active.id },
+            data: {
+              expiresAt: new Date(active.expiresAt.getTime() + info.hours * 3600_000),
+              amount: { increment: info.price },
+              paymentId,
+            },
+            select: { id: true, expiresAt: true },
+          })
+        : await this.prisma.rental.create({
+            data: {
+              userId,
+              titleId,
+              amount: info.price,
+              /* ⚠️ Идэвхтэй түрээс байвал түүний ТӨГСГӨЛӨӨС эхэлнэ —
+                 хэрэглэгчийн төлсөн цаг үрэгдэхгүй */
+              expiresAt: active
+                ? new Date(active.expiresAt.getTime() + info.hours * 3600_000)
+                : expiresAt,
+              paymentId,
+            },
+            select: { id: true, expiresAt: true },
+          });
 
     const [renter, title] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
@@ -356,6 +396,7 @@ export class RentalsController {
   rentWallet(
     @Param('titleId') titleId: string,
     @CurrentUser() user: JwtPayload,
+    /* ⚠️ Хоосон DTO — илүү талбарыг `forbidNonWhitelisted` хаана */
     @Body() _dto: RentDto,
   ) {
     return this.svc.rentWithWallet(user.sub, titleId);

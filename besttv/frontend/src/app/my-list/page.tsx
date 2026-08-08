@@ -1,6 +1,7 @@
 'use client';
 
 import { Heart } from 'lucide-react';
+import { ErrorState } from '@besttv/shared/ui';
 import Link from 'next/link';
 import { useMyList, useTitlesByIds } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
@@ -24,6 +25,15 @@ export default function MyListPage() {
 
   const isLoading = loading || (user ? server.isLoading : !storeLoaded || guest.isLoading);
 
+  /**
+   * ⚠️⚠️ АЛДААНЫ ТӨЛӨВ ЗААВАЛ — эс бөгөөс сүлжээ тасрах/сервер 500
+   * буцаахад `data` нь `undefined` → `items.length === 0` → "Дуртай
+   * кино алга байна" гэсэн ХУДАЛ мессеж гарна. 30 кино хадгалсан
+   * хэрэглэгч бүгд УСТСАН гэж ойлгож дэмжлэг рүү залгана.
+   */
+  const isError = user ? server.isError : guest.isError;
+  const retry = () => void (user ? server.refetch() : guest.refetch());
+
   // Store hydrate болмогц realtime эх сурвалж болгоно (устгасан item шууд алга болно)
   const source = user ? (server.data ?? []) : (guest.data ?? []);
   const items = storeLoaded ? source.filter((t) => storeIds.has(t.id)) : source;
@@ -37,6 +47,13 @@ export default function MyListPage() {
           : 'Энэ төхөөрөмжид хадгалагдсан — нэвтрэхэд таны хаягтай холбогдоно'}
       </p>
 
+      {isError ? (
+        <ErrorState
+          className="mt-16"
+          message="Дуртай жагсаалт ачаалахад алдаа гарлаа. Таны хадгалсан кино хэвээр байгаа."
+          onRetry={retry}
+        />
+      ) : (
       <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {isLoading &&
           Array.from({ length: 6 }).map((_, i) => (
@@ -44,8 +61,9 @@ export default function MyListPage() {
           ))}
         {!isLoading && items.map((t) => <TitleCard key={t.id} title={t} inGrid />)}
       </div>
+      )}
 
-      {!isLoading && items.length === 0 && (
+      {!isLoading && !isError && items.length === 0 && (
         <div className="mt-20 flex flex-col items-center text-center">
           <div className="rounded-full bg-foreground/6 p-5 text-foreground/30">
             <Heart size={32} />

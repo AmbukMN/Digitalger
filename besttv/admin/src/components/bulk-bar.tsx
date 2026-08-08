@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Trash2, Unlock, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface BulkImpact {
   total: number;
@@ -41,12 +42,28 @@ export function BulkBar({
 
   if (count === 0) return null;
 
+  /**
+   * ⚠️⚠️ `catch` ЗААВАЛ — өмнө нь зөвхөн `try/finally` байсан.
+   *
+   * БОДИТ ЭРСДЭЛ: bulk устгал 403/500 буцаавал toast ГАРАХГҮЙ,
+   * `afterBulk` дуудагдахгүй, сонголт хэвээр, modal нээлттэй үлдэнэ.
+   * Админ "50 контент устгалаа" гэж бодоод цааш явна — дараа нь
+   * тэдгээр контент сайт дээр хэвээр байхыг хараад эргэлзэнэ.
+   *
+   * ⚠️ Backend-ийн мессежийг ХАРУУЛНА ("идэвхтэй түрээс байна" гэх
+   * мэт) — "Алдаа гарлаа" гэсэн ерөнхий текст юу буруу болсныг
+   * хэлдэггүй.
+   */
   const openConfirm = async () => {
     setBusy(true);
     try {
       setImpact(await loadImpact());
       setTyped('');
       setConfirming(true);
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message ? e.message : 'Нөлөөллийг тооцоолж чадсангүй',
+      );
     } finally {
       setBusy(false);
     }
@@ -56,6 +73,8 @@ export function BulkBar({
     setBusy(true);
     try {
       await fn();
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Үйлдэл амжилтгүй боллоо');
     } finally {
       setBusy(false);
     }
@@ -166,7 +185,7 @@ export function BulkBar({
                 <tbody className="divide-y divide-border">
                   {impact.items.map((t) => (
                     <tr key={t.id}>
-                      <td className="max-w-[220px] truncate px-2.5 py-1.5 text-foreground">
+                      <td className="max-w-55 truncate px-2.5 py-1.5 text-foreground">
                         {t.title}
                       </td>
                       <td className="px-2.5 py-1.5 text-right text-muted-foreground">
