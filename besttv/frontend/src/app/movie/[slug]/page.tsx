@@ -151,6 +151,28 @@ export default async function TitleDetailPage({
             : {}),
           ...(title.year ? { datePublished: String(title.year) } : {}),
           ...(title.duration ? { duration: `PT${title.duration}M` } : {}),
+          /**
+           * ⚠️⚠️ ЦУВРАЛЫН БҮТЭЦ — Google-ийн TVSeries rich snippet-д
+           * улирал/ангийн тоо ЗААВАЛ (эс бөгөөс энгийн холбоос шиг
+           * харагдана).
+           *
+           * ⚠️ Зөвхөн БЭЛЭН (`playable`) ангийг тоолно — 10 анги
+           * зарлаад 5 нь л тоглодог бол Google-д худал мэдээлэл
+           * өгөх болно.
+           */
+          ...(title.type === 'SERIES' && Array.isArray(title.seasons)
+            ? (() => {
+                const seasons = title.seasons as { episodes?: { playable?: boolean }[] }[];
+                const epCount = seasons.reduce(
+                  (n, s) => n + (s.episodes ?? []).filter((e) => e.playable).length,
+                  0,
+                );
+                return {
+                  numberOfSeasons: seasons.length,
+                  ...(epCount > 0 ? { numberOfEpisodes: epCount } : {}),
+                };
+              })()
+            : {}),
           inLanguage: 'mn',
           ...(title.genres?.length
             ? { genre: title.genres.map((g: { genre?: { name?: string }; name?: string }) => g.genre?.name ?? g.name).filter(Boolean) }
