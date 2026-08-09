@@ -1,16 +1,27 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { TitleDetailClient } from './title-detail-client';
 import { SITE_URL, jsonLd } from '@/lib/seo';
 
 
-async function fetchTitle(slug: string) {
+/**
+ * ⚠️⚠️ "ОЛДСОНГҮЙ" ба "СҮЛЖЭЭ УНАСАН" ХОЁРЫГ ЯЛГАНА.
+ *
+ * Хоёулаа `null` буцаавал backend түр унахад БАЙГАА кино 404 болж,
+ * Google түүнийг индексээс ХАСНА (сэргэхэд буцаж орох нь удаан).
+ *   `notFound: true`  → жинхэнэ 404 (кино устсан/буруу slug)
+ *   `notFound: false` → түр алдаа, хуудсыг рендерлээд client дахин оролдоно
+ */
+async function fetchTitle(slug: string): Promise<{ data: unknown; notFound: boolean }> {
   try {
     const res = await fetch(`${SERVER_API_URL}/api/titles/${slug}`, { next: { revalidate: 60 } });
-    if (!res.ok) return null;
-    return res.json();
+    if (res.status === 404) return { data: null, notFound: true };
+    if (!res.ok) return { data: null, notFound: false };
+    return { data: await res.json(), notFound: false };
   } catch {
-    return null;
+    /* Сүлжээний алдаа — 404 БИШ */
+    return { data: null, notFound: false };
   }
 }
 
@@ -20,7 +31,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const title = await fetchTitle(slug);
+  const { data } = await fetchTitle(slug);
+  const title = data as Record<string, any> | null;
   if (!title) return { title: 'Контент олдсонгүй' };
 
   /**
@@ -83,7 +95,24 @@ export default async function TitleDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const title = await fetchTitle(slug);
+  const { data, notFound: missing } = await fetchTitle(slug);
+  const title = data as Record<string, any> | null;
+
+  /**
+   * ⚠️⚠️ БАЙХГҮЙ КИНО — ЗААВАЛ 404.
+   *
+   * БОДИТ АЛДАА: `title` нь `null` байхад ч хуудас HTTP **200**
+   * буцаадаг байв. Үр дагавар:
+   *   • Google эвдэрсэн холбоосыг ИНДЕКСЖҮҮЛНЭ (soft 404) —
+   *     хайлтын үр дүнд хоосон хуудас гарч чанар буурна
+   *   • Хэрэглэгч буруу линк дарахад "олдсонгүй" гэсэн мессеж л
+   *     харна, browser нь алдаа гэж мэдэхгүй
+   *   • Устгасан кино руу заасан хуучин холбоос мөнхөд 200 үлдэнэ
+   *
+   * ⚠️ `notFound()` нь `app/not-found.tsx`-ыг 404 статустай
+   * рендерлэнэ — SEO ба хэрэглэгч ХОЁУЛАНД зөв.
+   */
+  if (missing) notFound();
 
   /**
    * Movie / TVSeries structured data — Google хайлтад од (үнэлгээ), жил,
