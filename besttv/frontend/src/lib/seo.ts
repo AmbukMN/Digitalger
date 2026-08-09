@@ -100,3 +100,34 @@ export async function buildPageMetadata(opts: {
 export function jsonLd(data: unknown): string {
   return JSON.stringify(data).replace(/</g, '\\u003c');
 }
+
+/**
+ * `metaTitle`-ээс сайтын нэрийг ХАСНА — НЭГ ЭХ СУРВАЛЖ.
+ *
+ * ⚠️⚠️ БОДИТ АЛДАА: 131/131 киноны гарчиг «X — BestTV | BestTV» гэж
+ * ДАВХАРДАЖ харагдаж байв (Google-ийн хайлтын үр дүнд ч).
+ *
+ * Шалтгаан: админ панелийн auto-SEO нь `metaTitle`-д «— BestTV»
+ * нэмдэг, дээр нь root layout-ийн `title.template` нь «| BestTV»
+ * нэмнэ.
+ *
+ * ⚠️ Блогт `.replace(/\s*\|\s*BestTV\s*$/i, '')` байсан нь ХАНГАЛТГҮЙ
+ * — зөвхөн `|` тусгаарлагчийг барьдаг, `—` (em dash) барихгүй.
+ * Энд БҮХ түгээмэл тусгаарлагчийг хамруулав.
+ *
+ * ⚠️ DB дэх утгыг ЗАСАХГҮЙ — админ гараар бичсэн байж болно.
+ * Зөвхөн ХАРУУЛАХ үед цэвэрлэнэ.
+ */
+export function stripSiteName(raw: string | null | undefined): string {
+  return (
+    (raw ?? '')
+      /**
+       * ⚠️ ХОЁР хэлбэр:
+       *   «X — BestTV дээр онлайнаар үзэх»  (админ auto-SEO, урт)
+       *   «X — BestTV»                       (60 тэмдэгт хэтэрсэн үед)
+       * Тусгаарлагч нь `—` `–` `-` `|` `·` аль нь ч байж болно.
+       */
+      .replace(/\s*[—–\-|·]\s*BestTV(\s+дээр\s+онлайнаар\s+үзэх)?\s*$/i, '')
+      .trim()
+  );
+}

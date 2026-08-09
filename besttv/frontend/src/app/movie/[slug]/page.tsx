@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { TitleDetailClient } from './title-detail-client';
-import { SITE_URL, jsonLd } from '@/lib/seo';
+import { SITE_URL, jsonLd, stripSiteName } from '@/lib/seo';
 import DetailSkeleton from './detail-skeleton';
 
 
@@ -56,7 +56,10 @@ export async function generateMetadata({
    * автоматаар нэмдэг. Өмнө нь энд гараар нэмсэн тул "Шидтэний сургууль |
    * BestTV | BestTV" гэж ДАВХАРДАЖ байсан.
    */
-  const metaTitle = title.metaTitle || title.title;
+  /* ⚠️ `stripSiteName` — `metaTitle`-д «— BestTV» бий, root
+     layout-ийн template нь «| BestTV» нэмнэ → ДАВХАРДАНА
+     (131/131 кинод бодитоор харагдсан) */
+  const metaTitle = stripSiteName(title.metaTitle) || title.title;
   const metaDescription =
     title.metaDescription ||
     title.description?.slice(0, 160) ||

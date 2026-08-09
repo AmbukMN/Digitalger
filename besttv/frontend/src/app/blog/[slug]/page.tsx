@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { BlogDetailClient } from './blog-detail-client';
-import { SITE_URL } from '@/lib/seo';
+import { SITE_URL, stripSiteName } from '@/lib/seo';
 import DetailSkeleton from './detail-skeleton';
 
 interface BlogPost {
@@ -64,7 +64,9 @@ export async function generateMetadata({
    * og:url огт байгаагүй тул Facebook-д хуваалцахад гарчиг, тайлбар хоосон
    * гарч байв. Canonical ч байгаагүй.
    */
-  const title = (post.metaTitle || post.title || '').replace(/\s*\|\s*BestTV\s*$/i, '');
+  /* ⚠️ `stripSiteName` — өмнөх regex нь зөвхөн `|` барьдаг байсан,
+     `—` (em dash) барихгүй тул давхардал үлддэг байв */
+  const title = stripSiteName(post.metaTitle) || stripSiteName(post.title) || '';
   const description = post.metaDescription || post.excerpt || `${title} — BestTV блог.`;
   const url = `${SITE_URL}/blog/${slug}`;
   const image = post.coverUrl || null;
