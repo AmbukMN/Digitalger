@@ -38,10 +38,25 @@ export async function generateMetadata({
   const ogImage = title.backdropUrl || title.posterUrl || `${SITE_URL}/opengraph-image`;
   const url = `${SITE_URL}/movie/${slug}`;
 
+  /**
+   * ⚠️⚠️ 18+ КИНО — ЗААВАЛ `noindex`.
+   *
+   * `/adult` жагсаалтын хуудас нь `robots: { index: false }`-тэй
+   * боловч КИНОНЫ ДЭЛГЭРЭНГҮЙ хуудас (`/movie/<slug>`) нь ТУСДАА
+   * зам — Google түүнийг чөлөөтэй индексжүүлдэг байв.
+   *
+   * ⚠️ Sitemap-аас хассан нь ГАНЦААРАА хангалтгүй: гадны холбоос,
+   * дотоод линк, эсвэл хуучин индексээр crawler олж болно. Хуудас
+   * өөрөө хэлэх ёстой.
+   */
+  const isAdult = Array.isArray(title.genres)
+    && title.genres.some((g: { isAdult?: boolean }) => g?.isAdult);
+
   return {
     title: metaTitle,
     description: metaDescription,
     alternates: { canonical: url },
+    ...(isAdult ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title: metaTitle,
       description: metaDescription,

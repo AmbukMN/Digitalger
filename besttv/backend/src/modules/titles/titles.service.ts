@@ -257,7 +257,20 @@ export class TitlesService {
    */
   async allSlugs() {
     const items = await this.prisma.title.findMany({
-      where: { isActive: true },
+      /**
+       * ⚠️⚠️ 18+ КОНТЕНТЫГ ХАСНА (`NOT_ADULT`).
+       *
+       * `/adult` хуудас нь `robots: { index: false }`-тэй боловч
+       * КИНОНЫ ДЭЛГЭРЭНГҮЙ хуудас (`/movie/<slug>`) тусдаа зам тул
+       * sitemap-д орвол Google ШУУД индексжүүлнэ — 18+ контент
+       * хайлтад гарах нь эрсдэлтэй (AdSense/Search Console
+       * зөрчил, брэндийн нэр хүнд).
+       *
+       * ⚠️ Хуудас өөрөө ч `noindex` авна (`generateMetadata`) —
+       * sitemap-аас хасах нь ганцаараа хангалтгүй (гадны холбоосоор
+       * crawler олж болно).
+       */
+      where: { isActive: true, ...NOT_ADULT },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
     });
@@ -541,7 +554,9 @@ export class TitlesService {
       include: {
         genres: {
           orderBy: { order: 'asc' },
-          include: { genre: { select: { id: true, name: true, slug: true } } },
+          /* ⚠️ `isAdult` — frontend нь 18+ киноны хуудсанд `noindex`
+             тавихад ашиглана (Google-д индексжих нь эрсдэлтэй) */
+          include: { genre: { select: { id: true, name: true, slug: true, isAdult: true } } },
         },
         seasons: {
           orderBy: { number: 'asc' },

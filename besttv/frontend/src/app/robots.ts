@@ -25,6 +25,17 @@ export default function robots(): MetadataRoute.Robots {
           '/forgot-password',
           '/reset-password',
           '/search', // хайлтын үр дүн индексжүүлэхгүй (thin content)
+          /**
+           * ⚠️⚠️ 18+ ХЭСЭГ — ГУРАВДАХЬ давхар хамгаалалт.
+           *
+           *   1. `/adult/layout.tsx` → `robots: { index: false }`
+           *   2. Sitemap-аас 18+ кино хасагдсан (`NOT_ADULT`)
+           *   3. ЭНД — crawler тэр замд ОГТ орохгүй
+           *
+           * Google-д насанд хүрэгчдийн контент индексжих нь AdSense /
+           * Search Console зөрчил, брэндийн нэр хүндэд эрсдэлтэй.
+           */
+          '/adult',
         ],
       },
     ],
