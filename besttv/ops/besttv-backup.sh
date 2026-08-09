@@ -42,6 +42,12 @@ fi
 # ⚠️ Backend container дотроос (AWS SDK тэнд бий). Унасан ч локал
 # нөөц үлдсэн тул script амжилтгүй гэж үзэхгүй.
 # ⚠️ ЯГ ТЭР нэрээр хуулна — /tmp/<name> болгож огноог хадгална.
+# ⚠️⚠️ Скриптийг ЭХЛЭЭД container руу хуулна.
+# Backend rebuild хийхэд `/app/backend/r2-backup-upload.js` УСТДАГ тул
+# (бодитоор тохиолдсон: 08-09 03:00-д `MODULE_NOT_FOUND`) нөөц бүрд
+# `/opt`-оос дахин хуулж баталгаажуулна. Хэдхэн KB тул зардалгүй.
+docker cp /opt/r2-backup-upload.js besttv-backend:/app/backend/r2-backup-upload.js 2>/dev/null || true
+
 if docker cp "$OUT" "besttv-backend:/tmp/$NAME" 2>/dev/null; then
   if docker exec -w /app/backend besttv-backend node r2-backup-upload.js "/tmp/$NAME" >> "$LOG" 2>&1; then
     echo "$(date -Is) R2 OK: $NAME" >> "$LOG"

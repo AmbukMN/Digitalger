@@ -43,9 +43,12 @@ ssh root@62.238.47.2 'chmod +x /opt/besttv-backup.sh && \
 ```
 
 > ⚠️ `r2-backup-upload.js` нь backend container ДОТОР ажиллана — AWS SDK
-> болон R2 credential тэнд байдаг. Container дахин үүсгэх бүрд
-> `docker cp` ДАХИН хийнэ (эс бөгөөс R2 хуулбар чимээгүй алгасагдана —
-> локал нөөц үргэлжилнэ, лог дээр `R2 WARN` гарна).
+> болон R2 credential тэнд байдаг.
+>
+> ✅ **Гараар `docker cp` хийх ШААРДЛАГАГҮЙ** — нөөцлөх script нь
+> ажиллах бүрдээ `/opt`-оос дахин хуулдаг. Backend rebuild хийхэд
+> файл устдаг байсныг (бодитоор 08-09 03:00-д `MODULE_NOT_FOUND`
+> гарсан) ингэж байнгын шийдсэн.
 
 ### Cron
 
