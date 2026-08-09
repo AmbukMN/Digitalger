@@ -38,6 +38,23 @@ export class TitlesController {
     return this.titles.byIds((ids ?? '').split(',').map((s) => s.trim()).filter(Boolean));
   }
 
+  /**
+   * ⚠️⚠️ SITEMAP-Д ЗОРИУЛСАН — БҮХ киноны slug (хязгааргүй).
+   *
+   * БОДИТ АЛДАА: `sitemap.ts` нь `/titles?limit=1000` дуудаж байсан ч
+   * `list()` нь `Math.min(60, ...)` тул ЗӨВХӨН 60 буцаадаг. 131
+   * киноны 71 нь Google-д ХЭЗЭЭ Ч индексжихгүй байв.
+   *
+   * ⚠️ `limit` хязгаарыг ӨСГӨЖ БОЛОХГҮЙ — тэр нь хэрэглэгчийн
+   * каталогийг хамгаалдаг (1000 кино нэг хуудсанд = удаан + их санах ой).
+   * Оронд нь ЭНЭ хөнгөн endpoint: зөвхөн `slug` + `updatedAt`,
+   * постер/тайлбар/жанр ОГТ татахгүй.
+   */
+  @Get('sitemap')
+  sitemap() {
+    return this.titles.allSlugs();
+  }
+
   @Get()
   list(
     @Query('type') type?: TitleType,

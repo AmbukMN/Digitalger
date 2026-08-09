@@ -4,23 +4,32 @@ import { SITE_URL } from '@/lib/seo';
 
 
 /**
- * ⚠️ ISR — 1 цаг тутам шинэчилнэ, гэхдээ BUILD үед үүсгэхгүй.
+ * ⚠️⚠️ SITEMAP-ИЙН ТОХИРГОО — ГУРВАН удаа алдсаны эцсийн хувилбар.
  *
- * Түүх (2 удаагийн алдаа):
- *   1) Эхэндээ ямар ч тохиргоогүй байсан — Next нь build-д НЭГ л удаа
- *      үүсгэдэг. Build үед backend унтарсан тул sitemap хоосон (зөвхөн
- *      статик зам) үүсээд кино/блог ОГТ ороогүй.
- *   2) Дараа нь `force-dynamic` + `revalidate` ХОЁУЛАА тавьсан — эдгээр
- *      зөрчилддөг: `force-dynamic` нь кэшийг БҮРЭН унтраадаг тул crawler
- *      ирэх бүрд 77 кино + бүх блогийг DB-ээс дуудна (удаан).
+ * ТҮҮХ:
+ *   1) Тохиргоогүй → Next нь build-д НЭГ л удаа үүсгэнэ. Build үед
+ *      backend унтарсан тул sitemap ХООСОН (зөвхөн 5 статик зам).
+ *   2) `force-dynamic` + `revalidate` ХАМТ → зөрчилддөг.
+ *   3) `revalidate` ГАНЦААРАА → бас ажиллаагүй. Бодит хэмжилт:
+ *      deploy хийсний дараа ч 5 URL хэвээр (131 кино байхад).
+ *      Шалтгаан: `.next/server/app/sitemap.xml.body` нь build үед
+ *      үүсээд `max-age=0, must-revalidate` толгойтой тул Next түүнийг
+ *      ТОГТМОЛ барина. Container дахин үүсэх бүрд ижил хоосон файл.
  *
- * ЗӨВ шийдэл: ISR ганцаараа. Build үед backend хүрэхгүй бол хоосон
- * үүснэ, ГЭХДЭЭ 1 цагийн дараа эхний хүсэлтээр ӨӨРӨӨ бүрэн шинэчлэгдэнэ
- * (`safeFetch` нь алдааг барьдаг тул build ч унахгүй). Crawler өдөрт
- * хэдхэн удаа ирдэг тул 1 цагийн саатал SEO-д ач холбогдолгүй, харин
- * `force-dynamic`-ийн байнгын DB ачааллаас ХАМААГҮЙ дээр.
+ * ЭЦСИЙН ШИЙДЭЛ: `force-dynamic` ГАНЦААРАА + fetch түвшний кэш.
+ *
+ * ⚠️ Энэ route-д АЮУЛГҮЙ:
+ *   • Crawler өдөрт хэдхэн удаа ирнэ (хэрэглэгчийн траффик БИШ)
+ *   • `/titles/sitemap` нь зөвхөн slug+updatedAt буцаана — 131 мөр ~10мс
+ *   • №2-т дурдсан "байнгын DB ачаалал" нь `?limit=1000` бүтэн
+ *     `CARD_SELECT` татдаг байсан үеийнх — одоо хамаарахгүй
+ *   • `safeFetch`-ийн `next: { revalidate: 3600 }` тул дараалсан
+ *     хүсэлт DB-д хүрэхгүй (цагт нэг л удаа)
+ *
+ * ⚠️ `export const revalidate` ТАВЬЖ БОЛОХГҮЙ — `force-dynamic`-тай
+ * зөрчилдөнө (№2-ын алдаа).
  */
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 /** ⚠️ Sitemap-аас болж build унах ёсгүй — алдаа гарвал хоосон массив */
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
@@ -68,9 +77,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
   ];
 
-  // Кино / олон ангит — хамгийн чухал контент
+  /**
+   * Кино / олон ангит — хамгийн чухал контент.
+   *
+   * ⚠️⚠️ `/titles/sitemap` АШИГЛАНА, `/titles?limit=1000` БИШ.
+   *
+   * БОДИТ АЛДАА: `list()` нь `Math.min(60, limit)` тул `limit=1000`
+   * гэсэн ч ЗӨВХӨН 60 буцаадаг байв — 131 киноны 71 нь Google-д
+   * ХЭЗЭЭ Ч индексжихгүй (шинэ 49 драм бүхэлдээ хайлтад олдохгүй).
+   *
+   * ⚠️ Тэр хязгаарыг өсгөх нь БУРУУ — каталогийг хамгаалдаг. Оронд
+   * нь зөвхөн `slug`+`updatedAt` буцаадаг хөнгөн endpoint нэмсэн.
+   */
   const titles = await safeFetch<{ items?: TitleRow[] } | TitleRow[]>(
-    '/titles?limit=1000',
+    '/titles/sitemap',
     { items: [] },
   );
   const titleRows = Array.isArray(titles) ? titles : (titles.items ?? []);

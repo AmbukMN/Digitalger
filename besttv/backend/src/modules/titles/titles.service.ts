@@ -242,6 +242,28 @@ export class TitlesService {
     return this.media.decorateMany(ordered);
   }
 
+  /**
+   * SITEMAP — идэвхтэй БҮХ киноны slug (хязгааргүй).
+   *
+   * ⚠️⚠️ БОДИТ АЛДАА: `sitemap.ts` нь `/titles?limit=1000` дуудсан ч
+   * `list()` нь 60-аар таслана. 131 киноны 71 нь Google-д ХЭЗЭЭ Ч
+   * индексжихгүй байв — шинэ 49 драм бүхэлдээ хайлтад олдохгүй.
+   *
+   * ⚠️ ЗӨВХӨН `slug` + `updatedAt` — постер presign, жанр, тайлбар
+   * ОГТ татахгүй тул 1000 мөр ч хөнгөн (`CARD_SELECT`-ээс 20 дахин бага).
+   *
+   * ⚠️ `comingSoon` ОРНО — "удахгүй" кино ч хуудастай, урьдчилан
+   * индексжих нь SEO-д ашигтай.
+   */
+  async allSlugs() {
+    const items = await this.prisma.title.findMany({
+      where: { isActive: true },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return { items, total: items.length };
+  }
+
   async list(params: {
     type?: TitleType;
     genre?: string;
