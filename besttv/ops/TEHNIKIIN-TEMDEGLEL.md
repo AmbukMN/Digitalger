@@ -158,3 +158,42 @@ SERIES → seasons.some(s => s.episodes.some(e => e.streamStatus === 'READY'))
 
 Үүнийг мартвал 10 анги нь бүрэн бэлэн цуврал ч «тоглох боломжгүй»
 гэж тоологдоно.
+
+---
+
+## ⚠️ Видеоны код өөрчилбөл `worker`-ийг ЗААВАЛ rebuild
+
+**Илэрсэн:** 2026-08-09 (дахин)
+
+`backend` rebuild хийхэд `worker` **шинэчлэгддэггүй** — тэдгээр нь
+ТУСДАА container. HLS processor нь зөвхөн worker-д ажилладаг.
+
+### Шинж тэмдэг
+
+Кодыг зассан ч хуучин зан төлөв үргэлжилнэ. Бодит жишээ: ffmpeg
+таймаутыг 180 мин → 8 цаг болгосон ч кино дахин *«180 минут
+хэтэрлээ»* гэж унасан — worker 23 цагийн өмнөх код ажиллуулж байв.
+
+### Шалгах
+
+```bash
+ssh root@62.238.47.2 'docker exec besttv-worker   grep -c "STALL_TIMEOUT_MS" /app/backend/dist/src/storage/video-hls.service.js'
+# 0 гарвал → ХУУЧИН код
+```
+
+### Rebuild
+
+```bash
+ssh root@62.238.47.2 'cd /opt/BestTV/docker &&   docker compose -f docker-compose.prod.yml -p besttv build worker &&   docker compose -f docker-compose.prod.yml -p besttv up -d --force-recreate --no-deps worker'
+```
+
+⚠️ Явж буй ажлууд ТАСАЛДАНА — гэхдээ `attempts: 2` тул дараалалд
+буцаж орно. Хөрвүүлэлт эхнээсээ дахин эхэлнэ (30+ мин алдагдал),
+тиймээс боломжтой бол ажил цөөн үед хийнэ.
+
+### Аль код worker-т нөлөөлдөг вэ
+
+- `src/storage/video-hls.service.ts` (ffmpeg, таймаут)
+- `src/modules/videos/video.processor.ts` (дараалал, диск шалгалт)
+- `src/modules/videos/video-recovery.service.ts`
+- Email/queue/BullMQ холбоотой бүх код
