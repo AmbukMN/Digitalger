@@ -1,8 +1,16 @@
 /**
+ * ⚠️⚠️ ЭНЭ ФАЙЛ ӨМНӨ НЬ `loading.tsx` БАЙСАН — ЗОРИУД нэр солив.
+ *
+ * `loading.tsx` нь route түвшинд STREAMING идэвхжүүлдэг тул толгой
+ * эрт илгээгдэж `notFound()` HTTP статусыг өөрчилж чаддаггүй байв
+ * (байхгүй нийтлэл 200 буцааж Google индексжүүлнэ). Одоо `page.tsx`
+ * дотор `<Suspense fallback={<DetailSkeleton/>}>` ашиглана.
+ */
+/**
  * Блог нийтлэлийн skeleton — spinner БИШ (төслийн дүрэм).
  * Гарчиг → мета → cover → догол мөрүүд гэсэн бодит layout-ыг дуурайна.
  */
-export default function Loading() {
+export default function DetailSkeleton() {
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 pb-16 pt-24 md:px-8">
       <div className="skeleton-shimmer h-9 w-5/6 rounded md:h-11" />

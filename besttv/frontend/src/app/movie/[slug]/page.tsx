@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { TitleDetailClient } from './title-detail-client';
 import { SITE_URL, jsonLd } from '@/lib/seo';
+import DetailSkeleton from './detail-skeleton';
 
 
 /**
@@ -31,8 +33,22 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const { data } = await fetchTitle(slug);
+  const { data, notFound: missing } = await fetchTitle(slug);
   const title = data as Record<string, any> | null;
+
+  /**
+   * ⚠️⚠️ `generateMetadata` ДОТОР Ч `notFound()` — page component
+   * ДАНГААРАА хангалтгүй байв.
+   *
+   * БОДИТ ХЭМЖИЛТ: page-д `notFound()` нэмсэн ч HTTP статус **200**
+   * хэвээр үлдсэн (`not-found.tsx` рендерлэгдсэн МӨРТЛӨӨ). Шалтгаан:
+   * Next нь `generateMetadata`-г ЭХЛЭЭД ажиллуулж хариуны толгойг
+   * илгээж эхэлдэг — дараа нь page доторх `notFound()` статусыг
+   * өөрчилж чадахгүй (streaming эхэлсэн).
+   *
+   * Метадата шатанд дуудвал толгой илгээхээс ӨМНӨ шийдэгдэнэ.
+   */
+  if (missing) notFound();
   if (!title) return { title: 'Контент олдсонгүй' };
 
   /**
@@ -192,7 +208,17 @@ export default async function TitleDetailPage({
       {ld && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(ld) }} />
       )}
-      <TitleDetailClient slug={slug} />
+      {/*
+        ⚠️⚠️ `Suspense` — өмнөх `loading.tsx`-ыг ОРЛОНО.
+        `loading.tsx` нь route түвшинд STREAMING идэвхжүүлдэг тул
+        толгой эрт илгээгдэж `notFound()` статус тавьж чаддаггүй байв
+        (байхгүй кино 200 буцааж Google индексжүүлдэг). Энд бол 404
+        аль хэдийн шийдэгдсэний ДАРАА streaming эхэлнэ — skeleton
+        хэвээр, статус ч зөв.
+      */}
+      <Suspense fallback={<DetailSkeleton />}>
+        <TitleDetailClient slug={slug} />
+      </Suspense>
     </>
   );
 }

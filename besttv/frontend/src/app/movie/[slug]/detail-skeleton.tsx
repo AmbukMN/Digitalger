@@ -1,6 +1,18 @@
 /**
  * Кино дэлгэрэнгүйн skeleton.
  *
+ * ⚠️⚠️ ЭНЭ ФАЙЛ ӨМНӨ НЬ `loading.tsx` БАЙСАН — ЗОРИУД нэр солив.
+ *
+ * `loading.tsx` нь Next-д STREAMING идэвхжүүлдэг: хариуны толгойг
+ * ЭРТ илгээх тул `notFound()` дараа нь HTTP статусыг өөрчилж
+ * чадахгүй. Үр дүнд байхгүй кино **200** буцааж, Google эвдэрсэн
+ * холбоосыг индексжүүлж байв (soft 404).
+ * БОДИТООР БАТАЛСАН: `loading.tsx`-ыг хасахад статус 404 болсон.
+ *
+ * Одоо `page.tsx` дотор `<Suspense fallback={<DetailSkeleton/>}>`
+ * ашиглана — skeleton ХЭВЭЭР харагдана, гэхдээ streaming нь 404
+ * шийдэгдсэний ДАРАА эхэлнэ.
+ *
  * ⚠️ Өмнө нь `loading.tsx` ОГТ БАЙГААГҮЙ — ISR кэш байхгүй үед (шинэ кино,
  * revalidate дууссан, эхний зочин) хэрэглэгч ХООСОН ЦАГААН дэлгэц хараад
  * хүлээдэг байв. Spinner БИШ skeleton — контентын байрлалыг урьдчилж
@@ -11,7 +23,7 @@
  * `-mt-24`, `px-4 md:px-8`). Зөрвөл контент ирэхэд хуудас ҮСЭРЧ, skeleton
  * байхгүйгээс ч дор мэдрэгдэнэ.
  */
-export default function Loading() {
+export default function DetailSkeleton() {
   return (
     <main className="min-h-screen bg-background pb-16">
       {/* Hero backdrop */}
