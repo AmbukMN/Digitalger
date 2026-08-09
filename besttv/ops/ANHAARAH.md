@@ -85,7 +85,60 @@ docker logs besttv-backend 2>&1 | grep "AWS SES бэлэн"
 
 ---
 
-## ⚠️ 3. Docker лог хязгаар — daemon restart хүлээж байна
+## ⚠️ 3. Тестийн төлбөр орлогын тайланг гажуудуулж байна
+
+**Илэрсэн:** 2026-08-09
+
+### Юу байна
+
+`Payment` хүснэгтэд **6 мөр** `status = PAID` мөртлөө:
+
+- `qpayInvoiceId` **байхгүй** (жинхэнэ QPay гүйлгээ БИШ)
+- `planId` **байхгүй** (ямар багц авсан нь тодорхойгүй)
+- `Subscription` ч `Rental` ч үүсээгүй (эрх ОГТ олгогдоогүй)
+- Бүгд **зочин** хаяг (`guest_*@guest.b`)
+- Бүгд **2026-07-08**, 13:33–15:20 хооронд (20 минутын дотор)
+
+Дүн: **395,400₮**
+
+### Тайланд үзүүлэх нөлөө
+
+Хянах самбарын орлого **75% хэтэрсэн** харагдаж байна:
+
+| Муж | Харагдаж буй | Тестийн дата | **Бодит** |
+| --- | --- | --- | --- |
+| 30 хоног | 129,900₮ | 0₮ | 129,900₮ ✅ |
+| 90 хоног | 525,300₮ | 395,400₮ | **129,900₮** |
+| 365 хоног | 525,300₮ | 395,400₮ | **129,900₮** |
+
+Хэн ч мөнгө алдаагүй (жинхэнэ гүйлгээ биш) — зөвхөн **тайлан буруу**.
+
+### Цэвэрлэх заавар
+
+⚠️ **Устгах шийдвэрийг эзэн гаргана** (төслийн дүрэм: зөвшөөрөлгүй
+юу ч устгахгүй).
+
+```sql
+-- 1. ЭХЛЭЭД шалгана — яг эдгээр 6 мөр мөн эсэх
+select id, amount, "paidAt" from "Payment"
+where status='PAID' and "qpayInvoiceId" is null and "planId" is null
+  and "isWalletTopup" = false;
+
+-- 2. Зөв бол устгана
+delete from "Payment"
+where status='PAID' and "qpayInvoiceId" is null and "planId" is null
+  and "isWalletTopup" = false;
+```
+
+Устгахын өмнө нөөц авах:
+`ssh root@62.238.47.2 '/opt/besttv-backup.sh'`
+
+**Хувилбар:** устгахын оронд `status`-ыг `CANCELLED` болгож
+түүхэнд үлдээж болно (тайлангаас хасагдана).
+
+---
+
+## ⚠️ 4. Docker лог хязгаар — daemon restart хүлээж байна
 
 `/etc/docker/daemon.json`-д `50m × 3` тохиргоо **бичигдсэн** боловч
 Docker daemon дахин ачаалагдтал үйлчлэхгүй.
@@ -100,7 +153,7 @@ ssh root@62.238.47.2 'systemctl reload docker'
 
 ---
 
-## ℹ️ 4. `BLOCK_DEVTOOLS = false`
+## ℹ️ 5. `BLOCK_DEVTOOLS = false`
 
 `frontend/src/components/content-protection.tsx:29`
 
@@ -126,7 +179,7 @@ ssh root@62.238.47.2 'systemctl reload docker'
 
 ---
 
-## ℹ️ 5. Ашиглагдахгүй файл
+## ℹ️ 6. Ашиглагдахгүй файл
 
 `frontend/src/components/layout/mobile-nav.tsx` — хаанаас ч
 импортлогддоггүй (`mobile-bottom-nav.tsx` орлосон). Файл дотор
