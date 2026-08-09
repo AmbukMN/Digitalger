@@ -135,6 +135,41 @@ export function cyrToLatin(input: string): string {
 }
 
 /**
+ * Кирилл → латин БҮХ боломжит хувилбар (хайлтад).
+ *
+ * ⚠️⚠️ ЯАГААД ОЛОН ХУВИЛБАР ХЭРЭГТЭЙ ВЭ (бодит алдаа):
+ * `cyrToLatin("агент")` нь **"agyent"** буцаадаг — монгол хэлний
+ * дүрмээр `е → ye` (елена → yelena) зөв. Гэвч ГАДААД гаралтай үгэнд
+ * буруу: хэрэглэгч "агент" гэж хайхад "Agent Kim Reactivated" кино
+ * ОЛДДОГГҮЙ байв.
+ *
+ * Мөн ижил зөрчил: `ё → yo` / `o`, `ю → yu` / `u`, `я → ya` / `a`.
+ *
+ * Хайлт нь ХЭД Ч ХУВИЛБАРААР шалгаж болно (`OR` нөхцөл) тул
+ * хоёуланг нь буцаах нь буруу таарал үүсгэхгүй, харин алдагдсан
+ * үр дүнг олно.
+ */
+export function cyrToLatinVariants(input: string): string[] {
+  const base = cyrToLatin(input);
+  const out = new Set<string>([base]);
+
+  /* ⚠️ `ye`/`yo`/`yu`/`ya` → `e`/`o`/`u`/`a` — гадаад үгийн хувилбар.
+     Зөвхөн ҮГИЙН ЭХЭНД БИШ бүх байрлалд (агент → agyent → agent). */
+  const simplified = base
+    .replace(/ye/g, 'e')
+    .replace(/yo/g, 'o')
+    .replace(/yu/g, 'u')
+    .replace(/ya/g, 'a');
+  if (simplified !== base) out.add(simplified);
+
+  /* ⚠️ `kh` → `h` — "хан" нь "khan" ба "han" хоёулаа бичигддэг */
+  const h = base.replace(/kh/g, 'h');
+  if (h !== base) out.add(h);
+
+  return [...out];
+}
+
+/**
  * Latin → all Cyrillic variant expansions.
  *
  * Since plain 'u' can be either у or ү, and 'o' can be о or ө,
@@ -188,8 +223,11 @@ export function expandQuery(raw: string): string[] {
       terms.add(v);
     }
   } else if (isCyrillic(q)) {
-    const lat = cyrToLatin(q);
-    if (lat !== q) terms.add(lat);
+    /* ⚠️ БҮХ хувилбар — `cyrToLatin` ганцаараа "агент"-ыг "agyent"
+       болгож "Agent Kim" киног ОЛДОХГҮЙ болгодог байв */
+    for (const v of cyrToLatinVariants(q)) {
+      if (v !== q) terms.add(v);
+    }
   }
 
   return [...terms];
