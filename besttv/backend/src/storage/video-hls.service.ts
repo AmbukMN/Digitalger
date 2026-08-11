@@ -530,7 +530,7 @@ export class VideoHlsService {
    * @param playlistText segment бүр presigned URL болсон m3u8
    * @param prefix       R2 зам ('episodes/{uuid}/')
    */
-  async backfillPoster(playlistText: string, prefix: string): Promise<void> {
+  async backfillPoster(playlistText: string, prefix: string): Promise<string> {
     const tmpDir = path.join(os.tmpdir(), `poster_${randomUUID()}`);
     await fs.mkdir(tmpDir, { recursive: true });
     try {
@@ -538,7 +538,36 @@ export class VideoHlsService {
       await fs.writeFile(listPath, playlistText, 'utf8');
 
       const posterPath = path.join(tmpDir, 'poster.jpg');
-      await this.makePoster(listPath, posterPath);
+
+      /**
+       * ⚠️⚠️ `makePoster` (fluent-ffmpeg `.screenshots()`) АШИГЛАХГҮЙ —
+       * тэр нь дотроо ffprobe дууддаг ба HLS playlist дээр УНАДАГ
+       * (бодитоор: «ffprobe exited with code 1», 43 видеод).
+       *
+       * Оронд нь `spawn`-оор шууд ffmpeg — `makeThumbnails`-тай ижил:
+       *   `-protocol_whitelist` ЗААВАЛ (m3u8 доторх https segment-ийг
+       *   ffmpeg анхдагчаар «аюулгүй биш» гэж татахаас татгалздаг)
+       *   `-ss 60` — 60 дахь секундээс (эхний кадр хар байдаг)
+       */
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn(FFMPEG_BIN, [
+          '-y',
+          '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
+          '-ss', '60',
+          '-i', listPath,
+          '-frames:v', '1',
+          '-vf', 'scale=640:-2',
+          '-q:v', '3',
+          posterPath,
+        ], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+        let err = '';
+        proc.stderr.on('data', (b: Buffer) => { err = b.toString().slice(-300); });
+        proc.on('error', (e) => reject(e));
+        proc.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}: ${err.slice(0, 120)}`)),
+        );
+      });
 
       const buf = await fs.readFile(posterPath);
       /* ⚠️ 5 KB-ээс бага бол бараг хоосон кадр — дарж бичихгүй
@@ -546,7 +575,25 @@ export class VideoHlsService {
       if (buf.length < 5120) {
         throw new Error(`Постер хэт жижиг (${buf.length} байт) — хар кадр байж магадгүй`);
       }
-      await this.storage.upload(`${prefix}poster.jpg`, buf, 'image/jpeg');
+
+      /**
+       * ⚠️⚠️ ШИНЭ НЭРЭЭР бичнэ — CDN кэшийг тойрно.
+       *
+       * БОДИТ АСУУДАЛ: `poster.jpg`-ыг дарж бичсэн ч
+       * `assets.besttv.us` нь `cache-control: max-age=604800`
+       * (7 хоног) тул ХУУЧИН 3 KB хар зургийг өгсөөр байв
+       * (`cf-cache-status: HIT`). R2-д шинэ 19 KB зураг байхад.
+       *
+       * Шинэ нэр (`poster-<timestamp>.jpg`) нь CDN-д огт байхгүй тул
+       * ШУУД шинэ зураг татагдана. Дуудагч тал DB-ийн `posterKey`-г
+       * шинэчилнэ.
+       *
+       * ⚠️ Хуучин файлыг УСТГАХГҮЙ — DB шинэчлэгдэх хооронд хэн нэг
+       * нь уншиж байж болно (orphan cleanup дараа нь цэвэрлэнэ).
+       */
+      const name = `poster-${Date.now()}.jpg`;
+      await this.storage.upload(`${prefix}${name}`, buf, 'image/jpeg');
+      return `${prefix}${name}`;
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => null);
     }

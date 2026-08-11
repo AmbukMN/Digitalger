@@ -78,6 +78,9 @@ export default function HomePage() {
             title="Үргэлжлүүлэн үзэх"
             items={data.continueWatching}
             progressById={progressById}
+            /* ⚠️ ҮРГЭЛЖ нэг мөр — цөөн кинотой ч 2 эгнээ болгож
+               дэлгэцийн зай эзлэхгүй (бусад жанр 2 мөр хэвээр) */
+            singleRow
           />
         )}
 

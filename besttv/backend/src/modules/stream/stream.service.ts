@@ -150,43 +150,51 @@ export class StreamService {
     const skipped: string[] = [];
     const failed: { title: string; reason: string }[] = [];
 
-    /** HLS бүхий кино ба анги — нэг жагсаалт болгоно */
-    const [titles, episodes] = await Promise.all([
-      this.prisma.title.findMany({
-        where: { streamStatus: 'READY', videoKey: { not: null } },
-        select: { title: true, videoKey: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.episode.findMany({
+    /**
+     * ⚠️⚠️ ЗӨВХӨН АНГИ — КИНОНЫ ПОСТЕРТ ХЭЗЭЭ Ч ХҮРЭХГҮЙ.
+     *
+     * БОДИТ ОСОЛ: энэ функц эхлээд кино+анги ХОЁУЛАНГ хамардаг байсан
+     * тул 30 киноны ЖИНХЭНЭ постерыг (TMDB-ээс татсан, админ сонгосон)
+     * видеоны кадраар дарж бичсэн. Сэргээхэд R2 дээрх хуучин файл
+     * хадгалагдсан нь аварсан — versioning OFF тул азаар л сэргэсэн.
+     *
+     * Кино нь ПОСТЕРТОЙ (TMDB / админ оруулсан) — кадар хэрэггүй.
+     * Зөвхөн АНГИ нь өөрийн зурагтай байдаггүй тул кадар авна.
+     */
+    const episodes = await this.prisma.episode.findMany({
         where: { streamStatus: 'READY', videoKey: { not: null } },
         select: {
+          id: true,
           number: true,
           videoKey: true,
+          posterKey: true,
           season: { select: { title: { select: { title: true } } } },
         },
-        orderBy: { number: 'asc' },
-      }),
-    ]);
+      orderBy: { number: 'asc' },
+    });
 
-    const targets = [
-      ...titles.map((t) => ({ label: t.title, videoKey: t.videoKey! })),
-      ...episodes.map((e) => ({
-        label: `${e.season?.title?.title ?? 'Цуврал'} — ${e.number}-р анги`,
-        videoKey: e.videoKey!,
-      })),
-    ];
+    const targets = episodes.map((e) => ({
+      id: e.id,
+      label: `${e.season?.title?.title ?? 'Цуврал'} — ${e.number}-р анги`,
+      videoKey: e.videoKey!,
+      posterKey: e.posterKey,
+    }));
 
     for (const t of targets) {
       if (done.length >= limit) break;
       const prefix = t.videoKey.slice(0, t.videoKey.lastIndexOf('/') + 1);
 
-      /* ⚠️ Одоогийн постерын ХЭМЖЭЭГ шалгана — 5 KB-ээс том бол
-         утга учиртай кадр гэж үзээд алгасна (`force` үгүй үед) */
+      /**
+       * ⚠️⚠️ DB-ийн `posterKey`-г шалгана, `poster.jpg`-ыг БИШ.
+       *
+       * Зассан постер нь ШИНЭ нэртэй (`poster-<ts>.jpg` — CDN кэш
+       * тойрох) тул хуучин `poster.jpg` R2-д 3 KB хэвээр үлддэг.
+       * Түүнийг шалгавал ДАХИН ажиллах бүрд ижил видеог дахин
+       * боловсруулна (дэмий CPU).
+       */
       if (!force) {
         try {
-          /* ⚠️ Постер бол хэдхэн KB тул татаж хэмжих нь хямд
-             (`HeadObject` нэмэхээс энгийн) */
-          const cur = await this.storage.downloadBuffer(`${prefix}poster.jpg`);
+          const cur = await this.storage.downloadBuffer(t.posterKey ?? `${prefix}poster.jpg`);
           if (cur.length >= 5120) {
             skipped.push(t.label);
             continue;
@@ -207,7 +215,12 @@ export class StreamService {
         const listKey = variants.length ? `${prefix}${variants[variants.length - 1]}` : t.videoKey;
         const playlist = await this.variantPlaylistRaw(listKey, prefix);
 
-        await this.hls.backfillPoster(playlist, prefix);
+        const newKey = await this.hls.backfillPoster(playlist, prefix);
+
+        /* ⚠️ DB-г ЗААВАЛ шинэчилнэ — постер шинэ нэртэй (CDN кэш
+           тойрох) тул хуучин `posterKey` хэвээр үлдвэл хэрэглэгч
+           хуучин хар зургийг л харсаар байна */
+        await this.prisma.episode.update({ where: { id: t.id }, data: { posterKey: newKey } });
         done.push(t.label);
       } catch (e) {
         failed.push({ title: t.label, reason: String(e).slice(0, 120) });

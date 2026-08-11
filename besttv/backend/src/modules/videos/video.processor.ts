@@ -1,6 +1,7 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { VideoHlsService, type HlsProgress } from '../../storage/video-hls.service';
@@ -228,8 +229,20 @@ export class VideoProcessor {
           select: { posterKey: true },
         });
         if (t && !t.posterKey) {
+          /**
+           * ⚠️⚠️ CDN НЭЭДЭГ ЗАМ РУУ ХУУЛНА — `movies/` зам нь 403.
+           *
+           * БОДИТ АЛДАА: Cloudflare (`assets.besttv.us`) нь `images/`
+           * болон `episodes/` замыг нээдэг ч `movies/` замыг **403**
+           * гэж ХААДАГ. Видеоны кадраас гаргасан постер нь
+           * `movies/<uuid>/poster.jpg` замд бичигддэг тул 30 киноны
+           * постер хэрэглэгчид ОГТ ХАРАГДАХГҮЙ (хоосон хайрцаг) байв.
+           *
+           * `images/poster/` руу хуулснаар CDN-ээр хүрнэ.
+           */
+          const cdnKey = await this.copyPosterToCdnPath(posterKey);
           this.logger.log(`Постер алга — видеоноос гаргав: movie/${targetId}`);
-          return { posterKey };
+          return { posterKey: cdnKey };
         }
       } else if (target === 'episode') {
         const e = await this.prisma.episode.findUnique({
@@ -242,6 +255,25 @@ export class VideoProcessor {
       // Постер бол нэмэлт зүйл — алдаа гарвал хөрвүүлэлтийг УНАГААХГҮЙ
     }
     return {};
+  }
+
+  /**
+   * Постерыг CDN нээдэг зам руу хуулна.
+   *
+   * ⚠️ Хуулж чадаагүй бол ЭХ түлхүүрийг буцаана — постергүй үлдэхээс
+   * (магадгүй харагдахгүй ч) DB-д заалт байсан нь дээр.
+   */
+  private async copyPosterToCdnPath(srcKey: string): Promise<string> {
+    try {
+      const buf = await this.storage.downloadBuffer(srcKey);
+      const ext = srcKey.endsWith('.webp') ? 'webp' : 'jpg';
+      const dest = `images/poster/${randomUUID()}.${ext}`;
+      await this.storage.upload(dest, buf, ext === 'webp' ? 'image/webp' : 'image/jpeg');
+      return dest;
+    } catch (e) {
+      this.logger.warn(`Постерыг CDN зам руу хуулж чадсангүй: ${String(e)}`);
+      return srcKey;
+    }
   }
 
   /**

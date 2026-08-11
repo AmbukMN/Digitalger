@@ -18,22 +18,40 @@ interface TitleRowProps {
   variant?: 'default' | 'top10';
   /** Continue-watching — item.id → үзсэн хувь */
   progressById?: Record<string, number>;
+  /**
+   * ⚠️ ҮРГЭЛЖ НЭГ МӨР (2 эгнээ болгохгүй).
+   *
+   * «Үргэлжлүүлэн үзэх» нь 6-10 кинотой байхад 2 мөр болж дэлгэцийн
+   * зайг дэмий эзэлдэг байв — энэ хэсэг нь ХУРДАН үргэлжлүүлэх
+   * зорилготой тул нэг харцаар харагдах ёстой. Олон кино байвал
+   * хэвтээ гүйлгэнэ (сум товч / хуруу).
+   */
+  singleRow?: boolean;
 }
 
 /** Жанрын карусель мөр — hide-scrollbar + чиглэл товч + edge fade (Netflix загвар) */
-export function TitleRow({ title, items, href, variant = 'default', progressById }: TitleRowProps) {
+export function TitleRow({
+  title,
+  items,
+  href,
+  variant = 'default',
+  progressById,
+  singleRow,
+}: TitleRowProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
   /**
    * ⚠️⚠️ ХОЁР ЭГНЭЭ — гэхдээ ЗӨВХӨН хангалттай кино байвал.
    *
    * 6-аас цөөн кинотой жанрыг 2 мөр болговол хоёр дахь мөр хагас
-   * хоосон үлдэж эвгүй харагдана ("Үргэлжлүүлэн үзэх" нь ихэвчлэн
-   * 1-3 кинотой). Тэр тохиолдолд нэг мөр илүү цэвэрхэн.
+   * хоосон үлдэж эвгүй харагдана. Тэр тохиолдолд нэг мөр илүү цэвэрхэн.
    *
    * ⚠️ TOP10 нь эрэмбэ 1→10 гэж уншигддаг тул ҮРГЭЛЖ нэг мөр.
+   * ⚠️ `singleRow` — «Үргэлжлүүлэн үзэх» ҮРГЭЛЖ нэг мөр (кино хэдэн ч
+   * байсан). Тэр хэсэг нь ХУРДАН үргэлжлүүлэх зорилготой тул нэг
+   * харцаар харагдах ёстой, олон бол хэвтээ гүйлгэнэ.
    */
-  const twoRows = variant !== 'top10' && items.length >= 6;
+  const twoRows = !singleRow && variant !== 'top10' && items.length >= 6;
   /**
    * ⚠️ Анхны утга `right: false` — өмнө нь `true` байсан тул гүйлгэх
    * зүйл БАЙХГҮЙ эгнээнд ч баруун fade харагдаж, "цааш кино бий"
