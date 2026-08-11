@@ -129,6 +129,94 @@ export class StreamService {
    *
    * @returns { done, skipped, failed } — тоо
    */
+  /**
+   * ХАР ПОСТЕРЫГ дахин үүсгэх (кино + анги).
+   *
+   * ⚠️⚠️ ЯАГААД: постерыг өмнө нь 1 ДАХЬ СЕКУНДЭЭС авдаг байсан тул
+   * бараг үргэлж ХАР ДЭЛГЭЦ/студийн лого гардаг байв. Agent Kim
+   * цувралын 10 ангийн thumbnail БҮГД хар хайрцаг (3.5 KB JPEG).
+   * `makePoster` одоо 10%-д авдаг болсон ч ӨМНӨ хөрвүүлсэн видео
+   * хэвээр — тэднийг ЭНЭ функц засна.
+   *
+   * ⚠️ Raw файл устсан тул R2 дээрх HLS-ээс уншина.
+   * ⚠️ `force=false` бол ЗӨВХӨН жижиг (сэжигтэй) постерыг дарж бичнэ —
+   * админ гараар оруулсан сайн постер хөндөгдөхгүй.
+   */
+  async backfillPosters(
+    limit = 10,
+    force = false,
+  ): Promise<{ done: string[]; skipped: string[]; failed: { title: string; reason: string }[] }> {
+    const done: string[] = [];
+    const skipped: string[] = [];
+    const failed: { title: string; reason: string }[] = [];
+
+    /** HLS бүхий кино ба анги — нэг жагсаалт болгоно */
+    const [titles, episodes] = await Promise.all([
+      this.prisma.title.findMany({
+        where: { streamStatus: 'READY', videoKey: { not: null } },
+        select: { title: true, videoKey: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.episode.findMany({
+        where: { streamStatus: 'READY', videoKey: { not: null } },
+        select: {
+          number: true,
+          videoKey: true,
+          season: { select: { title: { select: { title: true } } } },
+        },
+        orderBy: { number: 'asc' },
+      }),
+    ]);
+
+    const targets = [
+      ...titles.map((t) => ({ label: t.title, videoKey: t.videoKey! })),
+      ...episodes.map((e) => ({
+        label: `${e.season?.title?.title ?? 'Цуврал'} — ${e.number}-р анги`,
+        videoKey: e.videoKey!,
+      })),
+    ];
+
+    for (const t of targets) {
+      if (done.length >= limit) break;
+      const prefix = t.videoKey.slice(0, t.videoKey.lastIndexOf('/') + 1);
+
+      /* ⚠️ Одоогийн постерын ХЭМЖЭЭГ шалгана — 5 KB-ээс том бол
+         утга учиртай кадр гэж үзээд алгасна (`force` үгүй үед) */
+      if (!force) {
+        try {
+          /* ⚠️ Постер бол хэдхэн KB тул татаж хэмжих нь хямд
+             (`HeadObject` нэмэхээс энгийн) */
+          const cur = await this.storage.downloadBuffer(`${prefix}poster.jpg`);
+          if (cur.length >= 5120) {
+            skipped.push(t.label);
+            continue;
+          }
+        } catch {
+          /* байхгүй — үүсгэнэ */
+        }
+      }
+
+      try {
+        /* ⚠️ ХАМГИЙН БАГА чанарын дэд playlist — постер 640px тул
+           өндөр чанар хэрэггүй, татах хэмжээ хэд дахин бага */
+        const master = await this.storage.downloadText(t.videoKey);
+        const variants = master
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => /^v\d+\.m3u8$/.test(l));
+        const listKey = variants.length ? `${prefix}${variants[variants.length - 1]}` : t.videoKey;
+        const playlist = await this.variantPlaylistRaw(listKey, prefix);
+
+        await this.hls.backfillPoster(playlist, prefix);
+        done.push(t.label);
+      } catch (e) {
+        failed.push({ title: t.label, reason: String(e).slice(0, 120) });
+      }
+    }
+
+    return { done, skipped, failed };
+  }
+
   async backfillThumbnails(limit = 5): Promise<{
     done: string[];
     skipped: string[];

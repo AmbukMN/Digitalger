@@ -18,7 +18,13 @@ export interface AdminTitle {
   slug: string;
   posterUrl: string | null;
   isPremium: boolean;
+  /**
+   * ⚠️ SERIES-д энэ нь backend дээр АНГИУДААС тооцогдоно
+   * (`Title.streamStatus` нь цувралд хэзээ ч өөрчлөгддөггүй).
+   */
   streamStatus: string;
+  /** Цувралын ангийн явц — «7/10 анги» гэж харуулна (зөвхөн SERIES) */
+  episodeStats?: { total: number; ready: number };
   /** HLS хөрвүүлэлтийн явц 0-100 (PROCESSING үед) */
   streamProgress?: number;
   streamError?: string | null;

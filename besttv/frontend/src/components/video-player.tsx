@@ -63,6 +63,19 @@ export function VideoPlayer({
   /** Хамгийн сүүлд хадгалсан байрлал — давхардсан бичилтээс сэргийлнэ */
   const lastSaved = useRef(0);
   const [ready, setReady] = useState(false);
+  /**
+   * ⚠️⚠️ УДИРДЛАГА ХАРАГДАЖ БАЙГАА ЭСЭХ — буцах товчийг дагуулна.
+   *
+   * Өмнө нь буцах товч `ready` болмогц `opacity-0` болж БҮРЭН үл
+   * үзэгдэх байв. `hover:opacity-100` нь эргүүлж авчирдаг ч ҮЛ
+   * ҮЗЭГДЭХ товчийг хэрэглэгч ХЭЗЭЭ Ч олохгүй — «гарах зам алга»
+   * гэсэн гомдол.
+   *
+   * Vidstack-ийн `onControlsChange` нь удирдлага гарах/алга болох
+   * бүрд дуудагдана. Ингэснээр буцах товч удирдлагатай ЯГ ХАМТ
+   * ажиллана (хулгана хөдлөх / түр зогсоох → хоёулаа гарна).
+   */
+  const [controlsOn, setControlsOn] = useState(true);
 
   /**
    * SEEK PREVIEW (thumbnail).
@@ -277,6 +290,8 @@ export function VideoPlayer({
         storage="besttv-player"
         onProviderChange={onProviderChange}
         onCanPlay={onCanPlay}
+        /* ⚠️ Буцах товчийг удирдлагатай хамт харуулах (дээрх тайлбар) */
+        onControlsChange={setControlsOn}
         onTimeUpdate={onTimeUpdate}
         onSeeked={saveNow}
         onPause={saveNow}
@@ -377,24 +392,45 @@ export function VideoPlayer({
         ⚠️ Тоглож эхэлмэгц (`ready`) бүдгэрч, hover/фокуст дахин гарна.
       */}
       {backHref && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-3 bg-linear-to-b from-black/70 to-transparent p-3 md:p-4">
+        /**
+         * ⚠️⚠️ ТОГЛОЖ ЭХЭЛМЭГЦ АЛГА БОЛДОГ БАЙСНЫГ ЗАСАВ.
+         *
+         * БОДИТ АЛДАА: `ready ? 'opacity-0 hover:opacity-100'` —
+         * тоглож эхэлмэгц товч БҮРЭН үл үзэгдэх болдог. `hover` нь
+         * түүнийг эргүүлж авчирдаг ч ҮЛ ҮЗЭГДЭХ товчийг хэрэглэгч
+         * ХЭЗЭЭ Ч ОЛОХГҮЙ — гарах зам байхгүй мэт санагдана
+         * (хэрэглэгчийн гомдол).
+         *
+         * ЗӨВ ЗАН ТӨЛӨВ: player-ийн УДИРДЛАГАТАЙ хамт харагдана.
+         * Vidstack нь хулгана хөдлөхгүй 2 секундын дараа саван дээр
+         * `data-user-idle` тавьдаг — түүнийг дагана:
+         *   • Хулгана хөдлөх / түр зогсоох → удирдлага + буцах товч
+         *   • Идэвхгүй → хоёулаа зөөлөн бүдгэрнэ
+         *
+         * ⚠️ `onControlsChange` — Vidstack-ийн албан ёсны event.
+         * CSS сонголтоор (`group-data-[user-idle]`) хийвэл эцэг
+         * элемент нь `MediaPlayer`-ийн ГАДНА тул атрибут хүрэхгүй.
+         */
+        <div
+          className={[
+            'pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-3',
+            'bg-linear-to-b from-black/75 via-black/40 to-transparent p-3 md:p-4',
+            /* ⚠️ Удирдлагатай ИЖИЛ хугацаа (Vidstack 200ms) */
+            'transition-opacity duration-200',
+            controlsOn ? 'opacity-100' : 'opacity-0',
+          ].join(' ')}
+        >
           <Link
             href={backHref}
-            className={[
-              'pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-opacity hover:bg-black/75 focus-visible:opacity-100',
-              ready ? 'opacity-0 hover:opacity-100' : 'opacity-100',
-            ].join(' ')}
+            /* ⚠️ 44px — Apple/Google-ийн хүрэх талбайн доод хязгаар
+               (өмнө нь 40px байсан) */
+            className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-colors hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-white/70"
             aria-label="Буцах"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={22} />
           </Link>
           {title && (
-            <p
-              className={[
-                'mt-1.5 line-clamp-1 text-sm font-semibold text-white drop-shadow-md transition-opacity md:text-base',
-                ready ? 'opacity-0' : 'opacity-100',
-              ].join(' ')}
-            >
+            <p className="mt-2 line-clamp-1 text-sm font-semibold text-white drop-shadow-lg md:text-base">
               {title}
             </p>
           )}

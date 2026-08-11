@@ -447,11 +447,28 @@ export class VideoHlsService {
     });
   }
 
+  /**
+   * Видеоны кадраас постер гаргана.
+   *
+   * ⚠️⚠️ 1 СЕКУНД БАЙСНЫГ 10%-Д БОЛГОВ.
+   *
+   * БОДИТ АЛДАА: `timestamps: ['1']` нь эхний СЕКУНДЭЭС кадр авдаг —
+   * тэнд бараг үргэлж ХАР ДЭЛГЭЦ, студийн лого, эсвэл кредит байдаг.
+   * Agent Kim цувралын 10 ангийн thumbnail БҮГД хар хайрцаг байв
+   * (3.5 KB — бараг хоосон JPEG).
+   *
+   * ⚠️ `10%` нь хувиар — ffmpeg дэмждэг. Богино клипт ч (2 мин → 12с),
+   * урт кинод ч (2 цаг → 12 мин) утга учиртай кадр өгнө. Тогтмол
+   * секунд (ж: 30) бол 20 секундын трейлерт хүрэхгүй.
+   *
+   * ⚠️ Хэрэв 10% дээр ч хоосон бол `posterIfMissing` нь админы
+   * гараар оруулсан постерыг ХЭЗЭЭ Ч дарж бичихгүй (тусдаа хамгаалалт).
+   */
   private makePoster(inputPath: string, posterPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .screenshots({
-          timestamps: ['1'],
+          timestamps: ['10%'],
           filename: path.basename(posterPath),
           folder: path.dirname(posterPath),
           size: '640x?',
@@ -494,6 +511,42 @@ export class VideoHlsService {
           name.endsWith('.vtt') ? 'text/vtt' : 'image/jpeg',
         );
       }
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => null);
+    }
+  }
+
+  /**
+   * ХУУЧИН видеонд ПОСТЕР дахин үүсгэх (backfill).
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: постерыг өмнө нь 1 ДАХЬ СЕКУНДЭЭС авдаг
+   * байсан тул бараг үргэлж ХАР ДЭЛГЭЦ/лого гардаг байв (Agent Kim
+   * цувралын 10 ангийн thumbnail бүгд хар хайрцаг — 3.5 KB JPEG).
+   * Одоо 10%-д авдаг болсон ч ӨМНӨ НЬ хөрвүүлсэн видео хэвээр.
+   *
+   * ⚠️ Raw файл устсан тул R2 дээрх HLS-ээс уншина (`backfillThumbnails`
+   * -тай ИЖИЛ загвар).
+   *
+   * @param playlistText segment бүр presigned URL болсон m3u8
+   * @param prefix       R2 зам ('episodes/{uuid}/')
+   */
+  async backfillPoster(playlistText: string, prefix: string): Promise<void> {
+    const tmpDir = path.join(os.tmpdir(), `poster_${randomUUID()}`);
+    await fs.mkdir(tmpDir, { recursive: true });
+    try {
+      const listPath = path.join(tmpDir, 'in.m3u8');
+      await fs.writeFile(listPath, playlistText, 'utf8');
+
+      const posterPath = path.join(tmpDir, 'poster.jpg');
+      await this.makePoster(listPath, posterPath);
+
+      const buf = await fs.readFile(posterPath);
+      /* ⚠️ 5 KB-ээс бага бол бараг хоосон кадр — дарж бичихгүй
+         (одоо байгаагаас дор болгохгүй) */
+      if (buf.length < 5120) {
+        throw new Error(`Постер хэт жижиг (${buf.length} байт) — хар кадр байж магадгүй`);
+      }
+      await this.storage.upload(`${prefix}poster.jpg`, buf, 'image/jpeg');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => null);
     }

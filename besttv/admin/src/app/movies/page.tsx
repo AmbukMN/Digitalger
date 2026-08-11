@@ -379,6 +379,14 @@ export default function MoviesPage() {
                     >
                       {STATUS_LABEL[t.streamStatus] ?? t.streamStatus}
                     </span>
+                    {/* ⚠️ Цувралд ангийн явцыг НАРИЙН харуулна — «Бэлэн»
+                        гэсэн ганц үг 10 ангийн 7 нь л бэлэн болохыг
+                        нуудаг. Backend `episodeStats` буцаана. */}
+                    {t.episodeStats && t.episodeStats.total > 0 && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        {t.episodeStats.ready}/{t.episodeStats.total} анги
+                      </span>
+                    )}
                   </td>
                   {/* ⚠️ R2 дээрх бодит хэмжээ — HLS segment+постер+трейлер бүгд */}
                   <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">

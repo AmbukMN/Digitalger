@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, Ticket } from 'lucide-react';
+import { ChevronRight, Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
@@ -269,34 +269,66 @@ export function WatchClient({ slug }: { slug: string }) {
             }
             backHref={`/movie/${slug}`}
           />
-          <div className="px-4 py-4 md:px-8">
-            <Link href={`/movie/${slug}`} className="text-sm text-white/60 hover:text-white">
-              ← {data.title} рүү буцах
-            </Link>
-            <h1 className="mt-2 text-lg font-semibold text-white">
-              {data.title}
+          {/*
+            ⚠️⚠️ МЭДЭЭЛЛИЙН МӨР — ГУРВАН зүйл БОСОО давхарлагдсан байв
+            (буцах холбоос → гарчиг → товч), тус бүр өөрийн мөртэй.
+            Дэлгэцийн зай дэмий үрэгдэж, «Дараагийн анги» товч доогуур
+            унжсан эмх замбараагүй харагддаг байв.
+
+            ЗӨВ БҮТЭЦ: гарчиг ЗҮҮН, үйлдэл БАРУУН — нэг мөрөнд
+            (`justify-between`). Нарийн дэлгэцэд `flex-wrap` нь товчийг
+            доош буулгана (шахагдахгүй).
+
+            ⚠️ Буцах холбоос ХАСАГДСАН — player дотор аль хэдийн буцах
+            товч бий (одоо удирдлагатай хамт зөв харагдана). Хоёр газар
+            байх нь давхардал, зай үрэлт.
+          */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 md:px-8">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold text-white md:text-xl">
+                {data.title}
+              </h1>
               {episodeId && flatEpisodes[currentIndex] && (
-                <span className="text-white/60">
-                  {' '}
-                  — {flatEpisodes[currentIndex].number}-р анги
-                </span>
+                <p className="mt-0.5 text-sm text-white/55">
+                  {episodeLabel(
+                    flatEpisodes[currentIndex].number,
+                    flatEpisodes[currentIndex].name,
+                  )}
+                  {flatEpisodes.length > 1 && (
+                    <span className="text-white/35"> · {flatEpisodes.length} ангитай</span>
+                  )}
+                </p>
               )}
-            </h1>
+            </div>
+
             {nextEpisode?.playable && (
+              /* ⚠️ `shrink-0` — урт гарчиг товчийг шахахгүй.
+                 ⚠️ `bg-primary` — энэ бол хуудасны ГОЛ үйлдэл, саарал
+                 товч нь хэрэглэгчийн нүдэнд өртөхгүй байв. */
               <button
                 onClick={() => goToEpisode(nextEpisode.id)}
-                className="mt-3 rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
               >
-                Дараагийн анги: {episodeLabel(nextEpisode.number, nextEpisode.name)} →
+                Дараагийн анги
+                <ChevronRight size={16} />
               </button>
             )}
           </div>
         </div>
 
         {flatEpisodes.length > 0 && (
-          <aside className="w-full shrink-0 border-t border-white/10 bg-[#0a0a0a] p-4 lg:w-80 lg:border-l lg:border-t-0">
-            <h2 className="mb-3 text-sm font-semibold text-white/80">Ангиуд</h2>
-            <div className="space-y-1.5 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+          <aside className="w-full shrink-0 border-t border-white/10 bg-[#0a0a0a] lg:w-88 lg:border-l lg:border-t-0">
+            {/* ⚠️ Толгой НААЛДАЦТАЙ — 10+ ангийн жагсаалт гүйлгэхэд
+                «Ангиуд» гарчиг болон явц харагдсаар байна */}
+            <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-white/10 bg-[#0a0a0a]/95 px-4 py-3 backdrop-blur">
+              <h2 className="text-sm font-semibold text-white/85">Ангиуд</h2>
+              <span className="text-xs text-white/40">
+                {flatEpisodes.filter((e) => e.playable).length}/{flatEpisodes.length}
+              </span>
+            </div>
+            {/* ⚠️ `100dvh` — мобайл browser-ийн хаяг талбар нуугдахад
+                `vh` буруу тооцоологддог (жагсаалт таслагдана) */}
+            <div className="space-y-1 p-3 lg:max-h-[calc(100dvh-3.25rem)] lg:overflow-y-auto">
               {seasons.map((s) => (
                 <div key={s.id}>
                   {seasons.length > 1 && (
@@ -318,16 +350,47 @@ export function WatchClient({ slug }: { slug: string }) {
                           !ep.playable && 'cursor-not-allowed opacity-40',
                         )}
                       >
-                        <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/10">
-                          {ep.posterUrl && (
-                            <Image src={ep.posterUrl} alt={`${ep.number}-р анги`} fill sizes="80px" className="object-cover" />
+                        {/*
+                          ⚠️⚠️ THUMBNAIL ХООСОН ҮЕД ДУГААР ХАРУУЛНА.
+                          Постерыг 1 дэх секундээс авдаг байсан тул бараг
+                          үргэлж ХАР КАДР гардаг — 10 анги бүгд ижилхэн
+                          хар хайрцаг болж, хэрэглэгч алийг нь ч ялгахгүй
+                          байв. Дугаар нь ядаж баримжаа өгнө.
+                          (`makePoster` 10%-д авдаг болсон, хуучин видеог
+                          `/admin/stream/posters/backfill` засна.)
+                        */}
+                        <div className="relative flex h-12 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-white/8">
+                          {ep.posterUrl ? (
+                            <Image
+                              src={ep.posterUrl}
+                              alt=""
+                              fill
+                              sizes="80px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="text-base font-bold text-white/25">{ep.number}</span>
+                          )}
+                          {/* ⚠️ Идэвхтэй ангид тод хүрээ — жагсаалт урт үед
+                              хаана байгаагаа алдахгүй */}
+                          {active && (
+                            <span className="pointer-events-none absolute inset-0 rounded ring-2 ring-primary" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className={cn('truncate text-sm', active ? 'text-primary font-medium' : 'text-white/90')}>
+                          <p
+                            className={cn(
+                              'truncate text-sm',
+                              active ? 'font-semibold text-primary' : 'text-white/90',
+                            )}
+                          >
                             {episodeLabel(ep.number, ep.name)}
                           </p>
-                          {!ep.playable && <span className="text-xs text-white/40">Удахгүй</span>}
+                          {active ? (
+                            <span className="text-xs text-primary/70">Одоо үзэж байна</span>
+                          ) : !ep.playable ? (
+                            <span className="text-xs text-white/40">Удахгүй</span>
+                          ) : null}
                         </div>
                       </button>
                     );

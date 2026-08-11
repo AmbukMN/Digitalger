@@ -58,6 +58,23 @@ export class AdminStreamController {
     return this.stream.backfillThumbnails(Math.min(20, Number(limit) || 5));
   }
 
+  /**
+   * ХАР ПОСТЕРЫГ дахин үүсгэх (кино + анги).
+   *
+   * ⚠️ Постерыг өмнө нь 1 дэх секундээс авдаг байсан тул хар дэлгэц/
+   * лого гардаг байв. Одоо 10%-д авдаг ч ӨМНӨ хөрвүүлсэн видео хэвээр.
+   *
+   * ⚠️ `?force=1` — 5 KB-ээс ТОМ постерыг ч дарж бичнэ (админ гараар
+   * оруулсан зураг байвал болгоомжтой).
+   */
+  @Post('posters/backfill')
+  backfillPosters(@Query('limit') limit?: string, @Query('force') force?: string) {
+    return this.stream.backfillPosters(
+      Math.min(30, Number(limit) || 10),
+      force === '1' || force === 'true',
+    );
+  }
+
 
   @Get('episode/:episodeId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')

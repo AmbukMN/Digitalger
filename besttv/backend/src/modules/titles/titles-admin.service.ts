@@ -117,7 +117,28 @@ export class TitlesAdminService {
       this.prisma.title.count({ where: { ...base, isPremium: true } }),
       this.prisma.title.count({ where: { ...base, isPremium: false } }),
       this.prisma.title.count({ where: { ...base, isActive: false } }),
-      this.prisma.title.count({ where: { ...base, type: 'MOVIE', streamStatus: 'NONE' } }),
+      /**
+       * ⚠️⚠️ "Видео ороогүй" — MOVIE ба SERIES-д ӨӨР шалгуур.
+       *
+       *   MOVIE  → `streamStatus = NONE` (видео нь Title дээр)
+       *   SERIES → анги ОГТ БАЙХГҮЙ, эсвэл БҮХ анги `NONE`
+       *            (`Title.streamStatus` нь SERIES-д хэзээ ч
+       *             өөрчлөгддөггүй тул түүгээр шүүвэл БҮХ цуврал
+       *             "видеогүй" гэж ХУДЛАА тоологдоно)
+       */
+      this.prisma.title.count({
+        where: {
+          ...base,
+          OR: [
+            { type: 'MOVIE', streamStatus: 'NONE' },
+            { type: 'SERIES', seasons: { none: {} } },
+            {
+              type: 'SERIES',
+              seasons: { every: { episodes: { every: { streamStatus: 'NONE' } } } },
+            },
+          ],
+        },
+      }),
     ]);
     return { ALL: all, movies, series, premium, free, inactive, noVideo };
   }
@@ -164,13 +185,68 @@ export class TitlesAdminService {
           videoKey: true, videoRawKey: true, trailerKey: true, durationSec: true,
           genres: { include: { genre: { select: { id: true, name: true } } } },
           _count: { select: { seasons: true } },
+          /**
+           * ⚠️⚠️ ЦУВРАЛЫН АНГИУДЫН ТӨЛӨВ — badge зөв харуулахад.
+           *
+           * БОДИТ АЛДАА: `Title.streamStatus` нь SERIES-д ХЭЗЭЭ Ч
+           * өөрчлөгддөггүй (видео нь `Episode` дээр) тул 10 анги нь
+           * бүрэн бэлэн цуврал ч админд «Видео ороогүй» гэж ХУДЛАА
+           * харагддаг байв.
+           *
+           * ⚠️ Зөвхөн `streamStatus` — хөнгөн (`select` тул бусад
+           * багана татахгүй).
+           */
+          seasons: {
+            select: { episodes: { select: { streamStatus: true } } },
+          },
         },
       }),
       this.prisma.title.count({ where }),
     ]);
 
+    /**
+     * ⚠️⚠️ SERIES-ийн БОДИТ төлвийг ангиудаас тооцно.
+     *
+     *   бүгд READY        → READY («Бэлэн»)
+     *   аль нэг PROCESSING→ PROCESSING («Боловсруулж байна»)
+     *   аль нэг FAILED    → FAILED («Алдаатай»)
+     *   аль нэг UPLOADED  → UPLOADED («Ачаалагдсан»)
+     *   анги огт байхгүй  → NONE («Видео ороогүй») — энэ л ЖИНХЭНЭ
+     *
+     * ⚠️ `episodeStats` талбарыг ч буцаана — админ «7/10 бэлэн» гэж
+     * нарийн харах боломжтой.
+     */
+    const withStatus = items.map((t) => {
+      if (t.type !== 'SERIES') {
+        const { seasons: _drop, ...rest } = t;
+        return rest;
+      }
+      const eps = (t.seasons ?? []).flatMap((s) => s.episodes ?? []);
+      const { seasons: _drop, ...rest } = t;
+
+      if (!eps.length) return { ...rest, episodeStats: { total: 0, ready: 0 } };
+
+      const ready = eps.filter((e) => e.streamStatus === 'READY').length;
+      const streamStatus =
+        ready === eps.length
+          ? 'READY'
+          : eps.some((e) => e.streamStatus === 'PROCESSING')
+            ? 'PROCESSING'
+            : eps.some((e) => e.streamStatus === 'FAILED')
+              ? 'FAILED'
+              : eps.some((e) => e.streamStatus === 'UPLOADED')
+                ? 'UPLOADED'
+                : 'NONE';
+
+      return {
+        ...rest,
+        streamStatus: streamStatus as typeof t.streamStatus,
+        episodeStats: { total: eps.length, ready },
+      };
+    });
+
     return {
-      items: await this.media.decorateMany(items),
+      items: await this.media.decorateMany(withStatus),
       total,
       page,
       totalPages: Math.ceil(total / limit),
