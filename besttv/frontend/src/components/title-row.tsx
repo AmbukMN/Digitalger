@@ -41,17 +41,34 @@ export function TitleRow({
   const trackRef = useRef<HTMLDivElement>(null);
 
   /**
-   * ⚠️⚠️ ХОЁР ЭГНЭЭ — гэхдээ ЗӨВХӨН хангалттай кино байвал.
+   * ⚠️⚠️ ХОЁР ЭГНЭЭ — ЗӨВХӨН нэг мөр ДҮҮРСНИЙ ДАРАА.
    *
-   * 6-аас цөөн кинотой жанрыг 2 мөр болговол хоёр дахь мөр хагас
-   * хоосон үлдэж эвгүй харагдана. Тэр тохиолдолд нэг мөр илүү цэвэрхэн.
+   * Өмнө нь `items.length >= 6` гэсэн ТОГТМОЛ тоогоор шийддэг байсан
+   * нь БУРУУ: том дэлгэцэнд 6 кино нэг мөрөнд амархан багтдаг тул
+   * эхний мөр ХАГАС ХООСОН байхад хоёр дахь мөр эхэлж, 3 кино
+   * дээр-доор өрөгдөж эвгүй харагддаг байв.
+   *
+   * Зөв логик: эхний мөр БҮРЭН дүүрч, багтахаа больсон үед л 2 дахь
+   * мөр рүү шилжинэ. Дэлгэцийн өргөн, картын хэмжээ хоёулаа
+   * өөрчлөгддөг тул ТОГТМОЛ тоогоор таамаглах боломжгүй — БОДИТООР
+   * хэмжинэ (доорх `useEffect`).
    *
    * ⚠️ TOP10 нь эрэмбэ 1→10 гэж уншигддаг тул ҮРГЭЛЖ нэг мөр.
    * ⚠️ `singleRow` — «Үргэлжлүүлэн үзэх» ҮРГЭЛЖ нэг мөр (кино хэдэн ч
    * байсан). Тэр хэсэг нь ХУРДАН үргэлжлүүлэх зорилготой тул нэг
    * харцаар харагдах ёстой, олон бол хэвтээ гүйлгэнэ.
    */
-  const twoRows = !singleRow && variant !== 'top10' && items.length >= 6;
+  const allowTwoRows = !singleRow && variant !== 'top10';
+
+  /**
+   * ⚠️ Анхны утга `false` — нэг мөрөөр эхэлнэ.
+   *
+   * SSR дээр дэлгэцийн өргөн МЭДЭГДЭХГҮЙ. `true`-гээр эхэлбэл цөөн
+   * кинотой эгнээ агшин зуур 2 мөр болж, дараа нь нэг мөр болж
+   * ҮСРЭНЭ (layout shift). Нэг мөрөөс 2 мөр болох нь харагдацад
+   * илүү зөөлөн.
+   */
+  const [twoRows, setTwoRows] = useState(false);
   /**
    * ⚠️ Анхны утга `right: false` — өмнө нь `true` байсан тул гүйлгэх
    * зүйл БАЙХГҮЙ эгнээнд ч баруун fade харагдаж, "цааш кино бий"
@@ -79,14 +96,66 @@ export function TitleRow({
    * ⚠️ `ResizeObserver` — дэлгэц эргүүлэх/цонх өөрчлөхөд картын тоо
    * өөрчлөгдөж gүйлт шаардлагатай эсэх нь өөрчлөгдөнө.
    */
+  /**
+   * ⚠️⚠️ НЭГ МӨРӨНД ХЭДЭН КАРТ БАГТАХЫГ БОДИТООР ХЭМЖИНЭ.
+   *
+   * Картын өргөн нь breakpoint-оор өөрчлөгддөг (`w-37.5` → `sm:w-45`),
+   * дэлгэцийн өргөн ч янз бүр. Тиймээс «6-аас олон бол 2 мөр» гэсэн
+   * ТОГТМОЛ тоо аль ч дэлгэцэнд таарахгүй — эхний мөр хагас хоосон
+   * байхад 2 дахь мөр эхэлдэг байв.
+   *
+   * АРГА: эхний картын бодит өргөн + gap-аар нэг мөрөнд хэдэн карт
+   * багтахыг тооцоод, кино түүнээс ОЛОН байвал л 2 мөр болгоно.
+   */
+  const updateRows = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    if (!allowTwoRows) {
+      setTwoRows(false);
+      return;
+    }
+
+    const first = el.firstElementChild as HTMLElement | null;
+    if (!first) return;
+
+    /* ⚠️ `gap-3` = 0.75rem. CSS-ээс уншина — Tailwind класс өөрчлөгдвөл
+       энд гараар засах шаардлагагүй. */
+    const gap = parseFloat(getComputedStyle(el).columnGap || '0') || 12;
+    const cardWidth = first.getBoundingClientRect().width;
+    if (cardWidth <= 0) return;
+
+    /**
+     * ⚠️ `+ gap` хоёр талд — n ширхэг карт нь `n*w + (n-1)*gap` эзэлнэ.
+     * Томьёог хөрвүүлбэл `n = (W + gap) / (w + gap)`.
+     */
+    const perRow = Math.max(1, Math.floor((el.clientWidth + gap) / (cardWidth + gap)));
+
+    /**
+     * ⚠️ ЯГ багтаж байвал 2 мөр болгохгүй — «дүүрсний ДАРАА» гэсэн
+     * дүрэм тул `>` (`>=` БИШ).
+     *
+     * ⚠️⚠️ ХЭЛБЭЛЗЛЭЭС ХАМГААЛАХ: 2 мөр болоход grid-ийн эхний карт
+     * нь эхний БАГАНЫН карт болно. Хэрэв түүний өргөн өөр гарвал
+     * `perRow` өөрчлөгдөж, 1↔2 мөр хооронд хязгааргүй сэлгэх эрсдэл
+     * бий (ResizeObserver давталт). Тиймээс 2 мөр рүү шилжсэний
+     * дараа буцаж 1 мөр болохын тулд НЭГ КАРТЫН зайгаар илүү өргөн
+     * болсон байх ёстой (гистерезис).
+     */
+    setTwoRows((prev) => (prev ? items.length > perRow - 1 : items.length > perRow));
+  }, [allowTwoRows, items.length]);
+
   useEffect(() => {
     updateScrollState();
+    updateRows();
     const el = trackRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(updateScrollState);
+    const ro = new ResizeObserver(() => {
+      updateScrollState();
+      updateRows();
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [items.length, updateScrollState]);
+  }, [items.length, updateScrollState, updateRows]);
 
   const scroll = (dir: 1 | -1) => {
     const el = trackRef.current;
