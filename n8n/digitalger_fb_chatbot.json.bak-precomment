@@ -1,0 +1,454 @@
+{
+  "name": "Facebook Chatbot — DigitalGer AI",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "facebook-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node_verify_webhook",
+      "name": "FB Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        128,
+        160
+      ],
+      "webhookId": "d6ab6946-e3fc-4372-af97-6850b142d47b"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",
+        "options": {}
+      },
+      "id": "node_verify_respond",
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        352,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "facebook-webhook",
+        "responseMode": "onReceived",
+        "responseCode": 200,
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "node_msg_webhook",
+      "name": "FB Message (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        128,
+        416
+      ],
+      "webhookId": "fb000000-0000-4000-8000-000000000002"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Facebook webhook-оос ирсэн мессеж/postback-ийг задлах\n// Текст мессеж + Get Started/Ice Breaker postback-ийг боловсруулна.\nconst body = $input.first().json.body;\nif (!body || body.object !== 'page') return [];\n\n// Get Started болон Ice Breaker payload-уудыг текст асуулт болгон хөрвүүлнэ\n// → AI Agent ердийн хайлт/хариулт хийнэ.\nconst PAYLOAD_TO_TEXT = {\n  GET_STARTED: '__GET_STARTED__',\n  IB_PROJECTS: 'бэлэн төсөл',\n  IB_BOOKS: 'ном',\n  IB_PRICING: 'үнэ төлбөрийн мэдээлэл',\n  IB_DOWNLOAD: 'татаж авах заавар',\n};\n\nconst out = [];\nfor (const entry of (body.entry || [])) {\n  for (const msg of (entry.messaging || [])) {\n    const psid = String(msg.sender && msg.sender.id || '');\n    if (!psid) continue;\n\n    // 1) Postback (Get Started товч, Ice Breaker асуулт)\n    if (msg.postback && msg.postback.payload) {\n      const mapped = PAYLOAD_TO_TEXT[msg.postback.payload];\n      const text = mapped || String(msg.postback.title || msg.postback.payload).trim();\n      out.push({ json: { psid, text, isPostback: true } });\n      continue;\n    }\n\n    // 2) Энгийн текст мессеж (echo, attachment алгасна)\n    if (msg.message && !msg.message.is_echo && msg.message.text) {\n      out.push({ json: { psid, text: String(msg.message.text).trim(), isPostback: false } });\n    }\n  }\n}\nreturn out;"
+      },
+      "id": "node_parse",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.psid }}?fields=first_name,last_name&access_token={{ $env['FB_PAGE_ACCESS_TOKEN'] }}",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node_profile",
+      "name": "Get User Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        576,
+        416
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.digitalger.mn/api/ai/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $('Parse').first().json.text.replace(/\"/g, '\\\\\"') }}\"\n}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node_search",
+      "name": "Search DigitalGer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        416
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst psid = $('Parse').first().json.psid;\nconst userText = $('Parse').first().json.text;\nconst profile = $('Get User Profile').first().json || {};\nconst firstName = (profile.first_name || '').trim();\nconst search = $('Search DigitalGer').first().json || {};\nconst products = Array.isArray(search.products) ? search.products : [];\nconst searchTerms = Array.isArray(search.searchTerms) ? search.searchTerms : [];\nconst fmt = (n0)=>{ let n=Math.round(Number(n0)||0),str=String(n),out='',c=0; for(let i=str.length-1;i>=0;i--){out=str[i]+out;c++;if(c%3===0&&i>0)out=','+out;} return out+String.fromCharCode(0x20AE); };\nconst isGetStarted = (userText === '__GET_STARTED__');\nconst nameLine = firstName ? ('Хэрэглэгчийн нэр: ' + firstName) : '';\nconst showProducts = (searchTerms.length > 0) && (products.length > 0) && !isGetStarted;\nlet productsBlock = '';\nif (showProducts) {\n  productsBlock = products.slice(0,5).map(function(p,i){\n    var pr=(p.salePrice!=null)?('Үнэ: '+fmt(p.salePrice)+' (хуучин '+fmt(p.price)+')'):('Үнэ: '+fmt(p.price));\n    return (i+1)+'. '+p.title+NL+'   '+pr+NL+'   '+String(p.description||'').slice(0,120);\n  }).join(NL+NL);\n}\nlet agentInput;\nif (isGetStarted) {\n  agentInput = [nameLine, '=== ОНЦГОЙ: хэрэглэгч анх удаа орж ирлээ. Дулаан угтах мэндчилгээ бич, DigitalGer-ийг товч танилцуул. ==='].filter(Boolean).join(NL);\n} else if (showProducts) {\n  agentInput = [\n    nameLine,\n    '=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===', userText, '',\n    '=== НӨХЦӨЛ: Энэ бол БҮТЭЭГДЭХҮҮНИЙ хайлт. Доорх бүтээгдэхүүнүүд АВТОМАТААР картаар харагдана. Чи зөвхөн 1-2 өгүүлбэр богино танилцуулга бич. Бүтээгдэхүүний нэр/үнэ/холбоос БҮҮ жагсаа. ===',\n    productsBlock,\n  ].filter(Boolean).join(NL);\n} else {\n  agentInput = [\n    nameLine,\n    '=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===', userText, '',\n    '=== НӨХЦӨЛ: Энэ бол ерөнхий асуулт/мэндчилгээ/FAQ. Системийн мэдлэгээсээ ШУУД эелдэг хариул. Бүтээгдэхүүн санал болгох шаардлагагүй. ===',\n  ].filter(Boolean).join(NL);\n}\nreturn [{ json: { psid, userText, firstName, agentInput, products, searchTerms, showProducts } }];"
+      },
+      "id": "node_prep",
+      "name": "Prep Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}",
+        "options": {
+          "systemMessage": "Чи бол DigitalGer.mn — Монголын дижитал бүтээгдэхүүний онлайн дэлгүүрийн найрсаг, ухаалаг AI зөвлөх. Хүн шиг дулаан, ойлгомжтой, борлуулалтад чиглэсэн харилц. Дандаа МОНГОЛ хэлээр.\n\n=== ЧИНИЙ АЖИЛЛАХ ЗАРЧИМ (ХАМГИЙН ЧУХАЛ) ===\nХэрэглэгчийн мессежийг ойлгож 2 төрөлд хуваа:\n\nА) ЕРӨНХИЙ ХАРИЛЦАА — ШУУД хариул, хайлт/бүтээгдэхүүн санал болгохгүй:\n   • Мэндчилгээ: 'сайн уу', 'байна уу', 'hi', 'өдрийн мэнд', 'юу байна', 'сонин юу байна', 'хүн байна уу'\n   • Талархал, баяртай, ерөнхий яриа\n   • DigitalGer-ийн талаарх ерөнхий асуулт (юу зардаг, хэрхэн ажилладаг)\n   • Доорх МЭДЛЭГИЙН САН-д хариулт нь байгаа асуулт (төлбөр, татах, буцаалт, формат, зээл г.м.)\n   • Холбоо барих, тусламж, админтай ярих\n   Эдгээрт чи доорх мэдээлэлдээ тулгуурлан ШУУД, бүрэн хариул. Картын тэмдэг ТАВИХГҮЙ.\n\nБ) БҮТЭЭГДЭХҮҮН ХАЙЛТ — карт харуулна:\n   • Тодорхой бүтээгдэхүүн/чиглэл хайх: 'сүүний ферм', 'гахай', 'тахиа', 'цонхны төсөл', 'ресторан', 'оёдол', 'ном', 'бизнес төлөвлөгөө' г.м.\n   • 'X төсөл байна уу', 'X-ийн загвар байгаа юу', 'X хайж байна'\n   ЗӨВХӨН ЭНЭ ҮЕД хариултынхаа ХАМГИЙН ЭХЭНД ганц мөрөнд яг '[SHOW_PRODUCTS]' гэж бич (хэрэглэгчид харагдахгүй, систем уншина).\n   Дараа нь шинэ мөрөөс богино 1-2 өгүүлбэр танилцуулга бич. Жишээ:\n   '[SHOW_PRODUCTS]'\n   'Сүүний фермийн чиглэлээр танд тохирох төслүүд оллоо 👇 Доорх картуудаас сонгоод үзээрэй.'\n   Бүтээгдэхүүний нэр/үнэ/холбоосыг текстдээ БҮҮ жагсаа — карт дээр харагдана.\n   Доорх 'ХАЙЛТЫН ҮР ДҮН' хэсэгт бүтээгдэхүүн ОЛДООГҮЙ бол [SHOW_PRODUCTS] тэмдэг бүү тавь, оронд нь эелдэг хариулж https://digitalger.mn/products руу чиглүүл.\n\n=== ДҮРМҮҮД ===\n• Мэдээллийг зохиохгүй. Зөвхөн доорх мэдлэгийн сан болон хайлтын үр дүнд тулгуурла.\n• Markdown БҮҮ ашигла ([текст](холбоос) хийхгүй). Холбоосыг бүтэн URL-аар бич: https://digitalger.mn/products\n• Хэрэглэгчийн нэр өгөгдсөн бол эхний мэндчилгээнд ашигла (Сайн уу, [нэр]! 👋).\n• Эмодзи бага зэрэг (1-2). Богино, ойлгомжтой.\n• Монгол үгсийг зөв бич, эвдэрсэн нийлмэл үг бүү үүсгэ.\n\n=== ХОЛБОО БАРИХ ===\nИмэйл: info@digitalger.mn | Вэб: https://digitalger.mn | Бүтээгдэхүүн: https://digitalger.mn/products | Нийтлэл: https://digitalger.mn/blog\nХолбоо барих, тусламж асуувал info@digitalger.mn хаягийг өг.\n\n=== DIGITALGER ТАНИЛЦУУЛГА ===\nDigitalGer.mn бол бэлэн бизнес төсөл, бизнес төлөвлөгөө, санхүүгийн загвар (Excel), албан баримтын иж бүрдэл, 1000+ ном, сургалтын материалыг борлуулдаг платформ. Файлуудыг худалдаж аваад шууд татаж, өөрийн нэр, тоогоо оруулаад банк/ЖДҮ санд өгөх боломжтой. Хамгийн том багц нь PLATINUM (300+ файл, 8 ангилал).\n\n=== МЭДЛЭГИЙН САН (ТҮГЭЭМЭЛ АСУУЛТ ХАРИУЛТ) ===\nДоорх асуулт хариултыг бүрэн мэдэх ба хэрэглэгчийн асуултад ЭНД тулгуурлан хариул:\n\n1. А: Ресторан нээхэд банкны зээл авч болох уу?\n   Х: Тийм. Файлуудыг банкны зээлийн шаардлагад тохируулсан. Санхүүгийн урсгал, орлогын тооцоо, зардлын хуваарь бэлэн байна.\n2. А: Блок тоосгоны үйлдвэр байгуулах загвар бий юу?\n   Х: Тийм. Пено бетон, сибет блок, хөнгөн блок, полистиролбетон зэрэг 11 өөр загвар орсон.\n3. А: Аялал жуулчлалын тусгай зөвшөөрөл авахад загвар тус болох уу?\n   Х: Аялал жуулчлалын файлуудад бизнес төлөвлөгөө, санхүүгийн тооцоо бэлэн байна. Стандарт нөхцөлийг хангасан файлуудыг сонгон ашиглана.\n4. А: Хүлэмж байгуулах зориулалттай зээлд тохирох уу?\n   Х: Тийм. ХАА банк болон хөдөө аж ахуйн сангийн стандартад нийцүүлсэн. Хүлэмжийн аж ахуйн ихэнх зээлийн нөхцөлд тохирно.\n5. А: PLATINUM-ийг авбал хэдэн файл нийт байх вэ?\n   Х: Нийт 300 гаруй файл байна: 8 ангиллын бүх файл + 10 бонус файл. Нэг дор татаж авч ашиглана.\n6. А: Оёдлын жижиг цехнээс эхлэх загвар байна уу?\n   Х: Тийм. 5 хуудасны жижиг цехийн загвараас эхлэн 120 хуудасны томоохон цех хүртэлх файлууд орсон.\n7. А: Дипломын ажил бичихэд эдгээр файлуудыг ашиглаж болох уу?\n   Х: Тийм. Маркетингийн судалгаа, санхүүгийн шинжилгээ, IT чиглэлийн олон файл дипломын ажлын загвар болгон ашиглахад тохиромжтой.\n8. А: Файлуудыг банкинд шуудхан өгч болох уу?\n   Х: Тийм. Файл бүр банк болон ЖДҮ сангийн стандарт бүтэцтэй тохирсон. Зөвхөн тоо, нэр, огноогоо оруулан засварлаад өгнө.\n9. А: Хог боловсруулах чиглэлийн зээл авах боломжтой юу?\n   Х: Тийм. ХОГ ХАЯГДАЛ ДАХИН БОЛОВСРУУЛАХ болон Хог боловсруулах гэсэн 3 өөр загвар орсон. Ногоон санхүүжилт авах боломжтой.\n10. А: Авто засварын газар нээхэд ямар файл хэрэгтэй вэ?\n   Х: АВТО УГААЛГА БОЛОН АВТО СЕРВИС, Авто засвар, Дугуй засварын төв гэх мэт 8 бэлэн файл орсон.\n11. А: Монгол дээл хувцасны чиглэлийн загвар байна уу?\n   Х: Тийм. Монгол дээл болон МОНГОЛ ГОЁЛ гэсэн 2 чиглэлийн загвар тусгайлан орсон.\n12. А: Номуудыг ямар форматаар авах вэ?\n   Х: Бүх ном PDF болон EPUB форматаар татаж авах боломжтой. PDF нь компьютер дээр, EPUB нь гар утасны reader апп дээр илүү тохиромжтой.\n13. А: Мод үржүүлгийн загвар байна уу?\n   Х: Тийм. МОД ҮРЖҮҮЛГИЙН ГАЗАР БАЙГУУЛАХ 3 өөр загвар болон ойжуулалтын төсөл орсон.\n14. А: Гоо сайхны салон нээхэд тохирох файл байна уу?\n   Х: Арьс гоо засал, маникур, үсчин, нийтийн үйлчилгээний 5 өөр загвар орсон.\n15. А: Ямар формат дээр байна вэ?\n   Х: Word (.docx) болон PDF форматтай. Word файлыг компьютер эсвэл Google Docs дээр засварлаж болно.\n16. А: SWOT шинжилгээний загвар байна уу?\n   Х: Тийм. Свот шинжилгээ гэсэн тусдаа загвар болон маркетингийн судалгааны файлуудад SWOT хэсэг орсон.\n17. А: Файлуудыг татаж авснаас хойш хэрхэн ашиглах вэ?\n   Х: ZIP файлыг задалбал 8 хавтастай бүтэц гарна. Хэрэгтэй ангиллаасаа файлаа нээж, компанийн нэр, хаяг, огноог өөрчилнө. Excel файлуудад тоо оруулахад автоматаар тооцоолно. Word файлуудыг шууд хэвлэж ашиглаж болно.\n18. А: Жижиг хоолны газраас том ресторан хүртэл ялгаатай загвар байна уу?\n   Х: Тийм. 12 суудалтай жижиг кафенаас 42 хуудастай том ресторан хүртэлх өөр хэмжээний загварууд орсон.\n19. А: Сүүн бүтээгдэхүүний файл Мал аж ахуйн багцтай давхардах уу?\n   Х: Хүнс боловсруулалтын хүний загварт үйлдвэрлэлийн нарийн ширийн зүйл, тоног төхөөрөмж, борлуулалтын сувгийн мэдээлэл нэмэлтээр орсон.\n20. А: Тус тусад нь авбал хичнээн үнэтэй байх вэ?\n   Х: Тус тусад нь авбал нийт 1.150.000₮ төгрөг болно. PLATINUM-ийн үнэ 149,900 — ойролцоогоор 12.5 дахин хямд.\n21. А: Нэхмэл, оймсны үйлдвэрийн загвар хичнээн байна?\n   Х: ОЙМСНЫ ҮЙЛДВЭР 67х, ПҮҮЗ ХИЙХ 14х, СҮЛЖМЭЛ ЭДЛЭЛ, Ээрмэлийн үйлдвэр зэрэг 12 файл нэхмэлийн чиглэлд орсон.\n22. А: Нэг бус чиглэлийн төсөл хэрэгтэй бол?\n   Х: Энэ багцад мал аж ахуйн бүх чиглэлийн 67 файл багтсан тул олон чиглэлийг нэг дор авна.\n23. А: Чацарганы тариалалт эхлэхэд ямар файлуудыг ашиглах вэ?\n   Х: Чацарганы багцад зах зээлийн судалгаа, тариалалтын аргачлал, боловсруулалтын үйлдвэрийн төсөл зэрэг 9 файл орсон.\n24. А: Дарсны үйлдвэр байгуулах загвар байна уу?\n   Х: Тийм. Дарс үйлдвэрлэх 46 хуудасны 2 өөр загвар болон шар айрагны 275 хуудасны файл орсон.\n25. А: Орон сууцны барилгын загвар байна уу?\n   Х: Тийм. 52 айлаас 620 айл хүртэлх орон сууцны төсөл болон хотхон байгуулах загвар ч орсон.\n26. А: Цэвэр усны үйлдвэрийн загвар байна уу?\n   Х: Тийм. Цэвэр Усны Үйлдвэрийн Төсөл болон Хөвсгөлийн цэвэр ус төсөл — 2 файл орсон.\n27. А: Кино театр, спорт, тоглоомын газрын загвар байна уу?\n   Х: Тийм. АВТОМАТ ТОГЛООМЫН ТӨВ, Хэмжээст кино театр, ӨРГӨӨ КИНО ТЕАТРЫН МАРКЕТИНГ гэх мэт загварууд \"Сургалтын төв, бусад\" бүлэгт орсон.\n28. А: IT болон програм хангамжийн чиглэлийн загвар байна уу?\n   Х: Тийм. Компьютерийн үйлчилгээний төв, онлайн худалдааны систем, хадгаламж бүртгэлийн систем зэрэг 15 IT загвар орсон.\n29. А: Бүх чиглэлийн файл хэрэггүй болбол яах вэ?\n   Х: Хэрэгтэй чиглэлийнхээ файлуудыг татаж авна. Нэмэлт файлуудыг татах шаардлагагүй.\n30. А: Гэрээний загварууд Монгол хуульд нийцдэг үү?\n   Х: Тийм. Хөдөлмөрийн гэрээ нь Монгол Улсын Хөдөлмөрийн тухай хуулийн шаардлагад нийцсэн. Бусад гэрээнүүд ч Монгол Улсын иргэний хуулийн дагуу боловсруулсан. Гэсэн хэдий ч эрхзүйн үр дагаврыг баталгаажуулахын тулд нотариатаар баталгаажуулахыг зөвлөж байна.\n31. А: Интернэтгүй үед уншиж болох уу?\n   Х: Тийм. Татаж авсны дараа интернэтгүйгээр офлайн уншиж болно.\n32. А: Цэцэрлэг байгуулах зориулалттай загвар байна уу?\n   Х: Тийм. ХҮҮХДИЙН ЦЭЦЭРЛЭГ БАЙГУУЛАХ ТӨСӨЛ 22x болон Сургалтын төв байгуулах бизнес төлөвлөгөө — 2 файл боловсролын бүлэгт орсон.\n33. А: Хөдөө нутагт зээл авхад тохиромжтой юу?\n   Х: Тийм. Аймаг, сумын банк болон ХАА зээлийн стандартад нийцүүлэн бэлтгэгдсэн.\n34. А: Жижиг газарт хэрэгжүүлэх боломжтой загвар байна уу?\n   Х: Тийм. 3 соёт жижиг хүлэмжийн загвараас 201 соёт том аж ахуй хүртэлх файлууд багтсан.\n35. А: Хэдэн төхөөрөмж дээр уншиж болох вэ?\n   Х: Нэг дансны хүрээнд хязгааргүй тооны төхөөрөмж дээр уншиж болно.\n36. А: Хоёр өөр чиглэлийн зээл нэгэн зэрэг авах гэж байвал?\n   Х: PLATINUM хамгийн тохиромжтой. Жишээ нь мал аж ахуй болон хүлэмжийн зээлийг нэгэн зэрэг бэлтгэж банкинд өгч болно.\n37. А: Цалин тооцоолуур Excel нь ямар татвар, шимтгэлийг тооцдог вэ?\n   Х: Цалин тооцоолуур нь НДШХ (Нийгмийн даатгалын шимтгэл) болон ХХОАТ (Хувь хүний орлогын албан татвар)-ыг автоматаар тооцно. Тоо оруулахад цалингийн хуваарилалт, суутгал, цэвэр цалин гарна.\n38. А: Цагаан хоолны зоогийн газрын загвар байна уу?\n   Х: Тийм. Цагаан хоолны кафе болон зоогийн газар — 2 тусдаа загвар ресторан бүлэгт орсон.\n39. А: Тавилгын цехийн загвар хэдэн хуудастай байна вэ?\n   Х: Тавилгын үйлдвэрийн ихэнх загвар 29–122 хуудасны хооронд байна. Санхүүгийн тооцоо, тоног төхөөрөмжийн жагсаалт бүрэн орсон.\n40. А: Буцаан олгох бодлого?\n   Х: 72 цагийн дотор татаж аваагүй байвал бүтэн буцаан олгоно.\n41. А: Хэр олон удаа татаж авч болох вэ?\n   Х: Хязгааргүй. Нэг удаа худалдан авсан файлуудаа хэдэн ч удаа татаж авч болно.\n42. А: Нэг удаа худалдан авсны дараа дахин ашиглаж болох уу?\n   Х: Тийм, хугацаагүй. Нэг удаа татаж авсны дараа өөрийн компанид хэдэн ажилтанд ч, хэдэн гэрээнд ч хэрэглэж болно. Файлуудаа хуулж авсан ч болно.\n43. А: Худалдан авсны дараа файлуудыг хэрхэн татах вэ?\n   Х: Төлбөр баталгаажмагц татах холбоос ирнэ. Бүтээгдэхүүний хуудаснаасаа нэг дор татаж авна.\n44. А: CRM систем Excel ямар боломжтой вэ?\n   Х: CRM.xlsx файл нь Dashboard (хураангуй), Organizations (байгууллагын бүртгэл), Contacts (харилцагчийн бүртгэл), Opportunities (борлуулалтын боломж), Interactions (харилцааны тэмдэглэл) гэсэн 5 sheet-тэй. Хялбар шүүлт, хайлтаар ажиллана.\n45. А: Номнуудын нийт хэмжээ хэд вэ?\n   Х: Категориас хамааран 50 МБ-аас 2 ГБ хүртэл. Дэлгэрэнгүй мэдээллийг бүтээгдэхүүний хуудаснаас харна уу.\n46. А: Ямар апп ашиглан уншдаг вэ?\n   Х: Android: ReadEra, Moon+ Reader. iPhone/iPad: iBooks, ReadEra. PC: Adobe Acrobat, Sumatra PDF.\n47. А: Файлуудыг өөрчлөх, нэмэлт хийж болох уу?\n   Х: Тийм, бүх файл Word болон Excel форматтай тул хэрэгцээнийхээ дагуу өөрчилж, нэмэлт оруулж болно. Загвар нь зөвхөн эхлэл цэг бөгөөд байгууллагынхаа онцлогт тохируулна."
+        }
+      },
+      "id": "node_agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1280,
+        416
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "node_openai",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1200,
+        656
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "qpjrNb8Yo010i6C9",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Parse').first().json.psid }}",
+        "tableName": "n8n_chat_memory",
+        "contextWindowLength": 10
+      },
+      "id": "node_memory",
+      "name": "Postgres Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1360,
+        656
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ngOFGxWpH1dywpIn",
+          "name": "N8N PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst TUG = String.fromCharCode(0x20AE);\nconst prep = $('Prep Context').first().json;\nconst psid = prep.psid;\nconst products = prep.products || [];\nconst showProducts = prep.showProducts === true && products.length > 0;\nlet replyText = ($input.first().json.output || '').trim();\nfunction stripMd(s){ s=String(s||''); var r='',i=0; while(i<s.length){ if(s[i]==='['){ var c=s.indexOf('](',i); if(c!==-1){ var e=s.indexOf(')',c+2); if(e!==-1){ r+=s.slice(i+1,c)+' '+s.slice(c+2,e); i=e+1; continue; } } } r+=s[i]; i++; } return r.split('**').join('').split('__').join('').split('[SHOW_PRODUCTS]').join('').trim(); }\nreplyText = stripMd(replyText);\nif (!replyText) replyText = showProducts ? 'Танд тохирох бүтээгдэхүүн оллоо 👇' : 'Уучлаарай, дахин бичнэ үү.';\nif (replyText.length > 1900) replyText = replyText.slice(0,1897)+'...';\nif (!showProducts) { return [{ json: { psid, replyText, hasCards:false, elements:[] } }]; }\nconst clip=function(s,m){ s=String(s||'').split(NL).join(' ').trim(); while(s.indexOf('  ')!==-1) s=s.split('  ').join(' '); return s.length>m?s.slice(0,m-1).trim()+'…':s; };\nconst fmt=function(n0){ var n=Math.round(Number(n0)||0),str=String(n),out='',c=0; for(var i=str.length-1;i>=0;i--){out=str[i]+out;c++;if(c%3===0&&i>0)out=','+out;} return out+TUG; };\nconst elements = products.slice(0,10).map(function(p){\n  var priceLine=(p.salePrice!=null)?('💰 '+fmt(p.salePrice)+'  ·  хуучин '+fmt(p.price)):('💰 '+fmt(p.price));\n  var room=79-priceLine.length; var desc=room>12?clip(p.description,room):'';\n  var subtitle=desc?clip(priceLine+NL+desc,80):clip(priceLine,80);\n  var el={ title:clip(p.title,80), subtitle:subtitle, default_action:{type:'web_url',url:p.url,webview_height_ratio:'full'}, buttons:[{type:'web_url',url:p.url,title:'Дэлгэрэнгүй үзэх'}] };\n  if(p.imageUrl) el.image_url=p.imageUrl;\n  return el;\n});\nreturn [{ json: { psid, replyText, hasCards:elements.length>0, elements } }];"
+      },
+      "id": "node_build",
+      "name": "Build Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token={{ $env['FB_PAGE_ACCESS_TOKEN'] }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $json.psid }, message: { text: $json.replyText }, messaging_type: 'RESPONSE' }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node_send_text",
+      "name": "Send Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        416
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond_has_cards",
+              "leftValue": "={{ $('Build Messages').first().json.hasCards }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_if_cards",
+      "name": "Has Cards?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token={{ $env['FB_PAGE_ACCESS_TOKEN'] }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $('Build Messages').first().json.psid }, message: { attachment: { type: 'template', payload: { template_type: 'generic', image_aspect_ratio: 'horizontal', elements: $('Build Messages').first().json.elements } } }, messaging_type: 'RESPONSE' }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node_send_cards",
+      "name": "Send Cards",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2208,
+        320
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "FB Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Message (POST)": {
+      "main": [
+        [
+          {
+            "node": "Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Search DigitalGer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search DigitalGer": {
+      "main": [
+        [
+          {
+            "node": "Prep Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Build Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Messages": {
+      "main": [
+        [
+          {
+            "node": "Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Text": {
+      "main": [
+        [
+          {
+            "node": "Has Cards?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Cards?": {
+      "main": [
+        [
+          {
+            "node": "Send Cards",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

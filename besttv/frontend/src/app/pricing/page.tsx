@@ -521,7 +521,13 @@ export default function PricingPage() {
         хагаслаж байв.
       */}
       <div className="mx-auto mt-5 flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-xl border border-foreground/10 bg-foreground/3 px-4 py-3 sm:hidden">
-        {['Завсаргүй үзвэр', 'FHD чанар', 'Олон төхөөрөмж'].map((f) => (
+        {/*
+          ⚠️ «Олон төхөөрөмж» гэж бичихээ БОЛИВ — нэг эрхээр зэрэг
+          нэвтрэх төхөөрөмж 2-оор ХЯЗГААРЛАГДСАН тул тэр үг ХУДАЛ
+          амлалт болно (хэрэглэгч гомдох, буцаалт нэхэх үндэслэл).
+          Тодорхой тоо бичих нь итгэл алдахаас сэргийлнэ.
+        */}
+        {['Завсаргүй үзвэр', 'FHD чанар', '2 төхөөрөмж хүртэл'].map((f) => (
           <span key={f} className="flex items-center gap-1.5 text-xs text-foreground/70">
             <Check size={14} className="shrink-0 text-success" /> {f}
           </span>

@@ -121,8 +121,53 @@ model User {
   emailOtps         EmailOtp[]
   adminSeens        AdminSeen[]
   passwordResets    PasswordResetToken[]
+  sessions          UserSession[]
 
   @@index([provider])
+}
+
+/**
+ * НЭВТЭРСЭН ТӨХӨӨРӨМЖ (session).
+ * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: refresh token нь STATELESS JWT байсан тул
+ * нэг эрхээр ХЯЗГААРГҮЙ төхөөрөмж зэрэг үзэж болдог байв — нэг хүн
+ * багц авч найз нөхөддөө тараах боломжтой, орлогод шууд нөлөөтэй.
+ * Одоо refresh token бүр ЭНД бүртгэгдэнэ. Хязгаар хэтэрвэл хамгийн
+ * удаан идэвхгүй байсан session устна (тэр төхөөрөмж дараагийн
+ * refresh дээр гарна).
+ */
+model UserSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * ⚠️ Refresh token-ы SHA-256 хэш — ЦЭВЭР утга ХАДГАЛАХГҮЙ.
+   * DB задарсан ч токеныг сэргээж ашиглах боломжгүй.
+   */
+  tokenHash String @unique
+
+  /**
+   * Хэрэглэгчид таниулах — «Chrome · Windows», «Safari · iPhone»
+   */
+  deviceName String?
+  /**
+   * Түүхий User-Agent (дэлгэрэнгүй шаардлагатай үед)
+   */
+  userAgent  String?
+  /**
+   * ⚠️ Сүүлийн IP — сэжигтэй хандалт шалгахад (бүтэн хадгална)
+   */
+  ip         String?
+
+  /**
+   * ⚠️ Хамгийн удаан идэвхгүйг гаргахад ЭНЭ талбараар эрэмбэлнэ
+   */
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([userId, lastUsedAt])
+  @@index([expiresAt])
 }
 
 /// Хэтэвчийн гүйлгээний бүртгэл — үлдэгдлийн өөрчлөлт бүрийг мөрдөнө (audit).
@@ -164,16 +209,16 @@ model Title {
   descriptionEn String?
 
   // Медиа — бүгд R2 key (private bucket, presign-ээр л хандана)
-  posterKey   String? // 2:3 (300x450 хэлбэр)
-  backdropKey String? // 16:9 hero (1920x1080)
-  trailerKey  String? // HLS m3u8 key — hero autoplay
+  posterKey         String? // 2:3 (300x450 хэлбэр)
+  backdropKey       String? // 16:9 hero (1920x1080)
+  trailerKey        String? // HLS m3u8 key — hero autoplay
   /// ⚠️ YouTube трейлерийн key (ж: "dQw4w9WgXcQ") — TMDB-ээс ирнэ.
   /// `trailerKey`-ЭЭС ТУСДАА байх ёстой: тэр нь манай R2 дээрх HLS зам,
   /// энэ нь гадаад YouTube. Хоёуланг нэг талбарт хийвэл player эвдэрнэ.
   /// Манай HLS трейлер БАЙХГҮЙ үед л энийг тоглуулна (нөөц хувилбар).
   trailerYoutubeKey String?
-  videoRawKey String? // upload хийсэн оригинал (HLS болмогц устгана)
-  videoKey    String? // HLS m3u8 key (зөвхөн MOVIE)
+  videoRawKey       String? // upload хийсэн оригинал (HLS болмогц устгана)
+  videoKey          String? // HLS m3u8 key (зөвхөн MOVIE)
 
   streamStatus    StreamStatus @default(NONE)
   /// HLS хөрвүүлэлтийн явц 0-100 (PROCESSING үед админд харуулна)
@@ -219,15 +264,15 @@ model Title {
   hideFromNew      Boolean @default(false)
   isActive         Boolean @default(true)
 
-  genres        TitleGenre[]
-  seasons       Season[]
-  watchProgress WatchProgress[]
-  myList        MyListItem[]
-  reviews       Review[]
-  rentals       Rental[]
+  genres         TitleGenre[]
+  seasons        Season[]
+  watchProgress  WatchProgress[]
+  myList         MyListItem[]
+  reviews        Review[]
+  rentals        Rental[]
   /// ⚠️ Энэ киног ширхэгээр түрээслэх QPay төлбөрүүд (`onDelete: SetNull`
   /// тул кино устсан ч төлбөрийн түүх үлдэнэ)
-  rentalPayments Payment[] @relation("RentalPayments")
+  rentalPayments Payment[]       @relation("RentalPayments")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -238,9 +283,9 @@ model Title {
   /**
    * ⚠️ ЭРЭМБЭЛЭЛТИЙН ИНДЕКСҮҮД — эдгээргүй үед Postgres БҮТЭН СКАН + sort
    * хийдэг байв (77 кинод мэдрэгдэхгүй ч 5000+ болоход секундэд хүрнэ).
-   *   `views`     → "Их үзсэн" мөр, related (`titles.service.ts`)
-   *   `createdAt` → каталогийн АНХДАГЧ эрэмбэ (хамгийн их дуудагддаг)
-   *   `rating`    → "Үнэлгээгээр" шүүлт
+   * `views`     → "Их үзсэн" мөр, related (`titles.service.ts`)
+   * `createdAt` → каталогийн АНХДАГЧ эрэмбэ (хамгийн их дуудагддаг)
+   * `rating`    → "Үнэлгээгээр" шүүлт
    * ⚠️ `isActive`-ийг ЭХЭНД тавьсан — бүх асуулга түүгээр шүүдэг тул
    * composite индекс бүтнээрээ ашиглагдана.
    */
@@ -640,7 +685,7 @@ model HomeBanner {
   subtitle String @default("")
 
   /// 16:9 өргөн зураг — R2 key
-  imageKey String
+  imageKey       String
   /// ⚠️ Мобайлд өөр зураг (заавал биш). Хоосон бол `imageKey`-г
   /// хэрэглэнэ — өргөн зураг утсан дээр хэт нарийн харагддаг.
   mobileImageKey String?
@@ -659,7 +704,7 @@ model HomeBanner {
   /// Хэд хэдэн баннер ижил `position`-той бол энэ эрэмбээр
   order    Int @default(0)
 
-  isActive Boolean @default(true)
+  isActive Boolean   @default(true)
   /// ⚠️ Хугацаат урамшуулалд — NULL бол хязгааргүй
   startsAt DateTime?
   endsAt   DateTime?

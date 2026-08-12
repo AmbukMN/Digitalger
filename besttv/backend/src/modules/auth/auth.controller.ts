@@ -2,11 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
+  Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -17,6 +20,7 @@ import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { SessionService, type DeviceContext } from './session.service';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -39,18 +43,31 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly storage: StorageService,
+    private readonly sessions: SessionService,
   ) {}
+
+  /**
+   * Хүсэлтээс төхөөрөмжийн мэдээлэл гаргана.
+   *
+   * ⚠️ Nginx ард ажилладаг тул `req.ip` нь proxy-ийн IP байж мэднэ —
+   * `trust proxy` тохируулсан үед л бодит IP ирнэ. IP нь зөвхөн
+   * ЧИГЛҮҮЛЭХ мэдээлэл (хэрэглэгч төхөөрөмжөө таних), эрх шалгахад
+   * ХЭРЭГЛЭХГҮЙ тул буруу байсан ч аюулгүй.
+   */
+  private device(req: Request): DeviceContext {
+    return { userAgent: req.headers['user-agent'] ?? null, ip: req.ip ?? null };
+  }
 
   @Post('register')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto);
+  register(@Body() dto: RegisterDto, @Req() req: Request) {
+    return this.auth.register(dto, this.device(req));
   }
 
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto);
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.auth.login(dto, this.device(req));
   }
 
   @Post('admin/login')
@@ -72,9 +89,10 @@ export class AuthController {
      * ADMIN эрх авна (production дээр бодитоор тестлэж баталсан).
      * Зөвхөн манай Next.js СЕРВЕР дууддаг тул browser-т нууц задрахгүй.
      */
-    @Headers('x-oauth-secret') secret?: string,
+    @Headers('x-oauth-secret') secret: string | undefined,
+    @Req() req: Request,
   ) {
-    return this.auth.oauthLogin(dto, secret);
+    return this.auth.oauthLogin(dto, secret, this.device(req));
   }
 
   // ⚠️ Зочноор нэвтрэх (/auth/guest) болон convert-guest ХАСАГДСАН.
@@ -88,8 +106,41 @@ export class AuthController {
    */
   @Post('refresh')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  refresh(@Body() dto: RefreshDto) {
-    return this.auth.refresh(dto.refreshToken);
+  refresh(@Body() dto: RefreshDto, @Req() req: Request) {
+    return this.auth.refresh(dto.refreshToken, this.device(req));
+  }
+
+  /**
+   * ─── ТӨХӨӨРӨМЖИЙН УДИРДЛАГА ───────────────────────────────────────
+   *
+   * ⚠️ Нэг эрхээр дээд тал нь MAX_DEVICES төхөөрөмж нэвтэрнэ.
+   * Хэрэглэгч профайл/багц хэсгээсээ жагсаалтыг хараад хэрэггүйг нь
+   * гаргаж чадна.
+   *
+   * ⚠️ `refreshToken` нь СОНГОМОЛ — байвал «энэ төхөөрөмж» гэж
+   * тэмдэглэнэ (хэрэглэгч өөрийгөө андуурч гаргахгүй).
+   */
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  listSessions(@CurrentUser() user: JwtPayload, @Query('rt') rt?: string) {
+    return this.sessions.list(user.sub, rt ?? null);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async revokeSession(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    const ok = await this.sessions.revoke(user.sub, id);
+    if (!ok) throw new BadRequestException('Төхөөрөмж олдсонгүй');
+    return { ok: true };
+  }
+
+  @Post('sessions/revoke-others')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async revokeOtherSessions(@CurrentUser() user: JwtPayload, @Body() body: { refreshToken?: string }) {
+    const count = await this.sessions.revokeOthers(user.sub, body?.refreshToken ?? null);
+    return { ok: true, count };
   }
 
   /**

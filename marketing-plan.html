@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigitalGer — Курсийн Маркетингийн Нэгдсэн Төлөвлөгөө</title>
+<style>
+:root { color-scheme: light; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F1F3F9;color:#16213A;font-size:14.5px;line-height:1.7;display:flex}
+
+/* ═══ SIDEBAR ═══ */
+#sidebar{width:300px;flex-shrink:0;background:#16213A;color:#fff;height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.sb-head{padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-head .t{font-size:16px;font-weight:800;color:#FFC94D}
+.sb-head .s{font-size:11.5px;opacity:.65;margin-top:3px}
+.sb-stats{display:flex;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-stat{flex:1;padding:10px 4px;text-align:center;border-right:1px solid rgba(255,255,255,.08)}
+.sb-stat:last-child{border-right:none}
+.sb-stat .n{font-size:14px;font-weight:800;color:#FFC94D;line-height:1.2}
+.sb-stat .l{font-size:9.5px;opacity:.6;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.sb-nav{flex:1;overflow-y:auto;padding:10px 0 20px}
+.sb-nav::-webkit-scrollbar{width:5px}
+.sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+.nav-main{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:none;color:#C9D2E8;font-family:inherit;font-size:14px;font-weight:700;padding:13px 20px;cursor:pointer;border-left:4px solid transparent}
+.nav-main:hover{background:rgba(255,255,255,.05);color:#fff}
+.nav-main.active{background:rgba(255,176,32,.13);color:#FFC94D;border-left-color:#FFB020}
+.nav-main .ic{font-size:17px;width:24px;text-align:center}
+.nav-sub{display:none;padding:2px 0 8px}
+.nav-sub.open{display:block}
+.nav-sub a{display:block;text-decoration:none;color:#94A3C4;font-size:12.5px;padding:6px 20px 6px 59px;line-height:1.45}
+.nav-sub a:hover{color:#FFC94D;background:rgba(255,255,255,.04)}
+
+/* ═══ MAIN ═══ */
+#main{flex:1;min-width:0;padding:30px 44px 80px}
+.content{max-width:1560px}
+.page-head{margin-bottom:22px}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-.3px}
+.page-head .sub{font-size:13px;color:#6B7490;margin-top:4px}
+.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.kpi{background:#fff;border:1px solid #E3E7F2;border-left:5px solid #FFB020;border-radius:10px;padding:13px 20px;min-width:170px}
+.kpi .n{font-size:19px;font-weight:800;color:#16213A}
+.kpi .l{font-size:11.5px;color:#6B7490;margin-top:2px}
+.section{display:none}
+.section.show{display:block}
+
+/* plan cards */
+.card{background:#fff;border:1px solid #E6E9F2;border-radius:13px;padding:26px 30px;margin-bottom:18px}
+.card h2{font-size:18px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:11px;color:#16213A}
+.card h2 .badge{width:32px;height:32px;border-radius:9px;background:#FFF3D6;display:inline-flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.card h3{font-size:14.5px;font-weight:700;margin:18px 0 8px;color:#1E2B4F}
+.card p{font-size:14px;color:#3A4564;margin-bottom:9px;max-width:1100px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0 6px}
+th{background:#1E2B4F;color:#fff;text-align:left;padding:10px 14px;font-weight:600}
+th:first-child{border-radius:8px 0 0 0}th:last-child{border-radius:0 8px 0 0}
+td{padding:10px 14px;border-bottom:1px solid #EEF0F7;color:#3A4564;vertical-align:top}
+tr:nth-child(even) td{background:#FAFBFE}
+.pill{display:inline-block;background:#EEF4FF;color:#2552C8;border-radius:14px;padding:2px 11px;font-size:11.5px;font-weight:700;margin:1px 2px}
+.pill.amber{background:#FFF3D6;color:#B45309}
+.pill.green{background:#E8F8EE;color:#15803D}
+.callout{border-left:4px solid #FFB020;background:#FFFBEF;border-radius:0 9px 9px 0;padding:13px 18px;margin:13px 0;font-size:13.5px;color:#4A3B12;max-width:1100px}
+.callout.blue{border-color:#2552C8;background:#F2F6FF;color:#1E335E}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin:12px 0}
+.mini{background:#FAFBFE;border:1px solid #E9ECF5;border-radius:10px;padding:16px 18px}
+.mini .t{font-size:13.5px;font-weight:700;margin-bottom:6px;color:#1E2B4F}
+.mini p{font-size:13px;margin:0;color:#4A5572}
+.phase{display:flex;gap:16px;margin-bottom:16px;max-width:1100px}
+.ph-dot{flex-shrink:0;width:38px;height:38px;border-radius:50%;background:#FFB020;color:#3D2B00;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center}
+.ph-line .t{font-size:14.5px;font-weight:700}
+.ph-line .d{font-size:13px;color:#4A5572;margin-top:3px}
+ul.cl{list-style:none;margin:6px 0;max-width:1100px}
+ul.cl li{padding:5px 0 5px 26px;position:relative;font-size:13.5px;color:#3A4564}
+ul.cl li::before{content:"✓";position:absolute;left:2px;color:#15803D;font-weight:900}
+ul.idea{list-style:none;margin:6px 0;counter-reset:idea;max-width:1100px}
+ul.idea li{counter-increment:idea;padding:8px 0 8px 38px;position:relative;font-size:13.5px;color:#3A4564;border-bottom:1px dashed #EDEFF6}
+ul.idea li::before{content:counter(idea);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:7px;background:#EEF4FF;color:#2552C8;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.next{display:flex;align-items:flex-start;gap:11px;padding:10px 0;border-bottom:1px dashed #EDEFF6;font-size:13.5px;color:#3A4564;max-width:1100px}
+.next input{margin-top:3px;accent-color:#B45309;width:16px;height:16px}
+
+/* md panes */
+.mdpane{background:#fff;border:1px solid #E6E9F2;border-radius:13px;padding:28px 34px}
+.mdpane h1{font-size:19px;font-weight:800;margin:30px 0 14px;padding:12px 18px;background:#16213A;color:#FFC94D;border-radius:10px}
+.mdpane h1:first-of-type{margin-top:0}
+.mdpane h2{font-size:16.5px;font-weight:800;margin:24px 0 10px;padding-bottom:8px;border-bottom:2px solid #FFB020;color:#1E2B4F}
+.mdpane h3{font-size:14.5px;font-weight:700;margin:18px 0 8px;color:#1E2B4F}
+.mdpane p{font-size:14px;color:#3A4564;margin-bottom:10px;max-width:1100px}
+.mdpane ul,.mdpane ol{margin:6px 0 14px 24px;max-width:1100px}
+.mdpane li{font-size:14px;color:#3A4564;margin-bottom:6px}
+.mdpane blockquote{border-left:4px solid #FFB020;background:#FFFBEF;border-radius:0 9px 9px 0;padding:13px 18px;margin:10px 0 15px;color:#4A3B12;font-size:14px;max-width:1100px}
+.mdpane blockquote p{color:#4A3B12;margin-bottom:6px}
+.mdpane blockquote p:last-child{margin-bottom:0}
+.mdpane code{background:#F1F3F9;border:1px solid #E5E8F1;border-radius:5px;padding:1px 7px;font-size:12.5px;font-family:Consolas,Menlo,monospace;color:#B45309}
+.mdpane pre{background:#16213A;color:#E8ECF6;border-radius:10px;padding:16px 20px;margin:10px 0 16px;overflow-x:auto;max-width:1100px}
+.mdpane pre code{background:none;border:none;color:#E8ECF6;font-size:13px;line-height:1.65;padding:0}
+.mdpane hr{border:none;border-top:2px dashed #E3E7F2;margin:26px 0}
+.mdpane strong{color:#1E2B4F}
+.mdpane table{display:block;overflow-x:auto;max-width:1100px}
+
+
+.addon{background:#F4F6FB;border:1px solid #E3E8F4;border-radius:10px;padding:10px 14px;margin:10px 0 18px;max-width:1100px}
+.ad-row{display:flex;gap:10px;align-items:flex-start;padding:4px 0}
+.ad-tag{flex-shrink:0;font-size:11px;font-weight:800;border-radius:6px;padding:3px 9px;white-space:nowrap}
+.ad-tag.t1{background:#EEF4FF;color:#2552C8}
+.ad-tag.t2{background:#FFF3D6;color:#B45309}
+.ad-txt{font-size:12.5px;color:#3A4564;line-height:1.6;flex:1}
+.cpy,.bq-copy{flex-shrink:0;font-family:inherit;font-size:11px;font-weight:700;color:#2552C8;background:#fff;border:1px solid #C9D6F2;border-radius:6px;padding:3px 9px;cursor:pointer}
+.cpy:hover,.bq-copy:hover{background:#EEF4FF}
+.cpy.done,.bq-copy.done{color:#15803D;border-color:#A7E3BC;background:#E8F8EE}
+.mdpane blockquote{position:relative;padding-right:90px}
+.mdpane blockquote .bq-copy{position:absolute;top:10px;right:10px}
+
+/* mobile */
+@media(max-width:900px){
+ body{flex-direction:column}
+ #sidebar{width:100%;height:auto;position:static}
+ .sb-nav{display:flex;overflow-x:auto;padding:0}
+ .nav-main{white-space:nowrap;border-left:none;border-bottom:4px solid transparent}
+ .nav-main.active{border-left:none;border-bottom-color:#FFB020}
+ .nav-sub{display:none!important}
+ #main{padding:18px 14px 50px}
+}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="sb-head">
+    <div class="t">🚀 Маркетинг Төв</div>
+    <div class="s">Vibe Coding курс · digitalger.mn</div>
+  </div>
+  <div class="sb-stats">
+    <div class="sb-stat"><div class="n">199K/119K</div><div class="l">Үнэ ₮</div></div>
+    <div class="sb-stat"><div class="n">8 д.х</div><div class="l">Launch</div></div>
+    <div class="sb-stat"><div class="n">500+</div><div class="l">Waitlist</div></div>
+    <div class="sb-stat"><div class="n">63</div><div class="l">Өдрийн пост</div></div>
+  </div>
+  <div class="sb-nav" id="sb-nav">
+    <button class="nav-main" data-s="plan"><span class="ic">📋</span>Төлөвлөгөө</button>
+    <div class="nav-sub" id="sub-plan"></div>
+    <button class="nav-main" data-s="bible"><span class="ic">🤖</span>Айна — AI дүр</button>
+    <div class="nav-sub" id="sub-bible"></div>
+    <button class="nav-main" data-s="magnet"><span class="ic">🎁</span>Lead magnet скрипт</button>
+    <div class="nav-sub" id="sub-magnet"></div>
+    <button class="nav-main" data-s="posts"><span class="ic">📅</span>63 өдрийн постууд</button>
+    <div class="nav-sub" id="sub-posts"></div>
+    <button class="nav-main" data-s="ads"><span class="ic">📢</span>Зар + Имэйлүүд</button>
+    <div class="nav-sub" id="sub-ads"></div>
+  </div>
+</div>
+
+<div id="main">
+<div class="content">
+
+<div class="page-head" id="head-plan">
+  <h1>📋 Launch Маркетингийн Төлөвлөгөө</h1>
+  <div class="sub">«Кодгүй үеийн кодчид» кампанит ажил · 2026-06-11</div>
+  <div class="kpis">
+    <div class="kpi"><div class="n">199K → 119K₮</div><div class="l">Жагсаалтын → Early-bird үнэ (-40%)</div></div>
+    <div class="kpi"><div class="n">8 долоо хоног</div><div class="l">Launch хүртэлх хугацаа</div></div>
+    <div class="kpi"><div class="n">500+ хүн</div><div class="l">Waitlist зорилт</div></div>
+    <div class="kpi"><div class="n">70–100 борлуулалт</div><div class="l">Нээлтийн эхний 14 хоног</div></div>
+    <div class="kpi"><div class="n">500K–1.5M₮</div><div class="l">Сарын зарын төсөв</div></div>
+  </div>
+</div>
+
+<div class="section" id="sec-plan">
+
+
+<div class="card" id="aud">
+  <h2><span class="badge">🎯</span>Зорилтот аудиенц</h2>
+  <div class="grid2">
+    <div class="mini"><div class="t">①「Гарц хайгч」— 25–40 нас (ҮНДСЭН)</div><p>Оффисын ажилтан, жижиг бизнес эзэн, фрилансер. «Вэбсайт хэрэгтэй — захиалбал үнэтэй, сурвал удаан» гэсэн мухардалд. FB өдөр бүр ордог.</p></div>
+    <div class="mini"><div class="t">②「Шинэчлэгдэх IT-чин」— 20–35 нас</div><p>Жуниор хөгжүүлэгч, оюутан, дизайнер. Cursor/Claude нэрийг мэднэ, гүнзгий бодит хэрэглээ хайдаг. Twitter/X дээр идэвхтэй.</p></div>
+  </div>
+  <div class="callout blue"><strong>Ялгарал:</strong> Монгол хэл дээрх, бодит ажилладаг сайтаар (digitalger.mn) батлагдсан, QPay + .mn домэйн + и-Баримт зэрэг Монголын бодит орчныг бүрэн хамарсан цорын ганц курс.</div>
+</div>
+
+<div class="card" id="ai">
+  <h2><span class="badge">🤖</span>AI дүр — брэнд персонагийн стратеги</h2>
+  <p>Таны гол ялгарал: бодит мэт AI дүр бүх контентод тоглоно.</p>
+  <ul class="cl">
+    <li><strong>Нэг дүр, нэг нэр, бүх платформд</strong> — дүрийн bible файл (reference зургууд, ярианы өнгө, тогтмол хэллэг) хийж generation бүрд ашиглана</li>
+    <li><strong>AI гэдгийг нуухгүй — онцлог болгоно:</strong> «Намайг AI бүтээсэн. Яаж гэдгийг нь энэ курс заана» — курсийн чадварын шууд нотолгоо</li>
+    <li><strong>Та + AI дүрийн «ярилцлага» формат</strong> — өвөрмөц, viral потенциалтай series</li>
+  </ul>
+  <h3>Дуу хоолойн хуваарь</h3>
+  <table>
+    <tr><th>Хэрэглээ</th><th>Хоолой</th></tr>
+    <tr><td>Видео хичээлүүд</td><td><span class="pill green">Таны бодит хоолой</span> итгэл, багшийн холбоо</td></tr>
+    <tr><td>Брэнд зар, том кампанит видео</td><td><span class="pill green">Таны хоолой</span> борлуулалтын мессеж хүнээс сонсогдоно</td></tr>
+    <tr><td>Өдөр тутмын тип reels, AI дүрийн монолог</td><td><span class="pill">AI хоолой</span> хурдан үйлдвэрлэл</td></tr>
+  </table>
+</div>
+
+<div class="card" id="msg">
+  <h2><span class="badge">💬</span>Гол мессежүүд</h2>
+  <div class="callout"><strong>Цөм:</strong> «Код цээжлэхгүйгээр — AI-тай хамт — бодит, мөнгө олдог вэбсайт бүтээ. Монголоор, Монголын орчинд.»</div>
+  <table>
+    <tr><th>Мессеж</th><th>Нотолгоо</th></tr>
+    <tr><td>«Энэ онол биш»</td><td>digitalger.mn өөрөө энэ аргаар 3 долоо хоногт бүтсэн, ажиллаж байгаа</td></tr>
+    <tr><td>«Чамд зориулагдсан»</td><td>90 цаг, 77 хичээл — домэйн авахаас QPay, и-Баримт хүртэл эхнээс нь</td></tr>
+    <tr><td>«AI бол ажлын шинэ хэл»</td><td>Дэлхийн статистик + Монголд энэ чадвартай хүн ховор</td></tr>
+    <tr><td>«Эрсдэлгүй эхлэл»</td><td>Early-bird -40% + үнэгүй мини-хичээл (lead magnet)</td></tr>
+  </table>
+</div>
+
+<div class="card" id="ch">
+  <h2><span class="badge">📡</span>Сувгийн стратеги</h2>
+  <table>
+    <tr><th>Суваг</th><th>Үүрэг</th><th>Формат</th><th>Зарын төсөв</th></tr>
+    <tr><td><strong>Facebook</strong> (6.9K)</td><td>ГОЛ борлуулалтын суваг</td><td>Reels, түүх пост, carousel, live</td><td><span class="pill amber">70%</span></td></tr>
+    <tr><td><strong>Instagram</strong></td><td>Залуу аудиенц, брэнд имиж</td><td>Reels (FB sync), carousel, stories</td><td><span class="pill amber">20%</span></td></tr>
+    <tr><td><strong>Twitter/X</strong></td><td>IT нийгэмлэг, нэр хүнд</td><td>Thread, демо клип, build-in-public</td><td><span class="pill">0₮ organic</span></td></tr>
+    <tr><td><strong>Messenger/Имэйл</strong></td><td>Waitlist → борлуулалт</td><td>Lead magnet, nurture, launch зарлал</td><td><span class="pill amber">10%</span></td></tr>
+    <tr><td><strong>digitalger.mn</strong></td><td>Landing + худалдан авалт</td><td>Курсийн landing, waitlist, countdown</td><td>—</td></tr>
+  </table>
+  <p style="font-size:12px;color:#6B7490;margin-top:8px">TikTok: эхний 8 долоо хоногт хүч тарамдуулахгүй — reels-үүдээ дараа нь 0 зардлаар дахин ашиглаж туршина.</p>
+</div>
+
+<div class="card" id="ph">
+  <h2><span class="badge">🗺️</span>Фазын төлөвлөгөө</h2>
+  <div class="phase"><div class="ph-dot">0</div><div class="ph-line"><div class="t">Бэлтгэл — 1-р долоо хоног</div><div class="d">AI дүр эцэслэх · Landing + waitlist форм («эхний 100-д -40%») · Lead magnet: <strong>«AI-аар анхны вэбсайтаа 60 минутад»</strong> үнэгүй мини-хичээл · Pixel + GA4 events тохируулах</div></div></div>
+  <div class="phase"><div class="ph-dot">1</div><div class="ph-line"><div class="t">Awareness + Waitlist — 2–7 долоо хоног (видео бичлэгтэй зэрэгцэнэ)</div><div class="d">Өдөрт 2-3 пост (доорх хэмнэлээр) · X дээр 7 хоногт 2-3 thread · Зар: lead magnet → cold аудиенц · Waitlist-д долоо хоног бүр nurture имэйл</div></div></div>
+  <div class="phase"><div class="ph-dot">2</div><div class="ph-line"><div class="t">Халаалт — launch-аас өмнөх 7 хоног</div><div class="d">Countdown · Курсийн 3 бүрэн хичээлийг үнэгүй нээх · FB Live: та + AI дүр хамтдаа Q&A · Retargeting аудиенц бэлдэх</div></div></div>
+  <div class="phase"><div class="ph-dot">3</div><div class="ph-line"><div class="t">LAUNCH — нээлтийн 7 хоног</div><div class="d">①Waitlist-д early-bird 48 цаг → ②олон нийтэд нээх + retargeting бүх хүчээр → ③сурагчдын сэтгэгдэл UGC → ④«N цаг үлдлээ» жинхэнэ deadline (сунгахгүй!)</div></div></div>
+  <div class="phase"><div class="ph-dot">4</div><div class="ph-line"><div class="t">Evergreen — дараах 4+ долоо хоног</div><div class="d">Сурагчдын capstone амжилтын түүхүүд · Cart recovery + nurture автоматжуулалт (курсийн М10 систем!) · Сар бүр 1 live Q&A</div></div></div>
+</div>
+
+<div class="card" id="cal">
+  <h2><span class="badge">📅</span>Долоо хоногийн контентын хэмнэл (Фаз 1)</h2>
+  <table>
+    <tr><th style="width:90px">Гараг</th><th style="width:190px">Формат</th><th>Агуулга</th></tr>
+    <tr><td>Даваа</td><td>📚 Мэдлэгийн пост</td><td>«AI-аар юу хийж болох вэ» цуврал — бодит жишээ, тоо</td></tr>
+    <tr><td>Мягмар</td><td>🎬 Reel — AI дүрийн тип</td><td>30-60 сек vibe coding гайхамшиг (промт → үр дүн)</td></tr>
+    <tr><td>Лхагва</td><td>🛠️ Build-in-public</td><td>«Өнөөдөр М5-ын бичлэг хийлээ» — backstage, явцын тоо</td></tr>
+    <tr><td>Пүрэв</td><td>🎬 Reel — демо</td><td>Дэлгэцийн бичлэг: 5 минутад хуудас бүтэх нь</td></tr>
+    <tr><td>Баасан</td><td>💬 Асуулт/poll</td><td>«Та ямар сайт хиймээр байна?» → комментод AI дүр хариулна</td></tr>
+    <tr><td>Бямба</td><td>🖼️ Carousel</td><td>«Сайт захиалах vs өөрөө AI-аар хийх» харьцуулалт г.м</td></tr>
+    <tr><td>Ням</td><td>🔔 CTA пост</td><td>Waitlist руу: «Эхний 100-д -40%» + үнэгүй мини-хичээл</td></tr>
+  </table>
+</div>
+
+<div class="card" id="ideas">
+  <h2><span class="badge">💡</span>Контентын бэлэн санаанууд (эхний 2 долоо хоног)</h2>
+  <h3>Reels / видео (FB + IG → дараа TikTok)</h3>
+  <ul class="idea">
+    <li>«Энэ сайтыг би 3 долоо хоногт ганцаараа хийсэн» — digitalger.mn screen tour <span class="pill green">таны хоолой</span></li>
+    <li>AI дүрийн танилцуулга: «Намайг AI бүтээсэн. Яаж гэдгийг нь энэ курс заана» <span class="pill amber">viral потенциал №1</span></li>
+    <li>Промт бичээд бүтэн нүүр хуудас гарч ирэх 45 сек timelapse</li>
+    <li>«Сайт захиалга: 3-5 сая₮, 2 сар. AI-тай өөрөө: курсийн үнэ, 3 долоо хоног» харьцуулалт</li>
+    <li>«Кодчин биш хүн QPay холбож чадах уу?» — М7-ийн хэсгээс 30 сек</li>
+    <li>Алдаа гарч буй бодит момент + AI өөрөө засаж буй нь — «төгс биш, БОДИТ»</li>
+    <li>AI дүр: «Өнөөдрийн промт-тип №1» цувралын эхлэл</li>
+  </ul>
+  <h3>Carousel / зургийн пост</h3>
+  <ul class="idea">
+    <li>«AI-аар сайт хийхэд хэрэгтэй 5 хэрэгсэл» (Claude Code, Cursor…)</li>
+    <li>«Курсийн 15 модулийн зураглал» — roadmap инфографик</li>
+    <li>«Хэн сурч чадах вэ?» — персона карточкууд</li>
+    <li>«Код мэдэхгүй бол боломжгүй» гэх 5 мифийг няцаах</li>
+  </ul>
+  <h3>X thread</h3>
+  <ul class="idea">
+    <li>«Би 90 цагийн vibe coding курс монголоор хийлээ. Юу сурснаа задлая 🧵» — build-in-public мега-thread</li>
+    <li>«Claude Code vs Cursor — 2 сар хоёуланг хэрэглээд» — техник харьцуулалт</li>
+  </ul>
+</div>
+
+<div class="card" id="bud">
+  <h2><span class="badge">💰</span>Төсвийн хуваарилалт (1M₮/сар жишээгээр)</h2>
+  <table>
+    <tr><th>Зүйл</th><th>Хувь</th><th>Дүн</th><th>Тайлбар</th></tr>
+    <tr><td>Lead/waitlist зар (cold)</td><td>40%</td><td>400K₮</td><td>Lead magnet видео → landing; 25-45 нас, бизнес/технологийн сонирхолтой</td></tr>
+    <tr><td>Видео үзэлт (awareness)</td><td>20%</td><td>200K₮</td><td>Шилдэг reels-ийг boost — retargeting сан бүрдүүлнэ</td></tr>
+    <tr><td>Retargeting</td><td>25%</td><td>250K₮</td><td>Үзсэн/орсон/lead → худалдан авалтын зар (launch үед 50% болгоно)</td></tr>
+    <tr><td>Туршилт</td><td>15%</td><td>150K₮</td><td>Шинэ креатив, аудиенцийн А/В тест</td></tr>
+  </table>
+  <div class="callout">7 хоног тутам CPL/CPA-гаа хараад хуваарилалтаа шилжүүл. 149K үнэтэй бүтээгдэхүүнд <strong>CPA 30-50K₮ хүртэл эрүүл</strong>.</div>
+</div>
+
+<div class="card" id="kpi">
+  <h2><span class="badge">📊</span>KPI ба хэмжилт</h2>
+  <table>
+    <tr><th>Үзүүлэлт</th><th>Зорилт</th><th>Хэрэгсэл</th></tr>
+    <tr><td>Waitlist бүртгэл</td><td>500+ (launch хүртэл)</td><td>GA4 Lead event + Pixel</td></tr>
+    <tr><td>Lead-ийн өртөг (CPL)</td><td>&lt; 2,000₮</td><td>Ads Manager</td></tr>
+    <tr><td>Launch 14 хоногийн борлуулалт</td><td>70–100</td><td>GA4 purchase + QPay</td></tr>
+    <tr><td>Худалдан авалтын өртөг (CPA)</td><td>&lt; 50K₮</td><td>Pixel + UTM</td></tr>
+    <tr><td>Waitlist → худалдан авалт</td><td>10%+</td><td>Имэйл/GA4 funnel</td></tr>
+    <tr><td>FB reach</td><td>100K+/сар</td><td>Meta insights</td></tr>
+  </table>
+  <p style="font-size:12px;color:#6B7490;margin-top:6px">Тайлан: 7 хоног бүр Даваа гарагт. (Хүсвэл Cowork-оор автомат тайлан тохируулж болно.)</p>
+</div>
+
+<div class="card" id="risk">
+  <h2><span class="badge">⚠️</span>Эрсдэл ба хариу арга</h2>
+  <table>
+    <tr><th style="width:42%">Эрсдэл</th><th>Хариу арга</th></tr>
+    <tr><td>Видео бичлэг хоцорч launch хойшлох</td><td>Фаз 1 контент бичлэгээс хамаарахгүй; хойшилбол waitlist-д шударгаар хэлж бонус амлана. Б-төлөвлөгөө: модуль-модулиар нээх</td></tr>
+    <tr><td>AI дүрд сөрөг хариу («худал юм байна»)</td><td>Ил тод байдлын дүрэм + «энэ дүрийг яаж хийснийг курст заана» гэж эргүүлж ашиглана</td></tr>
+    <tr><td>Зарын өртөг өндөр (CPL &gt; 3K)</td><td>Креативаа солих (контент-маягийн зар), lead magnet-ийн саналыг өөрчлөх, аудиенц нарийсгах</td></tr>
+    <tr><td>Early-bird дууссаны дараа борлуулалт унах</td><td>Хэвийн — Фаз 4-ийн social proof + сар бүрийн жижиг урамшууллаар (bundle, bonus) долгион үүсгэнэ</td></tr>
+  </table>
+</div>
+
+<div class="card" id="next">
+  <h2><span class="badge">✅</span>Төлөв — юу бэлэн, юу үлдсэн</h2>
+  <table>
+    <tr><th>Материал</th><th>Төлөв</th><th>Хаана байгаа</th></tr>
+    <tr><td>Маркетингийн бүрэн төлөвлөгөө (фаз, төсөв, KPI)</td><td><span class="pill green">✓ БЭЛЭН</span></td><td>Энэ хуудас — «Төлөвлөгөө»</td></tr>
+    <tr><td>Айна — AI дүрийн bible (нэр, дүр төрх, дүрэм, промтууд)</td><td><span class="pill green">✓ БЭЛЭН</span></td><td>Хажуугийн цэс — «Айна»</td></tr>
+    <tr><td>Lead magnet мини-хичээлийн бүрэн скрипт</td><td><span class="pill green">✓ БЭЛЭН</span></td><td>Хажуугийн цэс — «Lead magnet»</td></tr>
+    <tr><td>63 өдрийн бүх пост/reels текст + X thread-үүд</td><td><span class="pill green">✓ БЭЛЭН</span></td><td>Хажуугийн цэс — «Постууд»</td></tr>
+    <tr><td>Үнэ: жагсаалтын 199,000₮ / early-bird 119,000₮</td><td><span class="pill green">✓ БАТЛАГДСАН</span></td><td>—</td></tr>
+    <tr><td>Landing/waitlist хуудас</td><td><span class="pill">Хэрэггүй гэж шийдсэн</span></td><td>Вэб дээр бүгд бий — «эхний 100» хязгаарыг купоноор шийднэ (доорх №3)</td></tr>
+  </table>
+  <h3>Зөвхөн ТАНЫ гар хийх үлдсэн 5 ажил</h3>
+  <div id="nextlist">
+    <label class="next"><input type="checkbox" data-k="n1"><span><strong>Айнаг амилуулах:</strong> bible-ийн промтоор дүрийг generate хийж, хамгийн сайн гарцыг «канон зураг» болгож хадгалах</span></label>
+    <label class="next"><input type="checkbox" data-k="n2"><span><strong>Lead magnet видео бичих:</strong> бэлэн скриптээр 35-45 минутын бичлэг хийх (таны хоолойгоор)</span></label>
+    <label class="next"><input type="checkbox" data-k="n3"><span><strong>Сайтдаа EARLY100 купон үүсгэх:</strong> PERCENT 40%, maxUses=100 — «эхний 100 хүнд -40%» амлалт автоматаар хэрэгжинэ</span></label>
+    <label class="next"><input type="checkbox" data-k="n4"><span><strong>Launch огноог товлох:</strong> постууд доторх [огноо] хаалтуудыг бодит огноогоор солих</span></label>
+    <label class="next"><input type="checkbox" data-k="n5"><span><strong>Постоо тавьж эхлэх:</strong> «Постууд» хэсгийн Б1-ээс эхлэн өдөр бүр хуулж тавих (эсвэл Meta Business Suite-д урьдчилж хуваарилах)</span></label>
+  </div>
+</div>
+</div>
+
+<div class="section" id="sec-bible">
+<div class="mdpane">
+<h2 style="margin-top:0">🤖 Айна — AI дүрийн Bible</h2>
+<p style="color:#6B7490;font-size:13px">Дүр үүсгэх, контент хийх бүртээ энэ стандартыг ашиглана — нэг мөр байдал бол таних тэмдгийн үндэс.</p>
+<p>Огноо: 2026-06-11 | Зориулалт: Бүх контент, зар, видеонд ашиглах НЭГ МӨР стандарт. Энэ файлыг дүр үүсгэх бүрдээ нээж ашиглана.</p>
+<hr />
+<h2>1. Нэр (шийдвэрлэх — миний санал)</h2>
+<table>
+<thead>
+<tr>
+<th>Хувилбар</th>
+<th>Үндэслэл</th>
+<th>Дүгнэлт</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Айна</strong> ⭐</td>
+<td>"AI" гэж эхэлдэг, монгол нэр шиг сонсогддог (Айнаа), 2 үе — хэлэхэд, бичихэд, hashtag болгоход (#АйнаБагш) хялбар</td>
+<td><strong>САНАЛ БОЛГОЖ БАЙНА</strong></td>
+</tr>
+<tr>
+<td>Соён</td>
+<td>"Соён гэгээрүүлэх" — сургалтын утгатай, эрэгтэй/саармаг</td>
+<td>Сайн нөөц хувилбар</td>
+</tr>
+<tr>
+<td>Номин</td>
+<td>Зөөлөн, танил, эмэгтэй</td>
+<td>Түгээмэл нэр тул ялгарал сул</td>
+</tr>
+</tbody>
+</table>
+<p>⚠️ Эцэслэхээсээ өмнө: FB/IG/TikTok дээр @aina.digitalger маягийн handle чөлөөтэй эсэхийг шалга.</p>
+<p><strong>Бүтэн танилцуулга:</strong> «Айна — DigitalGer Academy-гийн AI багш. Намайг яг энэ курсэд заадаг аргаар бүтээсэн.»</p>
+<h2>2. Дүр төрх (visual identity)</h2>
+<ul>
+<li><strong>Нас/төрх:</strong> 26-28 насны монгол эмэгтэй, ухаалаг, найрсаг, итгэл төрүүлсэн харцтай</li>
+<li><strong>Үс:</strong> Хар, мөрөн доош, энгийн боловсон — хэт загварлаг биш (танигдахуйц байх нь гол)</li>
+<li><strong>Хувцас (тогтмол!):</strong> Гүн хөх (navy #16213A) hoodie эсвэл блэйзер + дотроо цагаан футболк. Заримдаа DigitalGer-ийн шар (amber #FFB020) деталь: зүүлт/малгай/лого</li>
+<li><strong>Орчин:</strong> Орчин үеийн ажлын ширээ, ард нь зөөлөн бүдгэрсэн дэлгэцүүд/номын тавиур; гэрэлтүүлэг дулаан</li>
+<li><strong>Жаазлалт:</strong> Цээжний дээд хэсэг (talking head), камер руу шууд харна</li>
+</ul>
+<p><strong>ХОРИОТОЙ:</strong> хувцасны өнгө дур мэдэн өөрчлөх · хэт бэлэн/гламур харагдац · бодит хүний царайг хуулах (хууль + ёс зүй) · brand өнгөнөөс гадуур фон</p>
+<h2>3. Зан чанар ба ярианы өнгө</h2>
+<ul>
+<li><strong>Зан:</strong> Урам өгдөг ах/эгч шиг — мэргэжлийн ч хүртээмжтэй. Хэзээ ч дээрэлхэж ярихгүй («энэ амархан шүү дээ» гэхгүй — «эхэндээ хэцүү санагдана, гэхдээ хамтдаа хийнэ» гэнэ)</li>
+<li><strong>Тогтмол хэллэгүүд (タгтаах тэмдэг):</strong></li>
+<li>Нээлт: «Сайн уу, Айна байна!»</li>
+<li>Шилжилт: «За, одоо хамгийн сонирхолтой хэсэг...»</li>
+<li>Хаалт: «Маргааш дахин уулзъя. Промтоо мартуузай!»</li>
+<li><strong>Ярианы дүрэм:</strong> Богино өгүүлбэр · техник нэр томьёог англиар нь + монгол тайлбартай · 60 секундын видеонд ганц л гол санаа</li>
+<li><strong>ХЭЗЭЭ Ч хийхгүй:</strong> орлогын баталгаа амлах («сард X сая олно» гэх) · бусад сургалт/хүнийг муулах · улс төр, шашин хөндөх · AI гэдгээ нуух</li>
+</ul>
+<h2>4. Ил тод байдлын дүрэм</h2>
+<ul>
+<li>Профайлын bio-д: «🤖 AI багш — намайг DigitalGer-ийн vibe coding аргаар бүтээсэн»</li>
+<li>Видеоны тайлбарт #AIДүр hashtag тогтмол</li>
+<li>Хэн нэгэн «энэ жинхэнэ хүн үү?» гэж асуувал стандарт хариу: «Би AI! Намайг яаж бүтээснийг курсээс үзээрэй 😉» — асуултыг борлуулалт болгоно</li>
+</ul>
+<h2>5. Үйлдвэрлэлийн стандарт (хэрэгслүүд)</h2>
+<table>
+<thead>
+<tr>
+<th>Хэрэгцээ</th>
+<th>Арга</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Хөдөлгөөнт дүр (reels)</td>
+<td>HeyGen/Synthesia маягийн avatar платформд НЭГ удаа дүрээ үүсгээд бүх видеонд ашиглах — тогтвортой байдлын хамгийн найдвартай зам. Аль платформ сонгохоо туршилтаар шийд (үнэ, монгол хэлний дэмжлэг шалгах)</td>
+</tr>
+<tr>
+<td>Зураг (пост, thumbnail)</td>
+<td>Нэг «канон» reference зураг сонгоод бүх generation-д character reference болгон ашиглах. Канон зургаа энэ хавтаст хадгал: <code>/brand/aina-canon.png</code></td>
+</tr>
+<tr>
+<td>AI хоолой</td>
+<td>Монгол TTS-ийн чанарыг туршиж шалгах; хэрэв хангалтгүй бол: AI дүрийн видеонд ӨӨРИЙН хоолойг бага зэрэг боловсруулж ашиглах (дүр ≠ хоолой байж болно) эсвэл хадмал + хөгжимтэй reels хийх</td>
+</tr>
+<tr>
+<td>Дуу хоолойн хуваарь</td>
+<td>Хичээл + том зар = таны хоолой; өдөр тутмын тип reels = AI/хадмал</td>
+</tr>
+</tbody>
+</table>
+<p>⚠️ Бүх generation-ий шилдэг гарцуудыг <code>/brand/aina/</code> хавтаст хадгалж сан бүрдүүл — цаг өнгөрөх тусам сонголт хийхэд хялбар болно.</p>
+<h2>6. Generation промтын загварууд</h2>
+<p><strong>Зургийн суурь промт (өөрийн хэрэгсэлдээ тааруулж ашиглана):</strong>
+<code>Portrait of a friendly 27-year-old Mongolian woman, shoulder-length black hair,
+wearing a navy blue hoodie over white t-shirt, small amber/yellow accent detail,
+modern tech workspace background softly blurred, warm lighting,
+looking directly at camera with a confident warm smile,
+photorealistic, consistent character</code>
++ канон зургаа character reference болгож үргэлж хавсарга.</p>
+<p><strong>Видео аватарын ярианы скрипт формат (60 сек reels):</strong>
+<code>[0-3 сек] Hook — асуулт эсвэл гайхшруулах баримт (хадмалтай!)
+[3-10 сек] «Сайн уу, Айна байна!» + сэдэв
+[10-45 сек] ГАНЦ гол санаа + дэлгэцийн бичлэг/жишээ
+[45-60 сек] CTA: «Дэлгэрэнгүйг digitalger.mn» + тогтмол хаалтын хэллэг</code></p>
+<h2>7. Брэндийн өнгө (бүх дизайнд)</h2>
+<table>
+<thead>
+<tr>
+<th>Өнгө</th>
+<th>Код</th>
+<th>Хэрэглээ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Navy</td>
+<td>#16213A</td>
+<td>Үндсэн фон, хувцас</td>
+</tr>
+<tr>
+<td>Amber</td>
+<td>#FFB020</td>
+<td>Акцент, CTA товч, тоо</td>
+</tr>
+<tr>
+<td>Цагаан</td>
+<td>#FFFFFF</td>
+<td>Текст, цэвэр фон</td>
+</tr>
+<tr>
+<td>Улаан-ягаан</td>
+<td>#E94560</td>
+<td>Онцгой анхааруулга (бага хэрэглэ)</td>
+</tr>
+</tbody>
+</table>
+<p>Шрифт: Inter (сайттай ижил). Хадмал: том, цагаан, хар хүрээтэй — утсан дээр дуугүй үзэхэд уншигдахуйц.</p>
+</div>
+<div class="mdpane" style="margin-top:18px">
+<h2>🎨 Айнагийн Moodboard — канон зураг сонгох 6 промт</h2>
+<p style="color:#6B7490;font-size:13px">Тус бүрээр 4-6 зураг generate хийж хамгийн таалагдсаныг «канон» болго. Дараа нь бүх зурагт түүнийгээ reference болгон ашиглана. Промт бүр bible-ийн стандартыг агуулсан.</p>
+<h3>1. Канон портрет (профайл, cover-т)</h3>
+<blockquote><p>Portrait of a friendly 27-year-old Mongolian woman, shoulder-length black hair, navy blue hoodie over white t-shirt, small amber pendant, modern tech workspace softly blurred behind, warm lighting, confident warm smile, looking directly at camera, photorealistic, 4k</p></blockquote>
+<h3>2. Заах төлөв (хичээлийн thumbnail-д)</h3>
+<blockquote><p>Same Mongolian woman in navy hoodie, standing beside a large screen showing colorful website wireframes, gesturing toward the screen while explaining, modern classroom studio with warm amber accent lights, three-quarter view, photorealistic</p></blockquote>
+<h3>3. Ширээний ард (build-in-public постуудад)</h3>
+<blockquote><p>Same Mongolian woman in navy hoodie working at a desk with dual monitors showing code, coffee cup with amber logo, focused expression with slight smile, cozy evening workspace lighting, side angle, photorealistic</p></blockquote>
+<h3>4. Баяр хөөртэй (амжилт, нээлтийн постуудад)</h3>
+<blockquote><p>Same Mongolian woman in navy hoodie celebrating with both fists raised, joyful laugh, confetti hints in amber and white, navy studio background, energetic mood, photorealistic</p></blockquote>
+<h3>5. Бодолтой (асуулт, миф-ийн постуудад)</h3>
+<blockquote><p>Same Mongolian woman in navy hoodie with hand on chin in thinking pose, looking slightly upward, floating question mark made of soft amber light beside her, navy gradient background, curious expression, photorealistic</p></blockquote>
+<h3>6. УБ хотын орчинд (онцлох кампанит постуудад)</h3>
+<blockquote><p>Same Mongolian woman in navy hoodie holding a laptop, standing on a modern Ulaanbaatar city street at golden hour, Blue Sky tower silhouette in soft background, wind in hair, optimistic vibe, photorealistic</p></blockquote>
+<div class="callout"><strong>Тогтвортой байдлын дүрэм:</strong> «Same Mongolian woman» гэсэн хэсгийг хэрэгслийнхээ character reference функцээр соль (канон зургаа хавсаргах). Үс, hoodie, amber деталь гурвыг ХЭЗЭЭ Ч бүү өөрчил — таних тэмдэг.</div>
+</div>
+</div>
+
+<div class="section" id="sec-magnet">
+<div class="mdpane">
+<h2 style="margin-top:0">🎁 Lead Magnet — «AI-аар анхны вэбсайтаа 60 минутад»</h2>
+<p style="color:#6B7490;font-size:13px">Үнэгүй мини-хичээлийн бичлэгийн бүрэн скрипт. Waitlist-д бүртгүүлсэн хүн бүрд автоматаар очно.</p>
+<p>Зориулалт: Үнэгүй мини-хичээл. Имэйлээ үлдээсэн хүн бүрд автоматаар очно. Зорилго: (1) wow мэдрэмж өгөх, (2) «би чадна» гэсэн итгэл суулгах, (3) бүрэн курс руу хөтлөх.
+Формат: 1 видео, 35-45 минут (нэрэндээ «60 минутад» — сурагчийн өөрийн хийх хугацаа). Таны бодит хоолойгоор.</p>
+<hr />
+<h2>Бэлтгэл (бичлэгийн өмнө)</h2>
+<ul>
+<li>[ ] Цэвэр демо хавтас, VS Code цэвэр profile, notification унтраасан</li>
+<li>[ ] Claude (claude.ai эсвэл Claude Code) нэвтэрсэн — ҮНЭГҮЙ хувилбараар хийж үзүүлнэ (үзэгч төлбөргүй эхэлж чадахаар!)</li>
+<li>[ ] Бүх промтуудыг урьдчилж тестэлсэн (доор бэлэн байгаа)</li>
+<li>[ ] OBS 1080p, микрофон шалгасан</li>
+</ul>
+<hr />
+<h2>СКРИПТ</h2>
+<h3>[0:00–2:00] Hook + амлалт</h3>
+<blockquote>
+<p>«Сайн уу! Та код бичиж үзээгүй биз дээ? Маш сайн — энэ хичээл яг танд зориулагдсан. Одоо хамтдаа 60 минутын дотор таны АНХНЫ вэбсайтыг хийнэ. Худлаа биш — би яг одоо, таны нүдэн дээр, эхнээс нь хийж үзүүлнэ. Танд хэрэгтэй зүйл: компьютер, интернэт, л болоо. Кодын мэдлэг — огт хэрэггүй.»</p>
+</blockquote>
+<ul>
+<li>Эцсийн үр дүнг ЭХЭЛЖ үзүүл: бэлэн болсон сайтыг 15 секунд гүйлгэж харуул («ийм юм хийнэ»)</li>
+<li>«Би хэн бэ»: 30 секунд — digitalger.mn-ийг AI-аар хийсэн түүх, нэг өгүүлбэрээр</li>
+</ul>
+<h3>[2:00–7:00] Vibe coding гэж юу вэ (хамгийн товчоор)</h3>
+<blockquote>
+<p>«Урьд нь вэбсайт хийхийн тулд жил код сурдаг байсан. Одоо AI таны өмнөөс кодыг бичнэ — та зөвхөн ЮУ хүсэж байгаагаа монголоор хэлнэ. Үүнийг vibe coding гэдэг.»</p>
+</blockquote>
+<ul>
+<li>Аналоги: «Та барилгачин биш — архитектор. AI барина, та удирдана»</li>
+<li>Claude гэж юу болохыг 1 минутад: claude.ai нээж бүртгүүлэхийг үзүүл (үнэгүй)</li>
+<li>⚠️ Хүлээлт тохируул: «Өнөөдөр бид эхлэл хийнэ. Бүрэн онлайн дэлгүүр болгох нь өөр түвшний ажил — тэр тухай төгсгөлд нь»</li>
+</ul>
+<h3>[7:00–30:00] ГОЛ ХЭСЭГ — Live build</h3>
+<p><strong>Алхам 1 (7:00–12:00): Анхны промт</strong>
+Claude-д өгөх промт (дэлгэцэнд том харуулна, тайлбарт хуулж өгнө):
+<code>Надад нэг хуудастай вэбсайт хийж өгөөч. HTML, CSS, JavaScript нэг файлд.
+Сэдэв: [миний бизнес/сонирхол]. 
+Бүтэц: дээр нь нэр, томоор танилцуулга, 3 үйлчилгээний хэсэг, холбоо барих хэсэг.
+Загвар: орчин үеийн, гүн хөх + шар өнгөтэй, дугуй булантай картууд.
+Бүх текстийг монголоор бич.</code></p>
+<blockquote>
+<p>«Энд хамгийн чухал зүйл: ТОДОРХОЙ хэлэх. „Сайт хий" гэвэл дундаж юм гарна. Бүтэц, өнгө, хэлээ зааж өгвөл — таны хүссэн юм гарна.»</p>
+</blockquote>
+<p><strong>Алхам 2 (12:00–17:00): Файл болгож хадгалах + нээх</strong>
+- Кодыг хуулж → Notepad/VS Code-д → <code>minii-site.html</code> гэж хадгалах → browser-ээр нээх
+- <strong>WOW МОМЕНТ:</strong> «Харлаа уу? Та сая АНХНЫ вэбсайтаа хийчихлээ. 15 минут болоогүй байна.»</p>
+<p><strong>Алхам 3 (17:00–24:00): Өөрчлөлт хийж сурах (хамгийн чухал ур чадвар)</strong>
+3 өөрчлөлтийг дараалан хийлгэ:
+- «Өнгийг нь ногоон болгооч» → шинэ код → solih
+- «Үйлчилгээний хэсэгт 4 дэх карт нэм» 
+- «Утсан дээр зөв харагддаг болго»</p>
+<blockquote>
+<p>«Анзаарсан уу — би код НЭГ Ч мөр бичээгүй. Зөвхөн юу хүсэж байгаагаа хэлсэн. Энэ бол яг жинхэнэ ажлын арга.»</p>
+</blockquote>
+<p><strong>Алхам 4 (24:00–30:00): Алдаа засуулах</strong>
+- Зориуд жижиг алдаа гаргаад (текст эвдрэх г.м) Claude-д «ийм алдаа гарлаа, засаач» гэж өгч засуулна</p>
+<blockquote>
+<p>«Алдаа гарна — энэ хэвийн. Гол нь AI-д алдаагаа л буцааж хэлэхэд болно. Айх юм байхгүй.»</p>
+</blockquote>
+<h3>[30:00–35:00] «Гэхдээ энэ зөвхөн эхлэл» — гүүр</h3>
+<blockquote>
+<p>«Та одоо нэг хуудастай сайттай боллоо. Гэхдээ бодит бизнес хийхэд танд юу хэрэгтэй вэ?»</p>
+</blockquote>
+<p>Дэлгэцэнд жагсаалт (карт хэлбэрээр):
+- Интернэтэд байршуулж, өөрийн .mn хаягтай болох
+- Бүтээгдэхүүн нэмж, хасдаг удирдлагатай болох
+- QPay-ээр төлбөр хүлээж авдаг болох
+- Хэрэглэгч бүртгэлтэй, захиалгатай болох</p>
+<blockquote>
+<p>«Энэ бүгдийг яг өнөөдрийнх шиг — промтоор, монголоор, алхам алхмаар — хийж сурдаг 90 цагийн бүрэн курс удахгүй нээгдэнэ. Би өөрөө digitalger.mn-ээ яг ингэж хийсэн, одоо та нарт зааж өгнө.»</p>
+</blockquote>
+<h3>[35:00–38:00] CTA + хаалт</h3>
+<blockquote>
+<p>«Waitlist-д бүртгүүлсэн та нээлтийн өдөр ЭХНИЙ 100 хүний -40% хямдралын эрхтэй. [Огноо]-нд нээгдэнэ. Хүртэл нь — өнөөдөр хийсэн сайтаа найзууддаа гайхуулаарай. Та чадлаа шүү дээ!»</p>
+</blockquote>
+<ul>
+<li>Сайтын скриншотоо коммент/группэд хуваалцахыг урь (UGC + social proof!)</li>
+<li>Төгсгөлийн кадр: digitalger.mn/course + лого</li>
+</ul>
+<hr />
+<h2>Дагалдах материал (имэйлээр хамт явуулна)</h2>
+<ol>
+<li>Бүх промтын текст (.txt) — хуулж ашиглахад бэлэн</li>
+<li>«Дараагийн 5 промт» PDF — сайтаа сайжруулах нэмэлт промтууд (богино, нэг хуудас)</li>
+<li>Курсийн 15 модулийн roadmap зураг</li>
+</ol>
+<h2>Хэмжилт</h2>
+<ul>
+<li>Видео үзэлтийн гүн (хэдэн % дуустал үзэв) — nurture имэйлийн контентод чиглэл өгнө</li>
+<li>Скриншот хуваалцсан хүмүүс = хамгийн халуун lead — launch үед тусгайлан хандана</li>
+</ul>
+</div>
+</div>
+
+<div class="section" id="sec-posts">
+<div class="mdpane">
+<h2 style="margin-top:0">📅 63 өдрийн бүх пост — хуулж тавихад бэлэн</h2>
+<p style="color:#6B7490;font-size:13px">Бэлтгэл 7 хоног + Фаз 1 (6 долоо хоног) + Countdown + Launch. [Огноо], [тоо] хаалтуудыг бодит утгаар солино.</p><div class="callout" style="max-width:1100px"><strong>Хэрхэн ашиглах:</strong> Пост бүрийн доор <span class="ad-tag t1" style="position:static">🎨</span> визуалын заавар (англи промт бол AI зураг үүсгэгчид шууд хуулна — кирилл текстийг зураг дээр Canva-аар нэмнэ, AI кирилл бичиг алддаг!) болон <span class="ad-tag t2" style="position:static">🎒</span> таны бэлтгэл (юу хийх, хэр хугацаа) байгаа. Caption болон промт бүрийн дэргэдэх <strong>⧉ хуулах</strong> товчоор шууд clipboard-д хуулна.</div>
+<p>Хамрах хүрээ: Бэлтгэл 7 хоног + Фаз 1 (6 долоо хоног) + Countdown 7 хоног + Launch 7 хоног = <strong>63 өдөр</strong>
+Тэмдэглэгээ: 🎬 = Reel (FB+IG+дараа TikTok) · 📝 = пост · 🖼️ = carousel · 🐦 = X/Twitter
+Тогтмол hashtag: <code>#DigitalGer #VibeCoding #АйнаБагш</code> (+пост бүрийн сэдвийнх). Линк үргэлж: digitalger.mn/course
+⚠️ [Огноо], [тоо] хаалтуудыг бодит утгаар соль. Айна = AI дүр (bible-ийн дагуу).</p>
+<hr />
+<h1>БЭЛТГЭЛИЙН ДОЛОО ХОНОГ (waitlist нээгдэхээс өмнө — хуудас амилуулах)</h1>
+<p><strong>Б1 · 📝 Дахин амилалт</strong></p>
+<blockquote>
+<p>Сайн байцгаана уу! DigitalGer удахгүй маш том зүйл зарлана. 🤫
+Тэр хүртэл нэг асуулт: Та «вэбсайт хэрэгтэй юм даа» гэж бодоод хэдэн жил болж байна вэ? Комментод шударгаар бичээрэй — хариултууд таныг гайхшруулж магадгүй.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Flat illustration, question mark made of website wireframe pieces, navy #16213A background, amber #FFB020 accents, minimal modern style, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Зураг generate хийгээд Canva-д «Та хэдэн жил хүлээж байна вэ?» текст нэм. 10 мин.</span></div></div><p><strong>Б2 · 🎬 Reel — digitalger.mn түүх (таны хоолой)</strong>
+Beats: ①(0-3с) «Энэ сайтыг би ГАНЦААРАА хийсэн гэвэл итгэх үү?» + сайтын дэлгэц ②(3-20с) нүүр, дэлгүүр, төлбөр, админ хэсгүүдийг хурдан гүйлгэх ③(20-40с) «Код бичиж сураагүй. AI-тай хамт 3 долоо хоног ажилласан» ④(40-55с) «Яаж гэдгийг нь удахгүй бүгдийг үзүүлнэ. Дагаарай»
+Caption:</p>
+<blockquote>
+<p>Энэ сайтыг нэг хүн, 3 долоо хоногт, AI-тай хамт хийсэн. Худлаа юм шиг сонсогдож байна уу? Бүх процессыг удахгүй ил тод үзүүлнэ. 👀 Дагаад байгаарай.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">digitalger.mn-ийг 1080p дэлгэцийн бичлэгээр: нүүр→дэлгүүр→QPay→админ, хэсэг бүр 5-7 сек. Нүүрний кадр (cover): сайтын screenshot + «3 долоо хоног» гэсэн том тоо Canva-ар</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">OBS бичлэг 2-3 мин түүхий материал + утасны өндөр (9:16) болгож CapCut-аар эвлүүлэх. Өөрийн хоолойгоор 4 өгүүлбэр бичих. 1-1.5 цаг.</span></div></div><p><strong>Б3 · 📝 Асуулт</strong></p>
+<blockquote>
+<p>Судалгаа: Вэбсайт хийлгэхээр хөгжүүлэгчээс үнэ асууж үзсэн үү?
+Доорх тоонуудаас аль нь танд танил вэ? 👇
+а) 2-3 сая₮ б) 5+ сая₮ в) «Эхлээд тех даалгавар...» гээд утас тасарсан 😅</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Flat illustration, shocked person looking at giant price tag, laptop on desk, navy and amber palette, humorous style, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Зураг + Canva-д үнийн 3 сонголтыг текстээр. Poll-ийг FB-ийн өөрийн survey хэлбэрээр давхар тавьж болно. 15 мин.</span></div></div><p><strong>Б4 · 🎬 Reel — 45 секундын демо</strong>
+Beats: ①«Вэбсайт хийхэд хэдэн мөр код бичих хэрэгтэй вэ? Хариулт: 0» ②промт бичиж буй дэлгэц ③сайт гарч ирэх timelapse ④«Энэ бол vibe coding. Удахгүй заана»
+Caption:</p>
+<blockquote>
+<p>0 мөр код. 1 промт. 1 вэбсайт. Энэ бол ид шид биш — 2026 оны ажлын арга. #VibeCoding</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Дэлгэцийн бичлэг — промт бичих (5 сек) → код урсах (5 сек, хурдасгасан) → бэлэн сайт (10 сек). Cover: «0 мөр код» том текст</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Демо промтоо урьдчилж тестэл (нэг гоё landing гарна гэдгээ батал). 45 мин.</span></div></div><p><strong>Б5 · 📝 Танилцуулгын дохио</strong></p>
+<blockquote>
+<p>Бид сүүлийн саруудад нэг том зүйл дээр ажиллаж байна: Монголын анхны БҮРЭН ХЭМЖЭЭНИЙ vibe coding сургалт. Код мэдэхгүй хүн → ажилладаг онлайн бизнес. Бүгдийг монголоор. Маргааш нэг онцгой «хүнтэй» танилцуулна. 😏</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Mysterious silhouette of a friendly female figure with subtle AI circuit patterns, navy background, amber rim lighting, teaser poster style, cinematic, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Айнагийн канон зургаасаа сүүдэр/teaser хувилбар хийлгэ — нүүр бүрэн харагдахгүй. «Маргааш танилцуулна» текст Canva-ар. 20 мин.</span></div></div><p><strong>Б6 · 🎬 Reel — АЙНА ДЕБЮТ ⭐ (viral потенциал №1)</strong>
+Beats: ①(0-3с) Айна камер руу: «Сайн уу! Би Айна» ②(3-15с) «Би жинхэнэ хүн биш — намайг AI бүтээсэн. Гэхдээ би таныг ЖИНХЭНЭ вэбсайт хийж сургана» ③(15-40с) «Намайг бүтээсэн яг тэр аргыг — vibe coding-ийг — DigitalGer танд заана. Би хичээл бүрд тань хамт байна» ④(40-60с) «Итгэхгүй байна уу? Тэгвэл дагаад үзээрэй. Маргааш уулзъя!»
+Caption:</p>
+<blockquote>
+<p>Айнатай танилцана уу. 🤖 Тэр AI — гэхдээ түүний заах зүйл 100% бодит. Намайг (тийм ээ, энэ бичвэрийг хүртэл) яаж AI-тай хамтарч бүтээдгийг бүгдийг үзүүлнэ. #АйнаБагш #AIДүр</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айнагийн HeyGen видео — bible-ийн скриптээр 60 сек. Cover зураг: канон портрет + «Би Айна» текст. EN (cover): friendly Mongolian woman in navy hoodie waving at camera, warm modern workspace, amber accent lighting, photorealistic</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">ГОЛ БЭЛТГЭЛ: Айнагийн аватар HeyGen дээр бэлэн байх ёстой! Скрипт bible-д бий. Хадмал заавал. 2-3 цаг (анхны удаа учраас).</span></div></div><p><strong>Б7 · 📝 Waitlist нээлт (энэ долоо хоногийн оргил)</strong></p>
+<blockquote>
+<p>🚀 За ингээд зарлая: «AI-аар Fullstack Вэбсайт Бүтээх» — 15 модуль, 77 хичээл, ~90 цагийн МОНГОЛ ХЭЛ ДЭЭРХ сургалт [огноо]-нд нээгдэнэ.
+Домэйн авахаас эхлээд → дизайн → төлбөрийн QPay → сервер байршуулалт → борлуулалт хүртэл. БҮГД.
+⚡ Эхний 100 бүртгүүлэгч: -40% (199,000₮ → 119,000₮) + үнэгүй мини-хичээл ШУУД авна.
+👉 digitalger.mn/course — имэйлээ үлдээгээд эрхээ баталгаажуул.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Course announcement graphic: laptop showing website, rocket launching from screen, navy bg, amber CTA banner area at bottom, flat modern illustration, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva-д: курсийн нэр + «15 модуль · 77 хичээл · 90 цаг» + «-40% эхний 100» текстүүд. EARLY100 купон сайтад идэвхтэй эсэхийг ШАЛГА. 30 мин.</span></div></div><p><strong>Б-X 🐦 (энэ долоо хоногт 1):</strong></p>
+<blockquote>
+<p>Монголд код мэдэхгүй хүн AI-аар бүрэн ажиллагаатай ecommerce сайт хийж чадах уу?
+Сүүлийн 3 сар үүнийг туршлаа. Хариулт: чадна. Одоо 90 цагийн курс болгож бичиж байна. Build in public явц энд 🧵👇</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй — эхний tweet-д digitalger.mn-ийн screenshot хавсарга</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Thread-ийг өөрийн амнаас (Айна биш) бич — X дээр хувь хүний дуу хоолой ажилладаг. 30 мин.</span></div></div><h1>ФАЗ 1 — ДОЛОО ХОНОГ 1: «Vibe coding гэж юу вэ»</h1>
+<p><strong>Д1 · 📝 Мэдлэг</strong></p>
+<blockquote>
+<p>Vibe coding гэж юу вэ? Энгийнээр: та АРХИТЕКТОР, AI БАРИЛГАЧИН.
+Та юу хүсэж байгаагаа монголоор хэлнэ → AI кодыг бичнэ → та шалгаад баталня. Код цээжлэх биш — зөв АСУУЖ сурах. Энэ долоо хоногт ойлголтуудыг нь задалж өгье. Дагаарай. #VibeCoding</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Split illustration: architect with blueprint pointing, robot builder constructing website blocks, navy and amber flat style, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva: «Та АРХИТЕКТОР, AI БАРИЛГАЧИН» текст давхарла. 15 мин.</span></div></div><p><strong>Д2 · 🎬 Айна reel — Тип №1</strong>
+Beats: ①«Промт-тип №1!» ②«AI-д „сайт хий" гэж бүү хэл. Юу хэлэх вэ?» ③дэлгэцэнд: муу промт vs сайн промт зэрэгцээ үр дүн ④«Тодорхой асуувал — тодорхой хариу. Маргааш уулзъя!»
+Caption:</p>
+<blockquote>
+<p>«Сайт хий» ❌ → «3 хэсэгтэй, хөх-шар өнгөтэй, монгол тексттэй landing хий» ✅ Ялгааг видеоноос хараарай. #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel (HeyGen) + дэлгэцийн бичлэг хослуулсан: муу/сайн промтын үр дүн зэрэгцээ split-screen 15 сек</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Хоёр промтын үр дүнг урьдчилж бэлдэж screenshot/бичлэг ав. Айнагийн скрипт бэлэн (постонд бий). 1 цаг.</span></div></div><p><strong>Д3 · 📝 Build-in-public</strong></p>
+<blockquote>
+<p>Курсийн бичлэгийн явц: өнөөдөр М1 «AI Кодчиллын Суурь» модулийн бичлэг дууслаа. 🎬
+Сонирхолтой нь: hallucination буюу AI «итгэлтэйгээр худлаа ярих» үзэгдлийг амьдаар барьж авах хэсэг бичихэд 4 дубль болов — AI хэтэрхий зөв хариулаад байсан 😅 Тэр ч бас хичээл болно.
+Явц: ▓▓░░░░░░░░ 2/15 модуль</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Бичлэгийн ард талын бодит зураг — таны ажлын ширээ, дэлгэц дээр курсийн хичээл, кофе. Жинхэнэ photo (AI биш!) — authenticity</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бичлэг хийж байхдаа утсаараа 2-3 backstage зураг авахаа сана. Progress bar-ийг Canva-аар. 10 мин.</span></div></div><p><strong>Д4 · 🎬 Демо reel</strong>
+Beats: ①«Бүтээгдэхүүний карт хэдэн минутад бүтэх вэ?» ②промт → Claude код бичиж буй нь (хурдасгасан) ③browser дээр карт гарч ирэх ④«4 минут 32 секунд. Курс дээр үүнийг хамтдаа хийнэ»
+Caption:</p>
+<blockquote>
+<p>Дэлгүүрийн бүтээгдэхүүний карт: зураг, үнэ, сагсны товчтой. 4 минут. ⏱️ Та ч гэсэн чадна — digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Дэлгэцийн бичлэг timelapse — ProductCard промтоос үр дүн хүртэл. Таймер overlay (CapCut). Cover: «4:32» том тоо</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Демог урьдчилж 1 удаа бүрэн туршиж цагийг нь хэмж. 40 мин.</span></div></div><p><strong>Д5 · 📝 Poll</strong></p>
+<blockquote>
+<p>Шударга асуулт: Таныг вэбсайт хийхээс юу хамгийн их айлгадаг вэ? 👇
+а) «Код гэхээр л толгой эргэдэг» б) «Хаанаас эхлэхээ мэдэхгүй» в) «Цаг гарахгүй» г) «Хийгээд бүтэхгүй бол...»
+(Комментод Айна хариулна 🤖)</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй — текст poll (FB survey формат). Эсвэл: 4 айдсыг 4 emoji-той карт болгосон энгийн график</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Айнагийн нэрээр коммент хариулах 20-30 мин завсарлага төлөвлө (пост гарснаас 1-2 цагийн дараа идэвх оргилдоо).</span></div></div><p><strong>Д6 · 🖼️ Carousel — «Vibe coding-ийн 5 ойлголт»</strong>
+Слайдууд: ①Промт = даалгавар өгөх урлаг ②AI = барилгачин, та = архитектор ③Hallucination = AI худлаа ярьж чаддаг ④Шалгах = таны гол ажил ⑤Энэ бүгдийг М1-д заана
+Caption:</p>
+<blockquote>
+<p>Vibe coding-ийг 5 зургаар. Хадгалаад аваарай 📌</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Carousel 5 slides, each flat illustration navy/amber: 1-chat bubble with gear 2-architect+robot 3-robot with long nose (lie metaphor) 4-magnifying glass on code 5-graduation cap on laptop. No text on images</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva carousel template нэг удаа хийгээд бүх carousel-д дахин ашигла (брэнд нэгдмэл байдал). Эхний удаа 1 цаг, дараа нь 20 мин.</span></div></div><p><strong>Д7 · 📝 CTA</strong></p>
+<blockquote>
+<p>Энэ долоо хоногт «vibe coding гэж юу вэ» гэдгийг үзлээ. Дараагийн асуулт: ТА хэзээ эхлэх вэ?
+⚡ Waitlist-ийн эхний 100 хүний эрх дүүрч байна: -40% + үнэгүй мини-хичээл «AI-аар анхны вэбсайтаа 60 минутад».
+👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Reuse Б7-ийн графикийг өөр өнгийн хувилбараар (амбер фон, navy текст хэсэг)</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Waitlist-ийн бодит тоог шалгаад [тоо]-г соль. 10 мин.</span></div></div><p><strong>🐦 Х1-thread:</strong></p>
+<blockquote>
+<p>Vibe coding-ийн тухай 10 үнэн (Монголд хэрэгжүүлж үзсэн хүний нүдээр) 🧵
+1/ Код мэдэхгүй байх нь саад биш. Архитектур ойлгохгүй байх нь саад...
+[цааш: tool сонголт, промтын ач, hallucination, шалгалтын соёл, бодит хугацаа, зардал, Монголын онцлог, сурах зам, курсийн зарлал]</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй — 10 үнэний 2-3-д нь дэлгэцийн агшин хавсарга</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Thread бичихдээ постын бэлэн бүтцийг өргөжүүл, өөрийн бодит жишээ нэм. 40 мин.</span></div></div><h1>ФАЗ 1 — ДОЛОО ХОНОГ 2: «Зардал ба боломж»</h1>
+<p><strong>Д8 · 📝 Мэдлэг — тооцоо</strong></p>
+<blockquote>
+<p>Жижиг бизнесийн вэбсайтын бодит тооцоо (2026):
+🔸 Студид захиалах: 3-8 сая₮ + өөрчлөлт бүрд нэмэлт төлбөр + 1-3 сар хүлээлт
+🔸 Өөрөө AI-аар: курсийн үнэ + сарын ~10-30 мянган₮ сервер + ХҮССЭН ҮЕДЭЭ өөрчилнө
+Аль нь таны бизнест илүү вэ? Тооцоод үзээрэй.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Comparison infographic layout: two columns, money bags vs small coin, calendar showing months vs days, navy/amber flat, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva-д тоонуудыг нэм (3-8 сая vs курсийн үнэ). Тоонуудаа бодит байлга — студийн үнийг 2-3 газраас лавлаж баталгаажуул. 30 мин.</span></div></div><p><strong>Д9 · 🎬 Айна reel — Тип №2</strong>
+Beats: ①«Та AI-д төлбөр төлөхгүйгээр эхэлж болно гэдгийг мэдэх үү?» ②claude.ai үнэгүй хувилбар үзүүлэх ③«Сурахад үнэгүй хувилбар хангалттай. Хэзээ төлбөртэйд шилжихийг курст хэлж өгнө» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Эхлэхэд 0₮. Үнэгүй хэрэгслүүдээр хаашаа хүрч болохыг Айна тайлбарлав. #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel — claude.ai үнэгүй бүртгэлийг дэлгэцээр үзүүлэх хэсэгтэй</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Claude үнэгүй планы одоогийн боломжийг шалгаж скрипт тааруул (өөрчлөгддөг!). 45 мин.</span></div></div><p><strong>Д10 · 📝 Build-in-public</strong></p>
+<blockquote>
+<p>М3 «UI Дизайн Систем» бичиж дууслаа. Энэ модульд хамгийн их таалагдсан хэсэг: НЭГ промтоор бүтэн нүүр хуудас гаргаад, дараа нь «энд жаахан, тэнд жаахан» гээд монголоор зааварчилж төгс болгох процесс. Яг л дизайнертай ажиллаж байгаа юм шиг — гэхдээ шөнө 2 цагт ч ажилладаг дизайнер 😄
+Явц: ▓▓▓░░░░░░░ 3/15</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Backstage photo/clip + М3 хичээлийн нэг гоё UI кадр</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">М3-ийн бичлэгээс 10 сек клип таслах. 15 мин.</span></div></div><p><strong>Д11 · 🎬 Демо reel — «Захиалга vs AI» харьцуулалт</strong>
+Beats: ①хуваагдсан дэлгэц: «Студи» vs «Та + AI» ②Студи тал: и-мэйл бичих, хүлээх, нэхэх... ③AI тал: промт → үр дүн → дахин промт → бэлэн ④«2 сар vs 2 цаг. Сонголт таных»
+Caption:</p>
+<blockquote>
+<p>«Лого солих юм сан» гэж студид бичээд 2 долоо хоног хүлээж үзсэн үү? 😅 Өөр зам бий. #VibeCoding</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Split-screen reel: зүүн талд имэйл бичих/хүлээх анимаци, баруун талд промт→үр дүн. CapCut split template</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">«Студи» талын дүрслэлд хошин өнгө — хүлээлтийн цаг тикток дээр speed-up. 1 цаг.</span></div></div><p><strong>Д12 · 📝 Асуулт</strong></p>
+<blockquote>
+<p>Танд вэбсайт байгаа юу?
+а) Бий, гэхдээ хуучирсан/ажиллахгүй б) Байхгүй, FB page л бий в) Байхгүй, хэрэггүй гэж боддог г) Бий, сэтгэл хангалуун
+«б» гэж хариулсан хүмүүст нэг чухал зүйл хэлье: FB page бол түрээсийн байр, вэбсайт бол ӨӨРИЙН байшин. Яагаад гэдгийг маргааш тайлбарлая.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй текст пост (асуулт). Эсвэл: FB page vs вэбсайт хоёр байшингийн зураг — түрээс vs өмч</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Маргаашийн carousel-тэй уялдана — хариултуудыг тэмдэглэж аваад carousel-ийн캡шинд ашигла. 10 мин.</span></div></div><p><strong>Д13 · 🖼️ Carousel — «FB page хангалттай юу?»</strong>
+Слайдууд: ①FB page = түрээс: дүрэм нь Meta-гийнх ②Reach жил бүр буурдаг ③Вэбсайт = өмч: Google-ээс ХҮН ӨӨРӨӨ олж ирдэг ④QPay холбож шууд зарна ⑤Хоёулаа хэрэгтэй — page нь урсгал, сайт нь дэлгүүр
+Caption:</p>
+<blockquote>
+<p>FB page + вэбсайт = бүрэн систем. Аль нэг нь дутуу бол яадгийг задаллаа 📌</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Carousel 5 slides flat illustration: 1-rented room with FB logo 2-declining graph 3-own house with .mn flag 4-QR payment 5-bridge connecting both. Navy/amber, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva template-ээ ашигла. Текстүүд постонд бэлэн. 30 мин.</span></div></div><p><strong>Д14 · 📝 CTA — социал нотолгоотой</strong></p>
+<blockquote>
+<p>Waitlist-д аль хэдийн [тоо] хүн бүртгүүлжээ. 🔥 Эхний 100-гийн -40% эрх [үлдсэн тоо] л үлдлээ.
+Курс [огноо]-нд нээгдэнэ. Та жагсаалтад байна уу?
+👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Social proof graphic: counter number big in amber, group of simple avatar icons, navy bg, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бодит waitlist тоог авч Canva-д том бичих. ХУДЛАА ТОО ХЭРЭГЛЭХГҮЙ. 15 мин.</span></div></div><p><strong>🐦 Х2-thread:</strong></p>
+<blockquote>
+<p>Монголд онлайн бизнес эхлүүлэхийн БОДИТ зардал — 2026 оны задаргаа 🧵
+Домэйн, сервер, төлбөрийн систем, имэйл... бүгдийг тоогоор. (Ихэнх нь таны бодсоноос хямд, нэг нь таны бодсоноос үнэтэй)</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй — зардлын задаргааг X-ийн төрөлх хүснэгт/текстээр</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бодит үнэ цэнүүдийг шалгаж бич (домэйн, Hetzner г.м одоогийн ханш). 30 мин.</span></div></div><h1>ФАЗ 1 — ДОЛОО ХОНОГ 3: «Хэрэгслүүд»</h1>
+<p><strong>Д15 · 📝 Мэдлэг</strong></p>
+<blockquote>
+<p>AI кодын хэрэгслүүдийн 3 түвшин:
+1️⃣ Autocomplete — таны бичихийг таамаглана (туслах)
+2️⃣ Chat — асуухад хариулна (зөвлөх)
+3️⃣ Agent — даалгавар өгөхөд ӨӨРӨӨ хийнэ (ажилтан) ← бид энд ажиллана
+Agent түвшний хоёр аварга: Claude Code ба Cursor. Энэ долоо хоногт хоёуланг нь үзүүлье.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Three-tier pyramid illustration: small robot helper at bottom, chat bubble middle, full robot worker at top, navy/amber flat, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva-д 3 түвшний нэрийг нэм. 20 мин.</span></div></div><p><strong>Д16 · 🎬 Айна reel — Claude Code</strong>
+Beats: ①«Терминал гэж сонсоод айх хэрэггүй!» ②Claude Code-д «шинэ хуудас нэм» гээд файлууд өөрчлөгдөж буйг үзүүлэх ③«Тэр өөрөө файл үүсгэж, код бичиж, алдаагаа засдаг. Та зөвхөн зааварчилна» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Claude Code: таны 24/7 ажилладаг, цалин нэхдэггүй хөгжүүлэгч. 🤖 #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel + Claude Code-ийн жинхэнэ дэлгэцийн бичлэг (файлууд өөрчлөгдөж буй) 15-20 сек</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Терминалын демог урьдчилж бэлдэж бичиж ав — live биш. 1 цаг.</span></div></div><p><strong>Д17 · 📝 Build-in-public</strong></p>
+<blockquote>
+<p>М5-М6: нэвтрэлт + дэлгүүрийн систем бичиж байна. Нэг сонирхолтой шийдвэр хуваалцъя: курст бид нууц үцийг яаж ХЭЗЭЭ Ч харж болохгүй байдлаар хадгалахыг (bcrypt) маш энгийнээр тайлбарласан — «буцдаггүй татуулга» гэсэн аналогиор. Аюулгүй байдлыг айдасгүйгээр заах нь өөрөө урлаг юм байна.
+Явц: ▓▓▓▓▓▓░░░░ 6/15</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Backstage + bcrypt «буцдаггүй татуулга» аналогийн жижиг анимаци/зураг: эргэдэг машин нэг чигт</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">М5-аас клип таслах. 15 мин.</span></div></div><p><strong>Д18 · 🎬 Демо reel — Cursor</strong>
+Beats: ①«Энэ бол Cursor — AI суулгасан код бичигч» ②Tab дарахад код өөрөө гарч ирэх ③«Хурдан засварт — Cursor. Том даалгаварт — Claude Code. Хоёуланг нь курст заана» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Tab. Tab. Tab. Бэлэн. 😎 Cursor-ийн autocomplete ингэж ажилладаг. #VibeCoding</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Cursor Tab autocomplete-ийн жинхэнэ бичлэг — код өөрөө гарч ирэх 3-4 удаагийн давталт, satisfying loop</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Демо файлаа бэлдэж Tab-ийн гоё момент бэлэн байлга. 45 мин.</span></div></div><p><strong>Д19 · 📝 Асуулт + Айна коммент</strong></p>
+<blockquote>
+<p>Хэрэв та AI-д ГАНЦ даалгавар өгч болох бол юу хийлгэх вэ? 💭
+Хамгийн сонирхолтой 3 хариултыг Айна шууд промт болгож хувиргаад комментод буцааж өгнө. Алив, туршаад үзье! 👇</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй текст пост. Коммент идэвхэд Айнагийн аватар зургийг профайлд ашигла</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">ГОЛ АЖИЛ: 3 шилдэг хариултад Айнагийн нэрээр БОДИТ промт бичиж өгөх — энэ интерактив амлалтаа заавал биелүүл! 1 цаг.</span></div></div><p><strong>Д20 · 🖼️ Carousel — «Эхлэгчийн хэрэгслийн хайрцаг»</strong>
+Слайдууд: ①Claude (AI тархи) ②VS Code (ажлын ширээ) ③GitHub (цагийн машин) ④Vercel/сервер (дэлхийд гаргагч) ⑤Бүгдийг М1-М2-т суулгаж өгнө — та зүгээр л дагана
+Caption:</p>
+<blockquote>
+<p>Энэ 4 хэрэгсэл = таны шинэ мэргэжил. Бүгд үнэгүй эхэлдэг. 📌</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Carousel 5: toolbox illustrations - brain/chat icon, code editor window, time machine clock with git branches, globe with server, checklist. Navy/amber, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva template. 25 мин.</span></div></div><p><strong>Д21 · 📝 CTA</strong></p>
+<blockquote>
+<p>Хэрэгслүүд бэлэн. Багш (хүн + AI хоёулаа 😄) бэлэн. 77 хичээл бичигдэж байна.
+Дутуу зүйл ганц л байна: ТА.
+👉 digitalger.mn/course — эхний 100-д -40%</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Motivational graphic: empty chair at desk with laptop glowing, amber light, «таныг хүлээж байна» mood, cinematic flat illustration, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva текст. 15 мин.</span></div></div><p><strong>🐦 Х3-thread:</strong></p>
+<blockquote>
+<p>Claude Code vs Cursor — 2 сар хоёуланг нь өдөр бүр хэрэглээд хийсэн дүгнэлт 🧵
+Хэзээ алийг нь, яагаад, ямар тохиргоотой. Жинхэнэ ажлын жишээнүүдтэй.</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Хоёр хэрэгслийн дэлгэцийн агшинг зэрэгцүүлсэн 1 зураг хавсарга</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бодит хэрэглээний жишээнүүдээ тэмдэглэлээсээ цуглуул. 45 мин.</span></div></div><h1>ФАЗ 1 — ДОЛОО ХОНОГ 4: «Монголын орчин» (ялгарлын долоо хоног)</h1>
+<p><strong>Д22 · 📝 Мэдлэг</strong></p>
+<blockquote>
+<p>Гадаад курсуудад БАЙДАГГҮЙ, манай курст БАЙДАГ зүйлс:
+🇲🇳 QPay холболт — Монголын 10+ банкны QR төлбөр
+🇲🇳 .mn домэйн авах бодит заавар
+🇲🇳 и-Баримт, НӨАТ-ын үндэс
+🇲🇳 Монгол хэрэглэгчийн зан төлөвт тохирсон маркетинг
+Учир нь бид Монголд ЗАРДАГ сайт хийж сургана — Америкт биш.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Mongolian-themed graphic: laptop with website, Mongolian flag colors subtle accent, QR code element, ger (yurt) silhouette in background, modern flat navy/amber, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva-д 4 ялгарлын текстийг ✓ тэмдэгтэй жагсаа. 25 мин.</span></div></div><p><strong>Д23 · 🎬 Айна reel — QPay</strong>
+Beats: ①«Монголд онлайн дэлгүүрийн төлбөрийг яаж авах вэ?» ②QPay QR төлбөрийн урсгал (утас скан → төлөгдлөө) ③«Энэ холболтыг М7-д алхам алхмаар хийнэ — гэрээнээс эхлээд код хүртэл» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Худалдан авагч QR уншина → таны данс руу мөнгө орно → системд захиалга үүснэ. Автоматаар. М7 модуль бүхэлдээ үүнд зориулагдсан. #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel + утсаар QPay QR уншиж буй бодит бичлэг (5-7 сек) хадмал</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">QPay төлбөрийн бодит демо бичлэг утсаараа хий (өөрийн сайт дээр sandbox эсвэл бодит жижиг дүн). 45 мин.</span></div></div><p><strong>Д24 · 📝 Build-in-public</strong></p>
+<blockquote>
+<p>М7 «Төлбөрийн Систем» — курсийн хамгийн хариуцлагатай модулийн бичлэг дууслаа. Вэбхүүкийн аюулгүй байдалд бүтэн хичээл зориулсан: «QPay танд "төлөгдлөө" гэж хэлэхэд яаж ИТГЭХГҮЙ байж шалгах вэ» гэдгийг хакерын дүрд орж үзүүлсэн. Мөнгөтэй ажилладаг系統ыг хамгаалж сурахгүй бол болохгүй.
+Явц: ▓▓▓▓▓▓▓░░░ 7/15</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Backstage — М7-ийн «хакерын дүр» хэсгээс 10 сек тизер клип (нүүр хувиргасан/hoodie өмссөн хошин кадр байвал гоё)</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">М7 бичлэгээс клип. 15 мин.</span></div></div><p><strong>Д25 · 🎬 Демо reel — .mn домэйн</strong>
+Beats: ①«digitalger.mn гэдэг хаягийг яаж авдгийг мэдэх үү?» ②домэйн хайлт, бүртгэлийн дэлгэц ③«15 минутын ажил. Курсийн 11.0 хичээлд бүгдийг үзүүлнэ» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Өөрийн нэртэй .mn хаяг = брэндийн эхний алхам. Авахад бодсоноос амархан. 🇲🇳</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Домэйн хайлтын дэлгэцийн бичлэг — нэр бичих → чөлөөтэй ✓ → авах товч. 20 сек</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бүртгэгчийн сайт дээр демо хайлт бичиж ав (худалдаж авахгүй, зөвхөн хайлт). 20 мин.</span></div></div><p><strong>Д26 · 📝 Түүх пост (сэтгэл хөдлөл)</strong></p>
+<blockquote>
+<p>Нэг үнэн түүх: digitalger.mn-ий анхны QPay төлбөр орж ирэхэд би утсаа 10 минут ширтэж суусан. 😅
+«Хүн надаас юм худалдаж авлаа. Миний хийсэн системээр. Шөнө дунд. Би унтаж байхад.»
+Тэр мэдрэмжийг танд бас мэдрүүлмээр байна. Тийм л учраас энэ курсийг хийж байгаа юм.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Emotional illustration: person looking at phone at night, screen glowing with payment notification, warm amber light in dark room, cinematic, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Өөрийн анхны төлбөрийн жинхэнэ скриншот байвал (дүн нуугаад) түүнийг ашигла — бодит нь AI зургаас хүчтэй. 15 мин.</span></div></div><p><strong>Д27 · 🖼️ Carousel — «Монголд онлайн бизнесийн 6 алхам»</strong>
+Слайдууд: ①Санаа + бүтээгдэхүүн ②Вэбсайт (AI-аар!) ③.mn домэйн ④QPay гэрээ ⑤и-Баримт ⑥Маркетинг — курсийн модулиудтай буулгасан зураглал
+Caption:</p>
+<blockquote>
+<p>Санаанаас → анхны борлуулалт хүртэл. Алхам бүрийг курст заана. Хадгалаарай 📌</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Carousel 6 steps path illustration: idea bulb → laptop → .mn flag → QR → receipt → megaphone, connected by amber path line, navy bg, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva — алхам бүрд курсийн модулийн дугаар нэм (М3, М7, М11...). 30 мин.</span></div></div><p><strong>Д28 · 📝 CTA</strong></p>
+<blockquote>
+<p>«Гадаад курс үзээд орхисон» хүн олон. Учир нь: тэнд Stripe заадаг — Монголд QPay хэрэгтэй. Тэнд .com заадаг — танд .mn хэрэгтэй.
+Монголд зориулж бичигдсэн цорын ганц fullstack AI курс. 👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Graphic: world map fading, Mongolia highlighted in amber, laptop in center, flat modern, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva текст: «Stripe биш QPay. .com биш .mn». 20 мин.</span></div></div><p><strong>🐦 Х4-thread:</strong></p>
+<blockquote>
+<p>Монголын ecommerce-д QPay интеграц хийх нь — техник задаргаа 🧵
+Token, invoice, webhook, давхар шалгалт. (Энэ thread дев хүмүүст — гэхдээ кодгүй хүн ч ойлгохоор бичье)</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">QPay урсгалын энгийн диаграм зураг хавсарга (FigJam-аас export)</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Техник нюансуудыг М7 материалаасаа шүүж бич. 45 мин.</span></div></div><h1>ФАЗ 1 — ДОЛОО ХОНОГ 5: «Курсийн дотор» (бүтээгдэхүүн харуулах)</h1>
+<p><strong>Д29 · 📝 Мэдлэг — курсийн бүтэц</strong></p>
+<blockquote>
+<p>90 цагт яг юу багтдаг вэ? Товчоор:
+М1-М2: AI хэрэгсэл + орчин · М3: Дизайн · М4-М6: Дэлгүүрийн систем · М7: QPay · М8: Видео хамгаалалт · М9: Админ · М10: Автоматжуулалт · М11: Сервер, домэйн · М12: Хамгаалалт, тест · М13: SEO, зар · М14: Бизнес, хууль · М15: Төгсөлтийн төсөл + шалгалт
+Хичээл бүр: видео + бичмэл агуулга + промтууд + quiz. Асуултаа комментод 👇</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Курсийн платформын жинхэнэ скриншот — 15 модулийн жагсаалт харагдаж буй sidebar</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Curriculum-ийн цэвэрхэн скриншот ав (бүх модуль харагдахаар). 10 мин.</span></div></div><p><strong>Д30 · 🎬 Айна reel — хичээлийн дотор</strong>
+Beats: ①«Нэг хичээл дотор юу байдгийг үзүүлье!» ②хичээлийн хуудасны screen recording: видео, агуулга, промт жишээ, quiz ③«Тайлбартай хариултууд — буруу хариулсан ч ЯАГААД гэдгээ ойлгоно» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Зүгээр видео үзээд өнгөрдөг курс БИШ. Promtуудыг хуулж, quiz-ээ өгч, төслөө барина. #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel + хичээлийн хуудасны бодит screen recording: видео→агуулга→промт→quiz гүйлгэх 20 сек</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Платформ дээрх нэг бэлэн хичээлээр демо бичлэг. 40 мин.</span></div></div><p><strong>Д31 · 📝 Build-in-public</strong></p>
+<blockquote>
+<p>М9-М10 дууслаа — админ самбар + автоматжуулалт. Миний дуртай хэсэг: захиалга орж ирэхэд Telegram-д мэдэгдэл ирдэг болгох хичээл. Жижигхэн зүйл мэт ч... утсандаа «шинэ захиалга 🎉» гэж ирэхийг хараад л бизнес хийж байгаагаа МЭДЭРДЭГ юм.
+Явц: ▓▓▓▓▓▓▓▓▓▓ 10/15. Финиш ойртлоо!</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Утасны дэлгэцийн бичлэг — Telegram-д «шинэ захиалга 🎉» мэдэгдэл ирэх бодит момент</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Тест захиалгаар мэдэгдлийн бичлэг хий. Progress bar 10/15. 20 мин.</span></div></div><p><strong>Д32 · 🎬 Демо reel — админ самбар</strong>
+Beats: ①«Бараагаа нэмэхэд код руу орох уу? Үгүй!» ②админ дээр бүтээгдэхүүн нэмж, сайтад шууд гарч ирэх нь ③«Өөрийн админтай байх — энэ эрх чөлөө. М9-д бүгдийг барина» ④хаалт
+Caption:</p>
+<blockquote>
+<p>Өөрийн сайтаа өөрөө удирдана — хөгжүүлэгчээс хамаарахгүй. Энэ бол жинхэнэ эзэмшил. 💪</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Админ самбарын бичлэг — бараа нэмэх → сайтад шууд гарч ирэх split screen</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Демо бараа бэлдэж (зураг, нэр) урсгалыг 1 удаа туршаад бич. 40 мин.</span></div></div><p><strong>Д33 · 📝 Q&amp;A зарлал + асуулт цуглуулалт</strong></p>
+<blockquote>
+<p>Энэ Бямба гарагт LIVE хийнэ! 🔴
+Би + Айна (тийм ээ, хамтдаа 😄) таны асуултад хариулна: курс, vibe coding, AI, онлайн бизнес — юу ч байсан асуу.
+Асуултаа одооноос комментод үлдээгээрэй. Хамгийн олон лайктай асуулт эхэлж хариулагдана.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Live announcement graphic: «LIVE» badge red, таны зураг + Айнагийн зураг зэрэгцээ, VS-style poster, navy bg</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Live-ийн өдөр цагаа эцэслэ. Өөрийн зураг + Айнагийн канон зургийг Canva-д нэгтгэ. 25 мин.</span></div></div><p><strong>Д34 · 🔴 LIVE — Q&amp;A (Бямба)</strong>
+Бүтэц: ①5 мин: курсийн тойм + явц ②30-40 мин: асуулт хариулт (Айнагийн хариултуудыг бэлдсэн клипээр оруулна — «энэ асуултад Айна хариулъя») ③5 мин: waitlist сануулга + дараагийн алхам
+Дараа нь: Live-ийн шилдэг хэсгүүдийг 2-3 reels болгож дараагийн долоо хоногт ашиглана ♻️</p>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">LIVE өөрөө. Дараа нь шилдэг 2-3 моментыг reels болго</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">БЭЛТГЭЛ: асуултуудыг урьдчилж цуглуул (Д33), Айнагийн хариултын 2-3 клипийг HeyGen-ээр урьдчилж хийж бэлэн байлга, OBS scene тохируул. 3 цаг.</span></div></div><p><strong>Д35 · 📝 CTA — Live-ийн дүгнэлт</strong></p>
+<blockquote>
+<p>Өчигдрийн live-д оролцсон бүгдэд баярлалаа! Хамгийн их асуугдсан асуулт: «Би 40+ настай, чадах болов уу?»
+Хариулт: Курсийн анхны тестерүүдийн нэг нь 52 настай. Тэр одоо өөрийн сайттай. Нас бол шалтаг биш, давуу тал — танд бизнесийн туршлага бий.
+👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Quote card: «Нас бол шалтаг биш, давуу тал» big quote style, amber quotation marks, navy bg</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Live-ээс гарсан бодит асуултыг ашигла. 15 мин.</span></div></div><p><strong>🐦 Х5-thread:</strong></p>
+<blockquote>
+<p>90 цагийн курс бичих нь өөрөө стартап юм байна. Тоонууд 🧵
+77 хичээл, [N] промт жишээ, 560 quiz... za тэгээд хамгийн их цаг идсэн зүйл нь огт өөр зүйл байсан (таахыг урья)</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Курс бичсэн статистикийн тоонуудыг табтай зураг болго</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бодит тоонуудаа цуглуул: нийт бичлэгийн цаг, промтын тоо г.м. 30 мин.</span></div></div><h1>ФАЗ 1 — ДОЛОО ХОНОГ 6: «Айдас няцаах + сүүлийн дуудлага»</h1>
+<p><strong>Д36 · 📝 Миф №1</strong></p>
+<blockquote>
+<p>«Код мэдэхгүй бол боломжгүй» — МИФ. ❌
+Үнэн: Архитектур ОЙЛГОХ хэрэгтэй, код ЦЭЭЖЛЭХ хэрэггүй. Жолоо барихын тулд хөдөлгүүр угсарч сурдаггүйтэй адил. Курс таныг «жолооч» болгоно — хөдөлгүүрийг AI угсарна.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Myth-busting graphic: «МИФ» stamp crossed out in red over old computer, «ҮНЭН» checkmark amber over modern laptop with AI, flat style</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva — жолооч/хөдөлгүүр аналогийг зургаар. 20 мин.</span></div></div><p><strong>Д37 · 🎬 Айна reel — Миф №2</strong>
+Beats: ①«AI кодыг бүгдийг хийдэг юм бол би юу сурах юм?» ②«Сайн асуулт! Хариулт: ШИЙДВЭР гаргаж сурна» ③жишээ: AI 3 хувилбар санал болгоход аль нь зөвийг сонгох ④«AI ажилчин, ТА захирал. Захирлын сургалт энэ»
+Caption:</p>
+<blockquote>
+<p>AI бүгдийг хийвэл та юу хийх вэ? Хамгийн чухал зүйлийг: ШИЙДНЭ. #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel — AI 3 хувилбар санал болгож буй дэлгэц + сонголт хийх курсор</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">3 хувилбарын демо дэлгэц бэлдэх. 45 мин.</span></div></div><p><strong>Д38 · 📝 Build-in-public — ФИНИШ 🏁</strong></p>
+<blockquote>
+<p>15/15. ▓▓▓▓▓▓▓▓▓▓ БҮХ МОДУЛИЙН БИЧЛЭГ ДУУСЛАА.
+[N] цаг бичлэг, [N] аяга кофе, 2 эвдэрсэн микрофон 😅
+Одоо монтаж + платформд байршуулалт. [Огноо]-нд уулзацгаая.
+Энэ замыг хамт туулсан та бүхэнд баярлалаа — таны коммент, асуулт бүр курсийг илүү болгосон. 🙏</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">15/15 progress bar анимаци + бичлэгийн хугацааны статистик. Боломжтой бол бүх хичээлийн файлуудын folder харагдац — масштаб мэдрэгдэнэ</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бодит тоонуудаа нэгтгэ (нийт цаг, кофе 😄). Сэтгэл хөдлөлтэй бичих — энэ пост organic сайн явдаг төрөл. 30 мин.</span></div></div><p><strong>Д39 · 🎬 Демо reel — capstone тизер</strong>
+Beats: ①«Курсийн төгсгөлд та юу хийх вэ?» ②М15: өөрийн төслөө эхнээс нь — диаграм, код, deploy кадрууд ③«Өөрийн санаагаар, өөрийн брэндээр. Бид шалгаж, үнэлж, төгсгөнө» ④«Таны төсөл таны CV болно»
+Caption:</p>
+<blockquote>
+<p>Сертификат биш — АЖИЛЛАДАГ ТӨСӨЛ бол жинхэнэ диплом. М15 Capstone. 🎓</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">М15 capstone хичээлийн материалаас кадрууд + «Таны төсөл таны CV» текст</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Capstone хичээлийн скриншот/клип. 20 мин.</span></div></div><p><strong>Д40 · 📝 Сэтгэгдэл/нотолгоо (тестерүүдээс)</strong></p>
+<blockquote>
+<p>Курсийн эхний хэсгийг туршсан хүмүүсээс:
+💬 «[Бодит тестерийн сэтгэгдэл #1]»
+💬 «[Бодит тестерийн сэтгэгдэл #2]»
+[Огноо]-нд та ч эхэлж болно. Эхний 100-гийн эрх: [үлдсэн] ширхэг.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Testimonial card template: quote marks, 5 stars, avatar circle placeholder, navy/amber</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">ЧУХАЛ: тестерүүдээс БОДИТ сэтгэгдэл цуглуулсан байх ёстой (2-3 хүнд эртхэн хандаарай — энэ пост хүртэл 1-2 долоо хоног бий). Зөвшөөрөл авахаа мартуузай. 1 цаг.</span></div></div><p><strong>Д41 · 🖼️ Carousel — «Та 90 цагийн дараа...»</strong>
+Слайдууд: ①Өөрийн вэбсайттай ②QPay-ээр орлого авдаг ③Админаасаа бүгдийг удирддаг ④AI-тай ажиллах насан туршийн чадвартай ⑤Монголын цөөн vibe coder-ийн нэг — Энэ бүгд [огноо]-нд эхэлнэ
+Caption:</p>
+<blockquote>
+<p>90 цагийн хөрөнгө оруулалт. Насан туршийн чадвар. Тоолж эхэллээ... ⏳</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Carousel 5 «After» illustrations: person with own website on screen, money notification, dashboard control, AI handshake, Mongolian flag + code. Navy/amber, no text</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva template. 30 мин.</span></div></div><p><strong>Д42 · 📝 CTA — countdown руу шилжих</strong></p>
+<blockquote>
+<p>Дараагийн долоо хоногоос ОНЦГОЙ зүйл эхэлнэ: нээлтийн countdown + курсийн 3 хичээлийг бүрэн ҮНЭГҮЙ нээнэ.
+Waitlist-д байгаа хүмүүс бүгдийг хамгийн түрүүнд авна. Та орсон уу?
+👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Countdown teaser: big «7» number with clock elements, dramatic amber on navy, cinematic</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Дараагийн 7 хоногийн бүх материалыг ЭНЭ өдрөөс өмнө бэлэн болго (үнэгүй 3 хичээл платформ дээр нээгдэхэд бэлэн үү?). 20 мин.</span></div></div><p><strong>🐦 Х6-thread:</strong></p>
+<blockquote>
+<p>Бичиж дууслаа. 90 цагийн курс. Монголоор. Одоо хамгийн айдастай хэсэг: зарах. 🧵
+Launch-аа ч build in public хийе — үнэ, тоо, юу болсон бүгдийг задлана.</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Зураггүй — шууд сэтгэлийн thread</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Launch-ийн айдсаа шударгаар бич — vulnerability X дээр ажилладаг. 30 мин.</span></div></div><h1>ФАЗ 2 — COUNTDOWN ДОЛОО ХОНОГ (нээлтийн өмнөх 7 хоног)</h1>
+<p><strong>C1 · 📝 Зарлал</strong></p>
+<blockquote>
+<p>📅 [Огноо]. Энэ өдрийг тэмдэглээрэй.
+«AI-аар Fullstack Вэбсайт Бүтээх» нээгдэнэ. Эхний 48 цагт — зөвхөн waitlist-ийн гишүүдэд, -40% үнээр.
+Энэ долоо хоногт: 3 хичээлийг бүрэн үнэгүй нээнэ. Хүлээгээрэй. 🔥</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Save-the-date graphic: огноо ASAR том amber тоогоор, navy bg, course logo</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Огноогоо ЭЦЭСЛЭЖ бүх постонд жигд ашигла. EARLY100 купоны эхлэх цагийг тохируул. 20 мин.</span></div></div><p><strong>C2 · 🎬 Үнэгүй хичээл №1 (бүрэн)</strong>
+1.1 «AI-д туслуулсан хөгжүүлэлт гэж юу вэ» хичээлийг бүрэн нээж тавина.
+Caption:</p>
+<blockquote>
+<p>ҮНЭГҮЙ БҮРЭН ХИЧЭЭЛ №1: Vibe coding-ийн суурь — 45 минут. Курсийн чанарыг өөрөө дүгнээрэй. Линк коммент + bio-д. (Үзээд асуух зүйл гарвал — комментод, Айна хариулна)</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">1.1 хичээлийн БҮРЭН видео (платформ дээр нээлттэй болгоод линкдэнэ) + cover: хичээлийн нэр</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Платформ дээр 1.1-ийг нийтэд нээлттэй болгох тохиргоо. Линк шалгах (нэвтрэлтгүй үзэгдэх үү!). 30 мин.</span></div></div><p><strong>C3 · 🎬 Үнэгүй хичээл №2 (бүрэн)</strong>
+3.4 «Нүүр хуудас, hero, бүтээгдэхүүний карт» — хамгийн wow визуал хичээл.
+Caption:</p>
+<blockquote>
+<p>ҮНЭГҮЙ ХИЧЭЭЛ №2: Бүтэн нүүр хуудас AI-аар. Энэ хичээлийн дараа таны гар загатнаж эхэлнэ гэдгийг баталъя 😄</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">3.4 хичээл нээх + cover: бэлэн болсон нүүр хуудасны гоё кадр</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">3.4-ийг нээлттэй болгох. 15 мин.</span></div></div><p><strong>C4 · 🎬 Үнэгүй хичээл №3 (бүрэн)</strong>
+7.1 «QPay API танилцуулга» — ялгарлыг харуулах хичээл.
+Caption:</p>
+<blockquote>
+<p>ҮНЭГҮЙ ХИЧЭЭЛ №3: QPay-ийн дотоод механизм. Үүнийг өөр ХААНААС ч монголоор олохгүй. Энэ бол амлалт.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">7.1 хичээл нээх + cover: QPay QR + код зэрэгцсэн кадр</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">7.1-ийг нээлттэй болгох. 15 мин.</span></div></div><p><strong>C5 · 📝 Үнийн ил тод задаргаа</strong></p>
+<blockquote>
+<p>Шударга ярья. Курсийн үнэ:
+Жагсаалтын үнэ: 199,000₮ (90 цаг = цагт ~2,200₮ — нэг кофены хагас ☕)
+⚡ Waitlist + эхний 48 цаг: 119,000₮ (-40%)
+Харьцуулбал: вэбсайт захиалга 3-8 сая₮. Энэ курс таныг ӨӨРИЙГӨӨ тэр студи болгоно.
+Margaash: миний + Айнагийн хамтарсан LIVE. Сүүлийн асуултууд.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Price breakdown graphic: coffee cup vs course icon, «цагт 2,200₮» calculation visible as design element, honest clean style</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Canva. Margaashийн Live-ийн зар давхар оруул. 25 мин.</span></div></div><p><strong>C6 · 🔴 LIVE — нээлтийн өмнөх Q&amp;A</strong>
+Бүтэц: курсийн платформын бүрэн тур (хичээл дотор нь оруулж үзүүлэх!) → үнэ, төлбөр, хугацааны асуултууд → «маргааш waitlist-ийн имэйл шалгаарай» дуудлага.</p>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">LIVE — платформын бүрэн тур. Дараа нь клипүүд</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Платформ цэвэрхэн demo data-тай байх, бүх хичээл зөв ажиллаж буйг урьдчилж шалга. Худалдан авах урсгалыг LIVE дээр үзүүлж болохоор тестэл. 2 цаг.</span></div></div><p><strong>C7 · 📝 Маргааш!</strong></p>
+<blockquote>
+<p>🌅 Маргааш өглөө 10:00 цагт waitlist-ийн гишүүдийн имэйл рүү нээлтийн линк очно. -40% эрх 48 цаг хүчинтэй.
+Жагсаалтад амжиж орох СҮҮЛЧИЙН боломж: 👉 digitalger.mn/course
+Маргааш уулзъя. Та бэлэн үү? 🚀</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Tomorrow teaser: sunrise over laptop horizon, «10:00» clock, anticipation mood, amber glow</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Waitlist имэйлээ ШӨНӨ бэлдэж 10:00-д автомат/гараар илгээхээр товло. Линк, купон бүгд ажиллаж буйг ДАХИН шалга. 1 цаг.</span></div></div><h1>ФАЗ 3 — LAUNCH ДОЛОО ХОНОГ</h1>
+<p><strong>L1 (нээлт, waitlist-д) · 📧 имэйл + 📝 пост</strong>
+Имэйл (waitlist-д, 10:00): Гарчиг: «Таны -40% эрх нээгдлээ (48 цаг)»</p>
+<blockquote>
+<p>Та хамгийн түрүүнд мэдэх ёстой хүн. Курс нээгдлээ — таны амласан 119,000₮ үнэ энэ линкээр 48 цагийн турш хүчинтэй: [линк]. 90 цаг, 77 хичээл, Айна бид хоёр таныг хүлээж байна.
+Пост (оройдоо):
+Нээгдлээ. 🎉 Эхний [N] цагт [N] хүн элслээ. Waitlist-ийн гишүүд имэйлээ шалгаарай — таны эрх 48 цаг хүчинтэй. Олон нийтэд маргааш нээгдэнэ.</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Имэйл — зураг хэрэггүй, цэвэр текст (deliverability!). Орой пост: confetti + «НЭЭГДЛЭЭ» graphic</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">ӨГЛӨӨ 9:30: бүх систем шалгах (төлбөр, купон, хичээл хандалт). Имэйл 10:00. Өдөржин Messenger/коммент хариулахад бэлэн бай — эхний өдрийн асуултууд = борлуулалт. Бүтэн өдөр.</span></div></div><p><strong>L2 · 📝 Олон нийтийн нээлт</strong></p>
+<blockquote>
+<p>🚀 АЛБАН ЁСООР НЭЭГДЛЭЭ.
+«AI-аар Fullstack Вэбсайт Бүтээх» — Монголын анхны бүрэн хэмжээний vibe coding курс.
+15 модуль · 77 хичээл · 90 цаг · QPay, .mn, и-Баримт — бүгд монголоор.
+Эхний 100 элсэгчийн -40% эрхээс [үлдсэн] нь үлдлээ: 199,000₮ → 119,000₮
+👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Grand opening graphic: курсийн hero визуал + «АЛБАН ЁСООР НЭЭГДЛЭЭ» badge + бүх тоонууд (15/77/90ц)</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бүх сувагт зэрэг тавих (FB, IG, X, stories). Retargeting зараа энэ өдрөөс асаа — Ads Manager бэлэн байх. 1 цаг + зарын тохиргоо.</span></div></div><p><strong>L2-3 · 🎬 Айна reel — нээлтийн өдөр</strong>
+Beats: ①«Өнөөдөр онцгой өдөр!» ②элсэлтийн тоолуур, сурагчдын анхны сэтгэгдлүүд дэлгэцээр ③«Эхний 100-гийн эрх дуусахаас өмнө ороорой» ④«Ангид уулзъя!»
+Caption:</p>
+<blockquote>
+<p>Айна анхны сурагчидтайгаа мэндчилж байна 🤖🎉 Та хэзээ нэгдэх вэ? #АйнаБагш</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Айна reel — элсэлтийн тоо + сурагчдын мэндчилгээ</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бодит тоог оруулж HeyGen дээр хурдан хийх. 40 мин.</span></div></div><p><strong>L3 · 📝 Social proof</strong></p>
+<blockquote>
+<p>Эхний 24 цаг: [N] сурагч. 🔥
+Шинэ элсэгчдийн түгээмэл асуулт: «Хэзээнээс эхэлж болох вэ?» — ЯГ ОДОО. Бүх хичээл нээлттэй, өөрийн хурдаар үзнэ, хугацааны хязгааргүй.
+[Сурагчийн скриншот/сэтгэгдэл #1]</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Real screenshot: анхны сурагчдын сэтгэгдэл/чат (зөвшөөрөлтэй, нэр бүдгэрүүлсэн)</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Эхний өдрийн сурагчдаас сэтгэгдэл хүс (имэйл/чатаар) — зөвшөөрөл авч скриншотло. 30 мин.</span></div></div><p><strong>L4 · 🎬 Демо reel — сурагчийн анхны үр дүн</strong>
+Beats: ①«Элсээд 2 хоног болж буй сурагчийн хийсэн зүйл» ②тестер/анхны сурагчийн hero хуудасны скриншот ③«2 хоног. Кодгүй хүн байсан» ④CTA
+Caption:</p>
+<blockquote>
+<p>Үр дүн өөрөө ярьдаг. 48 цагийн дотор анхны хуудсууд мэндэллээ. 👶➡️💪</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Сурагчийн бодит үр дүнгийн скриншот (hero хуудас) before/after хэлбэрээр</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Идэвхтэй сурагчтай холбогдож үр дүнг нь авах. Байхгүй бол тестерийн материал ашигла. 30 мин.</span></div></div><p><strong>L5 · 📝 Айдас няцаалт — эргэлзэгчдэд</strong></p>
+<blockquote>
+<p>«Дараа авъя» гэж бодож байна уу? Ойлгож байна. Гэхдээ хоёр тоо:
+1) Early-bird -40% эрх: [үлдсэн] ширхэг
+2) Үнэ буцаад 199,000₮ болоход та юу хүлээж байснаа санахгүй
+Эргэлзэж байвал — 3 үнэгүй хичээлийг дахин үзээрэй. Тэр чанар 77 хичээлд жигд. 👉 digitalger.mn/course</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Urgency graphic: үлдсэн эрхийн тоо amber дугуйд, цаг дөхөж буй мэдрэмж, гэхдээ хямдхан biš цэвэр стиль</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">БОДИТ үлдсэн тоог шалгаж тавь. 20 мин.</span></div></div><p><strong>L6 · 📝 + 🎬 Сүүлийн 24 цаг</strong></p>
+<blockquote>
+<p>⏰ Early-bird үнэ дуусахад 24 цаг үлдлээ.
+Маргааш энэ цагаас хойш: 199,000₮. Өнөөдөр: 119,000₮.
+Энэ бол маркетингийн трюк биш — waitlist-д амласан үг. Үгэндээ хүрдэг газар байя гэж бодсон. (Тийм учраас сунгалт БАЙХГҮЙ.)
+Reel beats: цаг тоолуур + элсэгчдийн тоо + «финал дуудлага» (таны хоолойгоор!)</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Визуал</span><span class="ad-txt">Таны хоолойтой 30 сек шууд хандсан видео (Айна биш — ХҮН!): «24 цаг үлдлээ, амласан ёсоор сунгахгүй». Камерт эсвэл дэлгэц+хоолой</span></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Энэ бол кампанит ажлын хамгийн чухал видео — өөрөө гар. Скрипт постонд бий. 1 цаг.</span></div></div><p><strong>L7 · 📝 Хаалт + шинэ хэвийн байдал</strong></p>
+<blockquote>
+<p>Early-bird хаагдлаа. Эхний долоо хоног: [N] сурагч. 🙏
+Курс одоо жагсаалтын үнээр (199,000₮) байнга нээлттэй. Дараагийн томоохон урамшуулал хэзээ байхыг хэн ч мэдэхгүй (би ч мэдэхгүй 😄).
+Одоо миний гол ажил: сурагчдынхаа асуултад хариулж, тэдний төслүүдийг амжилтад хүргэх. Эхний capstone төслүүдийг удахгүй энд гайхуулна — хүлээгээрэй. 🎓</p>
+</blockquote>
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Thank you graphic: гар бариад буй хүн + AI дүрс, элсэгчдийн тоо, дулаан өнгө</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Эцсийн тоонуудаа нэгтгэ. Дараагийн фазын (сурагчдын амжилт) контент төлөвлөгөө руу шилж. 30 мин.</span></div></div><p><strong>🐦 Launch thread (L2 өдөр):</strong></p>
+<blockquote>
+<p>Өнөөдөр би 8 долоо хоног build in public хийсэн курсээ нээлээ. Эхний 24 цагийн бодит тоонууд 🧵
+Waitlist [N] хүн → эхний өдөр [N] борлуулалт → conversion [N]%. Юу ажилласан, юу ажиллаагүй — бүгдийг задлая.</p>
+</blockquote>
+<hr />
+<div class="addon"><div class="ad-row"><span class="ad-tag t1">🎨 Зургийн промт</span><span class="ad-txt">Бодит тоонуудын скриншот/график хавсарга</span><button class="cpy" title="Промт хуулах">⧉ хуулах</button></div><div class="ad-row"><span class="ad-tag t2">🎒 Бэлтгэл</span><span class="ad-txt">Бүх бодит тоог задал — ил тод байдал л энэ thread-ийн үнэ цэн. 40 мин.</span></div></div><h1>Ашиглалтын тэмдэглэл</h1>
+<ol>
+<li><strong>Дахин ашиглалт:</strong> Шилдэг reels 2-3 долоо хоногийн дараа TikTok-д тавьж тест — 0 зардал.</li>
+<li><strong>Boost дүрэм:</strong> Organic-аар сайн явсан (engagement өндөр) постыг л boost хий — муу пост мөнгөөр сайн болдоггүй.</li>
+<li><strong>Айнагийн коммент:</strong> Өдөрт 15-30 минут коммент хариулалт — Айнагийн нэрийн өмнөөс хариулахдаа AI-гаар ноорог гаргаад өөрөө шалгаж тавь.</li>
+<li><strong>[N] тоонууд:</strong> Бодит тоог үргэлж ашигла — худал тоо нэг л удаа илчлэгдэхэд бүх кампанит ажил нурна.</li>
+<li><strong>Уян хатан байдал:</strong> Аль нэг пост огцом сайн ажиллавал төлөвлөгөөг өөрчилж тэр сэдвээр 2-3 нэмэлт контент хий — calendar бол хууль биш, чиглэл.</li>
+</ol></div>
+
+</div>
+</div>
+
+<div class="section" id="sec-ads">
+<div class="mdpane">
+<h2 style="margin-top:0">📢 Зарын креативууд — Ads Manager-т бэлэн</h2>
+<p style="color:#6B7490;font-size:13px">Meta Ads Manager-т шууд хуулж тавих текстүүд. Кампанит ажил бүрд primary text-ийн хэд хэдэн хувилбар бий — A/B тестэд ашиглана. Хувилбар бүрийн дэргэдэх ⧉ товчоор хуул.</p>
+
+<h1>Кампанит ажил 1 — LEAD (cold аудиенц, төсвийн 40%)</h1>
+<p><strong>Зорилго:</strong> Lead magnet → waitlist бүртгэл · <strong>Optimization:</strong> Leads/Conversions (Lead event) · <strong>Аудиенц:</strong> МН, 24-45 нас, сонирхол: бизнес, технологи, онлайн худалдаа, жижиг бизнес эзэд · <strong>Placement:</strong> Advantage+ (FB+IG автомат) · <strong>Креатив:</strong> Б4/Д4 маягийн демо reel эсвэл Айнагийн танилцуулга</p>
+<h3>Primary text (3 хувилбар)</h3>
+<blockquote><p><strong>Хувилбар А (асуудал → шийдэл):</strong><br>Вэбсайт захиалбал 3-8 сая₮. Сурвал жил. Гэтэл гурав дахь зам гарчихсан — AI.<br><br>Код бичихгүйгээр, монголоор зааварчилж, бодит вэбсайт бүтээж сур. Үнэгүй мини-хичээлээр өөрөө шалгаад үз: «AI-аар анхны вэбсайтаа 60 минутад».<br><br>👉 Имэйлээ үлдээгээд үнэгүй хичээлээ аваарай. Курс нээгдэхэд эхний 100 хүн -40% эрхтэй.</p></blockquote>
+<blockquote><p><strong>Хувилбар Б (нотолгоо түрүүлсэн):</strong><br>Энэ сайтыг (digitalger.mn) нэг хүн, 3 долоо хоногт, AI-тай хамт хийсэн. Кодын дээд боловсролгүй. Студи хөлслөөгүй.<br><br>Яаж гэдгийг нь 60 минутын ҮНЭГҮЙ хичээлээр үзүүлье — та өөрөө анхны вэбсайтаа хийж үзнэ.<br><br>👉 Үнэгүй хичээл авах</p></blockquote>
+<blockquote><p><strong>Хувилбар В (богино, шууд):</strong><br>Код мэдэхгүй. Вэбсайт хэрэгтэй. Танил сонсогдож байна уу?<br><br>60 минутад анхны сайтаа AI-аар хийх ҮНЭГҮЙ хичээл — имэйл үлдээгээд шууд аваарай. 🚀</p></blockquote>
+<h3>Headline (6 хувилбар — 40 тэмдэгтэд багтсан)</h3>
+<blockquote><p>1. Кодгүйгээр вэбсайт — 60 минутад<br>2. AI таны вэб хөгжүүлэгч болно<br>3. Үнэгүй хичээл: анхны сайтаа хий<br>4. Вэбсайт = 3 сая₮? Өөр зам бий<br>5. Монголоор сур, AI-аар бүтээ<br>6. Эхний 100 хүнд -40% эрх</p></blockquote>
+<h3>Description + CTA</h3>
+<blockquote><p>Description: Монгол хэл дээрх анхны бүрэн vibe coding сургалт · CTA товч: <strong>Sign up</strong> (Бүртгүүлэх) эсвэл <strong>Learn more</strong></p></blockquote>
+
+<h1>Кампанит ажил 2 — VIDEO VIEWS (awareness, төсвийн 20%)</h1>
+<p><strong>Зорилго:</strong> Retargeting сан бүрдүүлэх · <strong>Optimization:</strong> ThruPlay · <strong>Креатив:</strong> Organic-аар шилдэг гарсан reels-ээ ашиглана (Б6 Айна дебют, Б2 digitalger түүх, Д4 демо) · <strong>Аудиенц:</strong> өргөн (МН 22-50), Advantage+</p>
+<h3>Primary text (2 хувилбар — видеог сатааруулахгүй богино)</h3>
+<blockquote><p><strong>А:</strong> Намайг AI бүтээсэн. Яаж гэдгийг нь энэ курс заана. 🤖 #АйнаБагш</p></blockquote>
+<blockquote><p><strong>Б:</strong> 0 мөр код. 1 промт. 1 вэбсайт. Энэ бол 2026 оны ажлын арга. Дэлгэрэнгүй: digitalger.mn</p></blockquote>
+
+<h1>Кампанит ажил 3 — RETARGETING (халуун аудиенц, төсвийн 25% → launch үед 50%)</h1>
+<p><strong>Аудиенц:</strong> Видео 50%+ үзсэн / сайтад орсон / Lead болсон — худалдаж авсныг EXCLUDE! · <strong>Optimization:</strong> Conversions (Purchase) · <strong>Хугацаа:</strong> Countdown + Launch долоо хоногт идэвхтэй</p>
+<h3>Primary text (3 хувилбар — 3 өөр сэтгэл зүй)</h3>
+<blockquote><p><strong>А (urgency — launch үед):</strong><br>Таны харж байсан тэр курс НЭЭГДЛЭЭ. ⏰<br><br>Эхний 100 элсэгчийн -40% эрх хурдан дуусч байна: 199,000₮ → 119,000₮.<br><br>15 модуль · 77 хичээл · 90 цаг · Бүгд монголоор. QPay-ээс и-Баримт хүртэл — Монголд зориулагдсан цорын ганц fullstack AI курс.<br><br>👉 Одоо элсэх</p></blockquote>
+<blockquote><p><strong>Б (social proof):</strong><br>Эхний [N] сурагч аль хэдийн эхэлчихсэн. 🔥<br><br>«[Сурагчийн бодит сэтгэгдэл]»<br><br>90 цагийн дараа та өөрийн вэбсайттай, QPay-ээр орлого авдаг, AI-тай ажиллах насан туршийн чадвартай болно. Early-bird үнэ дуусахаас өмнө ороорой.</p></blockquote>
+<blockquote><p><strong>В (эргэлзээ няцаах):</strong><br>«Би код мэдэхгүй, чадах болов уу?» — хамгийн их асуудаг асуулт.<br><br>Хариулт: энэ курс ЯГ кодгүй хүнд зориулагдсан. Үнэгүй 3 хичээлийг нь үзээд өөрөө шийдээрэй — дараа нь worry-гүйгээр элсээрэй.<br><br>👉 Үнэгүй хичээлүүд + дэлгэрэнгүй</p></blockquote>
+<h3>Headline (5 хувилбар)</h3>
+<blockquote><p>1. -40% эрх дуусахад [N] цаг<br>2. Эхний 100-гийн үнэ: 119,000₮<br>3. [N] сурагч аль хэдийн эхэлсэн<br>4. Үнэгүй 3 хичээл — өөрөө шалга<br>5. 90 цаг. Насан туршийн чадвар.</p></blockquote>
+<div class="callout"><strong>Зарын зургийн промт (статик хувилбарт):</strong> Айнагийн канон зураг + бүтээгдэхүүний скриншот хосолсон layout Canva-ар. Зар бүрд 1080×1080 + 1080×1920 (stories) хоёр хэмжээ бэлд. Текст зургийн 20%-аас бага — Meta-гийн дүрэм.</div>
+</div>
+
+<div class="mdpane" style="margin-top:18px">
+<h2>📧 Nurture имэйлийн цуврал — waitlist-д (8 имэйл)</h2>
+<p style="color:#6B7490;font-size:13px">Бүртгүүлснээс launch хүртэл. Илгээгч: Таны нэр (DigitalGer) — noreply биш! Имэйл бүр НЭГ зорилготой, богино.</p>
+<table>
+<tr><th>№</th><th>Хэзээ</th><th>Subject</th><th>Зорилго</th></tr>
+<tr><td>1</td><td>Бүртгүүлмэгц шууд</td><td>Таны үнэгүй хичээл бэлэн 🎁</td><td>Magnet хүргэх</td></tr>
+<tr><td>2</td><td>+3 хоног</td><td>Сайтаа хийж үзсэн үү?</td><td>Идэвхжүүлэлт</td></tr>
+<tr><td>3</td><td>+7 хоног</td><td>Би яаж кодгүй сайт хийдэг болсон бэ</td><td>Түүх/итгэл</td></tr>
+<tr><td>4</td><td>+14 хоног</td><td>Дараагийн 5 промт (бэлэглэе)</td><td>Үнэ цэн</td></tr>
+<tr><td>5</td><td>+21 хоног</td><td>Курсийн дотор юу байгааг үзүүлье</td><td>Бүтээгдэхүүн</td></tr>
+<tr><td>6</td><td>+28 хоног</td><td>3 хичээл — бүрэн үнэгүй нээлээ</td><td>Халаалт</td></tr>
+<tr><td>7</td><td>Launch -1 хоног</td><td>Маргааш 10:00 — таны эрх нээгдэнэ</td><td>Бэлтгэл</td></tr>
+<tr><td>8</td><td>Launch өдөр 10:00</td><td>Таны -40% эрх нээгдлээ (48 цаг)</td><td>БОРЛУУЛАЛТ</td></tr>
+</table>
+
+<h3>Имэйл 1 — Magnet хүргэлт (бүртгүүлмэгц)</h3>
+<blockquote><p><strong>Subject:</strong> Таны үнэгүй хичээл бэлэн 🎁 · <strong>Preview:</strong> 60 минутад анхны вэбсайтаа хийцгээе<br><br>Сайн уу, [Нэр]!<br><br>Тавтай морил — та зөв газраа ирлээ. Амласан ёсоор «AI-аар анхны вэбсайтаа 60 минутад» хичээл тань энд байна:<br><br>▶️ [Хичээл үзэх — линк]<br><br>Зөвлөгөө: видеог зүгээр үзээд өнгөрөхгүй — ХАМТ ХИЙГЭЭРЭЙ. 60 минутын дараа та өөрийн анхны сайттай болсон байх болно. Промтуудыг хуулахад бэлэн хавсаргалаа.<br><br>Сайтаа хийгээд надад хариу имэйлээр скриншотоо илгээгээрэй — би үнэхээр харах дуртай! 😊<br><br>[Таны нэр] · DigitalGer</p></blockquote>
+
+<h3>Имэйл 2 — Идэвхжүүлэлт (+3 хоног)</h3>
+<blockquote><p><strong>Subject:</strong> Сайтаа хийж үзсэн үү? · <strong>Preview:</strong> Хамгийн их гацдаг 3 газрыг шийдье<br><br>Сайн уу!<br><br>Хичээлээ үзэж амжсан уу? Хэрэв хийж эхлээгүй бол — өнөөдөр 60 минут гаргаарай, үнэхээр болно.<br><br>Хийж үзсэн хүмүүсийн хамгийн их гацдаг 3 газар:<br>1. Промт хэт ерөнхий → бүтэц, өнгө, хэлээ ЗААЖ өг<br>2. Код хадгалаад нээхэд хоосон → файлын өргөтгөл .html мөн үү?<br>3. Өөрчлөлт хийхэд бүгд алга болов → «зөвхөн X хэсгийг өөрчил, бусдыг хэвээр үлдээ» гэж нэм<br><br>Асуулт байвал шууд хариулаарай — би уншдаг шүү.<br><br>[Таны нэр]</p></blockquote>
+
+<h3>Имэйл 3 — Түүх (+7 хоног)</h3>
+<blockquote><p><strong>Subject:</strong> Би яаж кодгүй сайт хийдэг болсон бэ · <strong>Preview:</strong> 3 долоо хоногийн түүх<br><br>Сайн уу!<br><br>Өнөөдөр жаахан хувийн зүйл хуваалцъя.<br><br>[Өөрийн бодит түүх — 4-5 өгүүлбэр: яагаад эхэлсэн, эхний бэрхшээл, анхны амжилтын мэдрэмж, digitalger.mn өнөөдөр]<br><br>Үүнийг ярьж байгаагийн учир: над шиг «кодчин биш» хүн чадсан юм бол та лав чадна. Курс дээр би энэ замаа алхам алхмаар, алдаатай нь хамт зааж байгаа.<br><br>Курс [огноо]-нд нээгдэнэ. Таны -40% эрх хүчинтэй хэвээр. 😉<br><br>[Таны нэр]</p></blockquote>
+
+<h3>Имэйл 4 — Бэлэг (+14 хоног)</h3>
+<blockquote><p><strong>Subject:</strong> Дараагийн 5 промт (бэлэглэе) · <strong>Preview:</strong> Сайтаа дараагийн түвшинд<br><br>Сайн уу!<br><br>Анхны сайтаа хийсэн хүмүүст зориулж — дараагийн 5 промт:<br><br>1. «Сайтад dark mode нэм — товчоор солигддог»<br>2. «FAQ хэсэг нэм — 5 асуулт, дарахад нээгддэг»<br>3. «Холбоо барих формыг ажилладаг болго (имэйл рүү)»<br>4. «Google-д харагдахад бэлдэж meta тагуудыг нэм»<br>5. «Утсан дээр цэс burger болдог болго»<br><br>Тус бүрийг туршаад үр дүнгээ хараарай. Энэ бол курсийн М3 модулийн амтлагч — тэнд бид үүнээс 100 дахин гүн орно.<br><br>[Таны нэр]</p></blockquote>
+
+<h3>Имэйл 5 — Курсийн дотор (+21 хоног)</h3>
+<blockquote><p><strong>Subject:</strong> Курсийн дотор юу байгааг үзүүлье · <strong>Preview:</strong> 15 модуль, нэг зорилго<br><br>Сайн уу!<br><br>«Курст яг юу байх вэ?» гэж олон хүн асуусан тул товчоор:<br><br>🏗️ М1-М6: AI хэрэгслүүд → бүрэн ажиллагаатай онлайн дэлгүүр<br>💳 М7-М8: QPay төлбөр + файл/видео хамгаалалт<br>⚙️ М9-М12: Админ, автоматжуулалт, сервер, аюулгүй байдал<br>📈 М13-М15: SEO, зар, бизнес + төгсөлтийн төсөл<br><br>77 хичээл бүр: видео + бичмэл агуулга + бэлэн промтууд + quiz.<br><br>Нээлт ойртож байна — [огноо]. Эхний 100-гийн -40% эрхээ мартуузай.<br><br>[Таны нэр]</p></blockquote>
+
+<h3>Имэйл 6 — Үнэгүй хичээлүүд (+28, countdown эхлэхэд)</h3>
+<blockquote><p><strong>Subject:</strong> 3 хичээл — бүрэн үнэгүй нээлээ · <strong>Preview:</strong> Худалдаж авахаасаа өмнө өөрөө шалга<br><br>Сайн уу!<br><br>Нээлтээс өмнө танд нэг зүйл амлая: энэ курс таны мөнгөтэй тэнцэхүйц эсэхийг ӨӨРӨӨ шалгаарай.<br><br>3 хичээлийг бүрэн нээлээ:<br>▶️ 1.1 — Vibe coding-ийн суурь<br>▶️ 3.4 — Бүтэн нүүр хуудас AI-аар<br>▶️ 7.1 — QPay-ийн дотоод механизм<br><br>[Линкүүд]<br><br>Энэ чанар 77 хичээлд жигд гэдгийг амлая. [Огноо]-нд уулзъя — таны эрх 10:00 цагт имэйлээр нээгдэнэ.<br><br>[Таны нэр]</p></blockquote>
+
+<h3>Имэйл 7 — Маргааш (launch -1)</h3>
+<blockquote><p><strong>Subject:</strong> Маргааш 10:00 — таны эрх нээгдэнэ · <strong>Preview:</strong> 48 цагийн дотор шийдээрэй<br><br>Сайн уу!<br><br>Бүх зүйл бэлэн. Маргааш өглөө 10:00 цагт энэ хайрцагт таны -40% эрхийн линк ирнэ.<br><br>Мэдэх ёстой 3 зүйл:<br>• Эрх 48 цаг хүчинтэй — дараа нь 199,000₮ болно<br>• Эхний 100 хүнд л — waitlist [N] хүн болсон тул хурдан хөдлөөрэй<br>• Сунгалт байхгүй — амласан үгэндээ хүрнэ<br><br>Маргааш уулзъя! 🚀<br><br>[Таны нэр]</p></blockquote>
+
+<h3>Имэйл 8 — НЭЭЛТ (launch өдөр 10:00)</h3>
+<blockquote><p><strong>Subject:</strong> Таны -40% эрх нээгдлээ (48 цаг) · <strong>Preview:</strong> 199,000₮ → 119,000₮ — зөвхөн танд<br><br>[Нэр], мөч ирлээ.<br><br>«AI-аар Fullstack Вэбсайт Бүтээх» курс нээгдлээ — таны waitlist эрх:<br><br>💰 119,000₮ (жагсаалтын үнэ 199,000₮)<br>⏰ 48 цаг хүчинтэй<br><br>👉 [ЭЛСЭХ — линк, EARLY100 купон автоматаар]<br><br>90 цаг · 77 хичээл · хугацааны хязгааргүй хандалт · Айна бид хоёр дотор нь хүлээж байна.<br><br>Асуулт байвал энэ имэйлд шууд хариулаарай — би өнөөдөр бүх хариултыг өөрөө өгнө.<br><br>[Таны нэр] · DigitalGer</p></blockquote>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+var SECS=['plan','bible','magnet','posts','ads'];
+function show(s){
+  SECS.forEach(function(x){
+    document.getElementById('sec-'+x).classList.toggle('show',x===s);
+    document.getElementById('sub-'+x).classList.toggle('open',x===s);
+  });
+  document.querySelectorAll('.nav-main').forEach(function(b){b.classList.toggle('active',b.dataset.s===s);});
+  document.getElementById('head-plan').style.display = (s==='plan')?'block':'none';
+  try{localStorage.setItem('mkt2_tab',s);}catch(e){}
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.nav-main').forEach(function(b){b.addEventListener('click',function(){show(b.dataset.s);});});
+
+/* auto-build sub navigation from headings */
+function buildSub(sec,sel,subId){
+  var sub=document.getElementById(subId);
+  document.querySelectorAll(sel.split(',').map(function(x){return '#sec-'+sec+' '+x.trim();}).join(',')).forEach(function(h,i){
+    var id='h-'+sec+'-'+i;h.id=id;
+    var a=document.createElement('a');a.href='#'+id;
+    a.textContent=h.textContent.replace(/^[\u{1F000}-\u{1FFFF}\u2600-\u27BF\uFE0F\s]+/u,'').slice(0,46);
+    a.addEventListener('click',function(e){e.preventDefault();show(sec);document.getElementById(id).scrollIntoView({behavior:'smooth',block:'start'});});
+    sub.appendChild(a);
+  });
+}
+buildSub('plan','.card h2','sub-plan');
+buildSub('bible','h2:not(:first-of-type)','sub-bible');
+buildSub('magnet','h3','sub-magnet');
+buildSub('posts','h1','sub-posts');
+buildSub('ads','h1, h2','sub-ads');
+
+var sv=null;try{sv=localStorage.getItem('mkt2_tab');}catch(e){}
+show(sv&&SECS.indexOf(sv)>=0?sv:'plan');
+
+/* next-steps checklist persistence */
+document.querySelectorAll('#nextlist input').forEach(function(cb){
+  var k='mktplan_'+cb.dataset.k;
+  try{ if(localStorage.getItem(k)==='1') cb.checked=true; }catch(e){}
+  cb.addEventListener('change',function(){ try{ localStorage.setItem(k, cb.checked?'1':'0'); }catch(e){} });
+});
+
+function doCopy(btn,txt){
+  function ok(){btn.classList.add('done');var o=btn.textContent;btn.textContent='✓ хуулсан';setTimeout(function(){btn.classList.remove('done');btn.textContent=o;},1600);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(ok).catch(function(){fallback();});}else{fallback();}
+  function fallback(){var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok();}catch(e){}document.body.removeChild(ta);}
+}
+document.querySelectorAll('.cpy').forEach(function(b){
+  b.addEventListener('click',function(){doCopy(b,b.closest('.ad-row').querySelector('.ad-txt').textContent.trim());});
+});
+document.querySelectorAll('.mdpane blockquote').forEach(function(bq){
+  var b=document.createElement('button');b.className='bq-copy';b.textContent='⧉ хуулах';b.type='button';
+  b.addEventListener('click',function(){var c=bq.cloneNode(true);var x=c.querySelector('.bq-copy');if(x)x.remove();doCopy(b,c.textContent.trim());});
+  bq.appendChild(b);
+});
+</script>
+</body>
+</html>

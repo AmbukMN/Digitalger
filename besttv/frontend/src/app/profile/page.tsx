@@ -31,6 +31,7 @@ import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useMyPayments, useMyRentals, useWalletTransactions, type WalletTx } from '@/lib/queries';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
 import { EmailVerifyCard } from '@/components/email-verify-card';
+import { DeviceSessionsCard } from '@/components/device-sessions-card';
 import { loginUrl } from '@/lib/auth-intent';
 import { api } from '@/lib/api';
 
@@ -409,6 +410,13 @@ export default function ProfilePage() {
                 </Link>
               )}
             </div>
+
+            {/*
+              ⚠️ ТӨХӨӨРӨМЖ — багцын картын ЯГ ДАРАА. Хязгаар нь багцтай
+              шууд холбоотой (нэг эрх = хэдэн төхөөрөмж) тул хэрэглэгч
+              хоёуланг зэрэг хардаг байх ёстой.
+            */}
+            <DeviceSessionsCard />
 
             {/* Идэвхтэй түрээс — ширхэгээр авсан кинонууд */}
             {rentals && rentals.length > 0 && (

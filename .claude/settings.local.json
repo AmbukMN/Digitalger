@@ -20,7 +20,14 @@
       "Bash(Format-Table -AutoSize)",
       "Bash(npx tsc *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ALIENWARE\\\\Desktop\\\\DigitalGer\\\\frontend\\\\src\\\\app\\\\\\(auth\\)\" -Recurse)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ALIENWARE\\\\Desktop\\\\DigitalGer\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(ffmpeg -version)",
+      "Bash(ffprobe -version)",
+      "PowerShell(winget install --id Gyan.FFmpeg -e --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1)",
+      "Bash(/c/Users/ALIENWARE/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0-full_build/bin/ffprobe.exe -v error -show_entries format=duration,bit_rate:stream=codec_type,codec_name,width,height,bit_rate -of default=nw=1 '/d/movies/adult_mongol/Замд хаягдсан охин 1.mp4')",
+      "Bash(/c/Users/ALIENWARE/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0-full_build/bin/ffprobe.exe -v error -show_entries format=duration,bit_rate:stream=codec_type,codec_name,width,height,bit_rate -of default=nw=1 '/d/besttv_work/out/Замд хаягдсан охин 1.mp4')"
     ]
   }
 }

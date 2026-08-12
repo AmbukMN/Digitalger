@@ -11,6 +11,7 @@ import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SessionService, MAX_DEVICES, type DeviceContext } from './session.service';
 import { EmailService } from '../email/email.service';
 import { SubscriberService } from '../email/email.module';
 import { StorageService } from '../../storage/storage.service';
@@ -55,9 +56,12 @@ export class AuthService {
     private readonly tracking: TrackingService,
     private readonly email: EmailService,
     private readonly subscribers: SubscriberService,
+    /* ⚠️ Төхөөрөмжийн хязгаар (MAX_DEVICES) — нэг эрхээр хязгааргүй
+       хүн зэрэг үзэхээс сэргийлнэ */
+    private readonly sessions: SessionService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResult> {
+  async register(dto: RegisterDto, ctx: DeviceContext = {}): Promise<AuthResult> {
     const email = dto.email.toLowerCase().trim();
     const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) throw new ConflictException('Энэ имэйл бүртгэлтэй байна');
@@ -76,10 +80,10 @@ export class AuthService {
       .subscribe({ email, name: user.name ?? undefined, source: 'register', userId: user.id })
       .catch(() => null);
 
-    return this.buildAuthResult(user);
+    return this.buildAuthResult(user, ctx);
   }
 
-  async login(dto: LoginDto): Promise<AuthResult> {
+  async login(dto: LoginDto, ctx: DeviceContext = {}): Promise<AuthResult> {
     const email = dto.email.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user?.passwordHash) {
@@ -97,7 +101,7 @@ export class AuthService {
     if (!ok) throw new UnauthorizedException('Имэйл эсвэл нууц үг буруу байна');
 
     await this.tracking.audit(user.id, 'login');
-    return this.buildAuthResult(user);
+    return this.buildAuthResult(user, ctx);
   }
 
   /** Админ нэвтрэлт — зөвхөн ADMIN role */
@@ -109,19 +113,40 @@ export class AuthService {
     return result;
   }
 
-  async refresh(refreshToken: string): Promise<AuthTokens> {
+  async refresh(refreshToken: string, ctx: DeviceContext = {}): Promise<AuthTokens> {
+    let user: User | null = null;
     try {
       const payload = this.jwt.verify<{ sub: string }>(refreshToken, {
         secret: this.config.get<string>('jwt.refreshSecret'),
       });
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
+      user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || !user.isActive) throw new Error();
-      return this.signTokens(user);
     } catch {
       throw new UnauthorizedException('Refresh token хүчингүй байна');
     }
+
+    /**
+     * ⚠️⚠️ SESSION ШАЛГАЛТ — ТӨХӨӨРӨМЖИЙН ХЯЗГААР ЭНД ХЭРЭГЖИНЭ.
+     *
+     * JWT нь өөрөө хүчинтэй байсан ч session устсан бол (3 дахь
+     * төхөөрөмж нэвтэрч энэ нь ГАРСАН) дахин нэвтрэх шаардлагатай.
+     * Энэ шалгалтгүй бол хязгаар утгагүй — токен 30 хоног ажиллана.
+     *
+     * ⚠️ Мессеж нь ТОДОРХОЙ байх ёстой — хэрэглэгч «яагаад гарчихав»
+     * гэж эргэлзэхээс сэргийлнэ.
+     */
+    const valid = await this.sessions.touch(user.id, refreshToken);
+    if (!valid) {
+      throw new UnauthorizedException(
+        `Өөр төхөөрөмжөөс нэвтэрсэн тул та гарсан байна (дээд тал нь ${MAX_DEVICES} төхөөрөмж). Дахин нэвтэрнэ үү.`,
+      );
+    }
+
+    const tokens = this.signTokens(user);
+    /* ⚠️ ROTATION — хуучин токен устаж шинэ нь бүртгэгдэнэ. Нэг
+       төхөөрөмж 2 мөр эзлэхгүй, хулгайлагдсан токен ч хүчингүй болно. */
+    await this.sessions.rotate(user.id, refreshToken, tokens.refreshToken, ctx, this.refreshExpiryDate());
+    return tokens;
   }
 
   async me(userId: string) {
@@ -215,7 +240,11 @@ export class AuthService {
    * нь эхлээд имэйлээр бүртгүүлсэн хэрэглэгч дараа Google-аар нэвтрэхэд ижил
    * акаунт руу холбогдоно) → аль нь ч биш бол шинэ хэрэглэгч үүсгэнэ.
    */
-  async oauthLogin(dto: OAuthLoginDto, sharedSecret?: string): Promise<AuthResult> {
+  async oauthLogin(
+    dto: OAuthLoginDto,
+    sharedSecret?: string,
+    ctx: DeviceContext = {},
+  ): Promise<AuthResult> {
     /**
      * ⚠️⚠️⚠️ ЭНЭ ШАЛГАЛТЫГ ХЭЗЭЭ Ч БҮҮ ХАС — БҮРТГЭЛ БУЛААХ ЦООРХОЙ.
      *
@@ -301,7 +330,7 @@ export class AuthService {
     }
 
     await this.tracking.audit(user.id, 'oauth_login', { newValue: providerEnum });
-    return this.buildAuthResult(user);
+    return this.buildAuthResult(user, ctx);
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
@@ -591,8 +620,27 @@ export class AuthService {
     }
   }
 
-  private buildAuthResult(user: User): AuthResult {
+  /**
+   * ⚠️⚠️ ASYNC болов — session бүртгэх шаардлагатай.
+   *
+   * `ctx` (User-Agent/IP) нь controller-оос ирнэ. Байхгүй бол session
+   * нь «Тодорхойгүй төхөөрөмж» гэж бүртгэгдэнэ — хязгаар ажилласаар
+   * байна (нэр нь л ойлгомжгүй).
+   */
+  private async buildAuthResult(user: User, ctx: DeviceContext = {}): Promise<AuthResult> {
     const tokens = this.signTokens(user);
+
+    /* ⚠️ Хязгаар хэтэрвэл хамгийн удаан идэвхгүйг гаргана */
+    const { evicted } = await this.sessions.create(
+      user.id,
+      tokens.refreshToken,
+      ctx,
+      this.refreshExpiryDate(),
+    );
+    if (evicted) {
+      this.logger.log(`Төхөөрөмжийн хязгаар: "${evicted}" гарлаа (user=${user.id})`);
+    }
+
     return {
       ...tokens,
       user: {
@@ -604,6 +652,18 @@ export class AuthService {
         isGuest: user.isGuest,
       },
     };
+  }
+
+  /**
+   * Refresh token хэзээ дуусахыг Date болгож тооцно.
+   * ⚠️ `jwt.refreshExpiresIn` нь '30d' хэлбэртэй — DB-д Date хэрэгтэй.
+   */
+  private refreshExpiryDate(): Date {
+    const raw = this.config.get<string>('jwt.refreshExpiresIn') ?? '30d';
+    const m = /^(\d+)([smhd])$/.exec(raw.trim());
+    const mult = { s: 1e3, m: 60e3, h: 3600e3, d: 86400e3 } as const;
+    const ms = m ? Number(m[1]) * mult[m[2] as keyof typeof mult] : 30 * 86400e3;
+    return new Date(Date.now() + ms);
   }
 
   private signTokens(user: User): AuthTokens {

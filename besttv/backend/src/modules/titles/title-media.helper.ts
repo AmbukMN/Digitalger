@@ -39,7 +39,46 @@ export class TitleMediaHelper {
       ? raw.map((g) => (g && typeof g === 'object' && 'genre' in g ? (g as { genre: unknown }).genre : g))
       : undefined;
 
-    return { ...item, ...(genres ? { genres } : {}), posterUrl, backdropUrl };
+    /**
+     * ⚠️⚠️ ЦУВРАЛЫН БОДИТ СТАТУС — карт дээрх "Бэлтгэж байна" шошго.
+     *
+     * `Title.streamStatus` нь SERIES-д хэзээ ч READY болдоггүй (видео нь
+     * `Episode` дээр). Хэрэглэгч 10/10 анги бэлэн кино дээр "Бэлтгэж
+     * байна" гэж уншаад орохгүй өнгөрдөг байв — шууд орлого алдагдана.
+     *
+     * ⚠️ БҮХ карт энэ функцээр дамждаг тул нэг л энд засахад нүүр,
+     * жанр, хайлт, ижил төстэй — бүгд зөв болно (14 дуудлага).
+     *
+     * ⚠️ Дүрэм: НЭГ Ч анги бэлэн бол үзэж эхлэх боломжтой = READY.
+     * Цуврал нь ангиараа гардаг тул "бүгд бэлэн болтол хүлээ" гэж
+     * харуулах нь буруу — 1-9 анги бэлэн байхад ч үзэж болно.
+     */
+    const eps = Array.isArray((item as { seasons?: unknown }).seasons)
+      ? ((item as unknown as { seasons: { episodes?: { streamStatus?: string }[] }[] }).seasons ??
+          []
+        ).flatMap((se) => se.episodes ?? [])
+      : null;
+
+    const streamStatus =
+      eps && eps.length > 0
+        ? eps.some((e) => e.streamStatus === 'READY')
+          ? 'READY'
+          : eps.some((e) => e.streamStatus === 'PROCESSING')
+            ? 'PROCESSING'
+            : (eps[0]?.streamStatus ?? 'PENDING')
+        : (item as { streamStatus?: string }).streamStatus;
+
+    /* ⚠️ `seasons` нь зөвхөн тооцоонд хэрэгтэй — картад буцаахгүй
+       (шаардлагагүй өгөгдөл, JSON-ыг дэмий хөөнө) */
+    const { seasons: _drop, ...rest } = item as T & { seasons?: unknown };
+
+    return {
+      ...(rest as T),
+      ...(genres ? { genres } : {}),
+      ...(streamStatus !== undefined ? { streamStatus } : {}),
+      posterUrl,
+      backdropUrl,
+    };
   }
 
   async decorateMany<T extends { posterKey?: string | null; backdropKey?: string | null }>(

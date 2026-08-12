@@ -1,0 +1,116 @@
+<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Хичээл 6.7 — Худалдан авалтын түүх, профайл</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"><style>:root{
+  --navy:#0D1B2A;--navy2:#1E3A5F;
+  --amber:#D97706;--amber-bg:#FEF3C7;--amber-bd:#FCD34D;
+  --bg:#F1F5F9;--surface:#FFFFFF;--surface2:#F8FAFC;
+  --border:#E2E8F0;--border2:#CBD5E1;
+  --text:#0F172A;--text2:#1E293B;--muted:#64748B;--muted2:#94A3B8;
+  --green:#15803D;--green-bg:#F0FDF4;--green-bd:#86EFAC;
+  --blue:#1D4ED8;--blue-bg:#EFF6FF;
+  --red:#B91C1C;--red-bg:#FEF2F2;
+  --purple:#6D28D9;--purple-bg:#F5F3FF;
+  --shadow:0 1px 3px #0000000D,0 1px 2px #0000000A;
+  --shadow-md:0 4px 6px #0000000A,0 2px 4px #00000008;
+  --font:'Inter',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+  --sb-w:290px;
+  --rp-w:320px;
+}
+/* ══ ХИЧЭЭЛИЙН СЛАЙД ДЕК (embedded) ══ */
+.dgs-embed{position:relative;margin-bottom:18px}
+.dgs-stage{position:relative;width:100%;aspect-ratio:16/9;background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-md);outline:none}
+.dgs-canvas{position:absolute;top:0;left:0;width:1280px;height:720px;transform-origin:top left;background:#fff;overflow:hidden}
+.dgs-embed:fullscreen{background:#0B1220;display:flex;align-items:center;justify-content:center;padding:2vh 2vw}
+.dgs-embed:fullscreen .dgs-stage{width:auto;height:96vh;max-width:96vw}
+.dgs-slide{position:absolute;inset:0;padding:36px 43.2px 64.8px;display:none;flex-direction:column;overflow:hidden}
+.dgs-slide.on{display:flex}
+.dgs-slide.dark{background:var(--navy);color:#fff}
+.dgs-slide.dark .dgs-kicker{color:var(--amber-bd)}
+.dgs-slide.dark .dgs-title{color:#fff}
+.dgs-kicker{font-size:14.4px;font-weight:800;letter-spacing:2.2px;text-transform:uppercase;color:var(--amber);margin-bottom:11.5px;display:flex;align-items:center;gap:8.6px}
+.dgs-kicker .dgs-dot{width:7.2px;height:7.2px;border-radius:50%;background:var(--amber)}
+.dgs-title{font-size:46.1px;font-weight:900;letter-spacing:-1.1px;line-height:1.08;color:var(--navy)}
+.dgs-sub{font-size:20.9px;color:var(--muted);font-weight:500;line-height:1.45;margin-top:7.2px}
+.dgs-slide.dark .dgs-sub{color:#cbd5e1}
+.dgs-body{flex:1;display:flex;flex-direction:column;justify-content:center;margin-top:14.4px;min-height:0}
+.dgs-titlewrap{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.dgs-badge{display:inline-flex;align-items:center;gap:8.6px;font-size:15.1px;font-weight:800;letter-spacing:0.7px;color:var(--amber-bd);border:1.4px solid #ffffff22;padding:7.2px 15.8px;border-radius:712.8px;margin-bottom:28.8px}
+.dgs-tmain{font-size:66.2px;font-weight:900;letter-spacing:-2.2px;line-height:1.05;color:#fff}
+.dgs-tmain em{color:var(--amber-bd);font-style:normal}
+.dgs-ten{font-size:21.6px;color:#94A3B8;font-weight:500;margin-top:17.3px;font-style:italic}
+.dgs-tmeta{display:flex;gap:11.5px;margin-top:36px;flex-wrap:wrap}
+.dgs-pill{font-size:14.4px;font-weight:700;color:#cbd5e1;background:#ffffff12;border:1px solid #ffffff1a;padding:8.6px 15.8px;border-radius:10.1px}
+.dgs-pill b{color:var(--amber-bd)}
+.dgs-hook{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.dgs-heq{display:flex;align-items:center;gap:36px;flex-wrap:wrap;justify-content:center}
+.dgs-hnum{font-size:93.6px;font-weight:900;letter-spacing:-2.9px;line-height:1}
+.dgs-hnum.old{color:#64748B;text-decoration:line-through;text-decoration-thickness:4.3px}
+.dgs-hnum.new{color:var(--amber-bd)}
+.dgs-harrow{font-size:57.6px;color:var(--amber)}
+.dgs-hlbl{font-size:15.8px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;margin-top:10.1px;color:#94A3B8}
+.dgs-hcap{font-size:22.3px;color:#e2e8f0;font-weight:500;margin-top:36px;max-width:80%;line-height:1.5}
+.dgs-hcap b{color:#fff}
+.dgs-check{list-style:none;display:flex;flex-direction:column;gap:20.2px;width:100%}
+.dgs-check li{display:flex;align-items:flex-start;gap:15.8px;font-size:23.0px;font-weight:600;color:var(--text2);line-height:1.4}
+.dgs-ck{flex-shrink:0;width:38.9px;height:38.9px;border-radius:10.1px;background:var(--green-bg);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:21.6px;font-weight:900;border:2.2px solid var(--green-bd)}
+.dgs-cols{display:grid;gap:18.7px;flex:1;align-content:center;min-height:0;width:100%}
+.dgs-c2{grid-template-columns:1fr 1fr}
+.dgs-c3{grid-template-columns:1fr 1fr 1fr}
+.dgs-card{background:var(--surface2);border:1.4px solid var(--border);border-radius:14.4px;padding:21.6px 20.2px;display:flex;flex-direction:column;overflow:hidden}
+.dgs-card .dgs-ic{font-size:31.7px;margin-bottom:10.1px}
+.dgs-card h3{font-size:21.6px;font-weight:800;color:var(--navy);margin-bottom:10.1px;letter-spacing:-0.7px}
+.dgs-card p{font-size:15.8px;color:var(--text2);line-height:1.5;font-weight:500}
+.dgs-card p+p{margin-top:7.2px}
+.dgs-card .dgs-tag{font-size:12.2px;font-weight:800;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);margin-bottom:2.9px}
+.dgs-card.amber{background:var(--amber-bg);border-color:var(--amber-bd)}
+.dgs-card.green{background:var(--green-bg);border-color:var(--green-bd)}
+.dgs-card.red{background:var(--red-bg);border-color:#FCA5A5}
+.dgs-card.blue{background:var(--blue-bg);border-color:#BFDBFE}
+.dgs-card.purple{background:var(--purple-bg);border-color:#DDD6FE}
+.dgs-card .dgs-big{font-size:38.9px;font-weight:900;letter-spacing:-1.1px;color:var(--amber);line-height:1;margin:4.3px 0 7.2px}
+.dgs-card.green .dgs-big{color:var(--green)}
+.dgs-card.blue .dgs-big{color:var(--blue)}
+.dgs-quote{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.dgs-qmark{font-size:86.4px;color:var(--amber-bd);line-height:.6;margin-bottom:10.1px}
+.dgs-quote h2{font-size:46.1px;font-weight:900;letter-spacing:-1.4px;line-height:1.18;color:#fff;max-width:92%}
+.dgs-quote h2 em{color:var(--amber-bd);font-style:normal}
+.dgs-quote p{font-size:20.9px;color:#cbd5e1;margin-top:25.9px;max-width:78%;line-height:1.55;font-weight:500}
+.dgs-steps{display:flex;flex-direction:column;gap:14.4px;flex:1;justify-content:center;width:100%}
+.dgs-step{display:flex;align-items:center;gap:18.7px;background:var(--surface2);border:1.4px solid var(--border);border-radius:12.2px;padding:14.4px 20.2px}
+.dgs-sn{flex-shrink:0;width:41.8px;height:41.8px;border-radius:50%;background:var(--navy);color:var(--amber-bd);font-size:19.4px;font-weight:900;display:flex;align-items:center;justify-content:center}
+.dgs-step .dgs-t{font-size:18.7px;font-weight:600;color:var(--text2);line-height:1.35}
+.dgs-step .dgs-t b{color:var(--navy);font-weight:800}
+.dgs-bars{display:flex;flex-direction:column;gap:17.3px;flex:1;justify-content:center;width:100%}
+.dgs-brow{display:flex;align-items:center;gap:17.3px}
+.dgs-bname{width:26%;font-size:18px;font-weight:700;color:var(--text2);text-align:right;flex-shrink:0}
+.dgs-btrack{flex:1;height:36px;background:var(--surface2);border-radius:8.6px;overflow:hidden;border:1px solid var(--border)}
+.dgs-bfill{height:100%;border-radius:8.6px 0 0 8.6px;display:flex;align-items:center;padding:0 14.4px;font-size:15.1px;font-weight:800;color:#fff;white-space:nowrap}
+.dgs-prompt{font-family:var(--mono);font-size:14.4px;line-height:1.55;background:#0B1220;color:#e2e8f0;border-radius:10.1px;padding:14.4px 15.8px;margin-top:7.2px;white-space:pre-wrap;overflow:auto;max-height:100%}
+.dgs-prog{position:absolute;top:0;left:0;height:5.0px;background:var(--amber);z-index:6;transition:width .3s;border-radius:0 7.2px 7.2px 0}
+.dgs-ctrl{position:absolute;bottom:14.4px;left:50%;transform:translateX(-50%);display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:11.5px;background:#0d1b2acc;backdrop-filter:blur(6px);border:1px solid #ffffff1a;border-radius:712.8px;padding:7.2px 13.0px;z-index:7;white-space:nowrap}
+.dgs-ctrl button{background:#ffffff14;border:none;color:#fff;width:33.1px;height:33.1px;border-radius:50%;font-size:17.3px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;font-family:var(--font);line-height:1;flex-shrink:0}
+.dgs-ctrl button:hover{background:var(--amber)}
+.dgs-count{color:#cbd5e1;font-size:14.4px;font-weight:700;min-width:50.4px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}
+.dgs-brandtag{position:absolute;top:17.3px;right:21.6px;font-size:12.2px;font-weight:800;letter-spacing:0.7px;color:#cbd5e1;opacity:.55;z-index:5}
+.dgs-slide:not(.dark) .dgs-brandtag-l{color:var(--muted)}
+
+*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}body{font-family:var(--font);background:#0B1220;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:10px}.pv-top{width:min(1180px,96vw);display:flex;align-items:center;justify-content:space-between;color:#cbd5e1;font-size:14px;font-weight:600}.pv-top a{color:var(--amber-bd);text-decoration:none;font-weight:700}.pv-wrap{width:min(1180px,96vw)}.dgs-embed{margin:0}.pv-hint{color:#5b7088;font-size:12px;text-align:center}</style></head><body><div class="pv-top"><span>Цахим Дэлгүүрийн Үндсэн Систем · <b style="color:#fff">Хичээл 6.7</b> — Худалдан авалтын түүх, профайл</span><a href="index.html">↩ Бүх хичээл</a></div><div class="pv-wrap"><div class="dgs-embed" id="dgs-embed"><div class="dgs-stage" id="dgs-stage" tabindex="0"><div class="dgs-canvas" id="dgs-canvas"><div class="dgs-prog" id="dgs-prog"></div><div class="dgs-slide dark on"><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-titlewrap"><div class="dgs-badge">🎓 DIGITALGER ACADEMY</div><div class="dgs-kicker"><span class="dgs-dot"></span>Цахим Дэлгүүрийн Үндсэн Систем · Хичээл 6.7</div><div class="dgs-tmain">Худалдан авалтын түүх, профайл</div><div class="dgs-ten">Purchase History &amp; User Profile</div><div class="dgs-tmeta"><span class="dgs-pill">⏱️ <b>60</b> минут</span><span class="dgs-pill">📌 Практик</span><span class="dgs-pill">🛠️ Next.js</span><span class="dgs-pill">🛠️ TanStack Query</span><span class="dgs-pill">🛠️ shadcn/ui</span></div></div></div><div class="dgs-slide dark"><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>Яагаад энэ хичээл?</div><div class="dgs-body" style="justify-content:center;align-items:center;text-align:center"><div style="font-size:28.8px;font-weight:700;color:#fff;line-height:1.45;max-width:84%">CSRF attack, XSS, token hijacking — auth-ийн хамгийн нийтлэг аюулнуудаас хэрхэн хамгаалах вэ? Security layer бүрийг кодоор харна.</div></div></div><div class="dgs-slide "><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>Энэ хичээлийн төгсгөлд</div><div class="dgs-title">Та юу сурах вэ?</div><div class="dgs-body"><ul class="dgs-check"><li><span class="dgs-ck">✓</span><span>Profile page хийнэ</span></li><li><span class="dgs-ck">✓</span><span>Order history харуулна</span></li><li><span class="dgs-ck">✓</span><span>Download manager хийнэ</span></li></ul></div></div><div class="dgs-slide "><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>👤</div><div class="dgs-title">User Profile — Хэрэглэгчийн Хяналтын Самбар</div><div class="dgs-body"><div class="dgs-cols dgs-c3"><div class="dgs-card blue"><div class="dgs-ic">👤</div><h3>Profile Tabs</h3><p>Хувийн мэдээлэл (нэр, имэйл, нууц үг)<br> • Захиалгын түүх<br> • Татах боломжтой бараа<br> • Тохиргоо (notification)<br><br> Tab navigation: URL hash…</p></div><div class="dgs-card green"><div class="dgs-ic">🔒</div><h3>Password Change</h3><p>Одоогийн нууц үг шалга → hash → шинэ hash → DB update.<br> OAuth user-д нууц үгийн tab hide хийнэ.<br> Email verification (шинэ email оруулахад confi…</p></div><div class="dgs-card amber"><div class="dgs-ic">🖼️</div><h3>Avatar Upload</h3><p>Profile зураг upload:<br> R2-д хадгал → avatarUrl update<br> NextAuth session update:<br> update({ user: { image: newUrl } })<br> Хэмжээ: 200x200px,…</p></div></div></div></div><div class="dgs-slide "><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>📜</div><div class="dgs-title">Purchase History UX</div><div class="dgs-body"><div class="dgs-cols dgs-c3"><div class="dgs-card blue"><div class="dgs-ic">🔔</div><h3>Notifications</h3><p>Хэрэглэгч notification тохируулга:<br> • Order status email (on/off)<br> • New product email (on/off)<br> • Marketing email (on/off, GDPR)<br><br> DB…</p></div><div class="dgs-card green"><div class="dgs-ic">🔑</div><h3>Account Security</h3><p>Active sessions харах (device, location)<br> Бусад device-аас logout хийх<br> 2FA enable/disable (optional)<br> Account delete (GDPR right to erasure…</p></div><div class="dgs-card amber"><div class="dgs-ic">📊</div><h3>My Stats</h3><p>Хэрэглэгчийн статистик:<br> • Нийт худалдаж авсан: N бараа<br> • Нийт зарцуулсан: N₮<br> • Хамгийн сүүлийн таталт<br><br> Хэрэглэгчийг "VIP" болгоход…</p></div></div></div></div><div class="dgs-slide "><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>🤖</div><div class="dgs-title">AI-д өгөх Монгол Промт Жишээ</div><div class="dgs-body"><div class="dgs-prompt" style="font-size:13.3px">Profile page:
+&quot;Next.js /profile хуудас хий (authenticated):
+Tab-ууд: Мэдээлэл, Захиалга, Татах, Тохиргоо
+Мэдээлэл tab:
+- Нэр, имэйл (read-only), avatar upload
+- Нууц үг солих form (OAuth user-д hide)
+- React Hook Form + Zod validation
+Захиалга tab:
+- GET /orders → жагсаалт
+- Status badge, date, total, items count
+- Download icon (PAID order-д)
+useSession → session.user.id ашигла&quot;
+
+Update profile:
+&quot;NestJS PATCH /users/me endpoint:
+- JwtAuthGuard
+- Body: UpdateProfileDto { name?, avatarUrl? }
+- Email change нь тусдаа endpoint (verify шаардана)
+- Response: updated user object
+- Frontend: NextAuth update({ user: { name, image } })
+  session-д шинэ мэдээлэл sync болно&quot;</div></div></div><div class="dgs-slide "><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>Хийж үзэх дасгал</div><div class="dgs-title">Практик Алхамууд</div><div class="dgs-body"><ul class="dgs-check"><li><span class="dgs-ck">✓</span><span><b>Tab navigation:</b> URL ?tab=orders-тэй profile хуудас хийж, refresh хийхэд tab хадгалагдах эсэхийг шалга</span></li><li><span class="dgs-ck">✓</span><span><b>Avatar upload:</b> R2-д upload хийж, NextAuth session-д image update болохыг шалга</span></li><li><span class="dgs-ck">✓</span><span><b>Password change:</b> Буруу одоогийн нууц үг оруулахад 401, зөв бол update болохыг шалга</span></li><li><span class="dgs-ck">✓</span><span><b>Empty state:</b> Захиалгагүй test user-р /profile?tab=orders → empty state харагдахыг шалга</span></li></ul></div></div><div class="dgs-slide "><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>Эндээс болгоомжил</div><div class="dgs-title">⚠️ Нийтлэг алдаа</div><div class="dgs-body"><div class="dgs-steps"><div class="dgs-step" style="background:var(--red-bg);border-color:#FCA5A5"><span class="dgs-sn" style="background:var(--red)">⚠</span><span class="dgs-t">CORS wildcard (*) ашиглах — production-д заавар specific origin жагсаа</span></div><div class="dgs-step" style="background:var(--red-bg);border-color:#FCA5A5"><span class="dgs-sn" style="background:var(--red)">⚠</span><span class="dgs-t">CSRF protection байхгүй state-changing endpoint — SameSite cookie + CSRF token нэм</span></div><div class="dgs-step" style="background:var(--red-bg);border-color:#FCA5A5"><span class="dgs-sn" style="background:var(--red)">⚠</span><span class="dgs-t">Rate limit refresh token endpoint-д байхгүй — token flooding attack</span></div></div></div></div><div class="dgs-slide dark"><span class="dgs-brandtag"><span class="dgs-brandtag-l">🎓 DigitalGer Academy</span></span><div class="dgs-kicker"><span class="dgs-dot"></span>Хичээл 6.7 — Дүгнэлт</div><div class="dgs-title" style="color:#fff">Гол үр дүн</div><div class="dgs-body"><div class="dgs-cols dgs-c3"><div class="dgs-card" style="background:#ffffff0d;border-color:#ffffff1a"><div class="dgs-ic">✓</div><p style="color:#cbd5e1">Profile page хийнэ</p></div><div class="dgs-card" style="background:#ffffff0d;border-color:#ffffff1a"><div class="dgs-ic">✓</div><p style="color:#cbd5e1">Order history харуулна</p></div><div class="dgs-card amber"><div class="dgs-ic">✓</div><p>Download manager хийнэ</p></div></div><div class="dgs-card" style="background:#ffffff0d;border-color:var(--amber-bd);flex-direction:row;align-items:center;gap:14.4px;margin-top:11.5px"><div style="font-size:28.8px">📝</div><div><div class="dgs-tag" style="color:var(--amber-bd)">Практик даалгавар</div><p style="color:#fff;font-size:17.3px">Хэрэглэгчийн профайл хуудас: мэдээлэл засах + захиалгын түүх + download жагсаалт</p></div></div></div></div><div class="dgs-ctrl"><button onclick="go(-1)">‹</button><span class="dgs-count"><span id="cur">1</span> / <span id="tot"></span></span><button onclick="go(1)">›</button><button onclick="fs()">⛶</button></div></div></div></div></div><div class="pv-hint">← → түлхүүр · слайд дээр дарж шилжих · F бүтэн дэлгэц · 9 слайд</div><script>var slides=[].slice.call(document.querySelectorAll('.dgs-slide'));var i=0,tot=slides.length;document.getElementById('tot').textContent=tot;function show(n){i=Math.max(0,Math.min(tot-1,n));for(var k=0;k<slides.length;k++)slides[k].classList.toggle('on',k===i);document.getElementById('cur').textContent=i+1;document.getElementById('dgs-prog').style.width=((i+1)/tot*100)+'%';}function go(d){show(i+d);}function fs(){var e=document.getElementById('dgs-embed');if(!document.fullscreenElement){e.requestFullscreen&&e.requestFullscreen();}else{document.exitFullscreen&&document.exitFullscreen();}}function fit(){var st=document.getElementById('dgs-stage'),cv=document.getElementById('dgs-canvas');if(!st||!cv)return;var w=st.clientWidth;if(!w)return;st.style.height=Math.round(w*9/16)+'px';cv.style.transform='scale('+(w/1280)+')';}fit();requestAnimationFrame(fit);setTimeout(fit,60);window.addEventListener('resize',fit);document.addEventListener('fullscreenchange',function(){setTimeout(fit,60);});document.getElementById('dgs-stage').addEventListener('click',function(e){if(e.target.closest('.dgs-ctrl'))return;var r=this.getBoundingClientRect();if(e.clientX-r.left>r.width*0.5)go(1);else go(-1);});document.addEventListener('keydown',function(e){if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){go(1);e.preventDefault();}else if(e.key==='ArrowLeft'||e.key==='PageUp'){go(-1);e.preventDefault();}else if(e.key.toLowerCase()==='f')fs();});show(0);</script></body></html>
