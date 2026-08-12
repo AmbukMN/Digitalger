@@ -83,6 +83,20 @@ export function getRefreshToken(): string | null {
  * эс бөгөөс түр саатлаас болж хэрэглэгч шалтгаангүй гарч, дахин нэвтрэх
  * шаардлагатай болно. Зөвхөн сервер "хүчингүй" гэж хэлсэн үед л гаргана.
  */
+/**
+ * Хамгийн сүүлийн refresh амжилтгүй болсны серверийн тайлбар.
+ * ⚠️ Модулийн хэмжээнд — `api()` нь хаанаас ч дуудагддаг тул context
+ * дамжуулах боломжгүй. Нэг удаа уншаад цэвэрлэнэ (`takeRefreshError`).
+ */
+let lastRefreshError: string | null = null;
+
+/** Гарах шалтгааныг НЭГ УДАА уншина (дараа нь цэвэрлэнэ) */
+export function takeRefreshError(): string | null {
+  const e = lastRefreshError;
+  lastRefreshError = null;
+  return e;
+}
+
 async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return 'invalid';
@@ -96,6 +110,20 @@ async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
       const data = await res.json();
       setTokens(data.accessToken, data.refreshToken);
       return 'ok';
+    }
+    /**
+     * ⚠️⚠️ СЕРВЕРИЙН ШАЛТГААНЫГ ХАДГАЛНА.
+     *
+     * Төхөөрөмжийн хязгаараас болж гарсан үед сервер «Өөр
+     * төхөөрөмжөөс нэвтэрсэн тул...» гэж ТОДОРХОЙ хэлдэг. Түүнийг
+     * хаявал хэрэглэгч гэнэт гарахдаа «хакердуулсан уу?» гэж
+     * бодож дэмжлэг рүү залгана — шалтгааныг заавал харуулна.
+     */
+    if (res.status !== 401 && res.status < 500) {
+      lastRefreshError = null;
+    } else if (res.status === 401) {
+      const body = await res.json().catch(() => null);
+      lastRefreshError = typeof body?.message === 'string' ? body.message : null;
     }
     // 401/403 = refresh token үнэхээр хүчингүй. 5xx = серверийн түр алдаа.
     return res.status >= 500 ? 'network' : 'invalid';

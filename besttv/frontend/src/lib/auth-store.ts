@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { signOut as nextAuthSignOut } from 'next-auth/react';
-import { api, clearTokens, getAccessToken, getRefreshToken, setTokens } from './api';
+import { api, clearTokens, getAccessToken, getRefreshToken, setTokens, takeRefreshError } from './api';
 
 /** Хэрэглэгчийн идэвхтэй нэг багц (олон багц зэрэг байж болно) */
 export interface UserSubscription {
@@ -131,6 +131,23 @@ export const useAuth = create<AuthState>((set, get) => ({
       // ⚠️ Сүлжээний алдаанд кэшийг УСТГАХГҮЙ — түр тасарсан байж болно.
       // Токен хүчингүй бол api() дотор 401 гарч clearTokens хийгдэнэ.
       if (!getAccessToken() && !getRefreshToken()) {
+        /**
+         * ⚠️⚠️ ГАРСАН ШАЛТГААНЫГ ХАРУУЛНА.
+         *
+         * Токен цэвэрлэгдсэн = сервер «хүчингүй» гэж БАТАЛСАН. Хэрэв
+         * төхөөрөмжийн хязгаараас болсон бол сервер тодорхой хэлсэн
+         * байдаг — чимээгүй гаргавал хэрэглэгч «сайт эвдэрсэн үү,
+         * хакердуулсан уу» гэж бодно.
+         *
+         * ⚠️ Dynamic import — `sonner` нь зөвхөн энэ ховор тохиолдолд
+         * хэрэгтэй тул анхны ачаалалтыг хүндрүүлэхгүй.
+         */
+        const reason = takeRefreshError();
+        if (reason) {
+          void import('sonner').then(({ toast }) =>
+            toast.error(reason, { duration: 8000 }),
+          );
+        }
         writeUserCache(null);
         set({ user: null, loading: false });
       } else {
@@ -163,6 +180,21 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    /**
+     * ⚠️⚠️ BACKEND-Д МЭДЭГДЭНЭ — эс бөгөөс session мөр DB-д 30 хоног
+     * үлдэж төхөөрөмжийн хязгаарын байрыг дэмий эзэлнэ (хэрэглэгч
+     * 2 удаа гараад орвол «дүүрсэн» болж бодит төхөөрөмжөө гаргана).
+     *
+     * ⚠️ `await` ХИЙХГҮЙ + `.catch()` — сүлжээ унасан ч гарах үйлдэл
+     * ШУУД болох ёстой. Хүлээвэл офлайн үед UI гацна.
+     */
+    const rt = getRefreshToken();
+    if (rt) {
+      api('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: rt }), auth: false }).catch(
+        () => null,
+      );
+    }
+
     clearTokens();
     writeUserCache(null);
     set({ user: null });

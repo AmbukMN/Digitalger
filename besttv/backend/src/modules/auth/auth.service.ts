@@ -105,8 +105,8 @@ export class AuthService {
   }
 
   /** Админ нэвтрэлт — зөвхөн ADMIN role */
-  async adminLogin(dto: LoginDto): Promise<AuthResult> {
-    const result = await this.login(dto);
+  async adminLogin(dto: LoginDto, ctx: DeviceContext = {}): Promise<AuthResult> {
+    const result = await this.login(dto, ctx);
     if (result.user.role !== Role.ADMIN) {
       throw new UnauthorizedException('Админ эрхгүй байна');
     }
@@ -636,6 +636,8 @@ export class AuthService {
       tokens.refreshToken,
       ctx,
       this.refreshExpiryDate(),
+      /* ⚠️ Админ хязгааргүй — дэлгэрэнгүйг `SessionService.create` дээр */
+      user.role === Role.ADMIN,
     );
     if (evicted) {
       this.logger.log(`Төхөөрөмжийн хязгаар: "${evicted}" гарлаа (user=${user.id})`);
@@ -675,8 +677,20 @@ export class AuthService {
         secret: this.config.get<string>('jwt.secret'),
         expiresIn,
       }),
+      /**
+       * ⚠️⚠️ `jti` (санамсаргүй ID) ЗААВАЛ — эс бөгөөс ХОЁР ТӨХӨӨРӨМЖ
+       * НЭГ ТОКЕН хуваалцана.
+       *
+       * JWT-ийн `iat` нь СЕКУНДЫН нарийвчлалтай тул нэг хэрэглэгч нэг
+       * секундэд хоёр удаа нэвтэрвэл payload ЯГ ИЖИЛ болж, гарын үсэг
+       * нь ч ижил гарна. Үр дүнд:
+       *   • `UserSession.tokenHash` unique зөрчигдөж 2 дахь session
+       *     бүртгэгдэхгүй → төхөөрөмжийн хязгаар ажиллахгүй
+       *   • Нэг төхөөрөмжийг гаргахад НӨГӨӨ нь ч гарна (нэг мөр)
+       * Production дээр бодитоор илэрсэн (тест 11/16).
+       */
       refreshToken: this.jwt.sign(
-        { sub: user.id },
+        { sub: user.id, jti: randomUUID() },
         {
           secret: this.config.get<string>('jwt.refreshSecret'),
           expiresIn: refreshExpiresIn,

@@ -92,6 +92,15 @@ export class SessionService {
     refreshToken: string,
     ctx: DeviceContext,
     expiresAt: Date,
+    /**
+     * ⚠️⚠️ АДМИНД ХЯЗГААР ХЭРЭГЛЭХГҮЙ.
+     *
+     * Админ нь ажлын компьютер, гэрийн компьютер, утас, мөн админ
+     * панел БОЛОН besttv.us хоёулангаас ордог. 2-оор хязгаарлавал
+     * админ өөрөө өөрийгөө гаргаж, ажил тасалдана. Session-ыг бүртгэх
+     * нь хэвээр (жагсаалтад харагдана), зөвхөн ГАРГАХГҮЙ.
+     */
+    unlimited = false,
   ): Promise<{ evicted: string | null }> {
     const tokenHash = this.hash(refreshToken);
 
@@ -110,7 +119,7 @@ export class SessionService {
 
       let evicted: string | null = null;
       /* ⚠️ `>= MAX` — ШИНЭ session нэмэгдэх тул байр гаргана */
-      if (active.length >= MAX_DEVICES) {
+      if (!unlimited && active.length >= MAX_DEVICES) {
         const drop = active.slice(MAX_DEVICES - 1);
         await this.prisma.userSession.deleteMany({
           where: { id: { in: drop.map((d) => d.id) } },
@@ -207,6 +216,19 @@ export class SessionService {
       });
     } catch (e) {
       this.logger.warn(`Session сэлгэж чадсангүй: ${String(e)}`);
+    }
+  }
+
+  /**
+   * Гарахад тухайн токены session-ыг устгана.
+   * ⚠️ Алдаа шидэхгүй — гарах үйлдэл ямар ч тохиолдолд амжилттай
+   * болох ёстой (клиент аль хэдийн токеноо хаясан).
+   */
+  async revokeByToken(refreshToken: string): Promise<void> {
+    try {
+      await this.prisma.userSession.deleteMany({ where: { tokenHash: this.hash(refreshToken) } });
+    } catch (e) {
+      this.logger.warn(`Session устгаж чадсангүй: ${String(e)}`);
     }
   }
 

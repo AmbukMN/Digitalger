@@ -50,8 +50,20 @@ const nextConfig: NextConfig = {
            * NextAuth session-ээс шинэ backend токен олгодог. Энэ жагсаалтад
            * байхгүй бол backend руу rewrite хийгдэж 404 өгнө (бодит алдаа).
            */
+          /**
+           * ⚠️⚠️ ҮГИЙН ТӨГСГӨЛ (`$` эсвэл `/`) ЗААВАЛ ШАЛГАНА.
+           *
+           * Өмнө нь `(?!...|session|...)` гэж байсан нь ЗӨВХӨН угтвараар
+           * тааруулдаг тул манай `/api/auth/sessions` (төхөөрөмжийн
+           * жагсаалт) нь `session`-д таарч NextAuth руу орж
+           * «This action with HTTP GET is not supported by NextAuth.js»
+           * гэсэн 400 өгдөг байв.
+           *
+           * `(?:$|/)` нэмснээр ЯГ `session` (эсвэл `session/...`) л
+           * NextAuth-д үлдэж, `sessions` нь backend руу зөв очно.
+           */
           source:
-            '/api/auth/:path((?!signin|signout|callback|session|csrf|providers|error|bridge).*)',
+            '/api/auth/:path((?!(?:signin|signout|callback|session|csrf|providers|error|bridge)(?:$|/)).*)',
           destination: `${api}/api/auth/:path`,
         },
       ],

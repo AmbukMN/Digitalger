@@ -55,7 +55,23 @@ export class AuthController {
    * ХЭРЭГЛЭХГҮЙ тул буруу байсан ч аюулгүй.
    */
   private device(req: Request): DeviceContext {
-    return { userAgent: req.headers['user-agent'] ?? null, ip: req.ip ?? null };
+    /**
+     * ⚠️⚠️ CLOUDFLARE-ЫН АРД — `req.ip` нь CF-ийн дамжуулагч сервер
+     * (172.69.x.x) болно, хэрэглэгчийн IP БИШ. Хэрэглэгч жагсаалтад
+     * «172.69.252.190» гэж хараад өөрийн төхөөрөмжөө таних боломжгүй.
+     *
+     * `CF-Connecting-IP` нь Cloudflare-ийн НЭМДЭГ header — гаднаас
+     * хуурамчаар илгээсэн ч CF нь дарж бичдэг тул найдвартай.
+     * ⚠️ IP нь зөвхөн ХАРУУЛАХ зорилготой (эрх шалгахад хэрэглэхгүй).
+     */
+    const cf = req.headers['cf-connecting-ip'];
+    const fwd = req.headers['x-forwarded-for'];
+    const ip =
+      (typeof cf === 'string' ? cf : null) ??
+      (typeof fwd === 'string' ? fwd.split(',')[0]?.trim() : null) ??
+      req.ip ??
+      null;
+    return { userAgent: req.headers['user-agent'] ?? null, ip };
   }
 
   @Post('register')
@@ -72,8 +88,8 @@ export class AuthController {
 
   @Post('admin/login')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  adminLogin(@Body() dto: LoginDto) {
-    return this.auth.adminLogin(dto);
+  adminLogin(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.auth.adminLogin(dto, this.device(req));
   }
 
   /** NextAuth (frontend) OAuth signIn callback-аас дуудагдана */
@@ -120,6 +136,26 @@ export class AuthController {
    * ⚠️ `refreshToken` нь СОНГОМОЛ — байвал «энэ төхөөрөмж» гэж
    * тэмдэглэнэ (хэрэглэгч өөрийгөө андуурч гаргахгүй).
    */
+  /**
+   * Гарах — энэ төхөөрөмжийн session-ыг УСТГАНА.
+   *
+   * ⚠️⚠️ ЗААВАЛ ХЭРЭГТЭЙ: клиент зөвхөн localStorage цэвэрлэвэл DB-д
+   * мөр 30 хоног үлдэж ХЯЗГААРЫН БАЙРЫГ дэмий эзэлнэ. Хэрэглэгч
+   * гараад дахин орох тусам байр дүүрч, эцэст нь бодит төхөөрөмжөө
+   * гаргах болно — «2 төхөөрөмж» гэж зарласан атлаа 1 л ажиллана.
+   *
+   * ⚠️ Guard ТАВИХГҮЙ — access token нь аль хэдийн хугацаа дууссан
+   * байхад ч гарах ёстой. refresh token-ы хэшээр л мөр олно (өөрийн
+   * токеноо мэдэхгүй хүн бусдын session устгаж чадахгүй).
+   */
+  @Post('logout')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(200)
+  async logout(@Body() body: { refreshToken?: string }) {
+    if (body?.refreshToken) await this.sessions.revokeByToken(body.refreshToken);
+    return { ok: true };
+  }
+
   @Get('sessions')
   @UseGuards(JwtAuthGuard)
   listSessions(@CurrentUser() user: JwtPayload, @Query('rt') rt?: string) {
