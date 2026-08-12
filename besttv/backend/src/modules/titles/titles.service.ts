@@ -213,8 +213,22 @@ export class TitlesService {
       (r) => r.durationSec === 0 || r.positionSec < r.durationSec * 0.95,
     );
 
+    /**
+     * ⚠️⚠️ НЭГ КИНО НЭГ Л УДАА — цувралын анги бүр тусдаа
+     * `WatchProgress` мөртэй тул 10 анги үзсэн цуврал эгнээнд 10
+     * УДАА давхардаж гардаг байв.
+     *
+     * ⚠️ `rows` нь `updatedAt: 'desc'` тул ЭХНИЙ таарсан нь ХАМГИЙН
+     * СҮҮЛД үзсэн явц — түүнийг л үлдээнэ (Map нь эхний утгыг
+     * хадгална, дарж бичихгүй).
+     */
+    const uniq = new Map<string, (typeof filtered)[number]>();
+    for (const r of filtered) {
+      if (!uniq.has(r.titleId)) uniq.set(r.titleId, r);
+    }
+
     return Promise.all(
-      filtered.map(async (r) => ({
+      [...uniq.values()].map(async (r) => ({
         ...(await this.media.decorate(r.title)),
         progress: {
           positionSec: r.positionSec,
