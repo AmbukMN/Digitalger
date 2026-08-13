@@ -22,6 +22,24 @@ export default () => ({
       .filter(Boolean) ?? ['http://localhost:3100', 'http://localhost:3101'],
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+
+  /**
+   * n8n → Telegram мэдэгдэл.
+   *
+   * ⚠️ `digitalger-n8n` нь ӨӨР docker сүлжээнд ажилладаг тул compose-д
+   * `n8n_net` (external: digitalger-n8n-network) нэмсэн. Контейнерийн
+   * нэрээр хандана: `http://digitalger-n8n:5678`
+   *
+   * ⚠️ Гадаад IP (62.238.47.2:5678) БҮҮ хэрэглэ — тэр порт интернэтэд
+   * нээлттэй тул хэн ч хуурамч webhook дуудна.
+   *
+   * ⚠️ Тохируулаагүй бол мэдэгдэл чимээгүй унтарна (алдаа шидэхгүй) —
+   * мэдэгдэл нь НЭМЭЛТ, төлбөр/захиалга зогсоохгүй.
+   */
+  n8n: {
+    webhookUrl: process.env.N8N_WEBHOOK_URL ?? null,
+    webhookSecret: process.env.N8N_WEBHOOK_SECRET ?? null,
+  },
   jwt: {
     secret: jwtSecret,
     refreshSecret: jwtRefreshSecret,

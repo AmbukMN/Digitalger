@@ -110,7 +110,16 @@ export class SubscriptionsService {
    * Төлбөр баталгаажсаны дараа эрх нээх/сунгах.
    * Идэвхтэй эрх байвал ДЭЭР нь залгаж сунгана (давхарлахгүй, алдагдахгүй).
    */
-  async grant(userId: string, planId: string, durationDays: number, paymentId: string) {
+  /**
+   * ⚠️ `paymentId` нь NULL байж БОЛНО — урамшууллын БЭЛЭГ БАГЦ нь
+   * төлбөргүй олгогддог (`Subscription.paymentId` нь схемд `String?`).
+   */
+  async grant(
+    userId: string,
+    planId: string,
+    durationDays: number,
+    paymentId: string | null,
+  ) {
     const now = new Date();
     const plan = await this.prisma.plan.findUnique({
       where: { id: planId },

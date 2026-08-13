@@ -26,6 +26,9 @@ import { HealthModule } from './modules/health/health.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { FaqModule } from './modules/faq/faq.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
+import { BankModule } from './modules/bank/bank.module';
+import { N8nModule } from './modules/n8n/n8n.module';
 import { BlogModule } from './modules/blog/blog.module';
 import { PagesModule } from './modules/pages/pages.module';
 import { WalletModule } from './modules/wallet/wallet.module';
@@ -93,6 +96,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     SeoModule,
     FaqModule,
     CouponsModule,
+    PromotionsModule,
+    BankModule,
+    N8nModule,
     BlogModule,
     PagesModule,
     WalletModule,

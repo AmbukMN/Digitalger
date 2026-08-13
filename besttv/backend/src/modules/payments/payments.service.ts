@@ -15,6 +15,8 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CouponsService } from '../coupons/coupons.module';
 import { WalletService } from '../wallet/wallet.module';
 import { RentalsService } from '../rentals/rentals.module';
+import { PromotionsService } from '../promotions/promotions.service';
+import { N8nService } from '../n8n/n8n.service';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -47,6 +49,10 @@ export class PaymentsService {
     private readonly email: EmailService,
     /* ⚠️ Ширхэгээр түрээслэх QPay урсгалд (үнэ/хугацаа тэнд тодорхойлогдоно) */
     private readonly rentals: RentalsService,
+    /* ⚠️ Урамшуулал — үнэ бодох + бонус олгох (QPay болон хэтэвч ХОЁУЛАНД) */
+    private readonly promotions: PromotionsService,
+    /* ⚠️ Telegram мэдэгдэл — @Global тул import хэрэггүй */
+    private readonly n8n: N8nService,
   ) {}
 
   isQPayConfigured(): boolean {
@@ -59,10 +65,37 @@ export class PaymentsService {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) throw new NotFoundException('Багц олдсонгүй');
 
-    let amount = plan.price;
+    /**
+     * ─── УРАМШУУЛАЛ → КУПОН (ЭНЭ ДАРААЛЛААР) ────────────────────
+     *
+     * ⚠️⚠️ ДАРААЛАЛ ЧУХАЛ. Урамшууллыг эхэлж бодоод, купоныг ҮЛДСЭН
+     * дүн дээр тооцно: 30% + 20% = 44% (50% БИШ). Нийлбэрээр бодвол
+     * хэт их алдагдал гарна.
+     *
+     * ⚠️ Урамшуулал нь АВТОМАТ (код бичихгүй) тул хэрэглэгч мэдэхгүй ч
+     * үйлчилнэ. `promotionId`-г төлбөрт тэмдэглэнэ — 5 минут хүлээж
+     * байх зуур урамшуулал дуусвал ч бонусаа авна.
+     */
+    const promoMap = await this.promotions.forPlans(
+      [{ id: plan.id, price: plan.price, durationDays: plan.durationDays }],
+      userId,
+    );
+    const promo = promoMap.get(plan.id) ?? null;
+
+    let amount = promo?.finalPrice ?? plan.price;
+    const promotionId = promo?.id ?? null;
+
     let normalizedCoupon: string | undefined;
     if (couponCode) {
-      const result = await this.coupons.validate({ code: couponCode, price: plan.price });
+      /* ⚠️ `blockCoupons` — зарим урамшуулалд купон хориотой (хэт их
+         хямдрал өгөхөөс сэргийлнэ) */
+      if (promo?.blockCoupons) {
+        throw new BadRequestException(
+          `«${promo.name}» урамшууллын үед купон код ашиглах боломжгүй`,
+        );
+      }
+      /* ⚠️ `plan.price` БИШ `amount` — урамшууллын ДАРААХ дүн дээр */
+      const result = await this.coupons.validate({ code: couponCode, price: amount });
       amount = result.finalPrice;
       normalizedCoupon = couponCode.toUpperCase().trim();
     }
@@ -77,6 +110,7 @@ export class PaymentsService {
           amount: 0,
           status: PaymentStatus.PENDING,
           couponCode: normalizedCoupon,
+          promotionId,
           originalAmount: plan.price,
         },
       });
@@ -120,7 +154,10 @@ export class PaymentsService {
           amount,
           status: PaymentStatus.PENDING,
           couponCode: normalizedCoupon,
-          originalAmount: normalizedCoupon ? plan.price : undefined,
+          promotionId,
+          /* ⚠️ Урамшуулал ЭСВЭЛ купон байвал хуучин үнэ хадгална —
+             «29,000₮ → 19,900₮» гэж зураастай харуулна */
+          originalAmount: normalizedCoupon || promotionId ? plan.price : undefined,
         },
       });
       this.logger.warn('QPay тохируулаагүй — dev mode: төлбөр автомат баталгаажлаа');
@@ -137,7 +174,10 @@ export class PaymentsService {
         amount,
         status: PaymentStatus.PENDING,
         couponCode: normalizedCoupon,
-        originalAmount: normalizedCoupon ? plan.price : undefined,
+        promotionId,
+        /* ⚠️ Урамшуулал ЭСВЭЛ купон байвал хуучин үнэ хадгална —
+           «29,000₮ → 19,900₮» гэж зураастай харуулна */
+        originalAmount: normalizedCoupon || promotionId ? plan.price : undefined,
         qpayInvoiceId: invoice.invoice_id,
         qpayQrText: invoice.qr_text,
         qpayQrImage: invoice.qr_image,
@@ -483,6 +523,87 @@ export class PaymentsService {
    * ⚠️ `public` — админ гараар баталгаажуулахад ч дуудагдана.
    * ⚠️ Идемпотент: `updateMany(status: PENDING)` нь давхар дуудалтыг барина.
    */
+  /**
+   * Урамшууллын бонусыг олгож, ашиглалтыг бүртгэнэ.
+   *
+   * ⚠️ АЛДАА ГАРВАЛ ТӨЛБӨР ЗОГСОХГҮЙ — хэрэглэгч мөнгөө төлчихсөн
+   * тул багц нь ЗААВАЛ нээгдэх ёстой. Бонус олдохгүй бол лог үлдэж
+   * админ гараар засна.
+   *
+   * @returns нэмэлт хоног (үндсэн хугацаан дээр нэмэгдэнэ)
+   */
+  private async applyPromotionBonus(payment: {
+    id: string;
+    userId: string;
+    promotionId: string | null;
+    amount: number;
+    originalAmount: number | null;
+    plan: { id: string; durationDays: number } | null;
+  }): Promise<{ extraDays: number }> {
+    if (!payment.promotionId || !payment.plan) return { extraDays: 0 };
+
+    try {
+      const promo = await this.prisma.promotion.findUnique({
+        where: { id: payment.promotionId },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          bonusDays: true,
+          giftPlanId: true,
+          giftDays: true,
+        },
+      });
+      if (!promo) return { extraDays: 0 };
+
+      let extraDays = 0;
+      let daysGiven = 0;
+      const valueGiven = Math.max(0, (payment.originalAmount ?? payment.amount) - payment.amount);
+
+      if (promo.type === 'EXTRA_DAYS' && promo.bonusDays) {
+        extraDays = promo.bonusDays;
+        daysGiven = promo.bonusDays;
+      }
+
+      /**
+       * ⚠️ БЭЛЭГ БАГЦ — тусад нь эрх нээнэ (үндсэн багцтай зэрэгцэж
+       * ажиллана). `giftDays` хоосон бол үндсэн багцтай ИЖИЛ хугацаа.
+       */
+      if (promo.type === 'GIFT_PLAN' && promo.giftPlanId) {
+        const giftDays = promo.giftDays ?? payment.plan.durationDays;
+        await this.subs.grant(payment.userId, promo.giftPlanId, giftDays, null);
+        daysGiven = giftDays;
+        this.logger.log(
+          `Бэлэг багц олгов: user=${payment.userId} plan=${promo.giftPlanId} (${giftDays} хоног)`,
+        );
+      }
+
+      /* ⚠️ Транзакц — тоолуур ба бүртгэл ЗААВАЛ хамт */
+      await this.prisma.$transaction(async (tx) => {
+        await this.promotions.redeem(
+          tx,
+          promo.id,
+          payment.userId,
+          payment.id,
+          valueGiven,
+          daysGiven,
+        );
+      });
+
+      this.logger.log(
+        `Урамшуулал ашиглав: "${promo.name}" user=${payment.userId} (+${extraDays} хоног, ${valueGiven}₮)`,
+      );
+      return { extraDays };
+    } catch (e) {
+      /* ⚠️ `error` — бонус алдагдсан нь БОДИТ асуудал (хэрэглэгч
+         амласан зүйлээ аваагүй), гэхдээ төлбөр зогсоохгүй */
+      this.logger.error(
+        `Урамшууллын бонус олгож чадсангүй (payment=${payment.id}): ${String(e)}`,
+      );
+      return { extraDays: 0 };
+    }
+  }
+
   async completePayment(paymentId: string) {
     const claimed = await this.prisma.payment.updateMany({
       where: { id: paymentId, status: PaymentStatus.PENDING },
@@ -492,9 +613,36 @@ export class PaymentsService {
 
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { plan: true },
+      include: {
+        plan: true,
+        /* ⚠️ Telegram мэдэгдэлд хэрэглэгчийн нэр/имэйл хэрэгтэй */
+        user: { select: { name: true, email: true } },
+        rentalTitle: { select: { title: true } },
+      },
     });
     if (!payment) return;
+
+    /**
+     * ⚠️ TELEGRAM МЭДЭГДЭЛ — АДМИНД. `void` (await БИШ) тул мэдэгдэл
+     * удаашрахад төлбөрийн урсгал хүлээхгүй.
+     *
+     * ⚠️ ЭНД байрлуулав (эрх нээхээс ӨМНӨ) — доорх салаанууд бүгд
+     * `return` хийдэг тул төгсгөлд тавибал зөвхөн багцын төлбөр
+     * мэдэгдэгдэнэ, түрээс/цэнэглэлт алдагдана.
+     */
+    this.n8n.emitPaymentPaid({
+      paymentId: payment.id,
+      userId: payment.userId,
+      userName: payment.user?.name ?? null,
+      userEmail: payment.user?.email ?? '',
+      amount: payment.amount,
+      planName: payment.plan?.name ?? null,
+      titleName: payment.rentalTitle?.title ?? null,
+      isWalletTopup: payment.isWalletTopup,
+      method: payment.bankReference ? 'BANK' : payment.qpayInvoiceId ? 'QPAY' : 'WALLET',
+      couponCode: payment.couponCode,
+      paidAt: new Date().toISOString(),
+    });
 
     // ── Хэтэвч цэнэглэлт ────────────────────────────────────────────────
     if (payment.isWalletTopup) {
@@ -539,10 +687,20 @@ export class PaymentsService {
       return;
     }
 
+    /**
+     * ─── УРАМШУУЛЛЫН БОНУС ───────────────────────────────────────
+     *
+     * ⚠️⚠️ `payment.promotionId` нь ТӨЛБӨР ҮҮСГЭХ үед тэмдэглэгдсэн.
+     * Одоо дахин бодохгүй — эс бөгөөс хэрэглэгч 5 минут QR хүлээж
+     * байх зуур урамшуулал дуусвал хямдруулсан үнээр төлөөд бонусаа
+     * АВАХГҮЙ үлдэнэ (шударга бус).
+     */
+    const bonus = await this.applyPromotionBonus(payment);
+
     await this.subs.grant(
       payment.userId,
       payment.plan.id,
-      payment.plan.durationDays,
+      payment.plan.durationDays + bonus.extraDays,
       payment.id,
     );
     if (payment.couponCode) {
@@ -800,10 +958,28 @@ export class PaymentsService {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) throw new NotFoundException('Багц олдсонгүй');
 
-    let amount = plan.price;
+    /**
+     * ⚠️⚠️ QPay-ийн `initiate`-ТАЙ ЯГ ИЖИЛ дараалал байх ЁСТОЙ:
+     * урамшуулал → купон. Хоёр зам өөр үнэ гаргавал хэрэглэгч
+     * хэтэвчээр авахад илүү/дутуу төлнө.
+     */
+    const promoMap = await this.promotions.forPlans(
+      [{ id: plan.id, price: plan.price, durationDays: plan.durationDays }],
+      userId,
+    );
+    const promo = promoMap.get(plan.id) ?? null;
+
+    let amount = promo?.finalPrice ?? plan.price;
+    const promotionId = promo?.id ?? null;
+
     let normalizedCoupon: string | undefined;
     if (couponCode) {
-      const result = await this.coupons.validate({ code: couponCode, price: plan.price });
+      if (promo?.blockCoupons) {
+        throw new BadRequestException(
+          `«${promo.name}» урамшууллын үед купон код ашиглах боломжгүй`,
+        );
+      }
+      const result = await this.coupons.validate({ code: couponCode, price: amount });
       amount = result.finalPrice;
       normalizedCoupon = couponCode.toUpperCase().trim();
     }
@@ -829,7 +1005,8 @@ export class PaymentsService {
           status: PaymentStatus.PAID,
           paidAt: new Date(),
           couponCode: normalizedCoupon,
-          originalAmount: normalizedCoupon ? plan.price : undefined,
+          promotionId,
+          originalAmount: normalizedCoupon || promotionId ? plan.price : undefined,
         },
       });
 

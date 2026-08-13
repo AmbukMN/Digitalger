@@ -197,3 +197,98 @@ ssh root@62.238.47.2 'cd /opt/BestTV/docker &&   docker compose -f docker-compos
 - `src/modules/videos/video.processor.ts` (дараалал, диск шалгалт)
 - `src/modules/videos/video-recovery.service.ts`
 - Email/queue/BullMQ холбоотой бүх код
+
+---
+
+## 6. JWT нь НЭГ СЕКУНДЭД ИЖИЛ ТОКЕН үүсгэдэг (`jti` заавал)
+
+**Шинж:** Хоёр төхөөрөмжөөс зэрэг нэвтэрхэд нэг л session бүртгэгдэнэ.
+Лог: `Unique constraint failed on the fields: (tokenHash)`.
+
+**Шалтгаан:** JWT-ийн `iat`/`exp` нь **секундын** нарийвчлалтай. Нэг
+хэрэглэгч нэг секундэд хоёр удаа нэвтэрвэл payload (`{sub}`) ижил,
+`iat` ижил → гарын үсэг ижил → **ЯГ ИЖИЛ ТОКЕН**.
+
+**Үр дагавар (төхөөрөмжийн хязгаарт):**
+- 2 дахь session бүртгэгдэхгүй → хязгаар огт ажиллахгүй
+- Хоёр төхөөрөмж нэг мөр хуваалцана → нэгийг гаргахад нөгөө нь ч гарна
+
+**Засвар:** refresh token-д `jti: randomUUID()` нэмнэ
+(`auth.service.ts` → `signTokens`).
+
+⚠️ Access token-д хэрэггүй (түүнийг DB-д хадгалдаггүй).
+
+---
+
+## 7. `/api/auth/sessions` нь NextAuth руу орж 400 өгдөг байв
+
+**Шинж:** `This action with HTTP GET is not supported by NextAuth.js`
+
+**Шалтгаан:** `next.config.ts` rewrite-ийн regex
+`(?!signin|signout|callback|session|csrf|providers|error|bridge)` нь
+**угтвараар** тааруулдаг тул `sessions` нь `session`-д таарч,
+backend руу rewrite хийгдэхгүй NextAuth catch-all руу орно.
+
+**Засвар:** үгийн төгсгөл шалгана —
+`(?!(?:signin|…|bridge)(?:$|/))`
+
+⚠️ Ирээдүйд `/auth/callbacks`, `/auth/providers-list` гэх мэт нэр
+нэмбэл ижил алдаанд орно. Шинэ `/api/auth/*` зам нэмэх бүрд
+`node -e` тестээр regex-ыг шалгах.
+
+---
+
+## 8. Cloudflare-ийн ард бодит IP авах
+
+`req.ip` → `172.69.x.x` (Cloudflare-ийн сервер). Хэрэглэгчийн бодит IP
+нь **`CF-Connecting-IP`** header-т байна.
+
+Дараалал: `CF-Connecting-IP` → `X-Forwarded-For`-ын эхний утга → `req.ip`.
+
+⚠️ Эрх шалгахад IP хэрэглэхгүй (гаднаас хуурамчаар илгээж болно) —
+зөвхөн хэрэглэгчид ХАРУУЛАХ зорилготой.
+
+---
+
+## 9. Төхөөрөмжийн хязгаар (`MAX_DEVICES = 2`)
+
+**Хаана:** `backend/src/modules/auth/session.service.ts`
+
+| Зан төлөв | Тайлбар |
+|---|---|
+| Хязгаар | 2 (нэвтэрсэн төхөөрөмжөөр, зэрэг үзэж буй урсгалаар БИШ) |
+| Хэтэрвэл | Хамгийн **удаан ашиглаагүй** нь автоматаар гарна |
+| ADMIN | Хязгааргүй (админ панел + сайт хоёулангаас ордог) |
+| DB алдаа | **Fail-open** — нэвтрэлт зогсоохгүй |
+| Токен | SHA-256 хэшээр хадгална (цэвэр утгаар БИШ) |
+| Rotation | `refresh` бүрт хуучин мөр устаж шинэ бичигдэнэ |
+
+**Endpoint:** `GET /auth/sessions?rt=<refresh>`,
+`DELETE /auth/sessions/:id`, `POST /auth/sessions/revoke-others`,
+`POST /auth/logout`
+
+⚠️ **`/auth/logout` заавал дуудагдана** — эс бөгөөс session мөр
+30 хоног үлдэж хязгаарын байрыг дэмий эзэлнэ (хэрэглэгч 2 удаа
+гараад орвол «дүүрсэн» болно).
+
+⚠️ Багцын нөхцөлд «Олон төхөөрөмж» гэж бичиж БОЛОХГҮЙ — DB-ийн
+`Plan.features` дээр «2 төхөөрөмж хүртэл» гэж засагдсан.
+
+---
+
+## 10. Цувралын `streamStatus` нь эцэг `Title` дээр ХЭЗЭЭ Ч READY болдоггүй
+
+**Шинж:** 10/10 анги бүрэн хөрвүүлсэн атлаа карт дээр «Бэлтгэж байна».
+
+**Шалтгаан:** SERIES-ийн видео нь `Episode` дээр. `Title.streamStatus`
+нь `NONE` хэвээр үлддэг.
+
+**Засвар:** `CARD_SELECT`-д `seasons.episodes.streamStatus` нэмээд
+`TitleMediaHelper.decorate()` дотор тооцно (**бүх карт тэр функцээр
+дамждаг** тул нэг газар засахад 14 дуудлага бүгд зөв болно).
+
+Дүрэм: **нэг ч анги READY бол READY** (цуврал ангиараа гардаг тул
+«бүгд бэлэн болтол хүлээ» гэж харуулах нь буруу).
+
+⚠️ Админ талд (`titles-admin.service.ts`) ижил логик тусад нь бий —
+нэгийг өөрчилвөл нөгөөг нь ч шалгах.

@@ -181,9 +181,15 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
 
         {/* Жанр — картын ЗҮҮН доод (аль ангилалд багтахыг харуулна) */}
         {genreLabel && (
-          /* ⚠️ Хэлний шошго ДЭЭШ зөөгдсөн тул доод мөр чөлөөтэй — жанр
-             өргөн авч болно (урт нэр таслагдахгүй) */
-          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
+          /**
+           * ⚠️ ӨРГӨН нь мобайл/десктопт ӨӨР.
+           *
+           * Мобайлд баруун доод буланд «Дуртай» (♥) товч (36px) сууна —
+           * жанр бүтэн өргөнөө авбал түүний ДОР орж уншигдахгүй болно.
+           * Тиймээс утсан дээр ~3rem зай үлдээнэ. Десктопт тэр товч
+           * байхгүй (hover overlay дотор) тул бүтэн өргөн авна.
+           */
+          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-3.5rem)] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm md:max-w-[calc(100%-0.75rem)]">
             {genreLabel}
           </span>
         )}
@@ -236,7 +242,21 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
             onClick={addToList}
             aria-label={inList ? 'Дуртайгаас хасах' : 'Дуртай кинонд нэмэх'}
             className={cn(
-              'absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors md:hidden',
+              /**
+               * ⚠️⚠️ БАРУУН ДООД БУЛАН — баруун ДЭЭД нь ЗАВГҮЙ.
+               *
+               * Өмнө нь `right-1.5 top-1.5` байсан нь ХЭЛНИЙ ШОШГОТОЙ
+               * («🇲🇳 Хэл» / «Хадмал») ЯГ ДАВХЦАЖ, мобайлд хоёул
+               * уншигдахгүй болдог байв. Десктопт ♥ нь hover overlay
+               * дотор тул илрээгүй — зөвхөн утсан дээр гарах алдаа.
+               *
+               * Картын 4 булангийн эзэмшил:
+               *   зүүн дээд  — эрхийн badge («Багц эрх» / «Төлбөртэй»)
+               *   баруун дээд — хэлний шошго
+               *   зүүн доод  — жанрын шошго
+               *   баруун доод — ЭНЭ товч (цорын ганц сул булан)
+               */
+              'absolute bottom-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors md:hidden',
               inList ? 'bg-primary text-white' : 'bg-black/45 text-white',
             )}
           >

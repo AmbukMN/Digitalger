@@ -6,6 +6,7 @@ import { PaymentCleanupService } from './payment-cleanup.service';
 import { PaymentsReconcileService } from './payments-reconcile.service';
 import { CouponsModule } from '../coupons/coupons.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { PromotionsModule } from '../promotions/promotions.module';
 import { RentalsModule } from '../rentals/rentals.module';
 
 @Module({
@@ -17,7 +18,7 @@ import { RentalsModule } from '../rentals/rentals.module';
    * `forwardRef` шаардлагатай болно — БҮҮ нэм, оронд нь энэ чиглэлээр л
    * дуудна.
    */
-  imports: [CouponsModule, WalletModule, RentalsModule],
+  imports: [CouponsModule, WalletModule, RentalsModule, PromotionsModule],
   controllers: [PaymentsController, PaymentsAdminController],
   providers: [PaymentsService, PaymentsReconcileService, PaymentCleanupService],
   exports: [PaymentsService],

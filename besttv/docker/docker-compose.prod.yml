@@ -59,6 +59,8 @@ services:
         condition: service_healthy
     networks:
       - besttv_net
+      # ⚠️ n8n руу Telegram мэдэгдэл илгээхэд (дэлгэрэнгүй доор)
+      - n8n_net
       - nginx_net
 
   # HLS хөрвүүлэлтийн worker — backend-тэй ижил image, өөр entrypoint.
@@ -88,6 +90,8 @@ services:
         condition: service_healthy
     networks:
       - besttv_net
+      # ⚠️ n8n руу Telegram мэдэгдэл илгээхэд (дэлгэрэнгүй доор)
+      - n8n_net
 
   frontend:
     build:
@@ -139,3 +143,14 @@ networks:
   nginx_net:
     external: true
     name: docker_internal
+  # ⚠️ DigitalGer-ийн n8n (digitalger-n8n) ЭНЭ сүлжээнд ажиллана.
+  # Telegram мэдэгдэл нь backend → n8n webhook → Telegram гэж явдаг тул
+  # backend нь `http://digitalger-n8n:5678` гэж КОНТЕЙНЕРИЙН НЭРЭЭР
+  # хандах шаардлагатай.
+  #
+  # ⚠️ Гадаад IP (62.238.47.2:5678) руу залгах нь БОЛОХГҮЙ: тэр порт
+  # интернэтэд нээлттэй тул хэн ч webhook дуудаж хуурамч мэдэгдэл
+  # илгээх боломжтой болно. Дотоод сүлжээгээр л явна.
+  n8n_net:
+    external: true
+    name: digitalger-n8n-network

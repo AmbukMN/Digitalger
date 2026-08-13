@@ -114,14 +114,16 @@ model User {
   searchEvents SearchEvent[]
   auditLogs    UserAuditLog[]
 
-  chatConversations ChatConversation[]
-  reviewVotes       ReviewVote[]
-  reviewReports     ReviewReport[]
-  rentals           Rental[]
-  emailOtps         EmailOtp[]
-  adminSeens        AdminSeen[]
-  passwordResets    PasswordResetToken[]
-  sessions          UserSession[]
+  chatConversations    ChatConversation[]
+  reviewVotes          ReviewVote[]
+  reviewReports        ReviewReport[]
+  rentals              Rental[]
+  emailOtps            EmailOtp[]
+  adminSeens           AdminSeen[]
+  passwordResets       PasswordResetToken[]
+  sessions             UserSession[]
+  /// Ашигласан урамшууллууд (давтан ашиглахаас сэргийлэх + үр дүн хэмжих)
+  promotionRedemptions PromotionRedemption[]
 
   @@index([provider])
 }
@@ -392,6 +394,10 @@ model Plan {
   genres        PlanGenre[]
   subscriptions Subscription[]
   payments      Payment[]
+  /// Энэ багцад үйлчлэх урамшууллууд
+  promotions    PromotionPlan[]
+  /// ⚠️ Энэ багцыг БЭЛЭГ болгон өгдөг урамшууллууд (өөр чиглэл)
+  giftedBy      Promotion[]     @relation("PromotionGiftPlan")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -445,6 +451,33 @@ model Payment {
   rentalTitleId String?
   rentalTitle   Title?  @relation("RentalPayments", fields: [rentalTitleId], references: [id], onDelete: SetNull)
 
+  /**
+   * ─── ДАНСААР ШИЛЖҮҮЛЭХ ───────────────────────────────────────
+   * ⚠️ `bankReference` нь ГҮЙЛГЭЭНИЙ УТГА (ж: «BTV-4F2A») — хэрэглэгч
+   * шилжүүлэг хийхдээ энэ кодыг бичнэ. Үүнгүйгээр банкны хуулга
+   * дээрх мөнгө ХЭНИЙХ болохыг таних БОЛОМЖГҮЙ.
+   * ⚠️ Энэ талбар байвал төлбөр нь QPay БИШ, ГАРААР баталгаажна.
+   * `status=PENDING` + `bankReference != null` = админ шалгах хүлээлгэнд.
+   */
+  bankReference    String?   @unique
+  /// Хэрэглэгч «шилжүүлсэн» товч дарсан мөч (админд хүлээлгийн хугацаа харуулна)
+  bankClaimedAt    DateTime?
+  /// Админ баталгаажуулсан/татгалзсан мөч
+  bankReviewedAt   DateTime?
+  /// Татгалзсан бол шалтгаан (хэрэглэгчид имэйлээр очно)
+  bankRejectReason String?
+
+  /**
+   * ⚠️⚠️ Хэрэглэсэн УРАМШУУЛАЛ (snapshot).
+   * `initiate` үед бодсон урамшууллыг ЭНД тэмдэглэнэ, `completePayment`
+   * нь үүнийг уншиж бонус хоног/бэлэг багцыг олгоно.
+   * Тэмдэглэхгүй бол: төлбөр 5 минут хүлээж байх зуур урамшуулал
+   * дуусвал хэрэглэгч хямдруулсан үнээр төлөөд бонусаа АВАХГҮЙ.
+   * ⚠️ Relation БИШ зүгээр String — урамшуулал устсан ч төлбөрийн
+   * түүх үлдэх ёстой (`PromotionRedemption` нь холбоог хадгална).
+   */
+  promotionId String?
+
   couponCode     String? // хэрэглэсэн купон код (лог зорилгоор, snapshot)
   originalAmount Int? // купон хэрэглэхээс өмнөх дvн (хямдрал харуулахад)
 
@@ -466,6 +499,8 @@ model Payment {
   @@index([userId, status])
   /// ⚠️ `initiateRental`-ийн idempotent хайлтад (userId+rentalTitleId+status)
   @@index([rentalTitleId])
+  /// ⚠️ Админы «Дансны төлбөр» жагсаалт — хүлээгдэж буйг эрэмбэлж татна
+  @@index([bankClaimedAt])
 }
 
 // ─── Үзэлтийн явц + жагсаалт ─────────────────────────────────────────────────
@@ -640,6 +675,146 @@ model Coupon {
   updatedAt DateTime @updatedAt
 
   @@index([code, isActive])
+}
+
+// ─── УРАМШУУЛЛЫН СИСТЕМ ──────────────────────────────────────────────────────
+
+/// Урамшууллын төрөл — тус бүр өөр талбар ашиглана (доорх тайлбар).
+enum PromotionType {
+  /// Нэмэлт ХУГАЦАА — «1 сар аваад 1 сар бэлэг». `bonusDays` ашиглана.
+  /// ⚠️ Үнэ ӨӨРЧЛӨГДӨХГҮЙ — орлого бүтэн бичигдэнэ.
+  EXTRA_DAYS
+  /// ХЯМДРАЛ — хувиар эсвэл тогтмол дүнгээр. `discountType` + `discountValue`.
+  DISCOUNT
+  /// БЭЛЭГ БАГЦ — өөр багцыг үнэгүй дагалдуулна. `giftPlanId` + `giftDays`.
+  GIFT_PLAN
+  /// ХЭТЭВЧИЙН БОНУС — цэнэглэхэд нэмэлт мөнгө. `minTopup` + `bonusAmount`.
+  WALLET_BONUS
+}
+
+/// Урамшуулал — багцын үнэ/хугацаанд нөлөөлөх зарлагдсан урамшуулал.
+///
+/// ⚠️⚠️ КУПОНООС ЯЛГААТАЙ: купон нь КОД бичиж идэвхжүүлдэг, урамшуулал нь
+/// АВТОМАТААР үйлчилнэ (хэрэглэгч юу ч хийхгүй). Тиймээс энэ нь
+/// маркетингийн хэрэгсэл — багцын карт дээр харагдаж худалдан авалт өдөөнө.
+///
+/// ⚠️ Хоёулаа зэрэг үйлчилнэ: эхлээд урамшуулал, дараа нь купон ҮЛДСЭН
+/// дүн дээр (30% + 20% = 44%, 50% БИШ). Дэлгэрэнгүйг `promotions.service`.
+model Promotion {
+  id          String @id @default(cuid())
+  /// Хэрэглэгчид харагдах нэр — «Нээлтийн урамшуулал»
+  name        String
+  /// Багцын карт дээр гарах НЭГ мөр — «30 хоног аваад 60 хоног үзнэ»
+  shortText   String @default("")
+  /// Дэлгэрэнгүй тайлбар (баннер/модалд)
+  description String @default("")
+
+  type PromotionType
+
+  // ─── Төрлөөс хамаарах утгууд ───
+
+  /// EXTRA_DAYS — хэдэн хоног НЭМЖ өгөх вэ
+  bonusDays Int?
+
+  /// DISCOUNT — PERCENT (1-100) эсвэл FIXED (₮)
+  discountType  DiscountType?
+  discountValue Int?
+
+  /// GIFT_PLAN — дагалдах багц
+  giftPlanId String?
+  giftPlan   Plan?   @relation("PromotionGiftPlan", fields: [giftPlanId], references: [id], onDelete: SetNull)
+  /// Бэлэг багцын хугацаа. null бол үндсэн багцтай ИЖИЛ.
+  giftDays   Int?
+
+  /// WALLET_BONUS — энэ дүнгээс дээш цэнэглэвэл
+  minTopup    Int?
+  /// …энэ дүнг НЭМЖ өгнө
+  bonusAmount Int?
+
+  // ─── Хамрах хүрээ ───
+
+  /// Хоосон бол БҮХ багцад. Утгатай бол зөвхөн сонгосон багцуудад.
+  /// ⚠️ WALLET_BONUS-д хамааралгүй (багцтай холбоогүй).
+  plans PromotionPlan[]
+
+  // ─── Хугацаа, хязгаар ───
+
+  startsAt DateTime
+  endsAt   DateTime
+  isActive Boolean  @default(true)
+
+  /// Нийт хэдэн удаа ашиглаж болох вэ (null = хязгааргүй)
+  maxUses    Int?
+  usedCount  Int  @default(0)
+  /// Нэг хэрэглэгч хэдэн удаа (ихэвчлэн 1)
+  maxPerUser Int  @default(1)
+
+  /// ⚠️ true бол ЗӨВХӨН өмнө нь багц аваагүй хэрэглэгчид.
+  /// Шинэ хэрэглэгч татах кампанит ажилд.
+  newUsersOnly Boolean @default(false)
+
+  /// ⚠️ true бол энэ урамшуулалтай үед КУПОН хэрэглэх боломжгүй.
+  /// Хэт их хямдрал өгөхөөс сэргийлнэ.
+  blockCoupons Boolean @default(false)
+
+  // ─── Харагдац ───
+
+  /// Кино эгнээний дунд гарах баннер (16:9, R2 key). Хоосон бол баннер гарахгүй.
+  bannerKey       String?
+  /// Мобайлд өөр зураг (хоосон бол `bannerKey`)
+  bannerMobileKey String?
+
+  /// Хэд давхацвал аль нь эхэнд харагдах вэ (бага нь эхэнд)
+  order Int @default(0)
+
+  redemptions PromotionRedemption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// ⚠️ Идэвхтэй урамшуулал хайх гол query — хугацаа+идэвх
+  @@index([isActive, startsAt, endsAt])
+}
+
+/// Урамшуулал ↔ багц. Мөр байхгүй бол урамшуулал БҮХ багцад үйлчилнэ.
+model PromotionPlan {
+  promotionId String
+  planId      String
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  plan      Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, planId])
+  @@index([planId])
+}
+
+/// Хэн ямар урамшуулал ашигласан бүртгэл.
+///
+/// ⚠️⚠️ ХОЁР ЗОРИЛГО:
+///   1. `maxPerUser` хязгаарыг шалгах (нэг хүн давтан ашиглахгүй)
+///   2. ҮР ДҮНГ ХЭМЖИХ — хэдэн хүн ашигласан, хэдэн төгрөгийн
+///      борлуулалт авчирсан, хэдэн хоног үнэгүй өгсөн
+model PromotionRedemption {
+  id          String  @id @default(cuid())
+  promotionId String
+  userId      String
+  /// Аль төлбөрт үйлчилсэн (хэтэвчийн бонусд ч төлбөр байна)
+  paymentId   String?
+
+  /// ⚠️ SNAPSHOT — урамшуулал дараа засагдсан ч түүх ҮНЭН үлдэнэ
+  /// Хэрэглэгчид ХЭДЭН ТӨГРӨГИЙН ашиг өгсөн (хямдрал/бонус)
+  valueGiven Int @default(0)
+  /// Хэдэн хоног НЭМЖ өгсөн (EXTRA_DAYS/GIFT_PLAN)
+  daysGiven  Int @default(0)
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /// ⚠️ `maxPerUser` шалгалтын гол index
+  @@index([promotionId, userId])
+  @@index([userId])
 }
 
 /// Статик хуудас — Үйлчилгээний нөхцөл, Нууцлалын бодлого, Дата устгах хүсэлт
