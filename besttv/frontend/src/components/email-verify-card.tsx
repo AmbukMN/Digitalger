@@ -22,14 +22,25 @@ export function EmailVerifyCard() {
   const [cooldown, setCooldown] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Дахин илгээх хүлээлтийн тоолуур
+  /**
+   * Дахин илгээх хүлээлтийн тоолуур.
+   *
+   * ⚠️⚠️ Dependency нь `[cooldown]` байсан нь АЛДАА: тоолуур 1 буурах
+   * бүрд effect дахин ажиллаж, хуучин interval-аа цэвэрлээд ШИНЭ
+   * 1000ms interval үүсгэдэг байв. Ингэснээр 60 секундийн cooldown
+   * бодитоор 60-аас удаан үргэлжилж (drift), жигд бус ажиллана.
+   *
+   * ⚠️ `cooldown > 0` гэсэн НӨХЦӨЛӨӨР асаана — тоо өөрчлөгдөхөд биш.
+   * `setCooldown(c => ...)` нь хуучин утгыг хараат бус уншина.
+   */
+  const ticking = cooldown > 0;
   useEffect(() => {
-    if (cooldown <= 0) return;
+    if (!ticking) return;
     timerRef.current = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [cooldown]);
+  }, [ticking]);
 
   if (!user || user.emailVerified || user.provider !== 'LOCAL') return null;
 

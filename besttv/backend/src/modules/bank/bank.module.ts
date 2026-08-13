@@ -626,16 +626,164 @@ export class BankService {
 
   // ─── АДМИН ───────────────────────────────────────────────────────────────
 
-  async adminList(status?: string) {
-    const where =
-      status === 'pending'
-        ? { status: PaymentStatus.PENDING, bankClaimedAt: { not: null } }
-        : status === 'waiting'
-          ? { status: PaymentStatus.PENDING, bankClaimedAt: null }
-          : {};
+  /**
+   * Шүүлтийн нөхцөлийг НЭГ цэгээс — жагсаалт, статистик, export
+   * бүгд ижил дүрмээр ажиллана.
+   *
+   * ⚠️ Гурав тусад нь бичвэл нэгийг засахад бусад нь зөрж, «жагсаалт
+   * 5 мөр харуулж байхад статистик 12 гэж бичих» гэсэн итгэл алдах
+   * зөрчил үүснэ.
+   */
+  private bankWhere(o: { status?: string; from?: string; to?: string }) {
+    const base: Record<string, unknown> = { bankReference: { not: null } };
 
+    if (o.status === 'pending') {
+      base.status = PaymentStatus.PENDING;
+      base.bankClaimedAt = { not: null };
+    } else if (o.status === 'waiting') {
+      base.status = PaymentStatus.PENDING;
+      base.bankClaimedAt = null;
+    } else if (o.status === 'paid') {
+      base.status = PaymentStatus.PAID;
+    } else if (o.status === 'cancelled') {
+      base.status = PaymentStatus.CANCELLED;
+    }
+
+    /* ⚠️ `to` нь ТУХАЙН ӨДРИЙГ ОРУУЛНА — «08-13 хүртэл» гэвэл
+       08-13-ны 23:59 хүртэл. Эс бөгөөс тэр өдрийн төлбөр алга болно. */
+    if (o.from || o.to) {
+      const range: { gte?: Date; lt?: Date } = {};
+      if (o.from) range.gte = new Date(o.from);
+      if (o.to) {
+        const end = new Date(o.to);
+        end.setDate(end.getDate() + 1);
+        range.lt = end;
+      }
+      base.createdAt = range;
+    }
+    return base;
+  }
+
+  /**
+   * Дансны төлбөрийн статистик.
+   *
+   * ⚠️⚠️ Мөнгөний хуудас атлаа «өнөөдрийн баталгаажуулсан дүн хэд вэ»
+   * гэсэн энгийн асуултад хариулах боломжгүй байв.
+   */
+  async adminStats(o: { status?: string; from?: string; to?: string }) {
+    const where = this.bankWhere(o);
+
+    const [pending, paid, cancelled, waiting] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: { ...where, status: PaymentStatus.PENDING, bankClaimedAt: { not: null } },
+        _count: { id: true },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: { ...where, status: PaymentStatus.PAID },
+        _count: { id: true },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: { ...where, status: PaymentStatus.CANCELLED },
+        _count: { id: true },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.count({
+        where: { ...where, status: PaymentStatus.PENDING, bankClaimedAt: null },
+      }),
+    ]);
+
+    return {
+      pendingCount: pending._count.id,
+      pendingAmount: pending._sum.amount ?? 0,
+      paidCount: paid._count.id,
+      paidAmount: paid._sum.amount ?? 0,
+      cancelledCount: cancelled._count.id,
+      cancelledAmount: cancelled._sum.amount ?? 0,
+      waitingCount: waiting,
+    };
+  }
+
+  /**
+   * CSV export — шүүсэн БҮХ мөр (хуудаслалтгүй).
+   * ⚠️ 20,000-аар хязгаарлана — санах ой хамгаална.
+   */
+  async adminExport(o: { status?: string; from?: string; to?: string }) {
     const rows = await this.prisma.payment.findMany({
-      where: { bankReference: { not: null }, ...where },
+      where: this.bankWhere(o),
+      orderBy: { createdAt: 'desc' },
+      take: 20_000,
+      select: {
+        bankReference: true,
+        amount: true,
+        originalAmount: true,
+        status: true,
+        isWalletTopup: true,
+        couponCode: true,
+        bankClaimedAt: true,
+        bankReviewedAt: true,
+        bankRejectReason: true,
+        bankReceiptKey: true,
+        createdAt: true,
+        user: { select: { email: true, name: true } },
+        plan: { select: { name: true } },
+        bankAccount: { select: { bankName: true } },
+      },
+    });
+
+    const esc = (v: unknown) => {
+      const str = v == null ? '' : String(v);
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const header = [
+      'Гүйлгээний утга',
+      'Огноо',
+      'Хэрэглэгч',
+      'Имэйл',
+      'Юуны төлөө',
+      'Банк',
+      'Дүн',
+      'Хуучин дүн',
+      'Купон',
+      'Төлөв',
+      'Мэдэгдсэн',
+      'Шалгасан',
+      'Татгалзсан шалтгаан',
+      'Баримт',
+    ];
+    const lines = [
+      header.join(','),
+      ...rows.map((r) =>
+        [
+          r.bankReference ?? '',
+          r.createdAt.toISOString(),
+          r.user?.name ?? '',
+          r.user?.email ?? '',
+          r.isWalletTopup ? 'Хэтэвч цэнэглэлт' : (r.plan?.name ?? ''),
+          r.bankAccount?.bankName ?? '',
+          r.amount,
+          r.originalAmount ?? '',
+          r.couponCode ?? '',
+          r.status,
+          r.bankClaimedAt?.toISOString() ?? '',
+          r.bankReviewedAt?.toISOString() ?? '',
+          r.bankRejectReason ?? '',
+          /* ⚠️ Баримтын URL БИШ «тийм/үгүй» — presign холбоос 2 цагийн
+             дараа үхнэ, CSV нь архивт үлддэг */
+          r.bankReceiptKey ? 'тийм' : 'үгүй',
+        ]
+          .map(esc)
+          .join(','),
+      ),
+    ];
+    // ⚠️ BOM — Excel дээр кирилл үсэг зөв харагдана
+    return { csv: '\ufeff' + lines.join('\n'), count: rows.length };
+  }
+
+  async adminList(o: { status?: string; from?: string; to?: string }) {
+    const rows = await this.prisma.payment.findMany({
+      where: this.bankWhere(o),
       orderBy: [{ bankClaimedAt: 'desc' }, { createdAt: 'desc' }],
       take: 200,
       select: {
@@ -859,8 +1007,32 @@ export class BankAdminController {
   }
 
   @Get('payments')
-  list(@Query('status') status?: string) {
-    return this.svc.adminList(status);
+  list(
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.svc.adminList({ status, from, to });
+  }
+
+  /** Статистик — шүүлттэй ижил нөхцөлөөр */
+  @Get('payments/stats')
+  stats(
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.svc.adminStats({ status, from, to });
+  }
+
+  /** CSV export — нягтлан бодох бүртгэлд */
+  @Get('payments/export')
+  exportCsv(
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.svc.adminExport({ status, from, to });
   }
 
   @Post('payments/:id/approve')

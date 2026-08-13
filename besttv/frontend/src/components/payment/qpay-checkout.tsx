@@ -159,7 +159,12 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
   const [checking, setChecking] = useState(false);
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expired, setExpired] = useState(false);
+  /**
+   * ⚠️ `expired` БИШ `pollStopped` — QR нь 24 цаг ХҮЧИНТЭЙ хэвээр.
+   * 30 минутын дараа зөвхөн АВТОМАТ шалгалт зогсоно (батарей/сүлжээ),
+   * хэрэглэгч «Төлбөр шалгах» товчоор үргэлжлүүлж болно.
+   */
+  const [pollStopped, setPollStopped] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -191,12 +196,24 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
     // ⚠️ try/catch check() дотор — сүлжээ тасрахад polling зогсож,
     // хэрэглэгч мөнхийн spinner дээр гацахаас сэргийлнэ
     pollRef.current = setInterval(() => void check(true), POLL_INTERVAL);
+    /**
+     * ⚠️⚠️ 15 МИНУТ нь ХУДАЛ байв — backend-ийн `PENDING_EXPIRE_HOURS`
+     * нь **24 цаг**, QPay нэхэмжлэлд `expiry_date` илгээдэггүй.
+     *
+     * Үр дагавар: удаан төлдөг хүн (өөр хүнээр гүйлгүүлэх, банк руу
+     * очих) төлчихөөд «QR-ийн хугацаа дууслаа» гэсэн бичиг хараад
+     * эрх нээгдэхгүй гэж бодно.
+     *
+     * ⚠️ Polling-ыг 30 минутын дараа зогсооно (батарей/сүлжээ хэмнэнэ),
+     * гэхдээ «хугацаа дууссан» ГЭЖ ХЭЛЭХГҮЙ — «Төлбөр шалгах» товч
+     * ажилласаар байна.
+     */
     timeoutRef.current = setTimeout(
       () => {
         stop();
-        setExpired(true);
+        setPollStopped(true);
       },
-      15 * 60 * 1000,
+      30 * 60 * 1000,
     );
     return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -288,7 +305,7 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
               )}
 
               {/* QR — desktop ТОМ (скан), mobile ЖИЖИГ */}
-              {qrSrc && !expired && (
+              {qrSrc && (
                 <div className="flex flex-col items-center gap-2">
                   <div className="rounded-xl border-2 border-primary/25 bg-white p-2 shadow-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -307,7 +324,7 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
 
               {/* ⚠️ MOBILE — банкны апп (QR-ийн ДООР). Утсан дээр QR скан хийх
                    боломжгүй тул хэрэглэгч аппаа дарж төлнө. */}
-              {banks.length > 0 && !expired && (
+              {banks.length > 0 && (
                 <div className="sm:hidden">
                   <p className="mb-1 text-sm font-semibold text-foreground">Банкны аппаа сонгоно уу</p>
                   <p className="mb-2.5 text-[11px] text-foreground/45">
@@ -327,19 +344,21 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
                 </div>
               )}
 
-              {expired && (
-                <div className="py-8 text-center">
-                  <p className="text-sm text-foreground/60">QR-ийн хугацаа дууслаа</p>
-                  <button
-                    onClick={onClose}
-                    className="mt-3 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110"
-                  >
-                    Хаах
-                  </button>
+              {/*
+                ⚠️ «Хугацаа дууслаа» ГЭЖ ХЭЛЭХГҮЙ — нэхэмжлэл 24 цаг
+                хүчинтэй. Зөвхөн автомат шалгалт зогссоныг мэдэгдээд
+                гараар шалгах товч санал болгоно.
+              */}
+              {pollStopped && !paid && (
+                <div className="mt-3 rounded-lg bg-foreground/6 px-3 py-2.5 text-center">
+                  <p className="text-xs text-foreground/55">
+                    Автомат шалгалт зогслоо. Төлсөн бол доорх товчийг дарна уу —
+                    QR нь хүчинтэй хэвээр.
+                  </p>
                 </div>
               )}
 
-              {!qrSrc && banks.length === 0 && !expired && (
+              {!qrSrc && banks.length === 0 && (
                 <div className="flex flex-col items-center gap-2 py-6 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-sm text-foreground/55">Төлбөрийн мэдээлэл ачаалж байна…</p>
@@ -356,7 +375,7 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
         </div>
 
         {/* Footer — алхмууд + гар шалгах товч (үргэлж харагдана) */}
-        {!paid && !expired && (
+        {!paid && (
           <div className="shrink-0 space-y-3 border-t border-foreground/8 bg-card px-5 py-4">
             <StepsDesktop />
             <StepsMobile />

@@ -883,12 +883,42 @@ export function useAdminBankSettings() {
  * ⚠️ `staleTime: 0` + focus refetch — хэрэглэгч мөнгө шилжүүлээд
  * хүлээж байна. Хуучирсан жагсаалт харуулах нь хүлээлт уртасгана.
  */
-export function useAdminBankPayments(status?: string) {
+export interface BankStats {
+  pendingCount: number;
+  pendingAmount: number;
+  paidCount: number;
+  paidAmount: number;
+  cancelledCount: number;
+  cancelledAmount: number;
+  waitingCount: number;
+}
+
+/** Шүүлтийг query string болгоно — жагсаалт/стат/export бүгд ижил */
+function bankQuery(f: { status?: string; from?: string; to?: string }): string {
+  const q = new URLSearchParams();
+  if (f.status) q.set('status', f.status);
+  if (f.from) q.set('from', f.from);
+  if (f.to) q.set('to', f.to);
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+export function useAdminBankPayments(f: { status?: string; from?: string; to?: string }) {
   return useQuery({
-    queryKey: ['admin-bank-payments', status ?? 'all'],
-    queryFn: () =>
-      api<AdminBankPayment[]>(`/admin/bank/payments${status ? `?status=${status}` : ''}`),
+    queryKey: ['admin-bank-payments', f],
+    queryFn: () => api<AdminBankPayment[]>(`/admin/bank/payments${bankQuery(f)}`),
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
 }
+
+export function useAdminBankStats(f: { status?: string; from?: string; to?: string }) {
+  return useQuery({
+    queryKey: ['admin-bank-stats', f],
+    queryFn: () => api<BankStats>(`/admin/bank/payments/stats${bankQuery(f)}`),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export { bankQuery };

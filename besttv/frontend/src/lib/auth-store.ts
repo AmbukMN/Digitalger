@@ -238,7 +238,22 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 }));
 
-/** Идэвхтэй premium эрхтэй эсэх */
+/**
+ * Идэвхтэй premium эрхтэй эсэх.
+ *
+ * ⚠️⚠️ ХЭРЭГЛЭГЧИЙН ЦАГААР ШИЙДЭХГҮЙ. `api.ts` дээр «CLIENT ТАЛД
+ * ХУГАЦААГ ХЭЗЭЭ Ч БҮҮ ШАЛГА, хэрэглэгчийн цаг буруу байх нь МАШ
+ * ТҮГЭЭМЭЛ» гэж тусгайлан бичсэн — энэ функц яг тэр алдааг давтаж
+ * байв (цаг хоцорсон төхөөрөмж дээр багц дууссан ч «VIP» гэж).
+ *
+ * ⚠️ Backend нь `/auth/me`-д `subscriptions` жагсаалтыг ЗӨВХӨН
+ * идэвхтэйгээр нь буцаадаг (`expiresAt: { gt: new Date() }`) тул
+ * тэр массив хоосон эсэхийг шалгахад хангалттай — сервер аль хэдийн
+ * өөрийн цагаар шүүсэн.
+ */
 export function hasPremium(user: AuthUser | null): boolean {
-  return !!user?.subscription && new Date(user.subscription.expiresAt) > new Date();
+  if (!user) return false;
+  /* ⚠️ `hasVip` нь backend-ээс ирдэг (VIP багц) */
+  if (user.hasVip) return true;
+  return (user.subscriptions?.length ?? 0) > 0;
 }

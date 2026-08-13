@@ -33,15 +33,39 @@ export function CatalogGrid({
   subheading: string;
 }) {
   const searchParams = useSearchParams();
-  const [genre, setGenre] = useState<string | undefined>(searchParams.get('genre') ?? undefined);
+  const [genre, setGenreState] = useState<string | undefined>(
+    searchParams.get('genre') ?? undefined,
+  );
   // ⚠️ Эрэмбэ ҮРГЭЛЖ "шинэ" — сонголтын товч хасагдсан (илүүц байв)
 
-  // Нүүр хуудасны "Бүгдийг үзэх" (?genre=slug) холбоосыг тайлбарлана
+  /**
+   * ⚠️⚠️ ЖАНР СОЛИХОД URL ЧАНАР ШИНЭЧЛЭНЭ.
+   *
+   * Өмнө нь зөвхөн local state өөрчлөгддөг тул: (а) шүүсэн үр дүнгээ
+   * хуваалцах боломжгүй, (б) browser-ийн БУЦАХ товч ажиллахгүй,
+   * (в) refresh хийхэд `?genre=` дэх ХУУЧИН жанр руу буцдаг байв.
+   *
+   * ⚠️ `replaceState` (push БИШ) — жанр солих бүрд түүх бөглөвөл
+   * буцах товч 10 удаа дарж байж хуудаснаас гардаг болно.
+   */
+  const setGenre = (slug: string | undefined) => {
+    setGenreState(slug);
+    if (typeof window !== 'undefined') {
+      const url = slug
+        ? `${window.location.pathname}?genre=${encodeURIComponent(slug)}`
+        : window.location.pathname;
+      window.history.replaceState(null, '', url);
+    }
+  };
+
+  /**
+   * ⚠️ URL-ийн `?genre=` өөрчлөгдвөл дагана — нүүр хуудасны «Бүгдийг
+   * үзэх» холбоосоор өөр жанр руу шилжихэд state хоцрохгүй.
+   */
+  const urlGenre = searchParams.get('genre');
   useEffect(() => {
-    const g = searchParams.get('genre');
-    if (g) setGenre(g);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (urlGenre) setGenreState(urlGenre);
+  }, [urlGenre]);
 
   const { data: genres } = useGenres();
   /**

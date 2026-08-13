@@ -172,7 +172,16 @@ export class CouponsService {
         : Math.min(coupon.amount, dto.price);
     const finalPrice = Math.max(0, dto.price - discount);
 
-    return { valid: true, discount, finalPrice, discountType: coupon.discountType, amount: coupon.amount };
+    /* ⚠️ `minPrice` ЗААВАЛ буцаана — frontend нь багц бүрд тусад нь
+       шалгах ёстой (хямд багцад купон хүчингүй байж болно) */
+    return {
+      valid: true,
+      discount,
+      finalPrice,
+      discountType: coupon.discountType,
+      amount: coupon.amount,
+      minPrice: coupon.minPrice,
+    };
   }
 
   /**

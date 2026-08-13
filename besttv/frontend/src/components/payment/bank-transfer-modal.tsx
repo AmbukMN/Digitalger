@@ -186,12 +186,25 @@ export function BankTransferModal({
    * хуучныг нь бичээд төлбөр танигдахгүй болно).
    */
   const switchAccount = async (id: string) => {
+    /**
+     * ⚠️⚠️ АЛДААГ ЗАЛГИХГҮЙ. Өмнө нь `.catch(() => null)` байсан тул
+     * хүсэлт унавал UI нь шинэ данс сонгогдсон мэт харуулсаар байж,
+     * backend дээр ХУУЧИН данс бүртгэлтэй үлддэг байв. Хэрэглэгч
+     * харагдаж буй данс руу шилжүүлээд төлбөр таарахгүй болно.
+     */
+    const prev = accountId;
     setAccountId(id);
     if (!order) return;
-    await api('/bank/initiate', {
-      method: 'POST',
-      body: JSON.stringify({ planId, topupAmount, couponCode, bankAccountId: id }),
-    }).catch(() => null);
+    try {
+      await api('/bank/initiate', {
+        method: 'POST',
+        body: JSON.stringify({ planId, topupAmount, couponCode, bankAccountId: id }),
+      });
+    } catch (e) {
+      /* ⚠️ Сонголтыг БУЦААНА — харагдац бодит байдалтай таарна */
+      setAccountId(prev);
+      toast.error(e instanceof Error ? e.message : 'Данс солиж чадсангүй');
+    }
   };
 
   const pickReceipt = async (file: File) => {

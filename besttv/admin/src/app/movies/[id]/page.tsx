@@ -8,8 +8,10 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
+import { SeasonsManager } from '@/components/seasons-manager';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { api } from '@/lib/api';
+import { runMutation } from '@/lib/mutate';
 import { useAdminGenres, useAdminTitle, type AdminSeason } from '@/lib/queries';
 import { ImageUpload } from '@/components/image-upload';
 import { VideoUpload } from '@/components/video-upload';
@@ -597,129 +599,13 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
-function SeasonsManager({ titleId }: { titleId: string }) {
-  const { data: title, refetch } = useAdminTitle(titleId);
-  const [newSeasonName, setNewSeasonName] = useState('');
-
-  const addSeason = async () => {
-    const number = (title?.seasons?.length ?? 0) + 1;
-    await api(`/admin/titles/${titleId}/seasons`, {
-      method: 'POST',
-      body: JSON.stringify({ number, name: newSeasonName || undefined }),
-    });
-    setNewSeasonName('');
-    refetch();
-  };
-
-  return (
-    <div>
-      <h2 className="mb-3 text-lg font-semibold text-foreground">Улирал / Ангиуд</h2>
-
-      <div className="mb-4 flex gap-2">
-        <input
-          value={newSeasonName}
-          onChange={(e) => setNewSeasonName(e.target.value)}
-          placeholder="Улирлын нэр (заавал биш)"
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
-        />
-        <button onClick={addSeason} className="flex items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/70">
-          <Plus size={15} /> Улирал нэмэх
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {title?.seasons?.map((s) => (
-          <SeasonBlock key={s.id} season={s} onChange={refetch} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () => void }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const confirm = useConfirm();
-
-  const addEpisode = async () => {
-    const number = (season.episodes?.length ?? 0) + 1;
-    await api(`/admin/titles/seasons/${season.id}/episodes`, {
-      method: 'POST',
-      body: JSON.stringify({ number }),
-    });
-    onChange();
-    toast.success(`${number}-р анги нэмэгдлээ`);
-  };
-
-  const removeSeason = async () => {
-    const episodeCount = season.episodes?.length ?? 0;
-    const withVideo = (season.episodes ?? []).filter((e) => e.streamStatus === 'READY').length;
-    const ok = await confirm({
-      title: `${season.name ?? `${season.number}-р улирал`}-ыг устгах уу?`,
-      description: `Энэ улирал ${episodeCount} ангитай${withVideo ? `, ${withVideo} нь видеотой` : ''}.`,
-      bullets: [
-        'Бүх анги устана',
-        ...(withVideo ? ['Байршуулсан видео файлууд ч устана — сэргээх боломжгүй'] : []),
-        'Хэрэглэгчдийн үзэлтийн явц алдагдана',
-      ],
-      confirmLabel: 'Улирлыг устгах',
-      tone: 'danger',
-    });
-    if (!ok) return;
-    await api(`/admin/titles/seasons/${season.id}`, { method: 'DELETE' });
-    onChange();
-    toast.success('Улирал устгагдлаа');
-  };
-
-  return (
-    <div className="rounded-md border border-border p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium text-foreground">{season.name ?? `${season.number}-р улирал`}</h3>
-        <div className="flex gap-2">
-          <button onClick={addEpisode} className="text-xs font-medium text-primary hover:underline">
-            + Анги нэмэх
-          </button>
-          <button onClick={removeSeason} className="text-muted-foreground hover:text-destructive">
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {season.episodes?.map((ep) => (
-          <div key={ep.id} className="rounded-md bg-muted/40 p-3">
-            <button
-              onClick={() => setExpanded(expanded === ep.id ? null : ep.id)}
-              className="flex w-full items-center justify-between text-sm"
-            >
-              <span className="text-foreground">
-                {ep.number}. {ep.name ?? `Анги ${ep.number}`}
-              </span>
-              <span
-                className={cn(
-                  'rounded px-2 py-0.5 text-xs',
-                  ep.streamStatus === 'READY' && 'bg-success/15 text-success',
-                  ep.streamStatus === 'PROCESSING' && 'bg-warning/15 text-warning',
-                  ep.streamStatus === 'NONE' && 'bg-muted text-muted-foreground',
-                )}
-              >
-                {ep.streamStatus}
-              </span>
-            </button>
-            {expanded === ep.id && (
-              <div className="mt-3">
-                <VideoUpload
-                  target="episode"
-                  targetId={ep.id}
-                  currentStatus={ep.streamStatus}
-                  streamProgress={ep.streamProgress}
-                  streamError={ep.streamError}
-                  onDone={onChange}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+/**
+ * ⚠️⚠️ `SeasonsManager` / `SeasonBlock`-ыг ЭНДЭЭС ХАСАВ.
+ *
+ * Хоёр хувилбар зэрэг оршиж байсан: энэ inline хувилбар (try/catch,
+ * loading төлөв, toast-гүй) болон `components/seasons-manager.tsx`
+ * (бүгдтэй). Модалаар засвал toast гарч, хуудсаар засвал гардаггүй
+ * байв — нэгийг засахад нөгөө нь мартагдана.
+ *
+ * Одоо `@/components/seasons-manager` НЭГ эх сурвалж.
+ */

@@ -43,6 +43,8 @@ export default function PricingPage() {
     code: string;
     discountType: 'PERCENT' | 'FIXED';
     amount: number;
+    /** ⚠️ Энэ дүнгээс доош багцад купон ХҮЧИНГҮЙ */
+    minPrice: number;
   } | null>(null);
   const validateCoupon = useValidateCoupon();
 
@@ -67,13 +69,31 @@ export default function PricingPage() {
     if (!appliedCoupon) return price;
     const discount =
       appliedCoupon.discountType === 'PERCENT'
-        ? Math.round((price * appliedCoupon.amount) / 100)
+        /**
+         * ⚠️⚠️ PERCENT-ыг 100-аар ТАСЛАНА — backend-тэй ижил
+         * (`coupons.module.ts`: `Math.min(100, ...)`). Хуучин буруу
+         * купон (amount=500) DB-д үлдсэн байвал энд сөрөг үнэ гарна.
+         */
+        ? Math.round((price * Math.min(100, Math.max(0, appliedCoupon.amount))) / 100)
         : Math.min(appliedCoupon.amount, price);
+
+    /**
+     * ⚠️⚠️ `minPrice` ШАЛГАНА — купон нь тодорхой дүнгээс дээш
+     * захиалгад л хүчинтэй. Өмнө нь энэ шалгалтгүй байсан тул
+     * хямд багц дээр хямдарсан үнэ ХАРАГДААД, товч дарахад
+     * backend татгалзаж хэрэглэгч эргэлздэг байв.
+     */
+    if (price < (appliedCoupon.minPrice ?? 0)) return price;
     return Math.max(0, price - discount);
   };
 
   const applyCoupon = async () => {
     if (!couponInput.trim() || !plans?.length) return;
+    /**
+     * ⚠️ ХАМГИЙН ҮНЭТЭЙГЭЭР шалгана — купон ЯМАР НЭГ багцад хүчинтэй
+     * эсэхийг мэдэхэд хангалттай. Багц бүрийн бодит хүчинтэй эсэхийг
+     * `priceAfterCoupon` доторх `minPrice` шалгалт шийднэ.
+     */
     const maxPrice = Math.max(...plans.map((p) => p.price));
     try {
       const res = await validateCoupon.mutateAsync({ code: couponInput, price: maxPrice });
@@ -81,6 +101,8 @@ export default function PricingPage() {
         code: couponInput.toUpperCase().trim(),
         discountType: res.discountType,
         amount: res.amount,
+        /* ⚠️ Багц бүрд шалгахад хэрэгтэй (хямд багцад хүчингүй байж болно) */
+        minPrice: res.minPrice ?? 0,
       });
       toast.success('Купон амжилттай хэрэглэгдлээ');
     } catch (e) {

@@ -8,6 +8,7 @@ import {
   Check,
   Clock,
   Copy,
+  Download,
   ImageIcon,
   Loader2,
   Pencil,
@@ -19,7 +20,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  useConfirm,
+  usePrompt,
+} from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { ImageUpload } from '@/components/image-upload';
@@ -29,12 +37,15 @@ import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import {
+  bankQuery,
   useAdminBankAccounts,
   useAdminBankPayments,
   useAdminBankSettings,
+  useAdminBankStats,
   type AdminBankAccount,
   type AdminBankPayment,
 } from '@/lib/queries';
+import { downloadCsv } from '@/lib/export-csv';
 
 /**
  * ДАНСНЫ ТӨЛБӨР — ГАРААР БАТАЛГААЖУУЛАХ.
@@ -73,13 +84,24 @@ function ago(iso: string | null): string {
 
 export default function BankPage() {
   const [tab, setTab] = useState<Tab>('pending');
-  const { data, isLoading, isError, error, refetch } = useAdminBankPayments(
-    tab === 'all' || tab === 'accounts' ? undefined : tab,
-  );
+  /** ⚠️ Огнооны шүүлт — «өнөөдрийн дүн хэд вэ» гэсэн асуултад хариулна */
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  /* ⚠️ Жагсаалт, статистик, export ГУРВУУЛАА ижил шүүлттэй */
+  const filter = {
+    status: tab === 'all' || tab === 'accounts' ? undefined : tab,
+    from: from || undefined,
+    to: to || undefined,
+  };
+  const { data, isLoading, isError, error, refetch } = useAdminBankPayments(filter);
+  const { data: stats } = useAdminBankStats(filter);
+  const [exporting, setExporting] = useState(false);
   const { data: settings } = useAdminBankSettings();
   const { data: accounts } = useAdminBankAccounts();
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const prompt = usePrompt();
 
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -124,11 +146,23 @@ export default function BankPage() {
   };
 
   const reject = async (p: AdminBankPayment) => {
-    /* ⚠️ Шалтгаан ЗААВАЛ — хэрэглэгчид мэдэгдэл+имэйлээр очно */
-    const reason = window.prompt(
-      `«${p.bankReference}» төлбөрийг татгалзах шалтгаан:`,
-      'Гүйлгээ банкны хуулгад олдсонгүй',
-    );
+    /**
+     * ⚠️⚠️ `window.prompt` БИШ дизайн системийн модал.
+     *
+     * Уугуул попап нь браузерын цагаан загвартай, dark theme-ээс
+     * унана, мобайлд бүр өөр харагдана. Мөнгө татгалзах эмзэг үйлдэл
+     * тийм байх ёсгүй (кодын дүрэмд ч бичигдсэн).
+     *
+     * ⚠️ Шалтгаан ЗААВАЛ — хэрэглэгчид мэдэгдэл + имэйлээр очно.
+     */
+    const reason = await prompt({
+      title: 'Төлбөр татгалзах',
+      label: 'Шалтгаан',
+      description: `«${p.bankReference}» — ${formatPrice(p.amount)}. Энэ текст хэрэглэгчид мэдэгдэл болон имэйлээр очно.`,
+      defaultValue: 'Гүйлгээ банкны хуулгад олдсонгүй',
+      placeholder: 'Яагаад татгалзаж байгаагаа бичнэ үү',
+      confirmLabel: 'Татгалзах',
+    });
     if (!reason?.trim()) return;
 
     setBusy(p.id);
@@ -182,6 +216,13 @@ export default function BankPage() {
     );
   };
 
+  const exportCsv = async () => {
+    setExporting(true);
+    /* ⚠️ Blob/URL/toast логик `lib/export-csv.ts`-д НЭГ эх сурвалж */
+    await downloadCsv(`/admin/bank/payments/export${bankQuery(filter)}`, 'bank-payments');
+    setExporting(false);
+  };
+
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -191,9 +232,9 @@ export default function BankPage() {
     }
   };
 
-  const pendingCount = (data ?? []).filter(
-    (p) => p.status === 'PENDING' && p.bankClaimedAt,
-  ).length;
+  /* ⚠️ Сервер талын тоо — жагсаалт 200-аар таслагддаг тул client
+     талд тоолвол бодит тооноос БАГА гарна */
+  const pendingCount = stats?.pendingCount ?? 0;
   const activeAccounts = (accounts ?? []).filter((a) => a.isActive).length;
 
   return (
@@ -266,6 +307,59 @@ export default function BankPage() {
           </div>
         )}
 
+        {/*
+          ⚠️⚠️ СТАТИСТИК — мөнгөний хуудас атлаа «өнөөдрийн
+          баталгаажуулсан дүн хэд вэ» гэсэн асуултад хариулах
+          боломжгүй байв. Огнооны шүүлттэй хамт ажиллана.
+        */}
+        {tab !== 'accounts' && stats && (
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              {
+                label: 'Шалгах хүлээж буй',
+                n: stats.pendingCount,
+                sum: stats.pendingAmount,
+                tone: 'text-premium',
+                Icon: Clock,
+              },
+              {
+                label: 'Баталгаажсан',
+                n: stats.paidCount,
+                sum: stats.paidAmount,
+                tone: 'text-success',
+                Icon: Check,
+              },
+              {
+                label: 'Татгалзсан',
+                n: stats.cancelledCount,
+                sum: stats.cancelledAmount,
+                tone: 'text-destructive',
+                Icon: X,
+              },
+              {
+                label: 'Шилжүүлээгүй',
+                n: stats.waitingCount,
+                sum: null,
+                tone: 'text-muted-foreground',
+                Icon: Building2,
+              },
+            ].map((c) => (
+              <div key={c.label} className="rounded-xl border border-foreground/10 bg-card p-3.5">
+                <div className="flex items-center gap-1.5">
+                  <c.Icon size={13} className={c.tone} />
+                  <span className="text-xs text-muted-foreground">{c.label}</span>
+                </div>
+                <p className="mt-1 text-2xl font-black tabular-nums text-foreground">{c.n}</p>
+                {c.sum !== null && (
+                  <p className={cn('text-xs font-semibold tabular-nums', c.tone)}>
+                    {formatPrice(c.sum)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1 rounded-lg bg-foreground/5 p-1">
             {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
@@ -307,6 +401,54 @@ export default function BankPage() {
                 className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
               />
             </div>
+          )}
+
+          {/* ⚠️ Огнооны шүүлт — нягтлан бодогчид сар бүрийн тайлан хэрэгтэй */}
+          {tab !== 'accounts' && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                aria-label="Эхлэх огноо"
+                className="rounded-lg border border-input bg-card px-2.5 py-2 text-sm text-foreground outline-none focus:border-primary"
+              />
+              <span className="text-muted-foreground">–</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                aria-label="Дуусах огноо"
+                className="rounded-lg border border-input bg-card px-2.5 py-2 text-sm text-foreground outline-none focus:border-primary"
+              />
+              {(from || to) && (
+                <button
+                  onClick={() => {
+                    setFrom('');
+                    setTo('');
+                  }}
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-foreground/8 hover:text-foreground"
+                  aria-label="Огноо цэвэрлэх"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {tab !== 'accounts' && (
+            <button
+              onClick={() => void exportCsv()}
+              disabled={exporting || (data?.length ?? 0) === 0}
+              className="flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium text-foreground/75 transition-colors hover:border-primary/40 disabled:opacity-50"
+            >
+              {exporting ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Download size={15} />
+              )}
+              Export
+            </button>
           )}
 
           {tab === 'accounts' ? (

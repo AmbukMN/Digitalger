@@ -169,7 +169,17 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                 ШУУД, эрхгүй/нэвтрээгүй бол дэлгэрэнгүй (тэнд багц/түрээс).
               */}
               {(() => {
-                const canPlay = bannerAccess === 'owned' || bannerAccess === 'free';
+                /**
+                 * ⚠️⚠️ `rented` ЗААВАЛ — өмнө орхигдсон тул мөнгө төлж
+                 * ТҮРЭЭСЭЛСЭН хэрэглэгч баннер дээр «🔒 Төлбөртэй»
+                 * шошго + «Багц авах» товч хардаг байв.
+                 * ⚠️ `title-card.tsx` дээр зөв багтсан — энэ хоёр
+                 * зөрчилдөж байсныг нэгтгэв.
+                 */
+                const canPlay =
+                  bannerAccess === 'owned' ||
+                  bannerAccess === 'free' ||
+                  bannerAccess === 'rented';
                 return (
                   <button
                     onClick={() =>

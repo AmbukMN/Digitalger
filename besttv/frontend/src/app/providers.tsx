@@ -47,7 +47,7 @@ function AuthSessionWatcher() {
      * access-ыг өөрөө сэргээнэ.
      */
     enabled: !!userId && !!(getAccessToken() || getRefreshToken()),
-    refetchInterval: 45_000,
+    refetchInterval: 180_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -84,6 +84,9 @@ function AuthSessionWatcher() {
    * Иймд `getRefreshToken()` шалгана: api() аль хэдийн цэвэрлэсэн бол
    * (үнэхээр хүчингүй) л UI-г гаргана. Токен хэвээр байвал түр саатал
    * гэж үзэж, ЮУ Ч ХИЙХГҮЙ — дараагийн refetch-д өөрөө сэргэнэ.
+   * ⚠️ 45 секунд → 3 минут: нээлттэй таб бүрээс цагт 80 хүсэлт
+   * явдаг байв. `refetchOnWindowFocus` нь шуурхай байдлыг аль
+   * хэдийн хангадаг тул интервал ойрхон байх шаардлагагүй.
    */
   useEffect(() => {
     const status = (error as { status?: number } | null)?.status;

@@ -35,6 +35,15 @@
                 "type": "string",
                 "operation": "equals"
               }
+            },
+            {
+              "id": "besttv-0004-node-filter-secret",
+              "leftValue": "={{ $json.headers['x-webhook-secret'] }}",
+              "rightValue": "__WEBHOOK_SECRET__",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"

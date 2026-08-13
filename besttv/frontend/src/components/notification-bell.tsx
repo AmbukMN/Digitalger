@@ -13,6 +13,7 @@ import {
   Info,
   Wallet,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
@@ -115,7 +116,14 @@ export function NotificationBell() {
   };
 
   const markAll = async () => {
-    await api('/notifications/read-all', { method: 'POST' }).catch(() => null);
+    /* ⚠️ Алдааг ХАРУУЛНА — өмнө нь чимээгүй залгидаг тул хүсэлт
+       унавал тоо буцаж гарч, хэрэглэгч товч эвдэрсэн гэж бодно */
+    try {
+      await api('/notifications/read-all', { method: 'POST' });
+    } catch {
+      toast.error('Уншсан гэж тэмдэглэж чадсангүй');
+      return;
+    }
     refresh();
   };
 

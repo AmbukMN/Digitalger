@@ -50,6 +50,12 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: besttv-backend
     restart: unless-stopped
+    # ⚠️⚠️ ЦАГИЙН БҮС — cron-ууд UTC-д ажиллаж БУРУУ ЦАГТ хийгдэж
+    #    байв: «03:00 цэвэрлэгээ» → бодитоор 11:00 (ачаалалтай цаг),
+    #    «10:00 эрх дуусах имэйл» → бодитоор 18:00.
+    #    ⚠️ `@Cron`-д `timeZone` заасан нь энэ хамаарахгүй (тэр давуу).
+    environment:
+      TZ: Asia/Ulaanbaatar
     # ⚠️⚠️ ЭНЭ ФАЙЛААС УНШИНА (`.env` БИШ). Шинэ хувьсагч нэмэхдээ
     #    ЗААВАЛ `.env.production`-д бич — `.env`-д бичвэл container-д
     #    ХҮРЭХГҮЙ (Telegram мэдэгдэл чимээгүй унтарсан бодит алдаа).
@@ -75,6 +81,12 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: besttv-worker
     restart: unless-stopped
+    # ⚠️⚠️ ЦАГИЙН БҮС — cron-ууд UTC-д ажиллаж БУРУУ ЦАГТ хийгдэж
+    #    байв: «03:00 цэвэрлэгээ» → бодитоор 11:00 (ачаалалтай цаг),
+    #    «10:00 эрх дуусах имэйл» → бодитоор 18:00.
+    #    ⚠️ `@Cron`-д `timeZone` заасан нь энэ хамаарахгүй (тэр давуу).
+    environment:
+      TZ: Asia/Ulaanbaatar
     # ⚠️⚠️ ЭНЭ ФАЙЛААС УНШИНА (`.env` БИШ). Шинэ хувьсагч нэмэхдээ
     #    ЗААВАЛ `.env.production`-д бич — `.env`-д бичвэл container-д
     #    ХҮРЭХГҮЙ (Telegram мэдэгдэл чимээгүй унтарсан бодит алдаа).

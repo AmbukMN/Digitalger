@@ -2,6 +2,7 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { randomUUID } from 'crypto';
+import { N8nService } from '../n8n/n8n.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { VideoHlsService, type HlsProgress } from '../../storage/video-hls.service';
@@ -25,6 +26,8 @@ export class VideoProcessor {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly hls: VideoHlsService,
+    /* ⚠️ Хөрвүүлэлт унасныг Telegram-аар мэдэгдэхэд (@Global) */
+    private readonly n8n: N8nService,
   ) {}
 
   /**
@@ -163,7 +166,71 @@ export class VideoProcessor {
         streamError: msg.slice(0, 500),
       }).catch(() => null);
 
+      /**
+       * ⚠️⚠️ TELEGRAM МЭДЭГДЭЛ — хөрвүүлэлт унасныг ХЭН НЭГЭН мэдэх ёстой.
+       *
+       * Өмнө нь зөвхөн DB-д `FAILED` тавиад өнгөрдөг байсан тул админ
+       * админ панел руу орж шалгатал мэдэхгүй байв. Кино байршуулаад
+       * «болсон» гэж бодоод явахад хэрэглэгч үзэж чадахгүй.
+       *
+       * ⚠️ `void` — мэдэгдэл унасан ч retry логик хэвийн үргэлжилнэ.
+       */
+      void this.notifyFailure(target, targetId, msg, job.attemptsMade + 1);
+
       throw err;
+    }
+  }
+
+  /**
+   * Хөрвүүлэлт унасныг Telegram-аар мэдэгдэнэ.
+   *
+   * ⚠️ Киноны НЭРИЙГ татна — `targetId` нь cuid тул мэдэгдэл дээр
+   * «cmsrj...» гэж гарвал админ юу унаснаа мэдэхгүй.
+   *
+   * ⚠️ ХЭЗЭЭ Ч ШИДЭХГҮЙ — мэдэгдлээс болж retry логик эвдэрч болохгүй.
+   */
+  private async notifyFailure(
+    target: string,
+    targetId: string,
+    reason: string,
+    attempts: number,
+  ): Promise<void> {
+    try {
+      let titleName = targetId;
+      let episodeLabel: string | null = null;
+
+      if (target === 'episode') {
+        const ep = await this.prisma.episode.findUnique({
+          where: { id: targetId },
+          /* ⚠️ Episode-д `title` талбар БАЙХГҮЙ — `name` (заавал биш).
+             Киноны нэр нь `season.title.title` замаар л олдоно. */
+          select: {
+            number: true,
+            name: true,
+            season: { select: { number: true, title: { select: { title: true } } } },
+          },
+        });
+        if (ep) {
+          titleName = ep.season?.title?.title ?? targetId;
+          episodeLabel = `${ep.season?.number ?? 1}-${ep.number}-р анги`;
+        }
+      } else {
+        const t = await this.prisma.title.findUnique({
+          where: { id: targetId },
+          select: { title: true },
+        });
+        if (t) titleName = t.title;
+      }
+
+      this.n8n.emitVideoFailed({
+        titleName,
+        episodeLabel,
+        reason,
+        attempts,
+        failedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      this.logger.warn(`Мэдэгдэл илгээж чадсангүй: ${String(e).slice(0, 100)}`);
     }
   }
 

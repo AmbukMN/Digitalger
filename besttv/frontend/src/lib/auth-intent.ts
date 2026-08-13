@@ -60,14 +60,6 @@ export function consumeAuthIntent(): AuthIntent | null {
   }
 }
 
-export function clearAuthIntent() {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.removeItem(KEY);
-  } catch {
-    /* алгасна */
-  }
-}
 
 /**
  * Одоогийн бүтэн зам (path + query + hash) — `?next=` утга болгоно.

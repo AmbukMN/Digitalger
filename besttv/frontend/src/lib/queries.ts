@@ -160,28 +160,10 @@ export function useHome() {
   });
 }
 
-export function useCatalog(params: {
-  type?: 'MOVIE' | 'SERIES';
-  genre?: string;
-  sort?: string;
-  page?: number;
-}) {
-  const qs = new URLSearchParams();
-  if (params.type) qs.set('type', params.type);
-  if (params.genre) qs.set('genre', params.genre);
-  if (params.sort) qs.set('sort', params.sort);
-  if (params.page) qs.set('page', String(params.page));
-
-  return useQuery({
-    queryKey: ['catalog', params],
-    queryFn: () =>
-      api<{ items: TitleCard[]; total: number; page: number; totalPages: number }>(
-        `/titles?${qs.toString()}`,
-        { auth: false },
-      ),
-    placeholderData: (prev) => prev,
-  });
-}
+/**
+ * ⚠️ `useCatalog` ХАСАГДСАН — `useCatalogInfinite` орлосон.
+ * Хуудаслалттай хувилбар нь хаанаас ч дуудагдахаа больсон.
+ */
 
 interface CatalogPage {
   items: TitleCard[];
@@ -554,7 +536,15 @@ export function useWalletTransactions() {
 export function useValidateCoupon() {
   return useMutation({
     mutationFn: (input: { code: string; price: number }) =>
-      api<{ valid: boolean; discount: number; finalPrice: number; discountType: 'PERCENT' | 'FIXED'; amount: number }>(
+      api<{
+        valid: boolean;
+        discount: number;
+        finalPrice: number;
+        discountType: 'PERCENT' | 'FIXED';
+        amount: number;
+        /** ⚠️ Энэ дүнгээс доош багцад купон ХҮЧИНГҮЙ */
+        minPrice: number;
+      }>(
         '/coupons/validate',
         { method: 'POST', body: JSON.stringify(input), auth: false },
       ),
