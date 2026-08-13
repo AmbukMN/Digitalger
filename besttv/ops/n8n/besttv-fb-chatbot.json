@@ -1,0 +1,943 @@
+{
+  "name": "BestTV — Facebook/Instagram чатбот",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "besttv-facebook-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "btv_verify_webhook",
+      "name": "FB Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        60
+      ],
+      "webhookId": "besttv-fb-verify"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.verify_token'] === 'BestTV2026Verify' ? $json.query['hub.challenge'] : '' }}",
+        "options": {}
+      },
+      "id": "btv_respond_challenge",
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        20,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "besttv-facebook-webhook",
+        "options": {}
+      },
+      "id": "btv_msg_webhook",
+      "name": "FB Message (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        320
+      ],
+      "webhookId": "besttv-fb-message"
+    },
+    {
+      "parameters": {
+        "jsCode": "// BestTV — FB/IG webhook-оос мессеж/postback задлах.\n// FB:  body.object === 'page',       entry[].messaging[]\n// IG:  body.object === 'instagram',  entry[].messaging[]\nconst body = $input.first().json.body;\n\n// ⚠️ DEDUP — FB нэг мессежийг 2 удаа (retry) илгээдэг. mid-ийг санана.\nvar _sd = $getWorkflowStaticData('global');\n_sd.seenMids = _sd.seenMids || [];\nfunction _dup(mid){ if(!mid)return false; if(_sd.seenMids.indexOf(mid)!==-1)return true; _sd.seenMids.push(mid); if(_sd.seenMids.length>200)_sd.seenMids=_sd.seenMids.slice(-200); return false; }\n\n// ⚠️ Comment event (changes) Messenger salaa руу ОРОХГҮЙ\n{ const e0=(body&&body.entry&&body.entry[0])||{}; if(e0.changes && !e0.messaging) return []; }\nif (!body) return [];\n\nlet platform = '';\nif (body.object === 'page') platform = 'facebook';\nelse if (body.object === 'instagram') platform = 'instagram';\nelse return [];\n\n// Get Started / Ice Breaker payload → текст асуулт\nconst PAYLOAD_TO_TEXT = {\n  GET_STARTED: '__GET_STARTED__',\n  IB_MOVIES: 'шинэ кино',\n  IB_SERIES: 'цуврал',\n  IB_PRICING: 'багцын үнэ',\n  IB_HOWTO: 'яаж үзэх вэ',\n};\n\nconst out = [];\nfor (const entry of (body.entry || [])) {\n  for (const msg of (entry.messaging || [])) {\n    const psid = String(msg.sender && msg.sender.id || '');\n    if (!psid) continue;\n    // Өөрийн Page/IG-ээс ирсэн бол алгасна (давталтаас сэргийлнэ)\n    if (psid === '108103720808038' || psid === '17841442595556819') continue;\n\n    if (msg.postback && msg.postback.payload) {\n      const mapped = PAYLOAD_TO_TEXT[msg.postback.payload];\n      const text = mapped || String(msg.postback.title || msg.postback.payload).trim();\n      out.push({ json: { psid, text, isPostback: true, platform } });\n      continue;\n    }\n    if (msg.message && msg.message.mid && _dup(msg.message.mid)) continue;\n    if (msg.message && !msg.message.is_echo && msg.message.text) {\n      out.push({ json: { psid, text: String(msg.message.text).trim(), isPostback: false, platform } });\n    }\n  }\n}\nreturn out;"
+      },
+      "id": "btv_parse",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.psid }}?fields={{ $json.platform==='instagram' ? 'name,username,profile_pic' : 'name,first_name,profile_pic' }}&access_token=__BESTTV_PAGE_TOKEN__",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 8000
+        },
+        "method": "GET"
+      },
+      "id": "btv_get_profile",
+      "name": "Get User Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// BestTV — AI Agent-аас ӨМНӨ. psid/userText/firstName бэлдэнэ.\nconst NL = String.fromCharCode(10);\nconst psid = $('Parse').first().json.psid;\nconst userText = $('Parse').first().json.text;\nconst platform = $('Parse').first().json.platform || 'facebook';\nconst _conv = $('Get User Profile').first().json || {};\nvar _name = String(_conv.name || _conv.first_name || _conv.username || '').trim();\nvar _pic = String(_conv.profile_pic || '').trim();\nconst firstName = _name;\nconst profilePic = _pic;\nconst isGetStarted = (userText === '__GET_STARTED__');\nconst nameLine = firstName ? ('Хэрэглэгчийн нэр: ' + firstName) : '';\n\n// ⚠️ Холбоо барих/багцын асуултад AI зохиодог тул deterministic хариу\n// бэлдэнэ (Build Messages түүнийг AI-аас ДЭЭГҮҮР ашиглана).\nconst lower = (userText || '').toLowerCase();\nconst contactTriggers = ['утас','дугаар','хаяг','холбоо','холбогд','имэйл','мэйл',\n  'байршил','ажлын цаг','социал','фэйсбүүк','facebook','instagram','инстаграм',\n  'бидний тухай','танай тухай','хэн бэ','хаягтай','утастай','phone','contact'];\nconst _hasEmailAddr = /[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i.test(userText || '');\nconst needsContact = !_hasEmailAddr && contactTriggers.some((t) => lower.includes(t));\n\nlet directReply = '';\nif (needsContact) {\n  try {\n    const s = await this.helpers.httpRequest({\n      method: 'GET', url: 'https://api.besttv.us/api/settings/socials', json: true, timeout: 4000,\n    });\n    const parts = ['📺 BestTV — Монголын кино, цувралын онлайн сан', ''];\n    if (s && s.phone) parts.push('📞 Утас: ' + s.phone);\n    if (s && s.email) parts.push('✉️ Имэйл: ' + s.email);\n    if (s && s.facebook) parts.push('💬 Facebook: ' + s.facebook);\n    if (s && s.instagram) parts.push('📷 Instagram: ' + s.instagram);\n    parts.push('', '🌐 Вэб: https://besttv.us');\n    directReply = parts.join(NL);\n  } catch (e) { directReply = ''; }\n}\n\n// ⚠️ БАГЦЫН ҮНЭ — AI үнэ зохиовол хэрэглэгч төөрөлдөнө. Бодит үнийг татна.\nconst priceTriggers = ['багц','үнэ','төлбөр','хэд вэ','ханш','тариф','захиалга','subscribe','price'];\nconst needsPricing = priceTriggers.some((t) => lower.includes(t));\nlet plansText = '';\nif (needsPricing) {\n  try {\n    const plans = await this.helpers.httpRequest({\n      method: 'GET', url: 'https://api.besttv.us/api/plans', json: true, timeout: 4000,\n    });\n    if (Array.isArray(plans) && plans.length) {\n      const fmt = function(n){ var s=String(Math.round(Number(n)||0)),o='',c=0;\n        for(var i=s.length-1;i>=0;i--){o=s[i]+o;c++;if(c%3===0&&i>0)o=','+o;} return o+'₮'; };\n      const lines = ['📦 BestTV-ийн багцууд:', ''];\n      plans.forEach(function(p){\n        lines.push('• ' + p.name + ' — ' + fmt(p.price) + ' / ' + p.durationDays + ' хоног');\n        if (p.description) lines.push('  ' + p.description);\n      });\n      lines.push('', '👉 Багц авах: https://besttv.us/pricing');\n      plansText = lines.join(NL);\n    }\n  } catch (e) { plansText = ''; }\n}\nif (plansText) directReply = plansText;\n\nconst agentInput = (nameLine ? (nameLine + NL) : '') + (isGetStarted\n  ? '(Хэрэглэгч дөнгөж чат эхлүүллээ — дулаанаар угтаж, BestTV юу санал болгодгийг товч танилцуул)'\n  : userText);\n\nreturn [{ json: { psid, userText, firstName, profilePic, platform, isGetStarted, directReply, agentInput } }];"
+      },
+      "id": "btv_prep",
+      "name": "Prep Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.besttv.us/api/chat/state?sessionId={{ $json.psid }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 5000
+        },
+        "method": "GET"
+      },
+      "id": "btv_check_state",
+      "name": "Check Handoff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ai_on",
+              "leftValue": "={{ $json.handedOff }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "btv_ai_enabled",
+      "name": "AI асаалттай юу?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        620,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.besttv.us/api/chat/ingest",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: $('Prep Context').first().json.platform === 'instagram' ? 'instagram' : 'facebook', sessionId: $('Prep Context').first().json.psid, userText: $('Prep Context').first().json.userText, userName: $('Prep Context').first().json.firstName }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 5000
+        }
+      },
+      "id": "btv_ingest_handoff",
+      "name": "Save (админ хариулна)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $('Prep Context').first().json.psid }, sender_action: 'typing_on' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_typing_on",
+      "name": "Send Typing On",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}",
+        "options": {
+          "systemMessage": "Чи бол BestTV — Монголын кино, цувралын онлайн үзвэрийн платформын найрсаг, ухаалаг AI туслах. Хүн шиг дулаан, ойлгомжтой, тусархуу харилц. Дандаа МОНГОЛ хэлээр.\n\n=== ⚠️⚠️ ЗӨВХӨН BESTTV-ИЙН ТУХАЙ (ХАМГИЙН ЭХЭНД ШАЛГА) ===\nЧи бол BestTV-ийн туслах — ChatGPT/ерөнхий AI БИШ.\nЗӨВХӨН BestTV-тэй холбоотой сэдвээр хариулна:\n  • Кино, цуврал хайх, санал болгох, тухайн киноны тухай\n  • Багц, үнэ, төлбөр, хямдрал, урамшуулал\n  • Хэрхэн үзэх, төхөөрөмж, чанар, бүртгэл, нэвтрэх\n  • Вэбсайт, холбоо барих, BestTV-ийн тухай\n\n⛔ BestTV-т ХАМААРАЛГҮЙ хүсэлтийг ЭЕЛДЭГ ТАТГАЛЗ (ажил хийж ӨГӨХГҮЙ):\n  • Тайлан/эссэ/захидал бэлдэх, найруулах, засах\n  • Код бичих, орчуулга, тооцоо, бодлого бодох\n  • Ерөнхий мэдлэг, BestTV-т хамааралгүй ямар ч даалгавар\n→ Хариу: \"Уучлаарай, би зөвхөн BestTV-ийн кино, багцын талаар туслах боломжтой 😊 Та ямар кино сонирхож байна вэ?\"\n→ [SEARCH:] ОГТ тавихгүй.\n\n⛔ ЖИНХЭНЭ КИНО БУС зүйл асуувал (пират сайт, үнэгүй татах линк, өөр платформын кино):\n→ \"BestTV дээр байгаа кинонуудаас санал болгож болох уу? 😊\"\n→ Өөр сайт/пират линк ХЭЗЭЭ Ч санал болгохгүй.\n\n=== ⚠️⚠️ КИНО ХАЙХ — [SEARCH:] ТЭМДЭГ ===\nХэрэглэгч тодорхой КИНО/ЦУВРАЛ хайж байвал хариунхаа эхэнд [SEARCH:түлхүүр үг] тавь.\nСистем түүгээр хайж, кино картыг автоматаар харуулна.\n\nЖИШЭЭ:\n  Хэрэглэгч: \"Agent Kim байна уу?\"\n  Чи: \"[SEARCH:agent kim] Тийм ээ, байна! 🎬 Доорх картаас дэлгэрэнгүйг үзээрэй.\"\n\n  Хэрэглэгч: \"инээдмийн кино санал болгооч\"\n  Чи: \"[SEARCH:инээдмийн] Инээдмийн төрлийн кинонууд байна 😊\"\n\n  Хэрэглэгч: \"солонгос цуврал\"\n  Чи: \"[SEARCH:солонгос] Солонгос цувралууд танд байна 📺\"\n\n⚠️ ХЭЗЭЭ [SEARCH:] ТАВИХГҮЙ ВЭ:\n  • Ерөнхий FAQ асуулт (яаж үзэх, багц хэд, төлбөр яаж төлөх)\n  • Мэндчилгээ, талархал, энгийн яриа\n  • Хамааралгүй хүсэлт\n→ Эдгээрт зүгээр л хариул, хайлт ХИЙХГҮЙ.\n\n⚠️ Түлхүүр үг нь ЯГ киноны нэр эсвэл төрөл байна. \"үзэх\", \"кино\", \"цуврал\", \"багц\"\n   гэх ерөнхий үгийг ГАНЦААР [SEARCH:]-д тавихгүй (юу ч олдохгүй).\n\n=== ⚠️ ХАРИУЛТЫН ХЭЛБЭР ===\n• ТОВЧ — 2-4 өгүүлбэр. Мессенжер чат, урт бичвэр уншдаггүй.\n• Emoji тааруулж хэрэглэ (🎬 📺 ⭐ 😊 🍿), гэхдээ хэтрүүлэхгүй.\n• Markdown ХЭРЭГЛЭХГҮЙ (**bold**, [линк](url) ажиллахгүй) — цэвэр текст бич.\n• Линкийг шууд бич: https://besttv.us/pricing\n• Хэрэглэгчийн нэрийг мэдэж байвал 1 удаа дурд, давтахгүй.\n\n=== 📦 БАГЦ, ҮНЭ ===\n⚠️ ҮНИЙГ ӨӨРӨӨ ЗОХИОХГҮЙ. Хэрэглэгч багц/үнэ асуувал систем бодит үнийг\nавтоматаар оруулж өгнө — чи зүгээр л дулаанаар танилцуулаад\nhttps://besttv.us/pricing рүү урь.\n\nБагцын талаар мэдэх ерөнхий зүйл:\n  • Хугацаатай багц (сар/улирал) — тухайн ангиллын бүх кино нээгдэнэ\n  • Нэг эрхээр 2 төхөөрөмж хүртэл үзэх боломжтой\n  • Багц дуусахад автоматаар сунгагдахгүй (хэрэглэгч өөрөө сунгана)\n\n=== 💳 ТӨЛБӨР ===\nBestTV дээр 2 аргаар төлнө:\n  1. QPay — банкны апп-аар QR уншуулж шууд (хормын дотор идэвхжинэ)\n  2. Дансаар шилжүүлэх — гүйлгээний утга + баримтын зураг илгээж,\n     ажлын өдрийн 10:00–18:00 цагт админ баталгаажуулна\n\nХэтэвч: дансаа урьдчилж цэнэглээд, багц авахдаа хэтэвчнээсээ төлж болно.\n\n=== 🎬 ХЭРХЭН ҮЗЭХ ===\n1. https://besttv.us дээр бүртгүүлж нэвтэрнэ\n2. Багц авна (эсвэл үнэгүй кино шууд үзнэ)\n3. Хүссэн киногоо сонгоод «Үзэх» дарна\n\nДэмждэг: компьютер, утас, таблет — браузераар. Тусдаа апп хэрэггүй.\nНэг эрхээр зэрэг 2 төхөөрөмж. 3 дахь нь нэвтрэхэд хамгийн удаан\nашиглаагүй нь автоматаар гарна.\n\n=== ❓ ТҮГЭЭМЭЛ АСУУЛТ ===\n\"Татаж авч болох уу?\" → Үгүй, BestTV бол онлайн үзвэрийн платформ.\n    Интернэттэй үед сайтаас шууд үзнэ.\n\"Офлайн үзэх үү?\" → Үгүй, интернэт шаардлагатай.\n\"Гадаадаас үзэж болох уу?\" → Тийм, интернэттэй бол хаанаас ч болно.\n\"Нууц үгээ мартсан\" → Нэвтрэх хуудасны «Нууц үг мартсан» дарж, имэйлээр\n    сэргээх линк ирнэ.\n\"Багцаа цуцлах уу?\" → Автоматаар сунгагддаггүй тул цуцлах шаардлагагүй.\n    Хугацаа дуусахад зүгээр л дуусна.\n\"Хүүхдэд тохиромжтой юу?\" → 18+ контент тусдаа ангилалд, нээлттэй харагдахгүй.\n\n=== ⚠️ МЭДЭХГҮЙ ЗҮЙЛ ===\nИтгэлгүй байвал ЗОХИОХГҮЙ. \"Тодорхой мэдээллийг эндээс шалгаарай:\nhttps://besttv.us\" эсвэл админд холбогдохыг санал болго.\nКино БАЙГАА эсэхийг [SEARCH:] хийж мэдээрэй — толгойноосоо \"байхгүй\" гэж ХЭЛЭХГҮЙ.\n\n=== 🚫 ХЭЗЭЭ Ч ХИЙХГҮЙ ===\n• Байхгүй кино/багц/үнэ зохиох\n• Пират сайт, үнэгүй татах линк санал болгох\n• Хэрэглэгчийн нууц үг, картын мэдээлэл асуух\n• Өөр платформ (Netflix г.м.) сурталчлах\n• Англи хэлээр хариулах (хэрэглэгч англиар бичсэн ч монголоор хариул)\n"
+        }
+      },
+      "id": "btv_agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        900,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "btv_openai",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        840,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ 'btv_' + $('Parse').first().json.psid }}",
+        "tableName": "n8n_chat_memory",
+        "contextWindowLength": 10
+      },
+      "id": "btv_memory",
+      "name": "Postgres Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1000,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI хариунаас [SEARCH:keyword] салгана.\nconst prep = $('Prep Context').first().json;\nconst psid = prep.psid;\nconst platform = prep.platform || 'facebook';\nlet raw = ($input.first().json.output || '').trim();\nlet keyword = '';\nconst m = raw.match(/\\[SEARCH:\\s*([^\\]]*)\\]/i);\nif (m) keyword = (m[1] || '').trim();\nlet replyText = raw.replace(/\\[SEARCH:[^\\]]*\\]/ig, '').trim();\n\n// Markdown цэвэрлэх: [текст](url) → \"текст url\", ** __ устгах\nfunction stripMd(s){ s=String(s||''); var r='',i=0;\n  while(i<s.length){ if(s[i]==='['){ var c=s.indexOf('](',i);\n    if(c!==-1){ var e=s.indexOf(')',c+2); if(e!==-1){ var t=s.slice(i+1,c).trim();\n      var u=s.slice(c+2,e).trim(); r+=(t===u||!t)?u:(t+' '+u); i=e+1; continue; } } }\n    r+=s[i]; i++; }\n  r=r.split('**').join('').split('__').join('');\n  var parts=r.split(' '); var out=[];\n  for(var k=0;k<parts.length;k++){ if(k>0 && parts[k]!=='' && parts[k]===parts[k-1]) continue; out.push(parts[k]); }\n  return out.join(' ').trim(); }\nreplyText = stripMd(replyText);\n\n// ⚠️ FAQ ХАМГААЛАЛТ: AI ерөнхий үйл үгийг [SEARCH:]-д тавьсан бол хайхгүй\nconst kwLc = keyword.toLowerCase().replace(/\\s+/g, ' ').trim();\nconst FAQ_STOP = ['үзэх','яаж үзэх','хэрхэн үзэх','багц','багцын үнэ','үнэ','төлбөр',\n  'төлбөр төлөх','qpay','данс','дансаар','купон','хямдрал','урамшуулал','бүртгэл',\n  'бүртгүүлэх','нэвтрэх','нууц үг','имэйл','төхөөрөмж','хэдэн төхөөрөмж','татах',\n  'татаж авах','офлайн','чанар','интернэт','тусламж','холбоо барих','админ','кино','цуврал'];\nif (FAQ_STOP.indexOf(kwLc) !== -1) keyword = '';\n\nconst doSearch = keyword.length >= 2;\nif (!replyText) replyText = doSearch ? 'Танд тохирох кино хайж байна...' : 'Уучлаарай, дахин бичнэ үү.';\nreturn [{ json: { psid, keyword, doSearch, replyText, platform } }];"
+      },
+      "id": "btv_extract",
+      "name": "Extract Keyword",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.besttv.us/api/titles/search?q={{ encodeURIComponent($json.keyword || '') }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        },
+        "method": "GET"
+      },
+      "id": "btv_search",
+      "name": "Search Titles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Текст + carousel карт угсарна (FB ба IG хоёуланд).\nconst NL = String.fromCharCode(10);\nconst ex = $('Extract Keyword').first().json;\nconst psid = ex.psid;\n\n// ⚠️ platform-ийг Parse-ээс ШУУД (AI гинжээр алдагддаг)\nlet platform = ex.platform;\nif (platform !== 'instagram' && platform !== 'facebook') {\n  try { platform = $('Parse').first().json.platform; } catch (e) {}\n}\nif (platform !== 'instagram' && platform !== 'facebook') platform = 'facebook';\n\n// deterministic хариу (утас/багцын үнэ) нь AI-аас ДЭЭГҮҮР\nlet _directReply = '';\ntry { _directReply = ($('Prep Context').first().json.directReply || '').trim(); } catch (e) {}\nlet replyText = _directReply || (ex.replyText || '').trim();\n\n// ⚠️ BestTV /titles/search нь МАССИВ буцаана (DigitalGer нь {products:[]})\nlet raw = [];\ntry { raw = $('Search Titles').first().json; } catch (e) { raw = []; }\nif (raw && !Array.isArray(raw) && Array.isArray(raw.items)) raw = raw.items;\nif (!Array.isArray(raw)) raw = [];\n\nconst triedSearch = ex.doSearch === true;\nconst titles = triedSearch ? raw : [];\nconst showCards = titles.length > 0;\n\nif (triedSearch && !showCards) {\n  const kw = (ex.keyword || '').trim();\n  const kwPart = kw ? ('\"' + kw + '\"-тэй холбоотой ') : '';\n  replyText = kwPart + 'кино одоогоор олдсонгүй 🙏' + NL +\n    'Өөр нэрээр хайж үзэх үү? Бүх киног эндээс: https://besttv.us/catalog';\n}\nif (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';\n\nconst clip = function(s,m){ s=String(s||'').split(NL).join(' ').trim();\n  while(s.indexOf('  ')!==-1) s=s.split('  ').join(' ');\n  return s.length>m?s.slice(0,m-1).trim()+'…':s; };\n\nconst cards = titles.slice(0,10).map(function(t){\n  var url = 'https://besttv.us/movie/' + t.slug;\n  var bits = [];\n  if (t.year) bits.push(String(t.year));\n  if (t.rating) bits.push('⭐ ' + t.rating);\n  bits.push(t.type === 'SERIES' ? '📺 Цуврал' : '🎬 Кино');\n  if (t.isPremium) bits.push('🔒 Багцтай');\n  var head = bits.join('  ·  ');\n  var room = 79 - head.length;\n  var desc = room > 12 ? clip(t.description, room) : '';\n  return { title: clip(t.title, 80), subtitle: desc ? clip(head+NL+desc,80) : clip(head,80),\n    image_url: t.posterUrl || t.backdropUrl || '', url: url };\n});\n\nconst elements = cards.map(function(c){\n  var el = { title:c.title, subtitle:c.subtitle||' ',\n    default_action:{type:'web_url',url:c.url,webview_height_ratio:'full'},\n    buttons:[{type:'web_url',url:c.url,title:'Дэлгэрэнгүй үзэх'}] };\n  if (c.image_url) el.image_url = c.image_url;\n  return el; });\n\n// IG-д карт алдвал ашиглах текст fallback\nlet cardFallbackText = replyText;\nif (showCards) {\n  let lines = [replyText, ''];\n  titles.slice(0,5).forEach(function(t){\n    lines.push('🎬 ' + t.title + (t.year ? (' (' + t.year + ')') : ''));\n    lines.push('   https://besttv.us/movie/' + t.slug);\n  });\n  cardFallbackText = lines.join(NL).slice(0, 1900);\n}\n\n// ── Chat хадгалах ──\nconst _prep2 = $('Prep Context').first().json || {};\nconst _ingest = {\n  channel: (platform === 'instagram') ? 'instagram' : 'facebook',\n  sessionId: String(psid || '').slice(0, 64),\n  userText: String(_prep2.userText || '').trim(),\n  userName: String(_prep2.firstName || '').trim(),\n  assistantText: String(replyText || '').trim(),\n  titles: titles.slice(0,10).map(function(t){ return { id:t.id, title:t.title, slug:t.slug,\n    posterUrl:t.posterUrl||'', url:'https://besttv.us/movie/'+t.slug, year:t.year, rating:t.rating }; }),\n};\n\nreturn [{ json: { psid, replyText, hasCards: showCards, elements, platform, cardFallbackText, _ingest } }];"
+      },
+      "id": "btv_build",
+      "name": "Build Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $('Build Messages').first().json.psid }, sender_action: 'typing_off' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_typing_off",
+      "name": "Send Typing Off",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $('Build Messages').first().json.psid }, message: { text: $('Build Messages').first().json.replyText }, messaging_type: 'RESPONSE' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_send_text",
+      "name": "Send Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has_cards",
+              "leftValue": "={{ $('Build Messages').first().json.hasCards }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "btv_has_cards",
+      "name": "Has Cards?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2220,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $('Build Messages').first().json.psid }, message: { attachment: { type: 'template', payload: { template_type: 'generic', image_aspect_ratio: 'square', elements: $('Build Messages').first().json.elements } } }, messaging_type: 'RESPONSE' }) }}",
+        "options": {
+          "response": {
+            "response": {}
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_send_cards",
+      "name": "Send Cards",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ recipient: { id: $('Build Messages').first().json.psid }, message: { text: $('Build Messages').first().json.cardFallbackText }, messaging_type: 'RESPONSE' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_cards_fallback",
+      "name": "Send Cards Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2660,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.besttv.us/api/chat/ingest",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._ingest) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 5000
+        }
+      },
+      "id": "btv_ingest",
+      "name": "BTV Save Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// FB feed + IG comments сэтгэгдэл задлах.\nconst body=$input.first().json.body;\nif(!body)return [];\n// ⚠️ ID-г ШУУД hardcode — $env нь Code node-д хүрэхгүй\nvar IGID='17841442595556819';\nvar PAGEID='108103720808038';\nvar out=[];\nfor(var ei=0;ei<(body.entry||[]).length;ei++){\n  var changes=(body.entry[ei].changes)||[];\n  for(var ci=0;ci<changes.length;ci++){\n    var ch=changes[ci];\n    var v=ch.value||{};\n    // FB comment (object=page, field=feed)\n    if(body.object==='page' && ch.field==='feed'){\n      if(v.item!=='comment'||v.verb!=='add')continue;\n      var fbCid=v.comment_id; var fbFrom=v.from&&v.from.id;\n      // ⚠️ Өөрийн Page-ийн сэтгэгдэлд хариулахгүй (хязгааргүй давталт)\n      if(!fbCid||!fbFrom||fbFrom===PAGEID)continue;\n      out.push({json:{platform:'facebook',commentId:fbCid,postId:v.post_id||'',userId:fbFrom,cText:String(v.message||'')}});\n    }\n    // IG comment (object=instagram, field=comments)\n    else if(body.object==='instagram' && ch.field==='comments'){\n      var igCid=v.id; var igFrom=v.from&&v.from.id;\n      if(!igCid||!igFrom||igFrom===IGID)continue;\n      var mediaId=(v.media&&v.media.id)||'';\n      out.push({json:{platform:'instagram',commentId:igCid,postId:mediaId,cText:String(v.text||''),userId:igFrom}});\n    }\n  }\n}\nreturn out;"
+      },
+      "id": "btv_parse_comments",
+      "name": "Parse Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.postId }}?fields={{ $json.platform==='instagram' ? 'caption' : 'message' }}&access_token=__BESTTV_PAGE_TOKEN__",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 8000
+        },
+        "method": "GET"
+      },
+      "id": "btv_get_post",
+      "name": "Get Post Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Постын текстээс BestTV линк олж, сэтгэгдэл + DM бэлдэнэ.\nvar c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nvar NL=String.fromCharCode(10);\n\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('besttv.us');\n  if(i===-1)return 'https://besttv.us';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n// Линкээс төрөл + slug задлах (regex-гүй, indexOf)\nfunction _slugAfter(s, marker){ var i=s.indexOf(marker); if(i===-1) return '';\n  var rest=s.slice(i+marker.length); var end=0; var stops=[47,63,35,32,10,13,9];\n  while(end<rest.length && stops.indexOf(rest.charCodeAt(end))===-1) end++;\n  return rest.slice(0,end); }\n\nvar linkType='none'; var slug='';\nvar ms=_slugAfter(link,'besttv.us/movie/');\nif(ms){ linkType='movie'; slug=ms; }\n\nvar dmText = (linkType==='none')\n  ? ('Сайн байна уу! 👋'+NL+NL+'Монгол кино, цувралыг BestTV дээр үзээрэй: https://besttv.us'+NL+NL+'Асуулт байвал эндээ бичээрэй 😊')\n  : ('Сайн байна уу! 👋'+NL+NL+'Таны сонирхсон киног энд үзээрэй:'+NL+NL+link+NL+NL+'Асуулт байвал эндээ бичээрэй 😊');\n\nvar replyText='Танд чатаар мэдээлэл илгээлээ 📩 Дэлгэрэнгүй: '+link;\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,\n  privCommentId:c.commentId,dmText:dmText,link:link,linkType:linkType,slug:slug}}];"
+      },
+      "id": "btv_build_reply",
+      "name": "Build Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.commentId }}/{{ $json.platform==='instagram' ? 'replies' : 'comments' }}?message={{ encodeURIComponent($json.replyText) }}&access_token=__BESTTV_PAGE_TOKEN__",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_send_comment",
+      "name": "Send Comment Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.besttv.us/api/titles/{{ $('Build Reply').first().json.slug }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 8000
+        },
+        "method": "GET"
+      },
+      "id": "btv_dm_meta",
+      "name": "Get DM Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Private DM бие угсарна (карт эсвэл текст).\nvar b=$('Build Reply').first().json;\nvar meta=$input.first().json||{};\nvar cid=b.privCommentId;\nvar linkType=b.linkType; var link=b.link;\nvar ok = meta && meta.title && linkType==='movie';\nvar body;\nif(ok){\n  var img = meta.posterUrl || meta.backdropUrl || '';\n  var title = String(meta.title||'').slice(0,80);\n  var bits=[];\n  if(meta.year) bits.push(String(meta.year));\n  if(meta.rating) bits.push('⭐ '+meta.rating);\n  bits.push(meta.type==='SERIES'?'📺 Цуврал':'🎬 Кино');\n  var sub = bits.join('  ·  ').slice(0,80);\n  var el={title:title, subtitle:sub||' ', image_url:img,\n    default_action:{type:'web_url',url:link},\n    buttons:[{type:'web_url',url:link,title:'Үзэх'}]};\n  body={recipient:{comment_id:cid},\n    message:{attachment:{type:'template',payload:{template_type:'generic',elements:[el]}}}};\n} else {\n  body={recipient:{comment_id:cid},message:{text:b.dmText}};\n}\nreturn [{json:{dmBody:JSON.stringify(body)}}];"
+      },
+      "id": "btv_build_dm",
+      "name": "Build DM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('Build DM').first().json.dmBody }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv_send_dm",
+      "name": "Send Private Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        640
+      ]
+    }
+  ],
+  "connections": {
+    "FB Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Message (POST)": {
+      "main": [
+        [
+          {
+            "node": "Parse",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Prep Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Context": {
+      "main": [
+        [
+          {
+            "node": "Check Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Handoff": {
+      "main": [
+        [
+          {
+            "node": "AI асаалттай юу?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI асаалттай юу?": {
+      "main": [
+        [
+          {
+            "node": "Send Typing On",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save (админ хариулна)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Typing On": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Keyword": {
+      "main": [
+        [
+          {
+            "node": "Search Titles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Titles": {
+      "main": [
+        [
+          {
+            "node": "Build Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Messages": {
+      "main": [
+        [
+          {
+            "node": "Send Typing Off",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BTV Save Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Typing Off": {
+      "main": [
+        [
+          {
+            "node": "Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Text": {
+      "main": [
+        [
+          {
+            "node": "Has Cards?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Cards?": {
+      "main": [
+        [
+          {
+            "node": "Send Cards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cards": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send Cards Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Extract Keyword",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Comments": {
+      "main": [
+        [
+          {
+            "node": "Get Post Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Post Text": {
+      "main": [
+        [
+          {
+            "node": "Build Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Comment Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Comment Reply": {
+      "main": [
+        [
+          {
+            "node": "Get DM Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get DM Meta": {
+      "main": [
+        [
+          {
+            "node": "Build DM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build DM": {
+      "main": [
+        [
+          {
+            "node": "Send Private Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

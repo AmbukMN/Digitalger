@@ -115,6 +115,23 @@ export class ChatController {
     return { ok: true };
   }
 
+  /**
+   * n8n-д: энэ яриаг АДМИН гар аргаар авсан уу?
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: админ «өөрөө хариулна» гэж сонгосон
+   * (`handedOff = true`) атлаа n8n үүнийг мэдэхгүй бол AI үргэлжлүүлэн
+   * хариулж, хэрэглэгч НЭГ асуултад ХОЁР өөр хариу авна — админыхыг
+   * AI-ийнх дарж, ярианы урсгал эвдэрнэ.
+   *
+   * ⚠️ Хариу нь ХӨНГӨН байх ёстой (мессеж бүрд дуудагдана) — зөвхөн
+   * 2 boolean буцаана.
+   */
+  @Throttle({ default: { limit: 240, ttl: 60_000 } })
+  @Get('state')
+  state(@Query('sessionId') sessionId?: string) {
+    return this.chat.sessionState((sessionId ?? '').trim());
+  }
+
   /** Нэвтрэх үед зочны яриаг өөрийн бүртгэлд холбоно */
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard)
@@ -173,12 +190,15 @@ export class ChatAdminController {
     /* ⚠️ Хайлт — имэйл/нэр/мессежийн агуулгаар (51+ дэх яриа руу
        хүрэх цорын ганц зам байсан) */
     @Query('q') q?: string,
+    /* ⚠️ Суваг — web | facebook | instagram (чатбот FB/IG-ээс дамжуулна) */
+    @Query('channel') channel?: string,
   ) {
     return this.chat.listConversations({
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       onlyUnread: onlyUnread === '1' || onlyUnread === 'true',
       q,
+      channel,
     });
   }
 

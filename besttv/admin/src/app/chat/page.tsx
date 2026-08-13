@@ -25,6 +25,34 @@ import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 
+/**
+ * Сувгийн тэмдэг — яриа хаанаас ирснийг нэг харцаар.
+ *
+ * ⚠️ Вэбийнхэд тэмдэг ХАРУУЛАХГҮЙ: ихэнх яриа вэбээс ирдэг тул бүгдэд
+ * тэмдэг тавибал жагсаалт дүүрч, ЯЛГАРАХ ёстой FB/IG нь харагдахаа
+ * болино. Тэмдэг нь "энэ бол ондоо" гэсэн утгатай байх ёстой.
+ */
+const CHANNEL_META: Record<string, { label: string; cls: string }> = {
+  facebook: { label: 'FB', cls: 'bg-[#1877F2]/15 text-[#1877F2]' },
+  instagram: { label: 'IG', cls: 'bg-[#E1306C]/15 text-[#E1306C]' },
+};
+
+function ChannelBadge({ channel }: { channel: string }) {
+  const meta = CHANNEL_META[channel];
+  if (!meta) return null;
+  return (
+    <span
+      title={channel === 'facebook' ? 'Facebook Messenger' : 'Instagram DM'}
+      className={cn(
+        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none',
+        meta.cls,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 interface ConvListItem {
   id: string;
   channel: string;
@@ -65,6 +93,9 @@ export default function ChatPage() {
   const [onlyUnread, setOnlyUnread] = useState(false);
   /* ⚠️ Хайлт — 51+ дэх яриа руу хүрэх цорын ганц зам байсан */
   const [q, setQ] = useState('');
+  /* ⚠️ Сувгийн шүүлт — '' = бүгд. FB/IG чатбот ажилласнаар вэбийн
+     яриатай холилдоно, ялгаж харах шаардлагатай. */
+  const [channel, setChannel] = useState('');
   const [page, setPage] = useState(1);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
@@ -80,11 +111,18 @@ export default function ChatPage() {
 
   // Жагсаалт — 15 сек тутам шинэчилнэ (шинэ чат ирэхийг барина)
   const { data: list, isLoading } = useQuery({
-    queryKey: ['admin-chat-list', onlyUnread, q, page],
+    queryKey: ['admin-chat-list', onlyUnread, q, page, channel],
     queryFn: () =>
-      api<{ items: ConvListItem[]; total: number; unreadTotal: number; totalPages?: number }>(
+      api<{
+        items: ConvListItem[];
+        total: number;
+        unreadTotal: number;
+        channelCounts?: Record<string, number>;
+        totalPages?: number;
+      }>(
         `/admin/chat/conversations?pageSize=30&page=${page}` +
           (onlyUnread ? '&onlyUnread=1' : '') +
+          (channel ? `&channel=${channel}` : '') +
           (q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''),
       ),
     refetchInterval: 15_000,
@@ -112,10 +150,22 @@ export default function ChatPage() {
     if (!text || !selected || sending) return;
     setSending(true);
     try {
-      await api(`/admin/chat/conversations/${selected}/reply`, {
-        method: 'POST',
-        body: JSON.stringify({ text }),
-      });
+      const res = await api<{ ok: boolean; delivered?: boolean }>(
+        `/admin/chat/conversations/${selected}/reply`,
+        { method: 'POST', body: JSON.stringify({ text }) },
+      );
+      /**
+       * ⚠️ FB/IG-д хариу Messenger рүү илгээгддэг. Илгээлт УНАСАН
+       * (token хүчингүй, 24 цагийн цонх хаагдсан) тохиолдолд админд
+       * ХЭЛНЭ — эс бөгөөс "хариулчихлаа" гэж бодоод орхиж, хэрэглэгч
+       * хариу хүлээсээр үлдэнэ.
+       */
+      if (res?.delivered === false) {
+        toast.warning(
+          'Хадгалагдсан ч Messenger рүү илгээгдсэнгүй. Token эсвэл 24 цагийн хязгаарыг шалгана уу.',
+          { duration: 8000 },
+        );
+      }
       setReply('');
       await qc.invalidateQueries({ queryKey: ['admin-chat-detail', selected] });
       qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
@@ -219,6 +269,50 @@ export default function ChatPage() {
             </button>
           </div>
 
+          {/*
+            ⚠️ СУВГИЙН ШҮҮЛТ — зөвхөн FB/IG-ээс яриа ИРСЭН үед л
+            харагдана. Чатбот асаагаагүй байхад хоосон таб харуулбал
+            админ дарж шалгаад юу ч олдохгүй, эвдэрсэн мэт санагдана.
+          */}
+          {(() => {
+            const cc = list?.channelCounts ?? {};
+            const hasSocial = (cc.facebook ?? 0) > 0 || (cc.instagram ?? 0) > 0;
+            if (!hasSocial) return null;
+            const TABS: { key: string; label: string }[] = [
+              { key: '', label: 'Бүх суваг' },
+              { key: 'web', label: 'Вэб' },
+              { key: 'facebook', label: 'Facebook' },
+              { key: 'instagram', label: 'Instagram' },
+            ];
+            return (
+              <div className="flex items-center gap-1.5 border-b border-border px-2.5 pb-2.5">
+                {TABS.map((t) => {
+                  /* Бүх суваг дээр тоо харуулахгүй — нийт тоо доор бий */
+                  const n = t.key ? (cc[t.key] ?? 0) : 0;
+                  if (t.key && n === 0) return null;
+                  return (
+                    <button
+                      key={t.key || 'all'}
+                      onClick={() => {
+                        setChannel(t.key);
+                        setPage(1);
+                      }}
+                      className={cn(
+                        'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                        channel === t.key
+                          ? 'bg-foreground/10 text-foreground'
+                          : 'text-muted-foreground hover:bg-accent',
+                      )}
+                    >
+                      {t.label}
+                      {t.key ? ` ${n}` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               /* ⚠️ Spinner БИШ skeleton — ярианы мөрийн бүтэц урьдчилж
@@ -263,6 +357,14 @@ export default function ChatPage() {
                       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
                         {name}
                       </p>
+                      {/*
+                        ⚠️ СУВГИЙН ТЭМДЭГ — яриа Facebook/Instagram/вэбийн
+                        алинаас ирснийг ЯЛГАНА. Чатбот FB/IG-ээс мессеж
+                        дамжуулж эхэлсэн тул энэ тэмдэггүй бол админ хаана
+                        хариулж байгаагаа мэдэхгүй (өнгө аяс, хариу өгөх
+                        хэлбэр суваг бүрд өөр).
+                      */}
+                      <ChannelBadge channel={c.channel} />
                       {c.adminUnread && (
                         <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" />
                       )}
@@ -344,9 +446,14 @@ export default function ChatPage() {
                   {(detail.user?.name ?? detail.userName ?? detail.user?.email ?? 'З')[0]?.toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {detail.user?.name ?? detail.userName ?? 'Зочин'}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {detail.user?.name ?? detail.userName ?? 'Зочин'}
+                    </p>
+                    {/* ⚠️ Дэлгэрэнгүйд ч суваг — админ хариулахаасаа өмнө
+                        хаана бичиж байгаагаа мэдэх ёстой */}
+                    <ChannelBadge channel={detail.channel} />
+                  </div>
                   <p className="truncate text-xs text-muted-foreground">
                     {detail.user?.email ?? detail.userEmail ?? detail.sessionId}
                   </p>

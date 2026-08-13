@@ -2,7 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
-const ALLOWED_CHANNELS = new Set(['web']);
+/**
+ * ⚠️⚠️ `facebook`/`instagram` ЗААВАЛ — n8n чатбот эдгээр сувгаас
+ * мессеж дамжуулна. Жагсаалтад байхгүй бол чимээгүйгээр `web` болж,
+ * админ панель дээр FB/IG-ээс ирсэн яриаг вэбийнхээс ЯЛГАЖ ЧАДАХГҮЙ
+ * (schema-д `@@index([channel, lastMessageAt])` байгаа нь энэ ялгааг
+ * хийхээр ТӨЛӨВЛӨСӨН гэдгийг харуулж байна).
+ *
+ * ⚠️ Чөлөөт текст болгож нээхгүй — endpoint нээлттэй тул дурын утга
+ * оруулбал админы шүүлт замбараагүй болно.
+ */
+const ALLOWED_CHANNELS = new Set(['web', 'facebook', 'instagram']);
 /**
  * ⚠️⚠️ `admin` ЗОРИУД БАЙХГҮЙ — `saveMessage` нь НЭЭЛТТЭЙ endpoint-оос
  * дуудагддаг тул халдлагч "админ" нэрийн өмнөөс мессеж бичиж phishing
@@ -207,6 +217,7 @@ export class ChatService {
     pageSize?: number;
     onlyUnread?: boolean;
     q?: string;
+    channel?: string;
   }) {
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
@@ -224,8 +235,19 @@ export class ChatService {
      * зурвасаараа л олдоно.
      */
     const needle = opts.q?.trim();
+    /**
+     * ⚠️ Сувгийн шүүлт — FB/IG чатбот ажиллаж эхэлмэгц вэбийн яриатай
+     * холилдоно. «Facebook-ээс ирсэн хариулаагүй зурвасууд» гэсэн
+     * ажлын урсгал шүүлтгүйгээр боломжгүй.
+     *
+     * ⚠️ Зөвшөөрөгдсөн утгыг л авна — дурын текст шидвэл хоосон
+     * жагсаалт буцаж, админ «яриа алга болсон» гэж бодно.
+     */
+    const channel =
+      opts.channel && ALLOWED_CHANNELS.has(opts.channel) ? opts.channel : undefined;
     const where: Prisma.ChatConversationWhereInput = {
       ...(opts.onlyUnread ? { adminUnread: true } : {}),
+      ...(channel ? { channel } : {}),
       ...(needle
         ? {
             OR: [
@@ -237,7 +259,7 @@ export class ChatService {
         : {}),
     };
 
-    const [items, total, unreadTotal] = await Promise.all([
+    const [items, total, unreadTotal, byChannel] = await Promise.all([
       this.prisma.chatConversation.findMany({
         where,
         orderBy: { lastMessageAt: 'desc' },
@@ -251,10 +273,30 @@ export class ChatService {
       }),
       this.prisma.chatConversation.count({ where }),
       this.prisma.chatConversation.count({ where: { adminUnread: true } }),
+      /**
+       * ⚠️ Суваг тус бүрийн тоо — шүүлтийн товч дээр «FB 12» гэж
+       * харуулна. Тоогүй бол админ хоосон табыг дарж шалгах хэрэгтэй
+       * болно. `where`-ээс ХАМААРАХГҮЙ (бүх сувгийн бодит тоо).
+       */
+      this.prisma.chatConversation.groupBy({
+        by: ['channel'],
+        _count: { _all: true },
+      }),
     ]);
 
+    const channelCounts: Record<string, number> = {};
+    for (const row of byChannel) channelCounts[row.channel] = row._count._all;
+
     /* ⚠️ `totalPages` — админы `<Pagination>` энэ талбарыг шаардана */
-    return { items, total, unreadTotal, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return {
+      items,
+      total,
+      unreadTotal,
+      channelCounts,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async getConversation(id: string) {
@@ -286,7 +328,7 @@ export class ChatService {
 
     const conv = await this.prisma.chatConversation.findUnique({
       where: { id },
-      select: { id: true, userId: true, sessionId: true },
+      select: { id: true, userId: true, sessionId: true, channel: true },
     });
     if (!conv) return { ok: false as const };
 
@@ -304,7 +346,81 @@ export class ChatService {
       },
     });
 
-    return { ok: true as const, message, userId: conv.userId };
+    /**
+     * ⚠️⚠️ FB/IG-д хариуг MESSENGER РҮҮ илгээнэ.
+     *
+     * Вэбийн хэрэглэгч сайт руугаа орж хариуг харна. Гэтэл Facebook/
+     * Instagram-аас бичсэн хүн МАНАЙ САЙТ РУУ ОРДОГГҮЙ — DB-д бичээд
+     * орхивол админы хариу хэнд ч хүрэхгүй, хэрэглэгч хариу аваагүй
+     * гэж бодоод орхино.
+     *
+     * ⚠️ Алдаа гарвал ШИДЭХГҮЙ — админд «илгээгдлээ» гэж харагдсан
+     * атлаа DB-д хадгалагдахгүй байх нь илүү муу. Оронд нь буцаах
+     * утганд `delivered` талбараар мэдэгдэнэ.
+     */
+    let delivered: boolean | undefined;
+    if (conv.channel === 'facebook' || conv.channel === 'instagram') {
+      delivered = await this.sendToMessenger(conv.sessionId, t);
+    }
+
+    return { ok: true as const, message, userId: conv.userId, delivered };
+  }
+
+  /**
+   * Facebook/Instagram Messenger руу текст илгээнэ.
+   *
+   * ⚠️ `sessionId` нь FB/IG-ийн PSID (n8n тэрийг sessionId болгож бичдэг).
+   * ⚠️ Token байхгүй бол чимээгүй унтрахгүй — ЛОГ бичнэ, эс бөгөөс
+   *    админ хариу явахгүй байгааг мэдэхгүй.
+   */
+  private async sendToMessenger(psid: string, text: string): Promise<boolean> {
+    const token = process.env.FB_PAGE_ACCESS_TOKEN;
+    if (!token) {
+      this.logger.error(
+        'FB_PAGE_ACCESS_TOKEN тохируулаагүй — админы хариу Messenger рүү ИЛГЭЭГДСЭНГҮЙ',
+      );
+      return false;
+    }
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/me/messages?access_token=${token}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            recipient: { id: psid },
+            message: { text: text.slice(0, 1900) },
+            /* ⚠️ Хүний оператор гэдгийг Meta-д мэдэгдэнэ — 24 цагийн
+               дүрмийн хувьд RESPONSE-оос уян хатан */
+            messaging_type: 'RESPONSE',
+          }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        this.logger.error(`Messenger илгээлт амжилтгүй (${res.status}): ${body.slice(0, 300)}`);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      this.logger.error(`Messenger илгээлт алдаа: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
+   * n8n-д зориулсан ХӨНГӨН төлөв шалгалт.
+   *
+   * ⚠️ Яриа хараахан үүсээгүй (анхны мессеж) бол `handedOff: false` —
+   * шинэ хэрэглэгчид AI хариулах ёстой.
+   */
+  async sessionState(sessionId: string): Promise<{ handedOff: boolean; exists: boolean }> {
+    if (!sessionId) return { handedOff: false, exists: false };
+    const conv = await this.prisma.chatConversation
+      .findUnique({ where: { sessionId }, select: { handedOff: true } })
+      .catch(() => null);
+    return { handedOff: conv?.handedOff ?? false, exists: !!conv };
   }
 
   /** AI-г унтраах / буцааж асаах */
