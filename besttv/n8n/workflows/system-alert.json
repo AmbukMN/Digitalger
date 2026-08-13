@@ -68,7 +68,8 @@
         "chatId": "__CHAT_ID__",
         "text": "={{ $json.message }}",
         "additionalFields": {
-          "parse_mode": "HTML"
+          "parse_mode": "HTML",
+          "appendAttribution": false
         }
       },
       "id": "besttv-0005-node-tg",
