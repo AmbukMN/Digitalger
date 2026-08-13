@@ -212,10 +212,19 @@ export default function ProfilePage() {
     setSavingPassword(true);
     try {
       await changePassword(currentPassword, newPassword);
-      toast.success('Нууц үг солигдлоо');
-      setChangingPassword(false);
       setCurrentPassword('');
       setNewPassword('');
+      setChangingPassword(false);
+      /**
+       * ⚠️⚠️ Backend нь нууц үг солигдоход БҮХ session-ыг устгадаг
+       * (халдлагчийн хуучин токен амьд үлдэхээс сэргийлнэ). Тиймээс
+       * энэ төхөөрөмж ч мөн хүчингүй болсон.
+       *
+       * ⚠️ Тайлбаргүй гаргавал хэрэглэгч «эвдэрсэн юм болов уу» гэж
+       * бодно — ЯАГААД гэдгийг ХЭЛЖ байж гаргана.
+       */
+      toast.success('Нууц үг солигдлоо. Аюулгүй байдлын үүднээс дахин нэвтэрнэ үү.');
+      setTimeout(() => void logout(), 1800);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally {

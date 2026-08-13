@@ -400,8 +400,28 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+
+    /**
+     * ⚠️⚠️ БҮХ SESSION-ыг ХҮЧИНГҮЙ БОЛГОНО (өөрийнхийг ч оруулаад).
+     *
+     * Хүн нууц үгээ солих гол шалтгаан нь «хэн нэгэн мэдчихсэн байх»
+     * гэсэн сэжиг. Хуучин session-ууд амьд үлдвэл яг тэр халдлагч
+     * үргэлжлүүлэн ордог тул солих үйлдэл утгагүй болно.
+     *
+     * ⚠️ Одоогийн төхөөрөмжийг ялгаж үлдээх БОЛОМЖГҮЙ: session нь
+     * REFRESH токеноор хадгалагддаг, харин энэ endpoint-д ирдэг нь
+     * ACCESS токен — хоёр өөр утга. Тиймээс бүгдийг устгаад дахин
+     * нэвтрүүлнэ. Frontend `requiresRelogin`-ыг хараад хэрэглэгчид
+     * ЯАГААД гарч байгааг тайлбарлана.
+     */
+    const revoked = await this.sessions.revokeOthers(userId, null);
+    if (revoked > 0) {
+      this.logger.log(`Нууц үг солив — ${revoked} session хүчингүй болов (${user.email})`);
+    }
+
     await this.tracking.audit(userId, 'password');
-    return { ok: true };
+    this.email.sendPasswordChanged({ to: user.email, name: user.name, userId });
+    return { ok: true, requiresRelogin: true };
   }
 
   // ─── Нууц үг сэргээх (forgot / reset) ───────────────────────────────────────
@@ -552,25 +572,24 @@ export class AuthService {
     ]);
 
     /**
-     * ⚠️⚠️ ХИЙГДЭЭГҮЙ — ИРЭЭДҮЙД ХИЙХ: БҮХ SESSION-ыг ХҮЧИНГҮЙ БОЛГОХ.
+     * ⚠️⚠️ БҮХ SESSION-ыг ХҮЧИНГҮЙ БОЛГОНО.
      *
      * Нууц үг сэргээх гол шалтгаан нь ихэвчлэн "бүртгэл булаагдсан".
-     * Гэтэл манай refresh token нь STATELESS JWT — DB-д хадгалагддаггүй
-     * тул ганцаарчлан хүчингүй болгох боломжгүй. Үр дүнд халдлагчийн
-     * гарт байгаа refresh token нь нууц үг солигдсоны ДАРАА Ч 30 хоног
-     * ажилласаар байна.
+     * Хэрэв халдлагчийн refresh token амьд үлдвэл жинхэнэ эзэн нь нууц
+     * үгээ сольсон ч халдлагч 30 хоног үргэлжлүүлэн ордог — сэргээх
+     * үйлдлийн ГОЛ УТГА алдагдана.
      *
-     * ЗАСАХ ХУВИЛБАРУУД (аль нэгийг сонгоно):
-     *   A) `User.tokenVersion Int @default(0)` багана нэмэх → JWT payload-д
-     *      оруулж, `JwtStrategy`-д харьцуулах. Энд `increment: 1` хийвэл
-     *      бүх хуучин токен нэг дор үхнэ. (ХАМГИЙН ЭНГИЙН — DB нэг багана,
-     *      нэмэлт хүснэгт/Redis хэрэггүй.)
-     *   B) `RefreshToken` хүснэгт үүсгэж бүх refresh-ийг DB-д хадгалах
-     *      (revoke жагсаалттай). Илүү уян хатан ч илүү нарийн.
+     * ⚠️ `currentToken = null` — «бусад» биш, ЯГ БҮГД. Сэргээх урсгал
+     * нь нэвтрээгүй хэрэглэгчээс ирдэг тул хамгаалах "одоогийн" session
+     * гэж байхгүй. Бүгдийг устгаад дахин нэвтрүүлэх нь зөв.
      *
-     * Одоохондоо: нууц үг солигдсоныг хэрэглэгчид ИМЭЙЛЭЭР мэдэгдэж,
-     * сэжигтэй үед гараар арга хэмжээ авах боломж олгож байна.
+     * Устсаны дараа refresh хийхэд `sessions.touch` нь session олохгүй
+     * тул `false` буцаана → хуучин БҮХ төхөөрөмж гарна.
      */
+    const revoked = await this.sessions.revokeOthers(user.id, null);
+    if (revoked > 0) {
+      this.logger.log(`Нууц үг сэргээв — ${revoked} session хүчингүй болов (${user.email})`);
+    }
 
     await this.tracking.audit(user.id, 'password', {
       newValue: 'reset',

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Info, Lock, Play, Star } from 'lucide-react';
 import { usePlayGuard } from '@/lib/use-play-guard';
@@ -24,6 +25,7 @@ const SLIDE_MS = 6000;
 export function HeroBanner({ banners }: { banners: Banner[] }) {
   // ⚠️ "Үзэх" нь эрх шалгасны дараа л /watch руу орно
   const play = usePlayGuard();
+  const router = useRouter();
   const { user } = useAuth();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -180,18 +182,46 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                   bannerAccess === 'owned' ||
                   bannerAccess === 'free' ||
                   bannerAccess === 'rented';
+                /**
+                 * ⚠️⚠️ ТОВЧНЫ БИЧЭЭС ЯГ ЮУ ХИЙХИЙГ АМЛАНА.
+                 *
+                 * «Багц авах» гэж бичээд `usePlayGuard`-аар дамжуулбал
+                 * тэр нь эрхгүй хэрэглэгчийг ДЭЛГЭРЭНГҮЙ рүү явуулдаг
+                 * тул хажуугийн «Дэлгэрэнгүй» товчтой ЯГ АДИЛХАН болно
+                 * — 2 өөр нэртэй товч нэг л газар очих нь эвдэрсэн мэт
+                 * харагдана (бодит гомдол).
+                 *
+                 * Зөв: бичээс «Багц авах» бол /pricing руу ШУУД. Тэнд
+                 * үнэ, багцын харьцуулалт, урамшуулал бүгд байна.
+                 * Кино ӨӨРӨӨ сонирхсон бол хажууд нь «Дэлгэрэнгүй».
+                 *
+                 * ⚠️ `title-card`-д товч нь зөвхөн Play дүрстэй, «Багц
+                 * авах» гэж амладаггүй тул тэнд дэлгэрэнгүй рүү явах
+                 * нь ЗӨВ хэвээр — энэ засварыг тийш хуулахгүй.
+                 */
+                /**
+                 * ⚠️ «Багц авах» гэж ХЭЗЭЭ бичих вэ: зөвхөн ТӨЛБӨРИЙН
+                 * шалтгаанаар үзэж чадахгүй үед. «Удахгүй гарна» эсвэл
+                 * «видео бэлтгэгдэж байна» бол мөнгө нэхэх нь буруу —
+                 * тэр хоёрыг `usePlayGuard` тайлбартай зохицуулна.
+                 */
+                const paywalled = !canPlay && !banner.comingSoon && !!banner.isPremium;
+
+                const goPricing = () => router.push('/pricing');
                 return (
                   <button
                     onClick={() =>
-                      play(
-                        {
-                          slug: banner.slug,
-                          isPremium: banner.isPremium,
-                          comingSoon: banner.comingSoon,
-                          type: banner.type,
-                        },
-                        canPlay,
-                      )
+                      paywalled
+                        ? goPricing()
+                        : play(
+                            {
+                              slug: banner.slug,
+                              isPremium: banner.isPremium,
+                              comingSoon: banner.comingSoon,
+                              type: banner.type,
+                            },
+                            canPlay,
+                          )
                     }
                     className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:bg-white/90 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                   >
@@ -204,9 +234,15 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                       <>
                         <Play size={19} fill="black" /> Үзэх
                       </>
-                    ) : (
+                    ) : paywalled ? (
                       <>
                         <Lock size={17} /> Багц авах
+                      </>
+                    ) : (
+                      /* Удахгүй гарах / видео бэлтгэгдэж буй — мөнгө
+                         нэхэхгүй, зүгээр мэдээлэл рүү нь урина */
+                      <>
+                        <Info size={18} /> Дэлгэрэнгүй
                       </>
                     )}
                   </button>
