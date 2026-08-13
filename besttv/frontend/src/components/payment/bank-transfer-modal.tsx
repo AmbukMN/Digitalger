@@ -127,6 +127,15 @@ export function BankTransferModal({
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  /**
+   * ⚠️⚠️ БАРИМТГҮЙ БОЛ БАТАЛГААЖУУЛАЛТ ЗААВАЛ.
+   *
+   * Зарим хэрэглэгч банкны апп-аас screenshot авч чаддаггүй (ATM,
+   * теллэр, өөр хүнээр гүйлгүүлсэн). Тэднийг хаахгүйн тулд
+   * «Би шилжүүлсэн» гэсэн ЗӨВШӨӨРӨЛ өгнө — гэхдээ санамсаргүй
+   * дарахаас сэргийлж ЯГ энэ нүдийг тэмдэглэх шаардлагатай.
+   */
+  const [confirmed, setConfirmed] = useState(false);
 
   /**
    * ⚠️ Модал НЭЭГДЭХЭД л захиалга үүсгэнэ — компонент mount болмогц
@@ -217,7 +226,21 @@ export function BankTransferModal({
 
   const claim = async () => {
     if (!order) return;
-    /* ⚠️ Баримт заавал бол ЭНД зогсооно — сервер рүү дэмий очихгүй */
+    /**
+     * ⚠️⚠️ БАРИМТ ЭСВЭЛ БАТАЛГААЖУУЛАЛТ — аль нэг нь ЗААВАЛ.
+     *
+     * Өмнө нь товч шууд ажилладаг тул хэрэглэгч санамсаргүй дараад
+     * «мэдэгдсэн» төлөвт орж, дараа нь өөрчлөх боломжгүй болдог байв.
+     */
+    if (!receiptUrl && !confirmed) {
+      toast.error(
+        info.requireReceipt
+          ? 'Төлбөрийн баримтын зургаа хавсаргана уу'
+          : 'Баримтаа хавсаргах эсвэл «Би шилжүүлсэн» гэдгийг тэмдэглэнэ үү',
+      );
+      return;
+    }
+    /* ⚠️ Админ «баримт заавал» гэж тохируулсан бол checkbox хангалтгүй */
     if (info.requireReceipt && !receiptUrl) {
       toast.error('Төлбөрийн баримтын зургаа хавсаргана уу');
       return;
@@ -379,14 +402,20 @@ export function BankTransferModal({
                   <p className="truncate text-sm font-bold text-foreground">
                     {account.bankName}
                   </p>
-                  <p className="truncate text-[11px] text-foreground/45">
-                    {account.accountName}
-                  </p>
                 </div>
               </div>
 
               <div className="h-px bg-foreground/8" />
               <CopyRow label="Дансны дугаар" value={account.accountNumber} mono emphasis />
+
+              {/*
+                ⚠️ ХҮЛЭЭН АВАГЧ нь ТУСДАА мөр, бусадтай ижил хэмжээтэй.
+                Өмнө нь толгойд 11px-ээр бүдэг бичигдэж, хэрэглэгч
+                банкны апп-д нэрээ бичихэд уншиж чаддаггүй байв
+                (хэрэглэгчийн скриншот).
+              */}
+              <div className="h-px bg-foreground/8" />
+              <CopyRow label="Хүлээн авагч" value={account.accountName} />
 
               {/*
                 ⚠️ IBAN нь ТУСДАА мөр — өмнө нь дансны дугаартай нэг
@@ -410,11 +439,7 @@ export function BankTransferModal({
                 <div>
                   <p className="text-xs font-semibold text-foreground/80">
                     Төлбөрийн баримт
-                    {info.requireReceipt ? (
-                      <span className="ml-1 text-primary">*</span>
-                    ) : (
-                      <span className="ml-1 text-foreground/35">(заавал биш)</span>
-                    )}
+                    {info.requireReceipt && <span className="ml-1 text-primary">*</span>}
                   </p>
                   <p className="mt-0.5 text-[11px] text-foreground/45">
                     Банкны аппын зургаа хавсаргавал хурдан баталгаажна
@@ -469,6 +494,40 @@ export function BankTransferModal({
               )}
             </div>
 
+            {/*
+              ⚠️⚠️ БАРИМТГҮЙ ХЭРЭГЛЭГЧИД ЗОРИУЛСАН ЗАМ.
+              ATM, теллэр, өөр хүнээр гүйлгүүлсэн бол screenshot
+              байхгүй. Тэднийг хаахгүй, гэхдээ санамсаргүй дарахаас
+              сэргийлж ЯГ энэ нүдийг тэмдэглүүлнэ.
+              ⚠️ Баримт хавсаргасан бол ХЭРЭГГҮЙ (давхар алхам).
+            */}
+            {!receiptUrl && !info.requireReceipt && (
+              <button
+                onClick={() => setConfirmed((c) => !c)}
+                className="mt-3 flex w-full items-start gap-2.5 rounded-xl border border-foreground/12 p-3 text-left transition-colors hover:border-foreground/25"
+              >
+                <span
+                  className={cn(
+                    'mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded border-2 transition-colors',
+                    confirmed
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-foreground/25',
+                  )}
+                >
+                  {confirmed && <Check size={11} strokeWidth={3} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-foreground/85">
+                    Би төлбөрөө шилжүүлсэн
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-foreground/45">
+                    Баримт байхгүй бол энийг тэмдэглэнэ үү. Шаардлагатай бол админ
+                    чатаар холбогдоно.
+                  </span>
+                </span>
+              </button>
+            )}
+
             {info.note && (
               <p className="mt-3 text-xs leading-relaxed text-foreground/45">{info.note}</p>
             )}
@@ -480,16 +539,29 @@ export function BankTransferModal({
               </p>
             </div>
 
+            {/*
+              ⚠️ Баримт ЭСВЭЛ баталгаажуулалтгүй бол товч ИДЭВХГҮЙ —
+              дарж болохгүй гэдгийг ХАРАГДАЦААР хэлнэ (дарсны дараа
+              алдаа гаргахаас дээр).
+            */}
             <button
               onClick={() => void claim()}
-              disabled={claiming || uploading}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-60"
+              disabled={claiming || uploading || (!receiptUrl && !confirmed)}
+              className={cn(
+                'mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-bold transition-all',
+                !receiptUrl && !confirmed
+                  ? 'cursor-not-allowed bg-foreground/10 text-foreground/35'
+                  : 'bg-primary text-primary-foreground hover:brightness-110',
+                (claiming || uploading) && 'opacity-60',
+              )}
             >
               {claiming ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} />}
               Шилжүүлсэн
             </button>
             <p className="mt-2 text-center text-[11px] text-foreground/35">
-              Шилжүүлсний ДАРАА энэ товчийг дарна уу
+              {!receiptUrl && !confirmed
+                ? 'Баримтаа хавсаргах эсвэл дээрх нүдийг тэмдэглэнэ үү'
+                : 'Шилжүүлсний ДАРАА энэ товчийг дарна уу'}
             </p>
           </>
         )}

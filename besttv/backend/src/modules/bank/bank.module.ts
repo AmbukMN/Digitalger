@@ -407,6 +407,18 @@ export class BankService {
         planId: data.planId ?? null,
         isWalletTopup: data.isWalletTopup ?? false,
         createdAt: { gte: new Date(Date.now() - 24 * 3600_000) },
+        /**
+         * ⚠️⚠️ МЭДЭГДСЭНИЙГ ДАХИН АШИГЛАХГҮЙ.
+         *
+         * Хэрэглэгч «Шилжүүлсэн» дараад дараа нь ДАХИН «Дансаар
+         * шилжүүлэх» дарвал өмнөх (claimed) захиалга буцаж, модал нь
+         * шууд «Хүлээн авлаа» дэлгэц харуулдаг байв — шинэ гүйлгээ
+         * хийх боломжгүй (хэрэглэгчийн скриншот).
+         *
+         * `bankClaimedAt: null` нөхцөл нь ЗӨВХӨН хараахан мэдэгдээгүй
+         * захиалгыг дахин ашиглана. Мэдэгдсэн бол ШИНЭ утга үүснэ.
+         */
+        bankClaimedAt: null,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -501,13 +513,18 @@ export class BankService {
     });
 
     if (!alreadyClaimed) {
+      /* ⚠️ Баримттай эсэхийг Telegram-д хэлнэ — админ баримтгүйг
+         илүү нягт шалгах хэрэгтэй гэдгээ шууд мэднэ */
+      const hasReceipt = !!(receiptKey || p.bankReceiptKey);
       this.n8n.emitBankTransfer({
         paymentId: p.id,
         reference: p.bankReference!,
         userName: p.user?.name ?? null,
         userEmail: p.user?.email ?? '',
         amount: p.amount,
-        planName: p.plan?.name ?? (p.isWalletTopup ? 'Хэтэвч цэнэглэх' : null),
+        planName:
+          (p.plan?.name ?? (p.isWalletTopup ? 'Хэтэвч цэнэглэх' : null)) +
+          (hasReceipt ? '' : ' ⚠️ БАРИМТГҮЙ'),
         titleName: p.rentalTitle?.title ?? null,
         claimedAt: new Date().toISOString(),
       });

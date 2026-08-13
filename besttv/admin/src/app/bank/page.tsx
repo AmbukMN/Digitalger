@@ -522,11 +522,18 @@ export default function BankPage() {
                                 />
                               </button>
                             ) : (
+                              /*
+                                ⚠️ БАРИМТГҮЙ нь АНХААРУУЛГА — хэрэглэгч
+                                «Би шилжүүлсэн» гэж зөвхөн тэмдэглэсэн.
+                                Админ банкны хуулгаас илүү нягт шалгах
+                                хэрэгтэй тул саарал биш ШАР өнгөөр.
+                              */
                               <span
-                                title="Хэрэглэгч баримт хавсаргаагүй"
-                                className="flex size-12 items-center justify-center rounded-lg border border-dashed border-foreground/15 text-muted-foreground"
+                                title="Баримт хавсаргаагүй — хэрэглэгч зөвхөн «шилжүүлсэн» гэж тэмдэглэсэн. Хуулгаас нягт шалгана уу."
+                                className="flex size-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-premium/40 bg-premium/8 text-premium"
                               >
-                                <ImageIcon size={15} />
+                                <ImageIcon size={14} />
+                                <span className="text-[8px] font-bold leading-none">БАРИМТГҮЙ</span>
                               </span>
                             )}
                           </td>
