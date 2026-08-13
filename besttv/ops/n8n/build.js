@@ -108,6 +108,30 @@ for (const entry of (body.entry || [])) {
     if (msg.message && msg.message.mid && _dup(msg.message.mid)) continue;
     if (msg.message && !msg.message.is_echo && msg.message.text) {
       out.push({ json: { psid, text: String(msg.message.text).trim(), isPostback: false, platform } });
+      continue;
+    }
+
+    /**
+     * ⚠️⚠️ ЗУРАГ / ФАЙЛ / СТИКЕР — өмнө нь БҮРЭН ЧИМЭЭГҮЙ алгасагддаг байв.
+     *
+     * BestTV-д дансаар шилжүүлсэн БАРИМТЫН ЗУРАГ илгээх нь бодит
+     * хэрэглээ. Хариу огт өгөхгүй бол хэрэглэгч «бот үхсэн» гэж
+     * бодож орхино — мөнгө төлсөн хүн хариу хүлээхгүй байх нь ноцтой.
+     *
+     * ⚠️ Стикер/лайкийг ялгана — тэдэнд «баримт хүлээж авлаа» гэвэл
+     * утгагүй. Стикерт огт хариу өгөхгүй (спам болно).
+     */
+    if (msg.message && !msg.message.is_echo && !msg.message.text) {
+      var atts = msg.message.attachments || [];
+      var isSticker = false;
+      var kind = '';
+      for (var ai = 0; ai < atts.length; ai++) {
+        var ty = atts[ai].type || '';
+        if (ty === 'image' && atts[ai].payload && atts[ai].payload.sticker_id) isSticker = true;
+        if (!kind && (ty === 'image' || ty === 'file' || ty === 'video')) kind = ty;
+      }
+      if (isSticker || !kind) continue;
+      out.push({ json: { psid, text: '__ATTACHMENT__', attKind: kind, isPostback: false, platform } });
     }
   }
 }
@@ -149,6 +173,21 @@ const firstName = _name;
 const profilePic = _pic;
 const isGetStarted = (userText === '__GET_STARTED__');
 const nameLine = firstName ? ('Хэрэглэгчийн нэр: ' + firstName) : '';
+
+// ⚠️ ЗУРАГ/ФАЙЛ — AI руу явуулахгүй (зураг харж чадахгүй, утгагүй
+// хариу зохионо). Оронд нь тодорхой заавар өгнө. Build Messages нь
+// энэ directReply-г AI-аас ДЭЭГҮҮР ашиглана.
+const attKind = $('Parse').first().json.attKind || '';
+if (userText === '__ATTACHMENT__') {
+  const what = attKind === 'video' ? 'Бичлэг' : (attKind === 'file' ? 'Файл' : 'Зураг');
+  return [{ json: { psid, userText: '(' + what.toLowerCase() + ' илгээв)', firstName, profilePic,
+    platform, isGetStarted: false,
+    directReply: what + ' хүлээж авлаа 📩' + NL + NL +
+      'Хэрэв дансаар шилжүүлсэн баримт бол манай ажилтан ажлын өдрийн ' +
+      '10:00–18:00 цагт шалгаж баталгаажуулна.' + NL + NL +
+      'Асуух зүйл байвал бичээрэй 😊',
+    agentInput: '(хэрэглэгч ' + what.toLowerCase() + ' илгээв)' } }];
+}
 
 // ⚠️ Холбоо барих/багцын асуултад AI зохиодог тул deterministic хариу
 // бэлдэнэ (Build Messages түүнийг AI-аас ДЭЭГҮҮР ашиглана).
@@ -296,7 +335,15 @@ add({
 add({
   parameters: {
     promptType: 'define',
-    text: '={{ $json.agentInput }}',
+    /**
+     * ⚠️⚠️ `$json` БИШ, `Prep Context`-оос ШУУД.
+     *
+     * AI Agent-ийн өмнөх node нь `Send Typing On` (Facebook-ийн хариу
+     * буцаана) тул `$json.agentInput` нь `undefined` болж
+     * «No prompt specified» алдаагаар workflow УНАНА — production
+     * дээр батлагдсан (execution 2340).
+     */
+    text: "={{ $('Prep Context').first().json.agentInput }}",
     options: { systemMessage: fs.readFileSync(__dirname + '/system-prompt.txt', 'utf8') },
   },
   id: 'btv_agent',
@@ -304,6 +351,11 @@ add({
   type: '@n8n/n8n-nodes-langchain.agent',
   typeVersion: 1.7,
   position: [900, 240],
+  /* ⚠️ OpenAI түр унах нь ЭНГИЙН зүйл (rate limit, 5xx). Дахин
+     оролдохгүй бол хэрэглэгч ямар ч хариу авахгүй үлдэнэ. */
+  retryOnFail: true,
+  maxTries: 3,
+  waitBetweenTries: 1000,
 });
 
 add({
@@ -377,11 +429,42 @@ return [{ json: { psid, keyword, doSearch, replyText, platform } }];`,
   position: [1120, 240],
 });
 
+/* ─── Хайх шаардлагатай юу? ─── */
+add({
+  parameters: {
+    conditions: {
+      options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 },
+      conditions: [
+        {
+          id: 'do_search',
+          leftValue: '={{ $json.doSearch }}',
+          rightValue: '',
+          operator: { type: 'boolean', operation: 'true', singleValue: true },
+        },
+      ],
+      combinator: 'and',
+    },
+    looseTypeValidation: true,
+    options: {},
+  },
+  id: 'btv_need_search',
+  name: 'Хайх уу?',
+  type: 'n8n-nodes-base.if',
+  typeVersion: 2.2,
+  position: [1240, 240],
+});
+
 /* ─── Кино хайх ─── */
 add({
   parameters: {
-    /* ⚠️ BestTV-д GET ?q= (DigitalGer нь POST /ai/search байсан) */
-    url: `=${API}/titles/search?q={{ encodeURIComponent($json.keyword || '') }}`,
+    /**
+     * ⚠️ BestTV-д GET ?q= (DigitalGer нь POST /ai/search байсан).
+     *
+     * ⚠️⚠️ `$json` БИШ, `Extract Keyword`-ээс ШУУД. Хооронд нь IF node
+     * (`Хайх уу?`) орсон тул `$json` найдваргүй — AI Agent дээр яг
+     * ийм шалтгаанаар «No prompt specified» алдаа гарсан.
+     */
+    url: `=${API}/titles/search?q={{ encodeURIComponent($('Extract Keyword').first().json.keyword || '') }}`,
     options: { response: { response: { neverError: true } }, timeout: 10000 },
     method: 'GET',
   },
@@ -412,11 +495,22 @@ let _directReply = '';
 try { _directReply = ($('Prep Context').first().json.directReply || '').trim(); } catch (e) {}
 let replyText = _directReply || (ex.replyText || '').trim();
 
-// ⚠️ BestTV /titles/search нь МАССИВ буцаана (DigitalGer нь {products:[]})
+// ⚠️⚠️ .all() — .first() БИШ.
+//
+// BestTV /titles/search нь ЦЭВЭР МАССИВ буцаана (DigitalGer нь
+// {products:[]} объект байсан). n8n HTTP node нь массив хариуг
+// ОЛОН ITEM болгон ЗАДАЛДАГ тул .first().json нь массив биш
+// ЭХНИЙ КИНО болно → Array.isArray унаж, бүх кино алга болно.
+//
+// ⚠️ Production дээр батлагдсан: «agent kim» хайхад API зөв
+// буцаадаг атлаа чатбот «олдсонгүй» гэж хариулж байв.
 let raw = [];
-try { raw = $('Search Titles').first().json; } catch (e) { raw = []; }
-if (raw && !Array.isArray(raw) && Array.isArray(raw.items)) raw = raw.items;
-if (!Array.isArray(raw)) raw = [];
+try {
+  const items = $('Search Titles').all();
+  raw = items.map(function (it) { return it.json; });
+} catch (e) { raw = []; }
+/* Хоосон хариунд n8n нэг хоосон item үүсгэдэг — шүүнэ */
+raw = raw.filter(function (t) { return t && t.slug; });
 
 const triedSearch = ex.doSearch === true;
 const titles = triedSearch ? raw : [];
@@ -616,6 +710,24 @@ if(!body)return [];
 // ⚠️ ID-г ШУУД hardcode — $env нь Code node-д хүрэхгүй
 var IGID='${IG_ID}';
 var PAGEID='${PAGE_ID}';
+
+/**
+ * ⚠️⚠️ DEDUP — Messenger салаанд байсан ч ЭНД БАЙГААГҮЙ.
+ *
+ * Meta нь webhook-ыг retry хийдэг. Хамгаалалтгүй бол нэг сэтгэгдэлд
+ * ХОЁР удаа хариулж, ХОЁР DM илгээнэ — хэрэглэгчид спам мэт харагдана.
+ * ⚠️ DigitalGer дээр ч энэ дутагдалтай (өвлөгдсөн алдаа).
+ */
+var _sd = $getWorkflowStaticData('global');
+_sd.seenComments = _sd.seenComments || [];
+function _dupC(cid){
+  if(!cid) return false;
+  if(_sd.seenComments.indexOf(cid)!==-1) return true;
+  _sd.seenComments.push(cid);
+  if(_sd.seenComments.length>200) _sd.seenComments=_sd.seenComments.slice(-200);
+  return false;
+}
+
 var out=[];
 for(var ei=0;ei<(body.entry||[]).length;ei++){
   var changes=(body.entry[ei].changes)||[];
@@ -628,12 +740,14 @@ for(var ei=0;ei<(body.entry||[]).length;ei++){
       var fbCid=v.comment_id; var fbFrom=v.from&&v.from.id;
       // ⚠️ Өөрийн Page-ийн сэтгэгдэлд хариулахгүй (хязгааргүй давталт)
       if(!fbCid||!fbFrom||fbFrom===PAGEID)continue;
+      if(_dupC(fbCid))continue;
       out.push({json:{platform:'facebook',commentId:fbCid,postId:v.post_id||'',userId:fbFrom,cText:String(v.message||'')}});
     }
     // IG comment (object=instagram, field=comments)
     else if(body.object==='instagram' && ch.field==='comments'){
       var igCid=v.id; var igFrom=v.from&&v.from.id;
       if(!igCid||!igFrom||igFrom===IGID)continue;
+      if(_dupC(igCid))continue;
       var mediaId=(v.media&&v.media.id)||'';
       out.push({json:{platform:'instagram',commentId:igCid,postId:mediaId,cText:String(v.text||''),userId:igFrom}});
     }
@@ -804,7 +918,10 @@ const connections = Object.assign(
   /* true = AI хариулна, false = админ авсан → зөвхөн хадгална */
   c('AI асаалттай юу?', [['Send Typing On'], ['Save (админ хариулна)']]),
   c('Send Typing On', [['AI Agent']]),
-  c('Extract Keyword', [['Search Titles']]),
+  c('Extract Keyword', [['Хайх уу?']]),
+  /* ⚠️ true → хайна, false → шууд Build Messages (дэмий DB дуудлага,
+     throttle зарцуулалт хоёуланг нь хэмнэнэ) */
+  c('Хайх уу?', [['Search Titles'], ['Build Messages']]),
   c('Search Titles', [['Build Messages']]),
   c('Build Messages', [['Send Typing Off', 'BTV Save Ingest']]),
   c('Send Typing Off', [['Send Text']]),
@@ -825,6 +942,16 @@ const connections = Object.assign(
 );
 
 const wf = {
+  /**
+   * ⚠️⚠️ ТОГТМОЛ ID — ЗААВАЛ байх ёстой.
+   *
+   * 1) `id` байхгүй бол import огт бүтэхгүй:
+   *    «null value in column "id" ... violates not-null constraint»
+   * 2) Байсан ч санамсаргүй үүсгэвэл дахин import хийх бүрд ШИНЭ
+   *    workflow үүснэ (n8n import нь ШИНЭЧИЛДЭГГҮЙ). DigitalGer дээр
+   *    ингэж 10 хуулбар үүсээд гараар цэвэрлэх шаардлагатай болсон.
+   */
+  id: 'BestTVFBChat01',
   name: 'BestTV — Facebook/Instagram чатбот',
   nodes,
   connections,

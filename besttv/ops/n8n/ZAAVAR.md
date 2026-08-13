@@ -1,7 +1,26 @@
-# BestTV — Facebook/Instagram чатбот суулгах заавар
+# BestTV — Facebook/Instagram чатбот
 
 DigitalGer-ийн `CNamkzJ1xMqWKWOr` workflow-г BestTV орчинд бүтнээр хөрвүүлсэн.
-**29 node**, 3 урсгал: Messenger AI чат · Comment auto-reply · Webhook verify.
+**30 node**, 3 урсгал: Messenger AI чат · Comment auto-reply · Webhook verify.
+
+---
+
+## ✅ АЛЬ ХЭДИЙН ХИЙГДСЭН (2026-08-14)
+
+| Алхам | Төлөв |
+|---|---|
+| Workflow import + идэвхжүүлсэн (`BestTVFBChat01`) | ✅ |
+| OpenAI + Postgres credential холбосон | ✅ |
+| Page token 9 node-д суусан | ✅ |
+| `FB_PAGE_ACCESS_TOKEN` → `.env.production` | ✅ |
+| Webhook verify тест (`OK999` буцаав) | ✅ |
+| Мессежийн урсгал бүтэн тест | ✅ |
+
+**Үлдсэн ганц зүйл: Meta дээр Callback URL бүртгэх + webhook талбар сонгох** (доорх 1-р хэсэг).
+
+⚠️ Одоогийн token-д зөвхөн `pages_messaging` эрх байна. Messenger чат
+ажиллана, харин **сэтгэгдлийн auto-reply болон Instagram ажиллахгүй** —
+доорх «Permission» хэсгийг үзнэ үү.
 
 ---
 

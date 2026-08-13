@@ -640,3 +640,69 @@ docker exec besttv-backend printenv N8N_WEBHOOK_URL   # хүрсэн эсэхи�
 
 `/tmp/sendreport.sh` — өнөөдрийн бодит тоог DB-ээс аваад
 webhook руу шууд илгээнэ.
+
+---
+
+## 25. ⚠️⚠️ n8n import нь ШИНЭ workflow үүсгэдэг (шинэчилдэггүй)
+
+**Шинж:** `n8n import:workflow` ажиллуулсны дараа ижил нэртэй,
+ижил webhook замтай **2 хувилбар** зэрэг идэвхтэй болно.
+
+**Шалтгаан:** JSON дотор `id` талбар байхгүй бол n8n шинэ ID үүсгэнэ.
+
+**Засах:**
+```sql
+-- ⚠️ FK дараалал: activeVersionId → workflow_history.versionId
+UPDATE workflow_entity SET "activeVersionId" = NULL WHERE id IN (...);
+DELETE FROM execution_entity WHERE "workflowId" IN (...);
+DELETE FROM webhook_entity   WHERE "workflowId" IN (...);
+DELETE FROM workflow_history WHERE "workflowId" IN (...);
+DELETE FROM shared_workflow  WHERE "workflowId" IN (...);
+DELETE FROM workflow_entity  WHERE id IN (...);
+```
+
+⚠️⚠️ `activeVersionId = NULL` бол n8n **webhook-ыг БҮРТГЭХГҮЙ**.
+CLI-аар дахин идэвхжүүлэх ёстой:
+```bash
+n8n update:workflow --id=X --active=false
+n8n update:workflow --id=X --active=true   # ← version үүснэ
+```
+
+⚠️ Import нь `credentials` болон `appendAttribution`-ыг ч **дарж
+бичдэг** тул дараа нь SQL-ээр дахин сэргээх шаардлагатай.
+
+---
+
+## 26. Webhook secret — хуурамч мэдэгдлээс хамгаалах
+
+`N8N_WEBHOOK_SECRET` (`.env.production`) + workflow-ийн `Filter`
+node-д хоёр дахь нөхцөл:
+```
+{{ $json.headers['x-webhook-secret'] }} == <secret>
+```
+
+⚠️ n8n нь header нэрийг **жижиг үсгээр** хадгална.
+
+Үр дүн: secret-гүй → **422**, жинхэнэ → **200**.
+
+⚠️ Порт хаах (`127.0.0.1:5678`) нь илүү хатуу боловч n8n UI-д
+хандах боломжгүй болно. Secret нь тэнцвэртэй шийдэл.
+
+---
+
+## 27. Контейнерын цагийн бүс — `TZ` ЗААВАЛ
+
+⚠️⚠️ `TZ` тохируулаагүй бол контейнер **UTC**. Монгол UTC+8 тул
+`@Cron('0 3 * * *')` нь бодитоор **11:00**-д ажиллана.
+
+compose-д:
+```yaml
+environment:
+  TZ: Asia/Ulaanbaatar
+```
+
+⚠️ `@Cron(..., { timeZone: 'Asia/Ulaanbaatar' })` нь ДАВУУ — тэр
+заасан cron нь `TZ`-ээс хамаарахгүй. Гэхдээ бүх cron-д заах нь
+мартагдамхай тул compose-д тавих нь найдвартай.
+
+⚠️ `worker` container-т ч ЗААВАЛ (тэр ч cron ажиллуулж болно).

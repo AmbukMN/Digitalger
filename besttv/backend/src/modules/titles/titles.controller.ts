@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { TitleType } from '@prisma/client';
 import { TitlesService } from './titles.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -14,6 +15,17 @@ export class TitlesController {
     return this.titles.home(user?.sub);
   }
 
+  /**
+   * ⚠️⚠️ ӨНДӨР ХЯЗГААР — глобал `short` (20 хүсэлт/сек) хангалтгүй.
+   *
+   * `CfThrottlerGuard` нь IP-ээр тоолдог бөгөөс n8n чатботын БҮХ
+   * хүсэлт НЭГ серверийн IP-ээс ирнэ. Мессеж бүрд кино хайлт явдаг
+   * тул 4-5 хүн зэрэг бичихэд хязгаар дүүрч 429 буцна.
+   *
+   * ⚠️ Тэр үед чатбот «кино олдсонгүй» гэж ХУДЛАА хариулна —
+   * `Build Messages` нь алдааг хоосон массиваас ялгадаггүй.
+   */
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
   @Get('search')
   search(@Query('q') q: string) {
     return this.titles.search(q ?? '');

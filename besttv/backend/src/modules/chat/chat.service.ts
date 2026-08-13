@@ -84,6 +84,27 @@ export class ChatService {
         if (m) capturedEmail = m[0].toLowerCase();
       }
 
+      /**
+       * ⚠️⚠️ АДМИН АВСАН ЯРИА РУУ AI МЕССЕЖ ОРУУЛАХГҮЙ.
+       *
+       * `/chat/ingest` нь НЭЭЛТТЭЙ endpoint (n8n-д зориулсан). n8n
+       * талд `Check Handoff` шалгалт байгаа ч тэр нь ГАНЦ давхарга —
+       * хэн ч шууд POST хийж админ хариулж буй яриа руу «assistant»
+       * мессеж шахаж, хэрэглэгчийг төөрөлдүүлж болно.
+       *
+       * ⚠️ Хэрэглэгчийн мессежийг ХАДГАЛНА — админ юу асуусныг нь
+       * харах ёстой. Зөвхөн AI-ийнхыг таслана.
+       */
+      if (role === 'assistant') {
+        const conv = await this.prisma.chatConversation
+          .findUnique({ where: { sessionId }, select: { handedOff: true } })
+          .catch(() => null);
+        if (conv?.handedOff) {
+          this.logger.log(`Handoff идэвхтэй — AI мессеж алгаслаа (${sessionId})`);
+          return { ok: true, skipped: true };
+        }
+      }
+
       const safeUserId = await this.safeUserId(input.userId);
       const now = new Date();
       const markAdminUnread = role === 'user';
