@@ -600,3 +600,43 @@ intent боловсруулагчид салаа нэмэх ёстой.
 Зөв: **дэлгэрэнгүй хуудас** руу. Тэнд үнэ, багц, түрээсийн сонголт
 харагдаж, хэрэглэгч ШИЙДСЭНИЙХЭЭ ДАРАА нэвтэрнэ (тэдгээр товч
 өөрсдөө intent-тэй нэвтрэлт рүү явуулна).
+
+---
+
+## 24. ⚠️⚠️ `.env` БИШ `.env.production` — Telegram чимээгүй унтарсан
+
+**Шинж:** Өдрийн тайлан 23:00-д ирэхгүй. Лог дээр:
+```
+[DailyReportService] Өдрийн тайлан илгээв: 0₮ · 0 багц · 0 түрээс
+[N8nService] N8N_WEBHOOK_URL тохируулаагүй — Telegram мэдэгдэл ИДЭВХГҮЙ
+```
+Тайлан **үүссэн** ч илгээгдээгүй.
+
+**Шалтгаан:** `docker-compose.prod.yml` нь
+```yaml
+env_file:
+  - ../backend/.env.production
+```
+уншдаг. `.env`-д бичсэн хувьсагч container-д **ХҮРЭХГҮЙ**.
+
+**Засах:**
+```bash
+echo 'N8N_WEBHOOK_URL=http://digitalger-n8n:5678' >> /opt/BestTV/backend/.env.production
+cd /opt/BestTV/docker && docker compose -f docker-compose.prod.yml -p besttv \
+  up -d --force-recreate backend worker
+docker exec besttv-backend printenv N8N_WEBHOOK_URL   # хүрсэн эсэхийг БАТАЛ
+```
+
+⚠️ Шинэ env нэмэх бүрд `printenv`-ээр **container-д хүрсэн эсэхийг**
+шалгах — файлд байгаа нь хангалтгүй.
+
+⚠️ Мөн `worker`-ыг дахин үүсгэ (тэр ч ижил env хэрэглэдэг).
+
+**Урьдчилан сэргийлэлт:** `N8nService` эхлэхэд 10 мөрийн тод
+анхааруулга гаргадаг болгов (нэг мөр нь 200+ мөрийн дунд алга
+болдог). `.env.example`-д ч нэмсэн.
+
+### Гараар тайлан илгээх (cron хүлээхгүй)
+
+`/tmp/sendreport.sh` — өнөөдрийн бодит тоог DB-ээс аваад
+webhook руу шууд илгээнэ.
