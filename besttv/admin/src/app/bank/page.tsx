@@ -171,17 +171,60 @@ export default function BankPage() {
           сэргийлнэ.
         */}
         {settings && !settings.enabled && (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-premium/30 bg-premium/8 px-4 py-3">
-            <p className="text-sm text-premium">
-              Дансаар төлөх боломж <strong>унтраалттай</strong> — хэрэглэгчид энэ товчийг
-              харахгүй.
-            </p>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="shrink-0 rounded-lg bg-premium-solid px-3 py-1.5 text-xs font-bold text-premium-foreground"
-            >
-              Тохируулах
-            </button>
+          /*
+            ⚠️⚠️ УНТРААЛТТАЙ ҮЕД ЮУ ХИЙХИЙГ ЗААНА.
+            Зөвхөн «унтраалттай» гэж хэлэх нь хангалтгүй — админ энэ
+            хуудас юунд зориулагдсаныг ойлгохгүй, хоосон хүснэгт хараад
+            эргэлзэнэ. Урсгалыг 3 алхмаар тайлбарлана.
+          */
+          <div className="mb-5 rounded-xl border border-premium/30 bg-premium/8 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-premium">
+                  Дансаар төлөх боломж унтраалттай байна
+                </p>
+                <p className="mt-1 text-sm text-foreground/60">
+                  Асаахын тулд банк, дансны дугаар, эзэмшигчийн нэрээ бөглөнө үү. Асаасны
+                  дараа хэрэглэгчид багцын хуудсанд «Дансаар шилжүүлэх» товч харагдана.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="shrink-0 rounded-lg bg-premium-solid px-3.5 py-2 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.02]"
+              >
+                Дансаа тохируулах
+              </button>
+            </div>
+
+            <div className="mt-3.5 grid gap-2 border-t border-premium/20 pt-3 sm:grid-cols-3">
+              {[
+                {
+                  n: '1',
+                  t: 'Хэрэглэгч шилжүүлнэ',
+                  d: 'Багц сонгоод «Дансаар шилжүүлэх» дарж, гарсан гүйлгээний утгаар мөнгө шилжүүлнэ',
+                },
+                {
+                  n: '2',
+                  t: 'Танд мэдэгдэнэ',
+                  d: '«Шилжүүлсэн» товч дармагц энэ хуудсанд гарч, Telegram-д мэдэгдэл ирнэ',
+                },
+                {
+                  n: '3',
+                  t: 'Та баталгаажуулна',
+                  d: 'Банкны хуулгаас гүйлгээний утгаар шалгаад «Батлах» дарахад эрх нээгдэнэ',
+                },
+              ].map((s) => (
+                <div key={s.n} className="flex gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded bg-premium-solid text-[11px] font-black text-premium-foreground">
+                    {s.n}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground/80">{s.t}</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{s.d}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

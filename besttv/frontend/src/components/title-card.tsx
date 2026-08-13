@@ -189,7 +189,7 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
            * Тиймээс утсан дээр ~3rem зай үлдээнэ. Десктопт тэр товч
            * байхгүй (hover overlay дотор) тул бүтэн өргөн авна.
            */
-          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-3.5rem)] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm md:max-w-[calc(100%-0.75rem)]">
+          <span className="genre-badge absolute bottom-1.5 left-1.5 max-w-[calc(100%-3.5rem)] truncate rounded bg-black/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
             {genreLabel}
           </span>
         )}
@@ -256,7 +256,11 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
                *   зүүн доод  — жанрын шошго
                *   баруун доод — ЭНЭ товч (цорын ганц сул булан)
                */
-              'absolute bottom-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors md:hidden',
+              /* ⚠️ `md:hidden` БИШ `fav-touch-only` — дэлгэцийн өргөн
+                 биш HOVER боломжтой эсэхээр нуугдана (globals.css).
+                 Эс бөгөөс жижиг цонхтой десктопт overlay-гийн ♥-тэй
+                 ЗЭРЭГ гарч давхардана. */
+              'fav-touch-only absolute bottom-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors',
               inList ? 'bg-primary text-white' : 'bg-black/45 text-white',
             )}
           >

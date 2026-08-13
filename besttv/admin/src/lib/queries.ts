@@ -749,6 +749,9 @@ export interface AdminPromotion {
   blockCoupons: boolean;
   bannerKey: string | null;
   bannerMobileKey: string | null;
+  /* ⚠️ Preview харуулахад — зөвхөн key байвал админ юу оруулснаа мэдэхгүй */
+  bannerUrl: string | null;
+  bannerMobileUrl: string | null;
   order: number;
   createdAt: string;
   _count: { redemptions: number };

@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
+import { ImageUpload } from '@/components/image-upload';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
@@ -76,6 +77,9 @@ interface FormState {
   blockCoupons: boolean;
   bannerKey: string;
   bannerMobileKey: string;
+  /* ⚠️ Preview-д — key нь R2 зам, url нь харагдах зураг */
+  bannerUrl: string;
+  bannerMobileUrl: string;
   order: string;
 }
 
@@ -109,6 +113,8 @@ const EMPTY: FormState = {
   blockCoupons: false,
   bannerKey: '',
   bannerMobileKey: '',
+  bannerUrl: '',
+  bannerMobileUrl: '',
   order: '0',
 };
 
@@ -225,6 +231,8 @@ export default function PromotionsPage() {
             blockCoupons: p.blockCoupons,
             bannerKey: p.bannerKey ?? '',
             bannerMobileKey: p.bannerMobileKey ?? '',
+            bannerUrl: p.bannerUrl ?? '',
+            bannerMobileUrl: p.bannerMobileUrl ?? '',
             order: String(p.order),
           },
     );
@@ -280,8 +288,11 @@ export default function PromotionsPage() {
         maxPerUser: Number(form.maxPerUser) || 1,
         newUsersOnly: form.newUsersOnly,
         blockCoupons: form.blockCoupons,
-        bannerKey: form.bannerKey || undefined,
-        bannerMobileKey: form.bannerMobileKey || undefined,
+        /* ⚠️ Хоосон СТРИНГ дамжуулна (undefined БИШ) — эс бөгөөс
+           админ зургаа хасахад backend талбарыг алгасаж хуучин
+           зураг үлдэнэ */
+        bannerKey: form.bannerKey,
+        bannerMobileKey: form.bannerMobileKey,
         order: Number(form.order) || 0,
       };
 
@@ -786,17 +797,66 @@ export default function PromotionsPage() {
             </div>
 
             {/* ─── Баннер ─── */}
-            <Field
-              label="Баннерын зураг (R2 key)"
-              hint="Кино эгнээний дунд гарна. Хоосон бол баннер гарахгүй."
-            >
-              <input
-                value={form.bannerKey}
-                onChange={(e) => setForm({ ...form, bannerKey: e.target.value })}
-                className={INPUT}
-                placeholder="images/banner/xxx.webp"
-              />
-            </Field>
+            <div className="rounded-lg border border-input bg-card/50 p-3">
+              <p className="text-xs font-semibold text-foreground/70">Баннерын зураг</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Кино эгнээнүүдийн дунд гарна. Хоосон бол баннер гарахгүй.
+              </p>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Өргөн зураг (16:9)
+                  </label>
+                  {/* ⚠️ `ImageUpload` нь сонгомогц R2 руу илгээж, PREVIEW
+                      харуулна. Өмнө нь R2 key гараар бичүүлдэг байсан нь
+                      админ зургаа хаанаас олохоо мэдэхгүй муу UX байв. */}
+                  <ImageUpload
+                    kind="backdrop"
+                    aspect="backdrop"
+                    value={form.bannerUrl}
+                    onChange={(key, url) =>
+                      setForm((f) => ({ ...f, bannerKey: key, bannerUrl: url }))
+                    }
+                  />
+                  {form.bannerKey && (
+                    <button
+                      onClick={() => setForm({ ...form, bannerKey: '', bannerUrl: '' })}
+                      className="mt-1.5 text-[11px] text-destructive hover:underline"
+                    >
+                      Зураг хасах
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Мобайл зураг
+                  </label>
+                  <p className="mb-2 text-[11px] text-muted-foreground">
+                    Хоосон бол өргөн зураг хэрэглэгдэнэ.
+                  </p>
+                  <ImageUpload
+                    kind="backdrop"
+                    aspect="backdrop"
+                    value={form.bannerMobileUrl}
+                    onChange={(key, url) =>
+                      setForm((f) => ({ ...f, bannerMobileKey: key, bannerMobileUrl: url }))
+                    }
+                  />
+                  {form.bannerMobileKey && (
+                    <button
+                      onClick={() =>
+                        setForm({ ...form, bannerMobileKey: '', bannerMobileUrl: '' })
+                      }
+                      className="mt-1.5 text-[11px] text-destructive hover:underline"
+                    >
+                      Зураг хасах
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* ─── Тохиргоо ─── */}
             <div className="space-y-2 rounded-lg bg-foreground/4 p-3">

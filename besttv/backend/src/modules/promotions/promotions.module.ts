@@ -24,6 +24,7 @@ import {
 } from 'class-validator';
 import { DiscountType, Prisma, PromotionType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -133,7 +134,11 @@ class PromotionDto {
  */
 @Injectable()
 class PromotionsAdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    /* ⚠️ Баннерын R2 key → URL (preview харуулахад) */
+    private readonly storage: StorageService,
+  ) {}
 
   /**
    * ⚠️⚠️ ТӨРӨЛ БҮРД ЗААВАЛ БАЙХ ТАЛБАРУУДЫГ ШАЛГАНА.
@@ -174,8 +179,12 @@ class PromotionsAdminService {
     if (e <= s) throw new BadRequestException('Дуусах огноо нь эхлэхээс хойш байх ёстой');
   }
 
-  list() {
-    return this.prisma.promotion.findMany({
+  /**
+   * ⚠️ `bannerUrl` ЗААВАЛ буцаана — админ зургаа PREVIEW харах ёстой.
+   * Зөвхөн R2 key буцаавал админ юу оруулснаа мэдэхгүй (муу UX).
+   */
+  async list() {
+    const rows = await this.prisma.promotion.findMany({
       orderBy: [{ isActive: 'desc' }, { order: 'asc' }, { createdAt: 'desc' }],
       include: {
         plans: { select: { planId: true } },
@@ -184,6 +193,16 @@ class PromotionsAdminService {
         _count: { select: { redemptions: true } },
       },
     });
+
+    return Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        bannerUrl: r.bannerKey ? await this.storage.publicAssetUrl(r.bannerKey, 7200) : null,
+        bannerMobileUrl: r.bannerMobileKey
+          ? await this.storage.publicAssetUrl(r.bannerMobileKey, 7200)
+          : null,
+      })),
+    );
   }
 
   async create(dto: PromotionDto) {
