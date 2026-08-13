@@ -22,7 +22,8 @@ const KEY = 'btv-auth-intent';
 const TTL_MS = 30 * 60 * 1000;
 
 export type AuthIntent =
-  | { type: 'buy-plan'; planId: string; method: 'wallet' | 'qpay'; couponCode?: string }
+  /* ⚠️ `bank` — дансаар шилжүүлэх. Нэвтэрсний дараа модал АВТОМАТ нээгдэнэ */
+  | { type: 'buy-plan'; planId: string; method: 'wallet' | 'qpay' | 'bank'; couponCode?: string }
   | { type: 'rent-title'; titleId: string }
   | { type: 'topup'; amount: number };
 

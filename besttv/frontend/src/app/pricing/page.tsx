@@ -110,8 +110,14 @@ export default function PricingPage() {
     }
     // Хэрэглэгчид юу болж байгааг мэдэгдэнэ
     toast.info(`${plan.name} — үргэлжлүүлж байна…`);
-    if (intent.method === 'qpay') void buyWithQpay(plan.id);
-    else void buyWithWallet(plan.id, priceAfterCoupon(plan.price));
+    if (intent.method === 'bank') {
+      /* ⚠️ Дансны модал — нэвтэрсний дараа автоматаар нээгдэнэ */
+      setBankPlan({ id: plan.id, name: plan.name });
+    } else if (intent.method === 'qpay') {
+      void buyWithQpay(plan.id);
+    } else {
+      void buyWithWallet(plan.id, priceAfterCoupon(plan.price));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, plans]);
 
@@ -598,7 +604,30 @@ export default function PricingPage() {
                 */}
                 {bank?.enabled && !supersededByVip && (
                   <button
-                    onClick={() => setBankPlan({ id: plan.id, name: plan.name })}
+                    onClick={() => {
+                      /**
+                       * ⚠️⚠️ НЭВТРЭЭГҮЙ БОЛ ЭХЛЭЭД НЭВТРҮҮЛНЭ.
+                       *
+                       * Өмнө нь модал шууд нээгдээд `/bank/initiate`
+                       * нь 401 буцааж «Authentication required» гэсэн
+                       * АНГЛИ алдаа гардаг байв (хэрэглэгчийн скриншот).
+                       *
+                       * `loginUrlWithIntent` нь нэвтэрсний дараа ЭНЭ
+                       * хуудас руу буцаж, модалыг автоматаар нээнэ.
+                       */
+                      if (!user) {
+                        router.push(
+                          loginUrlWithIntent({
+                            type: 'buy-plan',
+                            planId: plan.id,
+                            method: 'bank',
+                            couponCode: appliedCoupon?.code,
+                          }),
+                        );
+                        return;
+                      }
+                      setBankPlan({ id: plan.id, name: plan.name });
+                    }}
                     className="flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg py-1 text-[10px] font-medium text-foreground/45 transition-colors hover:text-foreground/75 sm:text-[11px]"
                   >
                     <Building2 size={11} />

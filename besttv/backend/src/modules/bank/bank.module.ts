@@ -53,7 +53,7 @@ interface BankSettings {
 
 const DEFAULT_BANK: BankSettings = {
   enabled: false,
-  note: 'Гүйлгээний утгыг ЗААВАЛ бичнэ үү. Ажлын цагаар 1 цагийн дотор баталгаажна.',
+  note: 'Гүйлгээний утгыг ЗААВАЛ бичнэ үү. Ажлын цагаар 1-3 цагийн дотор баталгаажна.',
   requireReceipt: false,
 };
 

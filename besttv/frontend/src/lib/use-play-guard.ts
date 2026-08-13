@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from './auth-store';
-import { loginUrl } from './auth-intent';
 
 /** Play товч дарагдахад шаардлагатай хамгийн бага мэдээлэл */
 export interface PlayTarget {
@@ -52,9 +51,21 @@ export function usePlayGuard() {
     }
 
     if (t.isPremium) {
+      /**
+       * ⚠️⚠️ НЭВТРЭЭГҮЙ БОЛ ЧУХАМ НЭВТРЭХ РҮҮ ЯВУУЛАХГҮЙ.
+       *
+       * Өмнө нь шууд `/login` руу шиддэг байсан нь БУРУУ: хэрэглэгч
+       * үнэ, ямар багц хэрэгтэйг хараагүй атлаа бүртгүүлэхийг
+       * шаардуулна — ихэнх нь тэндээ буцдаг.
+       *
+       * Зөв: ДЭЛГЭРЭНГҮЙ хуудас руу. Тэнд үнэ, багцын сонголт,
+       * түрээслэх боломж харагдаж, хэрэглэгч ШИЙДСЭНИЙХЭЭ ДАРАА
+       * нэвтэрнэ (тэр товчнууд өөрсдөө intent-тэй нэвтрэлт рүү
+       * явуулна).
+       */
       if (!user) {
-        toast.info('Энэ контентыг үзэхэд нэвтэрнэ үү');
-        router.push(loginUrl(detailHref));
+        toast.info('Энэ контент төлбөртэй — үнийг харна уу');
+        router.push(detailHref);
         return;
       }
       // hasAccess мэдэгдэхгүй (картаас дарсан) бол дэлгэрэнгүй рүү — тэнд

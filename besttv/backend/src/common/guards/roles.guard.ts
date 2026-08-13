@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
 import { ROLES_KEY } from '../decorators/roles.decorator';
@@ -19,8 +19,14 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest<{ user: JwtPayload }>();
-    if (!user?.role) return false;
 
-    return requiredRoles.some((role) => user.role === role);
+    /**
+     * ⚠️ `return false` нь Nest-ийн англи «Forbidden resource» өгдөг.
+     * Хэрэглэгчид ШУУД toast-оор харагддаг тул монголоор шидэнэ.
+     */
+    if (!user?.role || !requiredRoles.some((role) => user.role === role)) {
+      throw new ForbiddenException('Танд энэ үйлдэл хийх эрх байхгүй');
+    }
+    return true;
   }
 }
