@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
+import {
+  History, Activity, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
 import {
@@ -18,6 +19,7 @@ import {
 } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
 import { UserInsightTab } from '@/components/user-insight-tab';
+import { UserHistoryTab } from '@/components/user-history-tab';
 import { useAdminUser, useAdminPlans, useAdminWalletTxs, type AdminUser, type AdminWalletTx } from '@/lib/queries';
 
 const STATUS_LABEL: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' }> = {
@@ -146,7 +148,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
           </div>
         ) : (
           <Tabs value={tab} onValueChange={setTab} className="mt-2">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview">
                 <UserIcon size={13} className="mr-1" /> Тойм
               </TabsTrigger>
@@ -165,7 +167,27 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               <TabsTrigger value="access">
                 <Ticket size={13} className="mr-1" /> Эрх
               </TabsTrigger>
+              {/*
+                ⚠️ ТҮҮХ — аудит лог, төхөөрөмж, мэдэгдэл, дансны төлбөр.
+                Гомдол шийдэхэд «хэзээ юу болсон» гэдгийг мэдэх ёстой.
+              */}
+              <TabsTrigger value="history">
+                <History size={13} className="mr-1" /> Түүх
+              </TabsTrigger>
             </TabsList>
+
+            {/* ⚠️ `data` (дэлгэрэнгүй) — `user` нь зөвхөн хураангуй */}
+            <TabsContent value="history">
+              {data ? (
+                <UserHistoryTab user={data} />
+              ) : (
+                <div className="space-y-2 py-3">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-16 animate-pulse rounded-xl bg-foreground/6" />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
             {/* ⚠️ Зөвхөн таб нээгдсэн үед л дуудна (insight query хүнд) */}
             <TabsContent value="insight">

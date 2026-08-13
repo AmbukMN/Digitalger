@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Injectable,
   Logger,
@@ -12,12 +13,17 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Throttle } from '@nestjs/throttler';
 import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { PaymentStatus, Role } from '@prisma/client';
+import { NotificationType, PaymentStatus, Role } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -29,26 +35,26 @@ import { CouponsModule } from '../coupons/coupons.module';
 import { PromotionsService } from '../promotions/promotions.service';
 import { CouponsService } from '../coupons/coupons.module';
 import { N8nService } from '../n8n/n8n.service';
+import { NotificationsService } from '../notifications/notifications.module';
 import { EmailService } from '../email/email.service';
 
 const BANK_KEY = 'bank';
 
-/** Админаас удирдах дансны тохиргоо */
+/**
+ * ⚠️ Дансны ЖАГСААЛТ нь `BankAccount` хүснэгтэд. Энд зөвхөн
+ * НИЙТЛЭГ тохиргоо (асаах/унтраах, заавар, баримт шаардах эсэх).
+ */
 interface BankSettings {
   enabled: boolean;
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
-  /** Модалд харагдах нэмэлт заавар (ж: «Ажлын цагаар 1 цагт баталгаажна») */
   note: string;
+  /** ⚠️ Баримт (screenshot) заавал эсэх — админ шийднэ */
+  requireReceipt: boolean;
 }
 
 const DEFAULT_BANK: BankSettings = {
   enabled: false,
-  bankName: '',
-  accountNumber: '',
-  accountName: '',
-  note: 'Гүйлгээний утгыг ЗААВАЛ хуулж бичнэ үү. Ажлын цагаар 1 цагийн дотор баталгаажна.',
+  note: 'Гүйлгээний утгыг ЗААВАЛ бичнэ үү. Ажлын цагаар 1 цагийн дотор баталгаажна.',
+  requireReceipt: false,
 };
 
 class BankSettingsDto {
@@ -58,23 +64,43 @@ class BankSettingsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
+  note?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  requireReceipt?: boolean;
+}
+
+class BankAccountDto {
+  @IsString()
   @MaxLength(60)
-  bankName?: string;
+  bankName: string;
+
+  @IsOptional()
+  @IsString()
+  logoKey?: string;
+
+  @IsString()
+  @MaxLength(40)
+  accountNumber: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(40)
-  accountNumber?: string;
+  iban?: string;
 
-  @IsOptional()
   @IsString()
   @MaxLength(80)
-  accountName?: string;
+  accountName: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(300)
-  note?: string;
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  order?: number;
 }
 
 class BankInitiateDto {
@@ -91,6 +117,18 @@ class BankInitiateDto {
   @IsOptional()
   @IsString()
   couponCode?: string;
+
+  /** Аль данс руу шилжүүлэх (хоосон бол эхний идэвхтэй) */
+  @IsOptional()
+  @IsString()
+  bankAccountId?: string;
+}
+
+class ClaimDto {
+  /** Төлбөрийн баримтын R2 key (upload хийсний дараа) */
+  @IsOptional()
+  @IsString()
+  receiptKey?: string;
 }
 
 class RejectDto {
@@ -107,7 +145,7 @@ class RejectDto {
  * шалгаад баталгаажуулна.
  *
  * ⚠️ `bankReference` (гүйлгээний утга) нь ЦОРЫН ГАНЦ таних тэмдэг.
- * Хэрэглэгч түүнийг бичихгүй бол админ хэний мөнгө болохыг мэдэхгүй.
+ * 6 оронтой ТОО — утсан дээр тоон гараар шууд бичигдэнэ.
  */
 @Injectable()
 export class BankService {
@@ -115,12 +153,16 @@ export class BankService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     private readonly payments: PaymentsService,
     private readonly promotions: PromotionsService,
     private readonly coupons: CouponsService,
     private readonly n8n: N8nService,
+    private readonly notifications: NotificationsService,
     private readonly email: EmailService,
   ) {}
+
+  // ─── ТОХИРГОО ────────────────────────────────────────────────────────────
 
   async settings(): Promise<BankSettings> {
     const row = await this.prisma.settings
@@ -129,31 +171,21 @@ export class BankService {
     return { ...DEFAULT_BANK, ...((row?.value as Partial<BankSettings>) ?? {}) };
   }
 
-  /**
-   * Нийтэд харуулах тохиргоо.
-   *
-   * ⚠️ Унтраалттай үед дансны дугаарыг ОГТ буцаахгүй — эс бөгөөс
-   * хэрэглэгч DevTools-оор хараад хуучин данс руу шилжүүлнэ.
-   */
-  async publicSettings() {
-    const s = await this.settings();
-    if (!s.enabled) return { enabled: false };
-    return s;
-  }
-
   async updateSettings(dto: BankSettingsDto): Promise<BankSettings> {
     const cur = await this.settings();
     const next: BankSettings = {
       enabled: dto.enabled ?? cur.enabled,
-      bankName: dto.bankName?.trim() ?? cur.bankName,
-      accountNumber: dto.accountNumber?.trim() ?? cur.accountNumber,
-      accountName: dto.accountName?.trim() ?? cur.accountName,
       note: dto.note?.trim() ?? cur.note,
+      requireReceipt: dto.requireReceipt ?? cur.requireReceipt,
     };
 
-    /* ⚠️ Дутуу мэдээлэлтэй асаавал хэрэглэгч хаашаа шилжүүлэхээ мэдэхгүй */
-    if (next.enabled && (!next.bankName || !next.accountNumber || !next.accountName)) {
-      throw new BadRequestException('Асаахын өмнө банк, данс, эзэмшигчийн нэрийг бөглөнө үү');
+    /* ⚠️ Данс огт байхгүй байхад асаавал хэрэглэгч хаашаа шилжүүлэхээ
+       мэдэхгүй ХООСОН модал харна */
+    if (next.enabled) {
+      const count = await this.prisma.bankAccount.count({ where: { isActive: true } });
+      if (count === 0) {
+        throw new BadRequestException('Асаахын өмнө дор хаяж нэг идэвхтэй данс нэмнэ үү');
+      }
     }
 
     await this.prisma.settings.upsert({
@@ -164,27 +196,124 @@ export class BankService {
     return next;
   }
 
-  /**
-   * Гүйлгээний утга үүсгэнэ — «BTV-4F2A».
-   *
-   * ⚠️ Богино байх ЁСТОЙ: хэрэглэгч утсаараа банкны апп руу гараар
-   * бичдэг. Урт код бичихдээ алдаа гаргаж, төлбөр танигдахгүй.
-   * ⚠️ Андуурч уншихгүйн тулд O/0, I/1 хассан цагаан толгой.
-   */
-  private makeReference(): string {
-    const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const bytes = randomBytes(4);
-    let code = '';
-    for (const b of bytes) code += ALPHABET[b % ALPHABET.length];
-    return `BTV-${code}`;
+  // ─── ДАНСНУУД ────────────────────────────────────────────────────────────
+
+  /** Логоны URL нэмж буцаана */
+  private async withLogo<T extends { logoKey: string | null }>(row: T) {
+    return {
+      ...row,
+      logoUrl: row.logoKey ? await this.storage.publicAssetUrl(row.logoKey, 7200) : null,
+    };
   }
 
   /**
-   * Дансаар төлөх хүсэлт үүсгэнэ.
+   * Нийтэд харагдах данснууд.
    *
-   * ⚠️ Төлөв нь PENDING — эрх НЭЭГДЭХГҮЙ. Админ баталгаажуулмагц
-   * `payments.completePayment` дуудагдаж багц идэвхжинэ.
+   * ⚠️ Унтраалттай үед ХООСОН — эс бөгөөс хэрэглэгч DevTools-оор
+   * хараад хуучин данс руу шилжүүлнэ.
    */
+  async publicAccounts() {
+    const cfg = await this.settings();
+    if (!cfg.enabled) {
+      return { enabled: false, note: '', requireReceipt: false, accounts: [] };
+    }
+
+    const rows = await this.prisma.bankAccount.findMany({
+      where: { isActive: true },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return {
+      enabled: true,
+      note: cfg.note,
+      requireReceipt: cfg.requireReceipt,
+      accounts: await Promise.all(rows.map((r) => this.withLogo(r))),
+    };
+  }
+
+  async adminAccounts() {
+    const rows = await this.prisma.bankAccount.findMany({
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      include: { _count: { select: { payments: true } } },
+    });
+    return Promise.all(rows.map((r) => this.withLogo(r)));
+  }
+
+  createAccount(dto: BankAccountDto) {
+    return this.prisma.bankAccount.create({
+      data: {
+        bankName: dto.bankName.trim(),
+        logoKey: dto.logoKey || null,
+        accountNumber: dto.accountNumber.trim(),
+        /* ⚠️ IBAN-аас ЗАЙГ хасна — хэрэглэгч хуулахад зай орвол
+           банкны апп татгалзана */
+        iban: dto.iban?.replace(/\s+/g, '').toUpperCase() || null,
+        accountName: dto.accountName.trim(),
+        isActive: dto.isActive ?? true,
+        order: dto.order ?? 0,
+      },
+    });
+  }
+
+  async updateAccount(id: string, dto: Partial<BankAccountDto>) {
+    const exists = await this.prisma.bankAccount.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Данс олдсонгүй');
+
+    return this.prisma.bankAccount.update({
+      where: { id },
+      data: {
+        ...(dto.bankName != null ? { bankName: dto.bankName.trim() } : {}),
+        ...(dto.logoKey !== undefined ? { logoKey: dto.logoKey || null } : {}),
+        ...(dto.accountNumber != null ? { accountNumber: dto.accountNumber.trim() } : {}),
+        ...(dto.iban !== undefined
+          ? { iban: dto.iban?.replace(/\s+/g, '').toUpperCase() || null }
+          : {}),
+        ...(dto.accountName != null ? { accountName: dto.accountName.trim() } : {}),
+        ...(dto.isActive != null ? { isActive: dto.isActive } : {}),
+        ...(dto.order != null ? { order: dto.order } : {}),
+      },
+    });
+  }
+
+  async removeAccount(id: string) {
+    const acc = await this.prisma.bankAccount.findUnique({
+      where: { id },
+      select: { id: true, _count: { select: { payments: true } } },
+    });
+    if (!acc) throw new NotFoundException('Данс олдсонгүй');
+
+    /**
+     * ⚠️⚠️ ТӨЛБӨРТЭЙ ДАНСЫГ УСТГАХГҮЙ — `Payment.bankAccountId` нь
+     * SetNull тул устгавал «аль данс руу төлсөн» түүх алга болно.
+     * Санхүүгийн маргаанд баталгаа үгүй болно.
+     */
+    if (acc._count.payments > 0) {
+      throw new BadRequestException(
+        `Энэ данс руу ${acc._count.payments} төлбөр хийгдсэн тул устгах боломжгүй. Идэвхгүй болгоно уу.`,
+      );
+    }
+
+    await this.prisma.bankAccount.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  // ─── ТӨЛБӨР ──────────────────────────────────────────────────────────────
+
+  /**
+   * Гүйлгээний утга — «482913» (6 ОРОНТОЙ ТОО).
+   *
+   * ⚠️⚠️ ЗӨВХӨН ТОО. Өмнө нь «BTV-MPQD» байсан нь бодит хэрэглээнд
+   * хэцүү байв: банкны апп утсан дээр, үсэг бичихэд гар солино,
+   * M/N, P/Q андуурагдана. Тоон гар нь шууд, OTP-той адил танил.
+   *
+   * ⚠️ 100000-999999 — эхлээд 0 гарахгүй (банкны апп таслаж мэднэ).
+   */
+  private makeReference(): string {
+    /* ⚠️ `Math.random` БИШ — таамаглах боломжгүй байх ёстой */
+    const n = randomBytes(4).readUInt32BE(0);
+    return String(100000 + (n % 900000));
+  }
+
   async initiate(userId: string, dto: BankInitiateDto) {
     const cfg = await this.settings();
     if (!cfg.enabled) throw new BadRequestException('Дансаар төлөх боломж идэвхгүй байна');
@@ -193,11 +322,23 @@ export class BankService {
       throw new BadRequestException('Багц эсвэл цэнэглэх дүнг заана уу');
     }
 
+    /* ⚠️ Данс сонгоогүй бол эхний идэвхтэйг авна */
+    const account = dto.bankAccountId
+      ? await this.prisma.bankAccount.findFirst({
+          where: { id: dto.bankAccountId, isActive: true },
+        })
+      : await this.prisma.bankAccount.findFirst({
+          where: { isActive: true },
+          orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+        });
+    if (!account) throw new BadRequestException('Идэвхтэй данс олдсонгүй');
+
     /* ─── Хэтэвч цэнэглэх ─── */
     if (dto.topupAmount) {
       return this.createPending(userId, {
         amount: dto.topupAmount,
         isWalletTopup: true,
+        bankAccountId: account.id,
       });
     }
 
@@ -232,6 +373,7 @@ export class BankService {
     return this.createPending(userId, {
       amount,
       planId: plan.id,
+      bankAccountId: account.id,
       promotionId: promo?.id ?? null,
       couponCode: normalizedCoupon,
       originalAmount: normalizedCoupon || promo ? plan.price : undefined,
@@ -245,6 +387,7 @@ export class BankService {
       amount: number;
       planId?: string;
       isWalletTopup?: boolean;
+      bankAccountId: string;
       promotionId?: string | null;
       couponCode?: string;
       originalAmount?: number;
@@ -268,6 +411,13 @@ export class BankService {
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
+      /* ⚠️ Хэрэглэгч ӨӨР данс сонгосон бол шинэчилнэ (шинэ утга биш) */
+      if (existing.bankAccountId !== data.bankAccountId) {
+        await this.prisma.payment.update({
+          where: { id: existing.id },
+          data: { bankAccountId: data.bankAccountId },
+        });
+      }
       return {
         paymentId: existing.id,
         reference: existing.bankReference,
@@ -278,7 +428,7 @@ export class BankService {
 
     /* ⚠️ Давхардвал дахин оролдоно — `bankReference` нь unique */
     let payment: { id: string; bankReference: string | null; amount: number } | null = null;
-    for (let i = 0; i < 5 && !payment; i++) {
+    for (let i = 0; i < 6 && !payment; i++) {
       const reference = this.makeReference();
       payment = await this.prisma.payment
         .create({
@@ -288,6 +438,7 @@ export class BankService {
             status: PaymentStatus.PENDING,
             planId: data.planId,
             isWalletTopup: data.isWalletTopup ?? false,
+            bankAccountId: data.bankAccountId,
             promotionId: data.promotionId ?? null,
             couponCode: data.couponCode,
             originalAmount: data.originalAmount,
@@ -297,7 +448,9 @@ export class BankService {
         })
         .catch(() => null);
     }
-    if (!payment) throw new BadRequestException('Гүйлгээний утга үүсгэж чадсангүй, дахин оролдоно уу');
+    if (!payment) {
+      throw new BadRequestException('Гүйлгээний утга үүсгэж чадсангүй, дахин оролдоно уу');
+    }
 
     return {
       paymentId: payment.id,
@@ -310,12 +463,18 @@ export class BankService {
   /**
    * Хэрэглэгч «шилжүүлсэн» гэж мэдэгдэнэ.
    *
-   * ⚠️ ЭРХ НЭЭГДЭХГҮЙ — зөвхөн админд дохио өгнө. Итгэлээр эрх
-   * нээвэл шилжүүлээгүй хүн ч үнэгүй үзнэ.
+   * ⚠️ ЭРХ НЭЭГДЭХГҮЙ — зөвхөн админд дохио өгнө.
    */
-  async claim(userId: string, paymentId: string) {
+  async claim(userId: string, paymentId: string, receiptKey?: string) {
+    const cfg = await this.settings();
+
     const p = await this.prisma.payment.findFirst({
-      where: { id: paymentId, userId, status: PaymentStatus.PENDING, bankReference: { not: null } },
+      where: {
+        id: paymentId,
+        userId,
+        status: PaymentStatus.PENDING,
+        bankReference: { not: null },
+      },
       include: {
         plan: { select: { name: true } },
         rentalTitle: { select: { title: true } },
@@ -324,32 +483,102 @@ export class BankService {
     });
     if (!p) throw new NotFoundException('Төлбөр олдсонгүй');
 
-    /* ⚠️ Давтан дарахад мэдэгдэл дахин илгээхгүй */
-    if (p.bankClaimedAt) return { ok: true, alreadyClaimed: true };
+    /* ⚠️ Баримт заавал бол шалгана — админы шийдвэрийг хүндэтгэнэ */
+    if (cfg.requireReceipt && !receiptKey && !p.bankReceiptKey) {
+      throw new BadRequestException('Төлбөрийн баримтын зургаа хавсаргана уу');
+    }
+
+    /* ⚠️ Давтан дарахад мэдэгдэл дахин илгээхгүй, гэхдээ баримт
+       нэмж хавсаргаж БОЛНО (эхлээд мартсан байж болно) */
+    const alreadyClaimed = p.bankClaimedAt !== null;
 
     await this.prisma.payment.update({
       where: { id: p.id },
-      data: { bankClaimedAt: new Date() },
+      data: {
+        bankClaimedAt: p.bankClaimedAt ?? new Date(),
+        ...(receiptKey ? { bankReceiptKey: receiptKey } : {}),
+      },
     });
 
-    this.n8n.emitBankTransfer({
-      paymentId: p.id,
-      reference: p.bankReference!,
-      userName: p.user?.name ?? null,
-      userEmail: p.user?.email ?? '',
-      amount: p.amount,
-      planName: p.plan?.name ?? (p.isWalletTopup ? 'Хэтэвч цэнэглэх' : null),
-      titleName: p.rentalTitle?.title ?? null,
-      claimedAt: new Date().toISOString(),
-    });
+    if (!alreadyClaimed) {
+      this.n8n.emitBankTransfer({
+        paymentId: p.id,
+        reference: p.bankReference!,
+        userName: p.user?.name ?? null,
+        userEmail: p.user?.email ?? '',
+        amount: p.amount,
+        planName: p.plan?.name ?? (p.isWalletTopup ? 'Хэтэвч цэнэглэх' : null),
+        titleName: p.rentalTitle?.title ?? null,
+        claimedAt: new Date().toISOString(),
+      });
 
-    this.logger.log(`Дансны төлбөр мэдэгдэв: ${p.bankReference} (${p.amount}₮) user=${userId}`);
-    return { ok: true, alreadyClaimed: false };
+      this.notifications.create(
+        userId,
+        NotificationType.INFO,
+        'Шилжүүлгийг хүлээн авлаа',
+        `${p.amount.toLocaleString()}₮ шилжүүлгийг шалгаж байна. Баталгаажмагц эрх тань нээгдэнэ.`,
+        '/profile?tab=orders',
+      );
+
+      this.logger.log(`Дансны төлбөр мэдэгдэв: ${p.bankReference} (${p.amount}₮) user=${userId}`);
+    }
+
+    return { ok: true, alreadyClaimed };
   }
 
-  /** Хэрэглэгчийн хүлээгдэж буй дансны төлбөрүүд */
+  /**
+   * ТӨЛБӨРИЙН БАРИМТ (screenshot) upload.
+   *
+   * ⚠️⚠️ ЭНЭ НЬ ХЭРЭГЛЭГЧИЙН endpoint — `admin/uploads` нь зөвхөн
+   * админд нээлттэй тул тэрийг ашиглах БОЛОМЖГҮЙ.
+   *
+   * ⚠️ Зургийг WebP болгож ШАХНА (1200px) — банкны апп-ын screenshot
+   * нь 2-4 MB байдаг, шахахгүй бол R2 зай хурдан дүүрнэ.
+   *
+   * ⚠️ Хэрэглэгч ЗӨВХӨН ӨӨРИЙН PENDING төлбөрт хавсаргана —
+   * `paymentId` шалгалт нь бусдын баримтыг солихоос хамгаална.
+   */
+  async uploadReceipt(
+    userId: string,
+    paymentId: string,
+    file: { buffer: Buffer; mimetype: string },
+  ) {
+    const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+    if (!ALLOWED.has(file.mimetype)) {
+      throw new BadRequestException('Зөвхөн зураг хавсаргана уу (JPG, PNG, WebP)');
+    }
+
+    const p = await this.prisma.payment.findFirst({
+      where: {
+        id: paymentId,
+        userId,
+        status: PaymentStatus.PENDING,
+        bankReference: { not: null },
+      },
+      select: { id: true },
+    });
+    if (!p) throw new NotFoundException('Төлбөр олдсонгүй');
+
+    const sharp = (await import('sharp')).default;
+    const buf = await sharp(file.buffer)
+      .resize({ width: 1200, withoutEnlargement: true })
+      .webp({ quality: 82, effort: 4 })
+      .toBuffer();
+
+    const key = `images/receipt/${randomBytes(16).toString('hex')}.webp`;
+    await this.storage.upload(key, buf, 'image/webp');
+
+    await this.prisma.payment.update({
+      where: { id: p.id },
+      data: { bankReceiptKey: key },
+    });
+
+    return { key, url: await this.storage.publicAssetUrl(key, 7200) };
+  }
+
+  /** Хэрэглэгчийн дансны төлбөрүүд */
   async mine(userId: string) {
-    return this.prisma.payment.findMany({
+    const rows = await this.prisma.payment.findMany({
       where: { userId, bankReference: { not: null } },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -360,28 +589,35 @@ export class BankService {
         bankReference: true,
         bankClaimedAt: true,
         bankRejectReason: true,
+        bankReceiptKey: true,
         createdAt: true,
         isWalletTopup: true,
         plan: { select: { name: true } },
+        bankAccount: { select: { bankName: true } },
       },
     });
+
+    return Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        receiptUrl: r.bankReceiptKey
+          ? await this.storage.publicAssetUrl(r.bankReceiptKey, 7200)
+          : null,
+      })),
+    );
   }
 
   // ─── АДМИН ───────────────────────────────────────────────────────────────
 
-  /**
-   * Админы жагсаалт.
-   * ⚠️ Мэдэгдсэн (`claimed`) нь ЭХЭНД — тэдгээр нь хүлээж байгаа хүн.
-   */
   async adminList(status?: string) {
     const where =
       status === 'pending'
         ? { status: PaymentStatus.PENDING, bankClaimedAt: { not: null } }
         : status === 'waiting'
           ? { status: PaymentStatus.PENDING, bankClaimedAt: null }
-          : { bankReference: { not: null } };
+          : {};
 
-    return this.prisma.payment.findMany({
+    const rows = await this.prisma.payment.findMany({
       where: { bankReference: { not: null }, ...where },
       orderBy: [{ bankClaimedAt: 'desc' }, { createdAt: 'desc' }],
       take: 200,
@@ -394,13 +630,26 @@ export class BankService {
         bankClaimedAt: true,
         bankReviewedAt: true,
         bankRejectReason: true,
+        bankReceiptKey: true,
         couponCode: true,
         createdAt: true,
         isWalletTopup: true,
         plan: { select: { id: true, name: true } },
         user: { select: { id: true, name: true, email: true } },
+        bankAccount: { select: { id: true, bankName: true } },
       },
     });
+
+    /* ⚠️ Баримтын URL — админ зургийг ШУУД харах ёстой (татаж
+       үзэх нь удаан, ажлын урсгал тасална) */
+    return Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        receiptUrl: r.bankReceiptKey
+          ? await this.storage.publicAssetUrl(r.bankReceiptKey, 7200)
+          : null,
+      })),
+    );
   }
 
   /**
@@ -408,17 +657,23 @@ export class BankService {
    *
    * ⚠️⚠️ `payments.completePayment` дуудна — тэр нь багц/түрээс/
    * цэнэглэлт бүх салааг зөв боловсруулж, урамшууллын бонус олгож,
-   * имэйл илгээнэ. Энд дахин бичвэл логик хоёр газар зөрнө.
+   * имэйл илгээнэ.
    */
   async approve(paymentId: string, adminId: string) {
     const p = await this.prisma.payment.findFirst({
       where: { id: paymentId, bankReference: { not: null } },
-      select: { id: true, status: true, bankReference: true, amount: true },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        bankReference: true,
+        amount: true,
+        isWalletTopup: true,
+        plan: { select: { name: true } },
+      },
     });
     if (!p) throw new NotFoundException('Төлбөр олдсонгүй');
-    if (p.status === PaymentStatus.PAID) {
-      return { ok: true, alreadyPaid: true };
-    }
+    if (p.status === PaymentStatus.PAID) return { ok: true, alreadyPaid: true };
     if (p.status !== PaymentStatus.PENDING) {
       throw new BadRequestException('Энэ төлбөр цуцлагдсан эсвэл хугацаа дууссан байна');
     }
@@ -429,13 +684,24 @@ export class BankService {
     });
     await this.payments.completePayment(p.id);
 
+    /* ⚠️ ХЭРЭГЛЭГЧИД МЭДЭГДЭНЭ — тэр хүлээж сууж байна */
+    this.notifications.create(
+      p.userId,
+      NotificationType.PAYMENT_APPROVED,
+      'Төлбөр баталгаажлаа',
+      p.isWalletTopup
+        ? `${p.amount.toLocaleString()}₮ хэтэвчинд нэмэгдлээ.`
+        : `«${p.plan?.name ?? 'Багц'}» идэвхжлээ. Одоо үзэж эхлээрэй!`,
+      p.isWalletTopup ? '/profile?tab=wallet' : '/',
+    );
+
     this.logger.log(
       `Дансны төлбөр баталгаажлаа: ${p.bankReference} (${p.amount}₮) admin=${adminId}`,
     );
     return { ok: true, alreadyPaid: false };
   }
 
-  /** Татгалзах — хэрэглэгчид шалтгаан имэйлээр очно */
+  /** Татгалзах — хэрэглэгчид мэдэгдэл + имэйл */
   async reject(paymentId: string, reason: string, adminId: string) {
     const p = await this.prisma.payment.findFirst({
       where: { id: paymentId, bankReference: { not: null }, status: PaymentStatus.PENDING },
@@ -453,15 +719,20 @@ export class BankService {
     });
 
     /**
-     * ⚠️ ИМЭЙЛ ЗААВАЛ — хэрэглэгч мөнгөө шилжүүлсэн гэж бодож
+     * ⚠️⚠️ МЭДЭГДЭЛ ЗААВАЛ — хэрэглэгч мөнгөө шилжүүлсэн гэж бодож
      * хүлээж байна. Чимээгүй татгалзвал гомдол болно.
-     * ⚠️ `sendBankRejected` байхгүй бол чимээгүй алгасна (email
-     * service-д нэмэгдэх хүртэл төлбөрийн урсгал зогсохгүй).
      */
+    this.notifications.create(
+      p.userId,
+      NotificationType.PAYMENT_REJECTED,
+      'Төлбөр баталгаажаагүй',
+      `${p.amount.toLocaleString()}₮ (утга: ${p.bankReference}) — ${reason.trim()}`,
+      '/profile?tab=orders',
+    );
+
+    /* ⚠️ Имэйл нь нэмэлт суваг — байхгүй бол чимээгүй алгасна */
     try {
-      const svc = this.email as unknown as {
-        sendBankRejected?: (a: unknown) => void;
-      };
+      const svc = this.email as unknown as { sendBankRejected?: (a: unknown) => void };
       svc.sendBankRejected?.({
         to: p.user?.email,
         name: p.user?.name,
@@ -483,16 +754,12 @@ export class BankService {
 export class BankController {
   constructor(private readonly svc: BankService) {}
 
-  /** Дансны мэдээлэл — модалд харуулна */
-  @Get('settings')
-  settings() {
-    return this.svc.publicSettings();
+  /** Данснууд + тохиргоо — модалд харуулна */
+  @Get('accounts')
+  accounts() {
+    return this.svc.publicAccounts();
   }
 
-  /**
-   * ⚠️ Throttle — гүйлгээний утга үүсгэх нь DB бичилт хийдэг тул
-   * хязгааргүй бол хэдэн мянган хоосон PENDING мөр үүсгэж болно.
-   */
   @Post('initiate')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -503,8 +770,32 @@ export class BankController {
   @Post(':id/claim')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  claim(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.svc.claim(user.sub, id);
+  claim(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: ClaimDto) {
+    return this.svc.claim(user.sub, id, dto?.receiptKey);
+  }
+
+  /**
+   * Төлбөрийн баримт хавсаргах.
+   *
+   * ⚠️ 15 MB хязгаар — утасны screenshot 2-4 MB, зарим шинэ утас
+   * 8 MB хүртэл. 15 нь аюулгүй зай.
+   */
+  @Post(':id/receipt')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  uploadReceipt(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Файл сонгоогүй байна');
+    return this.svc.uploadReceipt(user.sub, id, file);
   }
 
   @Get('mine')
@@ -528,6 +819,26 @@ export class BankAdminController {
   @Patch('settings')
   updateSettings(@Body() dto: BankSettingsDto) {
     return this.svc.updateSettings(dto);
+  }
+
+  @Get('accounts')
+  accounts() {
+    return this.svc.adminAccounts();
+  }
+
+  @Post('accounts')
+  createAccount(@Body() dto: BankAccountDto) {
+    return this.svc.createAccount(dto);
+  }
+
+  @Patch('accounts/:id')
+  updateAccount(@Param('id') id: string, @Body() dto: Partial<BankAccountDto>) {
+    return this.svc.updateAccount(id, dto);
+  }
+
+  @Delete('accounts/:id')
+  removeAccount(@Param('id') id: string) {
+    return this.svc.removeAccount(id);
   }
 
   @Get('payments')

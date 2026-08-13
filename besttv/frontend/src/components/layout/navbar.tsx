@@ -12,6 +12,7 @@ import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useBrand } from '@/lib/queries';
 import { loginUrl } from '@/lib/auth-intent';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { NotificationBell } from '@/components/notification-bell';
 
 const NAV_LINKS = [
   { href: '/', label: 'Нүүр' },
@@ -167,6 +168,12 @@ export function Navbar() {
         <Link href="/search" className="rounded-full p-2 text-foreground/75 md:hidden" aria-label="Хайх">
           <Search size={19} />
         </Link>
+
+        {/*
+          ⚠️ МЭДЭГДЛИЙН ХОНХ — нэвтэрсэн үед л (дотроо шалгана).
+          Дансаар төлсөн хэрэглэгч баталгаажсан эсэхээ ЭНДЭЭС мэднэ.
+        */}
+        <NotificationBell />
 
         {/* ⚠️ Гэрэл/бараан горим сэлгэх — desktop болон мобайл ХОЁУЛАНД */}
         <ThemeToggle />

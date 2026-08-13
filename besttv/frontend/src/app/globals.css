@@ -444,3 +444,20 @@ video {
     display: none;
   }
 }
+
+/* ─── МЭДЭГДЛИЙН DROPDOWN ──────────────────────────────────────────────────
+   ⚠️ Гэнэт гарч ирэх dropdown нь эвгүй. Дээрээс бага зэрэг буун
+   гарах нь «хонхноос гарч ирлээ» гэсэн холбоо үүсгэнэ. */
+@keyframes notif-drop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.notif-in {
+  animation: notif-drop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-in { animation: none; }
+}

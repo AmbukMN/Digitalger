@@ -10,7 +10,7 @@ import {
 import { formatPrice, cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { usePlans, useValidateCoupon } from '@/lib/queries';
-import { usePlanPromotions, useBankSettings, type AppliedPromotion } from '@/lib/queries';
+import { usePlanPromotions, useBankAccounts, type AppliedPromotion } from '@/lib/queries';
 import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
 import { useAuth } from '@/lib/auth-store';
 import { api } from '@/lib/api';
@@ -29,7 +29,7 @@ export default function PricingPage() {
   /* ⚠️ Урамшуулал — planId → тохирсон урамшуулал. Backend нь ХАМГИЙН
      АШИГТАЙГ сонгож өгнө, frontend дахин боддоггүй (зөрөхөөс сэргийлнэ). */
   const { data: promos } = usePlanPromotions();
-  const { data: bank } = useBankSettings();
+  const { data: bank } = useBankAccounts();
   /* Дансаар төлөх модал — аль багцад нээснийг санана */
   const [bankPlan, setBankPlan] = useState<{ id: string; name: string } | null>(null);
   const { user, refreshMe } = useAuth();
@@ -240,7 +240,10 @@ export default function PricingPage() {
             <strong className="text-foreground">{formatPrice(user.walletBalance)}</strong>
           </span>
           <button
-            onClick={() => router.push('/profile')}
+            /* ⚠️ `?tab=wallet` ЗААВАЛ — өмнө нь зүгээр `/profile` руу
+               явуулдаг байсан тул хэрэглэгч ПРОФАЙЛ таб дээр бууж,
+               цэнэглэх хэсгээ өөрөө хайх шаардлагатай болдог байв */
+            onClick={() => router.push('/profile?tab=wallet')}
             className="rounded-lg bg-foreground/8 px-3 py-1.5 text-xs font-semibold text-foreground/80 hover:bg-foreground/14"
           >
             Цэнэглэх
@@ -663,7 +666,7 @@ export default function PricingPage() {
       {bankPlan && bank?.enabled && (
         <BankTransferModal
           open
-          settings={bank}
+          info={bank}
           planId={bankPlan.id}
           couponCode={appliedCoupon?.code}
           label={bankPlan.name}

@@ -124,6 +124,7 @@ model User {
   sessions             UserSession[]
   /// Ашигласан урамшууллууд (давтан ашиглахаас сэргийлэх + үр дүн хэмжих)
   promotionRedemptions PromotionRedemption[]
+  notifications        Notification[]
 
   @@index([provider])
 }
@@ -459,13 +460,23 @@ model Payment {
    * ⚠️ Энэ талбар байвал төлбөр нь QPay БИШ, ГАРААР баталгаажна.
    * `status=PENDING` + `bankReference != null` = админ шалгах хүлээлгэнд.
    */
-  bankReference    String?   @unique
+  bankReference    String?      @unique
+  /// ⚠️ Аль данс руу шилжүүлэхээр сонгосон (олон данстай тул заавал)
+  bankAccountId    String?
+  bankAccount      BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   /// Хэрэглэгч «шилжүүлсэн» товч дарсан мөч (админд хүлээлгийн хугацаа харуулна)
   bankClaimedAt    DateTime?
   /// Админ баталгаажуулсан/татгалзсан мөч
   bankReviewedAt   DateTime?
   /// Татгалзсан бол шалтгаан (хэрэглэгчид имэйлээр очно)
   bankRejectReason String?
+  /**
+   * ⚠️⚠️ ТӨЛБӨРИЙН БАРИМТ (screenshot) — R2 key.
+   * Хэрэглэгч банкны апп-ын зургаа хавсаргана, админ банкны хуулгатай
+   * тулгаж ХУРДАН баталгаажуулна. Энэгүйгээр админ хуулга уншиж
+   * гүйлгээний утгаар хайх шаардлагатай (удаан, алдаатай).
+   */
+  bankReceiptKey   String?
 
   /**
    * ⚠️⚠️ Хэрэглэсэн УРАМШУУЛАЛ (snapshot).
@@ -815,6 +826,87 @@ model PromotionRedemption {
   /// ⚠️ `maxPerUser` шалгалтын гол index
   @@index([promotionId, userId])
   @@index([userId])
+}
+
+// ─── ДАНСААР ТӨЛӨХ: ОЛОН ДАНС ────────────────────────────────────────────────
+
+/// Байгууллагын банкны данс. Хэрэглэгч аль нэгийг сонгож шилжүүлнэ.
+///
+/// ⚠️⚠️ Өмнө нь `Settings` key/value дотор НЭГ данс байсан нь хангалтгүй:
+/// хэрэглэгч ӨӨРИЙН банкнаас шилжүүлэхэд шимтгэлгүй/шуурхай байдаг тул
+/// 2-3 банкны данс өгөх нь хөрвөлтийг шууд нэмэгдүүлнэ.
+model BankAccount {
+  id String @id @default(cuid())
+
+  /// Банкны нэр — «Хаан банк»
+  bankName String
+  /// ⚠️ Логотой бол хэрэглэгч дансаа НЭГ ХАРЦААР олно (текст уншихгүй).
+  /// R2 key; хоосон бол зөвхөн нэр харагдана.
+  logoKey  String?
+
+  /// Дотоод дансны дугаар — «5020959308»
+  accountNumber String
+  /// ⚠️ IBAN нь ТУСДАА талбар — «MN160005005020959308».
+  /// Дансны дугаартай нэг мөрөнд нийлүүлбэл хэрэглэгч алийг нь
+  /// хуулахаа мэдэхгүй (хэрэглэгчийн скриншот дээр яг тэр асуудал).
+  iban          String?
+  accountName   String
+
+  isActive Boolean @default(true)
+  /// Жагсаалтад харагдах дараалал (бага нь эхэнд)
+  order    Int     @default(0)
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
+// ─── ХЭРЭГЛЭГЧИЙН МЭДЭГДЭЛ ───────────────────────────────────────────────────
+
+enum NotificationType {
+  /// Дансны төлбөр баталгаажсан
+  PAYMENT_APPROVED
+  /// Дансны төлбөр татгалзсан
+  PAYMENT_REJECTED
+  /// Багц идэвхжсэн
+  PLAN_ACTIVATED
+  /// Багц дуусахад ойртсон
+  PLAN_EXPIRING
+  /// Хэтэвч цэнэглэгдсэн
+  WALLET_TOPUP
+  /// Урамшуулал олгогдсон
+  PROMOTION_APPLIED
+  /// Ерөнхий мэдээлэл (админаас)
+  INFO
+}
+
+/// Хэрэглэгчид харагдах мэдэгдэл (хонхны дүрс дээр).
+///
+/// ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: дансаар төлсөн хэрэглэгч «баталгаажсан уу?»
+/// гэдгээ мэдэхгүй хүлээнэ. Имэйл нь хоцордог/спамд ордог. Сайт дээр
+/// шууд харагдах мэдэгдэл нь дэмжлэгийн дуудлагыг эрс багасгана.
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   NotificationType
+
+  title String
+  body  String
+
+  /// Дарахад очих зам — «/profile?tab=orders»
+  link String?
+
+  /// ⚠️ Уншсан эсэх — уншаагүйн тоог хонхон дээр улаанаар харуулна
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  /// ⚠️ Уншаагүйг эхэнд, шинийг дээр нь — жагсаалтын гол query
+  @@index([userId, readAt, createdAt])
 }
 
 /// Статик хуудас — Үйлчилгээний нөхцөл, Нууцлалын бодлого, Дата устгах хүсэлт

@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Building2, Check, Copy, Loader2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
+import {
+  Building2,
+  Check,
+  Copy,
+  ImagePlus,
+  Loader2,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatPrice } from '@besttv/shared';
-import { api } from '@/lib/api';
-import type { BankSettings } from '@/lib/queries';
+import { api, getAccessToken } from '@/lib/api';
+import type { BankAccount, BankInfo } from '@/lib/queries';
 
 /**
  * ДАНСААР ШИЛЖҮҮЛЭХ МОДАЛ.
@@ -14,8 +23,8 @@ import type { BankSettings } from '@/lib/queries';
  * бичихгүй бол админ банкны хуулгаас хэний мөнгө болохыг таних
  * БОЛОМЖГҮЙ — төлбөр «алга болно», гомдол болно.
  *
- * Тиймээс: хамгийн том, хамгийн тод, хуулах товч нь эхэнд, доор нь
- * улаан анхааруулга.
+ * ⚠️ 6 ОРОНТОЙ ТОО (өмнө «BTV-MPQD» байсан) — банкны апп утсан дээр,
+ * тоон гараар шууд бичигдэнэ, үсэг андуурагдахгүй.
  */
 
 interface BankOrder {
@@ -28,7 +37,7 @@ interface BankOrder {
 interface Props {
   open: boolean;
   onClose: () => void;
-  settings: BankSettings;
+  info: BankInfo;
   /** Багц авах бол */
   planId?: string;
   /** Хэтэвч цэнэглэх бол */
@@ -39,15 +48,17 @@ interface Props {
   onClaimed?: () => void;
 }
 
-/** Хуулах товч — амжилттай болоход 2 секунд ✓ харуулна */
-function CopyField({
+/** Хуулах товч — амжилттай болоход 2 секунд ✓ */
+function CopyRow({
   label,
   value,
-  big,
+  mono,
+  emphasis,
 }: {
   label: string;
   value: string;
-  big?: boolean;
+  mono?: boolean;
+  emphasis?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -57,11 +68,8 @@ function CopyField({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /**
-       * ⚠️ `navigator.clipboard` нь HTTPS-гүй үед болон хуучин
-       * iOS/FB webview-д БАЙХГҮЙ. Хэрэглэгч гараар хуулж чадах тул
-       * зөвхөн мэдэгдэнэ (алдаа биш).
-       */
+      /* ⚠️ `navigator.clipboard` нь HTTPS-гүй үед болон хуучин
+         iOS/FB webview-д БАЙХГҮЙ. Гараар хуулж болно. */
       toast.info('Гараар хуулна уу');
     }
   };
@@ -69,11 +77,12 @@ function CopyField({
   return (
     <div className="flex items-center gap-2">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] uppercase tracking-wide text-foreground/40">{label}</p>
+        <p className="text-[10px] uppercase tracking-wide text-foreground/40">{label}</p>
         <p
           className={cn(
-            'truncate font-semibold text-foreground/90 tabular-nums',
-            big ? 'text-lg' : 'text-sm',
+            'truncate font-semibold text-foreground/90',
+            mono && 'font-mono tabular-nums',
+            emphasis ? 'text-lg' : 'text-sm',
           )}
         >
           {value}
@@ -83,13 +92,13 @@ function CopyField({
         onClick={() => void copy()}
         aria-label={`${label} хуулах`}
         className={cn(
-          'shrink-0 rounded-lg p-2.5 transition-colors',
+          'shrink-0 rounded-lg p-2 transition-colors',
           copied
             ? 'bg-success/20 text-success'
             : 'bg-foreground/8 text-foreground/60 hover:bg-foreground/15 hover:text-foreground',
         )}
       >
-        {copied ? <Check size={16} /> : <Copy size={16} />}
+        {copied ? <Check size={15} /> : <Copy size={15} />}
       </button>
     </div>
   );
@@ -98,7 +107,7 @@ function CopyField({
 export function BankTransferModal({
   open,
   onClose,
-  settings,
+  info,
   planId,
   topupAmount,
   couponCode,
@@ -109,19 +118,29 @@ export function BankTransferModal({
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
 
+  /* ⚠️ Анхдагч данс — эхний идэвхтэй (backend ч ижил логиктой) */
+  const [accountId, setAccountId] = useState<string>(info.accounts[0]?.id ?? '');
+  const account: BankAccount | undefined =
+    info.accounts.find((a) => a.id === accountId) ?? info.accounts[0];
+
+  /* ─── Баримт ─── */
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
   /**
    * ⚠️ Модал НЭЭГДЭХЭД л захиалга үүсгэнэ — компонент mount болмогц
    * үүсгэвэл хэрэглэгч модал нээгээгүй атал DB-д хоосон PENDING
    * мөр үүснэ.
    */
   useEffect(() => {
-    if (!open || order) return;
+    if (!open || order || !account) return;
     let cancelled = false;
 
     setLoading(true);
     api<BankOrder>('/bank/initiate', {
       method: 'POST',
-      body: JSON.stringify({ planId, topupAmount, couponCode }),
+      body: JSON.stringify({ planId, topupAmount, couponCode, bankAccountId: account.id }),
     })
       .then((r) => {
         if (!cancelled) setOrder(r);
@@ -138,7 +157,7 @@ export function BankTransferModal({
     return () => {
       cancelled = true;
     };
-  }, [open, order, planId, topupAmount, couponCode, onClose]);
+  }, [open, order, planId, topupAmount, couponCode, account, onClose]);
 
   /* ⚠️ Esc товчоор хаах — бүх модалд байх ёстой (UX дүрэм) */
   useEffect(() => {
@@ -150,13 +169,66 @@ export function BankTransferModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !account) return null;
+
+  /**
+   * Данс солих — шинэ захиалга үүсгэхгүй, зөвхөн backend-д мэдэгдэнэ.
+   * ⚠️ Гүйлгээний утга ХЭВЭЭР үлдэнэ (шинэ утга өгвөл хэрэглэгч
+   * хуучныг нь бичээд төлбөр танигдахгүй болно).
+   */
+  const switchAccount = async (id: string) => {
+    setAccountId(id);
+    if (!order) return;
+    await api('/bank/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ planId, topupAmount, couponCode, bankAccountId: id }),
+    }).catch(() => null);
+  };
+
+  const pickReceipt = async (file: File) => {
+    if (!order) return;
+    setUploading(true);
+    try {
+      /**
+       * ⚠️ `FormData` + fetch — `api()` нь JSON-д зориулсан тул
+       * файл илгээхэд Content-Type-ыг гараар тавихгүй байх ёстой
+       * (browser нь boundary-тай хамт өөрөө тавина).
+       */
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/bank/${order.paymentId}/receipt`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${getAccessToken() ?? ''}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b?.message ?? 'Хуулж чадсангүй');
+      }
+      const data = (await res.json()) as { url: string };
+      setReceiptUrl(data.url);
+      toast.success('Баримт хавсаргалаа');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Зураг хуулж чадсангүй');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const claim = async () => {
     if (!order) return;
+    /* ⚠️ Баримт заавал бол ЭНД зогсооно — сервер рүү дэмий очихгүй */
+    if (info.requireReceipt && !receiptUrl) {
+      toast.error('Төлбөрийн баримтын зургаа хавсаргана уу');
+      return;
+    }
+
     setClaiming(true);
     try {
-      await api(`/bank/${order.paymentId}/claim`, { method: 'POST' });
+      await api(`/bank/${order.paymentId}/claim`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
       toast.success('Хүлээн авлаа! Баталгаажмагц эрх нээгдэнэ.');
       setOrder({ ...order, claimed: true });
       onClaimed?.();
@@ -216,14 +288,14 @@ export function BankTransferModal({
             </div>
             <p className="mt-3.5 font-semibold text-foreground">Хүлээн авлаа</p>
             <p className="mt-1.5 text-sm leading-relaxed text-foreground/55">
-              Шилжүүлгийг шалгаад эрхийг тань нээнэ. Баталгаажмагц имэйл болон
-              профайл хуудсанд харагдана.
+              Шилжүүлгийг шалгаад эрхийг тань нээнэ. Баталгаажмагц мэдэгдэл ирж, профайл
+              хуудсанд харагдана.
             </p>
             <div className="mt-4 rounded-xl bg-foreground/5 px-4 py-3 text-left">
-              <p className="text-[11px] uppercase tracking-wide text-foreground/40">
+              <p className="text-[10px] uppercase tracking-wide text-foreground/40">
                 Гүйлгээний утга
               </p>
-              <p className="font-mono text-base font-bold text-foreground/90">
+              <p className="font-mono text-lg font-bold tabular-nums text-foreground/90">
                 {order.reference}
               </p>
             </div>
@@ -242,34 +314,163 @@ export function BankTransferModal({
               руу шилжсэний дараа буцаж ирээд хайх нь бухимдал.
             */}
             <div className="mt-5 rounded-xl border-2 border-primary/40 bg-primary/8 p-3.5">
-              <CopyField label="Гүйлгээний утга" value={order.reference} big />
+              <CopyRow label="Гүйлгээний утга" value={order.reference} mono emphasis />
               <p className="mt-2 text-[11px] font-semibold leading-relaxed text-primary">
-                Энэ кодыг ЗААВАЛ гүйлгээний утгад бичнэ үү. Үгүй бол төлбөр тань
+                Энэ 6 оронтой тоог ЗААВАЛ гүйлгээний утгад бичнэ үү. Үгүй бол төлбөр тань
                 танигдахгүй.
               </p>
             </div>
 
+            {/*
+              ⚠️ ОЛОН ДАНС — хэрэглэгч ӨӨРИЙН банкийг сонговол
+              шимтгэлгүй, шуурхай шилжинэ. Нэг данс байвал сонголт
+              харуулахгүй (дэмий алхам).
+            */}
+            {info.accounts.length > 1 && (
+              <div className="mt-3">
+                <p className="mb-1.5 text-[11px] font-semibold text-foreground/50">
+                  Өөрийн банкаа сонговол шимтгэлгүй шилжинэ
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {info.accounts.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => void switchAccount(a.id)}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                        a.id === account.id
+                          ? 'border-primary bg-primary/12 text-foreground'
+                          : 'border-foreground/12 text-foreground/55 hover:border-foreground/30',
+                      )}
+                    >
+                      {/* ⚠️ Лого нь текстээс хурдан танигдана */}
+                      {a.logoUrl && (
+                        <Image
+                          src={a.logoUrl}
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="size-4 rounded object-contain"
+                        />
+                      )}
+                      {a.bankName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-3 space-y-3 rounded-xl bg-foreground/5 p-3.5">
-              <CopyField label="Дансны дугаар" value={settings.accountNumber ?? ''} big />
-              <div className="h-px bg-foreground/8" />
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-foreground/40">Банк</p>
-                <p className="text-sm font-semibold text-foreground/90">{settings.bankName}</p>
+              <div className="flex items-center gap-2.5">
+                {account.logoUrl ? (
+                  <Image
+                    src={account.logoUrl}
+                    alt={account.bankName}
+                    width={32}
+                    height={32}
+                    className="size-8 shrink-0 rounded-lg bg-white/90 object-contain p-0.5"
+                  />
+                ) : (
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground/50">
+                    <Building2 size={15} />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {account.bankName}
+                  </p>
+                  <p className="truncate text-[11px] text-foreground/45">
+                    {account.accountName}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-foreground/40">
-                  Хүлээн авагч
-                </p>
-                <p className="text-sm font-semibold text-foreground/90">
-                  {settings.accountName}
-                </p>
-              </div>
+
               <div className="h-px bg-foreground/8" />
-              <CopyField label="Дүн" value={String(order.amount)} big />
+              <CopyRow label="Дансны дугаар" value={account.accountNumber} mono emphasis />
+
+              {/*
+                ⚠️ IBAN нь ТУСДАА мөр — өмнө нь дансны дугаартай нэг
+                мөрөнд нийлж «MN16000500 5020959308» гэж харагдаж,
+                хэрэглэгч алийг нь хуулахаа мэдэхгүй байв.
+              */}
+              {account.iban && (
+                <>
+                  <div className="h-px bg-foreground/8" />
+                  <CopyRow label="IBAN (заавал биш)" value={account.iban} mono />
+                </>
+              )}
+
+              <div className="h-px bg-foreground/8" />
+              <CopyRow label="Шилжүүлэх дүн" value={String(order.amount)} mono emphasis />
             </div>
 
-            {settings.note && (
-              <p className="mt-3 text-xs leading-relaxed text-foreground/45">{settings.note}</p>
+            {/* ─── Төлбөрийн баримт ─── */}
+            <div className="mt-3 rounded-xl border border-dashed border-foreground/20 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-foreground/80">
+                    Төлбөрийн баримт
+                    {info.requireReceipt ? (
+                      <span className="ml-1 text-primary">*</span>
+                    ) : (
+                      <span className="ml-1 text-foreground/35">(заавал биш)</span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-foreground/45">
+                    Банкны аппын зургаа хавсаргавал хурдан баталгаажна
+                  </p>
+                </div>
+                {!receiptUrl && (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-foreground/8 px-3 py-2 text-xs font-semibold text-foreground/75 transition-colors hover:bg-foreground/15 disabled:opacity-50"
+                  >
+                    {uploading ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <ImagePlus size={13} />
+                    )}
+                    Зураг сонгох
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void pickReceipt(f);
+                  e.target.value = '';
+                }}
+              />
+
+              {/* ⚠️ PREVIEW — хэрэглэгч зөв зураг оруулсан эсэхээ харна */}
+              {receiptUrl && (
+                <div className="relative mt-2.5 overflow-hidden rounded-lg border border-foreground/10">
+                  <Image
+                    src={receiptUrl}
+                    alt="Төлбөрийн баримт"
+                    width={400}
+                    height={260}
+                    className="max-h-40 w-full object-contain bg-black/20"
+                  />
+                  <button
+                    onClick={() => setReceiptUrl(null)}
+                    aria-label="Зураг хасах"
+                    className="absolute right-1.5 top-1.5 rounded-lg bg-black/70 p-1.5 text-white/80 transition-colors hover:bg-destructive hover:text-white"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {info.note && (
+              <p className="mt-3 text-xs leading-relaxed text-foreground/45">{info.note}</p>
             )}
 
             <div className="mt-4 rounded-xl bg-foreground/5 px-4 py-3 text-center">
@@ -281,7 +482,7 @@ export function BankTransferModal({
 
             <button
               onClick={() => void claim()}
-              disabled={claiming}
+              disabled={claiming || uploading}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-60"
             >
               {claiming ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} />}

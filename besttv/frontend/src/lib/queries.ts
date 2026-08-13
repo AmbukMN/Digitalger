@@ -644,18 +644,72 @@ export function usePromotionBanners() {
 
 // ─── ДАНСААР ТӨЛӨХ ───────────────────────────────────────────────────────────
 
-export interface BankSettings {
-  enabled: boolean;
-  bankName?: string;
-  accountNumber?: string;
-  accountName?: string;
-  note?: string;
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  logoUrl: string | null;
+  accountNumber: string;
+  /** ⚠️ IBAN нь дансны дугаараас ТУСДАА — зарим банк IBAN шаарддаг */
+  iban: string | null;
+  accountName: string;
 }
 
-export function useBankSettings() {
+export interface BankInfo {
+  enabled: boolean;
+  note: string;
+  /** Төлбөрийн баримт (screenshot) заавал эсэх */
+  requireReceipt: boolean;
+  accounts: BankAccount[];
+}
+
+export function useBankAccounts() {
   return useQuery({
-    queryKey: ['bank', 'settings'],
-    queryFn: () => api<BankSettings>('/bank/settings', { auth: false }),
+    queryKey: ['bank', 'accounts'],
+    queryFn: () => api<BankInfo>('/bank/accounts', { auth: false }),
     staleTime: 5 * 60_000,
+  });
+}
+
+// ─── МЭДЭГДЭЛ ────────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'PAYMENT_APPROVED'
+  | 'PAYMENT_REJECTED'
+  | 'PLAN_ACTIVATED'
+  | 'PLAN_EXPIRING'
+  | 'WALLET_TOPUP'
+  | 'PROMOTION_APPLIED'
+  | 'INFO';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export function useNotifications(enabled = true) {
+  return useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api<{ items: AppNotification[]; unread: number }>('/notifications'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * ⚠️ Зөвхөн ТОО — хонхны улаан цэгт. Бүтэн жагсаалт татвал
+ * хэрэггүй өгөгдөл 60 секунд тутам дамжина.
+ */
+export function useUnreadCount(enabled = true) {
+  return useQuery({
+    queryKey: ['notifications', 'unread'],
+    queryFn: () => api<{ unread: number }>('/notifications/unread-count'),
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }

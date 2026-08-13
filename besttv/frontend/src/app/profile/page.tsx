@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  Building2,
   ArrowDownLeft,
   ArrowUpRight,
   Camera,
@@ -29,6 +30,8 @@ import { cn, formatPrice, formatRentLeft as rentLeft } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useMyPayments, useMyRentals, useWalletTransactions, type WalletTx } from '@/lib/queries';
+import { useBankAccounts } from '@/lib/queries';
+import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
 import { EmailVerifyCard } from '@/components/email-verify-card';
 import { DeviceSessionsCard } from '@/components/device-sessions-card';
@@ -70,9 +73,24 @@ export default function ProfilePage() {
    * хэрэглэгч Профайл табан дээр буугаад ХААНААС цэнэглэхээ олдоггүй байв.
    */
   const initialTab = (useSearchParams().get('tab') ?? 'profile') as Tab;
-  const [tab, setTab] = useState<Tab>(
+  const [tab, setTabState] = useState<Tab>(
     ['profile', 'wallet', 'orders'].includes(initialTab) ? initialTab : 'profile',
   );
+
+  /**
+   * ⚠️ Таб солиход URL ч шинэчилнэ.
+   *
+   * Ингэснээр: (1) хэрэглэгч тухайн табын холбоосыг хуваалцаж болно,
+   * (2) browser-ийн БУЦАХ товч табын хооронд ажиллана, (3) хуудас
+   * дахин ачаалахад ижил таб үлдэнэ.
+   *
+   * ⚠️ `replace` (push БИШ) — таб солих бүрд түүх бөглөвөл буцах
+   * товч 10 удаа дарж байж сайтаас гардаг болно.
+   */
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    window.history.replaceState(null, '', t === 'profile' ? '/profile' : `/profile?tab=${t}`);
+  };
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -91,6 +109,9 @@ export default function ProfilePage() {
   const [savingPassword, setSavingPassword] = useState(false);
 
   const [topupAmount, setTopupAmount] = useState('');
+  /* ⚠️ Дансаар цэнэглэх — QPay-гүй хэрэглэгчдэд */
+  const { data: bank } = useBankAccounts();
+  const [bankTopup, setBankTopup] = useState<number | null>(null);
   const [topupLoading, setTopupLoading] = useState(false);
   const [topupQr, setTopupQr] = useState<QPayInvoice | null>(null);
 
@@ -633,6 +654,29 @@ export default function ProfilePage() {
                 </button>
               </div>
 
+              {/*
+                ⚠️⚠️ ДАНСААР ЦЭНЭГЛЭХ — QPay-гүй хэрэглэгчдэд.
+                Дансаар төлөх боломж асаалттай атал ХЭТЭВЧИНД байхгүй
+                байсан нь дутуу байв: хэрэглэгч багцыг дансаар авч
+                чадаж байхад хэтэвчээ цэнэглэж чадахгүй.
+              */}
+              {bank?.enabled && (
+                <button
+                  onClick={() => {
+                    const n = Number(topupAmount);
+                    if (!Number.isFinite(n) || n < 1000) {
+                      toast.error('Дүнг оруулна уу (хамгийн бага 1,000₮)');
+                      return;
+                    }
+                    setBankTopup(Math.floor(n));
+                  }}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-foreground/12 py-2 text-xs font-semibold text-foreground/55 transition-colors hover:border-foreground/25 hover:text-foreground/85"
+                >
+                  <Building2 size={13} />
+                  Дансаар цэнэглэх
+                </button>
+              )}
+
               {/* QPay төлбөр — QR + мобайл дээр банкны аппын deeplink товчнууд */}
               {topupQr && (
                 <QPayCheckout
@@ -761,6 +805,18 @@ export default function ProfilePage() {
               <p className="mt-3 text-sm text-foreground/40">Захиалга хийгдээгүй байна</p>
             )}
           </div>
+        )}
+
+        {/* ⚠️ Дансаар цэнэглэх модал — QPay-тэй зэрэг нээгдэхгүй */}
+        {bankTopup && bank?.enabled && (
+          <BankTransferModal
+            open
+            info={bank}
+            topupAmount={bankTopup}
+            label={`Хэтэвч цэнэглэх — ${bankTopup.toLocaleString()}₮`}
+            onClose={() => setBankTopup(null)}
+            onClaimed={() => void refreshWallet()}
+          />
         )}
 
         <button

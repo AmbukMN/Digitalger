@@ -464,10 +464,64 @@ export interface AdminUserDetail extends AdminUser {
     description: string | null;
     createdAt: string;
   }[];
+  /** ⚠️ Мэдэгдэл — хэрэглэгчид ЮУ харагдсаныг админ мэдэх ёстой */
+  notifications: {
+    id: string;
+    type: string;
+    title: string;
+    body: string;
+    readAt: string | null;
+    createdAt: string;
+  }[];
+  /** ⚠️ Нэвтэрсэн төхөөрөмж — «яагаад гарчихав» гомдолд хариулна */
+  sessions: {
+    id: string;
+    deviceName: string | null;
+    ip: string | null;
+    lastUsedAt: string;
+    createdAt: string;
+  }[];
+  /** Ашигласан урамшуулал */
+  promotionRedemptions: {
+    id: string;
+    valueGiven: number;
+    daysGiven: number;
+    createdAt: string;
+    promotion: { name: string; type: string } | null;
+  }[];
+  /**
+   * ⚠️⚠️ АУДИТ ЛОГ — нэвтрэлт, нууц үг солих, эрх өөрчлөх, админы
+   * гар үйлдэл. DB-д бүртгэгддэг атлаа админд ОГТ харагддаггүй байв.
+   */
+  auditLog: {
+    id: string;
+    field: string;
+    oldValue: string | null;
+    newValue: string | null;
+    actor: string;
+    ip: string | null;
+    createdAt: string;
+  }[];
+  /** Дансаар төлсөн түүх (гараар баталгаажуулсан) */
+  bankPayments: {
+    id: string;
+    amount: number;
+    status: string;
+    bankReference: string | null;
+    bankClaimedAt: string | null;
+    bankReviewedAt: string | null;
+    bankRejectReason: string | null;
+    createdAt: string;
+  }[];
+  /** Хайсан үгс — юуг хайж олоогүйг мэдвэл контент нэмнэ */
+  recentSearches: { query: string; results: number; createdAt: string }[];
   /** Идэвхийн хураангуй */
   activity: {
     viewCount: number;
     searchCount: number;
+    playCount: number;
+    /** ₮ — нийт зарцуулсан (цэнэглэлт хасна) */
+    totalSpent: number;
     lastSeen: { createdAt: string; path: string; device: string | null } | null;
   };
 }
@@ -771,10 +825,31 @@ export function useAdminPromotions() {
 
 export interface BankSettings {
   enabled: boolean;
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
   note: string;
+  /** Төлбөрийн баримт (screenshot) заавал эсэх */
+  requireReceipt: boolean;
+}
+
+export interface AdminBankAccount {
+  id: string;
+  bankName: string;
+  logoKey: string | null;
+  logoUrl: string | null;
+  accountNumber: string;
+  iban: string | null;
+  accountName: string;
+  isActive: boolean;
+  order: number;
+  _count: { payments: number };
+}
+
+export function useAdminBankAccounts() {
+  return useQuery({
+    queryKey: ['admin-bank-accounts'],
+    queryFn: () => api<AdminBankAccount[]>('/admin/bank/accounts'),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export interface AdminBankPayment {
@@ -786,11 +861,15 @@ export interface AdminBankPayment {
   bankClaimedAt: string | null;
   bankReviewedAt: string | null;
   bankRejectReason: string | null;
+  /** ⚠️ Төлбөрийн баримт — админ зургийг ШУУД харна (татахгүй) */
+  bankReceiptKey: string | null;
+  receiptUrl: string | null;
   couponCode: string | null;
   createdAt: string;
   isWalletTopup: boolean;
   plan: { id: string; name: string } | null;
   user: { id: string; name: string | null; email: string } | null;
+  bankAccount: { id: string; bankName: string } | null;
 }
 
 export function useAdminBankSettings() {

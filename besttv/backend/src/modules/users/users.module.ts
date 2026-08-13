@@ -303,6 +303,49 @@ export class UsersService {
           take: 20,
           select: { id: true, amount: true, type: true, description: true, createdAt: true },
         },
+        /**
+         * ⚠️ МЭДЭГДЭЛ — хэрэглэгчид ЮУ ХАРАГДСАНЫГ админ мэдэх ёстой.
+         * «Би мэдэгдэл аваагүй» гэсэн гомдлыг шууд шалгана.
+         */
+        notifications: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            type: true,
+            title: true,
+            body: true,
+            readAt: true,
+            createdAt: true,
+          },
+        },
+        /**
+         * ⚠️ НЭВТЭРСЭН ТӨХӨӨРӨМЖ — «яагаад гарчихав» гэсэн гомдолд
+         * хариулна (2 төхөөрөмжийн хязгаар).
+         */
+        sessions: {
+          orderBy: { lastUsedAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            deviceName: true,
+            ip: true,
+            lastUsedAt: true,
+            createdAt: true,
+          },
+        },
+        /** ⚠️ Ашигласан урамшуулал — «яагаад хямд авав» гэдгийг тайлбарлана */
+        promotionRedemptions: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          select: {
+            id: true,
+            valueGiven: true,
+            daysGiven: true,
+            createdAt: true,
+            promotion: { select: { name: true, type: true } },
+          },
+        },
       },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
@@ -311,7 +354,16 @@ export class UsersService {
      * ⚠️ ИДЭВХИЙН ХУРААНГУЙ — тусад нь тоолно (relation-д `take` тавьсан
      * тул `_count` нь буруу гарна). Хэрэглэгч хэр идэвхтэйг нэг харцаар.
      */
-    const [viewCount, searchCount, lastSeen] = await Promise.all([
+    const [
+      viewCount,
+      searchCount,
+      lastSeen,
+      auditLog,
+      bankPayments,
+      playCount,
+      totalSpent,
+      recentSearches,
+    ] = await Promise.all([
       this.prisma.pageView.count({ where: { userId: id } }),
       this.prisma.searchEvent.count({ where: { userId: id } }),
       this.prisma.pageView.findFirst({
@@ -319,9 +371,70 @@ export class UsersService {
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true, path: true, device: true },
       }),
+      /**
+       * ⚠️⚠️ АУДИТ ЛОГ — хамгийн чухал tracking. Нэвтрэлт, нууц үг
+       * солих, эрх өөрчлөх, админы гар үйлдэл БҮГД энд бүртгэгддэг
+       * атлаа админ панелд ОГТ харагддаггүй байв.
+       */
+      this.prisma.userAuditLog.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 40,
+        select: {
+          id: true,
+          field: true,
+          oldValue: true,
+          newValue: true,
+          actor: true,
+          ip: true,
+          createdAt: true,
+        },
+      }),
+      /** ⚠️ Дансны төлбөр — гараар баталгаажуулсан түүх */
+      this.prisma.payment.findMany({
+        where: { userId: id, bankReference: { not: null } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          bankReference: true,
+          bankClaimedAt: true,
+          bankReviewedAt: true,
+          bankRejectReason: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.titleEvent.count({ where: { userId: id, type: 'play' } }),
+      /* ⚠️ НИЙТ ЗАРЦУУЛСАН — хэрэглэгчийн үнэ цэнийг харуулна
+         (хэн VIP хэрэглэгч болохыг мэдэх) */
+      this.prisma.payment.aggregate({
+        where: { userId: id, status: 'PAID', isWalletTopup: false },
+        _sum: { amount: true },
+      }),
+      /* ⚠️ Хайсан үгс — юуг хайсан ч олоогүйг мэдвэл контент нэмнэ */
+      this.prisma.searchEvent.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+        select: { query: true, results: true, createdAt: true },
+      }),
     ]);
 
-    return { ...user, activity: { viewCount, searchCount, lastSeen } };
+    return {
+      ...user,
+      auditLog,
+      bankPayments,
+      recentSearches,
+      activity: {
+        viewCount,
+        searchCount,
+        playCount,
+        totalSpent: totalSpent._sum.amount ?? 0,
+        lastSeen,
+      },
+    };
   }
 
   /**
