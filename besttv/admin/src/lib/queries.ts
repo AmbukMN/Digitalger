@@ -719,3 +719,94 @@ export function useAdminBrand() {
     staleTime: 0,
   });
 }
+
+// ─── УРАМШУУЛАЛ ──────────────────────────────────────────────────────────────
+
+export type PromotionType = 'EXTRA_DAYS' | 'DISCOUNT' | 'GIFT_PLAN' | 'WALLET_BONUS';
+
+export interface AdminPromotion {
+  id: string;
+  name: string;
+  shortText: string;
+  description: string;
+  type: PromotionType;
+  bonusDays: number | null;
+  discountType: 'PERCENT' | 'FIXED' | null;
+  discountValue: number | null;
+  giftPlanId: string | null;
+  giftPlan: { id: string; name: string } | null;
+  giftDays: number | null;
+  minTopup: number | null;
+  bonusAmount: number | null;
+  plans: { planId: string }[];
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+  maxUses: number | null;
+  usedCount: number;
+  maxPerUser: number;
+  newUsersOnly: boolean;
+  blockCoupons: boolean;
+  bannerKey: string | null;
+  bannerMobileKey: string | null;
+  order: number;
+  createdAt: string;
+  _count: { redemptions: number };
+}
+
+export function useAdminPromotions() {
+  return useQuery({
+    queryKey: ['admin-promotions'],
+    queryFn: () => api<AdminPromotion[]>('/admin/promotions'),
+    /* ⚠️ Урамшуулал нь хугацаанаас хамаардаг тул шинэ мэдээлэл чухал */
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
+// ─── ДАНСААР ТӨЛӨХ ───────────────────────────────────────────────────────────
+
+export interface BankSettings {
+  enabled: boolean;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  note: string;
+}
+
+export interface AdminBankPayment {
+  id: string;
+  amount: number;
+  originalAmount: number | null;
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+  bankReference: string | null;
+  bankClaimedAt: string | null;
+  bankReviewedAt: string | null;
+  bankRejectReason: string | null;
+  couponCode: string | null;
+  createdAt: string;
+  isWalletTopup: boolean;
+  plan: { id: string; name: string } | null;
+  user: { id: string; name: string | null; email: string } | null;
+}
+
+export function useAdminBankSettings() {
+  return useQuery({
+    queryKey: ['admin-bank-settings'],
+    queryFn: () => api<BankSettings>('/admin/bank/settings'),
+  });
+}
+
+/**
+ * ⚠️ `staleTime: 0` + focus refetch — хэрэглэгч мөнгө шилжүүлээд
+ * хүлээж байна. Хуучирсан жагсаалт харуулах нь хүлээлт уртасгана.
+ */
+export function useAdminBankPayments(status?: string) {
+  return useQuery({
+    queryKey: ['admin-bank-payments', status ?? 'all'],
+    queryFn: () =>
+      api<AdminBankPayment[]>(`/admin/bank/payments${status ? `?status=${status}` : ''}`),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}

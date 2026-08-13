@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
+import {
+  Gift,
+  Building2, Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
@@ -47,6 +49,10 @@ const NAV_GROUPS = [
     items: [
       { href: '/plans', label: 'Багц', icon: Wallet },
       { href: '/coupons', label: 'Купон', icon: Ticket },
+      /* ⚠️ Урамшуулал нь купоноос ТУСДАА — купон нь код бичдэг,
+         урамшуулал нь автоматаар үйлчилдэг маркетингийн хэрэгсэл */
+      { href: '/promotions', label: 'Урамшуулал', icon: Gift },
+      { href: '/bank', label: 'Дансны төлбөр', icon: Building2 },
       { href: '/users', label: 'Хэрэглэгчид', icon: Users, section: 'users' },
       { href: '/payments', label: 'Төлбөр', icon: CreditCard, section: 'payments' },
     ],

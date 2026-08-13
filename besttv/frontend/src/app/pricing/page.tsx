@@ -4,10 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Check, Crown, Loader2, Sparkles, Tag, Wallet } from 'lucide-react';
+import {
+  Building2,
+  Gift, Check, Crown, Loader2, Sparkles, Tag, Wallet } from 'lucide-react';
 import { formatPrice, cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { usePlans, useValidateCoupon } from '@/lib/queries';
+import { usePlanPromotions, useBankSettings, type AppliedPromotion } from '@/lib/queries';
+import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
 import { useAuth } from '@/lib/auth-store';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -22,6 +26,12 @@ type PayMethod = 'wallet' | 'qpay';
 
 export default function PricingPage() {
   const { data: plans, isLoading, isError, refetch } = usePlans();
+  /* ⚠️ Урамшуулал — planId → тохирсон урамшуулал. Backend нь ХАМГИЙН
+     АШИГТАЙГ сонгож өгнө, frontend дахин боддоггүй (зөрөхөөс сэргийлнэ). */
+  const { data: promos } = usePlanPromotions();
+  const { data: bank } = useBankSettings();
+  /* Дансаар төлөх модал — аль багцад нээснийг санана */
+  const [bankPlan, setBankPlan] = useState<{ id: string; name: string } | null>(null);
   const { user, refreshMe } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
@@ -298,7 +308,21 @@ export default function PricingPage() {
           ))}
 
         {plans?.map((plan, i) => {
-          const finalPrice = priceAfterCoupon(plan.price);
+          /**
+           * ⚠️⚠️ УРАМШУУЛАЛ → КУПОН (backend-тэй ЯГ ИЖИЛ дараалал).
+           *
+           * Backend нь `initiate` дээр ижилхэн бодно. Энд өөр
+           * дараалал бичвэл хэрэглэгч харсан үнэ болон бодит төлбөр
+           * ЗӨРНӨ — итгэл алдах шууд шалтгаан.
+           */
+          const promo: AppliedPromotion | undefined = promos?.[plan.id];
+          const promoPrice = promo?.finalPrice ?? plan.price;
+          /* ⚠️ `blockCoupons` — зарим урамшуулалд купон хориотой */
+          const finalPrice = promo?.blockCoupons
+            ? promoPrice
+            : priceAfterCoupon(promoPrice);
+          /* Зураастай харуулах хуучин үнэ — урамшуулал ЭСВЭЛ купон байвал */
+          const showStrike = finalPrice < plan.price;
           const owned = ownedPlanIds.has(plan.id);
           // VIP идэвхтэй үед энгийн багц илүүдэл (VIP өөрөө биш)
           const supersededByVip = hasVip && !plan.isVip;
@@ -351,12 +375,31 @@ export default function PricingPage() {
                 supersededByVip && 'opacity-55',
                 plan.isVip
                   ? 'border-premium/60 bg-linear-to-b from-premium/10 to-transparent shadow-xl shadow-premium/10'
-                  : 'border-foreground/10 bg-foreground/3 hover:border-foreground/20',
+                  : /* ⚠️ УРАМШУУЛАЛТАЙ багц ЯЛГАРНА — маркетингийн гол
+                       зорилго нь анхаарал татах. VIP нь өөрийн загвартай
+                       тул дарж бичихгүй (VIP+урамшуулал бол VIP ялгарна). */
+                    promo
+                    ? 'border-premium/45 bg-linear-to-b from-premium/6 to-transparent hover:border-premium/70'
+                    : 'border-foreground/10 bg-foreground/3 hover:border-foreground/20',
               )}
             >
               {plan.isVip && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
                   Хамгийн ашигтай
+                </span>
+              )}
+
+              {/*
+                ⚠️⚠️ УРАМШУУЛЛЫН ТУУЗ — ЗҮҮН ДЭЭД булан.
+                Баруун дээд нь «Идэвхтэй»/«VIP-д багтсан» badge-тэй,
+                дээд гол нь VIP-ийн туузтай тул зүүн л сул.
+                ⚠️ VIP картад харуулахгүй — тэнд аль хэдийн 2 шошго бий,
+                гурав дахь нь замбараагүй болгоно (шошго нь картын
+                агуулгыг дарах ёсгүй).
+              */}
+              {promo && !plan.isVip && (
+                <span className="absolute -top-2.5 left-3 z-10 whitespace-nowrap rounded-md bg-premium-solid px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-premium-foreground shadow-md sm:text-[11px]">
+                  {promo.name}
                 </span>
               )}
               {owned ? (
@@ -394,7 +437,7 @@ export default function PricingPage() {
                 утсан дээр 1.5 багц л дэлгэцэнд багтдаг байв.
               */}
               <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:mt-3">
-                {appliedCoupon ? (
+                {showStrike ? (
                   <>
                     <p className="text-xl font-black text-foreground sm:text-3xl">{formatPrice(finalPrice)}</p>
                     <p className="text-sm text-foreground/35 line-through">{formatPrice(plan.price)}</p>
@@ -404,8 +447,40 @@ export default function PricingPage() {
                 )}
                 {/* ⚠️ "≈ 330₮ / өдөр" ХАСАВ — үндсэн үнээс анхаарал
                     сарниулж, картыг дүүргэдэг байв (админы шийдвэр) */}
-                <span className="text-xs text-foreground/40">/ {plan.durationDays} хоног</span>
+                {/* ⚠️ Бонус хоног байвал НИЙТ хугацааг харуулна — «60 хоног»
+                    гэж хараад «30-ыг төлж 60 авна» гэдэг нь шууд ойлгогдоно */}
+                {promo?.bonusDays ? (
+                  <span className="text-xs font-semibold text-premium">
+                    / {promo.totalDays} хоног
+                    <span className="ml-1 text-foreground/35 line-through">
+                      {plan.durationDays}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-foreground/40">/ {plan.durationDays} хоног</span>
+                )}
               </div>
+
+              {/*
+                ⚠️⚠️ УРАМШУУЛЛЫН ТАЙЛБАР — үнийн ЯГ ДООР.
+                Хэрэглэгч үнэ хараад «яагаад хямд вэ» гэж эргэлзэх
+                мөчид л энэ хариултыг өгнө. Доор нь тавибал уншихгүй.
+              */}
+              {promo?.shortText && (
+                <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-dashed border-premium/40 bg-premium/8 px-2.5 py-1.5 sm:mt-3">
+                  <Gift size={13} className="mt-0.5 shrink-0 text-premium" />
+                  <p className="text-[11px] font-semibold leading-snug text-premium sm:text-xs">
+                    {promo.shortText}
+                  </p>
+                </div>
+              )}
+
+              {/* ⚠️ Бэлэг багц — «нэмж юу авахыг» тодорхой хэлнэ */}
+              {promo?.giftPlanName && (
+                <p className="mt-1.5 text-[11px] text-premium/85">
+                  + «{promo.giftPlanName}» багц дагалдана
+                </p>
+              )}
 
               {/* Нээгдэх контент */}
               <div className="mt-2.5 rounded-lg bg-black/20 p-2 sm:mt-4 sm:p-2.5">
@@ -508,6 +583,25 @@ export default function PricingPage() {
                   */}
                   {owned ? 'QPay-ээр сунгах' : 'QPay-ээр төлөх'}
                 </button>
+
+                {/*
+                  ⚠️ ДАНСААР ШИЛЖҮҮЛЭХ — ЗӨВХӨН админ асаасан үед.
+                  Унтраалттай үед backend нь дансны дугаарыг ч
+                  буцаадаггүй тул товч харуулах утгагүй.
+
+                  ⚠️ ЖИЖИГ, гуравдугаар зэрэглэлийн товч — QPay нь
+                  автоматаар баталгаажих тул ҮНДСЭН зам байх ёстой.
+                  Дансаар нь гараар шалгадаг (удаан) тул нөөц сонголт.
+                */}
+                {bank?.enabled && !supersededByVip && (
+                  <button
+                    onClick={() => setBankPlan({ id: plan.id, name: plan.name })}
+                    className="flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg py-1 text-[10px] font-medium text-foreground/45 transition-colors hover:text-foreground/75 sm:text-[11px]"
+                  >
+                    <Building2 size={11} />
+                    Дансаар шилжүүлэх
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -555,6 +649,26 @@ export default function PricingPage() {
             }, 1600);
           }}
           onClose={() => setPayment(null)}
+        />
+      )}
+
+      {/*
+        ⚠️ ДАНСААР ШИЛЖҮҮЛЭХ МОДАЛ — QPay-тэй зэрэг нээгдэхгүй
+        (хоёулаа `absolute` тул давхарлавал будлиан үүснэ). Хэрэглэгч
+        нэг замыг сонгоно.
+
+        ⚠️ `couponCode` дамжуулна — модал дотор backend нь ижил үнэ
+        бодох ёстой (хэрэглэгч купонтой үнийг харчихсан).
+      */}
+      {bankPlan && bank?.enabled && (
+        <BankTransferModal
+          open
+          settings={bank}
+          planId={bankPlan.id}
+          couponCode={appliedCoupon?.code}
+          label={bankPlan.name}
+          onClose={() => setBankPlan(null)}
+          onClaimed={() => void refreshAll()}
         />
       )}
 

@@ -586,3 +586,76 @@ export function useBrand() {
     gcTime: 30 * 60_000,
   });
 }
+
+// ─── УРАМШУУЛАЛ ──────────────────────────────────────────────────────────────
+
+export type PromotionType = 'EXTRA_DAYS' | 'DISCOUNT' | 'GIFT_PLAN' | 'WALLET_BONUS';
+
+export interface AppliedPromotion {
+  id: string;
+  name: string;
+  shortText: string;
+  type: PromotionType;
+  /** Эцсийн үнэ (урамшуулал тусгасан) */
+  finalPrice: number;
+  /** Хямдралгүй үнэ — зураастай харуулна */
+  originalPrice: number;
+  /** Нийт хоног (үндсэн + бонус) */
+  totalDays: number;
+  bonusDays: number;
+  giftPlanName: string | null;
+  blockCoupons: boolean;
+  endsAt: string;
+}
+
+export interface PromotionBanner {
+  id: string;
+  name: string;
+  shortText: string;
+  imageUrl: string | null;
+  mobileImageUrl: string | null;
+  endsAt: string;
+}
+
+/**
+ * Багц бүрд тохирох урамшуулал (planId → урамшуулал).
+ *
+ * ⚠️ `auth: true` (default) — нэвтэрсэн хэрэглэгчид `newUsersOnly`
+ * болон `maxPerUser` шалгагдана. Зочинд ч ажиллана (OptionalJwtGuard).
+ *
+ * ⚠️ `staleTime` БОГИНО — урамшуулал хугацаа дуусахад хуучин үнэ
+ * харуулбал хэрэглэгч гомдоно.
+ */
+export function usePlanPromotions() {
+  return useQuery({
+    queryKey: ['promotions', 'for-plans'],
+    queryFn: () => api<Record<string, AppliedPromotion>>('/promotions/for-plans'),
+    staleTime: 60_000,
+  });
+}
+
+export function usePromotionBanners() {
+  return useQuery({
+    queryKey: ['promotions', 'banners'],
+    queryFn: () => api<PromotionBanner[]>('/promotions/banners', { auth: false }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+// ─── ДАНСААР ТӨЛӨХ ───────────────────────────────────────────────────────────
+
+export interface BankSettings {
+  enabled: boolean;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  note?: string;
+}
+
+export function useBankSettings() {
+  return useQuery({
+    queryKey: ['bank', 'settings'],
+    queryFn: () => api<BankSettings>('/bank/settings', { auth: false }),
+    staleTime: 5 * 60_000,
+  });
+}

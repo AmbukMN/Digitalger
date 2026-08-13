@@ -4,10 +4,11 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
-import { useHome, useHomeBanners } from '@/lib/queries';
+import { useHome, useHomeBanners, usePromotionBanners } from '@/lib/queries';
 import { HeroBanner } from '@/components/hero-banner';
 import { TitleRow } from '@/components/title-row';
 import { HomeBannerStrip } from '@/components/home-banner-strip';
+import { PromotionBannerStrip } from '@/components/promotion-banner';
 import { HomeSkeleton } from '@/components/home-skeleton';
 
 export default function HomePage() {
@@ -17,6 +18,9 @@ export default function HomePage() {
    * харагдана (`?? []`). Сурталчилгааны төлөө контентыг хүлээлгэхгүй.
    */
   const { data: banners = [] } = useHomeBanners();
+  /* ⚠️ Урамшууллын баннер — админы гараар оруулсан баннераас ТУСДАА
+     (энэ нь урамшуулалтай холбоотой, үлдсэн хугацааг тоолно) */
+  const { data: promoBanners = [] } = usePromotionBanners();
 
   if (isLoading) return <HomeSkeleton />;
 
@@ -104,6 +108,19 @@ export default function HomePage() {
             />
             {bannersByPosition.get(i + 1)?.map((b) => (
               <HomeBannerStrip key={b.id} banner={b} />
+            ))}
+
+            {/*
+              ⚠️⚠️ УРАМШУУЛЛЫН БАННЕР — 2 дахь эгнээний ДАРАА.
+              Хамгийн дээр тавибал hero-той өрсөлдөж, доор тавибал
+              ихэнх хэрэглэгч хүрэхгүй. Хоёр эгнээ гүйлгэсэн хүн нь
+              «үзэх юм хайж байгаа» — багц санал болгох хамгийн зөв мөч.
+
+              ⚠️ Хугацаа дууссаныг компонент нь өөрөө нуудаг тул энд
+              шүүх шаардлагагүй.
+            */}
+            {i === 1 && promoBanners.map((pb) => (
+              <PromotionBannerStrip key={pb.id} promo={pb} />
             ))}
           </Fragment>
         ))}
