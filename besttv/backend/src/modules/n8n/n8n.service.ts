@@ -93,7 +93,28 @@ export class N8nService {
     if (this.base) {
       this.logger.log(`n8n мэдэгдэл идэвхтэй → ${this.base}`);
     } else {
-      this.logger.warn('N8N_WEBHOOK_URL тохируулаагүй — Telegram мэдэгдэл ИДЭВХГҮЙ');
+      /**
+       * ⚠️⚠️ ХЭД ХЭДЭН МӨРӨӨР ТОД АНХААРУУЛНА.
+       *
+       * Нэг мөрийн `warn` нь эхлэлтийн 200+ мөрийн дунд алга болдог
+       * тул production дээр Telegram мэдэгдэл ЧИМЭЭГҮЙ унтарсныг
+       * хэн ч анзаараагүй байв (өдрийн тайлан ирэхгүй байж байж
+       * хэрэглэгч асуусан).
+       *
+       * ⚠️ Хамгийн түгээмэл шалтгаан: `.env`-д бичсэн ч compose нь
+       * `.env.production`-ыг уншдаг.
+       */
+      this.logger.warn('═'.repeat(64));
+      this.logger.warn('⚠️  N8N_WEBHOOK_URL ТОХИРУУЛААГҮЙ');
+      this.logger.warn('⚠️  Telegram мэдэгдэл ОГТ ажиллахгүй:');
+      this.logger.warn('⚠️    • Төлбөр орлох');
+      this.logger.warn('⚠️    • Дансаар шилжүүлсэн (АДМИН ШАЛГАХ ёстой!)');
+      this.logger.warn('⚠️    • Өдрийн тайлан (23:00)');
+      this.logger.warn('⚠️    • Хөрвүүлэлт унасан / системийн анхааруулга');
+      this.logger.warn('⚠️  Засах: backend/.env.production-д нэмнэ');
+      this.logger.warn('⚠️    N8N_WEBHOOK_URL=http://digitalger-n8n:5678');
+      this.logger.warn('⚠️  (compose нь `.env` БИШ `.env.production` уншдаг)');
+      this.logger.warn('═'.repeat(64));
     }
   }
 

@@ -50,6 +50,9 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: besttv-backend
     restart: unless-stopped
+    # ⚠️⚠️ ЭНЭ ФАЙЛААС УНШИНА (`.env` БИШ). Шинэ хувьсагч нэмэхдээ
+    #    ЗААВАЛ `.env.production`-д бич — `.env`-д бичвэл container-д
+    #    ХҮРЭХГҮЙ (Telegram мэдэгдэл чимээгүй унтарсан бодит алдаа).
     env_file:
       - ../backend/.env.production
     depends_on:
@@ -72,6 +75,9 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: besttv-worker
     restart: unless-stopped
+    # ⚠️⚠️ ЭНЭ ФАЙЛААС УНШИНА (`.env` БИШ). Шинэ хувьсагч нэмэхдээ
+    #    ЗААВАЛ `.env.production`-д бич — `.env`-д бичвэл container-д
+    #    ХҮРЭХГҮЙ (Telegram мэдэгдэл чимээгүй унтарсан бодит алдаа).
     env_file:
       - ../backend/.env.production
     command: ['node', 'dist/src/worker.js']
