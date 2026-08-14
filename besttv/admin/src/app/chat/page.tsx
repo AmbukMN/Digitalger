@@ -9,6 +9,7 @@ import {
   Headphones,
   Loader2,
   MessagesSquare,
+  Paperclip,
   Search,
   Send,
   Sparkles,
@@ -134,8 +135,13 @@ interface ConvDetail extends ConvListItem {
       year?: number;
       rating?: number;
     }[] | null;
+    /** FB/IG-ээс ирсэн баримтын зураг (R2-д хадгалагдсан) */
+    attachmentUrl?: string;
+    attachmentType?: string;
     createdAt: string;
   }[];
+  /** Хэрэглэгчийн идэвхтэй багцууд — «төлбөртэй юу?» гэдгийг мэдэх */
+  subscriptions?: { expiresAt: string; plan: { name: string; isVip: boolean } | null }[];
 }
 
 function timeAgo(iso: string): string {
@@ -535,6 +541,38 @@ export default function ChatPage() {
                       </span>
                     )}
                   </p>
+                  {/*
+                    ⚠️⚠️ БАГЦЫН ТӨЛӨВ — «энэ хүн төлбөртэй юу?» гэдгийг
+                    мэдэхгүй бол дансаар шилжүүлсэн гомдол шийдэх
+                    БОЛОМЖГҮЙ. Админ өөр таб руу орж хайх шаардлагагүй.
+
+                    ⚠️ Зөвхөн бүртгэлтэй (userId бий) хэрэглэгчид. FB-ээс
+                    шууд бичсэн зочин сайтад бүртгэлгүй байж болно.
+                  */}
+                  {detail.user &&
+                    (detail.subscriptions?.length ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {detail.subscriptions.map((s, i) => (
+                          <span
+                            key={i}
+                            title={`${new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл`}
+                            className={cn(
+                              'rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none',
+                              s.plan?.isVip
+                                ? 'bg-premium/15 text-premium'
+                                : 'bg-success/15 text-success',
+                            )}
+                          >
+                            {s.plan?.isVip ? '👑 ' : '✓ '}
+                            {s.plan?.name ?? 'Багц'}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="mt-1 inline-block rounded bg-foreground/8 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-muted-foreground">
+                        Багцгүй
+                      </span>
+                    ))}
                 </div>
                 <button
                   onClick={toggleHandoff}
@@ -594,6 +632,36 @@ export default function ChatPage() {
                         >
                           {m.text}
                         </div>
+                        {/*
+                          ⚠️⚠️ БАРИМТЫН ЗУРАГ — дансаар шилжүүлсэн баримт.
+                          Meta-гийн CDN линк хэдэн цагт үхдэг тул backend
+                          R2 руу хуулж мөнхжүүлсэн. Админ ЭНД харж
+                          баталгаажуулна — Meta Inbox руу орох шаардлагагүй.
+                        */}
+                        {m.attachmentUrl && (
+                          <a
+                            href={m.attachmentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Томоор харах"
+                            className="mt-1.5 block w-fit overflow-hidden rounded-lg border border-border transition-colors hover:border-primary/50"
+                          >
+                            {m.attachmentType === 'image' ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={m.attachmentUrl}
+                                alt="Хавсралт"
+                                loading="lazy"
+                                className="max-h-56 max-w-60 object-contain"
+                              />
+                            ) : (
+                              <span className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-foreground">
+                                <Paperclip size={13} />
+                                {m.attachmentType === 'video' ? 'Бичлэг' : 'Файл'} — нээх
+                              </span>
+                            )}
+                          </a>
+                        )}
                         {/*
                           ⚠️⚠️ КИНОНЫ КАРТ — хэрэглэгч Messenger дээр ЯГ
                           ингэж (постертой карт) харсан. Өмнө нь энд зөвхөн

@@ -1107,6 +1107,13 @@ model ChatMessage {
   text           String           @db.Text
   /// Санал болгосон кино/цуврал: [{id,title,slug,posterUrl,url,year,rating}]
   titles         Json?
+  /// FB/IG-ээс ирсэн хавсралтын R2 key (баримтын зураг, файл).
+  /// ⚠️ Meta-гийн CDN URL нь ХУГАЦААТАЙ тул R2 руу ХУУЛНА — эс бөгөөс
+  /// дансаар төлсөн баримт хэдэн өдрийн дараа алга болж, маргаан
+  /// гарахад нотлох баримтгүй үлдэнэ.
+  attachmentKey  String?
+  /// image | file | video
+  attachmentType String?
   createdAt      DateTime         @default(now())
 
   @@index([conversationId, createdAt])

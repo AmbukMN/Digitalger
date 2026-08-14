@@ -107,6 +107,9 @@ export class ChatController {
       titles?: ChatTitleCard[];
       userName?: string;
       userImage?: string;
+      /** FB/IG хавсралтын түр URL — backend R2 руу хуулна */
+      attachmentUrl?: string;
+      attachmentType?: string;
     },
   ) {
     const sessionId = (body.sessionId ?? '').trim();
@@ -121,6 +124,9 @@ export class ChatController {
         text: body.userText,
         userName: body.userName,
         userImage: body.userImage,
+        /* ⚠️ Зөвхөн ХЭРЭГЛЭГЧИЙН мессежид — AI хавсралт илгээдэггүй */
+        attachmentUrl: body.attachmentUrl,
+        attachmentType: body.attachmentType,
       });
     }
     if (body.assistantText?.trim()) {

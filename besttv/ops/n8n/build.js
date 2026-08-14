@@ -210,7 +210,13 @@ for (const entry of (body.entry || [])) {
         if (!kind && (ty === 'image' || ty === 'file' || ty === 'video')) kind = ty;
       }
       if (isSticker || !kind) continue;
-      out.push({ json: { psid, text: '__ATTACHMENT__', attKind: kind, isPostback: false, platform } });
+      /* ⚠️ URL-ыг ДАМЖУУЛНА — backend R2 руу хуулж мөнхжүүлнэ.
+         Meta-гийн CDN линк хэдэн цагийн дараа 403 болно. */
+      var attUrl = '';
+      for (var au = 0; au < atts.length; au++) {
+        if (atts[au].payload && atts[au].payload.url) { attUrl = atts[au].payload.url; break; }
+      }
+      out.push({ json: { psid, text: '__ATTACHMENT__', attKind: kind, attUrl: attUrl, isPostback: false, platform } });
     }
   }
 }
@@ -257,10 +263,11 @@ const nameLine = firstName ? ('Хэрэглэгчийн нэр: ' + firstName) :
 // хариу зохионо). Оронд нь тодорхой заавар өгнө. Build Messages нь
 // энэ directReply-г AI-аас ДЭЭГҮҮР ашиглана.
 const attKind = $('Parse').first().json.attKind || '';
+const attUrl = $('Parse').first().json.attUrl || '';
 if (userText === '__ATTACHMENT__') {
   const what = attKind === 'video' ? 'Бичлэг' : (attKind === 'file' ? 'Файл' : 'Зураг');
   return [{ json: { psid, userText: '(' + what.toLowerCase() + ' илгээв)', firstName, profilePic,
-    platform, isGetStarted: false,
+    platform, isGetStarted: false, attKind, attUrl,
     directReply: what + ' хүлээж авлаа 📩' + NL + NL +
       'Хэрэв дансаар шилжүүлсэн баримт бол манай ажилтан ажлын өдрийн ' +
       '10:00–18:00 цагт шалгаж баталгаажуулна.' + NL + NL +
@@ -708,6 +715,10 @@ const _ingest = {
   /* ⚠️ Профайл зураг — админ хэнтэй ярьж байгаагаа НҮҮРЭЭР нь таана.
      FB URL хугацаатай тул мессеж бүрд дахин илгээж шинэчилнэ. */
   userImage: String(_prep2.profilePic || '').trim(),
+  /* ⚠️ Баримтын зураг — backend R2 руу хуулж мөнхжүүлнэ. Meta-гийн
+     CDN линк хэдхэн цагт үхдэг тул маргаанд нотлох баримт үлдэхгүй. */
+  attachmentUrl: String(_prep2.attUrl || '').trim(),
+  attachmentType: String(_prep2.attKind || '').trim(),
   assistantText: String(replyText || '').trim(),
   titles: titles.slice(0,10).map(function(t){ return { id:t.id, title:t.title, slug:t.slug,
     posterUrl:t.posterUrl||'', url:'${SITE}/movie/'+t.slug, year:t.year, rating:t.rating }; }),

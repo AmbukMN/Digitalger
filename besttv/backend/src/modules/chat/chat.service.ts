@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 /* ⚠️ N8nService нь @Global тул module-д импортлох шаардлагагүй */
 import { N8nService } from '../n8n/n8n.service';
+/* ⚠️ StorageModule нь @Global тул module-д импортлох шаардлагагүй */
+import { StorageService } from '../../storage/storage.service';
 
 /**
  * ⚠️⚠️ `facebook`/`instagram` ЗААВАЛ — n8n чатбот эдгээр сувгаас
@@ -46,7 +49,14 @@ export interface SaveMessageInput {
   userImage?: string;
   userId?: string;
   titles?: ChatTitleCard[];
+  /** FB/IG хавсралтын ТҮР URL — R2 руу хуулж key болгоно */
+  attachmentUrl?: string;
+  /** image | file | video */
+  attachmentType?: string;
 }
+
+/** Хавсралтын дээд хэмжээ — 10MB (баримтын зураг үүнээс хэтрэхгүй) */
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 /**
  * Чатын лог — n8n AI туслахтай хийсэн яриаг хадгалж, админд харуулна.
@@ -63,6 +73,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly n8n: N8nService,
+    private readonly storage: StorageService,
   ) {}
 
   /** userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ */
@@ -139,12 +150,16 @@ export class ChatService {
         select: { id: true },
       });
 
+      /* ⚠️ Хавсралтыг R2 руу хуулна — Meta-гийн URL хугацаатай */
+      const att = await this.saveAttachment(input.attachmentUrl, input.attachmentType);
+
       const message = await this.prisma.chatMessage.create({
         data: {
           conversationId: conversation.id,
           role,
           text,
           ...(input.titles?.length ? { titles: input.titles as object } : {}),
+          ...(att ? { attachmentKey: att.key, attachmentType: att.type } : {}),
         },
       });
 
@@ -152,6 +167,60 @@ export class ChatService {
     } catch (err) {
       this.logger.warn(`Чат хадгалахад алдаа: ${(err as Error).message}`);
       return { ok: true, skipped: true };
+    }
+  }
+
+  /**
+   * FB/IG хавсралтыг R2 руу хуулна.
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: Meta-гийн CDN URL (`lookaside.fbsbx.com`)
+   * нь signed бөгөөс хэдэн цаг/өдрийн дараа 403 болно. Дансаар
+   * шилжүүлсэн БАРИМТЫН ЗУРАГ алга болвол маргаан гарахад нотлох
+   * баримтгүй үлдэнэ — мөнгөний асуудал тул энэ нь ноцтой.
+   *
+   * ⚠️ Алдаа ХЭЗЭЭ Ч шидэхгүй — зураг алдагдсан ч чат хадгалагдана.
+   */
+  private async saveAttachment(
+    url?: string,
+    type?: string,
+  ): Promise<{ key: string; type: string } | null> {
+    if (!url || !/^https?:\/\//i.test(url)) return null;
+    const kind = type === 'video' || type === 'file' ? type : 'image';
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) {
+        this.logger.warn(`Хавсралт татаж чадсангүй (${res.status})`);
+        return null;
+      }
+      /* ⚠️ Хэмжээ шалгана — том файл санах ойг дүүргэнэ */
+      const len = Number(res.headers.get('content-length') ?? 0);
+      if (len > MAX_ATTACHMENT_BYTES) {
+        this.logger.warn(`Хавсралт хэт том (${Math.round(len / 1024 / 1024)}MB) — алгаслаа`);
+        return null;
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.byteLength > MAX_ATTACHMENT_BYTES) return null;
+
+      const ct = res.headers.get('content-type') ?? 'application/octet-stream';
+      /* Өргөтгөлийг content-type-аас — Meta URL-д өргөтгөл байдаггүй */
+      const ext = ct.includes('png')
+        ? 'png'
+        : ct.includes('webp')
+          ? 'webp'
+          : ct.includes('gif')
+            ? 'gif'
+            : ct.includes('pdf')
+              ? 'pdf'
+              : ct.includes('mp4')
+                ? 'mp4'
+                : 'jpg';
+      const key = `images/chat/${Date.now()}-${randomBytes(4).toString('hex')}.${ext}`;
+      await this.storage.upload(key, buf, ct);
+      this.logger.log(`Чатын хавсралт хадгалав: ${key} (${Math.round(buf.byteLength / 1024)}KB)`);
+      return { key, type: kind };
+    } catch (e) {
+      this.logger.warn(`Хавсралт хадгалахад алдаа: ${(e as Error).message}`);
+      return null;
     }
   }
 
@@ -337,7 +406,10 @@ export class ChatService {
         messages: {
           orderBy: { createdAt: 'asc' },
           take: 200,
-          select: { id: true, role: true, text: true, titles: true, createdAt: true },
+          select: {
+            id: true, role: true, text: true, titles: true, createdAt: true,
+            attachmentKey: true, attachmentType: true,
+          },
         },
       },
     });
@@ -348,7 +420,38 @@ export class ChatService {
         .update({ where: { id }, data: { adminUnread: false } })
         .catch(() => null);
     }
-    return conv;
+
+    /**
+     * ⚠️ Хавсралтын R2 key → үзэх боломжтой URL.
+     *
+     * Админ баримтын зургийг ЭНД харах ёстой — Meta Inbox руу орох
+     * шаардлагагүй. Дансаар төлсөн эсэхийг шалгах гол ажил.
+     */
+    const messages = await Promise.all(
+      conv.messages.map(async (m) => ({
+        ...m,
+        attachmentUrl: m.attachmentKey
+          ? await this.storage.publicAssetUrl(m.attachmentKey).catch(() => '')
+          : undefined,
+      })),
+    );
+
+    /**
+     * ⚠️ Хэрэглэгчийн БАГЦ — «энэ хүн төлбөртэй юу?» гэдгийг админ
+     * мэдэхгүй бол дансаар төлсөн гомдол шийдэх боломжгүй.
+     */
+    const subs = conv.userId
+      ? await this.prisma.subscription
+          .findMany({
+            where: { userId: conv.userId, expiresAt: { gt: new Date() } },
+            select: { expiresAt: true, plan: { select: { name: true, isVip: true } } },
+            orderBy: { expiresAt: 'desc' },
+            take: 5,
+          })
+          .catch(() => [])
+      : [];
+
+    return { ...conv, messages, subscriptions: subs };
   }
 
   /** Админ гар аргаар хариулах */
@@ -411,22 +514,49 @@ export class ChatService {
       );
       return false;
     }
+    /* Нэг илгээлт — tag-тай эсвэл tag-гүй */
+    const post = (tag?: string) =>
+      fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${token}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          recipient: { id: psid },
+          message: { text: text.slice(0, 1900) },
+          ...(tag
+            ? { messaging_type: 'MESSAGE_TAG', tag }
+            : { messaging_type: 'RESPONSE' }),
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
     try {
-      const res = await fetch(
-        `https://graph.facebook.com/v21.0/me/messages?access_token=${token}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            recipient: { id: psid },
-            message: { text: text.slice(0, 1900) },
-            /* ⚠️ Хүний оператор гэдгийг Meta-д мэдэгдэнэ — 24 цагийн
-               дүрмийн хувьд RESPONSE-оос уян хатан */
-            messaging_type: 'RESPONSE',
-          }),
-          signal: AbortSignal.timeout(10_000),
-        },
-      );
+      let res = await post();
+
+      /**
+       * ⚠️⚠️ 24 ЦАГИЙН ЦОНХ ХААГДСАН БОЛ `HUMAN_AGENT` TAG-ААР ДАХИН.
+       *
+       * Meta-гийн дүрмээр хэрэглэгч сүүлд бичсэнээс хойш 24 цаг
+       * өнгөрвөл энгийн мессеж илгээхийг хориглоно (#10 / 2018278).
+       *
+       * ⚠️ BestTV-д энэ нь БОДИТ асуудал: хэрэглэгч амралтын өдөр
+       * дансаар төлж баримт илгээдэг, админ даваа гарагт шалгадаг —
+       * тэр үед 24 цаг аль хэдийн өнгөрсөн байна. Хариу явахгүй бол
+       * мөнгө төлсөн хүн хариу хүлээсээр үлдэнэ.
+       *
+       * `HUMAN_AGENT` tag нь хүний оператор хариулж байгааг Meta-д
+       * мэдэгдэж, цонхыг **7 хоног** болгож сунгана.
+       *
+       * ⚠️ Эхлээд `RESPONSE` оролдоно — tag-ийг зөвхөн ШААРДЛАГАТАЙ
+       * үед хэрэглэнэ (Meta хэт олон tag ашиглалтыг шалгадаг).
+       */
+      if (!res.ok) {
+        const peek = await res.clone().text().catch(() => '');
+        if (peek.includes('2018278') || peek.includes('outside of allowed window')) {
+          this.logger.log('24 цагийн цонх хаагдсан — HUMAN_AGENT tag-аар дахин илгээж байна');
+          res = await post('HUMAN_AGENT');
+        }
+      }
+
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         this.logger.error(`Messenger илгээлт амжилтгүй (${res.status}): ${body.slice(0, 300)}`);
