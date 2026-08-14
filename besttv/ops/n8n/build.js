@@ -968,7 +968,10 @@ var dmText = (linkType==='none')
   ? ('Сайн байна уу! 👋'+NL+NL+'Монгол кино, цувралыг BestTV дээр үзээрэй: ${SITE}'+NL+NL+'Асуулт байвал эндээ бичээрэй 😊')
   : ('Сайн байна уу! 👋'+NL+NL+'Таны сонирхсон киног энд үзээрэй:'+NL+NL+link+NL+NL+'Асуулт байвал эндээ бичээрэй 😊');
 
-var replyText='Танд чатаар мэдээлэл илгээлээ 📩 Дэлгэрэнгүй: '+link;
+// ⚠️ Сэтгэгдэл нь НИЙТЭД харагдана — киноны шууд линк тавихгүй, нүүр рүү
+// урина (Facebook гадагш линктэй сэтгэгдлийн хүрээг багасгадаг).
+// Тухайн киноны линк нь ХУВИЙН DM-д аль хэдийн явсан.
+var replyText='Таньд чатаар мэдээлэл илгээлээ. Илүү дэлгэрэнгүй болон шууд үзэх бол ${SITE}/';
 return [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,
   privCommentId:c.commentId,dmText:dmText,link:link,linkType:linkType,slug:slug}}];`,
   },
