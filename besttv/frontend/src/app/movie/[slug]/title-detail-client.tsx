@@ -443,7 +443,25 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     >
                       <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded bg-foreground/10">
                         {ep.posterUrl && (
-                          <Image src={ep.posterUrl} alt={`${ep.number}-р анги`} fill sizes="112px" className="object-cover" />
+                          <Image
+                            src={ep.posterUrl}
+                            alt={`${ep.number}-р анги`}
+                            fill
+                            sizes="112px"
+                            className={cn('object-cover', epLocked && 'brightness-50')}
+                          />
+                        )}
+                        {/*
+                          ⚠️⚠️ ТҮГЖЭЭНИЙ ТЭМДЭГ — эрхгүй хэрэглэгч аль анги
+                          нээлттэй, аль нь хаалттайг НЭГ ХАРЦААР мэдэх ёстой.
+                          Өмнө нь зөвхөн «Үнэгүй үзэх» гэсэн жижиг текст
+                          байсан тул түгжээтэй ангиуд ялгарахгүй, хэрэглэгч
+                          дарж үзээд л /pricing руу шидэгдэнэ.
+                        */}
+                        {epLocked && (
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+                            <Lock size={18} className="text-white drop-shadow" />
+                          </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -453,8 +471,17 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                         {ep.description && (
                           <p className="mt-0.5 line-clamp-1 text-xs text-foreground/50">{ep.description}</p>
                         )}
-                        {ep.isFreePreview && <span className="text-xs text-success">Үнэгүй үзэх</span>}
                       </div>
+                      {/*
+                        ⚠️ «ҮНЭГҮЙ» шошго БАРУУН талд, ТОДООР — өмнө нь
+                        тайлбарын доор жижиг саарал текст байсан тул анзаарагдахгүй.
+                        Зөвхөн эрхгүй хэрэглэгчид утгатай (эрхтэй бол бүгд нээлттэй).
+                      */}
+                      {ep.isFreePreview && locked && (
+                        <span className="shrink-0 rounded bg-success/15 px-2 py-1 text-xs font-bold text-success">
+                          ҮНЭГҮЙ
+                        </span>
+                      )}
                       {!ep.playable && <span className="shrink-0 text-xs text-foreground/40">Удахгүй</span>}
                     </Link>
                   );

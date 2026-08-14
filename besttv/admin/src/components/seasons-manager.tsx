@@ -100,6 +100,25 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
     }
   };
 
+  /**
+   * Ангийг үнэгүй/төлбөртэй болгох.
+   *
+   * ⚠️ Оптимист шинэчлэлт ХИЙХГҮЙ — `onChange()` сервэрээс дахин татна.
+   * Эс бөгөөс алдаа гарахад UI зөрж, админ «болсон» гэж бодно.
+   */
+  const toggleFree = async (episodeId: string, value: boolean) => {
+    try {
+      await api(`/admin/titles/episodes/${episodeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isFreePreview: value }),
+      });
+      onChange();
+      toast.success(value ? 'Анги үнэгүй боллоо' : 'Анги төлбөртэй боллоо');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
+  };
+
   const removeSeason = async () => {
     const ok = await confirm({
       title: `${season.name ?? `${season.number}-р улирал`}-ыг устгах уу?`,
@@ -178,7 +197,31 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
               </button>
 
               {expanded === ep.id && (
-                <div className="mt-3">
+                <div className="mt-3 space-y-3">
+                  {/*
+                    ⚠️⚠️ ҮНЭГҮЙ ҮЗЭХ — цувралын эхний ангийг үнэгүй
+                    болгож хэрэглэгчийг татах маркетингийн хэрэгсэл.
+                    Backend (`isFreePreview`) болон frontend бэлэн байсан
+                    атлаа АДМИН ПАНЕЛД тохируулах газар БАЙХГҮЙ байв —
+                    DB-д гараар засахаас өөр арга байгаагүй.
+                  */}
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40">
+                    <input
+                      type="checkbox"
+                      checked={ep.isFreePreview}
+                      onChange={(e) => void toggleFree(ep.id, e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-success"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">
+                        Үнэгүй үзэх
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Багц аваагүй, нэвтрээгүй хэрэглэгч ч энэ ангийг үзнэ
+                      </span>
+                    </span>
+                  </label>
+
                   <VideoUpload
                     target="episode"
                     targetId={ep.id}

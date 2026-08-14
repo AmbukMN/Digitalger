@@ -183,7 +183,20 @@ export function WatchClient({ slug }: { slug: string }) {
    * endpoint дээр эрх шалгадаг ч, хэрэглэгчид ОЙЛГОМЖТОЙ мессеж, дараагийн
    * алхам (нэвтрэх / түрээслэх / багц авах) харуулах ёстой.
    */
-  const locked = data.isPremium && !data.hasAccess;
+  /**
+   * ⚠️⚠️ ҮНЭГҮЙ АНГИ — `isFreePreview` шалгалт ЭНД БАЙГААГҮЙ.
+   *
+   * Дэлгэрэнгүй хуудсанд («Үнэгүй» шошготой) нээлттэй харагдаж,
+   * дарахад ЭНЭ хуудас түгжээ харуулдаг байв — backend нь тэр ангийг
+   * зөвшөөрдөг атлаа UI хаадаг. Цувралын эхний ангийг үнэгүй болгож
+   * хэрэглэгч татах бүхэл маркетингийн санаа ажиллахгүй байсан.
+   *
+   * ⚠️ `episodeId` байхгүй (кино) бол хуучин логик хэвээр.
+   */
+  const currentEpisode = episodeId
+    ? flatEpisodes.find((e) => e.id === episodeId)
+    : undefined;
+  const locked = data.isPremium && !data.hasAccess && !currentEpisode?.isFreePreview;
   if (locked) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-5 bg-black px-4 text-center">
