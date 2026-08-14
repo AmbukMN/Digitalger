@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronRight, Lock, Ticket } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
@@ -14,6 +14,32 @@ import { loginUrl } from '@/lib/auth-intent';
 import { api } from '@/lib/api';
 import { trackTitle } from '@/lib/track';
 import { VideoPlayer } from '@/components/video-player';
+
+/**
+ * Бүтэн дэлгэцийн төлөв бүрд БУЦАХ зам.
+ *
+ * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: `/watch` нь navbar-гүй бүтэн дэлгэц.
+ * Түгжээ / алдаа / «видео бэлэн биш» гурван төлөвт хэрэглэгч ГАЦНА —
+ * ялангуяа хуваалцсан холбоосоор шууд орсон хүнд гарах зам огт
+ * байхгүй (бодит гомдол).
+ *
+ * ⚠️ `router.back()` нь түүхгүй үед (шинэ таб, гадны холбоос) юу ч
+ * хийхгүй тул нүүр рүү унана.
+ */
+function BackLink() {
+  const router = useRouter();
+  return (
+    <button
+      onClick={() => {
+        if (window.history.length > 1) router.back();
+        else router.push('/');
+      }}
+      className="mt-1 flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white/80"
+    >
+      <ArrowLeft size={15} /> Буцах
+    </button>
+  );
+}
 
 export function WatchClient({ slug }: { slug: string }) {
   const search = useSearchParams();
@@ -165,12 +191,13 @@ export function WatchClient({ slug }: { slug: string }) {
 
   if (isError || !data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-black px-4">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-2 bg-black px-4">
         <ErrorState
           title="Видео ачаалж чадсангүй"
           message="Дахин оролдоно уу, эсвэл контент байхгүй болсон байж болзошгүй."
           onRetry={() => refetch()}
         />
+        <BackLink />
       </main>
     );
   }
@@ -227,6 +254,19 @@ export function WatchClient({ slug }: { slug: string }) {
             <Ticket size={16} /> Түрээслэх / Багц авах
           </Link>
         </div>
+
+        {/*
+          ⚠️⚠️ БУЦАХ ЗАМ — өмнө нь ОГТ БАЙГААГҮЙ.
+
+          Хэрэглэгч түгжээтэй ангийн линкээр шууд орвол (жишээ нь
+          хуваалцсан холбоос) энэ дэлгэц дээр ГАЦНА — «Түрээслэх /
+          Багц авах» нь худалдан авалт руу урьж байгаа мэт харагддаг
+          тул зүгээр л гарах гэсэн хүн замгүй үлдэнэ (бодит гомдол).
+
+          ⚠️ `router.back()` нь түүх байхгүй үед (шинэ таб, гадны
+          холбоос) юу ч хийхгүй тул `/` рүү унана.
+        */}
+        <BackLink />
       </main>
     );
   }
@@ -245,6 +285,7 @@ export function WatchClient({ slug }: { slug: string }) {
         >
           Дэлгэрэнгүй
         </Link>
+        <BackLink />
       </main>
     );
   }
