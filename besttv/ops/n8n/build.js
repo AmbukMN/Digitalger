@@ -80,6 +80,33 @@ add({
   webhookId: 'besttv-fb-message',
 });
 
+/* ─── Route: мессеж үү, сэтгэгдэл үү? ─── */
+add({
+  parameters: {
+    conditions: {
+      options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 },
+      conditions: [
+        {
+          id: 'is_message',
+          /* ⚠️ `messaging` байвал Messenger, `changes` байвал сэтгэгдэл.
+             Хоёулаа байх тохиолдол Meta-д БАЙХГҮЙ. */
+          leftValue: '={{ $json.body?.entry?.[0]?.messaging ? true : false }}',
+          rightValue: '',
+          operator: { type: 'boolean', operation: 'true', singleValue: true },
+        },
+      ],
+      combinator: 'and',
+    },
+    looseTypeValidation: true,
+    options: {},
+  },
+  id: 'btv_route',
+  name: 'Route',
+  type: 'n8n-nodes-base.if',
+  typeVersion: 2.2,
+  position: [-90, 320],
+});
+
 /* ─── Parse: FB/IG мессеж задлах, dedup, platform ялгах ─── */
 add({
   parameters: {
@@ -503,6 +530,21 @@ add({
   type: 'n8n-nodes-base.httpRequest',
   typeVersion: 4.2,
   position: [1340, 240],
+  /**
+   * ⚠️⚠️ ЭНЭ ТОХИРГООГҮЙ БОЛ ЧАТБОТ ЧИМЭЭГҮЙ ЗОГСОНО.
+   *
+   * `/titles/search` нь олдохгүй үед ХООСОН МАССИВ `[]` буцаана.
+   * n8n HTTP node массив хариуг ITEM болгон задалдаг тул `[]` →
+   * **0 item** → дараагийн node (`Build Messages`) ОГТ ЭХЛЭХГҮЙ,
+   * execution `running`-д мөнхөрч хэрэглэгч хариу авахгүй.
+   *
+   * ⚠️ Production тестээр батлагдсан: 50 мессежээс хайлт олдоогүй
+   * 20 нь бүрэн алга болж, зөвхөн 30 хариулагдсан (4 удаа давтав).
+   *
+   * `alwaysOutputData` нь хоосон үед НЭГ хоосон item гаргана —
+   * урсгал үргэлжилж, `Build Messages` «олдсонгүй» мессеж бэлдэнэ.
+   */
+  alwaysOutputData: true,
 });
 
 /* ─── Build Messages ─── */
@@ -949,7 +991,20 @@ const c = (from, outs) => ({ [from]: { main: outs.map((a) => a.map((n) => ({ nod
 const connections = Object.assign(
   {},
   c('FB Verify (GET)', [['Respond Challenge']]),
-  c('FB Message (POST)', [['Parse', 'Parse Comments']]),
+  /**
+   * ⚠️⚠️ ХОЁР САЛАА ЗЭРЭГ — n8n нь салаа бүрийг ДАРААЛУУЛЖ гүйцэтгэдэг.
+   *
+   * Ачаалалтай үед (50 хэрэглэгч зэрэг) мессежийн салаа сэтгэгдлийн
+   * салаатай холилдож, `Search Titles`-ийн дараа `Build Messages`
+   * руу орохын оронд `Parse Comments` руу үсэрч, execution гацдаг
+   * байв — production тестээр батлагдсан: 50-аас зөвхөн 30 хариулав.
+   *
+   * ⚠️ `Route` node нь webhook-ийн ЯГ дараа төрлийг ялгаж, ЗӨВХӨН
+   * НЭГ салаа руу явуулна. Ингэснээр салбарууд хоорондоо огт
+   * мөргөлдөхгүй.
+   */
+  c('FB Message (POST)', [['Route']]),
+  c('Route', [['Parse'], ['Parse Comments']]),
   c('Parse', [['Get User Profile']]),
   c('Get User Profile', [['Prep Context']]),
   c('Prep Context', [['Check Handoff']]),

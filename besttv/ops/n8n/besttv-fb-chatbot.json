@@ -51,6 +51,41 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is_message",
+              "leftValue": "={{ $json.body?.entry?.[0]?.messaging ? true : false }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "btv_route",
+      "name": "Route",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -90,
+        320
+      ]
+    },
+    {
+      "parameters": {
         "jsCode": "// BestTV — FB/IG webhook-оос мессеж/postback задлах.\n// FB:  body.object === 'page',       entry[].messaging[]\n// IG:  body.object === 'instagram',  entry[].messaging[]\nconst body = $input.first().json.body;\n\n// ⚠️ DEDUP — FB нэг мессежийг 2 удаа (retry) илгээдэг. mid-ийг санана.\nvar _sd = $getWorkflowStaticData('global');\n_sd.seenMids = _sd.seenMids || [];\nfunction _dup(mid){ if(!mid)return false; if(_sd.seenMids.indexOf(mid)!==-1)return true; _sd.seenMids.push(mid); if(_sd.seenMids.length>200)_sd.seenMids=_sd.seenMids.slice(-200); return false; }\n\n// ⚠️ Comment event (changes) Messenger salaa руу ОРОХГҮЙ\n{ const e0=(body&&body.entry&&body.entry[0])||{}; if(e0.changes && !e0.messaging) return []; }\nif (!body) return [];\n\nlet platform = '';\nif (body.object === 'page') platform = 'facebook';\nelse if (body.object === 'instagram') platform = 'instagram';\nelse return [];\n\n// Get Started / Ice Breaker payload → текст асуулт\nconst PAYLOAD_TO_TEXT = {\n  GET_STARTED: '__GET_STARTED__',\n  IB_MOVIES: 'шинэ кино',\n  IB_SERIES: 'цуврал',\n  IB_PRICING: 'багцын үнэ',\n  IB_HOWTO: 'яаж үзэх вэ',\n};\n\nconst out = [];\nfor (const entry of (body.entry || [])) {\n  for (const msg of (entry.messaging || [])) {\n    const psid = String(msg.sender && msg.sender.id || '');\n    if (!psid) continue;\n    // Өөрийн Page/IG-ээс ирсэн бол алгасна (давталтаас сэргийлнэ)\n    if (psid === '108103720808038' || psid === '17841442595556819') continue;\n\n    if (msg.postback && msg.postback.payload) {\n      const mapped = PAYLOAD_TO_TEXT[msg.postback.payload];\n      const text = mapped || String(msg.postback.title || msg.postback.payload).trim();\n      out.push({ json: { psid, text, isPostback: true, platform } });\n      continue;\n    }\n    if (msg.message && msg.message.mid && _dup(msg.message.mid)) continue;\n    if (msg.message && !msg.message.is_echo && msg.message.text) {\n      out.push({ json: { psid, text: String(msg.message.text).trim(), isPostback: false, platform } });\n      continue;\n    }\n\n    /**\n     * ⚠️⚠️ ЗУРАГ / ФАЙЛ / СТИКЕР — өмнө нь БҮРЭН ЧИМЭЭГҮЙ алгасагддаг байв.\n     *\n     * BestTV-д дансаар шилжүүлсэн БАРИМТЫН ЗУРАГ илгээх нь бодит\n     * хэрэглээ. Хариу огт өгөхгүй бол хэрэглэгч «бот үхсэн» гэж\n     * бодож орхино — мөнгө төлсөн хүн хариу хүлээхгүй байх нь ноцтой.\n     *\n     * ⚠️ Стикер/лайкийг ялгана — тэдэнд «баримт хүлээж авлаа» гэвэл\n     * утгагүй. Стикерт огт хариу өгөхгүй (спам болно).\n     */\n    if (msg.message && !msg.message.is_echo && !msg.message.text) {\n      var atts = msg.message.attachments || [];\n      var isSticker = false;\n      var kind = '';\n      for (var ai = 0; ai < atts.length; ai++) {\n        var ty = atts[ai].type || '';\n        if (ty === 'image' && atts[ai].payload && atts[ai].payload.sticker_id) isSticker = true;\n        if (!kind && (ty === 'image' || ty === 'file' || ty === 'video')) kind = ty;\n      }\n      if (isSticker || !kind) continue;\n      out.push({ json: { psid, text: '__ATTACHMENT__', attKind: kind, isPostback: false, platform } });\n    }\n  }\n}\nreturn out;"
       },
       "id": "btv_parse",
@@ -330,7 +365,8 @@
       "position": [
         1340,
         240
-      ]
+      ],
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -709,10 +745,23 @@
       "main": [
         [
           {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
             "node": "Parse",
             "type": "main",
             "index": 0
-          },
+          }
+        ],
+        [
           {
             "node": "Parse Comments",
             "type": "main",
