@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import DOMPurify from 'isomorphic-dompurify';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { notFound } from 'next/navigation';
-import { SITE_URL } from '@/lib/seo';
+import { SITE_URL, stripSiteName, getSiteSeo } from '@/lib/seo';
 
 interface PageData {
   slug: string;
@@ -10,6 +10,8 @@ interface PageData {
   content: string;
   metaTitle: string | null;
   metaDescription: string | null;
+  /** Админ оруулсан OG зураг — backend `ogImageKey`-ээс шийдсэн бүтэн URL */
+  ogImageUrl?: string | null;
 }
 
 async function getPage(slug: string): Promise<PageData | null> {
@@ -30,24 +32,45 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const page = await getPage(slug);
+  /* ⚠️ Зэрэг татна — SEO тохиргоо нь хуудсаас хамааралгүй */
+  const [page, seo] = await Promise.all([getPage(slug), getSiteSeo()]);
   if (!page) return {};
+  const siteName = seo?.siteName || 'BestTV';
 
   /**
    * ⚠️ DB-д metaTitle нь "... | BestTV" гэж хадгалагдсан бол root layout-ийн
    * template дахин нэмж ДАВХАРДАНА. Тиймээс төгсгөлийн сайтын нэрийг хасна.
+   *
+   * ⚠️ Өмнө нь энд ӨӨРИЙН regex (`/\s*\|\s*BestTV\s*$/`) байсан нь зөвхөн
+   * `|` барьдаг — «X — BestTV» хэлбэрийг АЛДАЖ давхардуулдаг байв. Одоо
+   * НЭГ ЭХ СУРВАЛЖ `stripSiteName` (админы сайтын нэрийг ч мэднэ).
    */
-  const raw = page.metaTitle || page.title;
-  const title = raw.replace(/\s*\|\s*BestTV\s*$/i, '');
-  const description = page.metaDescription || `${title} — BestTV.`;
+  const title = stripSiteName(page.metaTitle, siteName) || page.title;
+  const description = page.metaDescription || `${title} — ${siteName}.`;
   const url = `${SITE_URL}/p/${slug}`;
+  /* ⚠️ Хуудасны өөрийн OG зураг (`ogImageKey`) — backend буцаадаг байсан ч
+     ОГТ АШИГЛАГДААГҮЙ. Байхгүй бол сайтын админ зураг руу унана. */
+  const image = page.ogImageUrl || seo?.ogImageUrl || `${SITE_URL}/opengraph-image`;
 
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: 'article', locale: 'mn_MN' },
-    twitter: { card: 'summary_large_image', title, description },
+    openGraph: {
+      title,
+      description,
+      url,
+      type: 'article',
+      locale: 'mn_MN',
+      siteName,
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: (seo?.twitterCard as 'summary_large_image' | 'summary') || 'summary_large_image',
+      title,
+      description,
+      images: [image],
+    },
   };
 }
 

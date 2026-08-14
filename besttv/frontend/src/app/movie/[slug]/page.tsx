@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { TitleDetailClient } from './title-detail-client';
-import { SITE_URL, jsonLd, stripSiteName } from '@/lib/seo';
+import { SITE_URL, jsonLd, stripSiteName, getSiteSeo } from '@/lib/seo';
 import DetailSkeleton from './detail-skeleton';
 
 
@@ -33,8 +33,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const { data, notFound: missing } = await fetchTitle(slug);
+  /* ⚠️ Зэрэг татна — SEO тохиргоо нь киноноос хамааралгүй */
+  const [{ data, notFound: missing }, seo] = await Promise.all([fetchTitle(slug), getSiteSeo()]);
   const title = data as Record<string, any> | null;
+  const siteName = seo?.siteName || 'BestTV';
 
   /**
    * ⚠️⚠️ `generateMetadata` ДОТОР Ч `notFound()` — page component
@@ -59,14 +61,18 @@ export async function generateMetadata({
   /* ⚠️ `stripSiteName` — `metaTitle`-д «— BestTV» бий, root
      layout-ийн template нь «| BestTV» нэмнэ → ДАВХАРДАНА
      (131/131 кинод бодитоор харагдсан) */
-  const metaTitle = stripSiteName(title.metaTitle) || title.title;
+  const metaTitle = stripSiteName(title.metaTitle, siteName) || title.title;
   const metaDescription =
     title.metaDescription ||
     title.description?.slice(0, 160) ||
-    `${title.title} — BestTV дээр онлайнаар үзээрэй.`;
+    `${title.title} — ${siteName} дээр онлайнаар үзээрэй.`;
 
-  // OG зураг: backdrop → poster → сайтын анхдагч (хоосон гарахаас сэргийлнэ)
-  const ogImage = title.backdropUrl || title.posterUrl || `${SITE_URL}/opengraph-image`;
+  /* OG зураг эрэмбэ: киноны backdrop → постер → САЙТЫН админ og зураг →
+     кодын динамик зураг.
+     ⚠️ Өмнө нь админы `ogImageUrl`-ыг АЛГАСААД шууд кодын зураг руу
+        унадаг байв — админ тохируулсан зураг хэрэглэгддэггүй байсан. */
+  const ogImage =
+    title.backdropUrl || title.posterUrl || seo?.ogImageUrl || `${SITE_URL}/opengraph-image`;
   const url = `${SITE_URL}/movie/${slug}`;
 
   /**
@@ -92,7 +98,7 @@ export async function generateMetadata({
       title: metaTitle,
       description: metaDescription,
       url,
-      siteName: 'BestTV',
+      siteName,
       locale: 'mn_MN',
       images: ogImage ? [{ url: ogImage, width: 1600, height: 900, alt: title.title }] : undefined,
       // Цуврал бол video.tv_show — FB/Google зөв ангилна
@@ -100,7 +106,8 @@ export async function generateMetadata({
       ...(title.year ? { releaseDate: `${title.year}-01-01` } : {}),
     },
     twitter: {
-      card: 'summary_large_image',
+      /* ⚠️ Админы сонголтыг хүндэтгэнэ — өмнө нь ХАТУУ бичсэн байв */
+      card: (seo?.twitterCard as 'summary_large_image' | 'summary') || 'summary_large_image',
       title: metaTitle,
       description: metaDescription,
       images: ogImage ? [ogImage] : undefined,

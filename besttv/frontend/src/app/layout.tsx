@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
-import { SERVER_API_URL } from '@/lib/server-api';
 import { Manrope } from 'next/font/google';
 import Script from 'next/script';
 import { Providers } from './providers';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { ContentProtection } from '@/components/content-protection';
-import { SITE_URL, getSeoOverride, jsonLd } from '@/lib/seo';
+import { SITE_URL, getSeoOverride, getSiteSeo, jsonLd } from '@/lib/seo';
 import './globals.css';
 
 // Manrope — кирилл дэмжлэгтэй, орчин үеийн geometric font
@@ -15,34 +14,13 @@ const manrope = Manrope({
   display: 'swap',
 });
 
-interface SeoSettings {
-  siteName: string;
-  metaTitle: string;
-  metaDescription: string;
-  ogImageUrl: string | null;
-  twitterCard: string;
-  noindex: boolean;
-  googleAnalyticsId: string;
-  googleTagManagerId: string;
-  facebookPixelId: string;
-  siteVerification: string;
-}
-
-async function getSeo(): Promise<SeoSettings | null> {
-  try {
-    const api = SERVER_API_URL;
-    const res = await fetch(`${api}/api/seo`, { next: { revalidate: 300 } });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
-}
+/* ⚠️ `SeoSettings` интерфэйс болон татах функц нь `@/lib/seo`-д НҮҮСЭН —
+   өмнө нь энд хуулбар байсан тул бусад хуудас админы og зургийг ХАРААГҮЙ */
 
 export async function generateMetadata(): Promise<Metadata> {
-  const seo = await getSeo();
-  // ⚠️ Нүүр хуудсын админ override — root layout нь "/"-ийн metadata-г ч өгдөг
-  const home = await getSeoOverride('/');
+  /* ⚠️ Нүүр хуудсын админ override — root layout нь "/"-ийн metadata-г ч өгдөг.
+     Зэрэг татна — өмнө нь дараалуулж 2 дахин удаан байв. */
+  const [seo, home] = await Promise.all([getSiteSeo(), getSeoOverride('/')]);
 
   const homeTitle = home?.title || seo?.metaTitle || 'BestTV — Үз, мэдэр, дахин үз';
   const homeDesc =
@@ -80,7 +58,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const seo = await getSeo();
+  const seo = await getSiteSeo();
 
   return (
     /**
@@ -111,6 +89,34 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
               })(window,document,'script','dataLayer','${seo.googleTagManagerId}');`}
           </Script>
+        )}
+        {/*
+          ⚠️ БОДИТ АЛДАА: `facebookPixelId`-г админ панелиас тохируулж
+          хадгалдаг МӨРТЛӨӨ хуудсанд ОГТ рендерлэгддэггүй байв — админ
+          пиксел оруулсан ч Facebook сурталчилгааны хөрвөлт огт бүртгэгдэхгүй.
+        */}
+        {seo?.facebookPixelId && (
+          <>
+            <Script id="fb-pixel" strategy="afterInteractive">
+              {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+                t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window,document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init','${seo.facebookPixelId}');fbq('track','PageView');`}
+            </Script>
+            {/* JS унтраасан хөтчид зориулсан нөөц (Meta-гийн зөвлөмж) */}
+            <noscript>
+              <img
+                height="1"
+                width="1"
+                style={{ display: 'none' }}
+                alt=""
+                src={`https://www.facebook.com/tr?id=${seo.facebookPixelId}&ev=PageView&noscript=1`}
+              />
+            </noscript>
+          </>
         )}
         {/*
           Organization + WebSite structured data — Google-д сайтын нэр, лого,

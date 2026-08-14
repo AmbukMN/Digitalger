@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { BlogDetailClient } from './blog-detail-client';
-import { SITE_URL, stripSiteName } from '@/lib/seo';
+import { SITE_URL, stripSiteName, getSiteSeo } from '@/lib/seo';
 import DetailSkeleton from './detail-skeleton';
 
 interface BlogPost {
@@ -40,7 +40,9 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const { post, missing } = await fetchPost(slug);
+  /* ⚠️ Зэрэг татна — SEO тохиргоо нь нийтлэлээс хамааралгүй */
+  const [{ post, missing }, seo] = await Promise.all([fetchPost(slug), getSiteSeo()]);
+  const siteName = seo?.siteName || 'BestTV';
 
   /**
    * ⚠️⚠️ 404-ЫГ `generateMetadata`-Д БАРИНА — page component
@@ -66,10 +68,12 @@ export async function generateMetadata({
    */
   /* ⚠️ `stripSiteName` — өмнөх regex нь зөвхөн `|` барьдаг байсан,
      `—` (em dash) барихгүй тул давхардал үлддэг байв */
-  const title = stripSiteName(post.metaTitle) || stripSiteName(post.title) || '';
-  const description = post.metaDescription || post.excerpt || `${title} — BestTV блог.`;
+  const title = stripSiteName(post.metaTitle, siteName) || stripSiteName(post.title, siteName) || '';
+  const description = post.metaDescription || post.excerpt || `${title} — ${siteName} блог.`;
   const url = `${SITE_URL}/blog/${slug}`;
-  const image = post.coverUrl || null;
+  /* ⚠️ Нийтлэлд cover зураггүй бол САЙТЫН админ og зураг руу унана —
+     өмнө нь `null` үлдэж Facebook-д ЗУРАГГҮЙ хоосон линк гардаг байв */
+  const image = post.coverUrl || seo?.ogImageUrl || `${SITE_URL}/opengraph-image`;
 
   return {
     title,
@@ -81,12 +85,13 @@ export async function generateMetadata({
       url,
       type: 'article',
       locale: 'mn_MN',
-      siteName: 'BestTV',
+      siteName,
       ...(post.publishedAt ? { publishedTime: post.publishedAt } : {}),
       ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}),
     },
     twitter: {
-      card: 'summary_large_image',
+      /* ⚠️ Админы сонголтыг хүндэтгэнэ */
+      card: (seo?.twitterCard as 'summary_large_image' | 'summary') || 'summary_large_image',
       title,
       description,
       ...(image ? { images: [image] } : {}),
