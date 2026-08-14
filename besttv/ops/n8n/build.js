@@ -1013,13 +1013,16 @@ var dmText = (linkType==='none')
     +'🎬 Монгол, Солонгос, Орос, Хятад болон Ай кино, 18+ кино, шилдэг хит кинонууд'+NL
     +'💳 Таалагдвал багц авах эсвэл нэг киног'+NL
     +'   ширхэгээр түрээслэх боломжтой'+NL+NL
-    +'👉 Шууд үзэх: ${SITE}'+NL+NL
-    +'Асуух зүйл байвал энд бичээрэй 😊')
+    +'👉 Шууд үзэх: ${SITE}')
+  /* ⚠️ Линктэй үеийн текстийг ЭНД БҮРЭН угсрахгүй — киноны ТӨРӨЛ
+     (кино/цуврал) энэ node дээр хараахан МЭДЭГДЭЭГҮЙ (Get DM Meta нь
+     ДАРАА нь ажиллана). «Эхний ангиуд» гэдэг нь НЭГ АНГИТ кинод
+     утгагүй тул төрөл мэдсэн хойно Build DM-д гүйцээнэ.
+     ⚠️ «Асуух зүйл байвал...» мөрийг ч ХОЁУЛАНД нь Build DM нэмнэ —
+        энд бичвэл ДАВХАРДАНА. */
   : ('Сайн байна уу! 👋'+NL+NL
     +'Таны сонирхсон кино энд байна:'+NL+NL
-    +link+NL+NL
-    +'🎬 Эхний ангиудыг ҮНЭГҮЙ үзэж болно'+NL+NL
-    +'Асуух зүйл байвал энд бичээрэй 😊');
+    +link);
 
 // ⚠️ Сэтгэгдэл нь НИЙТЭД харагдана — киноны шууд линк тавихгүй, нүүр рүү
 // урина (Facebook гадагш линктэй сэтгэгдлийн хүрээг багасгадаг).
@@ -1088,14 +1091,76 @@ if(ok){
   if(meta.year) bits.push(String(meta.year));
   if(meta.rating) bits.push('⭐ '+meta.rating);
   bits.push(meta.type==='SERIES'?'📺 Цуврал':'🎬 Кино');
-  var sub = bits.join('  ·  ').slice(0,80);
+  /**
+   * ⚠️⚠️ ҮНЭГҮЙ БАЙДЛЫГ КАРТАН ДЭЭР ҮНЭН ЗӨВ ХАРУУЛНА.
+   *
+   * Кино амжилттай олдвол ЭНЭ КАРТ явдаг — доорх текстийн салаа
+   * ОГТ харагдахгүй. Тиймээс «үнэгүй» мэдээллийг ЭНД бичих ёстой.
+   *
+   * ⚠️ ЦУВРАЛД «эхний ангиуд», КИНОД «үнэгүй» гэж ЯЛГАНА — нэг ангит
+   *    кинод «эхний ангиуд» гэдэг УТГАГҮЙ, бас ХУДАЛ амлалт болно.
+   * ⚠️ Цувралд үнэгүй анги ҮНЭХЭЭР тохируулсан эсэхийг шалгана —
+   *    админ нэгийг ч чагтлаагүй бол амлахгүй.
+   */
+  if(meta.type==='SERIES'){
+    var hasFreeEp=false; var sss=meta.seasons||[];
+    for(var s2=0;s2<sss.length && !hasFreeEp;s2++){
+      var eee=(sss[s2]&&sss[s2].episodes)||[];
+      for(var e3=0;e3<eee.length;e3++){ if(eee[e3]&&eee[e3].isFreePreview){hasFreeEp=true;break;} }
+    }
+    if(hasFreeEp) bits.push('Эхний анги ҮНЭГҮЙ');
+  } else if(meta.isPremium===false){
+    bits.push('ҮНЭГҮЙ');
+  }
+  /* ⚠️ subtitle 80 тэмдэгтээр таслагдана — «ҮНЭГҮЙ» нь эцэст байх тул
+     урт нэртэй кинод алга болж болзошгүй. Тиймээс хэтэрвэл эрэмбийг
+     эргүүлж, ҮНЭГҮЙ-г ЭХЭНД тавина (хамгийн чухал мэдээлэл). */
+  var sub = bits.join('  ·  ');
+  if(sub.length>80 && bits.length>1){
+    var last=bits.pop(); bits.unshift(last); sub=bits.join('  ·  ');
+  }
+  sub = sub.slice(0,80);
   var el={title:title, subtitle:sub||' ', image_url:img,
     default_action:{type:'web_url',url:link},
     buttons:[{type:'web_url',url:link,title:'Үзэх'}]};
   body={recipient:{comment_id:cid},
     message:{attachment:{type:'template',payload:{template_type:'generic',elements:[el]}}}};
 } else {
-  body={recipient:{comment_id:cid},message:{text:b.dmText}};
+  /**
+   * ⚠️⚠️ «ЭХНИЙ АНГИУД» гэдгийг НЭГ АНГИТ КИНОД БИЧИХГҮЙ.
+   *
+   * Бодит алдаа: линктэй пост дээр ҮРГЭЛЖ «Эхний ангиудыг ҮНЭГҮЙ үзэж
+   * болно» гэж бичдэг байв — гэтэл тэр линк нь БҮТЭН УРТ КИНО байж
+   * болно. Кинод «эхний анги» гэж БАЙХГҮЙ тул утгагүй, бас ХУДАЛ
+   * амлалт болно (кино бүхэлдээ төлбөртэй).
+   *
+   * Build Reply нь киноны төрлийг МЭДЭХГҮЙ (Get DM Meta түүнээс ХОЙНО
+   * ажилладаг) тул нэмэлт мөрийг ЭНД гүйцээнэ.
+   *
+   * ⚠️ meta.title байхгүй (404/сүлжээ унасан) үед ямар ч нэмэлт мөр
+   *    бичихгүй — таамгаар амлахаас ЧИМЭЭГҮЙ байх нь дээр.
+   */
+  var NL2=String.fromCharCode(10);
+  var extra='';
+  if(meta && meta.title){
+    if(meta.type==='SERIES'){
+      /* Цуврал: үнэгүй анги ҮНЭХЭЭР тохируулсан эсэхийг шалгана —
+         админ нэгийг ч чагтлаагүй бол амлах ЁСГҮЙ */
+      var hasFree=false;
+      var ss=meta.seasons||[];
+      for(var si=0;si<ss.length && !hasFree;si++){
+        var ee=(ss[si]&&ss[si].episodes)||[];
+        for(var ei2=0;ei2<ee.length;ei2++){ if(ee[ei2]&&ee[ei2].isFreePreview){hasFree=true;break;} }
+      }
+      if(hasFree) extra=NL2+NL2+'🎬 Эхний ангиудыг ҮНЭГҮЙ үзэж болно';
+    } else if(meta.isPremium===false){
+      /* Төлбөргүй кино — бүхэлдээ үнэгүй */
+      extra=NL2+NL2+'🎬 Энэ киног ҮНЭГҮЙ үзэж болно';
+    }
+    /* Төлбөртэй КИНО — нэмэлт мөр бичихгүй (үнэгүй хэсэг байхгүй) */
+  }
+  body={recipient:{comment_id:cid},
+    message:{text:b.dmText+extra+NL2+NL2+'Асуух зүйл байвал энд бичээрэй 😊'}};
 }
 return [{json:{dmBody:JSON.stringify(body)}}];`,
   },
