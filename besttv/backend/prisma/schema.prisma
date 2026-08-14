@@ -374,6 +374,10 @@ model Episode {
   updatedAt DateTime @updatedAt
 
   @@unique([seasonId, number])
+  /// ⚠️ `video-recovery` cron (10 мин тутам) нь `streamStatus='PROCESSING'`
+  /// + `streamStartedAt < cutoff`-ээр шүүдэг. Индексгүй байсан тул анги
+  /// олшрох тусам скан удаашрана.
+  @@index([streamStatus, streamStartedAt])
 }
 
 // ─── Subscription + QPay ──────────────────────────────────────────────────────
@@ -512,6 +516,10 @@ model Payment {
   @@index([rentalTitleId])
   /// ⚠️ Админы «Дансны төлбөр» жагсаалт — хүлээгдэж буйг эрэмбэлж татна
   @@index([bankClaimedAt])
+  /// ⚠️ `reconcilePending` (5 мин тутам) + `expireStalePayments` (цаг тутам)
+  /// хоёулаа `status` + `createdAt`-аар шүүдэг. Индексгүй бол Payment
+  /// хүснэгтийг БҮТНЭЭР скан хийнэ — мөр өсөх тусам cron удаашрана.
+  @@index([status, createdAt])
 }
 
 // ─── Үзэлтийн явц + жагсаалт ─────────────────────────────────────────────────
@@ -810,7 +818,14 @@ model PromotionRedemption {
   promotionId String
   userId      String
   /// Аль төлбөрт үйлчилсэн (хэтэвчийн бонусд ч төлбөр байна)
-  paymentId   String?
+  ///
+  /// ⚠️⚠️ `@unique` — НЭГ ТӨЛБӨРТ НЭГ Л УДАА бонус олгоно.
+  /// QPay нь webhook + polling + reconcile cron ГУРВАН замаар зэрэг
+  /// ажилладаг. `completePayment`-ийн атомар claim нэг төлбөрийг
+  /// хамгаална, гэхдээ `adminMarkPaid` (FAILED→PAID) дахин дуудвал
+  /// бонус хоног + бэлэг багц ДАХИН олгогдоно.
+  /// `Rental.paymentId @unique` яг ижил шалтгаанаар тавигдсан.
+  paymentId   String? @unique
 
   /// ⚠️ SNAPSHOT — урамшуулал дараа засагдсан ч түүх ҮНЭН үлдэнэ
   /// Хэрэглэгчид ХЭДЭН ТӨГРӨГИЙН ашиг өгсөн (хямдрал/бонус)

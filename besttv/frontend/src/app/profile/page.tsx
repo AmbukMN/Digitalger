@@ -121,13 +121,6 @@ export default function ProfilePage() {
   const { data: walletTxs, isLoading: txsLoading } = useWalletTransactions();
   const { data: rentals } = useMyRentals(!!user);
 
-
-  // Хуудаснаас гарахад polling үлдэхгүй
-  useEffect(() => {
-    return () => {
-    };
-  }, []);
-
   useEffect(() => {
     if (!loading && !user) router.push(loginUrl('/profile'));
   }, [loading, user, router]);

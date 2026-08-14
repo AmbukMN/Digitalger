@@ -64,7 +64,9 @@ export class StreamService {
       titleId,
     );
     // ⚠️ ABR master бол дэд playlist-ыг манай API руу чиглүүлнэ (эрх дахин шалгагдана)
-    return this.rewritePlaylist(title.videoKey, `/api/stream/movie/${titleId}/variant.m3u8`);
+    /* ⚠️ Түрээстэй бол presign нь ҮЛДЭГДЭЛ ХУГАЦААГААР богиносно */
+    const ttl = await this.presignTtl(userId, titleId);
+    return this.rewritePlaylist(title.videoKey, `/api/stream/movie/${titleId}/variant.m3u8`, ttl);
   }
 
   /**
@@ -296,9 +298,11 @@ export class StreamService {
    * ⚠️ `VIDEO_CDN_URL` тохируулаагүй бол ХУУЧИН зан төлөв хэвээр —
    * Worker deploy хийгээгүй байсан ч сайт ажилласаар байна.
    */
-  private segmentUrl(key: string): Promise<string> {
-    const cdn = this.storage.videoCdnUrl(key, this.SEGMENT_EXPIRES);
-    return cdn ? Promise.resolve(cdn) : this.storage.presignGet(key, this.SEGMENT_EXPIRES);
+  /** @param ttl presign хугацаа (сек) — түрээсийн үлдэгдлээр богиносгоно */
+  private segmentUrl(key: string, ttl?: number): Promise<string> {
+    const expires = ttl ?? this.SEGMENT_EXPIRES;
+    const cdn = this.storage.videoCdnUrl(key, expires);
+    return cdn ? Promise.resolve(cdn) : this.storage.presignGet(key, expires);
   }
 
   /** m3u8 уншаад segment мөр бүрийг URL болгоно (нэг түвшин) */
@@ -343,7 +347,11 @@ export class StreamService {
        */
       titleId,
     );
-    return this.variantPlaylist(title.videoKey, variant);
+    return this.variantPlaylist(
+      title.videoKey,
+      variant,
+      await this.presignTtl(userId, titleId),
+    );
   }
 
   /** Цувралын анги */
@@ -430,7 +438,12 @@ export class StreamService {
       /* ⚠️ Түрээс нь ЦУВРАЛ дээр ч боломжтой — эцэг титулын id-аар шалгана */
       episode.season.title.id,
     );
-    return this.variantPlaylist(episode.videoKey, variant);
+    return this.variantPlaylist(
+      episode.videoKey,
+      variant,
+      /* ⚠️ Түрээс нь ЦУВРАЛ дээр — эцэг титулын id-аар */
+      await this.presignTtl(userId, episode.season.title.id),
+    );
   }
 
   /** Трейлер — ҮРГЭЛЖ нээлттэй (hero autoplay, дэлгэрэнгүй хуудас) */
@@ -545,6 +558,35 @@ export class StreamService {
   }
 
   /**
+   * Presign-ийн хугацааг ТҮРЭЭСИЙН ҮЛДЭГДЛЭЭР хязгаарлана.
+   *
+   * ⚠️⚠️ ЯАГААД ЗААВАЛ ХЭРЭГТЭЙ ВЭ: segment бүр R2-оос ШУУД татагддаг
+   * (backend дамжихгүй) тул эрх нэг л удаа — playlist авах агшинд —
+   * шалгагдана. `SEGMENT_EXPIRES = 4 цаг` тул түрээс дуусахын 10
+   * минутын өмнө плеер нээсэн хэрэглэгч дууссаны дараа ч 4 ЦАГ
+   * тасралтгүй үзнэ. Энэ нь шууд орлогын алдагдал.
+   *
+   * ⚠️ Багцтай хэрэглэгчид хамаарахгүй — тэдний хугацаа хоногоор
+   * хэмжигдэх тул 4 цаг нөлөөлөхгүй.
+   */
+  private async presignTtl(userId?: string | null, titleId?: string): Promise<number> {
+    if (!userId || !titleId) return this.SEGMENT_EXPIRES;
+    const rental = await this.prisma.rental
+      .findFirst({
+        where: { userId, titleId, expiresAt: { gt: new Date() } },
+        select: { expiresAt: true },
+        orderBy: { expiresAt: 'desc' },
+      })
+      .catch(() => null);
+    if (!rental) return this.SEGMENT_EXPIRES;
+
+    const leftSec = Math.floor((rental.expiresAt.getTime() - Date.now()) / 1000);
+    /* ⚠️ Доод хязгаар 5 минут — сүүлийн мөчид эхэлсэн хэрэглэгч
+       дунд нь тасрахгүй, гэхдээ 4 цаг ч сунгахгүй */
+    return Math.max(300, Math.min(this.SEGMENT_EXPIRES, leftSec));
+  }
+
+  /**
    * m3u8 доторх файлын нэрсийг presigned URL болгоно.
    *
    * ⚠️ ХОЁР ТӨРЛИЙН playlist:
@@ -574,10 +616,32 @@ export class StreamService {
   private readonly playlistCache = new Map<string, { at: number; text: string }>();
   private static readonly PLAYLIST_TTL_MS = 30 * 60 * 1000;
 
-  private async rewritePlaylist(m3u8Key: string, variantBase?: string): Promise<string> {
+  /**
+   * @param ttl segment presign-ийн хугацаа (секунд). Түрээстэй
+   *   хэрэглэгчид үлдэгдэл хугацаагаар богиносгоно.
+   */
+  private async rewritePlaylist(
+    m3u8Key: string,
+    variantBase?: string,
+    ttl?: number,
+  ): Promise<string> {
+    const expires = ttl ?? this.SEGMENT_EXPIRES;
+    /**
+     * ⚠️⚠️ ТҮРЭЭСТЭЙ ХЭРЭГЛЭГЧИД КЭШ АШИГЛАХГҮЙ.
+     *
+     * Кэш нь presigned URL-ыг агуулдаг. Түрээсийн үлдэгдэл хугацаа
+     * хэрэглэгч бүрд ӨӨР тул нэг хүний богино URL нөгөөд, эсвэл
+     * эсрэгээр УРТ URL хуваалцагдана — 4 цагийн цоорхой дахин нээгдэнэ.
+     *
+     * ⚠️ Багцтай/үнэгүй үзэгчид (`ttl` дамжуулаагүй) кэш ХЭВЭЭР —
+     * seek хурдны асуудал эргэж ирэхгүй.
+     */
+    const useCache = ttl === undefined;
     const cacheKey = `${m3u8Key}|${variantBase ?? ''}`;
-    const hit = this.playlistCache.get(cacheKey);
-    if (hit && Date.now() - hit.at < StreamService.PLAYLIST_TTL_MS) return hit.text;
+    if (useCache) {
+      const hit = this.playlistCache.get(cacheKey);
+      if (hit && Date.now() - hit.at < StreamService.PLAYLIST_TTL_MS) return hit.text;
+    }
 
     const text = await this.storage.downloadText(m3u8Key);
     const prefix = m3u8Key.slice(0, m3u8Key.lastIndexOf('/') + 1);
@@ -599,12 +663,13 @@ export class StreamService {
         if (isMaster && variantBase) {
           return `${variantBase}?v=${encodeURIComponent(trimmed)}`;
         }
-        return this.segmentUrl(prefix + trimmed);
+        return this.segmentUrl(prefix + trimmed, expires);
       }),
     );
 
     const out = lines.join('\n');
-    this.playlistCache.set(cacheKey, { at: Date.now(), text: out });
+    /* ⚠️ Түрээстэй хэрэглэгчийн богино URL-ыг кэшлэхгүй (дээрх тайлбар) */
+    if (useCache) this.playlistCache.set(cacheKey, { at: Date.now(), text: out });
 
     /**
      * ⚠️ Санах ой хамгаалалт — хугацаа дууссан бичлэгүүдийг цэвэрлэнэ.
@@ -625,11 +690,20 @@ export class StreamService {
    * ⚠️ `variant` нь ГАДНААС ирдэг тул зам гарах халдлагаас хамгаална:
    * зөвхөн `vN.m3u8` хэлбэрийг зөвшөөрнө ("../" гэх мэт бүрэн хаагдана).
    */
-  private async variantPlaylist(m3u8Key: string, variant: string): Promise<string> {
+  private async variantPlaylist(
+    m3u8Key: string,
+    variant: string,
+    ttl?: number,
+  ): Promise<string> {
     if (!/^v\d+\.m3u8$/.test(variant)) {
       throw new NotFoundException('Буруу playlist');
     }
     const prefix = m3u8Key.slice(0, m3u8Key.lastIndexOf('/') + 1);
-    return this.rewritePlaylist(prefix + variant);
+    /**
+     * ⚠️⚠️ SEGMENT-ҮҮД ЯГ ЭНД presign хийгддэг — түрээсийн хугацааны
+     * хамгаалалтын ГОЛ ЦЭГ. Master playlist нь зөвхөн дэд playlist руу
+     * заадаг тул тэнд ttl тавих нь хангалтгүй.
+     */
+    return this.rewritePlaylist(prefix + variant, undefined, ttl);
   }
 }

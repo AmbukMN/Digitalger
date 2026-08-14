@@ -238,6 +238,9 @@ export class PaymentsService {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(invoiceBody),
+        /* ⚠️ QPay удаашрахад HTTP хүсэлт ХЯЗГААРГҮЙ өлгөгдөж,
+           хэрэглэгч «боловсруулж байна» дээр гацна */
+        signal: AbortSignal.timeout(15_000),
       });
 
     let response = await callInvoice(await this.getQPayToken());
@@ -541,6 +544,27 @@ export class PaymentsService {
     plan: { id: string; durationDays: number } | null;
   }): Promise<{ extraDays: number }> {
     if (!payment.promotionId || !payment.plan) return { extraDays: 0 };
+
+    /**
+     * ⚠️⚠️ IDEMPOTENCY — нэг төлбөрт НЭГ Л УДАА бонус.
+     *
+     * `adminMarkPaid` нь FAILED/EXPIRED төлбөрийг дахин PAID болгож
+     * `completePayment` дуудна. Тэр үед бонус хоног + БЭЛЭГ БАГЦ
+     * ДАХИН олгогдоно (`GIFT_PLAN` нь доор `redeem`-ээс ӨМНӨ
+     * ажилладаг тул DB-ийн unique хамгаалалтад ч хүрэхгүй).
+     *
+     * ⚠️ DB талд `PromotionRedemption.paymentId @unique` нэмсэн нь
+     * хоёр дахь давхарга — race үед энэ шалгалт хоцорч болно.
+     */
+    const already = await this.prisma.promotionRedemption
+      .findUnique({ where: { paymentId: payment.id }, select: { daysGiven: true } })
+      .catch(() => null);
+    if (already) {
+      this.logger.warn(
+        `Урамшуулал аль хэдийн олгогдсон — алгаслаа (payment=${payment.id})`,
+      );
+      return { extraDays: 0 };
+    }
 
     try {
       const promo = await this.prisma.promotion.findUnique({
@@ -913,6 +937,9 @@ export class PaymentsService {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(invoiceBody),
+        /* ⚠️ QPay удаашрахад HTTP хүсэлт ХЯЗГААРГҮЙ өлгөгдөж,
+           хэрэглэгч «боловсруулж байна» дээр гацна */
+        signal: AbortSignal.timeout(15_000),
       });
 
     let response = await callInvoice(await this.getQPayToken());
@@ -1039,8 +1066,32 @@ export class PaymentsService {
      * ⚠️ Буцаалт нь `REFUND` төрлөөр бүртгэгдэнэ — хэрэглэгч хэтэвчийн
      * түүхээсээ юу болсныг ХАРНА (чимээгүй алдагдал биш).
      */
+    /**
+     * ⚠️⚠️ УРАМШУУЛЛЫН БОНУС — ХЭТЭВЧИЙН ЗАМД ОРХИГДСОН БАЙВ.
+     *
+     * QPay замд (`completePayment`) `applyPromotionBonus` дуудагдаж
+     * бонус хоног, бэлэг багц олгогддог. Хэтэвчээр авахад ЭНЭ АЛХАМ
+     * БАЙХГҮЙ байсан тул хэрэглэгч:
+     *   • урамшууллын ХЯМДРУУЛСАН үнээр төлөөд
+     *   • амласан БОНУС ХОНОГОО авахгүй
+     *   • бэлэг багц нээгдэхгүй
+     *   • `usedCount` нэмэгдэхгүй тул урамшуулал ХЯЗГААРГҮЙ ашиглагдана
+     *
+     * ⚠️ Хоёр зам ижил дараалалтай байх ёстой — үнэ бодоход хэрэгжсэн
+     * атлаа бонус олгоход хэрэгжээгүй байв.
+     */
+    /* ⚠️ `payment` нь `plan`-гүй тул гараар угсарна (QPay зам include-тэй) */
+    const bonus = await this.applyPromotionBonus({
+      id: payment.id,
+      userId,
+      promotionId: payment.promotionId,
+      amount: payment.amount,
+      originalAmount: payment.originalAmount,
+      plan: { id: plan.id, durationDays: plan.durationDays },
+    });
+
     try {
-      await this.subs.grant(userId, plan.id, plan.durationDays, payment.id);
+      await this.subs.grant(userId, plan.id, plan.durationDays + bonus.extraDays, payment.id);
     } catch (e) {
       this.logger.error(
         `Хэтэвчээр эрх олгож чадсангүй — мөнгө буцаана: user=${userId} plan=${plan.id} — ${String(e)}`,
@@ -1068,6 +1119,12 @@ export class PaymentsService {
       );
     }
     if (normalizedCoupon) await this.coupons.incrementUse(normalizedCoupon);
+    /* ⚠️ Бонусын лог — QPay замтай ижил байдлаар (мөрдлөгт хэрэгтэй) */
+    if (bonus.extraDays > 0) {
+      this.logger.log(
+        `Хэтэвчийн урамшуулал: user=${userId} +${bonus.extraDays} хоног (payment=${payment.id})`,
+      );
+    }
 
     /**
      * ⚠️ БАТАЛГААЖУУЛАХ ИМЭЙЛ — өмнө нь ЗӨВХӨН QPay-ээр авахад илгээгддэг
@@ -1138,6 +1195,7 @@ export class PaymentsService {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: checkBody,
+          signal: AbortSignal.timeout(15_000),
         });
       let res = await callCheck(await this.getQPayToken());
       if (res.status === 401 || res.status === 403) {
@@ -1188,6 +1246,7 @@ export class PaymentsService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({}),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

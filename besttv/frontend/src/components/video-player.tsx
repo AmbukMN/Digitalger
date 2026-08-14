@@ -76,6 +76,8 @@ export function VideoPlayer({
    * ажиллана (хулгана хөдлөх / түр зогсоох → хоёулаа гарна).
    */
   const [controlsOn, setControlsOn] = useState(true);
+  /** ⚠️ Плеер унасан үед хар дэлгэц биш ТАЙЛБАР харуулна */
+  const [playError, setPlayError] = useState<string | null>(null);
 
   /**
    * SEEK PREVIEW (thumbnail).
@@ -290,6 +292,25 @@ export function VideoPlayer({
         storage="besttv-player"
         onProviderChange={onProviderChange}
         onCanPlay={onCanPlay}
+        /**
+         * ⚠️⚠️ АЛДААНЫ БОЛОВСРУУЛАЛТ — өмнө нь ОГТ БАЙГААГҮЙ.
+         *
+         * Түрээс дунд нь дуусах, presign хугацаа өнгөрөх, сүлжээ
+         * тасрах үед Vidstack чимээгүй зогсоно — хэрэглэгч ХАР ДЭЛГЭЦ
+         * харж, юу болсныг мэдэхгүй, дараагийн алхам ч байхгүй.
+         *
+         * ⚠️ Хэрэглэгчээр алдаа олуулах нь МУУ — юу болсныг хэлж,
+         * дахин ачаалах боломж өгнө.
+         */
+        onError={(e) => {
+          const code = (e as { code?: number } | undefined)?.code;
+          /* 403/401 → эрх дууссан. Бусад → сүлжээ/кодек */
+          setPlayError(
+            code === 4
+              ? 'Видео тоглуулах боломжгүй байна. Түрээсийн хугацаа дууссан эсвэл эрх дууссан байж магадгүй.'
+              : 'Видео ачаалахад алдаа гарлаа. Сүлжээгээ шалгаад дахин оролдоно уу.',
+          );
+        }}
         /* ⚠️ Буцах товчийг удирдлагатай хамт харуулах (дээрх тайлбар) */
         onControlsChange={setControlsOn}
         onTimeUpdate={onTimeUpdate}
@@ -383,6 +404,35 @@ export function VideoPlayer({
           }}
         />
       </MediaPlayer>
+
+      {/*
+        ⚠️⚠️ АЛДААНЫ ДАВХАРГА — хар дэлгэцийн оронд тайлбар.
+
+        Түрээс дуусах, presign хугацаа өнгөрөх, сүлжээ тасрах үед
+        хэрэглэгч юу болсныг МЭДЭХ ёстой. «Дахин оролдох» нь хуудсыг
+        шинэчилж, эрх хэвээр бол үргэлжлүүлнэ.
+      */}
+      {playError && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/90 p-6 text-center">
+          <p className="max-w-md text-sm text-white/90">{playError}</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-black transition-transform hover:scale-[1.03]"
+            >
+              Дахин оролдох
+            </button>
+            {backHref && (
+              <a
+                href={backHref}
+                className="rounded-lg bg-white/15 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+              >
+                Буцах
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/*
         ⚠️ Буцах товч — player-ийн ДЭЭД зүүн буланд.

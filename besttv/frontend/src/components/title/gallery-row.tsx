@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { X } from 'lucide-react';
 import { useWheelScroll } from '@/lib/use-wheel-scroll';
@@ -11,6 +11,29 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
   useWheelScroll(trackRef);
 
   const [active, setActive] = useState<string | null>(null);
+
+  /**
+   * ⚠️⚠️ Escape + body scroll түгжээ — `trailer-modal`-д байсныг ЭНД
+   * ХУУЛААГҮЙ байв. `role="dialog" aria-modal="true"` гэж зарласан
+   * атлаа гарын түлхүүрийн дэмжлэггүй нь a11y зөрчил, мөн модал
+   * нээлттэй үед ард хуудас гүйж эвгүй харагдана.
+   *
+   * ⚠️ Hook нь `if (valid.length === 0) return null`-ээс ӨМНӨ байх
+   * ёстой — эс бөгөөс дуудлагын дараалал зөрч React алдаа өгнө.
+   */
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActive(null);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [active]);
+
   const valid = images.filter((u): u is string => !!u);
   if (valid.length === 0) return null;
 
@@ -38,7 +61,7 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setActive(null)}
         >
           <button

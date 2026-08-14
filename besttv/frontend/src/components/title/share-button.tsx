@@ -18,19 +18,38 @@ export function ShareButton({
 
   const share = async () => {
     const url = `${window.location.origin}/movie/${slug}`;
+
     if (navigator.share) {
       try {
         await navigator.share({ title, url });
         return;
-      } catch {
-        // хэрэглэгч цуцалсан — clipboard fallback руу шилжихгүй
-        return;
+      } catch (e) {
+        /**
+         * ⚠️⚠️ ЦУЦАЛСАН ба БҮТЭЛГҮЙТСЭНИЙГ ЯЛГАНА.
+         *
+         * FB/IG webview-д `navigator.share` ОРШИН БАЙДАГ ч
+         * `NotAllowedError` шидэж бүтэлгүйтдэг. Өмнө нь хоёуланг
+         * чимээгүй залгидаг байсан тул хэрэглэгч товч дараад ЮУ Ч
+         * болохгүй — «эвдэрсэн» гэж бодно.
+         *
+         * `AbortError` = хэрэглэгч өөрөө цуцалсан → юу ч хийхгүй зөв.
+         * Бусад алдаа → clipboard руу унана.
+         */
+        if ((e as Error)?.name === 'AbortError') return;
       }
     }
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast.success('Холбоос хууллаа');
-    setTimeout(() => setCopied(false), 2000);
+
+    /* ⚠️ `clipboard` нь HTTPS-гүй / хуучин webview-д undefined —
+       шалгалтгүй бол шидэгдээгүй TypeError болж дахин чимээгүй унана */
+    try {
+      if (!navigator.clipboard) throw new Error('clipboard дэмжигдэхгүй');
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('Холбоос хууллаа');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.info('Хуулж чадсангүй. Хаягийн мөрнөөс гараар хуулна уу.');
+    }
   };
 
   return (

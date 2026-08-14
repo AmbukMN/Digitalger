@@ -184,7 +184,33 @@ export class ChatService {
     url?: string,
     type?: string,
   ): Promise<{ key: string; type: string } | null> {
-    if (!url || !/^https?:\/\//i.test(url)) return null;
+    if (!url) return null;
+
+    /**
+     * ⚠️⚠️ SSRF ХАМГААЛАЛТ — `/chat/ingest` НЭЭЛТТЭЙ endpoint.
+     *
+     * Хэн ч дурын URL илгээж болно. Хамгаалалтгүй бол halдлагч
+     * `http://169.254.169.254/` (cloud metadata), `http://redis:6379`,
+     * `http://besttv-postgres:5432` зэрэг ДОТООД хаяг руу backend-ээр
+     * хүсэлт явуулж, хариуг R2-д хадгалуулж уншиж чадна.
+     *
+     * ⚠️ Зөвхөн Meta-гийн CDN домэйныг зөвшөөрнө — хавсралт өөр
+     * газраас ирэх ёсгүй.
+     */
+    let host: string;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'https:') return null;
+      host = u.hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+    const ALLOWED = ['fbcdn.net', 'fbsbx.com', 'cdninstagram.com', 'facebook.com'];
+    if (!ALLOWED.some((d) => host === d || host.endsWith('.' + d))) {
+      this.logger.warn(`Хавсралтын домэйн зөвшөөрөгдөөгүй: ${host}`);
+      return null;
+    }
+
     const kind = type === 'video' || type === 'file' ? type : 'image';
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });

@@ -325,6 +325,21 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
 
 /** Top 10 мөрөнд — том дугаартай хос загвар */
 export function Top10Card({ title, rank }: { title: TitleCardType; rank: number }) {
+  const { user } = useAuth();
+  /**
+   * ⚠️⚠️ ЭРХИЙГ ТООЦНО — өмнө нь `title.isPremium` ДАНГААРАА хардаг байв.
+   *
+   * Үр дүнд VIP/багцтай, эсвэл тухайн киног ТҮРЭЭСЛЭСЭН хэрэглэгч Топ-10
+   * мөрөнд «🔒 Төлбөртэй» гэсэн ХУДАЛ шошго хардаг байсан. `TitleCard`
+   * болон `catalog-grid` дээр аль хэдийн зассан алдаа энд хоцорсон.
+   */
+  const access = accessState(user, {
+    id: title.id,
+    isPremium: title.isPremium,
+    genres: title.genres,
+  });
+  const locked = title.isPremium && access !== 'owned' && access !== 'free' && access !== 'rented';
+
   return (
     <Link
       href={`/movie/${title.slug}`}
@@ -342,7 +357,7 @@ export function Top10Card({ title, rank }: { title: TitleCardType; rank: number 
             <Play size={28} />
           </div>
         )}
-        {title.isPremium && (
+        {locked && (
           <span
             title="Багц авсан хүн үзнэ"
             className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-premium backdrop-blur-sm"
