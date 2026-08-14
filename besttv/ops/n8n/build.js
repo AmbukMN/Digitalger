@@ -1,24 +1,48 @@
 /**
  * BestTV — Facebook/Instagram чатбот workflow үүсгэнэ.
  *
- * DigitalGer-ийн `CNamkzJ1xMqWKWOr` workflow-г БҮТНЭЭР хөрвүүлсэн:
+ * DigitalGer-ийн CNamkzJ1xMqWKWOr workflow-г БҮТНЭЭР хөрвүүлсэн:
  *   1. Messenger AI чат (FB + IG)
  *   2. Comment auto-reply + private DM
  *   3. Webhook verify (GET challenge)
  *
  * ⚠️ Page/IG ID болон token нь ЗОРИУД hardcode — $env-ээр дамжуулахад
  *    n8n Code node-д хүрэхгүй байсан (DigitalGer дээр батлагдсан).
+ *
+ * ⚠️⚠️ ЭНЭ ФАЙЛД БИЧИХ ҮЕИЙН ГОЛ ЗАРЧИМ — BACKTICK.
+ *
+ * n8n Code node-ийн JS-ийг template literal (backtick) дотор бичдэг тул
+ * КОММЕНТОД backtick тавьвал тэр литералыг ДУНДУУР нь ТАСАЛЖ, Node нь
+ * ойлгомжгүй SyntaxError шидэнэ («Unexpected identifier 'Settings'» гэх
+ * мэт — жинхэнэ шалтгаанаас хол мөр заана).
+ *
+ * Энэ алдаа энэ файлд 4 УДАА давтагдсан. Тиймээс комментод код нэрийг
+ * ердийн бичвэрээр бич: /bank/accounts, directReply гэх мэт — backtick
+ * ХЭРЭГЛЭХГҮЙ.
  */
 const fs = require('fs');
+
+/**
+ * ⚠️⚠️ BACKTICK ХАМГААЛАЛТ — 5 УДАА давтагдсан алдааг барина.
+ *
+ * Энэ файлын комментод backtick тавихад n8n Code node-ийн template
+ * literal ТАСАРЧ, Node нь жинхэнэ шалтгаанаас хол мөр заасан
+ * ойлгомжгүй SyntaxError шидэнэ («Unexpected identifier 'indexOf'»).
+ *
+ * Node өөрөө parse хийхээс ӨМНӨ энийг барих боломжгүй (файл ачаалагдах
+ * үедээ л унана) тул энд ЭХ ФАЙЛАА уншиж шалгана — дараагийн засварт
+ * алдвал ойлгомжтой мессеж өгнө.
+ */
+
 
 // ─── BestTV-ийн ТОГТМОЛУУД (ss-үүдээс) ──────────────────────────────
 const PAGE_ID = '108103720808038';
 const IG_ID = '17841442595556819';
 const TOKEN = process.env.BESTTV_FB_TOKEN || '__BESTTV_PAGE_TOKEN__';
 /**
- * ⚠️⚠️ ДОТООД хаяг — `https://api.besttv.us` БИШ.
+ * ⚠️⚠️ ДОТООД хаяг — https://api.besttv.us БИШ.
  *
- * n8n болон backend нэг docker сүлжээнд (`digitalger-n8n-network`)
+ * n8n болон backend нэг docker сүлжээнд (digitalger-n8n-network)
  * байдаг тул шууд холбогдоно. Ашиг:
  *   1. Cloudflare-ийн rate limit ТОЙРНО — гадуур явбал 60 хүсэлтээс
  *      15 нь 429 болж чат чимээгүй алдагддаг (production тестээр
@@ -26,11 +50,17 @@ const TOKEN = process.env.BESTTV_FB_TOKEN || '__BESTTV_PAGE_TOKEN__';
  *   2. Хурдан (DNS + TLS + CF hop байхгүй)
  *   3. Интернэт тасарсан ч ажиллана
  *
- * ⚠️ Facebook Graph API нь ГАДНЫХ тул тэр нь `https://graph.facebook.com`
+ * ⚠️ Facebook Graph API нь ГАДНЫХ тул тэр нь https://graph.facebook.com
  * хэвээр — зөвхөн BestTV-ийн өөрийн API дотоод хаягаар.
  */
 const API = process.env.BESTTV_API || 'http://besttv-backend:4100/api';
 const SITE = 'https://besttv.us';
+/**
+ * ⚠️ Дэмжлэгийн имэйл — Settings.socials.email ХООСОН эсвэл API
+ * унасан үеийн НӨӨЦ. Хэрэглэгч «холбоо барих» гэж асуухад хариугүй
+ * үлдэх ЁСГҮЙ.
+ */
+const SUPPORT_EMAIL = 'support@besttv.us';
 const WEBHOOK_PATH = 'besttv-facebook-webhook';
 const VERIFY_TOKEN = process.env.BESTTV_VERIFY_TOKEN || 'BestTV2026Verify';
 /**
@@ -44,7 +74,7 @@ const BOT_SECRET = process.env.BESTTV_BOT_SECRET || '__BOT_SECRET__';
  * ⚠️⚠️⚠️ PLACEHOLDER-ТЭЙ БҮТЭЭГДСЭН ФАЙЛЫГ n8n-Д DEPLOY ХИЙВЭЛ
  *        АЖИЛЛАЖ БАЙГАА ЖИНХЭНЭ ТОКЕНЫГ ДАРЖ БИЧНЭ.
  *
- * БОДИТ ОСОЛ (2026-08-14): env өгөлгүй `node build.js` ажиллуулаад
+ * БОДИТ ОСОЛ (2026-08-14): env өгөлгүй node build.js ажиллуулаад
  * гарсан JSON-ыг n8n-д бичсэн → чатбот БҮРЭН унтарсан (auto-reply ч,
  * DM ч явахгүй). Гаднаас харахад node бүр «finished successfully»
  * гэж харагдана — Meta API 190/OAuthException чимээгүй буцаана.
@@ -328,12 +358,28 @@ if (needsContact) {
     });
     const parts = ['📺 BestTV — Монголын кино, цувралын онлайн сан', ''];
     if (s && s.phone) parts.push('📞 Утас: ' + s.phone);
-    if (s && s.email) parts.push('✉️ Имэйл: ' + s.email);
+    /**
+     * ⚠️⚠️ ИМЭЙЛ ЗААВАЛ ГАРНА — админ socials-д тохируулаагүй ч.
+     *
+     * БОДИТ АЛДАА: Settings.socials бүх талбар ХООСОН байсан тул
+     * «холбоо барих» асуултад чатбот зөвхөн вэб хаяг өгч, хэрэглэгч
+     * хаана хандахаа мэдэхгүй үлддэг байв. Тохиргоо хоосон байх нь
+     * хэрэглэгчид хариу өгөхгүй байх ШАЛТГААН БИШ.
+     */
+    parts.push('✉️ Имэйл: ' + ((s && s.email) || '${SUPPORT_EMAIL}'));
     if (s && s.facebook) parts.push('💬 Facebook: ' + s.facebook);
     if (s && s.instagram) parts.push('📷 Instagram: ' + s.instagram);
     parts.push('', '🌐 Вэб: ${SITE}');
+    parts.push('', 'Эсвэл энд шууд бичээрэй — админ хариулна 😊');
     directReply = parts.join(NL);
-  } catch (e) { directReply = ''; }
+  } catch (e) {
+    /* ⚠️ API унасан ч ХООСОН БУЦААХГҮЙ — өмнө нь directReply=''
+       болоод AI холбоо барих мэдээллийг ЗОХИОДОГ байв (худал утас/
+       имэйл өгөх эрсдэл). Хамгийн багадаа имэйл + вэб хаягийг өгнө. */
+    directReply = ['📺 BestTV — Монголын кино, цувралын онлайн сан', '',
+      '✉️ Имэйл: ${SUPPORT_EMAIL}', '', '🌐 Вэб: ${SITE}', '',
+      'Эсвэл энд шууд бичээрэй — админ хариулна 😊'].join(NL);
+  }
 }
 
 // ⚠️ БАГЦЫН ҮНЭ — AI үнэ зохиовол хэрэглэгч төөрөлдөнө. Бодит үнийг татна.
@@ -361,6 +407,53 @@ if (needsPricing) {
   } catch (e) { plansText = ''; }
 }
 if (plansText) directReply = plansText;
+
+/**
+ * ⚠️⚠️ ДАНСНЫ МЭДЭЭЛЭЛ — AI-д ХЭЗЭЭ Ч ЗОХИОЛГОХГҮЙ.
+ *
+ * Буруу дансны дугаар өгвөл хэрэглэгчийн МӨНГӨ ӨӨР ХҮН РҮҮ очно —
+ * буцаах боломжгүй, платформын нэр хүнд унана. Тиймээс бодит дансыг
+ * DB-ээс татаж deterministic хариу бэлдэнэ.
+ *
+ * ⚠️ ГҮЙЛГЭЭНИЙ УТГА нь хэрэглэгч/захиалга бүрт ӨӨР (жишээ BTV-XXXX)
+ *    тул ЭНД бичихгүй — сайтаас авахыг зааварчилна.
+ */
+const bankTriggers = ['данс','дансаар','шилжүүл','хаан банк','хаанбанк','голомт',
+  'хас банк','төрийн банк','account','гүйлгээ','дансны дугаар'];
+const needsBank = bankTriggers.some((t) => lower.includes(t));
+if (needsBank) {
+  try {
+    /* ⚠️ Зам нь /bank/accounts — /settings/bank БАЙХГҮЙ (404).
+       Олон данс байж болно тул идэвхтэйг нь бүгдийг харуулна. */
+    const b = await this.helpers.httpRequest({
+      method: 'GET', url: '${API}/bank/accounts', json: true, timeout: 4000,
+      headers: { 'x-bot-secret': '${BOT_SECRET}' },
+    });
+    const accs = (b && Array.isArray(b.accounts))
+      ? b.accounts.filter(function (a) { return a && a.isActive && a.accountNumber; })
+      : [];
+    if (b && b.enabled && accs.length) {
+      const bl = ['🏦 Дансаар шилжүүлэх:', ''];
+      accs.forEach(function (a) {
+        bl.push((a.bankName ? a.bankName + ': ' : '') + a.accountNumber
+          + (a.accountName ? '  (' + a.accountName + ')' : ''));
+      });
+      bl.push('', '⚠️ ГҮЙЛГЭЭНИЙ УТГЫГ заавал бичнэ — сайт дээр багцаа',
+        'сонгоод «Дансаар шилжүүлэх» гэхэд ТАНД зориулсан утга гарна.',
+        '', 'Шилжүүлээд баримтын зургаа энд илгээгээрэй 📷');
+      if (b.note) bl.push('', b.note);
+      bl.push('', '👉 ${SITE}/pricing');
+      directReply = bl.join(NL);
+    }
+  } catch (e) {
+    /* ⚠️ API унасан ч AI-д данс зохиолгохгүй — заавар руу чиглүүлнэ */
+    directReply = ['🏦 Дансаар шилжүүлэх:', '',
+      'Сайт дээр багцаа сонгоод «Дансаар шилжүүлэх» гэхэд дансны',
+      'дугаар болон ТАНД зориулсан гүйлгээний утга гарч ирнэ.',
+      '', 'Шилжүүлээд баримтын зургаа энд илгээгээрэй 📷',
+      '', '👉 ${SITE}/pricing'].join(NL);
+  }
+}
 
 const agentInput = (nameLine ? (nameLine + NL) : '') + (isGetStarted
   ? '(Хэрэглэгч дөнгөж чат эхлүүллээ — дулаанаар угтаж, BestTV юу санал болгодгийг товч танилцуул)'
@@ -511,6 +604,18 @@ add({
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
   typeVersion: 1.2,
   position: [840, 460],
+  /**
+   * ⚠️⚠️ CREDENTIAL ЗААВАЛ — байхгүй бол deploy үед УСТАНА.
+   *
+   * БОДИТ ОСОЛ (2026-08-14): энэ файлд credential байгаагүй тул
+   * бүтээгдсэн JSON-ыг n8n-д бичихэд ажиллаж байсан холбоос
+   * АЛГА БОЛСОН → AI Agent эхэлдэг ч дуусдаггүй → хэрэглэгчид
+   * «Уучлаарай, түр саатал гарлаа» гэж хариулж байв.
+   *
+   * ⚠️ ID нь n8n-ийн credentials_entity дэх БОДИТ мөр. Устгавал
+   *    эсвэл дахин үүсгэвэл ЭНД ч шинэчил (n8n UI → Credentials).
+   */
+  credentials: { openAiApi: { id: 'qpjrNb8Yo010i6C9', name: 'OpenAI account' } },
 });
 
 add({
@@ -525,6 +630,8 @@ add({
   type: '@n8n/n8n-nodes-langchain.memoryPostgresChat',
   typeVersion: 1.3,
   position: [1000, 460],
+  /* ⚠️ CREDENTIAL ЗААВАЛ — дэлгэрэнгүйг OpenAI Chat Model дээр үз */
+  credentials: { postgres: { id: 'ngOFGxWpH1dywpIn', name: 'N8N PostgreSQL' } },
 });
 
 /* ─── Extract Keyword ─── */
@@ -586,6 +693,60 @@ if (titleType) {
   var cleaned = kwLc;
   for (var ci = 0; ci < strip.length; ci++) cleaned = cleaned.split(strip[ci]).join(' ');
   keyword = cleaned.replace(/\\s+/g, ' ').trim();
+}
+
+/**
+ * ⚠️⚠️ AI [SEARCH:] МАРТСАН ҮЕИЙН НӨӨЦ — ХАМГИЙН ЧУХАЛ.
+ *
+ * БОДИТ АЛДАА: prompt-д дүрэм, жишээ (яг «agent kim») хүртэл байсан
+ * атал AI нь [SEARCH:] тавихгүй, зөвхөн текстээр хариулдаг тохиолдол
+ * гардаг. Тэгэхэд:
+ *   • карт ОГТ гарахгүй (хэрэглэгч кино руу орох линкгүй)
+ *   • бүр AI нь санах ойноосоо БАЙХГҮЙ кино нэрлэдэг
+ *     («Crash Landing on You» — манай санд байхгүй, бодитоор гарсан)
+ *
+ * Тиймээс AI-д НАЙДАХГҮЙ: түлхүүр үг олдоогүй бол хэрэглэгчийн
+ * мессежээс ӨӨРӨӨ гаргана. Хайлт хийвэл бодит кино л буцна —
+ * зохиомол нэр карт болж гарах боломжгүй.
+ */
+if (!keyword && !titleType) {
+  var uq = String(prep.userText || '').toLowerCase().replace(/\\s+/g, ' ').trim();
+  /**
+   * FAQ/мэндчилгээ бол хайхгүй — deterministic хариу аль хэдийн бий.
+   * ⚠️ indexOf (яг тэнцэл БИШ) — «багц хэд вэ», «сайн байна уу» гэх
+   *    мэт нэмэлт үгтэй хувилбарыг ч барина. Өмнөх яг тэнцлийн
+   *    шалгалт эдгээрийг АЛДАЖ, FAQ асуултаар кино хайдаг байв.
+   */
+  var SKIP = ['сайн байна','сайн уу','байна уу?','баярлалаа','баяртай','okay',
+    'мэдээлэл','тусламж','туслаач','ойлголоо','за ойлголоо','тэгье'];
+  var isSkip = false;
+  for (var qi = 0; qi < SKIP.length; qi++) {
+    if (uq.indexOf(SKIP[qi]) !== -1) { isSkip = true; break; }
+  }
+  /* FAQ_STOP-ын аль нэг үг мессежид БАЙВАЛ хайхгүй (deterministic хариу бий) */
+  if (!isSkip) {
+    for (var fi = 0; fi < FAQ_STOP.length; fi++) {
+      if (FAQ_STOP[fi].length >= 3 && uq.indexOf(FAQ_STOP[fi]) !== -1) { isSkip = true; break; }
+    }
+  }
+  /* Маш богино хариулт (за, тийм, ok) — хайх утгагүй */
+  if (uq.length <= 4) isSkip = true;
+  if (!isSkip && uq.length >= 3 && uq.length <= 60) {
+    /* Төрлийн үг байвал таньж, түүнийг хасна */
+    for (var s2 = 0; s2 < SERIES_WORDS.length; s2++) {
+      if (uq.indexOf(SERIES_WORDS[s2]) !== -1) { titleType = 'SERIES'; break; }
+    }
+    var uq2 = uq;
+    if (titleType) {
+      for (var c2 = 0; c2 < SERIES_WORDS.length; c2++) uq2 = uq2.split(SERIES_WORDS[c2]).join(' ');
+    }
+    /* Асуултын дагавар үгсийг хасна — «байна уу», «үзмээр байна» г.м. */
+    var TAIL = ['байна уу','бий юу','байгаа юу','үзмээр байна','үзье','санал болгооч',
+      'олоод өгөөч','хайж өгөөч','байна','уу','вэ','бэ'];
+    for (var t2 = 0; t2 < TAIL.length; t2++) uq2 = uq2.split(TAIL[t2]).join(' ');
+    uq2 = uq2.replace(/[?!.,]/g, ' ').replace(/\\s+/g, ' ').trim();
+    if (uq2.length >= 2) keyword = uq2;
+  }
 }
 
 /* ⚠️ Төрөл мэдэгдэж байвал түлхүүр үг хоосон ч ХАЙНА */

@@ -1,0 +1,318 @@
+{
+  "id": "BestTVWebChat01",
+  "name": "Web Chat — BestTV AI",
+  "nodes": [
+    {
+      "id": "btv-webhook",
+      "name": "Web Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        0
+      ],
+      "webhookId": "besttv-web-chat",
+      "parameters": {
+        "path": "besttv-chat",
+        "options": {},
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "btv-prep",
+      "name": "Prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// BestTV вэб чат — { sessionId, message, name } задална → AI Agent-д өгнө.\n//\n// ⚠️⚠️ FB/IG-ТЭЙ ЯГ ИЖИЛ ХАРИУЛТ ӨГӨХ ЁСТОЙ. Өмнө нь энэ node нь\n// зөвхөн текст задалдаг байсан тул вэбээр үнэ/данс/холбоо асуухад\n// AI нь МЭДЭЭЛЛИЙГ ЗОХИОДОГ байв (FB дээр deterministic хариу байсан\n// атал вэб дээр байгаагүй) — нэг платформ хоёр өөр хариу өгнө.\nconst body = $input.first().json.body || {};\nconst sessionId = String(body.sessionId || \"web_anon\").slice(0, 64);\nconst userText = String(body.message || \"\").trim();\nconst name = (body.name || \"\").trim();\nconst NL = String.fromCharCode(10);\n\nif (!userText) {\n  return [{ json: { psid: sessionId, userText: \"\", agentInput: \"\", empty: true, directReply: \"\" } }];\n}\n\nconst nameLine = name ? (\"Хэрэглэгчийн нэр: \" + name) : \"\";\n\n// ⚠️ Холбоо барих/багцын асуултад AI зохиодог тул deterministic хариу\n// бэлдэнэ (Build Messages түүнийг AI-аас ДЭЭГҮҮР ашиглана).\nconst lower = (userText || '').toLowerCase();\nconst contactTriggers = ['утас','дугаар','хаяг','холбоо','холбогд','имэйл','мэйл',\n  'байршил','ажлын цаг','социал','фэйсбүүк','facebook','instagram','инстаграм',\n  'бидний тухай','танай тухай','хэн бэ','хаягтай','утастай','phone','contact'];\nconst _hasEmailAddr = /[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i.test(userText || '');\nconst needsContact = !_hasEmailAddr && contactTriggers.some((t) => lower.includes(t));\n\nlet directReply = '';\nif (needsContact) {\n  try {\n    const s = await this.helpers.httpRequest({\n      method: 'GET', url: 'http://besttv-backend:4100/api/settings/socials', json: true, timeout: 4000,\n      /* ⚠️ throttle-ыг тойрно — 30 хүсэлтээс 10 нь 429 болдог байв,\n         тэгэхэд directReply хоосон үлдэж AI холбоо барихыг ЗОХИОНО */\n      headers: { 'x-bot-secret': '__BOT_SECRET__' },\n    });\n    const parts = ['📺 BestTV — Монголын кино, цувралын онлайн сан', ''];\n    if (s && s.phone) parts.push('📞 Утас: ' + s.phone);\n    /**\n     * ⚠️⚠️ ИМЭЙЛ ЗААВАЛ ГАРНА — админ socials-д тохируулаагүй ч.\n     *\n     * БОДИТ АЛДАА: Settings.socials бүх талбар ХООСОН байсан тул\n     * «холбоо барих» асуултад чатбот зөвхөн вэб хаяг өгч, хэрэглэгч\n     * хаана хандахаа мэдэхгүй үлддэг байв. Тохиргоо хоосон байх нь\n     * хэрэглэгчид хариу өгөхгүй байх ШАЛТГААН БИШ.\n     */\n    parts.push('✉️ Имэйл: ' + ((s && s.email) || 'support@besttv.us'));\n    if (s && s.facebook) parts.push('💬 Facebook: ' + s.facebook);\n    if (s && s.instagram) parts.push('📷 Instagram: ' + s.instagram);\n    parts.push('', '🌐 Вэб: https://besttv.us');\n    parts.push('', 'Эсвэл энд шууд бичээрэй — админ хариулна 😊');\n    directReply = parts.join(NL);\n  } catch (e) {\n    /* ⚠️ API унасан ч ХООСОН БУЦААХГҮЙ — өмнө нь directReply=''\n       болоод AI холбоо барих мэдээллийг ЗОХИОДОГ байв (худал утас/\n       имэйл өгөх эрсдэл). Хамгийн багадаа имэйл + вэб хаягийг өгнө. */\n    directReply = ['📺 BestTV — Монголын кино, цувралын онлайн сан', '',\n      '✉️ Имэйл: support@besttv.us', '', '🌐 Вэб: https://besttv.us', '',\n      'Эсвэл энд шууд бичээрэй — админ хариулна 😊'].join(NL);\n  }\n}\n\n// ⚠️ БАГЦЫН ҮНЭ — AI үнэ зохиовол хэрэглэгч төөрөлдөнө. Бодит үнийг татна.\nconst priceTriggers = ['багц','үнэ','төлбөр','хэд вэ','ханш','тариф','захиалга','subscribe','price'];\nconst needsPricing = priceTriggers.some((t) => lower.includes(t));\nlet plansText = '';\nif (needsPricing) {\n  try {\n    const plans = await this.helpers.httpRequest({\n      method: 'GET', url: 'http://besttv-backend:4100/api/plans', json: true, timeout: 4000,\n      /* ⚠️ throttle → 429 → AI ҮНЭ ЗОХИОНО. Яг сэргийлэх гэсэн зүйл. */\n      headers: { 'x-bot-secret': '__BOT_SECRET__' },\n    });\n    if (Array.isArray(plans) && plans.length) {\n      const fmt = function(n){ var s=String(Math.round(Number(n)||0)),o='',c=0;\n        for(var i=s.length-1;i>=0;i--){o=s[i]+o;c++;if(c%3===0&&i>0)o=','+o;} return o+'₮'; };\n      const lines = ['📦 BestTV-ийн багцууд:', ''];\n      plans.forEach(function(p){\n        lines.push('• ' + p.name + ' — ' + fmt(p.price) + ' / ' + p.durationDays + ' хоног');\n        if (p.description) lines.push('  ' + p.description);\n      });\n      lines.push('', '👉 Багц авах: https://besttv.us/pricing');\n      plansText = lines.join(NL);\n    }\n  } catch (e) { plansText = ''; }\n}\nif (plansText) directReply = plansText;\n\n/**\n * ⚠️⚠️ ДАНСНЫ МЭДЭЭЛЭЛ — AI-д ХЭЗЭЭ Ч ЗОХИОЛГОХГҮЙ.\n *\n * Буруу дансны дугаар өгвөл хэрэглэгчийн МӨНГӨ ӨӨР ХҮН РҮҮ очно —\n * буцаах боломжгүй, платформын нэр хүнд унана. Тиймээс бодит дансыг\n * DB-ээс татаж deterministic хариу бэлдэнэ.\n *\n * ⚠️ ГҮЙЛГЭЭНИЙ УТГА нь хэрэглэгч/захиалга бүрт ӨӨР (жишээ BTV-XXXX)\n *    тул ЭНД бичихгүй — сайтаас авахыг зааварчилна.\n */\nconst bankTriggers = ['данс','дансаар','шилжүүл','хаан банк','хаанбанк','голомт',\n  'хас банк','төрийн банк','account','гүйлгээ','дансны дугаар'];\nconst needsBank = bankTriggers.some((t) => lower.includes(t));\nif (needsBank) {\n  try {\n    /* ⚠️ Зам нь /bank/accounts — /settings/bank БАЙХГҮЙ (404).\n       Олон данс байж болно тул идэвхтэйг нь бүгдийг харуулна. */\n    const b = await this.helpers.httpRequest({\n      method: 'GET', url: 'http://besttv-backend:4100/api/bank/accounts', json: true, timeout: 4000,\n      headers: { 'x-bot-secret': '__BOT_SECRET__' },\n    });\n    const accs = (b && Array.isArray(b.accounts))\n      ? b.accounts.filter(function (a) { return a && a.isActive && a.accountNumber; })\n      : [];\n    if (b && b.enabled && accs.length) {\n      const bl = ['🏦 Дансаар шилжүүлэх:', ''];\n      accs.forEach(function (a) {\n        bl.push((a.bankName ? a.bankName + ': ' : '') + a.accountNumber\n          + (a.accountName ? '  (' + a.accountName + ')' : ''));\n      });\n      bl.push('', '⚠️ ГҮЙЛГЭЭНИЙ УТГЫГ заавал бичнэ — сайт дээр багцаа',\n        'сонгоод «Дансаар шилжүүлэх» гэхэд ТАНД зориулсан утга гарна.',\n        '', 'Шилжүүлээд баримтын зургаа энд илгээгээрэй 📷');\n      if (b.note) bl.push('', b.note);\n      bl.push('', '👉 https://besttv.us/pricing');\n      directReply = bl.join(NL);\n    }\n  } catch (e) {\n    /* ⚠️ API унасан ч AI-д данс зохиолгохгүй — заавар руу чиглүүлнэ */\n    directReply = ['🏦 Дансаар шилжүүлэх:', '',\n      'Сайт дээр багцаа сонгоод «Дансаар шилжүүлэх» гэхэд дансны',\n      'дугаар болон ТАНД зориулсан гүйлгээний утга гарч ирнэ.',\n      '', 'Шилжүүлээд баримтын зургаа энд илгээгээрэй 📷',\n      '', '👉 https://besttv.us/pricing'].join(NL);\n  }\n}\n\n\nconst agentInput = [nameLine, \"=== ХЭРЭГЛЭГЧИЙН МЕССЕЖ ===\", userText].filter(Boolean).join(NL);\n\nreturn [{ json: { psid: sessionId, userText, agentInput, directReply } }];"
+      }
+    },
+    {
+      "id": "btv-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        60,
+        0
+      ],
+      "parameters": {
+        "text": "={{ $json.agentInput }}",
+        "options": {
+          "systemMessage": "Чи бол BestTV-ийн ажилтан — Монголын кино, цувралын онлайн үзвэрийн\nплатформ дээр хэрэглэгчидтэй чатаар харилцдаг хүн. Дандаа МОНГОЛ хэлээр.\n\n=== ⚠️⚠️⚠️ ХАМГИЙН ЧУХАЛ: ХҮН ШИГ ЯРЬ ===\n\nЧи робот БИШ. Кино сонирхдог, ярианы завсар санал өгдөг, хүнд ойр\nажилтан шиг бич. Хоосон «танд байна», «хараад үзээрэй» гэх мэт\nутгагүй өгүүлбэр ХЭЗЭЭ Ч бүү бич.\n\n❌ МУУ (робот, хоосон):\n  «Шинэ кинонууд танд байна 😊 Хараад үзээрэй!»\n  «Шилдэг кинонуудын жагсаалт танд байна 😊»\n  «Доорх картаас дэлгэрэнгүйг үзээрэй.»\n  «Танд тохирох кино хайж байна...»\n\n✅ САЙН (хүн шиг, утгатай):\n  «Сүүлд нэмэгдсэн кинонуудаас санал болгож байна👇»\n  «Одоогийн байдлаар хамгийн түгээмэл илэрсэн нь эдгээр🔥»\n  «Аль нь илүү сонирхол татаж байна?»\n  «Энэ 2026 оны шинэ цуврал, үнэлгээ нь ч сайн ⭐8»\n\nДҮРЭМ:\n1. Кино санал болгохдоо ЯМАР НЭГ ЗҮЙЛ ХЭЛ — яагаад энэ, юугаараа\n   онцлог, хэдэн он, ямар төрөл. Зүгээр «байна» гэж бүү өнгөр.\n2. Асуултаар дуусга — «Аль төрлийг илүүд үздэг вэ?», «Ямар\n   сэдэвтэйг сонирхож байна?». Яриа үргэлжлүүлнэ.\n3. Тодорхой киног олсон бол ТҮҮНИЙ ТУХАЙ 1 өгүүлбэр хэл (он,\n   төрөл, үнэлгээ, юуны тухай).\n4. Emoji 1-2 хүрэлцэнэ. Өгүүлбэр бүрд тавихгүй.\n5. «Уучлаарай», «Танд туслахдаа баяртай байна» гэх албан ёсны\n   хоосон үг хэрэглэхгүй — энгийн, дотно бич.\n6. ⚠️⚠️ НЭР ЗОХИОХГҮЙ. Хэрэглэгчийн нэрийг мессежийн эхэнд\n   «Хэрэглэгчийн нэр: X» гэж ӨГСӨН бол л дурдаж болно (1 удаа).\n   Өгөөгүй бол нэрээр хандахгүй — «Болд аа» гэх мэт БАЙХГҮЙ нэр\n   зохиовол хэрэглэгч эвгүйрхэнэ (бодит алдаа гарсан).\n\n=== ⚠️⚠️ ЗӨВХӨН BESTTV-ИЙН ТУХАЙ (ХАМГИЙН ЭХЭНД ШАЛГА) ===\nЧи бол BestTV-ийн туслах — ChatGPT/ерөнхий AI БИШ.\nЗӨВХӨН BestTV-тэй холбоотой сэдвээр хариулна:\n  • Кино, цуврал хайх, санал болгох, тухайн киноны тухай\n  • Багц, үнэ, төлбөр, хямдрал, урамшуулал\n  • Хэрхэн үзэх, төхөөрөмж, чанар, бүртгэл, нэвтрэх\n  • Вэбсайт, холбоо барих, BestTV-ийн тухай\n\n⛔ BestTV-т ХАМААРАЛГҮЙ хүсэлтийг ЭЕЛДЭГ ТАТГАЛЗ (ажил хийж ӨГӨХГҮЙ):\n  • Тайлан/эссэ/захидал бэлдэх, найруулах, засах\n  • Код бичих, орчуулга, тооцоо, бодлого бодох\n  • Ерөнхий мэдлэг, BestTV-т хамааралгүй ямар ч даалгавар\n→ Хариу: \"Уучлаарай, би зөвхөн BestTV-ийн кино, багцын талаар туслах боломжтой 😊 Та ямар кино сонирхож байна вэ?\"\n→ [SEARCH:] ОГТ тавихгүй.\n\n⛔ ЖИНХЭНЭ КИНО БУС зүйл асуувал (пират сайт, үнэгүй татах линк, өөр платформын кино):\n→ \"BestTV дээр байгаа кинонуудаас санал болгож болох уу? 😊\"\n→ Өөр сайт/пират линк ХЭЗЭЭ Ч санал болгохгүй.\n\n=== ⚠️ ИМЭЙЛ ХАЯГ ӨГВӨЛ (ХАМГИЙН ТҮРҮҮНД ШАЛГА) ===\nХэрэглэгчийн мессежид имэйл хаяг (жишээ: нэр@gmail.com) байвал:\n→ Бусад юу ч хийхгүй, талархаж бүртгэснээ хэл:\n  «Баярлалаа! 🎉 Имэйлийг тань хадгаллаа. Шинэ кино, урамшуулал\n   гарахад мэдэгдэх болно. Өөр асуух зүйл байвал бичээрэй 😊»\n→ [SEARCH:] ОГТ тавихгүй. Систем имэйлийг автоматаар хадгална.\n→ Имэйлээс гадна асуулт хавсарсан бол: эхлээд бүртгэснээ хэлж,\n  дараа нь асуултад хариул.\n\n⚠️ Хэрэглэгч имэйлээ өгөөгүй байхад ЗААВАЛ бүү нэх. Гэхдээ яриа\nдуусах үед НЭГ УДАА санал болгож болно:\n  «Шинэ кино гарахад мэдэгдэх үү? Имэйлээ үлдээгээрэй 📩»\n\n=== ⚠️⚠️ КИНО ХАЙХ — [SEARCH:] ТЭМДЭГ ===\nХэрэглэгч тодорхой КИНО/ЦУВРАЛ хайж байвал хариунхаа эхэнд [SEARCH:түлхүүр үг] тавь.\nСистем түүгээр хайж, кино картыг автоматаар харуулна.\n\n⚠️⚠️ ТӨРӨЛ ЯЛГА — «цуврал» ба «кино» нь ӨӨР:\n  • «цуврал», «олон ангит», «сериал» → ОЛОН АНГИТ кино\n  • «кино», «уран сайхны» → БҮРЭН ХЭМЖЭЭНИЙ ганц кино\nХэрэглэгч «цуврал байна уу» гэвэл [SEARCH:цуврал] тавь — систем нь\nолон ангит контентыг л шүүж өгнө. «Солонгос цуврал» → [SEARCH:солонгос цуврал].\n\nЖИШЭЭ:\n  Хэрэглэгч: \"Agent Kim байна уу?\"\n  Чи: \"[SEARCH:agent kim] Байна шүү 🎬 2026 оны шинэ солонгос цуврал,\n       үнэлгээ нь 8.0. Тагнуулын сэдэвтэй, нэлээд хурцадмал.\"\n\n  Хэрэглэгч: \"цуврал байна уу\"\n  Чи: \"[SEARCH:цуврал] Олон ангит кинонуудаас санал болгож байна 📺\n       Аль төрлийг илүүд үздэг вэ — драм, тагнуул, инээдмийн?\"\n\n  Хэрэглэгч: \"инээдмийн кино санал болгооч\"\n  Чи: \"[SEARCH:инээдмийн] Инээд хүргэх кинонуудаас санал болгож байна 😄\n       Аль нь илүү сонирхол татаж байна?\"\n\n  Хэрэглэгч: \"солонгос цуврал\"\n  Чи: \"[SEARCH:солонгос цуврал] Солонгос цувралуудаас санал болгож байна 📺\n       Романтик уу, эсвэл шүүрч авах маягийн триллер үү?\"\n\n⚠️⚠️ «КИНО САНАЛ БОЛГООЧ» гэх ЕРӨНХИЙ хүсэлтэд ЗААВАЛ [SEARCH:] ТАВЬ.\nХэрэглэгч юу үзэхээ мэдэхгүй байна — карт харуулбал сонгоход амар.\n  «кино санал болгооч»   → [SEARCH:шинэ]\n  «юу үзэх вэ»           → [SEARCH:шинэ]\n  «сонирхолтой юм байна уу» → [SEARCH:шинэ]\n  «залхаж байна»         → [SEARCH:шинэ]\n→ Хоосон текст буцаах нь МУУ — хэрэглэгч юу ч харахгүй үлдэнэ.\n\n⚠️ ХЭЗЭЭ [SEARCH:] ТАВИХГҮЙ ВЭ:\n  • Ерөнхий FAQ асуулт (яаж үзэх, багц хэд, төлбөр яаж төлөх)\n  • Мэндчилгээ, талархал, энгийн яриа\n  • Хамааралгүй хүсэлт\n→ Эдгээрт зүгээр л хариул, хайлт ХИЙХГҮЙ.\n\n⚠️ Түлхүүр үг нь ЯГ киноны нэр эсвэл төрөл байна. \"үзэх\", \"кино\", \"цуврал\", \"багц\"\n   гэх ерөнхий үгийг ГАНЦААР [SEARCH:]-д тавихгүй (юу ч олдохгүй).\n\n=== ⚠️ ХАРИУЛТЫН ХЭЛБЭР ===\n• ТОВЧ — 2-4 өгүүлбэр. Мессенжер чат, урт бичвэр уншдаггүй.\n• Emoji тааруулж хэрэглэ (🎬 📺 ⭐ 😊 🍿), гэхдээ хэтрүүлэхгүй.\n• Markdown ХЭРЭГЛЭХГҮЙ (**bold**, [линк](url) ажиллахгүй) — цэвэр текст бич.\n• Линкийг шууд бич: https://besttv.us/pricing\n• Хэрэглэгчийн нэрийг мэдэж байвал 1 удаа дурд, давтахгүй.\n\n=== 📦 БАГЦ, ҮНЭ ===\n⚠️ ҮНИЙГ ӨӨРӨӨ ЗОХИОХГҮЙ. Хэрэглэгч багц/үнэ асуувал систем бодит үнийг\nавтоматаар оруулж өгнө — чи зүгээр л дулаанаар танилцуулаад\nhttps://besttv.us/pricing рүү урь.\n\n⚠️ БАГЦ БҮР ТУХАЙН АНГИЛЛЫГ Л НЭЭНЭ — «бүх кино» гэж БҮҮ хэл.\nАнгилал бүрт тусдаа багц бий, VIP нь бүгдийг нээнэ:\n  • Монгол кино багц         → зөвхөн монгол кино\n  • Хятад болон Ай кино      → зөвхөн тэр ангилал\n  • Шилдэг кино              → зөвхөн тэр ангилал\n  • Насанд хүрэгчдийн (18+)  → зөвхөн 18+\n  • VIP багц                 → БҮХ ангилал нээгдэнэ\n\nБагцын талаар мэдэх ерөнхий зүйл:\n  • Бүх багц 30 хоногийн хугацаатай\n  • Нэг эрхээр 2 төхөөрөмж хүртэл үзэх боломжтой\n  • Багц дуусахад автоматаар сунгагдахгүй (хэрэглэгч өөрөө сунгана)\n  • VIP авахад бусад багц илүүдэл болно (VIP бүгдийг нээдэг)\n  • Багцаас гадна нэг киног ширхэгээр ТҮРЭЭСЛЭХ боломжтой (48 цаг)\n\n=== 💳 ТӨЛБӨР ===\nBestTV дээр 2 аргаар төлнө:\n  1. QPay — банкны апп-аар QR уншуулж шууд (хормын дотор идэвхжинэ)\n     Компьютер дээр QR-ыг утсаараа уншуулна, утсан дээр банкаа сонгоно.\n  2. Дансаар шилжүүлэх — гүйлгээний утга + баримтын зураг илгээж,\n     ажлын өдрийн 10:00–18:00 цагт админ баталгаажуулна (1-3 цаг)\n\n⚠️⚠️ ДАНСНЫ ДУГААРЫГ ӨӨРӨӨ БҮҮ БИЧ, БҮҮ ЗОХИО.\nХэрэглэгч данс/шилжүүлэг асуувал систем бодит дансыг автоматаар\nоруулж өгнө. Чи зөвхөн дараах ЗААВРЫГ тайлбарла:\n  1. Сайт руу орж багцаа сонгоод «Дансаар шилжүүлэх» гэснийг сонгоно\n  2. Гарч ирсэн ГҮЙЛГЭЭНИЙ УТГЫГ яг тэр чигээр нь бичнэ (ЗААВАЛ)\n  3. Шилжүүлээд баримтын зургаа энэ чатанд илгээнэ\n  4. Ажлын цагт админ шалгаж баталгаажуулна\n\n⚠️ Гүйлгээний утга нь хэрэглэгч бүрт ӨӨР — чи түүнийг мэдэхгүй,\n   зохиож БОЛОХГҮЙ. Сайтаас авахыг хэл.\n\nХэтэвч: дансаа урьдчилж цэнэглээд, багц авахдаа хэтэвчнээсээ төлж болно.\n\n=== 🎬 ХЭРХЭН ҮЗЭХ ===\n1. https://besttv.us дээр бүртгүүлж нэвтэрнэ\n2. Багц авна (эсвэл үнэгүй кино шууд үзнэ)\n3. Хүссэн киногоо сонгоод «Үзэх» дарна\n\nДэмждэг: компьютер, утас, таблет — браузераар. Тусдаа апп хэрэггүй.\nНэг эрхээр зэрэг 2 төхөөрөмж. 3 дахь нь нэвтрэхэд хамгийн удаан\nашиглаагүй нь автоматаар гарна.\n\n=== ❓ ТҮГЭЭМЭЛ АСУУЛТ ===\n\"Татаж авч болох уу?\" → Үгүй, BestTV бол онлайн үзвэрийн платформ.\n    Интернэттэй үед сайтаас шууд үзнэ.\n\"Офлайн үзэх үү?\" → Үгүй, интернэт шаардлагатай.\n\"Гадаадаас үзэж болох уу?\" → Тийм, интернэттэй бол хаанаас ч болно.\n\"Нууц үгээ мартсан\" → Нэвтрэх хуудасны «Нууц үг мартсан» дарж, имэйлээр\n    сэргээх линк ирнэ.\n\"Багцаа цуцлах уу?\" → Автоматаар сунгагддаггүй тул цуцлах шаардлагагүй.\n    Хугацаа дуусахад зүгээр л дуусна.\n\"Хүүхдэд тохиромжтой юу?\" → 18+ контент тусдаа ангилалд, нээлттэй харагдахгүй.\n\n=== 📧 ХОЛБОО БАРИХ ===\n⚠️ Хэрэглэгч \"холбоо барих\", \"холбоо барья\", \"хаана хандах вэ\",\n\"админтай ярих\", \"гомдол\", \"хүнтэй ярих\" гэх мэт асуувал ЗААВАЛ\nИМЭЙЛ ХАЯГИЙГ өг — зөвхөн сайт руу чиглүүлээд болихгүй:\n\n  📧 support@besttv.us\n  💬 Эсвэл энэ чатанд шууд бичээрэй — админ хариулна.\n\nЖишээ хариулт:\n  \"Бидэнтэй support@besttv.us хаягаар холбогдож болно 📧\n   Эсвэл энд бичээрэй, админ хариулна 😊\"\n\n=== ⚠️ МЭДЭХГҮЙ ЗҮЙЛ ===\nИтгэлгүй байвал ЗОХИОХГҮЙ. \"Тодорхой мэдээллийг эндээс шалгаарай:\nhttps://besttv.us\" эсвэл support@besttv.us руу хандахыг санал болго.\nКино БАЙГАА эсэхийг [SEARCH:] хийж мэдээрэй — толгойноосоо \"байхгүй\" гэж ХЭЛЭХГҮЙ.\n\n=== 🚫 ХЭЗЭЭ Ч ХИЙХГҮЙ ===\n• Байхгүй кино/багц/үнэ зохиох\n• Пират сайт, үнэгүй татах линк санал болгох\n• Хэрэглэгчийн нууц үг, картын мэдээлэл асуух\n• Өөр платформ (Netflix г.м.) сурталчлах\n• Англи хэлээр хариулах (хэрэглэгч англиар бичсэн ч монголоор хариул)\n"
+        },
+        "promptType": "define"
+      }
+    },
+    {
+      "id": "btv-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        20,
+        200
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "qpjrNb8Yo010i6C9",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "id": "btv-memory",
+      "name": "Postgres Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        180,
+        200
+      ],
+      "parameters": {
+        "tableName": "n8n_chat_memory",
+        "sessionKey": "={{ $('Prep').first().json.psid }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "credentials": {
+        "postgres": {
+          "id": "ngOFGxWpH1dywpIn",
+          "name": "N8N PostgreSQL"
+        }
+      }
+    },
+    {
+      "id": "btv-extract",
+      "name": "Extract Keyword",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// AI хариунаас [SEARCH:keyword] салгана.\nconst prep = $('Prep').first().json;\nconst psid = prep.psid;\nconst platform = prep.platform || 'facebook';\nlet raw = ($input.first().json.output || '').trim();\nlet keyword = '';\nconst m = raw.match(/\\[SEARCH:\\s*([^\\]]*)\\]/i);\nif (m) keyword = (m[1] || '').trim();\nlet replyText = raw.replace(/\\[SEARCH:[^\\]]*\\]/ig, '').trim();\n\n// Markdown цэвэрлэх: [текст](url) → \"текст url\", ** __ устгах\nfunction stripMd(s){ s=String(s||''); var r='',i=0;\n  while(i<s.length){ if(s[i]==='['){ var c=s.indexOf('](',i);\n    if(c!==-1){ var e=s.indexOf(')',c+2); if(e!==-1){ var t=s.slice(i+1,c).trim();\n      var u=s.slice(c+2,e).trim(); r+=(t===u||!t)?u:(t+' '+u); i=e+1; continue; } } }\n    r+=s[i]; i++; }\n  r=r.split('**').join('').split('__').join('');\n  var parts=r.split(' '); var out=[];\n  for(var k=0;k<parts.length;k++){ if(k>0 && parts[k]!=='' && parts[k]===parts[k-1]) continue; out.push(parts[k]); }\n  return out.join(' ').trim(); }\nreplyText = stripMd(replyText);\n\n// ⚠️ FAQ ХАМГААЛАЛТ: AI ерөнхий үйл үгийг [SEARCH:]-д тавьсан бол хайхгүй\nconst kwLc = keyword.toLowerCase().replace(/\\s+/g, ' ').trim();\nconst FAQ_STOP = ['үзэх','яаж үзэх','хэрхэн үзэх','багц','багцын үнэ','үнэ','төлбөр',\n  'төлбөр төлөх','qpay','данс','дансаар','купон','хямдрал','урамшуулал','бүртгэл',\n  'бүртгүүлэх','нэвтрэх','нууц үг','имэйл','төхөөрөмж','хэдэн төхөөрөмж','татах',\n  'татаж авах','офлайн','чанар','интернэт','тусламж','холбоо барих','админ'];\nif (FAQ_STOP.indexOf(kwLc) !== -1) keyword = '';\n\n// ⚠️⚠️ ТӨРӨЛ ТАНИХ — «цуврал» гэдэг нь ОЛОН АНГИТ кино (SERIES).\n//\n// Өмнө нь «цуврал», «кино» хоёрыг FAQ_STOP-д хийж хайлтыг бүрмөсөн\n// зогсоодог байв → чатбот өмнөх ярианы үлдэгдэл харуулж, хэрэглэгч\n// «цуврал» гэж асуухад ЖИРИЙН КИНО санал болгодог байв (бодит гомдол).\n//\n// Одоо: төрлийг ТАНЬЖ type параметрээр backend-д дамжуулна.\n// Хайх үг үлдээгүй ч type байвал backend тухайн төрлийн шинэ\n// кинонуудыг буцаана.\nvar SERIES_WORDS = ['цуврал','олон ангит','олон ангийн','сериал','series','драм цуврал'];\nvar MOVIE_WORDS  = ['кино','уран сайхны','бүрэн хэмжээний','movie','film'];\nvar titleType = '';\nfor (var si = 0; si < SERIES_WORDS.length; si++) {\n  if (kwLc.indexOf(SERIES_WORDS[si]) !== -1) { titleType = 'SERIES'; break; }\n}\nif (!titleType) {\n  for (var mi = 0; mi < MOVIE_WORDS.length; mi++) {\n    if (kwLc === MOVIE_WORDS[mi]) { titleType = 'MOVIE'; break; }\n  }\n}\n/* Төрлийн үгийг түлхүүрээс хасна — «солонгос цуврал» → «солонгос» */\nif (titleType) {\n  var strip = titleType === 'SERIES' ? SERIES_WORDS : MOVIE_WORDS;\n  var cleaned = kwLc;\n  for (var ci = 0; ci < strip.length; ci++) cleaned = cleaned.split(strip[ci]).join(' ');\n  keyword = cleaned.replace(/\\s+/g, ' ').trim();\n}\n\n/**\n * ⚠️⚠️ AI [SEARCH:] МАРТСАН ҮЕИЙН НӨӨЦ — ХАМГИЙН ЧУХАЛ.\n *\n * БОДИТ АЛДАА: prompt-д дүрэм, жишээ (яг «agent kim») хүртэл байсан\n * атал AI нь [SEARCH:] тавихгүй, зөвхөн текстээр хариулдаг тохиолдол\n * гардаг. Тэгэхэд:\n *   • карт ОГТ гарахгүй (хэрэглэгч кино руу орох линкгүй)\n *   • бүр AI нь санах ойноосоо БАЙХГҮЙ кино нэрлэдэг\n *     («Crash Landing on You» — манай санд байхгүй, бодитоор гарсан)\n *\n * Тиймээс AI-д НАЙДАХГҮЙ: түлхүүр үг олдоогүй бол хэрэглэгчийн\n * мессежээс ӨӨРӨӨ гаргана. Хайлт хийвэл бодит кино л буцна —\n * зохиомол нэр карт болж гарах боломжгүй.\n */\nif (!keyword && !titleType) {\n  var uq = String(prep.userText || '').toLowerCase().replace(/\\s+/g, ' ').trim();\n  /**\n   * FAQ/мэндчилгээ бол хайхгүй — deterministic хариу аль хэдийн бий.\n   * ⚠️ indexOf (яг тэнцэл БИШ) — «багц хэд вэ», «сайн байна уу» гэх\n   *    мэт нэмэлт үгтэй хувилбарыг ч барина. Өмнөх яг тэнцлийн\n   *    шалгалт эдгээрийг АЛДАЖ, FAQ асуултаар кино хайдаг байв.\n   */\n  var SKIP = ['сайн байна','сайн уу','байна уу?','баярлалаа','баяртай','okay',\n    'мэдээлэл','тусламж','туслаач','ойлголоо','за ойлголоо','тэгье'];\n  var isSkip = false;\n  for (var qi = 0; qi < SKIP.length; qi++) {\n    if (uq.indexOf(SKIP[qi]) !== -1) { isSkip = true; break; }\n  }\n  /* FAQ_STOP-ын аль нэг үг мессежид БАЙВАЛ хайхгүй (deterministic хариу бий) */\n  if (!isSkip) {\n    for (var fi = 0; fi < FAQ_STOP.length; fi++) {\n      if (FAQ_STOP[fi].length >= 3 && uq.indexOf(FAQ_STOP[fi]) !== -1) { isSkip = true; break; }\n    }\n  }\n  /* Маш богино хариулт (за, тийм, ok) — хайх утгагүй */\n  if (uq.length <= 4) isSkip = true;\n  if (!isSkip && uq.length >= 3 && uq.length <= 60) {\n    /* Төрлийн үг байвал таньж, түүнийг хасна */\n    for (var s2 = 0; s2 < SERIES_WORDS.length; s2++) {\n      if (uq.indexOf(SERIES_WORDS[s2]) !== -1) { titleType = 'SERIES'; break; }\n    }\n    var uq2 = uq;\n    if (titleType) {\n      for (var c2 = 0; c2 < SERIES_WORDS.length; c2++) uq2 = uq2.split(SERIES_WORDS[c2]).join(' ');\n    }\n    /* Асуултын дагавар үгсийг хасна — «байна уу», «үзмээр байна» г.м. */\n    var TAIL = ['байна уу','бий юу','байгаа юу','үзмээр байна','үзье','санал болгооч',\n      'олоод өгөөч','хайж өгөөч','байна','уу','вэ','бэ'];\n    for (var t2 = 0; t2 < TAIL.length; t2++) uq2 = uq2.split(TAIL[t2]).join(' ');\n    uq2 = uq2.replace(/[?!.,]/g, ' ').replace(/\\s+/g, ' ').trim();\n    if (uq2.length >= 2) keyword = uq2;\n  }\n}\n\n/* ⚠️ Төрөл мэдэгдэж байвал түлхүүр үг хоосон ч ХАЙНА */\nconst doSearch = keyword.length >= 2 || titleType !== '';\n\n// ⚠️⚠️ AI УНАСАН ТОХИОЛДОЛ (OpenAI 3 удаа алдсан).\n//\n// AI Agent-д onError: continueRegularOutput тавьсан тул урсгал\n// үргэлжилнэ, гэхдээ output хоосон ирнэ. Ийм үед «Уучлаарай,\n// дахин бичнэ үү» гэвэл хэрэглэгч буруугаа гэж бодно — үнэнийг\n// хэлж, дахин оролдохыг урина.\nif (!replyText) {\n  replyText = doSearch\n    ? 'Хайж байна...'\n    : 'Уучлаарай, түр саатал гарлаа 🙏 Хэдхэн секундын дараа дахин бичээрэй.';\n}\nreturn [{ json: { psid, keyword, titleType, doSearch, replyText, platform } }];"
+      }
+    },
+    {
+      "id": "btv-search",
+      "name": "Search Titles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "url": "=http://besttv-backend:4100/api/titles/search?q={{ $('Extract Keyword').first().json.keyword || '' }}&type={{ $('Extract Keyword').first().json.titleType || '' }}&limit=6",
+        "method": "GET",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-bot-secret",
+              "value": "__BOT_SECRET__"
+            }
+          ]
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "btv-build",
+      "name": "Build JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Widget-д зориулсан эцсийн JSON: { reply, titles[] } + backend-д бичих _ingest.\nconst ex = $('Extract Keyword').first().json;\n// ⚠️⚠️ deterministic хариу (холбоо/үнэ/данс) нь AI-аас ДЭЭГҮҮР.\n//\n// БОДИТ АЛДАА: вэб чат нь Prep-ийн directReply-ыг ОГТ уншдаггүй\n// байсан тул FB дээр бодит үнэ/данс гардаг атал ВЭБ дээр AI нь\n// мэдээллийг ЗОХИОДОГ байв — нэг платформ хоёр өөр хариу.\nlet _direct = \"\";\ntry { _direct = ($('Prep').first().json.directReply || \"\").trim(); } catch (e) {}\nconst replyText = _direct || (ex.replyText || '').trim() || 'Уучлаарай, дахин бичнэ үү.';\n\nlet raw = [];\ntry {\n  /**\n   * ⚠️⚠️ .all() — .first() БИШ. ЭНЭ БОЛ ГОЛ АЛДАА БАЙВ.\n   *\n   * /titles/search нь ЦЭВЭР МАССИВ буцаадаг. n8n HTTP node нь\n   * массив хариуг ОЛОН ITEM болгон ЗАДАЛДАГ тул .first().json нь\n   * массив БИШ, ЭХНИЙ КИНО (объект) болно. Тэгэхэд Array.isArray\n   * нь false → raw хоосон үлдэж КАРТ ОГТ ГАРДАГГҮЙ байв\n   * (FB дээр аль хэдийн засагдсан, вэб дээр үлдсэн байсан).\n   */\n  const items = $('Search Titles').all();\n  raw = items.map(function (it) { return it.json; })\n    .filter(function (x) { return x && (x.slug || x.id); });\n  /* Backend {data:[...]} хэлбэрээр буцаах тохиолдол */\n  if (raw.length === 1 && Array.isArray(raw[0] && raw[0].data)) raw = raw[0].data;\n} catch (e) { raw = []; }\n\nconst triedSearch = ex.doSearch === true;\nconst list = triedSearch ? raw : [];\n\n// Эхний 6 киног widget-ийн карт болгоно\nconst titles = list.slice(0, 6).map(function (t) {\n  return {\n    id: t.id || null,\n    title: t.title || '',\n    slug: t.slug || '',\n    posterUrl: t.posterUrl || null,\n    url: t.slug ? ('https://besttv.us/movie/' + t.slug) : null,\n    year: (t.year != null) ? Number(t.year) : null,\n    rating: (t.rating != null) ? Number(t.rating) : null,\n  };\n});\n\nreturn [{ json: {\n  reply: replyText,\n  titles: titles,\n  _ingest: {\n    sessionId: String(($('Prep').first().json.psid) || '').slice(0, 64),\n    userText: String(($('Prep').first().json.userText) || '').trim(),\n    assistantText: String(replyText || '').trim(),\n    titles: titles,\n  },\n} }];"
+      }
+    },
+    {
+      "id": "btv-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        -100
+      ],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "btv-ingest",
+      "name": "Save Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "parameters": {
+        "url": "http://besttv-backend:4100/api/chat/ingest",
+        "method": "POST",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "jsonBody": "={{ JSON.stringify($json._ingest) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-bot-secret",
+              "value": "__BOT_SECRET__"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Web Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Extract Keyword",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Keyword": {
+      "main": [
+        [
+          {
+            "node": "Search Titles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Titles": {
+      "main": [
+        [
+          {
+            "node": "Build JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build JSON": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
