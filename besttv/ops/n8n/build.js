@@ -42,7 +42,39 @@ const BOT_SECRET = process.env.BESTTV_BOT_SECRET || '__BOT_SECRET__';
 
 const G = 'https://graph.facebook.com/v21.0';
 const nodes = [];
-const add = (o) => (nodes.push(o), o);
+/**
+ * ⚠️⚠️ HTTP node бүрд onError АВТОМАТААР нэмнэ.
+ *
+ * neverError нь зөвхөн HTTP СТАТУС кодыг (4xx/5xx) залгидаг —
+ * connection refused, DNS алдаа, TIMEOUT зэргийг БАРИХГҮЙ. Backend
+ * түр удаашрах эсвэл container restart хийхэд workflow БҮХЭЛДЭЭ
+ * унаж, хэрэглэгч ямар ч хариу авахгүй.
+ *
+ * ⚠️ DigitalGer-т эдгээр node бүр continueRegularOutput-той —
+ * BestTV рүү хөрвүүлэхэд орхигдсон байв.
+ *
+ * ⚠️ Аль хэдийн onError заасан node-ыг (Send Cards →
+ * continueErrorOutput) ХЭВЭЭР үлдээнэ.
+ */
+const add = (o) => {
+  if (o.type === 'n8n-nodes-base.httpRequest') {
+    if (!o.onError) o.onError = 'continueRegularOutput';
+    /**
+     * ⚠️⚠️ alwaysOutputData — 0 item буцаахад урсгал ТАСАРНА.
+     *
+     * API хоосон массив `[]` эсвэл 404 буцаавал n8n дараагийн node-ыг
+     * ОГТ эхлүүлэхгүй, execution `running`-д мөнхөрнө. Production
+     * тестээр батлагдсан: 50 мессежээс 20 нь ингэж алга болсон.
+     *
+     * ⚠️ `Send Cards`-д ХЭРЭГГҮЙ — алдааны гаралт тусад нь бий.
+     */
+    if (o.name !== 'Send Cards' && o.alwaysOutputData === undefined) {
+      o.alwaysOutputData = true;
+    }
+  }
+  nodes.push(o);
+  return o;
+};
 
 /* ══════════════════ 1. WEBHOOK VERIFY (GET) ══════════════════ */
 add({
@@ -250,6 +282,9 @@ if (needsContact) {
   try {
     const s = await this.helpers.httpRequest({
       method: 'GET', url: '${API}/settings/socials', json: true, timeout: 4000,
+      /* ⚠️ throttle-ыг тойрно — 30 хүсэлтээс 10 нь 429 болдог байв,
+         тэгэхэд directReply хоосон үлдэж AI холбоо барихыг ЗОХИОНО */
+      headers: { 'x-bot-secret': '${BOT_SECRET}' },
     });
     const parts = ['📺 BestTV — Монголын кино, цувралын онлайн сан', ''];
     if (s && s.phone) parts.push('📞 Утас: ' + s.phone);
@@ -269,6 +304,8 @@ if (needsPricing) {
   try {
     const plans = await this.helpers.httpRequest({
       method: 'GET', url: '${API}/plans', json: true, timeout: 4000,
+      /* ⚠️ throttle → 429 → AI ҮНЭ ЗОХИОНО. Яг сэргийлэх гэсэн зүйл. */
+      headers: { 'x-bot-secret': '${BOT_SECRET}' },
     });
     if (Array.isArray(plans) && plans.length) {
       const fmt = function(n){ var s=String(Math.round(Number(n)||0)),o='',c=0;
@@ -402,11 +439,25 @@ add({
   type: '@n8n/n8n-nodes-langchain.agent',
   typeVersion: 1.7,
   position: [900, 240],
-  /* ⚠️ OpenAI түр унах нь ЭНГИЙН зүйл (rate limit, 5xx). Дахин
-     оролдохгүй бол хэрэглэгч ямар ч хариу авахгүй үлдэнэ. */
+  /**
+   * ⚠️ OpenAI түр унах нь ЭНГИЙН зүйл (rate limit, 5xx).
+   *
+   * ⚠️ 5 секундын завсар — 1 секунд нь rate limit-д ХЭТ БОГИНО,
+   * 3 оролдлого 3 секундэд дуусаад мөн л 429 авна.
+   */
   retryOnFail: true,
   maxTries: 3,
-  waitBetweenTries: 1000,
+  waitBetweenTries: 5000,
+  /**
+   * ⚠️⚠️ 3 удаа унасан ч урсгал ҮРГЭЛЖИЛНЭ.
+   *
+   * Эс бөгөөс workflow унаж, хэрэглэгч дээр `typing_on` асаалттай
+   * үлдэж (~20 секунд), ямар ч хариу авахгүй — «бот үхсэн» мэт.
+   * Одоо `Extract Keyword` нь `output` хоосон байхыг мэдэж,
+   * `Build Messages` уучлалын мессеж бэлдэнэ.
+   */
+  onError: 'continueRegularOutput',
+  alwaysOutputData: true,
 });
 
 add({
@@ -499,7 +550,18 @@ if (titleType) {
 
 /* ⚠️ Төрөл мэдэгдэж байвал түлхүүр үг хоосон ч ХАЙНА */
 const doSearch = keyword.length >= 2 || titleType !== '';
-if (!replyText) replyText = doSearch ? 'Хайж байна...' : 'Уучлаарай, дахин бичнэ үү.';
+
+// ⚠️⚠️ AI УНАСАН ТОХИОЛДОЛ (OpenAI 3 удаа алдсан).
+//
+// AI Agent-д onError: continueRegularOutput тавьсан тул урсгал
+// үргэлжилнэ, гэхдээ output хоосон ирнэ. Ийм үед «Уучлаарай,
+// дахин бичнэ үү» гэвэл хэрэглэгч буруугаа гэж бодно — үнэнийг
+// хэлж, дахин оролдохыг урина.
+if (!replyText) {
+  replyText = doSearch
+    ? 'Хайж байна...'
+    : 'Уучлаарай, түр саатал гарлаа 🙏 Хэдхэн секундын дараа дахин бичээрэй.';
+}
 return [{ json: { psid, keyword, titleType, doSearch, replyText, platform } }];`,
   },
   id: 'btv_extract',
@@ -921,7 +983,18 @@ add({
 
 add({
   parameters: {
-    url: `=${API}/titles/{{ $('Build Reply').first().json.slug }}`,
+    /**
+     * ⚠️⚠️ SLUG ХООСОН БАЙВАЛ `_none_` тавина.
+     *
+     * Пост дээр besttv.us/movie/ линк олдоогүй бол slug='' болно →
+     * URL нь `/api/titles/` болж ЖАГСААЛТЫН endpoint руу орно →
+     * **24 кино** буцаана (production дээр батлагдсан) → n8n тэрийг
+     * 24 item болгож задална → `Send Private Reply` 24 УДАА ажиллаж
+     * хэрэглэгчид СПАМ илгээнэ.
+     *
+     * `_none_` нь 404 буцаана, `Build DM` энгийн текст DM бэлдэнэ.
+     */
+    url: `=${API}/titles/{{ $('Build Reply').first().json.slug || '_none_' }}`,
     options: { response: { response: { neverError: true } }, timeout: 8000 },
     method: 'GET',
   },

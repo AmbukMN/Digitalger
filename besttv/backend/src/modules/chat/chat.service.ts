@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+/* ⚠️ N8nService нь @Global тул module-д импортлох шаардлагагүй */
+import { N8nService } from '../n8n/n8n.service';
 
 /**
  * ⚠️⚠️ `facebook`/`instagram` ЗААВАЛ — n8n чатбот эдгээр сувгаас
@@ -58,7 +60,10 @@ export interface SaveMessageInput {
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly n8n: N8nService,
+  ) {}
 
   /** userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ */
   private async safeUserId(userId?: string): Promise<string | undefined> {
@@ -425,6 +430,37 @@ export class ChatService {
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         this.logger.error(`Messenger илгээлт амжилтгүй (${res.status}): ${body.slice(0, 300)}`);
+
+        /**
+         * ⚠️⚠️ TOKEN ҮХСЭНИЙГ TELEGRAM-ААР МЭДЭГДЭНЭ.
+         *
+         * Page token хүчингүй болбол (солигдох, устгах, эрх хасагдах)
+         * чатбот БҮХЭЛДЭЭ чимээгүй үхнэ — хэрэглэгчид хариу авахгүй,
+         * админ ч мэдэхгүй. Зөвхөн лог бичих нь хангалтгүй: хэн ч
+         * контейнерийн лог өдөр бүр уншдаггүй.
+         *
+         * ⚠️ ЗӨВХӨН token/эрхийн алдаанд (190, 200, 10, 3) —
+         * 24 цагийн цонх (#10 subcode 2018278) нь ЭНГИЙН зүйл тул
+         * түүнд сэрэмжлүүлбэл спам болно.
+         */
+        try {
+          const j = JSON.parse(body) as { error?: { code?: number; error_subcode?: number } };
+          const code = j?.error?.code;
+          const sub = j?.error?.error_subcode;
+          const isTokenDead = code === 190 || code === 200 || code === 3;
+          if (isTokenDead && sub !== 2018278) {
+            this.n8n.emitAlert({
+              level: 'critical',
+              title: 'Facebook token хүчингүй',
+              message:
+                `Messenger илгээлт #${code} алдаагаар унав. Page token солих шаардлагатай — ` +
+                'чатбот болон админы хариу ажиллахгүй байна.',
+              source: 'chat.sendToMessenger',
+            });
+          }
+        } catch {
+          /* JSON биш хариу — лог хангалттай */
+        }
         return false;
       }
       return true;
