@@ -64,21 +64,41 @@ Verify token:  BestTV2026Verify
 - `messages` — IG DM
 - `comments` — IG сэтгэгдэл
 
-### Permission
+### Permission — ⚠️ ОДООГИЙН БАЙДАЛ
+
+Одоо суусан token-д **зөвхөн `pages_messaging`** эрх байна
+(`debug_token`-оор баталсан). Үүний үр дүн:
+
+| Функц | Төлөв |
+|---|---|
+| Messenger чат (FB) | ✅ Ажиллана |
+| Сэтгэгдэлд авто хариу | ❌ `pages_read_engagement` хэрэгтэй |
+| Private DM (сэтгэгдлээс) | ❌ дээрхтэй хамт |
+| Instagram DM / сэтгэгдэл | ❌ IG эрх огт алга |
+
+**Нэмж авах эрх** (App Review → Request permission):
 ```
-pages_messaging              Messenger хариулах
-pages_manage_metadata        webhook бүртгэх
 pages_read_engagement        постын текст унших (comment reply)
+pages_manage_metadata        webhook бүртгэх
 pages_show_list
-instagram_basic
-instagram_manage_messages
-instagram_manage_comments
+instagram_basic              ─┐
+instagram_manage_messages     ├ Instagram-д
+instagram_manage_comments    ─┘
 ```
 
-### Access token (2. Generate access tokens)
+> ⚠️ Эрх нэмсний дараа **token-ыг ДАХИН үүсгэнэ** — хуучин token-д
+> шинэ эрх автоматаар нэмэгддэггүй. Дараа нь 2 газар солино:
+> workflow (9 node) + `.env.production`.
+
+### Access token — ✅ ХИЙГДСЭН
+
+Одоогийн token нь **PAGE** төрлийн, `108103720808038`-д харьяалагдах,
+**хэзээ ч дуусахгүй** (`expires_at: 0`) — 60 хоногийн солилт хэрэггүй.
+
+Дахин үүсгэх шаардлагатай бол (эрх нэмсний дараа):
 1. **Best TV** page-ыг холбоно
-2. Token үүсгэнэ (short-lived, 1 цаг)
-3. 60 хоногийн болгож солино:
+2. «Generate» дарж token авна
+3. Хэрэв богино хугацаатай гарвал сунгана:
 
 ```bash
 curl -s "https://graph.facebook.com/v21.0/oauth/access_token\
