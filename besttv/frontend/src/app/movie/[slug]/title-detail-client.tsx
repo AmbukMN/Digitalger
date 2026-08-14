@@ -465,23 +465,24 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">
-                          {episodeLabel(ep.number, ep.name)}
+                        {/*
+                          ⚠️ «ҮНЭГҮЙ» шошго ГАРЧГИЙН ХАЖУУД — өмнө нь мөрийн
+                          баруун захад байсан тул өргөн дэлгэц дээр гарчгаас
+                          хэт хол унаж, хэрэглэгч анзаардаггүй байв.
+                          Зөвхөн эрхгүй хэрэглэгчид утгатай (эрхтэй бол бүгд нээлттэй).
+                        */}
+                        <p className="flex items-center gap-2 font-medium text-foreground">
+                          <span className="truncate">{episodeLabel(ep.number, ep.name)}</span>
+                          {ep.isFreePreview && locked && (
+                            <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[11px] font-bold text-success">
+                              ҮНЭГҮЙ
+                            </span>
+                          )}
                         </p>
                         {ep.description && (
                           <p className="mt-0.5 line-clamp-1 text-xs text-foreground/50">{ep.description}</p>
                         )}
                       </div>
-                      {/*
-                        ⚠️ «ҮНЭГҮЙ» шошго БАРУУН талд, ТОДООР — өмнө нь
-                        тайлбарын доор жижиг саарал текст байсан тул анзаарагдахгүй.
-                        Зөвхөн эрхгүй хэрэглэгчид утгатай (эрхтэй бол бүгд нээлттэй).
-                      */}
-                      {ep.isFreePreview && locked && (
-                        <span className="shrink-0 rounded bg-success/15 px-2 py-1 text-xs font-bold text-success">
-                          ҮНЭГҮЙ
-                        </span>
-                      )}
                       {!ep.playable && <span className="shrink-0 text-xs text-foreground/40">Удахгүй</span>}
                     </Link>
                   );
