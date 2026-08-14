@@ -19,6 +19,24 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { ChatService, type ChatTitleCard } from './chat.service';
 
 /**
+ * ⚠️⚠️ ЧАТБОТЫН ХЯЗГААР — БҮХ бакетыг дарж бичнэ.
+ *
+ * @Throttle({ default: ... }) нь ЗӨВХӨН "default" бакетыг сольдог.
+ * Глобал "short" (20 хүсэлт/СЕКУНД) хэвээр үйлчилсээр байна.
+ *
+ * n8n чатботын БҮХ хүсэлт НЭГ серверийн IP-ээс ирдэг тул 20/сек
+ * маш хурдан дүүрнэ. Production тестээр батлагдсан: 50 хэрэглэгч
+ * зэрэг бичихэд 30 нь 429 болж чат ЧИМЭЭГҮЙ алдагдсан — AI
+ * хариулсан ч DB-д хадгалагдаагүй, админ юу ч харахгүй байв.
+ */
+const BOT_LIMIT = {
+  default: { limit: 600, ttl: 60_000 },
+  short: { limit: 120, ttl: 1_000 },
+  medium: { limit: 600, ttl: 60_000 },
+  long: { limit: 20_000, ttl: 3_600_000 },
+};
+
+/**
  * Нийтийн чат endpoint-ууд.
  *
  * ⚠️ Secret шалгахгүй — чат лог нь эмзэг бус. Throttle + sessionId шаардлага +
@@ -43,7 +61,7 @@ export class ChatController {
    *    зүүх боломжтой байв. Одоо ЗӨВХӨН token-оос (`linkSession`-той
    *    ижил зарчим).
    */
-  @Throttle({ default: { limit: 240, ttl: 60_000 } })
+  @Throttle(BOT_LIMIT)
   @UseGuards(OptionalJwtAuthGuard)
   @Post('save')
   save(
@@ -77,7 +95,7 @@ export class ChatController {
    * массив) алгасдаг. Тиймээс n8n талд native HTTP Request node-оор энэ рүү
    * НЭГ бүтэн payload илгээнэ.
    */
-  @Throttle({ default: { limit: 240, ttl: 60_000 } })
+  @Throttle(BOT_LIMIT)
   @Post('ingest')
   async ingest(
     @Body()
@@ -88,6 +106,7 @@ export class ChatController {
       assistantText?: string;
       titles?: ChatTitleCard[];
       userName?: string;
+      userImage?: string;
     },
   ) {
     const sessionId = (body.sessionId ?? '').trim();
@@ -101,6 +120,7 @@ export class ChatController {
         role: 'user',
         text: body.userText,
         userName: body.userName,
+        userImage: body.userImage,
       });
     }
     if (body.assistantText?.trim()) {
@@ -110,6 +130,13 @@ export class ChatController {
         role: 'assistant',
         text: body.assistantText,
         titles: body.titles,
+        /**
+         * ⚠️ Нэр/зургийг ЭНД Ч дамжуулна. Хэрэглэгч зөвхөн товч
+         * (postback) дарвал `userText` хоосон байдаг тул дээрх
+         * салбар ажиллахгүй — нэр, зураг хэзээ ч бичигдэхгүй үлдэнэ.
+         */
+        userName: body.userName,
+        userImage: body.userImage,
       });
     }
     return { ok: true };
@@ -126,7 +153,7 @@ export class ChatController {
    * ⚠️ Хариу нь ХӨНГӨН байх ёстой (мессеж бүрд дуудагдана) — зөвхөн
    * 2 boolean буцаана.
    */
-  @Throttle({ default: { limit: 240, ttl: 60_000 } })
+  @Throttle(BOT_LIMIT)
   @Get('state')
   state(@Query('sessionId') sessionId?: string) {
     return this.chat.sessionState((sessionId ?? '').trim());

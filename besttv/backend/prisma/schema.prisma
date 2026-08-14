@@ -1076,6 +1076,11 @@ model ChatConversation {
   user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
   userName  String?
   userEmail String?
+  /// FB/IG профайл зураг (Graph API `profile_pic`).
+  /// ⚠️ URL нь ХУГАЦААТАЙ (signed, хэдэн долоо хоногт үхнэ) — тиймээс
+  /// мессеж ирэх бүрд дахин бичнэ. Идэвхгүй ярианд зураг үхэхэд
+  /// Avatar компонент нэрийн эхний үсэг рүү унана (graceful).
+  userImage String?
 
   lastMessageAt   DateTime @default(now())
   /// Хэрэглэгч бичсэн, админ хараагүй

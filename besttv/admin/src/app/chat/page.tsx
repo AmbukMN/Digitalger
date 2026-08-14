@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import {
   ArrowLeft,
   Bot,
+  Film,
   Headphones,
   Loader2,
   MessagesSquare,
@@ -53,12 +54,65 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
+/**
+ * Ярианы аватар — FB/IG профайл зураг, эсвэл нэрийн эхний үсэг.
+ *
+ * ⚠️⚠️ ЯАГААД ЗУРАГ ХЭРЭГТЭЙ ВЭ: админ өдөрт олон яриа хардаг.
+ * Бүгд ижил саарал дугуйнд «М», «Б» гэсэн үсэгтэй бол хэн хэн болох
+ * нь ялгагдахгүй — Messenger-т нүүр зурагтай харагддагтай зөрчилдөнө.
+ *
+ * ⚠️ FB-ийн `profile_pic` URL нь ХУГАЦААТАЙ (signed). Үхсэн үед
+ * `onError` нь эхний үсэг рүү зөөлөн буулгана — хугарсан зургийн
+ * дүрс харуулахгүй.
+ */
+function ChatAvatar({
+  src,
+  name,
+  size = 28,
+}: {
+  src?: string | null;
+  name: string;
+  size?: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const letter = name[0]?.toUpperCase() ?? '?';
+  const cls = 'shrink-0 rounded-full object-cover';
+
+  if (!src || failed) {
+    return (
+      <span
+        style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
+        className="flex shrink-0 items-center justify-center rounded-full bg-accent font-bold text-foreground"
+      >
+        {letter}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={name}
+      width={size}
+      height={size}
+      loading="lazy"
+      /* ⚠️ FB CDN нь Referer шалгадаг — no-referrer байхгүй бол 403 */
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      style={{ width: size, height: size }}
+      className={cls}
+    />
+  );
+}
+
 interface ConvListItem {
   id: string;
   channel: string;
   sessionId: string;
   userName: string | null;
   userEmail: string | null;
+  /** FB/IG профайл зураг — админ хэнтэй ярьж буйгаа нүүрээр таана */
+  userImage: string | null;
   adminUnread: boolean;
   handedOff: boolean;
   lastMessageAt: string;
@@ -72,7 +126,14 @@ interface ConvDetail extends ConvListItem {
     id: string;
     role: string;
     text: string;
-    titles?: { title: string; slug: string }[] | null;
+    titles?: {
+      title: string;
+      slug: string;
+      posterUrl?: string;
+      url?: string;
+      year?: number;
+      rating?: number;
+    }[] | null;
     createdAt: string;
   }[];
 }
@@ -351,9 +412,7 @@ export default function ChatPage() {
                       className="min-w-0 flex-1 text-left"
                     >
                     <div className="flex items-center gap-2">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-foreground">
-                        {name[0]?.toUpperCase() ?? '?'}
-                      </span>
+                      <ChatAvatar src={c.userImage} name={name} size={28} />
                       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
                         {name}
                       </p>
@@ -442,9 +501,11 @@ export default function ChatPage() {
                 >
                   <ArrowLeft size={18} />
                 </button>
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-                  {(detail.user?.name ?? detail.userName ?? detail.user?.email ?? 'З')[0]?.toUpperCase()}
-                </span>
+                <ChatAvatar
+                  src={detail.userImage}
+                  name={detail.user?.name ?? detail.userName ?? detail.user?.email ?? 'Зочин'}
+                  size={36}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-sm font-semibold text-foreground">
@@ -454,8 +515,25 @@ export default function ChatPage() {
                         хаана бичиж байгаагаа мэдэх ёстой */}
                     <ChannelBadge channel={detail.channel} />
                   </div>
+                  {/*
+                    ⚠️ Имэйл БА PSID ХОЁУЛАА. Өмнө нь `??` гинжээр имэйл
+                    олдвол PSID нуугддаг байв — гэтэл FB ярианд PSID нь
+                    Meta Inbox-той тулгах цорын ганц түлхүүр.
+                    Чатаас автоматаар таньсан имэйл нь FB хэрэглэгчтэй
+                    холбогдох цорын ганц зам тул мөн харуулна.
+                  */}
                   <p className="truncate text-xs text-muted-foreground">
-                    {detail.user?.email ?? detail.userEmail ?? detail.sessionId}
+                    {detail.user?.email ?? detail.userEmail ?? (
+                      <span className="text-muted-foreground/60">имэйлгүй</span>
+                    )}
+                    {(detail.channel === 'facebook' || detail.channel === 'instagram') && (
+                      <span
+                        title="Facebook/Instagram хэрэглэгчийн ID (Meta Inbox-д хайхад)"
+                        className="ml-2 font-mono text-[10px] text-muted-foreground/60"
+                      >
+                        {detail.sessionId}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <button
@@ -478,7 +556,21 @@ export default function ChatPage() {
                   const isUser = m.role === 'user';
                   const isAdmin = m.role === 'admin';
                   return (
-                    <div key={m.id} className={cn('flex', isUser ? 'justify-start' : 'justify-end')}>
+                    <div
+                      key={m.id}
+                      className={cn('flex gap-2', isUser ? 'justify-start' : 'justify-end')}
+                    >
+                      {/* ⚠️ Зөвхөн хэрэглэгчийн талд — AI/админд аватар
+                          нэмбэл давхардаж, чат бөглүү харагдана */}
+                      {isUser && (
+                        <div className="mt-5 shrink-0">
+                          <ChatAvatar
+                            src={detail.userImage}
+                            name={detail.user?.name ?? detail.userName ?? 'Зочин'}
+                            size={26}
+                          />
+                        </div>
+                      )}
                       <div className={cn('max-w-[70%]')}>
                         <p
                           className={cn(
@@ -502,10 +594,54 @@ export default function ChatPage() {
                         >
                           {m.text}
                         </div>
+                        {/*
+                          ⚠️⚠️ КИНОНЫ КАРТ — хэрэглэгч Messenger дээр ЯГ
+                          ингэж (постертой карт) харсан. Өмнө нь энд зөвхөн
+                          «🎬 Санал болгосон: нэр, нэр, нэр» гэсэн жижиг
+                          саарал текст харуулдаг байв — админ юу илгээснийг
+                          НҮДЭЭР харж чадахгүй, гомдол шалгахад ойлгомжгүй.
+                        */}
                         {Array.isArray(m.titles) && m.titles.length > 0 && (
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            🎬 Санал болгосон: {m.titles.map((t) => t.title).join(', ')}
-                          </p>
+                          <div className="mt-1.5 flex max-w-full gap-2 overflow-x-auto pb-1">
+                            {m.titles.map((t, ti) => (
+                              <a
+                                key={t.slug ?? ti}
+                                href={t.url ?? `https://besttv.us/movie/${t.slug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={t.title}
+                                className="flex w-24 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50"
+                              >
+                                <div className="relative aspect-2/3 w-full overflow-hidden bg-accent">
+                                  {t.posterUrl ? (
+                                    /* ⚠️ next/image БИШ — R2 CDN зам динамик,
+                                       мөн админд оптимизаци шаардлагагүй */
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={t.posterUrl}
+                                      alt={t.title}
+                                      loading="lazy"
+                                      referrerPolicy="no-referrer"
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                                      <Film size={16} />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="p-1.5">
+                                  <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-foreground">
+                                    {t.title}
+                                  </p>
+                                  <p className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
+                                    {t.year ? <span>{t.year}</span> : null}
+                                    {t.rating ? <span>⭐ {t.rating}</span> : null}
+                                  </p>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>

@@ -16,6 +16,27 @@ import type { Request } from 'express';
  */
 @Injectable()
 export class CfThrottlerGuard extends ThrottlerGuard {
+  /**
+   * ⚠️⚠️ ДОТООД БОТЫГ ХЯЗГААРААС ЧӨЛӨӨЛНӨ.
+   *
+   * n8n чатботын БҮХ хүсэлт НЭГ IP-ээс (docker сүлжээ) ирдэг тул
+   * ямар ч өндөр хязгаар тавьсан олон хэрэглэгч зэрэг бичихэд
+   * дүүрнэ. Production тестээр батлагдсан: 50 хэрэглэгч зэрэг
+   * бичихэд 30 нь 429 болж чат ЧИМЭЭГҮЙ алдагдсан.
+   *
+   * ⚠️ IP-ээр биш SECRET-ээр таних нь зөв: IP нь container дахин
+   * үүсэхэд өөрчлөгдөнө, мөн ижил сүлжээн дэх өөр процесс дуурайж
+   * чадна. Secret нь зөвхөн n8n-д мэдэгдэнэ.
+   */
+  protected async shouldSkip(context: import('@nestjs/common').ExecutionContext): Promise<boolean> {
+    const secret = process.env.N8N_WEBHOOK_SECRET;
+    if (secret) {
+      const req = context.switchToHttp().getRequest<Request>();
+      if (req.headers['x-bot-secret'] === secret) return true;
+    }
+    return super.shouldSkip(context);
+  }
+
   protected async getTracker(req: Request): Promise<string> {
     const cf = req.headers['cf-connecting-ip'];
     if (typeof cf === 'string' && cf) return cf;

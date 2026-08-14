@@ -25,7 +25,14 @@ export class TitlesController {
    * ⚠️ Тэр үед чатбот «кино олдсонгүй» гэж ХУДЛАА хариулна —
    * `Build Messages` нь алдааг хоосон массиваас ялгадаггүй.
    */
-  @Throttle({ default: { limit: 300, ttl: 60_000 } })
+  @Throttle({
+    /* ⚠️ БҮХ бакет — `default` дангаараа хангалтгүй, глобал `short`
+       (20/сек) хэвээр үйлчилж 429 буцаадаг */
+    default: { limit: 600, ttl: 60_000 },
+    short: { limit: 120, ttl: 1_000 },
+    medium: { limit: 600, ttl: 60_000 },
+    long: { limit: 20_000, ttl: 3_600_000 },
+  })
   @Get('search')
   search(@Query('q') q: string) {
     return this.titles.search(q ?? '');

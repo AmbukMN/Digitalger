@@ -41,6 +41,7 @@ export interface SaveMessageInput {
   role: string;
   text: string;
   userName?: string;
+  userImage?: string;
   userId?: string;
   titles?: ChatTitleCard[];
 }
@@ -117,6 +118,7 @@ export class ChatService {
           lastMessageAt: now,
           adminUnread: markAdminUnread,
           ...(input.userName ? { userName: input.userName.slice(0, 120) } : {}),
+          ...(input.userImage ? { userImage: input.userImage.slice(0, 500) } : {}),
           ...(capturedEmail ? { userEmail: capturedEmail } : {}),
           ...(safeUserId ? { userId: safeUserId } : {}),
         },
@@ -124,6 +126,8 @@ export class ChatService {
           lastMessageAt: now,
           ...(markAdminUnread ? { adminUnread: true } : {}),
           ...(input.userName ? { userName: input.userName.slice(0, 120) } : {}),
+          /* ⚠️ Зураг бүрд дахин бичнэ — FB URL хугацаатай тул шинэчилж байж амьд үлдэнэ */
+          ...(input.userImage ? { userImage: input.userImage.slice(0, 500) } : {}),
           ...(capturedEmail ? { userEmail: capturedEmail } : {}),
           ...(safeUserId ? { userId: safeUserId } : {}),
         },

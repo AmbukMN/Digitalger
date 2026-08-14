@@ -19,6 +19,12 @@ const API = 'https://api.besttv.us/api';
 const SITE = 'https://besttv.us';
 const WEBHOOK_PATH = 'besttv-facebook-webhook';
 const VERIFY_TOKEN = process.env.BESTTV_VERIFY_TOKEN || 'BestTV2026Verify';
+/**
+ * ⚠️ Backend-ийн throttle-ыг тойрох secret. n8n-ийн БҮХ хүсэлт нэг
+ * IP-ээс ирдэг тул хязгаарт хурдан унадаг — 50 хэрэглэгч зэрэг
+ * бичихэд 30 нь 429 болж чат чимээгүй алдагдаж байв.
+ */
+const BOT_SECRET = process.env.BESTTV_BOT_SECRET || '__BOT_SECRET__';
 
 const G = 'https://graph.facebook.com/v21.0';
 const nodes = [];
@@ -255,6 +261,8 @@ return [{ json: { psid, userText, firstName, profilePic, platform, isGetStarted,
 add({
   parameters: {
     url: `=${API}/chat/state?sessionId={{ $json.psid }}`,
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'x-bot-secret', value: BOT_SECRET }] },
     options: { response: { response: { neverError: true } }, timeout: 5000 },
     method: 'GET',
   },
@@ -295,10 +303,12 @@ add({
   parameters: {
     method: 'POST',
     url: `${API}/chat/ingest`,
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'x-bot-secret', value: BOT_SECRET }] },
     sendBody: true,
     specifyBody: 'json',
     jsonBody:
-      "={{ JSON.stringify({ channel: $('Prep Context').first().json.platform === 'instagram' ? 'instagram' : 'facebook', sessionId: $('Prep Context').first().json.psid, userText: $('Prep Context').first().json.userText, userName: $('Prep Context').first().json.firstName }) }}",
+      "={{ JSON.stringify({ channel: $('Prep Context').first().json.platform === 'instagram' ? 'instagram' : 'facebook', sessionId: $('Prep Context').first().json.psid, userText: $('Prep Context').first().json.userText, userName: $('Prep Context').first().json.firstName, userImage: $('Prep Context').first().json.profilePic }) }}",
     options: { response: { response: { neverError: true } }, timeout: 5000 },
   },
   id: 'btv_ingest_handoff',
@@ -429,31 +439,6 @@ return [{ json: { psid, keyword, doSearch, replyText, platform } }];`,
   position: [1120, 240],
 });
 
-/* ─── Хайх шаардлагатай юу? ─── */
-add({
-  parameters: {
-    conditions: {
-      options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 },
-      conditions: [
-        {
-          id: 'do_search',
-          leftValue: '={{ $json.doSearch }}',
-          rightValue: '',
-          operator: { type: 'boolean', operation: 'true', singleValue: true },
-        },
-      ],
-      combinator: 'and',
-    },
-    looseTypeValidation: true,
-    options: {},
-  },
-  id: 'btv_need_search',
-  name: 'Хайх уу?',
-  type: 'n8n-nodes-base.if',
-  typeVersion: 2.2,
-  position: [1240, 240],
-});
-
 /* ─── Кино хайх ─── */
 add({
   parameters: {
@@ -465,6 +450,8 @@ add({
      * ийм шалтгаанаар «No prompt specified» алдаа гарсан.
      */
     url: `=${API}/titles/search?q={{ encodeURIComponent($('Extract Keyword').first().json.keyword || '') }}`,
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'x-bot-secret', value: BOT_SECRET }] },
     options: { response: { response: { neverError: true } }, timeout: 10000 },
     method: 'GET',
   },
@@ -567,6 +554,9 @@ const _ingest = {
   sessionId: String(psid || '').slice(0, 64),
   userText: String(_prep2.userText || '').trim(),
   userName: String(_prep2.firstName || '').trim(),
+  /* ⚠️ Профайл зураг — админ хэнтэй ярьж байгаагаа НҮҮРЭЭР нь таана.
+     FB URL хугацаатай тул мессеж бүрд дахин илгээж шинэчилнэ. */
+  userImage: String(_prep2.profilePic || '').trim(),
   assistantText: String(replyText || '').trim(),
   titles: titles.slice(0,10).map(function(t){ return { id:t.id, title:t.title, slug:t.slug,
     posterUrl:t.posterUrl||'', url:'${SITE}/movie/'+t.slug, year:t.year, rating:t.rating }; }),
@@ -687,6 +677,8 @@ add({
   parameters: {
     method: 'POST',
     url: `${API}/chat/ingest`,
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'x-bot-secret', value: BOT_SECRET }] },
     sendBody: true,
     specifyBody: 'json',
     /* ⚠️ Динамик талбарыг Code node-оор угсарч ЭНД шууд дамжуулна —
@@ -918,10 +910,19 @@ const connections = Object.assign(
   /* true = AI хариулна, false = админ авсан → зөвхөн хадгална */
   c('AI асаалттай юу?', [['Send Typing On'], ['Save (админ хариулна)']]),
   c('Send Typing On', [['AI Agent']]),
-  c('Extract Keyword', [['Хайх уу?']]),
-  /* ⚠️ true → хайна, false → шууд Build Messages (дэмий DB дуудлага,
-     throttle зарцуулалт хоёуланг нь хэмнэнэ) */
-  c('Хайх уу?', [['Search Titles'], ['Build Messages']]),
+  /**
+   * ⚠️⚠️ `Хайх уу?` IF-г ХАСАВ — production дээр ЧАТБОТ ГАЦААСАН.
+   *
+   * IF-ийн 2 гаралт (true→Search Titles, false→Build Messages) нь
+   * `Build Messages`-ийн НЭГ оролт руу нийлдэг. n8n нь бүх орох
+   * салбар дуусахыг хүлээдэг тул ажиллаагүй салаа мөнхөд «дуусаагүй»
+   * үлдэж, execution `running`-д гацна — хэрэглэгч typing харсаар
+   * хариу авахгүй (бодит гомдол).
+   *
+   * ⚠️ Дэмий дуудлагыг Search Titles дотор хоосон `q`-гээр шийднэ:
+   * backend хоосон хайлтад `[]` буцаадаг тул хор хөнөөлгүй.
+   */
+  c('Extract Keyword', [['Search Titles']]),
   c('Search Titles', [['Build Messages']]),
   c('Build Messages', [['Send Typing Off', 'BTV Save Ingest']]),
   c('Send Typing Off', [['Send Text']]),
