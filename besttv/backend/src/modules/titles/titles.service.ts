@@ -435,10 +435,33 @@ export class TitlesService {
    * ⚠️ Өмнө нь ЗӨВХӨН нэрээр хайдаг байсан тул "монгол кино", "солонгос"
    * гэх мэт ЖАНРЫН хайлт үргэлж 0 буцаадаг байв (чатбот ч кино олдоггүй).
    */
-  async search(q: string, limit = 20) {
+  /**
+   * @param type ЗӨВХӨН MOVIE эсвэл SERIES. Чатботод шаардлагатай —
+   *   «цуврал байна уу» гэвэл олон ангит, «кино» гэвэл бүрэн хэмжээний.
+   *
+   * ⚠️⚠️ `q` ХООСОН байж БОЛНО (зөвхөн `type`). Хэрэглэгч «цуврал»,
+   * «шинэ кино» гэх зэрэг ТӨРЛӨӨР асуухад хайх үг байхгүй — өмнө нь
+   * `parsed.usable=false` болж хоосон буцаадаг тул чатбот «олдсонгүй»
+   * гэж ХУДЛАА хариулж байв.
+   */
+  async search(q: string, limit = 20, type?: 'MOVIE' | 'SERIES') {
     // 1) Stop word хасаж гол үгсийг ялгана ("сайхан кино байна уу" → ∅)
     const parsed = parseQuery(q);
-    if (!parsed.usable) return [];
+
+    /**
+     * Хайх үг байхгүй ч ТӨРӨЛ заасан бол — тухайн төрлийн ШИНЭ
+     * кинонуудыг буцаана («цуврал байна уу» → сүүлийн цувралууд).
+     */
+    if (!parsed.usable) {
+      if (!type) return [];
+      const rows = await this.prisma.title.findMany({
+        where: { isActive: true, comingSoon: false, type, ...NOT_ADULT },
+        orderBy: [{ createdAt: 'desc' }],
+        take: limit,
+        select: { ...CARD_SELECT, description: true },
+      });
+      return this.media.decorateMany(rows);
+    }
 
     // 2) Үг бүрийг галиг + үндэс хувилбар болгож дэлгэнэ
     //    "монголын" → ["монголын", "монгол", "mongolyn"...]
@@ -485,6 +508,7 @@ export class TitlesService {
       where: {
         isActive: true,
         ...NOT_ADULT, // ⚠️ 18+ хайлтын үр дүнд гарахгүй
+        ...(type ? { type } : {}),
         OR: allVariants.flatMap(matchClauses),
       },
       take: Math.min(80, limit * 4), // оноолохын тулд илүү татна

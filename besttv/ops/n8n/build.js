@@ -15,7 +15,21 @@ const fs = require('fs');
 const PAGE_ID = '108103720808038';
 const IG_ID = '17841442595556819';
 const TOKEN = process.env.BESTTV_FB_TOKEN || '__BESTTV_PAGE_TOKEN__';
-const API = 'https://api.besttv.us/api';
+/**
+ * ⚠️⚠️ ДОТООД хаяг — `https://api.besttv.us` БИШ.
+ *
+ * n8n болон backend нэг docker сүлжээнд (`digitalger-n8n-network`)
+ * байдаг тул шууд холбогдоно. Ашиг:
+ *   1. Cloudflare-ийн rate limit ТОЙРНО — гадуур явбал 60 хүсэлтээс
+ *      15 нь 429 болж чат чимээгүй алдагддаг (production тестээр
+ *      батлагдсан: гадуур 45/60, дотуур 60/60)
+ *   2. Хурдан (DNS + TLS + CF hop байхгүй)
+ *   3. Интернэт тасарсан ч ажиллана
+ *
+ * ⚠️ Facebook Graph API нь ГАДНЫХ тул тэр нь `https://graph.facebook.com`
+ * хэвээр — зөвхөн BestTV-ийн өөрийн API дотоод хаягаар.
+ */
+const API = process.env.BESTTV_API || 'http://besttv-backend:4100/api';
 const SITE = 'https://besttv.us';
 const WEBHOOK_PATH = 'besttv-facebook-webhook';
 const VERIFY_TOKEN = process.env.BESTTV_VERIFY_TOKEN || 'BestTV2026Verify';
@@ -425,12 +439,41 @@ const kwLc = keyword.toLowerCase().replace(/\\s+/g, ' ').trim();
 const FAQ_STOP = ['үзэх','яаж үзэх','хэрхэн үзэх','багц','багцын үнэ','үнэ','төлбөр',
   'төлбөр төлөх','qpay','данс','дансаар','купон','хямдрал','урамшуулал','бүртгэл',
   'бүртгүүлэх','нэвтрэх','нууц үг','имэйл','төхөөрөмж','хэдэн төхөөрөмж','татах',
-  'татаж авах','офлайн','чанар','интернэт','тусламж','холбоо барих','админ','кино','цуврал'];
+  'татаж авах','офлайн','чанар','интернэт','тусламж','холбоо барих','админ'];
 if (FAQ_STOP.indexOf(kwLc) !== -1) keyword = '';
 
-const doSearch = keyword.length >= 2;
-if (!replyText) replyText = doSearch ? 'Танд тохирох кино хайж байна...' : 'Уучлаарай, дахин бичнэ үү.';
-return [{ json: { psid, keyword, doSearch, replyText, platform } }];`,
+// ⚠️⚠️ ТӨРӨЛ ТАНИХ — «цуврал» гэдэг нь ОЛОН АНГИТ кино (SERIES).
+//
+// Өмнө нь «цуврал», «кино» хоёрыг FAQ_STOP-д хийж хайлтыг бүрмөсөн
+// зогсоодог байв → чатбот өмнөх ярианы үлдэгдэл харуулж, хэрэглэгч
+// «цуврал» гэж асуухад ЖИРИЙН КИНО санал болгодог байв (бодит гомдол).
+//
+// Одоо: төрлийг ТАНЬЖ type параметрээр backend-д дамжуулна.
+// Хайх үг үлдээгүй ч type байвал backend тухайн төрлийн шинэ
+// кинонуудыг буцаана.
+var SERIES_WORDS = ['цуврал','олон ангит','олон ангийн','сериал','series','драм цуврал'];
+var MOVIE_WORDS  = ['кино','уран сайхны','бүрэн хэмжээний','movie','film'];
+var titleType = '';
+for (var si = 0; si < SERIES_WORDS.length; si++) {
+  if (kwLc.indexOf(SERIES_WORDS[si]) !== -1) { titleType = 'SERIES'; break; }
+}
+if (!titleType) {
+  for (var mi = 0; mi < MOVIE_WORDS.length; mi++) {
+    if (kwLc === MOVIE_WORDS[mi]) { titleType = 'MOVIE'; break; }
+  }
+}
+/* Төрлийн үгийг түлхүүрээс хасна — «солонгос цуврал» → «солонгос» */
+if (titleType) {
+  var strip = titleType === 'SERIES' ? SERIES_WORDS : MOVIE_WORDS;
+  var cleaned = kwLc;
+  for (var ci = 0; ci < strip.length; ci++) cleaned = cleaned.split(strip[ci]).join(' ');
+  keyword = cleaned.replace(/\\s+/g, ' ').trim();
+}
+
+/* ⚠️ Төрөл мэдэгдэж байвал түлхүүр үг хоосон ч ХАЙНА */
+const doSearch = keyword.length >= 2 || titleType !== '';
+if (!replyText) replyText = doSearch ? 'Хайж байна...' : 'Уучлаарай, дахин бичнэ үү.';
+return [{ json: { psid, keyword, titleType, doSearch, replyText, platform } }];`,
   },
   id: 'btv_extract',
   name: 'Extract Keyword',
@@ -449,7 +492,7 @@ add({
      * (`Хайх уу?`) орсон тул `$json` найдваргүй — AI Agent дээр яг
      * ийм шалтгаанаар «No prompt specified» алдаа гарсан.
      */
-    url: `=${API}/titles/search?q={{ encodeURIComponent($('Extract Keyword').first().json.keyword || '') }}`,
+    url: `=${API}/titles/search?q={{ encodeURIComponent($('Extract Keyword').first().json.keyword || '') }}&type={{ $('Extract Keyword').first().json.titleType || '' }}&limit=10`,
     sendHeaders: true,
     headerParameters: { parameters: [{ name: 'x-bot-secret', value: BOT_SECRET }] },
     options: { response: { response: { neverError: true } }, timeout: 10000 },
@@ -505,9 +548,13 @@ const showCards = titles.length > 0;
 
 if (triedSearch && !showCards) {
   const kw = (ex.keyword || '').trim();
-  const kwPart = kw ? ('"' + kw + '"-тэй холбоотой ') : '';
-  replyText = kwPart + 'кино одоогоор олдсонгүй 🙏' + NL +
-    'Өөр нэрээр хайж үзэх үү? Бүх киног эндээс: ${SITE}/catalog';
+  /* ⚠️ «цуврал» гэж асуусан хүнд «кино олдсонгүй» гэвэл буруу сонсогдоно */
+  const what = ex.titleType === 'SERIES' ? 'цуврал' : 'кино';
+  replyText = kw
+    ? ('«' + kw + '»-тэй холбоотой ' + what + ' олдсонгүй 🙁' + NL +
+       'Өөр нэрээр эсвэл жүжигчний нэрээр хайгаад үзье?')
+    : (what.charAt(0).toUpperCase() + what.slice(1) + ' одоогоор алга байна 🙁' + NL +
+       'Бүх контентыг эндээс харна уу: ${SITE}/catalog');
 }
 if (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';
 

@@ -34,8 +34,15 @@ export class TitlesController {
     long: { limit: 20_000, ttl: 3_600_000 },
   })
   @Get('search')
-  search(@Query('q') q: string) {
-    return this.titles.search(q ?? '');
+  search(
+    @Query('q') q: string,
+    /* ⚠️ Чатботод — «цуврал» гэвэл SERIES, «кино» гэвэл MOVIE */
+    @Query('type') type?: 'MOVIE' | 'SERIES',
+    @Query('limit') limit?: string,
+  ) {
+    const t = type === 'MOVIE' || type === 'SERIES' ? type : undefined;
+    const n = Math.min(40, Math.max(1, Number(limit) || 20));
+    return this.titles.search(q ?? '', n, t);
   }
 
   /** 18+ хуудас — ерөнхий каталогт харагдахгүй контент (нас баталгаажуулсны дараа) */
