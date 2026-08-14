@@ -40,6 +40,39 @@ const VERIFY_TOKEN = process.env.BESTTV_VERIFY_TOKEN || 'BestTV2026Verify';
  */
 const BOT_SECRET = process.env.BESTTV_BOT_SECRET || '__BOT_SECRET__';
 
+/**
+ * ⚠️⚠️⚠️ PLACEHOLDER-ТЭЙ БҮТЭЭГДСЭН ФАЙЛЫГ n8n-Д DEPLOY ХИЙВЭЛ
+ *        АЖИЛЛАЖ БАЙГАА ЖИНХЭНЭ ТОКЕНЫГ ДАРЖ БИЧНЭ.
+ *
+ * БОДИТ ОСОЛ (2026-08-14): env өгөлгүй `node build.js` ажиллуулаад
+ * гарсан JSON-ыг n8n-д бичсэн → чатбот БҮРЭН унтарсан (auto-reply ч,
+ * DM ч явахгүй). Гаднаас харахад node бүр «finished successfully»
+ * гэж харагдана — Meta API 190/OAuthException чимээгүй буцаана.
+ *
+ * Тиймээс placeholder үлдсэн бол ЭНД ЗОГСОНО. Deploy хийхийн өмнө
+ * алдааг барих цорын ганц газар (n8n-д орсон хойно илрэхэд оройтно).
+ *
+ * Зөв журам (ZAAVAR.md):
+ *   BESTTV_FB_TOKEN='EAA...' BESTTV_BOT_SECRET='...' node build.js
+ *
+ * ⚠️ ЗӨВХӨН файл шалгах/уншихаар бүтээх бол: ALLOW_PLACEHOLDER=1
+ *    (тэр файлыг n8n-д ХЭЗЭЭ Ч бүү deploy хий).
+ */
+if (!process.env.ALLOW_PLACEHOLDER) {
+  const missing = [];
+  if (!process.env.BESTTV_FB_TOKEN) missing.push('BESTTV_FB_TOKEN');
+  if (!process.env.BESTTV_BOT_SECRET) missing.push('BESTTV_BOT_SECRET');
+  if (missing.length) {
+    console.error('\n⛔ ЗОГСЛОО — нууц утга дутуу: ' + missing.join(', '));
+    console.error('   Placeholder-тэй JSON нь n8n дэх ЖИНХЭНЭ токеныг дарж');
+    console.error('   бичих тул чатбот бүрэн унтарна.\n');
+    console.error('   Зөв:');
+    console.error("     BESTTV_FB_TOKEN='EAA...' BESTTV_BOT_SECRET='...' node build.js");
+    console.error('   Зөвхөн уншихаар бүтээх бол:  ALLOW_PLACEHOLDER=1 node build.js\n');
+    process.exit(1);
+  }
+}
+
 const G = 'https://graph.facebook.com/v21.0';
 const nodes = [];
 /**
