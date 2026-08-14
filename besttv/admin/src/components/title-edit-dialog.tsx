@@ -52,6 +52,7 @@ const EMPTY_FORM = {
   year: '',
   rating: '',
   director: '',
+  country: '',
   ageRating: '',
   /** ⚠️ YouTube трейлерийн key — R2 HLS трейлерээс ТУСДАА */
   trailerYoutubeKey: '',
@@ -144,6 +145,7 @@ export function TitleEditDialog({
       year: e.year ? String(e.year) : '',
       rating: e.rating ? String(e.rating) : '',
       director: e.director ?? '',
+      country: e.country ?? '',
       ageRating: e.ageRating ?? '',
       trailerYoutubeKey: e.trailerYoutubeKey ?? '',
       language: (e.language ?? 'MN') as 'MN' | 'SUB',
@@ -252,6 +254,8 @@ export function TitleEditDialog({
       rating: result.rating ? String(result.rating) : f.rating,
       /* ⚠️ Найруулагч — TMDB `credits.crew`-ээс; гараар бичсэнийг хөндөхгүй */
       director: f.director || result.director || '',
+      /* ⚠️ TMDB-ээс улс — хоосон байвал л бөглөнө (админы гар оруулга давуу) */
+      country: f.country || result.country || '',
       /* ⚠️ SEO-г энд хөндөхгүй — `useEffect` загвараар өөрөө бөглөнө */
       /* ⚠️ YouTube трейлер — манай HLS трейлерээс ТУСДАА талбар */
       trailerYoutubeKey: result.trailerYoutubeKey || f.trailerYoutubeKey,
@@ -323,6 +327,7 @@ export function TitleEditDialog({
         year: form.year ? Number(form.year) : undefined,
         rating: form.rating ? Number(form.rating) : undefined,
         director: form.director || undefined,
+        country: form.country || undefined,
         ageRating: form.ageRating || undefined,
         trailerYoutubeKey: form.trailerYoutubeKey || undefined,
         language: form.language,
@@ -588,6 +593,28 @@ export function TitleEditDialog({
                     aria-label="Найруулагч"
                     className="admin-input"
                   />
+                </Field>
+                {/*
+                  ⚠️⚠️ УЛС — ХАЙЛТАД ЗААВАЛ. «солонгос цуврал» гэж хайхад
+                  Agent Kim (жинхэнэ солонгос цуврал) ОЛДОХГҮЙ байв: жанр нь
+                  «Шилдэг кино», тайлбарт «солонгос» гэсэн үг огт байхгүй.
+                  TMDB импортод автоматаар бөглөгдөнө.
+                */}
+                <Field label="Улс">
+                  <input
+                    list="btv-countries"
+                    value={form.country}
+                    onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                    placeholder="Солонгос, Хятад, АНУ…"
+                    aria-label="Гарал үүслийн улс"
+                    className="admin-input"
+                  />
+                  <datalist id="btv-countries">
+                    {['Солонгос', 'Хятад', 'Япон', 'АНУ', 'Монгол', 'Англи', 'Энэтхэг',
+                      'Тайланд', 'Турк', 'Орос', 'Франц', 'Герман', 'Хонконг', 'Тайвань'].map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </Field>
               </div>
 

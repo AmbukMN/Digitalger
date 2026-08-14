@@ -654,8 +654,9 @@ try {
 raw = raw.filter(function (t) { return t && t.slug; });
 
 const triedSearch = ex.doSearch === true;
-const titles = triedSearch ? raw : [];
-const showCards = titles.length > 0;
+/* ⚠️ let — fallback хайлт доор raw-г дахин бөглөж болно */
+let titles = triedSearch ? raw : [];
+let showCards = titles.length > 0;
 
 if (triedSearch && !showCards) {
   const kw = (ex.keyword || '').trim();
@@ -666,6 +667,39 @@ if (triedSearch && !showCards) {
        'Өөр нэрээр эсвэл жүжигчний нэрээр хайгаад үзье?')
     : (what.charAt(0).toUpperCase() + what.slice(1) + ' одоогоор алга байна 🙁' + NL +
        'Бүх контентыг эндээс харна уу: ${SITE}/catalog');
+}
+
+/**
+ * ⚠️⚠️ ХООСОН ГАРГАХГҮЙ — ТӨРЛӨӨР нь дахин хайна.
+ *
+ * БОДИТ АСУУДАЛ: сангд контентыг УЛСААР нь ялгасан жанр байхгүй
+ * (зөвхөн «Монгол кино», «Хятад болон Ай кино», «Шилдэг кино»,
+ * «Насанд хүрэгчдийн»). Тиймээс «солонгос цуврал» гэж хайхад
+ * Agent Kim (жинхэнэ СОЛОНГОС цуврал) ОЛДОХГҮЙ — түүний
+ * мэдээлэлд «солонгос» гэсэн үг огт байхгүй.
+ *
+ * Хэрэглэгчийг хоосон гараар явуулахын оронд тухайн ТӨРЛИЙН
+ * бүх контентыг санал болгоно — тэр дундаас өөрөө олно.
+ */
+if (triedSearch && !showCards && ex.titleType) {
+  try {
+    const fb = await this.helpers.httpRequest({
+      method: 'GET',
+      url: '${API}/titles/search?q=&type=' + ex.titleType + '&limit=10',
+      headers: { 'x-bot-secret': '${BOT_SECRET}' },
+      json: true,
+      timeout: 5000,
+    });
+    if (Array.isArray(fb) && fb.length) {
+      raw = fb.filter(function (t) { return t && t.slug; });
+      titles = raw;
+      showCards = titles.length > 0;
+      const kw2 = (ex.keyword || '').trim();
+      replyText = (kw2 ? ('«' + kw2 + '»-тэй тохирох олдсонгүй, гэхдээ ') : '') +
+        'манайд байгаа ' + (ex.titleType === 'SERIES' ? 'цувралуудаас' : 'кинонуудаас') +
+        ' санал болгож байна 👇';
+    }
+  } catch (e) { /* fallback ажиллахгүй бол дээрх мессеж хэвээр */ }
 }
 if (replyText.length > 1900) replyText = replyText.slice(0, 1897) + '...';
 

@@ -112,6 +112,11 @@ export class CreateTitleDto {
   @IsString()
   director?: string;
 
+  /** Гарал үүслийн улс — «Солонгос», «Хятад» г.м. Хайлтад чухал. */
+  @IsOptional()
+  @IsString()
+  country?: string;
+
   @IsOptional()
   @IsString()
   ageRating?: string;

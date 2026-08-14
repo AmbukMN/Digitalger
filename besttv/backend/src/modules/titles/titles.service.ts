@@ -486,6 +486,8 @@ export class TitlesService {
       { slug: { contains: t, mode: 'insensitive' as const } },
       { actors: { has: t } },
       { director: { contains: t, mode: 'insensitive' as const } },
+      /* ⚠️ Улс — «солонгос цуврал», «хятад кино» гэх хайлтын гол түлхүүр */
+      { country: { contains: t, mode: 'insensitive' as const } },
       { description: { contains: t, mode: 'insensitive' as const } },
       {
         genres: {
@@ -512,7 +514,7 @@ export class TitlesService {
         OR: allVariants.flatMap(matchClauses),
       },
       take: Math.min(80, limit * 4), // оноолохын тулд илүү татна
-      select: { ...CARD_SELECT, titleEn: true, director: true, description: true, actors: true },
+      select: { ...CARD_SELECT, titleEn: true, director: true, description: true, actors: true, country: true },
     });
 
     // 4) ⚠️ ОНОО — DigitalGer-т байхгүй байсан гол дутагдал (тэнд зүгээр
@@ -521,9 +523,14 @@ export class TitlesService {
     const scoreOf = (t: (typeof rows)[number]) => {
       const title = `${t.title} ${t.titleEn ?? ''} ${t.slug}`.toLowerCase();
       const body = `${t.description ?? ''} ${t.director ?? ''} ${(t.actors ?? []).join(' ')}`.toLowerCase();
-      const genreText = (t.genres ?? [])
+      /**
+       * ⚠️ УЛС нь ЖАНРТАЙ ижил жинтэй — «солонгос» гэдэг нь хэрэглэгчийн
+       * хувьд ангилал шиг утгатай (тайлбарын дунд санамсаргүй таарсан
+       * үгнээс хамаагүй чухал).
+       */
+      const genreText = ((t.genres ?? [])
         .map((g: { genre: { name: string; slug: string } }) => `${g.genre.name} ${g.genre.slug}`)
-        .join(' ')
+        .join(' ') + ' ' + (t.country ?? ''))
         .toLowerCase();
 
       let score = 0;

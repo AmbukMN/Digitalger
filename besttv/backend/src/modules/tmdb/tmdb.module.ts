@@ -20,6 +20,72 @@ import { StorageService } from '../../storage/storage.service';
 import { TranslateService } from './translate.service';
 
 /**
+ * ISO 3166-1 код → монгол улсын нэр.
+ *
+ * ⚠️⚠️ ЯАГААД МОНГОЛООР ВЭ: `country` талбарын гол зорилго нь ХАЙЛТ.
+ * «солонгос цуврал» гэж бичсэн хэрэглэгчид "KR" эсвэл "South Korea"
+ * гэж хадгалсан утга ОГТ таарахгүй.
+ *
+ * ⚠️ Жагсаалтад байхгүй код бол `null` — буруу нэр хадгалахаас
+ * хоосон нь дээр (админ гараар бөглөнө).
+ */
+const COUNTRY_MN: Record<string, string> = {
+  KR: 'Солонгос',
+  CN: 'Хятад',
+  JP: 'Япон',
+  US: 'АНУ',
+  GB: 'Англи',
+  MN: 'Монгол',
+  IN: 'Энэтхэг',
+  TH: 'Тайланд',
+  TR: 'Турк',
+  RU: 'Орос',
+  FR: 'Франц',
+  DE: 'Герман',
+  IT: 'Итали',
+  ES: 'Испани',
+  HK: 'Хонконг',
+  TW: 'Тайвань',
+  CA: 'Канад',
+  AU: 'Австрали',
+  BR: 'Бразил',
+  MX: 'Мексик',
+  PH: 'Филиппин',
+  ID: 'Индонез',
+  VN: 'Вьетнам',
+  KZ: 'Казахстан',
+  SE: 'Швед',
+  NO: 'Норвег',
+  DK: 'Дани',
+  PL: 'Польш',
+  NL: 'Нидерланд',
+  IE: 'Ирланд',
+  NZ: 'Шинэ Зеланд',
+  AR: 'Аргентин',
+  ZA: 'ӨАБНУ',
+  EG: 'Египет',
+  IR: 'Иран',
+  IL: 'Израиль',
+  SA: 'Саудын Араб',
+  AE: 'АНЭУ',
+  UA: 'Украин',
+  CZ: 'Чех',
+  BE: 'Бельги',
+  CH: 'Швейцарь',
+  AT: 'Австри',
+  FI: 'Финлянд',
+  PT: 'Португал',
+  GR: 'Грек',
+  HU: 'Унгар',
+  RO: 'Румын',
+};
+
+function mnCountry(iso?: string | null): string | null {
+  if (!iso) return null;
+  return COUNTRY_MN[iso.toUpperCase()] ?? null;
+}
+
+/**
  * TMDB import — админ контент оруулах хурдасгагч.
  * Хайлт → сонгох → poster/backdrop-ийг TMDB-ээс ТАТАЖ R2-д хадгална
  * (hotlink хийхгүй), тайлбар/оноо/он/жанр автомат бөглөгдөнө.
@@ -183,6 +249,20 @@ export class TmdbService {
         )?.name ??
         (d.created_by ?? [])[0]?.name ??
         null,
+      /**
+       * ⚠️⚠️ ГАРАЛ ҮҮСЛИЙН УЛС — МОНГОЛООР.
+       *
+       * TMDB нь `production_countries` (нэртэй) болон `origin_country`
+       * (ISO код) хоёуланг өгдөг. Эхнийх нь илүү бүрэн тул түүнийг
+       * эхэлж авна.
+       *
+       * ⚠️ Англи нэрээр хадгалбал «солонгос цуврал» гэж хайхад
+       * олдохгүй — ХАЙЛТ бол энэ талбарын гол зорилго тул монголоор
+       * хөрвүүлнэ.
+       */
+      country: mnCountry(
+        (d.production_countries ?? [])[0]?.iso_3166_1 ?? (d.origin_country ?? [])[0] ?? null,
+      ),
       actors: (d.credits?.cast ?? []).slice(0, 10).map((c: any) => c.name),
       /**
        * ⚠️ ДЭЛГЭРЭНГҮЙ CAST — нэр + дүр + ЗУРАГ.
@@ -249,12 +329,21 @@ export class TmdbService {
           { backdropKey: null },
           { cast: { equals: Prisma.DbNull } },
           { descriptionEn: null },
+          /**
+           * ⚠️ УЛС — TMDB-д `production_countries` ҮНЭХЭЭР байдаг тул
+           * `director`-оос ялгаатай нь дэмий давталт үүсгэхгүй.
+           *
+           * ⚠️ Монгол кино TMDB-д байхгүй тул тэдгээр нөхөгдөхгүй —
+           * тэднийг админ гараар «Монгол» гэж бөглөнө (эсвэл доорх
+           * `backfillMongolianCountry` автоматаар).
+           */
+          { country: null },
         ],
       },
       select: {
         id: true, title: true, titleEn: true, type: true,
         year: true, rating: true, description: true,
-        backdropKey: true, director: true, cast: true,
+        backdropKey: true, director: true, cast: true, country: true,
         descriptionEn: true, trailerYoutubeKey: true,
         metaTitle: true, metaDescription: true,
       },
@@ -335,6 +424,8 @@ export class TmdbService {
       if (!t.backdropKey && d.backdropKey) { data.backdropKey = d.backdropKey; filled.push('backdrop'); }
       if (!t.titleEn && d.titleEn) { data.titleEn = d.titleEn; filled.push('англи нэр'); }
       if (!t.director && d.director) { data.director = d.director; filled.push('найруулагч'); }
+      /* ⚠️ Улс — хайлтад чухал («солонгос цуврал» гэж хайхад олдоно) */
+      if (!t.country && d.country) { data.country = d.country; filled.push('улс'); }
       if ((!t.cast || (Array.isArray(t.cast) && t.cast.length === 0)) && d.cast?.length) {
         /**
          * ⚠️ `photoUrl`-ыг DB-д ХАДГАЛАХГҮЙ — presign URL нь 2 цагийн
@@ -432,6 +523,69 @@ export class TmdbService {
    *
    * ⚠️ Тайлбаргүй киног АЛГАСНА — юунаас ч үүсгэх аргагүй.
    */
+  /**
+   * ЖАНРААС улсыг нөхнө — TMDB огт дуудахгүй.
+   *
+   * ⚠️⚠️ TMDB-д БАЙХГҮЙ Монгол кинонуудыг `/enrich` хэзээ ч нөхөхгүй.
+   * Гэтэл «монгол кино» гэж хайсан хэрэглэгчид тэд олдох ЁСТОЙ —
+   * жанрын нэрээс шууд гаргана.
+   *
+   * ⚠️ Зөвхөн ХООСОН `country`-г бөглөнө (админы гар оруулга давуу).
+   */
+  async fillCountryFromGenre(dryRun = false) {
+    /* Жанрын нэр → улс. Тодорхой ганц улсыг заасан жанрыг л авна —
+       «Шилдэг кино», «Насанд хүрэгчдийн» нь улс заадаггүй тул орхино. */
+    const GENRE_TO_COUNTRY: Record<string, string> = {
+      'монгол кино': 'Монгол',
+      'монгол': 'Монгол',
+      'солонгос кино': 'Солонгос',
+      'солонгос': 'Солонгос',
+      'хятад кино': 'Хятад',
+      'япон кино': 'Япон',
+      'энэтхэг кино': 'Энэтхэг',
+      'турк кино': 'Турк',
+      'тайланд кино': 'Тайланд',
+    };
+
+    const titles = await this.prisma.title.findMany({
+      where: { country: null },
+      select: {
+        id: true,
+        title: true,
+        genres: { select: { genre: { select: { name: true } } } },
+      },
+    });
+
+    const updated: { title: string; country: string }[] = [];
+    const skipped: string[] = [];
+
+    for (const t of titles) {
+      let found: string | null = null;
+      for (const g of t.genres) {
+        const key = g.genre.name.trim().toLowerCase();
+        if (GENRE_TO_COUNTRY[key]) {
+          found = GENRE_TO_COUNTRY[key];
+          break;
+        }
+      }
+      if (!found) {
+        skipped.push(t.title);
+        continue;
+      }
+      if (!dryRun) {
+        await this.prisma.title
+          .update({ where: { id: t.id }, data: { country: found } })
+          .catch(() => null);
+      }
+      updated.push({ title: t.title, country: found });
+    }
+
+    this.logger.log(
+      `Улс нөхөв${dryRun ? ' (dry-run)' : ''}: ${updated.length} бөглөв, ${skipped.length} алгасав`,
+    );
+    return { dryRun, updated, skippedCount: skipped.length, skipped: skipped.slice(0, 20) };
+  }
+
   async generateMissingSeo(limit = 10, dryRun = false) {
     const titles = await this.prisma.title.findMany({
       where: {
@@ -601,6 +755,20 @@ export class TmdbController {
   @Post('seo')
   seo(@Query('limit') limit?: string, @Query('dry') dry?: string) {
     return this.svc.generateMissingSeo(Math.min(30, Number(limit) || 10), dry === '1');
+  }
+
+  /**
+   * ЖАНРААС улсыг нөхөх — TMDB огт дуудахгүй.
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: «Монгол кино» жанртай 23 кино TMDB-д
+   * БАЙХГҮЙ тул `/enrich` тэднийг хэзээ ч нөхөхгүй. Гэтэл «монгол
+   * кино» гэж хайсан хэрэглэгчид тэд олдох ЁСТОЙ.
+   *
+   * ⚠️ Зөвхөн ХООСОН `country`-г бөглөнө — админы гар оруулга давуу.
+   */
+  @Post('country-from-genre')
+  countryFromGenre(@Query('dry') dry?: string) {
+    return this.svc.fillCountryFromGenre(dry === '1');
   }
 
   @Get('import/:id')

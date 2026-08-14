@@ -39,6 +39,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
     year: '',
     rating: '',
     director: '',
+    country: '',
     ageRating: '',
     /** ⚠️ YouTube трейлерийн key — R2 HLS трейлерээс ТУСДАА */
     trailerYoutubeKey: '',
@@ -75,6 +76,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         year: e.year ? String(e.year) : '',
         rating: e.rating ? String(e.rating) : '',
         director: e.director ?? '',
+        country: e.country ?? '',
         ageRating: e.ageRating ?? '',
         trailerYoutubeKey: e.trailerYoutubeKey ?? '',
         metaTitle: e.metaTitle ?? '',
@@ -154,6 +156,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
       rating: result.rating ? String(result.rating) : f.rating,
       /* ⚠️ Найруулагч — TMDB `credits.crew`-ээс; гараар бичсэнийг хөндөхгүй */
       director: f.director || result.director || '',
+      country: f.country || result.country || '',
       /**
        * ⚠️ SEO-г TMDB-ээс АВАХГҮЙ — backend хоосон буцаана.
        * Энэ хуудсанд SEO нь хадгалах үед `save()` дотор гарчиг+тайлбараас
@@ -228,6 +231,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         year: form.year ? Number(form.year) : undefined,
         rating: form.rating ? Number(form.rating) : undefined,
         director: form.director || undefined,
+        country: form.country || undefined,
         ageRating: form.ageRating || undefined,
         trailerYoutubeKey: form.trailerYoutubeKey || undefined,
         /**
@@ -379,6 +383,21 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
                 placeholder="Найруулагч"
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground outline-none transition-colors focus:border-primary"
               />
+              {/* ⚠️ Улс — «солонгос цуврал» гэх хайлтын гол түлхүүр.
+                  TMDB импортод автоматаар бөглөгдөнө. */}
+              <input
+                list="btv-countries-page"
+                value={form.country}
+                onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                placeholder="Улс (Солонгос, Хятад, АНУ…)"
+                className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground outline-none transition-colors focus:border-primary"
+              />
+              <datalist id="btv-countries-page">
+                {['Солонгос', 'Хятад', 'Япон', 'АНУ', 'Монгол', 'Англи', 'Энэтхэг',
+                  'Тайланд', 'Турк', 'Орос', 'Франц', 'Герман', 'Хонконг', 'Тайвань'].map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
           </div>
         </div>
