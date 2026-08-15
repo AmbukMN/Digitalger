@@ -702,6 +702,13 @@ export function TitleEditDialog({
                           placeholder="Хоосон = нийтлэг (48ц)"
                           className="admin-input"
                         />
+                        {/* ⚠️ Урт хугацааг ХОНОГООР баталгаажуулна —
+                            хэрэглэгчид ч ингэж харагдана */}
+                        {Number(form.rentHours) >= 48 && Number(form.rentHours) % 24 === 0 && (
+                          <p className="mt-1 text-[11px] text-primary">
+                            = {Number(form.rentHours) / 24} хоног
+                          </p>
+                        )}
                       </label>
                     </div>
                   )}

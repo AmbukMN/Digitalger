@@ -130,3 +130,38 @@ export function formatRelative(d: string | Date | null | undefined): string {
 
   return formatDate(date);
 }
+
+/**
+ * Түрээсийн ХУГАЦААГ хүн ойлгохоор.
+ *
+ * ⚠️⚠️ БОДИТ АСУУДАЛ: «168ц түрээслэх» гэж харуулдаг байв. Хэрэглэгч
+ * 168-ыг 24-т хуваах ёстой болж, «энэ хэд юм бэ?» гэж эргэлзэнэ.
+ * Урт хугацааны түрээс (7 хоног, 30 хоног) бүр ойлгомжгүй.
+ *
+ * ⚠️ 48 цагаас ДООШ бол ЦАГААР хэвээр — «2 хоног» гэхээс «48 цаг»
+ * гэдэг нь тодорхой (хэзээ дуусахыг шууд ойлгоно). Богино түрээсэнд
+ * цаг нь бодит нэгж.
+ *
+ *   24ц  → «24 цаг»
+ *   48ц  → «48 цаг»
+ *   72ц  → «3 хоног»
+ *   168ц → «7 хоног»
+ *   720ц → «30 хоног»
+ *
+ * ⚠️ Бүтэн хоногт хуваагдахгүй бол (ж: 100ц) цагаар үлдээнэ —
+ * «4.2 хоног» гэдэг нь буруу ойлголт төрүүлнэ.
+ */
+export function formatRentDuration(hours: number): string {
+  if (!hours || hours <= 0) return '';
+  if (hours < 48) return `${hours} цаг`;
+  if (hours % 24 !== 0) return `${hours} цаг`;
+  return `${hours / 24} хоног`;
+}
+
+/** Богино хэлбэр — товч/картад («7 хоног», «48ц») */
+export function formatRentDurationShort(hours: number): string {
+  if (!hours || hours <= 0) return '';
+  if (hours < 48) return `${hours}ц`;
+  if (hours % 24 !== 0) return `${hours}ц`;
+  return `${hours / 24} хоног`;
+}

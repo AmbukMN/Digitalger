@@ -546,6 +546,16 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
                     placeholder="Хоосон = нийтлэг (48ц)"
                     className="admin-input"
                   />
+                  {/*
+                    ⚠️ Урт хугацааг ХОНОГООР баталгаажуулж харуулна —
+                    админ «168» бичээд хэд болохыг тооцох ёсгүй.
+                    Хэрэглэгчийн талд ч «7 хоног» гэж харагдана.
+                  */}
+                  {Number(form.rentHours) >= 48 && Number(form.rentHours) % 24 === 0 && (
+                    <p className="mt-1 text-[11px] text-primary">
+                      = {Number(form.rentHours) / 24} хоног (хэрэглэгчид ингэж харагдана)
+                    </p>
+                  )}
                 </label>
               </div>
             )}

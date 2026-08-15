@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Clock, Loader2, Ticket, Wallet, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatPrice } from '@besttv/shared';
+import { formatPrice, formatRentDuration, formatRentDurationShort } from '@besttv/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
@@ -80,7 +80,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
       await refreshMe();
       setDone(true);
       onRented();
-      toast.success(`${hours} цагийн турш үзэх эрх нээгдлээ 🎬`);
+      toast.success(`${formatRentDuration(hours)}-ийн турш үзэх эрх нээгдлээ 🎬`);
       setTimeout(onClose, 1500);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа, дахин оролдоно уу');
@@ -183,7 +183,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     return (
       <QPayCheckout
         invoice={invoice}
-        subtitle={`${titleName} — ${hours}ц түрээс`}
+        subtitle={`${titleName} — ${formatRentDurationShort(hours)} түрээс`}
         successText="Кино нээгдэж байна…"
         onPaid={async () => {
           /**
@@ -249,7 +249,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
             <div className="flex flex-col items-center px-6 py-12 text-center">
               <CheckCircle2 size={52} className="text-success" />
               <p className="mt-4 text-lg font-bold text-foreground">Түрээс амжилттай</p>
-              <p className="mt-1 text-sm text-foreground/55">{hours} цагийн турш үзэх боломжтой</p>
+              <p className="mt-1 text-sm text-foreground/55">{formatRentDuration(hours)}-ийн турш үзэх боломжтой</p>
             </div>
           ) : (
             <div className="px-6 py-7">
@@ -266,7 +266,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                   <span className="text-2xl font-black text-foreground">{formatPrice(price)}</span>
                 </div>
                 <div className="mt-2 flex items-center gap-1.5 text-sm text-foreground/55">
-                  <Clock size={14} /> Төлсөн үеэс {hours} цагийн турш хязгааргүй үзнэ
+                  <Clock size={14} /> Төлсөн үеэс {formatRentDuration(hours)}-ийн турш хязгааргүй үзнэ
                 </div>
               </div>
 

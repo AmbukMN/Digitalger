@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Heart, Film, Lock, Play, Star, Ticket, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, episodeLabel, formatPrice, formatRentLeft } from '@besttv/shared';
+import { cn, episodeLabel, formatPrice, formatRentDurationShort, formatRentLeft } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useTitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
@@ -214,7 +214,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                       className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground active:scale-[0.98]"
                     >
                       <Ticket size={15} />
-                      {formatPrice(data.rental.price)} · {data.rental.hours}ц
+                      {formatPrice(data.rental.price)} · {formatRentDurationShort(data.rental.hours)}
                     </button>
                   )}
                   <Link
@@ -357,7 +357,7 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                         className="flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] sm:py-2.5"
                       >
                         <Ticket size={17} />
-                        {formatPrice(data.rental.price)} · {data.rental.hours}ц түрээслэх
+                        {formatPrice(data.rental.price)} · {formatRentDurationShort(data.rental.hours)} түрээслэх
                       </button>
                     )}
                     {/*
