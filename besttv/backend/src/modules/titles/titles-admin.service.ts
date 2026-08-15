@@ -707,6 +707,20 @@ export class TitlesAdminService {
     return this.prisma.season.create({ data: { titleId, ...dto } });
   }
 
+  /**
+   * Улирлын НЭР засах.
+   * ⚠️ Хоосон мөр = нэрийг УСТГАХ () — тэр үед frontend нь
+   * «N-р улирал» гэсэн автомат нэр харуулна.
+   */
+  async updateSeason(id: string, dto: { name?: string }) {
+    const exists = await this.prisma.season.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Улирал олдсонгүй');
+    return this.prisma.season.update({
+      where: { id },
+      data: { name: dto.name?.trim() || null },
+    });
+  }
+
   async removeSeason(id: string) {
     const season = await this.prisma.season.findUnique({
       where: { id },

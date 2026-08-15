@@ -148,6 +148,12 @@ export class TitlesAdminController {
     return this.svc.createSeason(titleId, dto);
   }
 
+  /** Улирлын нэр засах (хоосон = автомат «N-р улирал») */
+  @Patch('seasons/:seasonId')
+  updateSeason(@Param('seasonId') seasonId: string, @Body() dto: { name?: string }) {
+    return this.svc.updateSeason(seasonId, dto);
+  }
+
   @Delete('seasons/:seasonId')
   removeSeason(@Param('seasonId') seasonId: string) {
     return this.svc.removeSeason(seasonId);

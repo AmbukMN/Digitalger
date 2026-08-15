@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
@@ -81,6 +81,26 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
   const [addingEp, setAddingEp] = useState(false);
   const confirm = useConfirm();
 
+  /** Улирлын нэр засах */
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  const saveName = async () => {
+    setEditingName(false);
+    /* ⚠️ Өөрчлөгдөөгүй бол сервер рүү дэмий явуулахгүй */
+    if (nameInput.trim() === (season.name ?? '')) return;
+    try {
+      await api(`/admin/titles/seasons/${season.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: nameInput.trim() }),
+      });
+      onChange();
+      toast.success('Улирлын нэр хадгалагдлаа');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
+  };
+
   const episodes = season.episodes ?? [];
   const readyCount = episodes.filter((e) => e.streamStatus === 'READY').length;
 
@@ -120,6 +140,21 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
     }
   };
 
+  /** Ангийн нэр засах — өөрчлөгдсөн үед л илгээнэ */
+  const saveEpisodeName = async (episodeId: string, before: string, next: string) => {
+    if (next.trim() === before.trim()) return;
+    try {
+      await api(`/admin/titles/episodes/${episodeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: next.trim() || null }),
+      });
+      onChange();
+      toast.success('Ангийн нэр хадгалагдлаа');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
+  };
+
   const removeSeason = async () => {
     const ok = await confirm({
       title: `${season.name ?? `${season.number}-р улирал`}-ыг устгах уу?`,
@@ -145,10 +180,39 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="font-semibold text-foreground">
-            {season.name ?? `${season.number}-р улирал`}
-          </h3>
+        <div className="min-w-0 flex-1">
+          {/*
+            ⚠️ Улирлын нэр — ЗАСВАРЛАХ боломжтой. «1-р улирал» гэсэн
+            автомат нэр бүх цувралд тохирохгүй («1-р бүлэг», «Season 1»
+            гэх мэт өөр нэршил хэрэгтэй байж болно).
+            ⚠️ Хоосон үлдээвэл автомат нэр рүү буцна.
+          */}
+          {editingName ? (
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void saveName();
+                if (e.key === 'Escape') setEditingName(false);
+              }}
+              placeholder={`${season.number}-р улирал`}
+              className="admin-input w-full max-w-xs text-sm font-semibold"
+            />
+          ) : (
+            <button
+              onClick={() => {
+                setNameInput(season.name ?? '');
+                setEditingName(true);
+              }}
+              title="Нэр засах"
+              className="group flex items-center gap-1.5 text-left font-semibold text-foreground hover:text-primary"
+            >
+              <h3>{season.name ?? `${season.number}-р улирал`}</h3>
+              <Pencil size={11} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />
+            </button>
+          )}
           <p className="text-xs text-muted-foreground">
             {episodes.length} анги
             {readyCount > 0 && ` · ${readyCount} бэлэн`}
@@ -199,6 +263,26 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
 
               {expanded === ep.id && (
                 <div className="mt-3 space-y-3">
+                  {/*
+                    ⚠️ Ангийн нэр — «Анги 1» гэсэн автомат нэрийн оронд
+                    бодит гарчиг («Пилот», «Берлин»). Хоосон үлдээвэл
+                    автомат нэр рүү буцна.
+                  */}
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">
+                      Ангийн нэр (заавал биш)
+                    </span>
+                    <input
+                      defaultValue={ep.name ?? ''}
+                      placeholder={`Анги ${ep.number}`}
+                      onBlur={(e) => void saveEpisodeName(ep.id, ep.name ?? '', e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      }}
+                      className="admin-input w-full"
+                    />
+                  </label>
+
                   {/*
                     ⚠️⚠️ ҮНЭГҮЙ ҮЗЭХ — цувралын эхний ангийг үнэгүй
                     болгож хэрэглэгчийг татах маркетингийн хэрэгсэл.

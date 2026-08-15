@@ -454,8 +454,21 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               <h2 id="episodes-heading" className="sr-only">
                 Ангиуд
               </h2>
+              {/*
+                ⚠️ ТАБ НЬ БЛОК ДОТОР — сонгогдсон нь «дэвсгэрээс дээш
+                гарсан» мэт харагдана (segmented control). Өмнө нь
+                зүгээр 2 өнгөт товч зэрэгцэж, аль нь идэвхтэйг
+                харахад тодорхойгүй, тусдаа элемент мэт байв.
+
+                ⚠️ `overflow-x-auto` — 5+ улиралтай цувралд гар утсан
+                дээр таслагдахгүй, хажуу тийш гүйлгэнэ.
+              */}
               {seasons.length > 1 && (
-                <div className="mb-4 flex gap-2" role="tablist" aria-label="Улирал сонгох">
+                <div
+                  role="tablist"
+                  aria-label="Улирал сонгох"
+                  className="mb-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-foreground/10 bg-foreground/5 p-1"
+                >
                   {seasons.map((s, i) => (
                     <button
                       key={s.id}
@@ -463,8 +476,11 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                       aria-selected={activeSeason === i}
                       onClick={() => setActiveSeason(i)}
                       className={cn(
-                        'rounded-md px-4 py-2 text-sm font-medium',
-                        activeSeason === i ? 'bg-primary text-primary-foreground' : 'bg-foreground/10 text-foreground/70',
+                        'shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition-all',
+                        activeSeason === i
+                          ? /* ⚠️ Сүүдэр + цайвар дэвсгэр = «дээш гарсан» мэдрэмж */
+                            'bg-primary text-primary-foreground shadow-md shadow-primary/25'
+                          : 'text-foreground/55 hover:bg-foreground/8 hover:text-foreground/85',
                       )}
                     >
                       {s.name ?? `${s.number}-р улирал`}
