@@ -9,7 +9,7 @@ import { NotificationsService } from '../notifications/notifications.module';
 import { EmailService, type EmailTemplate } from './email.service';
 
 /** Урсгал бүрийн тохиргоо — админ панелаас дарж бичиж болно */
-interface FlowDefaults {
+export interface FlowDefaults {
   campaign: EmailTemplate;
   subject: string;
   heading: string;
@@ -34,7 +34,12 @@ interface FlowDefaults {
  * Кодод байлгах шалтгаан: админ юу ч хийгээгүй байхад систем БҮРЭН
  * ажиллах ёстой (хоосон имэйл явуулахгүй).
  */
-const FLOWS: Record<string, FlowDefaults> = {
+/**
+ * ⚠️ EXPORT — админ панел АНХДАГЧ утгыг харуулахад ашиглана.
+ * Хоосон талбар харуулбал админ юу явахыг мэдэхгүй, засах гэвэл
+ * эхнээс бичих ёстой болно.
+ */
+export const FLOWS: Record<string, FlowDefaults> = {
   'winback-3d': {
     campaign: 'winback-3d',
     subject: 'Таны багц дууслаа — {{percent}}% хямдралтай эргэн ирээрэй',

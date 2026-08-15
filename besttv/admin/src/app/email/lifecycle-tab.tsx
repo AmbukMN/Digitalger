@@ -22,6 +22,19 @@ interface LifecycleFlow {
   couponDays: number;
   /** Админ засварласан эсэх (DB-д мөр байгаа эсэх) */
   customized: boolean;
+  /**
+   * ⚠️ Кодын АНХДАГЧ утга — талбар хоосон үед ЯГ ЭНЭ явна.
+   * Placeholder-т саарлаар харуулж, «Анхдагчийг татах» товчид ашиглана.
+   */
+  defaults: {
+    subject: string;
+    heading: string;
+    bodyHtml: string;
+    ctaText: string;
+    couponPercent: number;
+    couponDays: number;
+    ctaPath: string;
+  };
 }
 
 interface LifecycleStat {
@@ -254,6 +267,23 @@ function LifecycleEditor({
   const [saving, setSaving] = useState(false);
   const confirm = useConfirm();
 
+  /**
+   * Анхдагч текстийг талбарууд руу татна.
+   * ⚠️ Хадгалахгүй — админ засварлаад «Хадгалах» дарж байж хүчинтэй.
+   * Ингэснээр «жаахан өөрчлөх» тохиолдолд эхнээс бичих шаардлагагүй.
+   */
+  const loadDefaults = () => {
+    setF((s) => ({
+      ...s,
+      subject: flow.defaults.subject,
+      heading: flow.defaults.heading,
+      bodyHtml: flow.defaults.bodyHtml,
+      ctaText: flow.defaults.ctaText,
+      couponPercent: flow.defaults.couponPercent,
+      couponDays: flow.defaults.couponDays,
+    }));
+  };
+
   const save = async () => {
     setSaving(true);
     const ok = await runMutation(
@@ -314,11 +344,34 @@ function LifecycleEditor({
             </p>
           </div>
 
+          {/*
+            ⚠️⚠️ АНХДАГЧ ТЕКСТИЙГ PLACEHOLDER-Т ХАРУУЛНА.
+
+            БОДИТ АСУУДАЛ: өмнө нь бүх талбар «Хоосон = анхдагч» гэсэн
+            хоосон байсан тул админ (1) одоо ЮУ явж байгааг харахгүй,
+            (2) нэг үг засах гэвэл бүх текстийг эхнээс бичих ёстой,
+            (3) «систем ажиллахгүй байна уу?» гэж эргэлзэнэ.
+
+            Одоо: хоосон талбарт ЯГ ТЭР явах текст саараар харагдана.
+            «Анхдагчийг татах» дарвал засварлах боломжтой болно.
+          */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              Талбар хоосон бол саарлаар харагдаж буй анхдагч текст явна.
+            </p>
+            <button
+              onClick={loadDefaults}
+              className="shrink-0 rounded-lg border border-primary/30 bg-primary/8 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/15"
+            >
+              Анхдагчийг татах
+            </button>
+          </div>
+
           <Field label="Гарчиг (subject)">
             <input
               value={f.subject}
               onChange={(e) => setF({ ...f, subject: e.target.value })}
-              placeholder="Хоосон = анхдагч"
+              placeholder={flow.defaults.subject}
               className={LC_INPUT}
             />
           </Field>
@@ -327,7 +380,7 @@ function LifecycleEditor({
             <input
               value={f.heading}
               onChange={(e) => setF({ ...f, heading: e.target.value })}
-              placeholder="Хоосон = анхдагч"
+              placeholder={flow.defaults.heading}
               className={LC_INPUT}
             />
           </Field>
@@ -336,9 +389,9 @@ function LifecycleEditor({
             <textarea
               value={f.bodyHtml}
               onChange={(e) => setF({ ...f, bodyHtml: e.target.value })}
-              rows={7}
-              placeholder="Хоосон = анхдагч"
-              className={cn(LC_INPUT, 'resize-y font-mono text-xs')}
+              rows={8}
+              placeholder={flow.defaults.bodyHtml}
+              className={cn(LC_INPUT, 'resize-y font-mono text-xs leading-relaxed')}
             />
           </Field>
 
@@ -346,9 +399,14 @@ function LifecycleEditor({
             <input
               value={f.ctaText}
               onChange={(e) => setF({ ...f, ctaText: e.target.value })}
-              placeholder="Хоосон = анхдагч"
+              placeholder={flow.defaults.ctaText}
               className={LC_INPUT}
             />
+            {/* ⚠️ Товч хаашаа очихыг админ мэдэх ёстой */}
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Товч дарахад <code className="rounded bg-foreground/10 px-1">{flow.defaults.ctaPath}</code>{' '}
+              руу очно
+            </p>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
@@ -361,8 +419,17 @@ function LifecycleEditor({
                 onChange={(e) => setF({ ...f, couponPercent: Number(e.target.value) })}
                 className={LC_INPUT}
               />
-              {/* ⚠️ 0 нь купон ОГТ өгөхгүй гэсэн үг — админ андуурч болзошгүй */}
-              <p className="mt-1 text-[10px] text-muted-foreground">0 = купон өгөхгүй</p>
+              {/*
+                ⚠️⚠️ «0» нь ХОЁР УТГАТАЙ бөгөөд андуурч болзошгүй:
+                  • Анхдагч нь 0 бол → купон ОГТ өгөхгүй урсгал
+                  • Анхдагч нь 20 бол → 0 үлдээвэл 20% явна (нөхөгдөнө)
+                Тиймээс аль болохыг ТОДОРХОЙ бичнэ.
+              */}
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {flow.defaults.couponPercent > 0
+                  ? `0 үлдээвэл анхдагч ${flow.defaults.couponPercent}% явна`
+                  : 'Энэ урсгал купон өгдөггүй'}
+              </p>
             </Field>
             <Field label="Купон хүчинтэй (хоног)">
               <input

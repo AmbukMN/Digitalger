@@ -40,7 +40,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { EmailEventsService } from './email-events.service';
 import { verifySnsSignature } from './sns-signature.util';
 import { EmailService } from './email.service';
-import { LifecycleService } from './lifecycle.service';
+import { FLOWS, LifecycleService } from './lifecycle.service';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
@@ -855,8 +855,22 @@ export class EmailAdminController {
 
     /* ⚠️ Кодын анхдагчийг DB-ийн override-тай нийлүүлж буцаана —
        админ юу байгааг БҮРЭН харах ёстой (хоосон формоос эхлэхгүй) */
+    /**
+     * ⚠️⚠️ АНХДАГЧ УТГЫГ ЗААВАЛ БУЦААНА (`defaults`).
+     *
+     * БОДИТ АСУУДАЛ: өмнө нь зөвхөн DB дэх утгыг буцаадаг байсан тул
+     * админ формыг нээхэд БҮХ талбар ХООСОН харагдана. Тэгвэл:
+     *   • Одоо ЮУ явж байгааг харах боломжгүй
+     *   • Зөвхөн нэг үг засах гэвэл БҮХ текстийг эхнээс бичих ёстой
+     *   • «Систем ажиллахгүй байна уу?» гэсэн эргэлзээ төрүүлнэ
+     *
+     * Одоо: `value` = админы бичсэн (эсвэл хоосон), `defaults` =
+     * кодын анхдагч. Frontend нь хоосон талбарт анхдагчийг СААРАЛААР
+     * харуулж, «Анхдагчийг татах» товч өгнө.
+     */
     return LIFECYCLE_FLOW_META.map((meta) => {
       const row = byKey.get(meta.campaign);
+      const def = FLOWS[meta.campaign];
       return {
         ...meta,
         isEnabled: row?.isEnabled ?? true,
@@ -867,6 +881,17 @@ export class EmailAdminController {
         couponPercent: row?.couponPercent ?? 0,
         couponDays: row?.couponDays ?? 0,
         customized: Boolean(row),
+        /* Кодын анхдагч — хоосон талбарт ЯГ ЭНЭ явна */
+        defaults: {
+          subject: def?.subject ?? '',
+          heading: def?.heading ?? '',
+          bodyHtml: def?.bodyHtml ?? '',
+          ctaText: def?.ctaText ?? '',
+          couponPercent: def?.couponPercent ?? 0,
+          couponDays: def?.couponDays ?? 0,
+          /* Товч дарахад очих зам — админд ойлгомжтой байх */
+          ctaPath: def?.ctaPath ?? '/',
+        },
       };
     });
   }
