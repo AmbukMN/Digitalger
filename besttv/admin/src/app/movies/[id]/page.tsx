@@ -15,6 +15,7 @@ import { runMutation } from '@/lib/mutate';
 import { useAdminGenres, useAdminTitle, type AdminSeason } from '@/lib/queries';
 import { ImageUpload } from '@/components/image-upload';
 import { VideoUpload } from '@/components/video-upload';
+import { SubtitleManager } from '@/components/subtitle-manager';
 import { BackdropMediaUpload } from '@/components/backdrop-media-upload';
 import { TmdbImportDialog, type TmdbImportResult } from '@/components/tmdb-import-dialog';
 import { CastEditor, type CastEntry } from '@/components/cast-editor';
@@ -601,6 +602,12 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
               streamError={(existing as any)?.streamError}
               onDone={() => qc.invalidateQueries({ queryKey: ['admin-title', savedId] })}
             />
+
+            {/* ⚠️ Хадмал — видеоны ЯГ ДООР. Тусад нь хол байрлуулбал
+                админ хайх шаардлагатай болно. */}
+            <div className="mt-4">
+              <SubtitleManager kind="movie" targetId={savedId} />
+            </div>
           </div>
         )}
 

@@ -8,6 +8,7 @@ import { useConfirm } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
 import { useAdminTitle, type AdminSeason } from '@/lib/queries';
 import { VideoUpload } from '@/components/video-upload';
+import { SubtitleManager } from '@/components/subtitle-manager';
 
 /**
  * Олон ангитын улирал / анги удирдах.
@@ -230,6 +231,12 @@ function SeasonBlock({ season, onChange }: { season: AdminSeason; onChange: () =
                     streamError={ep.streamError}
                     onDone={onChange}
                   />
+
+                  {/* ⚠️ Анги бүрд ТУСДАА хадмал — олон ангит киноны
+                      анги бүр өөр орчуулгатай */}
+                  <div className="mt-3">
+                    <SubtitleManager kind="episode" targetId={ep.id} />
+                  </div>
                 </div>
               )}
             </div>
