@@ -754,6 +754,40 @@ export function TitleEditDialog({
                 />
               </div>
 
+              {/*
+                ⚠️⚠️ УСАН ТЭМДЭГ — ЭНГИЙН `Toggle` БИШ, тусдаа блок.
+
+                БОДИТ ЦООРХОЙ: `watermark` талбар нь энэ модалын state
+                болон submit-д БАЙСАН атлаа ХАРАГДАХ хяналт БАЙГААГҮЙ.
+                Админ жагсаалтаас кино засвал усан тэмдгээ тохируулж
+                чадахгүй, зөвхөн `/movies/[id]` хуудсаар л боломжтой
+                байв (нэг талбар хоёр UI-д зөрсөн).
+
+                ⚠️ Toggle-уудын дунд ЖИЖИГ товч болгож болохгүй: лого
+                видеонд ШАТААГДАНА (буцаах бол дахин encode). Тиймээс
+                `/movies/[id]`-тэй ИЖИЛ анхааруулгатай блок.
+              */}
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40">
+                <input
+                  type="checkbox"
+                  checked={form.watermark}
+                  onChange={(e) => setForm((f) => ({ ...f, watermark: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">
+                    BestTV лого видеон дээр
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                    Зүүн дээд буланд, өргөний 10%, тунгалаг 70%.
+                    <br />⚠️ Лого видеонд{' '}
+                    <strong className="text-warning">шатаагдана</strong> — дараа нь өөрчлөхийн
+                    тулд видеог дахин байршуулна.
+                    {form.type === 'SERIES' && ' Энд чагтлавал БҮХ ангид үйлчилнэ.'}
+                  </span>
+                </span>
+              </label>
+
               {/* SEO */}
               <details className="rounded-lg border border-border p-3">
                 <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
