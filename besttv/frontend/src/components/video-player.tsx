@@ -384,6 +384,20 @@ export function VideoPlayer({
           saveNow();
           onEnded?.();
         }}
+        /**
+         * ⚠️⚠️ ХАДМАЛГҮЙ ҮЕД ЦЭСИЙГ БҮРЭН НУУНА.
+         *
+         * БОДИТ АСУУДАЛ: Vidstack нь хадмал ОГТ байхгүй үед ч
+         * «Хадмал» цэсийг харуулж, дотор нь зөвхөн «Хаах» гэсэн
+         * ганц мөр гаргадаг. Хэрэглэгч дарж хараад «хадмал байхгүй
+         * юм байна» гэж ойлгох ёстой болно — цэс байгаа нь ӨӨРӨӨ
+         * «хадмал бий» гэсэн ХУДАЛ дохио.
+         *
+         * ⚠️ Vidstack-ийн дотоод зан төлөвт НАЙДАХГҮЙ (хувилбар
+         * солигдоход өөрчлөгдөж болно) — өөрсдөө шууд хянана.
+         * CSS-ийн дүрэм нь `globals.css`-д.
+         */
+        data-has-subtitles={subtitleTracks.length > 0 ? 'true' : 'false'}
         className="aspect-video w-full overflow-hidden bg-black text-white"
       >
         <MediaProvider>
