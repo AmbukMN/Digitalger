@@ -14,6 +14,9 @@ import {
   Send,
   Sparkles,
   User as UserIcon,
+  Globe,
+  Facebook,
+  Instagram,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDate } from '@besttv/shared';
@@ -30,26 +33,63 @@ import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 /**
  * Сувгийн тэмдэг — яриа хаанаас ирснийг нэг харцаар.
  *
- * ⚠️ Вэбийнхэд тэмдэг ХАРУУЛАХГҮЙ: ихэнх яриа вэбээс ирдэг тул бүгдэд
- * тэмдэг тавибал жагсаалт дүүрч, ЯЛГАРАХ ёстой FB/IG нь харагдахаа
- * болино. Тэмдэг нь "энэ бол ондоо" гэсэн утгатай байх ёстой.
+ * ⚠️⚠️ БҮХ СУВАГТ тэмдэг тавина (админы хүсэлт). Өмнө нь вэбийнхэд
+ * тэмдэг ОГТ байхгүй байсан тул админ «тэмдэггүй = вэб» гэж ТААМАГЛАХ
+ * шаардлагатай болдог байв — шинэ ажилтанд ойлгомжгүй, мөн тэмдэг
+ * ачаалагдаагүй эсэхийг ялгах аргагүй.
+ *
+ * ⚠️ Гэхдээ ЯЛГАРАЛ хадгалагдана: вэб нь СААРАЛ (чимээгүй), FB/IG нь
+ * брэндийн ӨНГӨТЭЙ. Ингэснээр 10 вэб ярианы дунд 2 FB яриа шууд
+ * харагдана — жагсаалт «дүүрэхгүй».
+ *
+ * ⚠️ Сувгийн нэрийг ҮРГЭЛЖ энэ газраас авна — өөр газар шууд бичвэл
+ * (жишээ: шүүлтийн товч) зөрөх эрсдэлтэй.
  */
-const CHANNEL_META: Record<string, { label: string; cls: string }> = {
-  facebook: { label: 'FB', cls: 'bg-[#1877F2]/15 text-[#1877F2]' },
-  instagram: { label: 'IG', cls: 'bg-[#E1306C]/15 text-[#E1306C]' },
+const CHANNEL_META: Record<
+  string,
+  { label: string; full: string; cls: string; Icon: typeof Globe }
+> = {
+  web: {
+    label: 'Вэб',
+    full: 'Вэб сайтын чат',
+    /* ⚠️ Саарал — олон байдаг тул анхаарал татах ёсгүй */
+    cls: 'bg-muted text-muted-foreground',
+    Icon: Globe,
+  },
+  facebook: {
+    label: 'FB',
+    full: 'Facebook Messenger',
+    cls: 'bg-[#1877F2]/15 text-[#1877F2]',
+    Icon: Facebook,
+  },
+  instagram: {
+    label: 'IG',
+    full: 'Instagram DM',
+    cls: 'bg-[#E1306C]/15 text-[#E1306C]',
+    Icon: Instagram,
+  },
 };
 
-function ChannelBadge({ channel }: { channel: string }) {
-  const meta = CHANNEL_META[channel];
-  if (!meta) return null;
+function ChannelBadge({ channel, size = 'sm' }: { channel: string; size?: 'sm' | 'md' }) {
+  /* ⚠️ Танихгүй суваг ирвэл (ирээдүйн WhatsApp гэх мэт) нэрийг нь
+     хэвээр харуулна — `null` буцаавал ЧИМЭЭГҮЙ алга болно */
+  const meta = CHANNEL_META[channel] ?? {
+    label: channel,
+    full: channel,
+    cls: 'bg-muted text-muted-foreground',
+    Icon: Globe,
+  };
+  const { Icon } = meta;
   return (
     <span
-      title={channel === 'facebook' ? 'Facebook Messenger' : 'Instagram DM'}
+      title={meta.full}
       className={cn(
-        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none',
+        'inline-flex shrink-0 items-center gap-1 rounded font-bold leading-none',
         meta.cls,
+        size === 'md' ? 'px-2 py-1 text-[11px]' : 'px-1.5 py-0.5 text-[10px]',
       )}
     >
+      <Icon size={size === 'md' ? 12 : 10} className="shrink-0" />
       {meta.label}
     </span>
   );
@@ -345,11 +385,20 @@ export default function ChatPage() {
             const cc = list?.channelCounts ?? {};
             const hasSocial = (cc.facebook ?? 0) > 0 || (cc.instagram ?? 0) > 0;
             if (!hasSocial) return null;
-            const TABS: { key: string; label: string }[] = [
-              { key: '', label: 'Бүх суваг' },
-              { key: 'web', label: 'Вэб' },
-              { key: 'facebook', label: 'Facebook' },
-              { key: 'instagram', label: 'Instagram' },
+            /* ⚠️ Нэрийг CHANNEL_META-аас — badge-тэй ҮРГЭЛЖ таарна */
+            const TABS: { key: string; label: string; Icon: typeof Globe | null }[] = [
+              { key: '', label: 'Бүх суваг', Icon: null },
+              { key: 'web', label: CHANNEL_META.web.label, Icon: CHANNEL_META.web.Icon },
+              {
+                key: 'facebook',
+                label: CHANNEL_META.facebook.label,
+                Icon: CHANNEL_META.facebook.Icon,
+              },
+              {
+                key: 'instagram',
+                label: CHANNEL_META.instagram.label,
+                Icon: CHANNEL_META.instagram.Icon,
+              },
             ];
             return (
               <div className="flex items-center gap-1.5 border-b border-border px-2.5 pb-2.5">
@@ -365,12 +414,13 @@ export default function ChatPage() {
                         setPage(1);
                       }}
                       className={cn(
-                        'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                        'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
                         channel === t.key
                           ? 'bg-foreground/10 text-foreground'
                           : 'text-muted-foreground hover:bg-accent',
                       )}
                     >
+                      {t.Icon && <t.Icon size={11} className="shrink-0" />}
                       {t.label}
                       {t.key ? ` ${n}` : ''}
                     </button>
@@ -518,8 +568,10 @@ export default function ChatPage() {
                       {detail.user?.name ?? detail.userName ?? 'Зочин'}
                     </p>
                     {/* ⚠️ Дэлгэрэнгүйд ч суваг — админ хариулахаасаа өмнө
-                        хаана бичиж байгаагаа мэдэх ёстой */}
-                    <ChannelBadge channel={detail.channel} />
+                        хаана бичиж байгаагаа мэдэх ёстой.
+                        ⚠️ `md` — жагсаалтынхаас ТОМ: хариу бичихийн өмнөх
+                        сүүлчийн шалгах цэг тул тодорхой харагдана. */}
+                    <ChannelBadge channel={detail.channel} size="md" />
                   </div>
                   {/*
                     ⚠️ Имэйл БА PSID ХОЁУЛАА. Өмнө нь `??` гинжээр имэйл

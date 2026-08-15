@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  History, Activity, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, MessageSquare, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
+  History, Activity, AlertTriangle, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, MessageSquare, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
 import {
@@ -231,31 +231,78 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
             </TabsContent>
 
             <TabsContent value="overview" className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <InfoRow label="Имэйл" value={data.email} />
-                <InfoRow label="Эрх" value={data.role === 'ADMIN' ? 'Админ' : 'Хэрэглэгч'} />
-                <InfoRow label="Нэвтрэх төрөл" value={data.provider} />
-                <InfoRow label="Имэйл баталгаажсан" value={data.emailVerified ? 'Тийм' : 'Үгүй'} />
-                {/*
-                  ⚠️ Утас — гомдол шийдэхэд чухал. Баталгаажсан эсэхийг
-                  ЗААВАЛ ялгаж харуулна: баталгаажаагүй дугаар нь өөр
-                  хүнийх байж болно (эзэн нь хараахан авч аваагүй).
-                */}
-                <InfoRow
-                  label="Утас"
-                  value={
-                    data.phone
-                      ? `${data.phone}${data.phoneVerified ? ' ✅' : ' (баталгаажаагүй)'}`
-                      : '—'
-                  }
-                />
-                {data.pendingPhone && (
-                  <InfoRow label="Баталгаажуулж буй" value={data.pendingPhone} />
-                )}
-                <InfoRow label="Зочин эсэх" value={data.isGuest ? 'Тийм' : 'Үгүй'} />
-                <InfoRow label="Бүртгүүлсэн" value={formatDate(data.createdAt)} />
-                <InfoRow label="Төлөв" value={data.isActive ? 'Идэвхтэй' : 'Хаагдсан'} />
-                <InfoRow label="Хэтэвч" value={`${formatPrice(data.walletBalance)}`} />
+              {/*
+                ⚠️⚠️ АНХААРУУЛГЫН МӨР — АСУУДАЛТАЙ зүйл ХАМГИЙН ДЭЭР.
+
+                Өмнө нь «хаагдсан», «баталгаажаагүй» зэрэг нь 10 ижил
+                InfoRow-ийн дунд ЖИЖИГ текстээр байсан тул админ анзаардаггүй
+                байв. Гомдол шийдэхэд эхний асуулт нь ҮРГЭЛЖ «энэ хэрэглэгчид
+                ямар асуудал байна вэ» — түүнийг ЭХЛЭЭД харуулна.
+              */}
+              {(() => {
+                const flags: { text: string; tone: 'danger' | 'warn' }[] = [];
+                if (!data.isActive) flags.push({ text: 'Хаагдсан хэрэглэгч', tone: 'danger' });
+                if (data.isGuest) flags.push({ text: 'Зочин (бүртгэлгүй)', tone: 'warn' });
+                if (!data.emailVerified)
+                  flags.push({ text: 'Имэйл баталгаажаагүй', tone: 'warn' });
+                /* ⚠️ Баталгаажаагүй дугаар нь ӨӨР хүнийх байж болно */
+                if (data.phone && !data.phoneVerified)
+                  flags.push({ text: 'Утас баталгаажаагүй', tone: 'warn' });
+                if (!flags.length) return null;
+                return (
+                  <div className="flex flex-wrap gap-1.5">
+                    {flags.map((f) => (
+                      <span
+                        key={f.text}
+                        className={cn(
+                          'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold',
+                          f.tone === 'danger'
+                            ? 'bg-destructive/15 text-destructive'
+                            : 'bg-warning/15 text-warning',
+                        )}
+                      >
+                        <AlertTriangle size={11} className="shrink-0" />
+                        {f.text}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/*
+                ⚠️ ТАЛБАРУУДЫГ УТГААР НЬ БҮЛЭГЛЭВ. Өмнө нь 10 мөр
+                ижил жинтэй нэг тор дотор байсан тул «хэн бэ» (имэйл,
+                утас) болон «хэзээ/яаж» (бүртгэл, эрх) хоёр холилдож,
+                хайж байгаагаа олоход бүхэлд нь уншина.
+              */}
+              <div className="space-y-3">
+                <FieldGroup title="Холбоо барих">
+                  <InfoRow label="Имэйл" value={data.email} />
+                  {/*
+                    ⚠️ Утас — гомдол шийдэхэд чухал. Баталгаажсан эсэхийг
+                    ЗААВАЛ ялгаж харуулна: баталгаажаагүй дугаар нь өөр
+                    хүнийх байж болно (эзэн нь хараахан авч аваагүй).
+                  */}
+                  <InfoRow
+                    label="Утас"
+                    value={
+                      data.phone
+                        ? `${data.phone}${data.phoneVerified ? ' ✅' : ' (баталгаажаагүй)'}`
+                        : '—'
+                    }
+                  />
+                  {data.pendingPhone && (
+                    <InfoRow label="Баталгаажуулж буй" value={data.pendingPhone} />
+                  )}
+                </FieldGroup>
+
+                <FieldGroup title="Бүртгэл">
+                  <InfoRow label="Эрх" value={data.role === 'ADMIN' ? 'Админ' : 'Хэрэглэгч'} />
+                  <InfoRow label="Нэвтрэх төрөл" value={data.provider} />
+                  <InfoRow label="Бүртгүүлсэн" value={formatDate(data.createdAt)} />
+                  <InfoRow label="Төлөв" value={data.isActive ? 'Идэвхтэй' : 'Хаагдсан'} />
+                  <InfoRow label="Хэтэвч" value={`${formatPrice(data.walletBalance)}`} />
+                </FieldGroup>
               </div>
 
               {/*
@@ -285,10 +332,20 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               )}
 
               {/*
-                ⚠️ ИДЭВХТЭЙ БАГЦУУД — өмнө нь зөвхөн нэг нэр харагддаг байсан
-                тул "ямар багцтай вэ, юу нээгдэх вэ" мэдэгддэггүй байсан.
-                Одоо: багц бүр, нээх жанрууд, дуусах огноо, үлдсэн хоног,
-                админаас олгосон эсэх.
+                ⚠️⚠️ ОДООГИЙН ЭРХ — БАГЦ БОЛОН ТҮРЭЭС ХОЁУЛАА.
+
+                БОДИТ АЛДАА (админ мэдээлсэн): энэ блок нь ЗӨВХӨН багц
+                харуулж, ширхэгийн ТҮРЭЭСИЙГ үл тоомсорлодог байв. Кино
+                түрээсэлсэн хэрэглэгч дээр «Идэвхтэй багц байхгүй —
+                зөвхөн үнэгүй контент үзнэ» гэж ХУДАЛ бичдэг байсан
+                (4,900₮ төлж идэвхтэй эрхтэй атал).
+
+                Админ «Тойм» табнаас л хардаг тул түрээс өөр табд
+                нуугдсан нь ХАРАГДААГҮЙТЭЙ адил. Гомдол шийдэхэд
+                «төлбөр төлсөн атал юу авсан нь мэдэгдэхгүй» болно.
+
+                Одоо: багц (жанртай) + түрээс (кино нэр, дуусах хугацаа)
+                НЭГ дор. Аль нь ч байхгүй үед л «эрхгүй» гэнэ.
               */}
               {(() => {
                 const now = Date.now();
@@ -307,18 +364,75 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                  */
                 const shown = hasVip ? active.filter((s) => s.plan.isVip) : active;
 
+                /* ⚠️ ИДЭВХТЭЙ ТҮРЭЭС — багцаас ТУСДАА эрх */
+                const activeRentals = (data.rentals ?? []).filter(
+                  (r) => new Date(r.expiresAt).getTime() > now,
+                );
+                const totalRights = shown.length + activeRentals.length;
+
                 return (
                   <div className="mt-4 rounded-lg border border-border p-4">
                     <p className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Crown size={13} className="text-premium" /> Идэвхтэй багц ({shown.length})
+                      <Crown size={13} className="text-premium" /> Одоогийн эрх ({totalRights})
                     </p>
 
-                    {shown.length === 0 ? (
+                    {totalRights === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        Идэвхтэй багц байхгүй — зөвхөн үнэгүй контент үзнэ
+                        Эрх байхгүй — зөвхөн үнэгүй контент үзнэ
                       </p>
                     ) : (
                       <div className="space-y-2">
+                        {/*
+                          ⚠️ ТҮРЭЭС ЭХЭНД — багцаас цөөн, хугацаа богино
+                          (48ц) тул анхаарал татах ёстой. Гомдлын ихэнх нь
+                          «түрээсэлсэн кино нээгдэхгүй байна» төрлийнх.
+                        */}
+                        {activeRentals.map((r) => {
+                          const hoursLeft = Math.ceil(
+                            (new Date(r.expiresAt).getTime() - now) / 3600000,
+                          );
+                          return (
+                            <div
+                              key={r.id}
+                              className="rounded-lg border border-success/40 bg-success/8 p-3"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-foreground">
+                                  <Ticket size={13} className="shrink-0 text-success" />
+                                  <span className="truncate">{r.title.title}</span>
+                                  {/* ⚠️ null = ХЭТЭВЧНЭЭС төлсөн (Payment мөр байхгүй) */}
+                                  {!r.paymentId && (
+                                    <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                      ХЭТЭВЧ
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'shrink-0 text-xs font-medium',
+                                    hoursLeft <= 6 ? 'text-destructive' : 'text-muted-foreground',
+                                  )}
+                                >
+                                  {/* ⚠️ 48ц-аас дээш бол ХОНОГООР — хэрэглэгч
+                                      «168 цаг» гэхээр тооцоолохгүй */}
+                                  {hoursLeft > 48
+                                    ? `${Math.ceil(hoursLeft / 24)} хоног`
+                                    : `${hoursLeft} цаг`}{' '}
+                                  үлдсэн
+                                </span>
+                              </div>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                <span className="rounded bg-success/15 px-1.5 py-0.5 text-[11px] font-medium text-success">
+                                  Ширхэгийн түрээс
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {formatPrice(r.amount)} · {formatDate(r.expiresAt)} хүртэл
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
                         {shown.map((s) => {
                           const left = Math.ceil(
                             (new Date(s.expiresAt).getTime() - now) / 86400000,
@@ -946,6 +1060,24 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="font-medium text-foreground">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * Талбарын БҮЛЭГ — гарчигтай хайрцаг.
+ *
+ * ⚠️ Яагаад: 10 талбар нэг тор дотор ижил жинтэй байвал админ
+ * хайж байгаагаа олохын тулд бүгдийг уншина. Бүлэглэснээр «утас
+ * хаана байна» гэвэл шууд «Холбоо барих» руу харна.
+ */
+function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-3 text-sm">{children}</div>
     </div>
   );
 }
