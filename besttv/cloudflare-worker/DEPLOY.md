@@ -64,21 +64,41 @@ Cloudflare → besttv.us → Security → WAF → Custom rules:
 
 ```
 (http.host eq "assets.besttv.us"
- and not starts_with(http.request.uri.path, "/images/")
- and not starts_with(http.request.uri.path, "/avatars/"))
+ and (starts_with(http.request.uri.path, "/movies/")
+   or starts_with(http.request.uri.path, "/episodes/")
+   or starts_with(http.request.uri.path, "/raw/")
+   or starts_with(http.request.uri.path, "/backups/")))
 ```
 Action: **Block**
 
-⚠️⚠️ **ЯАГААД «ЗӨВШӨӨРӨГДСӨНИЙГ Л НЭЭХ» ЗАРЧИМ ВЭ:**
+⚠️⚠️ **R2-ийн БҮХ folder-ыг ЖАГСААЖ шалгана** — DB-ийн key-ээс
+таамаглаж БОЛОХГҮЙ. Бодит алдаа 2 УДАА гарсан:
 
-Өмнө нь дүрэм нь `/movies/` ГАНЦЫГ хаадаг байсан. Тэгэхэд
-`/episodes/` мартагдаж, **40 ангийн сегмент токенгүйгээр HTTP 200
-буцааж байв** (production дээр бодитоор илэрсэн — 601 KB татагдсан).
+1. Эхэндээ зөвхөн `/movies/` хаасан → `/episodes/` мартагдаж
+   **40 ангийн сегмент токенгүйгээр татагдаж байв** (601 KB бодитоор).
 
-Одоогийн дүрэм нь эсрэгээрээ: зөвхөн зураг зөвшөөрч, үлдсэн БҮГДИЙГ
-хаана. Ирээдүйд шинэ видео prefix (`trailers/`, `previews/`) нэмэхэд
-**автоматаар хамгаалагдана** — мартах эрсдэлгүй.
+2. Дараа нь «зөвшөөрөгдсөнийг л нээх» болгосон
+   (`not /images/ and not /avatars/`) → `/brand/logo.png` хаагдаж
+   **САЙТЫН ЛОГО ЭВДЭРСЭН**. Шалтгаан: `brand/` нь DB-ийн key
+   баганад биш, `Settings` хүснэгтийн JSON дотор байсан тул
+   prefix шалгалтад харагдаагүй.
 
+**Дүгнэлт:** R2 Dashboard → buckets → folder жагсаалтыг НҮДЭЭР хараад
+видео/эмзэг folder-ыг НЭРЛЭН хаах нь хамгийн найдвартай.
+
+⚠️ Шинэ folder нэмэхэд энэ дүрмийг ШИНЭЧИЛ.
+
+### R2 folder-ууд (2026-08-15)
+
+| Folder | Юу | Дүрэм |
+|---|---|---|
+| `movies/` | кино HLS | 🔒 хаах |
+| `episodes/` | цуврал HLS | 🔒 хаах |
+| `raw/` | түүхий видео (хөрвүүлэхийн өмнөх) | 🔒 хаах |
+| `backups/` | нөөц файл | 🔒 хаах |
+| `images/` | постер, backdrop, blog cover | ✅ нээх |
+| `avatars/` | профайл зураг | ✅ нээх |
+| `brand/` | **сайтын лого**, favicon | ✅ нээх |
 ### DB дэх prefix (2026-08-15)
 
 ```
