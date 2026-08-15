@@ -11,7 +11,7 @@ npx wrangler login
 # (2) Гарын үсгийн нууц түлхүүр — доорх утгыг ЯГ ХУУЛЖ буулгана
 npx wrangler secret put VIDEO_SIGN_SECRET
 # → асуухад буулгах утга:
-# 7a4a79f961369ac294dd0d03e8195fd3b339c1f397739ea58adc854e75e7d04d
+# <SECRET — repo-д БҮҮ бич, wrangler secret put-аар оруул>
 
 # (3) Deploy
 npx wrangler deploy
@@ -24,7 +24,7 @@ npx wrangler deploy
 
 ```
 VIDEO_CDN_URL=https://cdn.besttv.us
-VIDEO_SIGN_SECRET=7a4a79f961369ac294dd0d03e8195fd3b339c1f397739ea58adc854e75e7d04d
+VIDEO_SIGN_SECRET=<SECRET — repo-д БҮҮ бич, wrangler secret put-аар оруул>
 ```
 
 ---

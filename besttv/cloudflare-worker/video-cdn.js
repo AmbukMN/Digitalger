@@ -38,8 +38,18 @@
  * ──────────────────────────────────────────────
  */
 
-/** Зөвшөөрөгдсөн prefix — өөр хавтас руу хандахыг хориглоно */
-const ALLOWED_PREFIX = 'movies/';
+/**
+ * Зөвшөөрөгдсөн prefix — өөр хавтас руу хандахыг хориглоно.
+ *
+ * ⚠️⚠️ БОДИТ АЛДАА: өмнө нь ЗӨВХӨН `movies/` байсан тул ЦУВРАЛЫН
+ * бүх анги (`episodes/`) Worker-ээр огт дамжихгүй, шууд R2 руу
+ * үлдсэн. Production дээр `assets.besttv.us/episodes/<uuid>/...`
+ * нь токенгүйгээр HTTP 200 буцааж, 20 анги БҮРЭН нээлттэй байв.
+ *
+ * ⚠️ Шинэ төрлийн контент нэмбэл (trailers/ г.м.) ЭНД ч нэмнэ —
+ *    эс бөгөөс тэр нь хамгаалалтгүй үлдэнэ.
+ */
+const ALLOWED_PREFIXES = ['movies/', 'episodes/', 'trailers/'];
 
 /** ⚠️ Segment нь ХЭЗЭЭ Ч өөрчлөгддөггүй (uuid зам) — урт кэш аюулгүй */
 const SEGMENT_CACHE = 'public, max-age=2592000, immutable'; // 30 хоног
@@ -93,7 +103,12 @@ export default {
     const [, expStr, sig, rawKey] = m;
     const key = decodeURIComponent(rawKey);
 
-    if (!key.startsWith(ALLOWED_PREFIX)) {
+    /**
+     * ⚠️ Зам задлахаас хамгаална. Гарын үсэг зөв байсан ч
+     * `movies/../.env` гэх мэт замыг хориглоно (secret задарсан
+     * тохиолдолд ч bucket-ийн бусад файлд хүрэхгүй).
+     */
+    if (key.includes('..') || !ALLOWED_PREFIXES.some((p) => key.startsWith(p))) {
       return new Response('Forbidden', { status: 403 });
     }
 

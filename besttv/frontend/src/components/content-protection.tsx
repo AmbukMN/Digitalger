@@ -21,12 +21,28 @@ import { toast } from 'sonner';
  */
 
 /**
- * DevTools товчлуурын блок (F12, Ctrl+Shift+I/J/C).
+ * DevTools товчлуурын блок (F12, Ctrl+Shift+I/J/C) — ИДЭВХТЭЙ.
  *
- * ⚠️ ОНОШИЛГООНЫ ХУГАЦААНД УНТРААЛТТАЙ — админ өөрөө console харах
- * шаардлагатай. Бүх алдаа шийдэгдсэний ДАРАА `true` болгоно.
+ * ⚠️⚠️ ЭНЭ НЬ ЖИНХЭНЭ ХАМГААЛАЛТ БИШ — цэсээр (⋮ → Tools → DevTools)
+ * нээх, `view-source:` бичих, JS унтраахад бүгд тойрогдоно. Зорилго нь
+ * зөвхөн САНАМСАРГҮЙ/сониуч хэрэглэгчийг саатуулах.
+ *
+ * ⚠️ Жинхэнэ хамгаалалт нь СЕРВЕР талд: R2 private + Cloudflare Worker
+ *    гарын үсэгтэй богино хугацааны линк + эрхийн шалгалт.
+ *
+ * ⚠️ Хөгжүүлэлтийн үед `npm run dev` (localhost) дээр АЖИЛЛАХГҮЙ —
+ *    доор `NODE_ENV` шалгана. Production дээр л блоклоно.
  */
-const BLOCK_DEVTOOLS = false;
+const BLOCK_DEVTOOLS = true;
+
+/**
+ * localhost эсэх — хөгжүүлэлтийн үед DevTools хаахгүй.
+ * ⚠️ NODE_ENV нь client bundle-д ҮРГЭЛЖ 'production' тул найдваргүй;
+ *    hostname шалгах нь цорын ганц найдвартай арга.
+ */
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  ['localhost', '127.0.0.1', '[::1]', '::1'].includes(window.location.hostname);
 
 /** Хамгаалалт хэрэглэхгүй сонголтууд — эдгээрийг блоклобол UX эвдэрнэ */
 const ALLOW_SELECTOR = 'input, textarea, select, [contenteditable="true"], [data-allow-copy]';
@@ -72,10 +88,13 @@ export function ContentProtection() {
 
       /**
        * ⚠️ Энэ блок бодит хулгайг зогсоодоггүй (цэсээр нээх, view-source,
-       * JS унтраах — бүгд тойрно). Оношилгоо хийхэд саад болвол дээрх
-       * `BLOCK_DEVTOOLS`-ыг түр `false` болгоно.
+       * JS унтраах — бүгд тойрно). Зорилго нь сониуч хэрэглэгчийг
+       * саатуулах.
+       *
+       * ⚠️ localhost дээр БЛОКЛОХГҮЙ — хөгжүүлэлтийн үед console
+       * хаагдвал алдаа оношлох боломжгүй болно.
        */
-      if (BLOCK_DEVTOOLS) {
+      if (BLOCK_DEVTOOLS && !isLocalhost) {
         // F12 — DevTools
         if (e.key === 'F12') {
           e.preventDefault();
