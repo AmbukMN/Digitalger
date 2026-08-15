@@ -13,6 +13,11 @@ const TRANSIENT = new Set([
   'ThrottlingException',
   'TooManyRequestsException',
   'ServiceUnavailable',
+  /* ⚠️ DigitalGer-ээс нөхсөн 3 нэр — эдгээр дутуу байсан тул түр
+     саатлыг permanent гэж андуурч имэйл ЧИМЭЭГҮЙ алдагддаг байв */
+  'ServiceUnavailableException',
+  'RequestTimeoutException',
+  'ENOTFOUND',
   'InternalFailure',
   'RequestTimeout',
   'TimeoutError',
@@ -75,6 +80,12 @@ export class EmailService {
   private readonly from: string;
   private readonly siteUrl: string;
   /**
+   * ⚠️ API-ийн ГАДААД хаяг — нээлтийн pixel-д. Шуудангийн клиент
+   * (Gmail сервер) энэ хаягийг ИНТЕРНЭТЭЭС татна, тиймээс дотоод
+   * docker хаяг (besttv-backend:4100) БОЛОХГҮЙ.
+   */
+  private readonly apiUrl: string;
+  /**
    * ⚠️ SES Configuration Set — Open/Click/Bounce үйл явдлыг SNS руу
    * илгээхэд ЗААВАЛ. Тохируулаагүй бол `undefined` (имэйл хэвийн явна,
    * зүгээр л хяналт ажиллахгүй).
@@ -92,6 +103,10 @@ export class EmailService {
   ) {
     this.from = this.config.get<string>('MAIL_FROM') ?? 'noreply@besttv.us';
     this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
+    /* ⚠️ Gmail сервер интернэтээс татна — дотоод docker хаяг БОЛОХГҮЙ */
+    this.apiUrl = (
+      this.config.get<string>('PUBLIC_API_URL') ?? 'https://api.besttv.us'
+    ).replace(/\/$/, '');
 
     const region = this.config.get<string>('AWS_REGION') ?? 'eu-north-1';
     const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
@@ -175,6 +190,12 @@ export class EmailService {
     template: EmailTemplate;
     userId?: string;
     replyTo?: string;
+    /**
+     * ⚠️ Нээлтийн pixel хийх эсэх. Гүйлгээний имэйлд (нууц үг, OTP)
+     * ХЯНАХГҮЙ — хувийн нууцлалын хувьд шаардлагагүй, мөн зарим
+     * шуудангийн шүүлтүүр pixel-тэй имэйлийг сэжиглэдэг.
+     */
+    track?: boolean;
   }): Promise<boolean> {
     const to = opts.to.toLowerCase().trim();
 
@@ -191,6 +212,38 @@ export class EmailService {
       this.logger.warn(`SES тохируулаагүй — илгээгээгүй: ${opts.subject} → ${to}`);
       await this.log(to, opts.subject, opts.template, 'failed', 'SES тохируулаагүй', opts.userId);
       return false;
+    }
+
+    /**
+     * ⚠️⚠️ ЛОГИЙГ ИЛГЭЭХЭЭС ӨМНӨ ҮҮСГЭНЭ — нээлтийн pixel-д ID хэрэгтэй.
+     *
+     * Урсгал: лог үүсгэ → ID-г pixel-д суулга → илгээ → үр дүнг ШИНЭЧИЛ.
+     * (Өмнө нь илгээсний ДАРАА лог үүсгэдэг байсан тул pixel-д тавих
+     *  ID байхгүй, нээлт хянах боломжгүй байв.)
+     */
+    let logId: string | null = null;
+    let html = opts.html;
+    if (opts.track) {
+      logId = await this.prisma.emailLog
+        .create({
+          data: {
+            to,
+            subject: opts.subject,
+            template: opts.template,
+            status: 'sending',
+            userId: opts.userId,
+          },
+          select: { id: true },
+        })
+        .then((r) => r.id)
+        .catch(() => null);
+
+      /* ⚠️ Pixel-ийг </body> өмнө нэмнэ — layout аль хэдийн байрлуулсан
+         бол давхардахгүй (layout нь logId авбал өөрөө нэмнэ) */
+      if (logId && !html.includes('/api/email/open')) {
+        const px = `<img src="${this.apiUrl}/api/email/open?l=${encodeURIComponent(logId)}&e=${encodeURIComponent(to)}&t=${encodeURIComponent(opts.template)}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`;
+        html = html.includes('</body>') ? html.replace('</body>', `${px}</body>`) : html + px;
+      }
     }
 
     let lastErr: unknown = null;
@@ -210,42 +263,86 @@ export class EmailService {
             ReplyToAddresses: opts.replyTo ? [opts.replyTo] : undefined,
             Message: {
               Subject: { Data: opts.subject, Charset: 'UTF-8' },
-              Body: { Html: { Data: opts.html, Charset: 'UTF-8' } },
+              /* ⚠️ `html` (opts.html БИШ) — нээлтийн pixel нэмэгдсэн хувилбар */
+              Body: { Html: { Data: html, Charset: 'UTF-8' } },
             },
             /**
-             * ⚠️ Configuration Set — SES нь ЗӨВХӨН энэ тохируулагдсан үед
-             * Open/Click/Bounce үйл явдлыг SNS руу илгээнэ. Байхгүй бол
-             * ямар ч хяналт ажиллахгүй (чимээгүй).
+             * ⚠️⚠️ АЮУЛТАЙ ТАЛБАР — БУРУУ НЭР ӨГВӨЛ ИМЭЙЛ ОГТ ЯВАХГҮЙ.
              *
-             * ⚠️ Тохируулаагүй бол `undefined` — SES алдаа өгөхгүй,
-             *    зүгээр л үйл явдал ирэхгүй. Имэйл ХЭВИЙН явна.
+             * БОДИТ ХЭМЖИЛТ: байхгүй Set-ийн нэр өгөхөд SES нь
+             * `ConfigurationSetDoesNotExistException` шидэж, имэйл
+             * БҮРЭН УНАНА (тавтай морил, нууц үг сэргээх — бүгд).
+             *
+             * Тиймээс:
+             *   • env тохируулаагүй бол `undefined` — SES талбарыг
+             *     огт үзэхгүй, имэйл хэвийн явна.
+             *   • Тохируулсан ч AWS-д тэр нэртэй Set БАЙХГҮЙ бол
+             *     БҮГД унана. Env-д бичихээсээ ӨМНӨ AWS дээр үүсгэсэн
+             *     эсэхээ ЗААВАЛ шалга.
+             *
+             * ⚠️ НЭЭЛТ хянахад энэ ШААРДЛАГАГҮЙ — өөрийн 1×1 pixel
+             *    (`/api/email/open`, `EmailPublicController`) ашигладаг.
+             *    Энэ талбар нь зөвхөн AWS-ийн ХҮРГЭЛТ/BOUNCE/COMPLAINT
+             *    үйл явдал авах үед л хэрэгтэй (SNS webhook).
              */
             ConfigurationSetName: this.configSet,
           }),
         );
-        await this.log(
-          to,
-          opts.subject,
-          opts.template,
-          'sent',
-          null,
-          opts.userId,
-          res?.MessageId ?? null,
-        );
+        /**
+         * ⚠️ Мөр аль хэдийн үүссэн бол ШИНЭЧИЛНЭ (давхар мөр үүсгэхгүй).
+         * Үүсээгүй (track=false) бол шинээр бичнэ.
+         */
+        if (logId) {
+          await this.prisma.emailLog
+            .update({
+              where: { id: logId },
+              data: { status: 'sent', messageId: res?.MessageId ?? null },
+            })
+            .catch(() => null);
+        } else {
+          await this.log(
+            to,
+            opts.subject,
+            opts.template,
+            'sent',
+            null,
+            opts.userId,
+            res?.MessageId ?? null,
+          );
+        }
         return true;
       } catch (err) {
         lastErr = err;
-        const name = (err as { name?: string })?.name ?? '';
         // ⚠️ Permanent алдаанд retry ХИЙХГҮЙ — SES reputation хамгаална
-        if (!TRANSIENT.has(name) || attempt === MAX_ATTEMPTS) break;
+        if (!this.isTransient(err) || attempt === MAX_ATTEMPTS) break;
         await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
       }
     }
 
     const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
     this.logger.error(`Имэйл амжилтгүй → ${to}: ${msg}`);
-    await this.log(to, opts.subject, opts.template, 'failed', msg, opts.userId);
+    if (logId) {
+      await this.prisma.emailLog
+        .update({ where: { id: logId }, data: { status: 'failed', error: msg } })
+        .catch(() => null);
+    } else {
+      await this.log(to, opts.subject, opts.template, 'failed', msg, opts.userId);
+    }
     return false;
+  }
+
+  /**
+   * Алдаа ТҮР зуурынх эсэх.
+   *
+   * ⚠️ ЗӨВХӨН нэрээр шалгах нь ХАНГАЛТГҮЙ: AWS-ийн зарим 5xx алдаа
+   * танихгүй нэртэй ирдэг тул permanent гэж андуурч, имэйл ЧИМЭЭГҮЙ
+   * алдагдана. HTTP статусыг ч шалгана (DigitalGer-ийн батлагдсан арга).
+   */
+  private isTransient(err: unknown): boolean {
+    const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (e?.name && TRANSIENT.has(e.name)) return true;
+    const code = e?.$metadata?.httpStatusCode;
+    return typeof code === 'number' && code >= 500;
   }
 
   /** Дараалалд оруулна — хариу хүлээхгүй (HTTP хариу удаашруулахгүй) */
@@ -289,6 +386,9 @@ export class EmailService {
     preheader?: string;
     showUnsubscribe?: boolean;
     email?: string;
+    /** ⚠️ Нээлтийн pixel-д — байхгүй бол pixel огт нэмэхгүй */
+    logId?: string;
+    template?: string;
   }): string {
     const cta =
       opts.ctaText && opts.ctaUrl
@@ -302,6 +402,25 @@ export class EmailService {
     const unsub =
       opts.showUnsubscribe && opts.email
         ? `<p style="margin:8px 0 0;font-size:11px;color:#666">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}" style="color:#888;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
+        : '';
+
+    /**
+     * ⚠️⚠️ НЭЭЛТ ХЯНАХ PIXEL — 1×1 тунгалаг GIF.
+     *
+     * Шуудангийн клиент зургийг татахад `/api/email/open` дуудагдаж
+     * нээлт бүртгэгдэнэ. AWS Configuration Set ШААРДЛАГАГҮЙ —
+     * DigitalGer дээр ажиллаж байгаа зарчим.
+     *
+     * ⚠️ `logId` заавал — түүгээр л EmailLog-ийн мөртэй холбогдоно.
+     *    Байхгүй бол pixel огт нэмэхгүй (утгагүй дуудалт хийхгүй).
+     *
+     * ⚠️ ХЯЗГААР: Gmail зэрэг зургийг proxy-ээр дамжуулдаг, зарим
+     *    клиент огт татдаггүй. Тиймээс бодит нээлт нь харагдахаас
+     *    ӨНДӨР байна — салбарын нийтлэг хязгаарлалт.
+     */
+    const pixel =
+      opts.logId && opts.email
+        ? `<img src="${this.apiUrl}/api/email/open?l=${encodeURIComponent(opts.logId)}&e=${encodeURIComponent(opts.email)}&t=${encodeURIComponent(opts.template ?? '')}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`
         : '';
 
     return `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -323,6 +442,7 @@ ${pre}
   <tr><td style="background:#101114;padding:20px 32px;text-align:center;border-top:1px solid #26272b">
     <p style="margin:0;font-size:12px;color:#777">© ${new Date().getFullYear()} BestTV · <a href="${this.siteUrl}" style="color:#999;text-decoration:none">besttv.us</a></p>
     ${unsub}
+${pixel}
   </td></tr>
 </table>
 </td></tr></table>
@@ -670,6 +790,21 @@ ${pre}
       showUnsubscribe: true,
       email: opts.to,
     });
-    this.queueSend({ to: opts.to, subject: opts.subject, html, template: 'marketing' });
+    /**
+     * ⚠️ `track: true` — ЗӨВХӨН маркетингийн имэйлд нээлт хянана.
+     *
+     * Гүйлгээний имэйлд (нууц үг, OTP, төлбөр) ХЯНАХГҮЙ:
+     *   • хувийн нууцлалын хувьд шаардлагагүй
+     *   • зарим шуудангийн шүүлтүүр pixel-тэй имэйлийг сэжиглэдэг —
+     *     нууц үг сэргээх имэйл спам руу орох нь ЯМАР Ч статистикаас
+     *     илүү хортой
+     */
+    this.queueSend({
+      to: opts.to,
+      subject: opts.subject,
+      html,
+      template: 'marketing',
+      track: true,
+    });
   }
 }

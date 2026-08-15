@@ -9,9 +9,13 @@ import {
   Logger,
   Post,
   Query,
+  RawBodyRequest,
+  Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import type { Request, Response } from 'express';
 import {
   ArrayMaxSize,
   IsArray,
@@ -29,7 +33,17 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { EmailEventsService } from './email-events.service';
+import { verifySnsSignature } from './sns-signature.util';
 import { EmailService } from './email.service';
+
+/**
+ * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
+ * ⚠️ base64-аас НЭГ УДАА decode хийж кэшилнэ (дуудалт бүрд биш).
+ */
+const PIXEL_GIF = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+  'base64',
+);
 
 /** OTP хүчинтэй хугацаа + оролдлогын хязгаар */
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -266,14 +280,64 @@ export class SubscriberService {
     return { ok: true };
   }
 
+  /**
+   * ⚠️⚠️ ХОЁР ГАЗАРТ бичнэ — эс бөгөөс цуцалсан хүнд ДАХИН имэйл явна.
+   *
+   * БОДИТ АЛДАА: өмнө нь зөвхөн `Subscriber` хүснэгтийг шинэчилдэг
+   * байсан. Гэтэл `broadcast` нь `audience: 'users'` үед `User`
+   * хүснэгтээс (isActive+emailVerified) сонгодог тул БҮРТГЭЛТЭЙ
+   * хэрэглэгч цуцалсан ч маркетинг имэйл авсаар байв (CAN-SPAM зөрчил).
+   */
   async unsubscribe(email: string) {
-    await this.prisma.subscriber
-      .update({
-        where: { email: email.toLowerCase().trim() },
-        data: { status: SubscriberStatus.UNSUBSCRIBED },
+    const clean = email.toLowerCase().trim();
+    await Promise.all([
+      this.prisma.subscriber
+        .updateMany({ where: { email: clean }, data: { status: SubscriberStatus.UNSUBSCRIBED } })
+        .catch(() => null),
+      /* Бүртгэлтэй хэрэглэгчийн маркетинг татгалзал */
+      this.prisma.user
+        .updateMany({ where: { email: clean }, data: { marketingOptOut: true } })
+        .catch(() => null),
+    ]);
+    return { ok: true };
+  }
+
+  /**
+   * Имэйл нээлт бүртгэх (1×1 pixel-ээс).
+   *
+   * ⚠️ FIRE-AND-FORGET — `await` ХИЙХГҮЙ. Pixel-ийн хариу DB-г
+   *    хүлээвэл шуудангийн клиент дээр зураг удаан ачаалагдана.
+   *
+   * ⚠️ ХОЁР газарт бичнэ:
+   *    1. `EmailOpen` — нээлт БҮР (unique openers тоолоход)
+   *    2. `EmailLog.openCount/openedAt` — хурдан харуулах хураангуй
+   */
+  recordOpen(o: { email: string; logId?: string; template: string; userAgent?: string }) {
+    const email = o.email.toLowerCase().trim();
+
+    void this.prisma.emailOpen
+      .create({
+        data: {
+          email,
+          logId: o.logId ?? null,
+          template: o.template,
+          userAgent: o.userAgent?.slice(0, 300) ?? null,
+        },
       })
       .catch(() => null);
-    return { ok: true };
+
+    /* ⚠️ Эхний нээлтийг ДАРЖ БИЧИХГҮЙ — «хэр хурдан нээв» гол хэмжүүр */
+    if (o.logId) {
+      void this.prisma.emailLog
+        .updateMany({
+          where: { id: o.logId, openedAt: null },
+          data: { openedAt: new Date() },
+        })
+        .catch(() => null);
+      void this.prisma.emailLog
+        .updateMany({ where: { id: o.logId }, data: { openCount: { increment: 1 } } })
+        .catch(() => null);
+    }
   }
 
   async list(params: {
@@ -361,25 +425,70 @@ export class EmailPublicController {
   unsubscribe(@Body('email') email: string) {
     return this.subs.unsubscribe(email);
   }
+
+  /**
+   * ⚠️⚠️ ИМЭЙЛ НЭЭЛТ ХЯНАХ PIXEL — AWS-гүй, өөрийн шийдэл.
+   *
+   * Имэйлд суулгасан 1×1 GIF-ийг шуудангийн клиент татахад энэ дуудагдана.
+   * DigitalGer дээр аль хэдийн ажиллаж байгаа зарчим.
+   *
+   * ⚠️ SES Configuration Set ШААРДЛАГАГҮЙ — AWS консол дээр юу ч хийхгүй.
+   *
+   * ⚠️ `@SkipThrottle()` ЗААВАЛ: шуудангийн клиент нээх бүрд дуудна,
+   *    нэг хүн олон удаа нээж болно. Throttle тавибал бодит нээлт
+   *    бүртгэгдэхгүй.
+   *
+   * ⚠️ ЯМАР Ч алдаа гарсан GIF-ийг ЗААВАЛ буцаана — эс бөгөөс
+   *    хэрэглэгчийн имэйлд эвдэрсэн зургийн дүрс гарна.
+   */
+  @SkipThrottle()
+  @Get('open')
+  async open(
+    @Query('l') logId: string | undefined,
+    @Query('e') email: string | undefined,
+    @Query('t') template: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    /* ⚠️ Fire-and-forget — DB бичилт pixel-ийн хариуг ХҮЛЭЭЛГЭХГҮЙ */
+    if (email && template) {
+      this.subs.recordOpen({
+        email,
+        logId,
+        template,
+        userAgent: req.headers['user-agent'],
+      });
+    }
+
+    res.set({
+      'Content-Type': 'image/gif',
+      'Content-Length': String(PIXEL_GIF.length),
+      /* ⚠️ Кэшлэхгүй — эс бөгөөс 2 дахь нээлт бүртгэгдэхгүй */
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      Pragma: 'no-cache',
+      Expires: '0',
+    });
+    res.end(PIXEL_GIF);
+  }
 }
 
 /**
  * AWS SES → SNS үйл явдлын webhook.
  *
- * ⚠️⚠️ НЭЭЛТТЭЙ endpoint (JwtAuthGuard БАЙХГҮЙ) — SNS нь токен
- * дамжуулдаггүй. Хамгаалалт:
- *   1. SNS зөвхөн `SubscriptionConfirmation` дээр л гаднаас HTTP хийдэг,
- *      тэр URL нь ЗААВАЛ amazonaws.com байхыг шалгана (SSRF хамгаалалт).
- *   2. Хуурамч үйл явдал илгээвэл хамгийн ихдээ имэйлийн статистик
- *      гажина — мөнгө/эрхэд НӨЛӨӨЛӨХГҮЙ.
- *   3. Throttle — үерлэхээс хамгаална.
+ * ⚠️⚠️⚠️ ГАРЫН ҮСЭГ ЗААВАЛ ШАЛГАНА — АЮУЛГҮЙ БАЙДЛЫН ГОЛ ЦЭГ.
+ *
+ * БОДИТ ЭРСДЭЛ: энэ нь нээлттэй endpoint (SNS токен дамжуулдаггүй).
+ * Гарын үсэг шалгахгүй бол ХЭН Ч хуурамч «bounce» илгээж, дурын
+ * хаягийг МӨНХӨД хориглуулж чадна → тэр хүн нууц үг сэргээх,
+ * OTP авах боломжгүй болно. Энэ нь «статистик гажина» гэдгээс
+ * хамаагүй ноцтой (өмнөх коммент үүнийг дутуу үнэлсэн).
+ *
+ * ⚠️ SNS нь `Content-Type: text/plain` илгээдэг тул Nest биеийг
+ *    задлахгүй. `rawBody`-оос гараар JSON.parse хийнэ (main.ts-д
+ *    `rawBody: true` тохируулсан).
  *
  * ⚠️ ҮРГЭЛЖ 200 буцаана. Алдаа буцаавал SNS дахин дахин илгээж, эцэст
  *    нь subscription-ыг ӨӨРӨӨ УНТРААДАГ (бүх хяналт чимээгүй зогсоно).
- *
- * ⚠️ SNS нь `Content-Type: text/plain` илгээдэг тул Nest нь биеийг
- *    JSON болгож задлахгүй — мөр хэлбэрээр ирнэ. `handle()` хоёуланг
- *    хүлээж авдаг.
  */
 @Controller('email/events')
 export class EmailEventsController {
@@ -390,9 +499,33 @@ export class EmailEventsController {
   @Post()
   @HttpCode(200)
   @Throttle({ default: { limit: 300, ttl: 60_000 } })
-  async sns(@Body() body: unknown) {
+  async sns(@Req() req: RawBodyRequest<Request>, @Body() body: unknown) {
     try {
-      return await this.events.handle(body as never);
+      /* ── 1. Биеийг унших (rawBody давуу — гарын үсэг түүгээр шалгана) ── */
+      let payload: Record<string, unknown>;
+      const raw = req.rawBody?.toString('utf8');
+      if (raw) {
+        try {
+          payload = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          this.log.warn('SNS бие JSON биш');
+          return { ok: true, action: 'bad-json' };
+        }
+      } else if (body && typeof body === 'object') {
+        payload = body as Record<string, unknown>;
+      } else {
+        return { ok: true, action: 'empty-body' };
+      }
+
+      /* ── 2. ГАРЫН ҮСЭГ — шалгалт давахгүй бол ХАЯНА ── */
+      const valid = await verifySnsSignature(payload);
+      if (!valid) {
+        this.log.warn('SNS гарын үсэг БУРУУ — хаялаа');
+        /* ⚠️ 200 буцаана — халдагчид «барив» гэж мэдэгдэхгүй */
+        return { ok: true, action: 'invalid-signature' };
+      }
+
+      return await this.events.handle(payload as never);
     } catch (e) {
       /* ⚠️ Алдаа гарсан ч 200 — SNS-ийн дахин илгээлтийг зогсооно */
       this.log.error(`SNS боловсруулахад алдаа: ${String(e)}`);
@@ -601,10 +734,42 @@ export class EmailAdminController {
     }
     if (audience === 'users' || audience === 'both') {
       const rows = await this.prisma.user.findMany({
-        where: { isActive: true, emailVerified: true },
+        /**
+         * ⚠️⚠️ `marketingOptOut: false` ЗААВАЛ — CAN-SPAM шаардлага.
+         *
+         * БОДИТ АЛДАА: өмнө нь зөвхөн `isActive`+`emailVerified`-ээр
+         * шүүдэг байсан тул цуцалсан ХЭРЭГЛЭГЧ рүү маркетинг имэйл
+         * ДАХИН ДАХИН явдаг байв (цуцлалт нь зөвхөн `Subscriber`
+         * хүснэгтэд бичигддэг байсан).
+         *
+         * ⚠️ Зочин хаяг ч хасна — тэднийг илгээх шатанд шүүдэг ч
+         *    энд хасвал дэмий дараалалд орохгүй.
+         */
+        where: {
+          isActive: true,
+          emailVerified: true,
+          marketingOptOut: false,
+          isGuest: false,
+        },
         select: { email: true },
       });
       rows.forEach((r) => targets.add(r.email));
+    }
+
+    /**
+     * ⚠️ ЦУЦАЛСАН хаягийг ЭЦСИЙН шатанд ч хасна — `Subscriber`-т
+     * цуцалсан хүн `User` хүснэгтээр дамжин орж ирэх боломжтой
+     * (audience='both' үед хоёр эх сурвалж нэгддэг).
+     */
+    if (targets.size) {
+      const optedOut = await this.prisma.subscriber.findMany({
+        where: {
+          email: { in: [...targets] },
+          status: { in: [SubscriberStatus.UNSUBSCRIBED, SubscriberStatus.BOUNCED] },
+        },
+        select: { email: true },
+      });
+      optedOut.forEach((r) => targets.delete(r.email));
     }
 
     for (const to of targets) {

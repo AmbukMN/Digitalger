@@ -97,6 +97,19 @@ model User {
   /// Хэтэвчийн үлдэгдэл (₮) — QPay-ээр цэнэглэж, багц худалдан авахад зарцуулна
   walletBalance Int @default(0)
 
+  /**
+   * ⚠️⚠️ МАРКЕТИНГ ТАТГАЛЗАЛ — CAN-SPAM шаардлага.
+   *
+   * БОДИТ АЛДАА: өмнө нь цуцлалт зөвхөн `Subscriber` хүснэгтэд
+   * бичигддэг байсан. Гэтэл `broadcast` нь `audience: 'users'` үед
+   * `User`-ээс (isActive+emailVerified) сонгодог тул БҮРТГЭЛТЭЙ
+   * хэрэглэгч цуцалсан ч маркетинг имэйл АВСААР байв.
+   *
+   * ⚠️ Гүйлгээний имэйлд (нууц үг, төлбөр) НӨЛӨӨЛӨХГҮЙ — зөвхөн
+   *    маркетингийн илгээлтэд.
+   */
+  marketingOptOut Boolean @default(false)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1244,6 +1257,37 @@ model EmailSuppression {
 }
 
 /// Илгээсэн имэйл бүрийн лог — админ хяналт, дахин илгээх шалгалт.
+/**
+ * Имэйл НЭЭЛТ бүрийн мөр (1×1 pixel-ээс).
+ *
+ * ⚠️⚠️ ЯАГААД ТУСДАА ХҮСНЭГТ ВЭ — EmailLog.openCount ХАНГАЛТГҮЙ:
+ *   • НЭГ хүн олон удаа нээхийг ЯЛГАХ («unique openers») боломжгүй
+ *   • Хэзээ, хэдэн удаа нээснийг цаг хугацааны хэлхээгээр харах
+ *   • Нэг имэйлийг ОЛОН хүн дамжуулан нээхийг барих
+ *
+ * ⚠️ `logId` нь FK БИШ (зориуд): лог устсан ч нээлтийн статистик
+ *    үлдэнэ. DigitalGer дээр ч ижил зарчим.
+ */
+model EmailOpen {
+  id String @id @default(cuid())
+
+  /// Хэн нээв
+  email String
+  /// Аль имэйлийнх — EmailLog.id (FK биш, лог устахад статистик үлдэнэ)
+  logId String?
+  /// Загварын нэр (welcome | marketing | rental ...) — кампанит ажлын түлхүүр
+  template String
+
+  /// ⚠️ Ямар төхөөрөмжөөс нээв — Gmail proxy эсэхийг ялгахад
+  userAgent String?
+
+  openedAt DateTime @default(now())
+
+  @@index([template, openedAt])
+  @@index([email, template])
+  @@index([logId])
+}
+
 model EmailLog {
   id        String   @id @default(cuid())
   to        String
