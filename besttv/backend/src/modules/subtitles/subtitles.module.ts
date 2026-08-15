@@ -19,7 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Role } from '@prisma/client';
-import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -42,9 +42,19 @@ class SubtitleMetaDto {
   @IsString()
   label?: string;
 
+  /**
+   * ⚠️⚠️ `@IsBoolean()` ХЭРЭГЛЭХГҮЙ — FormData нь БҮХ утгыг МӨР болгодог.
+   *
+   * БОДИТ АЛДАА: `fd.append('isDefault', 'false')` илгээхэд global pipe-ийн
+   * `enableImplicitConversion` нь `"false"` МӨРИЙГ `true` болгодог (хоосон
+   * биш мөр = truthy). Үр дүнд нь English оруулахад ТЭР анхдагч болж,
+   * Монгол хадмал унтарч байв (админ панелд бодитоор харагдсан).
+   *
+   * Тиймээс МӨР хэвээр авч, доор гараар задална.
+   */
   @IsOptional()
-  @IsBoolean()
-  isDefault?: boolean;
+  @IsString()
+  isDefault?: string;
 
   @IsOptional()
   @IsInt()
@@ -115,8 +125,21 @@ export class SubtitlesService {
      * болгохоор бусдыг нь автоматаар унтраана (эс бөгөөс player
      * аль нэгийг санамсаргүй сонгоно).
      */
-    const isDefault = dto.isDefault ?? lang === 'mn';
+    /**
+     * ⚠️⚠️ АНХДАГЧИЙГ ЯГ ЭНЭ ХЭЛ РҮҮ СОЛИНО (админ сонгосон).
+     *
+     * БОДИТ АЛДАА: `dto.isDefault` нь FormData-аас `"false"` МӨР болж
+     * ирээд `enableImplicitConversion` түүнийг `true` болгодог байв.
+     * Тиймээс English оруулахад ТЭР анхдагч болж, Монгол унтарч байв.
+     *
+     * Одоо: мөрийг ЯГ `'true'`-тэй харьцуулна. Хэрэв админ тодорхой
+     * заагаагүй бол ЗӨВХӨН монгол хэл автоматаар анхдагч болно.
+     */
+    const isDefault =
+      dto.isDefault != null ? dto.isDefault === 'true' : lang === 'mn';
+
     if (isDefault) {
+      /* ⚠️ Бусдыг унтраана — нэг видеонд НЭГ л анхдагч байна */
       await this.prisma.subtitle.updateMany({
         where: target.episodeId ? { episodeId: target.episodeId } : { titleId: target.titleId },
         data: { isDefault: false },
@@ -160,12 +183,57 @@ export class SubtitlesService {
     });
   }
 
+  /**
+   * Анхдагч болгох — тоглуулахад АВТОМАТ асах хэл.
+   * ⚠️ Нэг видеонд НЭГ л анхдагч байх тул бусдыг унтраана.
+   */
+  async setDefault(id: string) {
+    const row = await this.prisma.subtitle.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Хадмал олдсонгүй');
+
+    const where = row.episodeId ? { episodeId: row.episodeId } : { titleId: row.titleId };
+    await this.prisma.$transaction([
+      this.prisma.subtitle.updateMany({ where, data: { isDefault: false } }),
+      this.prisma.subtitle.update({ where: { id }, data: { isDefault: true } }),
+    ]);
+    return { ok: true };
+  }
+
   async remove(id: string) {
     const row = await this.prisma.subtitle.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Хадмал олдсонгүй');
     /* ⚠️ R2-оос ч устгана — эс бөгөөс хог файл хуримтлагдана */
     await this.storage.delete(row.fileKey).catch(() => null);
     await this.prisma.subtitle.delete({ where: { id } });
+
+    /**
+     * ⚠️⚠️ АНХДАГЧГҮЙ ҮЛДЭХЭЭС СЭРГИЙЛНЭ.
+     *
+     * Анхдагч хадмалыг устгавал үлдсэн нь бүгд `isDefault: false`
+     * болно. Тэр үед player нь ЯМАР Ч хадмал автоматаар асаахгүй —
+     * хэрэглэгч цэс рүү орж гараар сонгох ёстой болно.
+     *
+     * Тиймээс үлдсэнээс НЭГИЙГ анхдагч болгоно: монгол байвал тэр,
+     * эс бөгөөс эрэмбээр эхнийх.
+     */
+    if (row.isDefault) {
+      const where = row.episodeId ? { episodeId: row.episodeId } : { titleId: row.titleId };
+      const next = await this.prisma.subtitle.findFirst({
+        where,
+        /* ⚠️ Монгол хэлийг ЭХЭНД — `lang: 'asc'` бол «en» түрүүлнэ */
+        orderBy: [{ lang: 'asc' }, { order: 'asc' }],
+      });
+      const mn = await this.prisma.subtitle.findFirst({ where: { ...where, lang: 'mn' } });
+      const pick = mn ?? next;
+      if (pick) {
+        await this.prisma.subtitle.update({
+          where: { id: pick.id },
+          data: { isDefault: true },
+        });
+        this.logger.log(`Анхдагч хадмал ${pick.lang} руу шилжлээ (өмнөх нь устсан)`);
+      }
+    }
+
     return { ok: true };
   }
 
@@ -355,6 +423,11 @@ export class SubtitlesAdminController {
     @Body() dto: SubtitleMetaDto,
   ) {
     return this.svc.upload({ episodeId }, file, dto);
+  }
+
+  @Post(':id/default')
+  setDefault(@Param('id') id: string) {
+    return this.svc.setDefault(id);
   }
 
   @Delete(':id')

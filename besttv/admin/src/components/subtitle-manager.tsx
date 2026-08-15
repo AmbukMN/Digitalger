@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Languages, Loader2, Star, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { api, getAccessToken } from '@/lib/api';
 
@@ -62,8 +63,18 @@ export function SubtitleManager({
       const fd = new FormData();
       fd.append('file', file);
       fd.append('lang', lang);
-      /* ⚠️ Монгол нь анхдагчаар асна — хэрэглэгчийн гол хэл */
-      fd.append('isDefault', String(lang === 'mn'));
+      /**
+       * ⚠️⚠️ ЗӨВХӨН анхдагч болгох үед л илгээнэ.
+       *
+       * БОДИТ АЛДАА: өмнө нь `String(lang === 'mn')` гэж ҮРГЭЛЖ
+       * илгээдэг байсан. FormData нь бүх утгыг МӨР болгодог тул
+       * `"false"` явж, backend-ийн `enableImplicitConversion` түүнийг
+       * `true` болгоод English-ийг анхдагч болгож байв.
+       *
+       * Одоо: монгол бол `'true'`, бусад тохиолдолд ОГТ илгээхгүй
+       * (backend талд `undefined` → одоо байгаа анхдагч хэвээр).
+       */
+      if (lang === 'mn') fd.append('isDefault', 'true');
 
       /**
        * ⚠️ `api()` нь JSON бичдэг тул FormData-д ТОХИРОХГҮЙ.
@@ -85,6 +96,17 @@ export function SubtitleManager({
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  /** Анхдагч болгох — тоглуулахад автоматаар асах хэл */
+  const makeDefault = async (s: Subtitle) => {
+    try {
+      await api(`/admin/subtitles/${s.id}/default`, { method: 'POST' });
+      toast.success(`${s.label} анхдагч боллоо`);
+      qc.invalidateQueries({ queryKey });
+    } catch {
+      toast.error('Өөрчилж чадсангүй');
     }
   };
 
@@ -137,10 +159,27 @@ export function SubtitleManager({
                   </span>
                 )}
               </span>
+              {/*
+                ⚠️ «Анхдагч болгох» — админ дуртай хэлээ сонгоно.
+                Ихэвчлэн монгол боловч зарим контентод (жишээ нь
+                монгол дубльтай кино) англи хадмал анхдагч байх нь
+                зөв байж болно.
+              */}
+              {!s.isDefault && (
+                <button
+                  onClick={() => makeDefault(s)}
+                  className="ml-auto rounded px-2 py-1 text-[10px] font-semibold text-foreground/45 hover:bg-foreground/8 hover:text-foreground"
+                >
+                  Анхдагч болгох
+                </button>
+              )}
               <button
                 onClick={() => remove(s)}
                 aria-label="Устгах"
-                className="rounded p-1 text-foreground/35 hover:bg-destructive/10 hover:text-destructive"
+                className={cn(
+                  'rounded p-1 text-foreground/35 hover:bg-destructive/10 hover:text-destructive',
+                  s.isDefault && 'ml-auto',
+                )}
               >
                 <Trash2 size={13} />
               </button>
