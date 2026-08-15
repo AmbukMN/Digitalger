@@ -419,7 +419,24 @@ export interface AdminUserDetail extends AdminUser {
   emailVerified: boolean;
   isGuest: boolean;
   walletBalance: number;
-  payments: { id: string; amount: number; status: string; createdAt: string; plan: { name: string } | null; isWalletTopup?: boolean }[];
+  /**
+   * ⚠️⚠️ ТӨЛБӨРИЙН 3 ТӨРӨЛ — ЯЛГАХ ТАЛБАР ЗААВАЛ.
+   * Өмнө нь зөвхөн `plan` байсан тул plan-гүй БҮХ төлбөр (түрээс,
+   * банкны шилжүүлэг) «Хэтэвч цэнэглэлт» гэж ХУДАЛ харагддаг байв.
+   */
+  payments: {
+    id: string;
+    amount: number;
+    originalAmount: number | null;
+    status: string;
+    createdAt: string;
+    paidAt: string | null;
+    isWalletTopup: boolean;
+    couponCode: string | null;
+    bankReference: string | null;
+    plan: { id: string; name: string } | null;
+    rentalTitle: { id: string; title: string; slug: string } | null;
+  }[];
   subscriptions: {
     id: string;
     startsAt: string;
@@ -438,7 +455,14 @@ export interface AdminUserDetail extends AdminUser {
     positionSec: number;
     durationSec: number;
     updatedAt: string;
-    title: { id: string; title: string; slug: string };
+    title: { id: string; title: string; slug: string; type: string };
+    /** ⚠️ Цуврал бол АЛЬ анги дээр явааг харуулна */
+    episode: {
+      id: string;
+      number: number;
+      name: string | null;
+      season: { number: number };
+    } | null;
   }[];
   /** ⚠️ Ширхэгээр түрээслэсэн — БАГЦААС тусдаа эрх */
   rentals: {
@@ -446,6 +470,8 @@ export interface AdminUserDetail extends AdminUser {
     createdAt: string;
     expiresAt: string;
     amount: number;
+    /** null = ХЭТЭВЧНЭЭС төлсөн (Payment мөр үүсээгүй) */
+    paymentId: string | null;
     title: { id: string; title: string; slug: string };
   }[];
   /** Бичсэн сэтгэгдэл — зохисгүй агуулга шалгах */
@@ -515,6 +541,48 @@ export interface AdminUserDetail extends AdminUser {
   }[];
   /** Хайсан үгс — юуг хайж олоогүйг мэдвэл контент нэмнэ */
   recentSearches: { query: string; results: number; createdAt: string }[];
+  /**
+   * ⚠️ ЧАТ ЯРИА — админд ОГТ харагддаггүй байв. Гомдол шийдэхэд
+   * хэрэглэгчийн хуудаснаас шууд харах боломжтой болов.
+   */
+  chats: {
+    id: string;
+    channel: string;
+    lastMessageAt: string;
+    handedOff: boolean;
+    createdAt: string;
+    _count: { messages: number };
+    messages: {
+      id: string;
+      role: string;
+      text: string;
+      attachmentKey: string | null;
+      attachmentType: string | null;
+      createdAt: string;
+    }[];
+  }[];
+  /**
+   * ⚠️ АНГИ БҮРИЙН ҮЗСЭН ТҮҮХ — WatchProgress нь нэг Title-д НЭГ мөр
+   * тул өмнөх ангиуд дарагддаг. Бүтэн түүх нь TitleEvent-д.
+   */
+  episodeHistory: {
+    id: string;
+    type: string;
+    titleId: string;
+    titleName: string | null;
+    titleSlug: string | null;
+    episodeId: string | null;
+    positionSec: number | null;
+    durationSec: number | null;
+    device: string | null;
+    createdAt: string;
+    episode: {
+      id: string;
+      number: number;
+      name: string | null;
+      season: { number: number };
+    } | null;
+  }[];
   /** Идэвхийн хураангуй */
   activity: {
     viewCount: number;
@@ -523,6 +591,10 @@ export interface AdminUserDetail extends AdminUser {
     /** ₮ — нийт зарцуулсан (цэнэглэлт хасна) */
     totalSpent: number;
     lastSeen: { createdAt: string; path: string; device: string | null } | null;
+    /** Нийт үзсэн хугацаа (секунд) — БҮХ киноны нийлбэр */
+    totalWatchSec: number;
+    /** Хэдэн өөр кино үзсэн */
+    watchedTitles: number;
   };
 }
 

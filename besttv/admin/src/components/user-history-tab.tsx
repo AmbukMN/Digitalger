@@ -10,6 +10,7 @@ import {
   Monitor,
   Search,
   Shield,
+  Star,
   Smartphone,
   UserCog,
   Wallet,
@@ -94,13 +95,25 @@ export function UserHistoryTab({ user }: { user: AdminUserDetail }) {
     bankPayments = [],
     promotionRedemptions = [],
     recentSearches = [],
+    reviews = [],
   } = user;
 
+  /**
+   * ⚠️ БОДИТ АЛДАА: `promotionRedemptions` ба `recentSearches` энэ
+   * шалгалтад ОРООГҮЙ байсан тул зөвхөн урамшуулал/хайлттай хэрэглэгчид
+   * «Түүх байхгүй байна» гэж ХУДАЛ харагддаг байв — доор нь тэр хоёр
+   * хэсэг рендерлэгддэг атал.
+   *
+   * ⚠️ Шинэ хэсэг нэмэх бүрт ЭНД ч нэмнэ.
+   */
   const nothing =
     auditLog.length === 0 &&
     sessions.length === 0 &&
     notifications.length === 0 &&
-    bankPayments.length === 0;
+    bankPayments.length === 0 &&
+    promotionRedemptions.length === 0 &&
+    recentSearches.length === 0 &&
+    reviews.length === 0;
 
   if (nothing) {
     return (
@@ -249,6 +262,36 @@ export function UserHistoryTab({ user }: { user: AdminUserDetail }) {
               {s.query}
               {s.results === 0 && ' (0)'}
             </span>
+          ))}
+        </div>
+      </Section>
+
+      {/*
+        ─── Сэтгэгдэл ───
+        ⚠️ Backend `reviews`-ыг илгээдэг байсан ч UI нь ОГТ
+        харуулдаггүй байв. Зохисгүй агуулга шалгах, хэрэглэгчийн
+        сэтгэгдлийг гомдолтой тулгахад хэрэгтэй.
+      */}
+      <Section icon={Star} title="Бичсэн сэтгэгдэл" count={reviews.length}>
+        <div className="max-h-64 divide-y divide-foreground/6 overflow-y-auto">
+          {reviews.map((r) => (
+            <div key={r.id} className="px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  {r.title.title}
+                </span>
+                <span className="shrink-0 text-xs text-premium">
+                  {'★'.repeat(Math.max(0, Math.min(5, r.rating)))}
+                  <span className="text-muted-foreground">
+                    {'★'.repeat(Math.max(0, 5 - r.rating))}
+                  </span>
+                </span>
+              </div>
+              {r.comment && (
+                <p className="mt-0.5 text-xs text-foreground/70">{r.comment}</p>
+              )}
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{when(r.createdAt)}</p>
+            </div>
           ))}
         </div>
       </Section>

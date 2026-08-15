@@ -230,10 +230,39 @@ export class UsersService {
         isGuest: true,
         walletBalance: true,
         createdAt: true,
+        /**
+         * ⚠️⚠️ ТӨЛБӨРИЙН 3 ТӨРӨЛ — ЯЛГАХ ТАЛБАР ЗААВАЛ.
+         *
+         * БОДИТ АЛДАА: өмнө нь зөвхөн `plan.name` сонгодог байсан тул
+         * plan-гүй БҮХ төлбөр (түрээс, банкны шилжүүлэг) админд
+         * «Хэтэвч цэнэглэлт» гэж ХУДАЛ харагддаг байв. Хэрэглэгч
+         * 4,900₮-өөр кино түрээсэлсэн атал «цэнэглэлт» гэж бичигдсэн
+         * (production дээр батлагдсан).
+         *
+         * Ялгах гурван талбар:
+         *   planId        → багц худалдан авалт
+         *   isWalletTopup → хэтэвч цэнэглэлт
+         *   rentalTitleId → ширхэгээр түрээс
+         *
+         * ⚠️ take нэмэгдсэн: 10 → 50. Идэвхтэй хэрэглэгчийн эхний 10
+         *    захиалгын дараах нь ОГТ харагддаггүй байв.
+         */
         payments: {
           orderBy: { createdAt: 'desc' },
-          take: 10,
-          select: { id: true, amount: true, status: true, createdAt: true, plan: { select: { name: true } } },
+          take: 50,
+          select: {
+            id: true,
+            amount: true,
+            originalAmount: true,
+            status: true,
+            createdAt: true,
+            paidAt: true,
+            isWalletTopup: true,
+            couponCode: true,
+            bankReference: true,
+            plan: { select: { id: true, name: true } },
+            rentalTitle: { select: { id: true, title: true, slug: true } },
+          },
         },
         subscriptions: {
           orderBy: { expiresAt: 'desc' },
@@ -259,6 +288,11 @@ export class UsersService {
           take: 20,
           select: { createdAt: true, title: { select: { id: true, title: true, slug: true, posterKey: true } } },
         },
+        /**
+         * ⚠️ АНГИ ЗААВАЛ — цуврал үзэж буй хэрэглэгч АЛЬ ангид явааг
+         * админ мэдэх ёстой. Өмнө нь зөвхөн киноны нэр харагддаг тул
+         * «6-р анги дээр гацсан» гэх гомдол шалгах боломжгүй байв.
+         */
         watchProgress: {
           orderBy: { updatedAt: 'desc' },
           take: 20,
@@ -266,7 +300,15 @@ export class UsersService {
             positionSec: true,
             durationSec: true,
             updatedAt: true,
-            title: { select: { id: true, title: true, slug: true } },
+            title: { select: { id: true, title: true, slug: true, type: true } },
+            episode: {
+              select: {
+                id: true,
+                number: true,
+                name: true,
+                season: { select: { number: true } },
+              },
+            },
           },
         },
         /**
@@ -276,12 +318,17 @@ export class UsersService {
          */
         rentals: {
           orderBy: { createdAt: 'desc' },
-          take: 20,
+          take: 50,
           select: {
             id: true,
             createdAt: true,
             expiresAt: true,
             amount: true,
+            /**
+             * ⚠️ null = ХЭТЭВЧНЭЭС төлсөн — Payment мөр ОГТ үүсдэггүй.
+             * Админ «Захиалга» табд харахгүй тул тэнд тусад нь нэмнэ.
+             */
+            paymentId: true,
             title: { select: { id: true, title: true, slug: true } },
           },
         },
@@ -363,6 +410,9 @@ export class UsersService {
       playCount,
       totalSpent,
       recentSearches,
+      chats,
+      titleEvents,
+      watchAgg,
     ] = await Promise.all([
       this.prisma.pageView.count({ where: { userId: id } }),
       this.prisma.searchEvent.count({ where: { userId: id } }),
@@ -420,19 +470,120 @@ export class UsersService {
         take: 15,
         select: { query: true, results: true, createdAt: true },
       }),
+      /**
+       * ⚠️⚠️ ЧАТ ЯРИА — админд ОГТ харагддаггүй байв.
+       *
+       * Хэрэглэгч чатаар гомдол/асуулт бичсэн ч админ хэрэглэгчийн
+       * хуудсан дээрээс харах боломжгүй, тусдаа Чат хуудас руу орж
+       * хайх шаардлагатай байсан. Гомдол шийдэхэд шууд хэрэгтэй.
+       */
+      this.prisma.chatConversation.findMany({
+        where: { userId: id },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          channel: true,
+          lastMessageAt: true,
+          handedOff: true,
+          createdAt: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 30,
+            select: {
+              id: true,
+              role: true,
+              text: true,
+              attachmentKey: true,
+              attachmentType: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
+      /**
+       * ⚠️⚠️ АНГИ БҮРИЙН ҮЗСЭН ТҮҮХ — WatchProgress нь нэг Title-д НЭГ
+       * мөр (@@unique) тул өмнөх ангиуд ДАРАГДАЖ АЛГА БОЛДОГ.
+       *
+       * Бүтэн түүх нь `TitleEvent`-д (append-only, episodeId-тэй).
+       * Админ «аль ангийг хэзээ үзсэн» гэдгийг эндээс л мэднэ.
+       *
+       * ⚠️ `progress` төрөл нь 60 секунд тутам бичигддэг тул МАШ ОЛОН —
+       *    зөвхөн `play`/`complete` (эхлүүлсэн/дуусгасан) авна.
+       */
+      this.prisma.titleEvent.findMany({
+        where: { userId: id, type: { in: ['play', 'complete'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          id: true,
+          type: true,
+          titleId: true,
+          titleName: true,
+          titleSlug: true,
+          episodeId: true,
+          positionSec: true,
+          durationSec: true,
+          device: true,
+          createdAt: true,
+        },
+      }),
+      /**
+       * ⚠️ НИЙТ ҮЗСЭН ХУГАЦАА — БҮХ киноны нийлбэр.
+       *
+       * `/admin/tracking` нь сүүлийн 20 мөрөөр л бодож байсан тул
+       * бодит нийлбэрээс БАГА гардаг байв.
+       */
+      this.prisma.watchProgress.aggregate({
+        where: { userId: id },
+        _sum: { positionSec: true },
+        _count: true,
+      }),
     ]);
+
+    /**
+     * ⚠️ Ангийн ID → дугаар/нэр хөрвүүлэлт.
+     *
+     * `TitleEvent.episodeId` нь FK БИШ (зориуд fail-open) тул Prisma
+     * join хийж чадахгүй. Тиймээс гарсан ID-уудыг цуглуулж НЭГ
+     * query-ээр татна (N+1 биш).
+     */
+    const epIds = [...new Set(titleEvents.map((e) => e.episodeId).filter(Boolean))] as string[];
+    const eps = epIds.length
+      ? await this.prisma.episode.findMany({
+          where: { id: { in: epIds } },
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            season: { select: { number: true } },
+          },
+        })
+      : [];
+    const epMap = new Map(eps.map((e) => [e.id, e]));
 
     return {
       ...user,
       auditLog,
       bankPayments,
       recentSearches,
+      chats,
+      /** Анги бүрийн үзсэн түүх — ангийн дугаар нөхөж өгнө */
+      episodeHistory: titleEvents.map((e) => ({
+        ...e,
+        episode: e.episodeId ? (epMap.get(e.episodeId) ?? null) : null,
+      })),
       activity: {
         viewCount,
         searchCount,
         playCount,
         totalSpent: totalSpent._sum.amount ?? 0,
         lastSeen,
+        /** Нийт үзсэн хугацаа (секунд) — БҮХ киноны нийлбэр */
+        totalWatchSec: watchAgg._sum.positionSec ?? 0,
+        /** Хэдэн өөр кино үзсэн */
+        watchedTitles: watchAgg._count,
       },
     };
   }
