@@ -385,6 +385,10 @@ model Season {
   number  Int
   name    String?
 
+  /// false = хэрэглэгчид ОГТ харагдахгүй (админ нуусан).
+  /// Дата устахгүй — админ талд хэвээр, дахин нээж болно.
+  isVisible Boolean @default(true)
+
   title    Title     @relation(fields: [titleId], references: [id], onDelete: Cascade)
   episodes Episode[]
 
@@ -414,6 +418,10 @@ model Episode {
 
   /// true = эрхгүй ч үзэж болно (цувралын эхний анги гэх мэт)
   isFreePreview Boolean @default(false)
+
+  /// false = хэрэглэгчид ОГТ харагдахгүй (админ нуусан).
+  /// Улирал нуусан бол доторх бүх анги ч мөн нуугдана.
+  isVisible Boolean @default(true)
 
   season        Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   watchProgress WatchProgress[]

@@ -23,6 +23,7 @@ import {
   BulkPremiumDto,
   CreateEpisodeDto,
   CreateSeasonDto,
+  UpdateSeasonDto,
   CreateTitleDto,
   UpdateEpisodeDto,
   UpdateTitleDto,
@@ -148,9 +149,15 @@ export class TitlesAdminController {
     return this.svc.createSeason(titleId, dto);
   }
 
-  /** Улирлын нэр засах (хоосон = автомат «N-р улирал») */
+  /**
+   * Улирлын нэр засах (хоосон = автомат «N-р улирал») болон
+   * харагдах эсэхийг тохируулах.
+   *
+   * ⚠️ Өмнө нь inline `{ name?: string }` тип байсан тул ValidationPipe
+   * огт ажиллахгүй — ямар ч төрлийн утга шууд DB рүү орж байв.
+   */
   @Patch('seasons/:seasonId')
-  updateSeason(@Param('seasonId') seasonId: string, @Body() dto: { name?: string }) {
+  updateSeason(@Param('seasonId') seasonId: string, @Body() dto: UpdateSeasonDto) {
     return this.svc.updateSeason(seasonId, dto);
   }
 

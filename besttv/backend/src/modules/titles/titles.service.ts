@@ -42,7 +42,12 @@ const CARD_SELECT = {
    * гэхдээ зөвхөн 1 талбар тул хөнгөн.
    */
   seasons: {
-    select: { episodes: { select: { streamStatus: true } } },
+    /* ⚠️ Нуусан улирал/анги картын «бэлэн» статусыг гажуудуулах ёсгүй —
+       админ нуусан ангийг тоолвол видеогүй кино «Үзэх боломжтой» болно */
+    where: { isVisible: true },
+    select: {
+      episodes: { where: { isVisible: true }, select: { streamStatus: true } },
+    },
   },
   // ⚠️ Жанр — карт дээр аль ангилалд багтахыг харуулна (админ хүсэлт).
   // Хэрэглэгч ямар багц авбал үзэхээ шууд ойлгоно.
@@ -627,10 +632,21 @@ export class TitlesService {
              тавихад ашиглана (Google-д индексжих нь эрсдэлтэй) */
           include: { genre: { select: { id: true, name: true, slug: true, isAdult: true } } },
         },
+        /**
+         * ⚠️⚠️ НУУСАН УЛИРАЛ/АНГИ ХЭРЭГЛЭГЧИД ОГТ ХАРАГДАХГҮЙ.
+         *
+         * Админ «3-р бүлгийг харуулахгүй» гэж тохируулбал энэ шүүлт
+         * түүнийг DB-ээс ч татахгүй. Frontend талд шүүх нь БУРУУ —
+         * API хариунд ирсэн дата DevTools-оор харагдана.
+         *
+         * ⚠️ Улирал нуувал доторх БҮХ анги нуугдана (эцгээ дагана).
+         */
         seasons: {
+          where: { isVisible: true },
           orderBy: { number: 'asc' },
           include: {
             episodes: {
+              where: { isVisible: true },
               orderBy: { number: 'asc' },
               select: {
                 id: true,

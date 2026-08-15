@@ -362,8 +362,11 @@ export class StreamService {
         videoKey: true,
         streamStatus: true,
         isFreePreview: true,
+        /* ⚠️ Админ нуусан анги — шууд URL-ээр ч татагдахгүй */
+        isVisible: true,
         season: {
           select: {
+            isVisible: true,
             title: {
               select: {
                 /* Rental нь TITLE дээр бүртгэгддэг тул эцгийн id хэрэгтэй */
@@ -380,7 +383,12 @@ export class StreamService {
     if (
       !episode?.videoKey ||
       episode.streamStatus !== 'READY' ||
-      !episode.season.title.isActive
+      !episode.season.title.isActive ||
+      /* ⚠️⚠️ НУУСАН анги/улирал — эрхтэй хэрэглэгч ч үзэхгүй.
+         Frontend шүүлт хангалтгүй: ангийн ID мэдэж байвал шууд
+         `/api/stream/episode/{id}/playlist.m3u8` дуудаж болно. */
+      !episode.isVisible ||
+      !episode.season.isVisible
     ) {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
@@ -412,8 +420,11 @@ export class StreamService {
         videoKey: true,
         streamStatus: true,
         isFreePreview: true,
+        /* ⚠️ Админ нуусан анги — шууд URL-ээр ч татагдахгүй */
+        isVisible: true,
         season: {
           select: {
+            isVisible: true,
             title: {
               select: {
                 /* Rental нь TITLE дээр бүртгэгддэг тул эцгийн id хэрэгтэй */
@@ -427,7 +438,14 @@ export class StreamService {
         },
       },
     });
-    if (!episode?.videoKey || episode.streamStatus !== 'READY' || !episode.season.title.isActive) {
+    if (
+      !episode?.videoKey ||
+      episode.streamStatus !== 'READY' ||
+      !episode.season.title.isActive ||
+      /* ⚠️ Нуусан анги — variant түвшинд ч хаана (playlist-тэй ижил) */
+      !episode.isVisible ||
+      !episode.season.isVisible
+    ) {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
     const premium = episode.season.title.isPremium && !episode.isFreePreview;

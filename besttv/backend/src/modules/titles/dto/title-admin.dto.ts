@@ -221,6 +221,21 @@ export class CreateSeasonDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  /** false = хэрэглэгчид харагдахгүй (админ нуусан) */
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
+}
+
+export class UpdateSeasonDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
 }
 
 export class CreateEpisodeDto {

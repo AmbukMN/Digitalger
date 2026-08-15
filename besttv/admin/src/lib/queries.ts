@@ -101,12 +101,16 @@ export interface AdminEpisode {
   durationSec: number | null;
   posterUrl?: string | null;
   isFreePreview: boolean;
+  /** false = хэрэглэгчид харагдахгүй (админ нуусан) */
+  isVisible: boolean;
 }
 
 export interface AdminSeason {
   id: string;
   number: number;
   name: string | null;
+  /** false = улирал бүхэлдээ нуугдана (доторх бүх анги хамт) */
+  isVisible: boolean;
   episodes: AdminEpisode[];
 }
 

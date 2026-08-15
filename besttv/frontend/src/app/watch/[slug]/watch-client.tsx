@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Lock, Ticket } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
@@ -80,6 +80,26 @@ export function WatchClient({ slug }: { slug: string }) {
   );
   const currentIndex = flatEpisodes.findIndex((e) => e.id === episodeId);
   const nextEpisode = currentIndex >= 0 ? flatEpisodes[currentIndex + 1] : undefined;
+
+  /**
+   * ⚠️⚠️ ХАЖУУГИЙН ЖАГСААЛТ — УЛИРЛУУД ЭВХЭГДЭНЭ (accordion).
+   *
+   * БОДИТ АСУУДАЛ: өмнө нь БҮХ улирлын БҮХ анги нэг доор дэлгэгдсэн
+   * байв. 10 улирал × 22 анги = 220 мөр — хэрэглэгч 5-р улирлын
+   * 12-р анги руу очихын тулд хажуугийн самбарыг маш удаан гүйлгэнэ.
+   * Netflix / Disney+ бүгд улирлыг эвхдэг.
+   *
+   * ⚠️ ОДОО ҮЗЭЖ БУЙ улирал л нээлттэй байна — хэрэглэгч хаана
+   * байгаагаа шууд харна, бусад улирал руу нэг дарж шилжинэ.
+   */
+  const currentSeasonId = currentIndex >= 0 ? flatEpisodes[currentIndex].seasonId : null;
+  const [openSeason, setOpenSeason] = useState<string | null>(null);
+
+  /* ⚠️ Анги солиход нээлттэй улирал ДАГАЖ шилжинэ (өөр улирлын
+     ангид үсрэхэд хуучин улирал нээлттэй үлдвэл ойлгомжгүй) */
+  useEffect(() => {
+    if (currentSeasonId) setOpenSeason(currentSeasonId);
+  }, [currentSeasonId]);
 
   // Analytics: "эхэлсэн" нэг л удаа, "явц" 60 сек тутам (progress хадгалалт 5 сек
   // тутам — түүн бүрд event бичвэл хэт олон мөр үүснэ)
@@ -164,6 +184,34 @@ export function WatchClient({ slug }: { slug: string }) {
     },
     [router, slug],
   );
+
+  /**
+   * ⚠️⚠️ ЦУВРАЛ РУУ `?ep=` БАЙХГҮЙ ОРВОЛ — ЗӨВ АНГИД АВТОМАТ ҮСРЭНЭ.
+   *
+   * Өмнө нь `/watch/the-blacklist` гэж (ангийн ID-гүй) орвол `src` нь
+   * `/api/stream/movie/{titleId}` рүү унадаг байв. ЦУВРАЛ дээр
+   * `Title.videoKey` БАЙДАГГҮЙ (видео нь Episode дээр) тул backend
+   * алдаа буцааж, хэрэглэгчид «Видео ачаалахад алдаа гарлаа» гэсэн
+   * ХУДАЛ мессеж гардаг байсан — бодит шалтгаан нь зүгээр л анги
+   * сонгогдоогүй явдал.
+   *
+   * Ийм линк олон замаар үүсдэг: хуваалцсан холбоос, хайлтын үр дүн,
+   * хуучин bookmark, «Үргэлжлүүлэх» товч.
+   *
+   * Аль ангид үсрэхийг эрэмбээр сонгоно:
+   *   1. Хадгалсан явц (үргэлжлүүлэн үзэх)
+   *   2. Эхний тоглох боломжтой анги
+   * `replace` — буцах товч дарахад энэ хуудас руу дахин ороод давталт
+   * үүсэхээс сэргийлнэ.
+   */
+  useEffect(() => {
+    if (episodeId || !data || flatEpisodes.length === 0) return;
+    const savedId = data.progress?.episodeId;
+    const target =
+      (savedId && flatEpisodes.find((e) => e.id === savedId && e.playable)) ??
+      flatEpisodes.find((e) => e.playable);
+    if (target) router.replace(`/watch/${slug}?ep=${target.id}`);
+  }, [episodeId, data, flatEpisodes, router, slug]);
 
   const handleEnded = useCallback(() => {
     if (data) {
@@ -416,14 +464,46 @@ export function WatchClient({ slug }: { slug: string }) {
             {/* ⚠️ `100dvh` — мобайл browser-ийн хаяг талбар нуугдахад
                 `vh` буруу тооцоологддог (жагсаалт таслагдана) */}
             <div className="space-y-1 p-3 lg:max-h-[calc(100dvh-3.25rem)] lg:overflow-y-auto">
-              {seasons.map((s) => (
+              {seasons.map((s) => {
+                /* ⚠️ 1 улирал бол эвхэх утгагүй — үргэлж нээлттэй */
+                const multi = seasons.length > 1;
+                const open = !multi || openSeason === s.id;
+                const ready = s.episodes.filter((e) => e.playable).length;
+                return (
                 <div key={s.id}>
-                  {seasons.length > 1 && (
-                    <p className="mb-1.5 mt-3 text-xs font-medium uppercase text-white/40">
-                      {s.name ?? `${s.number}-р улирал`}
-                    </p>
+                  {multi && (
+                    /*
+                      ⚠️ УЛИРЛЫН ТОЛГОЙ = ДАРЖ БОЛОХ ТОВЧ.
+                      Өмнө нь зүгээр текст байсан тул эвхэх боломжгүй.
+                      Ангийн тоо + бэлэн тоог харуулснаар хэрэглэгч
+                      нээлгүйгээр аль улирал үзэх боломжтойг мэднэ.
+                    */
+                    <button
+                      onClick={() => setOpenSeason(open ? null : s.id)}
+                      aria-expanded={open}
+                      className={cn(
+                        'mt-2 flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors',
+                        open ? 'bg-white/8' : 'hover:bg-white/5',
+                      )}
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <ChevronDown
+                          size={14}
+                          className={cn(
+                            'shrink-0 text-white/40 transition-transform duration-200',
+                            open && 'rotate-180',
+                          )}
+                        />
+                        <span className="truncate text-sm font-semibold text-white/85">
+                          {s.name ?? `${s.number}-р улирал`}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[11px] text-white/40">
+                        {ready}/{s.episodes.length}
+                      </span>
+                    </button>
                   )}
-                  {s.episodes.map((ep) => {
+                  {open && s.episodes.map((ep) => {
                     const active = ep.id === episodeId;
                     return (
                       <button
@@ -483,7 +563,8 @@ export function WatchClient({ slug }: { slug: string }) {
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </aside>
         )}

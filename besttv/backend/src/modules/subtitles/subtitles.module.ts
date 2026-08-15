@@ -302,8 +302,10 @@ export class SubtitlesService {
         where: { id },
         select: {
           isFreePreview: true,
+          isVisible: true,
           season: {
             select: {
+              isVisible: true,
               title: {
                 select: { id: true, isPremium: true, genres: { select: { genreId: true } } },
               },
@@ -312,6 +314,10 @@ export class SubtitlesService {
         },
       });
       if (!ep) throw new NotFoundException('Анги олдсонгүй');
+      /* ⚠️ Админ нуусан анги — хадмал ч гарахгүй (видеотой ижил хаалт) */
+      if (!ep.isVisible || !ep.season.isVisible) {
+        throw new NotFoundException('Анги олдсонгүй');
+      }
       const t = ep.season.title;
       /* Үнэгүй танилцуулга анги — хадмал ч нээлттэй */
       if (!t.isPremium || ep.isFreePreview) return;

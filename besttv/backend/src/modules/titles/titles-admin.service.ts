@@ -8,6 +8,7 @@ import { TitleMediaHelper } from './title-media.helper';
 import {
   CreateEpisodeDto,
   CreateSeasonDto,
+  UpdateSeasonDto,
   CreateTitleDto,
   UpdateEpisodeDto,
   UpdateTitleDto,
@@ -712,12 +713,17 @@ export class TitlesAdminService {
    * ⚠️ Хоосон мөр = нэрийг УСТГАХ () — тэр үед frontend нь
    * «N-р улирал» гэсэн автомат нэр харуулна.
    */
-  async updateSeason(id: string, dto: { name?: string }) {
+  async updateSeason(id: string, dto: UpdateSeasonDto) {
     const exists = await this.prisma.season.findUnique({ where: { id }, select: { id: true } });
     if (!exists) throw new NotFoundException('Улирал олдсонгүй');
     return this.prisma.season.update({
       where: { id },
-      data: { name: dto.name?.trim() || null },
+      data: {
+        /* ⚠️ `name` талбар ИРСЭН үед л хөндөнө — зөвхөн `isVisible`
+           илгээхэд нэрийг санамсаргүй устгахгүй */
+        ...(dto.name !== undefined ? { name: dto.name.trim() || null } : {}),
+        ...(dto.isVisible !== undefined ? { isVisible: dto.isVisible } : {}),
+      },
     });
   }
 
