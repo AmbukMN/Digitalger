@@ -96,6 +96,7 @@ model User {
   /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -324,6 +325,9 @@ model Title {
   /// Хадмалууд (олон хэл)
   subtitles Subtitle[]
 
+  /// Видеон дээр BestTV лого шатаах эсэх (зүүн дээд, 10%, 70%)
+  watermark Boolean @default(false)
+
   @@index([type, isActive])
   @@index([isBanner, isActive])
   @@index([comingSoon, isActive])
@@ -419,6 +423,9 @@ model Episode {
 
   /// Хадмалууд (олон хэл)
   subtitles Subtitle[]
+
+  /// Видеон дээр BestTV лого шатаах эсэх
+  watermark Boolean @default(false)
 
   @@unique([seasonId, number])
   /// ⚠️ `video-recovery` cron (10 мин тутам) нь `streamStatus='PROCESSING'`
@@ -1348,6 +1355,7 @@ model EmailLog {
 
   // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**

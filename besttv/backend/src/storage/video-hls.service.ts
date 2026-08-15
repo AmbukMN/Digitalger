@@ -71,6 +71,14 @@ const LADDER = [
  */
 const X264_PRESET = process.env.X264_PRESET ?? 'veryfast';
 
+/**
+ * Watermark логоны R2 key.
+ * ⚠️ Брэндийн тохиргооны логотой ИЖИЛ — админ логоо солиход watermark
+ * ч автоматаар шинэчлэгдэнэ (хоёр тусдаа файл байлгах нь зөрөх эрсдэлтэй).
+ * ⚠️ Тунгалаг PNG байх ЁСТОЙ — эс бөгөөс хайрцагтай харагдана.
+ */
+const WATERMARK_KEY = 'brand/logo.png';
+
 export interface HlsResult {
   playlistKey: string; // R2 key: 'videos/{uuid}/video.m3u8' (videoKey-д хадгална — R2 KEY, URL БИШ!)
   posterKey: string; // R2 key: 'videos/{uuid}/poster.jpg'
@@ -121,6 +129,8 @@ export class VideoHlsService {
     rawKey: string,
     folder = 'videos',
     onProgress?: (p: HlsProgress) => void,
+    /** ⚠️ BestTV лого шатаах эсэх — админ чагтална */
+    watermark = false,
   ): Promise<HlsResult> {
     const uuid = randomUUID();
     const tmpDir = path.join(os.tmpdir(), `hls_${uuid}`);
@@ -151,6 +161,27 @@ export class VideoHlsService {
         this.probeHasAudio(inputPath),
       ]);
 
+      /**
+       * ⚠️⚠️ ЛОГОГ R2-ООС ТАТНА (ffmpeg локал файл шаарддаг).
+       *
+       * ⚠️ Татаж чадаагүй бол watermark-ГҮЙ үргэлжилнэ — лого байхгүйгээс
+       * болж БҮТЭН хөрвүүлэлт унах ёсгүй (2 цагийн ажил алдагдана).
+       * Оронд нь сануулга логлоно.
+       */
+      let wmPath: string | null = null;
+      if (watermark) {
+        try {
+          const logoBuf = await this.storage.downloadBuffer(WATERMARK_KEY);
+          wmPath = path.join(tmpDir, 'wm.png');
+          await fs.writeFile(wmPath, logoBuf);
+        } catch (e) {
+          wmPath = null;
+          this.logger.warn(
+            `Watermark лого татаж чадсангүй (${WATERMARK_KEY}) — логогүй үргэлжилнэ: ${String(e)}`,
+          );
+        }
+      }
+
       // ── 2) ABR HLS (3 түвшин re-encode) — 15-70% ──
       await this.toHls(
         inputPath,
@@ -159,6 +190,7 @@ export class VideoHlsService {
         (pct) => report('convert', 15 + pct * 0.55),
         sourceHeight,
         hasAudio,
+        wmPath,
       );
 
       // ── 3) Poster (эхний frame) ──
@@ -306,6 +338,8 @@ export class VideoHlsService {
     onPercent?: (p: number) => void,
     sourceHeight = 1080,
     hasAudio = true,
+    /** ⚠️ Логоны ЛОКАЛ зам — байвал видеон дээр шатаана */
+    watermarkPath?: string | null,
   ): Promise<void> {
     const dir = path.dirname(playlistPath);
     const ladder = this.pickLadder(sourceHeight);
@@ -321,10 +355,46 @@ export class VideoHlsService {
      * зааж, `master.m3u8`-г автоматаар үүсгэнэ. Player түүнийг уншаад
      * сүлжээнийхээ хурдад тохирох түвшнийг ӨӨРӨӨ сонгоно.
      */
-    const filter = [
-      `[0:v]split=${ladder.length}${ladder.map((_, i) => `[s${i}]`).join('')}`,
-      ...ladder.map((l, i) => `[s${i}]scale=-2:${l.height}[v${i}]`),
-    ].join(';');
+    /**
+     * ⚠️⚠️ WATERMARK — BestTV лого видеон дээр ШАТААНА.
+     *
+     * ХЭМЖЭЭ/БАЙРЛАЛ (хэрэглэгч интерактив загвараас сонгосон):
+     *   • Өргөний 10% — 1080p дээр 192×77px. 7% нь утсанд үл үзэгдэнэ,
+     *     15% нь киног халхална. Салбарын жишиг 7-12% (YouTube ~7%).
+     *   • Зүүн дээд, захаас 2.5% (1080p дээр 48px)
+     *   • Тунгалаг 70% — танигдах ч киног бүрхэхгүй
+     *
+     * ⚠️⚠️ SCALE-ИЙН ДАРАА тавина. Өмнө нь тавибал лого нь эх файлын
+     * хэмжээгээр нэмэгдээд дараа нь ХАМТ жижигрэх тул 480p дээр
+     * танигдахгүй болно. Түвшин бүрд ТУСДАА, ХАРЬЦАНГУЙ хэмжээтэй.
+     *
+     * ⚠️ `format=rgba` — PNG-ийн alpha сувгийг хадгална. Үүнгүйгээр
+     * тунгалаг хэсэг ХАР болж, лого хайрцагтай харагдана.
+     *
+     * ⚠️ Захын зайг `main_w`-ээс тооцно (тогтмол px биш) — 480p дээр
+     * 48px нь дэлгэцийн 5.6% болж хэт их зай эзэлнэ.
+     */
+    const filter = watermarkPath
+      ? [
+          /* Логог түвшин бүрд ХУВИЛНА — нэг оролтыг олон удаа ашиглаж болохгүй */
+          `[1:v]split=${ladder.length}${ladder.map((_, i) => `[wm${i}]`).join('')}`,
+          `[0:v]split=${ladder.length}${ladder.map((_, i) => `[s${i}]`).join('')}`,
+          ...ladder.map((l, i) => `[s${i}]scale=-2:${l.height}[b${i}]`),
+          /* ⚠️ Лого нь ТУХАЙН түвшний өргөнөөс тооцогдоно */
+          ...ladder.map((l, i) => {
+            const w = Math.round((l.height * 16) / 9); // тухайн түвшний ойролцоо өргөн
+            const lw = Math.round(w * 0.1);
+            const m = Math.round(w * 0.025);
+            return (
+              `[wm${i}]scale=${lw}:-1,format=rgba,colorchannelmixer=aa=0.7[w${i}];` +
+              `[b${i}][w${i}]overlay=${m}:${m}[v${i}]`
+            );
+          }),
+        ].join(';')
+      : [
+          `[0:v]split=${ladder.length}${ladder.map((_, i) => `[s${i}]`).join('')}`,
+          ...ladder.map((l, i) => `[s${i}]scale=-2:${l.height}[v${i}]`),
+        ].join(';');
 
     /**
      * ⚠️⚠️ THREAD ХЯЗГААР — олон ажил ЗЭРЭГ хөрвүүлэхэд ЗААВАЛ.
@@ -397,7 +467,10 @@ export class VideoHlsService {
      * spawn нь аргумент бүрийг яг байгаагаар нь дамжуулдаг тул найдвартай.
      */
     return new Promise((resolve, reject) => {
-      const args = ['-y', '-i', inputPath, ...opts, path.join(dir, 'v%v.m3u8')];
+      /* ⚠️ Лого нь ХОЁР ДАХЬ оролт  — filter_complex тэгж заана */
+      const args = watermarkPath
+        ? ['-y', '-i', inputPath, '-i', watermarkPath, ...opts, path.join(dir, 'v%v.m3u8')]
+        : ['-y', '-i', inputPath, ...opts, path.join(dir, 'v%v.m3u8')];
       const proc = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 
       /**

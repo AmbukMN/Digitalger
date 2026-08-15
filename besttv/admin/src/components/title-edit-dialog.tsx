@@ -61,6 +61,7 @@ const EMPTY_FORM = {
   metaTitle: '',
   metaDescription: '',
   isPremium: true,
+  watermark: false,
   rentEnabled: true,
   rentPrice: '',
   rentHours: '',
@@ -152,6 +153,7 @@ export function TitleEditDialog({
       metaTitle: e.metaTitle ?? '',
       metaDescription: e.metaDescription ?? '',
       isPremium: e.isPremium,
+      watermark: e.watermark ?? false,
       rentEnabled: e.rentEnabled ?? true,
       rentPrice: e.rentPrice != null ? String(e.rentPrice) : '',
       rentHours: e.rentHours != null ? String(e.rentHours) : '',
@@ -352,6 +354,7 @@ export function TitleEditDialog({
           .map((c) => ({ name: c.name, character: c.character || undefined, photoKey: c.photoKey })),
         galleryKeys: gallery.map((g) => g.key),
         isPremium: form.isPremium,
+        watermark: form.watermark,
         // ⚠️ Хоосон = сайтын нийтлэг үнэ/хугацаа хэрэглэнэ (null явуулна)
         rentEnabled: form.rentEnabled,
         rentPrice: form.rentPrice.trim() ? Number(form.rentPrice) : null,

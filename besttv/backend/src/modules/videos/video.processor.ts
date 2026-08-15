@@ -100,6 +100,28 @@ export class VideoProcessor {
       const folder =
         target === 'trailer' ? 'trailers' : target === 'episode' ? 'episodes' : 'movies';
 
+      /**
+       * ⚠️⚠️ ХУУЧИН ВИДЕОНЫ ЗАМЫГ ОДОО ТЭМДЭГЛЭНЭ (устгахын өмнө).
+       *
+       * БОДИТ АЛДАА: кино дахин байршуулахад `videoKey` нь ШИНЭ утгаар
+       * ДАРАГДАЖ, хуучин HLS хавтас R2-д ҮҮРД үлддэг байв. DB-д ямар ч
+       * лавлагаа үлдэхгүй тул гараар ч олох боломжгүй.
+       *
+       * Production дээр хэмжив: 5 орхигдсон хавтас, 4.27 GB. Одоохондоо
+       * $0.06/сар боловч watermark-тай/watermark-гүй туршиж эхлэхэд
+       * ХУРДАН өснө (кино бүр 1-2 GB).
+       *
+       * ⚠️ Устгалыг ШИНЭ видео БЭЛЭН БОЛСНЫ ДАРАА л хийнэ — хөрвүүлэлт
+       * унавал хуучин видео ҮЛДЭХ ёстой (эс бөгөөс хэрэглэгч юу ч
+       * үзэхгүй болно).
+       */
+      const oldKey = await this.currentVideoKey(target, targetId);
+
+      /* ⚠️ Админы чагтыг DB-ээс уншина — трейлерт watermark ХЭРЭГГҮЙ
+         (трейлер нь сурталчилгаа, лого нь илүүдэл) */
+      const watermark =
+        target === 'trailer' ? false : await this.wantsWatermark(target, targetId);
+
       const result = await this.hls.convertKeyAndUpload(rawKey, folder, (p: HlsProgress) => {
         // Bull-ийн явц (админ queue хардаг бол)
         void job.progress(p.percent).catch(() => null);
@@ -109,7 +131,7 @@ export class VideoProcessor {
         if (now - lastWrite < PROGRESS_THROTTLE_MS) return;
         lastWrite = now;
         void this.setState(target, targetId, { streamProgress: p.percent }).catch(() => null);
-      });
+      }, watermark);
 
       // ⚠️ videoKey = R2 KEY (URL биш) — stream gate presign хийж өгнө
       if (target === 'trailer') {
@@ -141,6 +163,30 @@ export class VideoProcessor {
 
       // Raw түр файл устгах (HLS бэлэн)
       await this.storage.delete(rawKey).catch(() => null);
+
+      /**
+       * ⚠️⚠️ ХУУЧИН HLS ХАВТСЫГ УСТГАНА — R2 зай дэмий эзлэхээс сэргийлнэ.
+       *
+       * ЗӨВХӨН энд (шинэ видео БЭЛЭН болсны дараа) — эс бөгөөс хөрвүүлэлт
+       * унавал хэрэглэгч юу ч үзэхгүй болно.
+       *
+       * ⚠️ Шинэ зам ХУУЧИНТАЙ ижил байвал устгахгүй (uuid давхцсан гэсэн
+       * онолын тохиолдол) — шинэ видеогоо устгачих эрсдэлтэй.
+       */
+      if (oldKey && oldKey !== result.playlistKey) {
+        const oldPrefix = oldKey.replace(/\/[^/]+$/, '/');
+        const newPrefix = result.playlistKey.replace(/\/[^/]+$/, '/');
+        if (oldPrefix !== newPrefix) {
+          await this.storage
+            .deletePrefix(oldPrefix)
+            .then(() => this.logger.log(`Хуучин видео устгав: ${oldPrefix}`))
+            /* ⚠️ Алдааг ЗААВАЛ бүртгэнэ — чимээгүй залгивал орхигдсон
+               файлыг хэн ч мэдэхгүй, зөвхөн тооцоо ирэхэд л илэрнэ */
+            .catch((e) =>
+              this.logger.error(`Хуучин видео устгаж чадсангүй (${oldPrefix}): ${String(e)}`),
+            );
+        }
+      }
       this.logger.log(
         `HLS бэлэн: ${target}/${targetId} — ${result.segmentCount} segment, ${result.durationSec}s`,
       );
@@ -347,6 +393,58 @@ export class VideoProcessor {
    * Title/Episode-ийн төлөв шинэчлэх — нэг цэгээс.
    * ⚠️ trailer нь Title-ийн streamStatus-ыг хөндөхгүй (кинонд зориулагдсан).
    */
+  /**
+   * Админ watermark чагтласан эсэх.
+   *
+   * ⚠️ АНГИД: тухайн ангийн чагт, эсвэл КИНОНЫ чагт — аль нэг нь
+   * үнэн бол шатаана. Ингэснээр админ цувралын түвшинд НЭГ УДАА
+   * чагтлаад бүх ангид үйлчилнэ (анги бүрд дарах шаардлагагүй).
+   */
+  private async wantsWatermark(
+    target: VideoHlsJob['target'],
+    targetId: string,
+  ): Promise<boolean> {
+    if (target === 'movie') {
+      const t = await this.prisma.title
+        .findUnique({ where: { id: targetId }, select: { watermark: true } })
+        .catch(() => null);
+      return Boolean(t?.watermark);
+    }
+    const e = await this.prisma.episode
+      .findUnique({
+        where: { id: targetId },
+        select: { watermark: true, season: { select: { title: { select: { watermark: true } } } } },
+      })
+      .catch(() => null);
+    return Boolean(e?.watermark || e?.season.title.watermark);
+  }
+
+  /**
+   * Одоогийн `videoKey` (эсвэл трейлерийн `trailerKey`).
+   * ⚠️ Дахин байршуулахад ХУУЧИН зам — устгахад хэрэгтэй.
+   */
+  private async currentVideoKey(
+    target: VideoHlsJob['target'],
+    targetId: string,
+  ): Promise<string | null> {
+    if (target === 'trailer') {
+      const t = await this.prisma.title
+        .findUnique({ where: { id: targetId }, select: { trailerKey: true } })
+        .catch(() => null);
+      return t?.trailerKey ?? null;
+    }
+    if (target === 'movie') {
+      const t = await this.prisma.title
+        .findUnique({ where: { id: targetId }, select: { videoKey: true } })
+        .catch(() => null);
+      return t?.videoKey ?? null;
+    }
+    const e = await this.prisma.episode
+      .findUnique({ where: { id: targetId }, select: { videoKey: true } })
+      .catch(() => null);
+    return e?.videoKey ?? null;
+  }
+
   private async setState(
     target: VideoHlsJob['target'],
     targetId: string,

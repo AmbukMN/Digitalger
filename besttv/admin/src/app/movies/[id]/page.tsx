@@ -47,6 +47,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
     metaTitle: '',
     metaDescription: '',
     isPremium: true,
+    watermark: false,
   rentEnabled: true,
   rentPrice: '',
   rentHours: '',
@@ -83,6 +84,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         metaTitle: e.metaTitle ?? '',
         metaDescription: e.metaDescription ?? '',
         isPremium: e.isPremium,
+        watermark: e.watermark ?? false,
         rentEnabled: e.rentEnabled ?? true,
         rentPrice: e.rentPrice != null ? String(e.rentPrice) : '',
         rentHours: e.rentHours != null ? String(e.rentHours) : '',
@@ -257,6 +259,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         })),
         galleryKeys: gallery.map((g) => g.key),
         isPremium: form.isPremium,
+        watermark: form.watermark,
         // ⚠️ Хоосон = сайтын нийтлэг үнэ/хугацаа хэрэглэнэ (null явуулна)
         rentEnabled: form.rentEnabled,
         rentPrice: form.rentPrice.trim() ? Number(form.rentPrice) : null,
@@ -581,6 +584,35 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
             <Toggle label="Удахгүй гарах" checked={form.comingSoon} onChange={(v) => setForm((f) => ({ ...f, comingSoon: v }))} />
             <Toggle label="Идэвхтэй" checked={form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} />
           </div>
+
+          {/*
+            ⚠️⚠️ WATERMARK — ТУСДАА блок, эргэлт буцалтгүй тул.
+
+            Лого нь видеонд ШАТААГДАНА. Дараа нь хасах/нэмэх гэвэл
+            видеог ДАХИН байршуулах ёстой (1-2 цагийн хөрвүүлэлт).
+            Тиймээс бусад toggle-тэй нэг эгнээнд тавибал санамсаргүй
+            дарах эрсдэлтэй.
+          */}
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background p-3.5 transition-colors hover:border-primary/40">
+            <input
+              type="checkbox"
+              checked={form.watermark}
+              onChange={(e) => setForm((f) => ({ ...f, watermark: e.target.checked }))}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-foreground">
+                BestTV лого видеон дээр
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                Зүүн дээд буланд, өргөний 10%, тунгалаг 70%.
+                <br />
+                ⚠️ Лого видеонд <strong className="text-warning">шатаагдана</strong> — дараа нь
+                өөрчлөхийн тулд видеог дахин байршуулна.
+                {form.type === 'SERIES' && ' Энд чагтлавал БҮХ ангид үйлчилнэ.'}
+              </span>
+            </span>
+          </label>
 
           <button
             onClick={save}

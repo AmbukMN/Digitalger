@@ -196,6 +196,11 @@ export class CreateTitleDto {
   @IsOptional()
   @IsBoolean()
   hideFromNew?: boolean;
+
+  /** BestTV лого видеон дээр шатаах (зүүн дээд, 10%, 70%) */
+  @IsOptional()
+  @IsBoolean()
+  watermark?: boolean;
 }
 
 export class UpdateTitleDto extends CreateTitleDto {
@@ -234,6 +239,11 @@ export class CreateEpisodeDto {
   @IsOptional()
   @IsBoolean()
   isFreePreview?: boolean;
+
+  /** BestTV лого шатаах — кинонд чагтласан бол ангид ч үйлчилнэ */
+  @IsOptional()
+  @IsBoolean()
+  watermark?: boolean;
 }
 
 export class UpdateEpisodeDto extends CreateEpisodeDto {
