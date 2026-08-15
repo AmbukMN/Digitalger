@@ -264,8 +264,23 @@ export function ChatWidget() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // ── Нэвтэрсэн үед зочны яриаг холбоно (нэг удаа) ──
+  /**
+   * ── Нэвтэрсэн үед зочны яриаг холбоно ──
+   *
+   * ⚠️⚠️ `open` нь ХАМААРАЛД ЗААВАЛ БАЙХ ЁСТОЙ (бодит алдаа).
+   *
+   * Өмнө нь зөвхөн `user?.id` байсан тул холболт нь widget MOUNT
+   * болсон агшинд НЭГ Л УДАА оролддог байв. Гэтэл:
+   *   • хэрэглэгч зочноор чат бичээд ДАРАА нь бүртгүүлбэл
+   *   • эсвэл link хүсэлт сүлжээний алдаанд унавал
+   * яриа ЗОЧНЫ хэвээр үлдэж, админд «Зочин» гэж харагдана — хэн
+   * бичсэн нь мэдэгдэхгүй, хариу нь ч эзэндээ хүрэхгүй (бодит гомдол).
+   *
+   * Одоо чат НЭЭХ бүрд шалгана. `linkedUserRef` нь амжилттай
+   * холбогдсоны дараа давтахаас сэргийлнэ (нэг хэрэглэгчид нэг л удаа).
+   */
   useEffect(() => {
+    if (!open) return;
     if (!user?.id || linkedUserRef.current === user.id) return;
     linkedUserRef.current = user.id;
     chatApi.linkSession(getSessionId()).catch((e: { status?: number }) => {
@@ -282,7 +297,7 @@ export function ChatWidget() {
       if (e?.status === 401 || e?.status === 403) return;
       linkedUserRef.current = null; // зөвхөн сүлжээ/сервер алдаанд дахин оролдоно
     });
-  }, [user?.id]);
+  }, [user?.id, open]);
 
   // ── Түүх сэргээх ──
   useEffect(() => {
@@ -334,18 +349,43 @@ export function ChatWidget() {
         if (!alive) return;
         setHandedOff(res.handedOff);
         if (res.messages.length) {
+          const isFirst = lastMsgAtRef.current === null;
           lastMsgAtRef.current = res.messages[res.messages.length - 1].createdAt;
-          // ⚠️ ЗӨВХӨН admin — user/assistant аль хэдийн optimistic нэмэгдсэн
+          /**
+           * ⚠️⚠️ ЭХНИЙ ТАТАЛТАД БҮХ ҮҮРГИЙГ АВНА — түүх сэргээх.
+           *
+           * БОДИТ АЛДАА: түүх нь ЗӨВХӨН `localStorage`-д хадгалагддаг
+           * тул өөр төхөөрөмж / browser / private горимд орвол
+           * хэрэглэгчийн өөрийн болон AI-ийн мессеж БҮГД АЛГА болж,
+           * зөвхөн админы хариу үлддэг байв («чат дээр түүх алга»).
+           *
+           * Сервер бүх мессежийг хадгалдаг тул эхний polling-д
+           * бүгдийг татаж сэргээнэ. Дараагийн удаа `after` шүүлт
+           * ажиллах тул зөвхөн ШИНЭ мессеж ирнэ — тэнд optimistic
+           * давхардахаас сэргийлж зөвхөн `admin`-ыг авна.
+           *
+           * ⚠️ `assistant` → widget дотор `bot` гэж нэрлэгддэг.
+           */
           const incoming = res.messages
-            .filter((m) => m.role === 'admin')
+            .filter((m) => (isFirst ? true : m.role === 'admin'))
             .map((m) => ({
               id: m.id,
-              role: 'admin' as const,
+              role: (m.role === 'assistant' ? 'bot' : m.role) as 'user' | 'bot' | 'admin',
               text: m.text,
               titles: Array.isArray(m.titles) ? m.titles : undefined,
             }));
           if (incoming.length) {
             setMessages((prev) => {
+              /**
+               * ⚠️ ЭХНИЙ ТАТАЛТАД СЕРВЕР ДАВУУ — localStorage-ийн
+               * хуулбарыг ОРЛУУЛНА.
+               *
+               * Optimistic мессежийн id нь `u{timestamp}` (локал)
+               * бөгөөд серверийнхтэй ХЭЗЭЭ Ч таарахгүй тул id-аар
+               * нийлүүлбэл БҮГД ХОЁР УДАА харагдана. Сервер бол
+               * цорын ганц үнэн эх сурвалж — түүнийг л үлдээнэ.
+               */
+              if (isFirst) return incoming;
               const ids = new Set(prev.map((p) => p.id));
               const fresh = incoming.filter((m) => !ids.has(m.id));
               return fresh.length ? [...prev, ...fresh] : prev;
