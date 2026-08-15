@@ -54,13 +54,21 @@ const CARD_SELECT = {
 } satisfies Prisma.TitleSelect;
 
 /**
- * ⚠️ 18+ хамгаалалт — насанд хүрэгчдийн жанртай контент ЕРӨНХИЙ каталог
- * (нүүр/кино/цуврал/хайлт/ижил төстэй)-д ОГТ харагдахгүй. Зөвхөн /adult
- * хуудсанд (нас баталгаажуулсны дараа) гарна.
+ * ⚠️⚠️ 18+ ШҮҮЛТ БҮРМӨСӨН ХАСАГДСАН (админы шийдвэр, 2026-08-15).
+ *
+ * Өмнө нь `NOT_ADULT` шүүлт нь насанд хүрэгчдийн жанртай контентыг
+ * нүүр/кино/цуврал/хайлт/баннер/ижил төстэй БҮХ ГАЗРААС хасдаг байв.
+ * Тиймээс админ 18+ киног баннерт тавихыг оролдоход ЧИМЭЭГҮЙ
+ * харагдахгүй байсан (тохиргоо хадгалагдсан ч үр дүнгүй).
+ *
+ * Одоо 18+ контент нь БУСАД контенттой АДИЛХАН — хаана ч гарна.
+ * `/adult` хуудас нь ХЭВЭЭР үлдэнэ (тэнд зөвхөн 18+ жанрыг шүүнэ),
+ * гэхдээ тэр нь нэмэлт хэсэг болохоос хориг биш.
+ *
+ * ⚠️ Дахин хориглох шаардлага гарвал энэ тогтмолыг сэргээхээс илүү
+ *    хэрэглэгчийн НАС БАТАЛГААЖУУЛАЛТ дээр тулгуурласан шийдэл хий —
+ *    контентыг бүрмөсөн нуух нь админд ойлгомжгүй байдал үүсгэдэг.
  */
-const NOT_ADULT: Prisma.TitleWhereInput = {
-  genres: { none: { genre: { isAdult: true } } },
-};
 
 @Injectable()
 export class TitlesService {
@@ -100,7 +108,7 @@ export class TitlesService {
       await Promise.all([
         // Hero carousel — backdrop + trailer
         this.prisma.title.findMany({
-          where: { isBanner: true, isActive: true, ...NOT_ADULT },
+          where: { isBanner: true, isActive: true },
           orderBy: { bannerOrder: 'asc' },
           take: 8,
           select: {
@@ -117,13 +125,13 @@ export class TitlesService {
           },
         }),
         this.prisma.title.findMany({
-          where: { isActive: true, hideFromNew: false, comingSoon: false, ...NOT_ADULT },
+          where: { isActive: true, hideFromNew: false, comingSoon: false },
           orderBy: [{ newReleasesOrder: 'asc' }, { createdAt: 'desc' }],
           take: 20,
           select: CARD_SELECT,
         }),
         this.prisma.title.findMany({
-          where: { isActive: true, comingSoon: true, ...NOT_ADULT },
+          where: { isActive: true, comingSoon: true },
           orderBy: { comingSoonOrder: 'asc' },
           take: 20,
           select: CARD_SELECT,
@@ -174,7 +182,7 @@ export class TitlesService {
         }),
         // Top 10 — хамгийн их үзэлттэй (Netflix-ийн Top 10 мөр)
         this.prisma.title.findMany({
-          where: { isActive: true, comingSoon: false, ...NOT_ADULT },
+          where: { isActive: true, comingSoon: false },
           orderBy: { views: 'desc' },
           take: 10,
           select: CARD_SELECT,
@@ -287,19 +295,22 @@ export class TitlesService {
   async allSlugs() {
     const items = await this.prisma.title.findMany({
       /**
-       * ⚠️⚠️ 18+ КОНТЕНТЫГ ХАСНА (`NOT_ADULT`).
+       * ⚠️⚠️ SITEMAP-ААС 18+ КОНТЕНТЫГ ХАСНА.
        *
-       * `/adult` хуудас нь `robots: { index: false }`-тэй боловч
-       * КИНОНЫ ДЭЛГЭРЭНГҮЙ хуудас (`/movie/<slug>`) тусдаа зам тул
-       * sitemap-д орвол Google ШУУД индексжүүлнэ — 18+ контент
-       * хайлтад гарах нь эрсдэлтэй (AdSense/Search Console
-       * зөрчил, брэндийн нэр хүнд).
+       * Сайт дээр 18+ кино бусадтай АДИЛХАН харагдана (баннер, хайлт,
+       * каталог) — тэр шүүлт 2026-08-15-д хасагдсан. ГЭВЧ sitemap нь
+       * ӨӨР зорилготой: Google-д «энэ хуудсыг индексжүүл» гэсэн ШУУД
+       * дохио өгдөг.
        *
-       * ⚠️ Хуудас өөрөө ч `noindex` авна (`generateMetadata`) —
-       * sitemap-аас хасах нь ганцаараа хангалтгүй (гадны холбоосоор
-       * crawler олж болно).
+       * Хуудас өөрөө `noindex` авдаг (frontend-ийн
+       * `generateMetadata`) тул sitemap-д оруулах нь зөрчилтэй
+       * дохио — Search Console-д «Submitted URL marked noindex» алдаа
+       * гарч, sitemap-ийн чанар унана.
+       *
+       * ⚠️ AdSense/Search Console бодлогоор 18+ контент индексжвэл
+       *    бүх сайтын байр саатуулах эрсдэлтэй.
        */
-      where: { isActive: true, ...NOT_ADULT },
+      where: { isActive: true, genres: { none: { genre: { isAdult: true } } } },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
     });
@@ -320,7 +331,7 @@ export class TitlesService {
     /**
      * ⚠️⚠️ КАТАЛОГТ 18+ ШҮҮЛТ ХИЙХГҮЙ.
      *
-     * Өмнө нь жанр сонгоогүй үед `NOT_ADULT` ажиллаж, "Бүгд" дархад
+     * Өмнө нь жанр сонгоогүй үед 18+ шүүлт ажиллаж, "Бүгд" дархад
      * насанд хүрэгчдийн кино ОГТ ГАРАХГҮЙ байв. Гэтэл эдгээр нь
      * НҮҮР ХУУДСАНД аль хэдийн харагддаг тул каталогт нуух нь
      * зөрчилтэй бөгөөд хэрэглэгчид ойлгомжгүй ("яагаад Бүгд гэхэд
@@ -455,7 +466,7 @@ export class TitlesService {
     if (!parsed.usable) {
       if (!type) return [];
       const rows = await this.prisma.title.findMany({
-        where: { isActive: true, comingSoon: false, type, ...NOT_ADULT },
+        where: { isActive: true, comingSoon: false, type },
         orderBy: [{ createdAt: 'desc' }],
         take: limit,
         select: { ...CARD_SELECT, description: true },
@@ -493,7 +504,6 @@ export class TitlesService {
         genres: {
           some: {
             genre: {
-              isAdult: false,
               OR: [
                 { name: { contains: t, mode: 'insensitive' as const } },
                 { nameEn: { contains: t, mode: 'insensitive' as const } },
@@ -509,7 +519,6 @@ export class TitlesService {
     const rows = await this.prisma.title.findMany({
       where: {
         isActive: true,
-        ...NOT_ADULT, // ⚠️ 18+ хайлтын үр дүнд гарахгүй
         ...(type ? { type } : {}),
         OR: allVariants.flatMap(matchClauses),
       },
@@ -833,7 +842,6 @@ export class TitlesService {
       where: {
         isActive: true,
         id: { not: titleId },
-        ...NOT_ADULT, // 18+ "ижил төстэй"-д гарахгүй
         ...(genreIds.length
           ? { genres: { some: { genreId: { in: genreIds } } } }
           : {}),
