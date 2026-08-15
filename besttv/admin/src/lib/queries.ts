@@ -994,3 +994,87 @@ export function useAdminBankStats(f: { status?: string; from?: string; to?: stri
 }
 
 export { bankQuery };
+
+// ─── Facebook → Instagram хөндлөн нийтлэл ────────────────────────────────────
+
+export type CrosspostKind = 'IMAGE' | 'VIDEO' | 'CAROUSEL' | 'TEXT' | 'LINK';
+export type CrosspostStatus = 'QUEUED' | 'PROCESSING' | 'PUBLISHED' | 'FAILED' | 'SKIPPED';
+
+/** Facebook пост + шилжүүлэлтийн төлөв */
+export interface FbPostItem {
+  fbPostId: string;
+  message: string;
+  preview: string | null;
+  permalink: string | null;
+  postedAt: string;
+  kind: CrosspostKind;
+  /** Instagram-д техникийн хувьд шилжих боломжтой эсэх */
+  canTransfer: boolean;
+  /** Боломжгүй бол ЯАГААД (админд шууд харуулна) */
+  reason: string | null;
+  mediaCount: number;
+  status: CrosspostStatus | null;
+  crosspostId: string | null;
+  igMediaId: string | null;
+  error: string | null;
+}
+
+export interface CrosspostRecord {
+  id: string;
+  fbPostId: string;
+  message: string;
+  fbPostedAt: string;
+  kind: string;
+  status: CrosspostStatus;
+  igMediaId: string | null;
+  caption: string | null;
+  error: string | null;
+  attempts: number;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export interface CrosspostStatusInfo {
+  fbConfigured: boolean;
+  igConfigured: boolean;
+  /** IG-ийн 24 цагийн нийтлэлийн хязгаар */
+  quota: { used: number; cap: number } | null;
+}
+
+export function useCrosspostStatus() {
+  return useQuery({
+    queryKey: ['crosspost-status'],
+    queryFn: () => api<CrosspostStatusInfo>('/admin/crosspost/status'),
+    staleTime: 60_000,
+  });
+}
+
+export function useFbPosts(limit = 25) {
+  return useQuery({
+    queryKey: ['crosspost-posts', limit],
+    queryFn: () => api<{ items: FbPostItem[]; next: string | null }>(
+      `/admin/crosspost/posts?limit=${limit}`,
+    ),
+    /* ⚠️ Facebook руу хүсэлт явдаг тул түгжээтэй — товч дарж
+       шинэчлэх боломжтой (staleTime 0 бол таб солих бүрд FB руу дуудна) */
+    staleTime: 60_000,
+  });
+}
+
+export function useCrosspostHistory(f: { status?: string; page?: number; limit?: number }) {
+  return useQuery({
+    queryKey: ['crosspost-history', f],
+    queryFn: () =>
+      api<{
+        items: CrosspostRecord[];
+        total: number;
+        page: number;
+        totalPages: number;
+        stats: Record<string, number>;
+      }>(`/admin/crosspost/history?${toQuery(f)}`),
+    placeholderData: (prev) => prev,
+    /* ⚠️ Дараалал ажиллаж байхад төлөв өөрчлөгддөг тул шинэ мэдээлэл чухал */
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}

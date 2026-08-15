@@ -7,8 +7,12 @@ import { N8nModule } from './modules/n8n/n8n.module';
 import { StorageModule } from './storage/storage.module';
 import { VideoProcessor } from './modules/videos/video.processor';
 import { VIDEO_QUEUE } from './modules/videos/video-queue.types';
+import { CrosspostProcessor } from './modules/crosspost/crosspost.processor';
+import { CrosspostService } from './modules/crosspost/crosspost.service';
+import { MetaGraphService } from './modules/crosspost/meta-graph.service';
+import { CROSSPOST_QUEUE } from './modules/crosspost/crosspost-queue.types';
 
-/** Worker — зөвхөн HLS хөрвүүлэлтийн consumer (API endpoint байхгүй) */
+/** Worker — HLS хөрвүүлэлт + Instagram хөндлөн нийтлэлийн consumer */
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
@@ -20,6 +24,9 @@ import { VIDEO_QUEUE } from './modules/videos/video-queue.types';
       }),
     }),
     BullModule.registerQueue({ name: VIDEO_QUEUE }),
+    /* ⚠️ Instagram нийтлэл — ЗӨВХӨН энд (API-д ч бүртгэвэл нэг пост
+       ХОЁР УДАА нийтлэгдэнэ) */
+    BullModule.registerQueue({ name: CROSSPOST_QUEUE }),
     PrismaModule,
     StorageModule,
     /* ⚠️ HLS хөрвүүлэлт унахад Telegram мэдэгдэл илгээхэд
@@ -27,6 +34,6 @@ import { VIDEO_QUEUE } from './modules/videos/video-queue.types';
        дуудагдах боломжгүй — хөрвүүлэлт унасныг хэн ч мэдэхгүй байв. */
     N8nModule,
   ],
-  providers: [VideoProcessor],
+  providers: [VideoProcessor, CrosspostProcessor, CrosspostService, MetaGraphService],
 })
 export class WorkerModule {}

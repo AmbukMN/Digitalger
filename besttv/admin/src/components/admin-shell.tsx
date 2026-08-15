@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Gift,
-  Building2, Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
+  Building2, Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, Instagram, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
@@ -42,6 +42,10 @@ const NAV_GROUPS = [
     items: [
       { href: '/chat', label: 'Чат', icon: MessagesSquare, section: 'chat' },
       { href: '/email', label: 'Имэйл', icon: Mail, section: 'subscribers' },
+      /* ⚠️ FB→IG хөндлөн нийтлэл — Meta нь хоёр сүлжээг холбосон ч
+         автомат хуваалцахыг зөвшөөрдөггүй тул гараар хийдэг байсныг
+         бөөнөөр хийх хэрэгсэл */
+      { href: '/crosspost', label: 'FB → Instagram', icon: Instagram },
     ],
   },
   {
