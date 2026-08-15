@@ -8,6 +8,7 @@ import { ArrowLeft, ChevronRight, Lock, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
+import { useQuery } from '@tanstack/react-query';
 import { useTitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
 import { loginUrl } from '@/lib/auth-intent';
@@ -48,6 +49,27 @@ export function WatchClient({ slug }: { slug: string }) {
   const { data, isLoading, isError, refetch } = useTitleDetail(slug);
   const { user, loading: authLoading } = useAuth();
   const lastSaved = useRef(0);
+
+  /**
+   * ХАДМАЛЫН ЖАГСААЛТ — ямар хэл байгааг мэдэхэд.
+   *
+   * ⚠️ Энэ endpoint нь эрх ШААРДАХГҮЙ (зөвхөн жагсаалт). Агуулгыг
+   * татахад л шалгагдана — player дотор токентой татна.
+   * ⚠️ Анги солиход шинэ хадмал татагдах ёстой тул `episodeId` нь
+   * queryKey-д ЗААВАЛ орно.
+   */
+  const { data: subtitles } = useQuery({
+    queryKey: ['subtitles', episodeId ?? data?.id],
+    queryFn: () =>
+      api<{ lang: string; label: string; src: string; isDefault: boolean }[]>(
+        episodeId
+          ? `/subtitles/episode/${episodeId}`
+          : `/subtitles/movie/${data!.id}`,
+      ),
+    enabled: Boolean(episodeId || data?.id),
+    /* ⚠️ Хадмал ховор өөрчлөгддөг — 5 минут кэшлэнэ */
+    staleTime: 5 * 60_000,
+  });
 
   const seasons = useMemo(() => data?.seasons ?? [], [data]);
 
@@ -321,6 +343,7 @@ export function WatchClient({ slug }: { slug: string }) {
             onProgress={saveProgress}
             onEnded={handleEnded}
             startAt={startAt}
+            subtitles={subtitles}
             /**
              * ⚠️ Гарчиг + буцах товчийг PLAYER ДОТОР харуулна.
              * Доорх холбоос нь дэлгэц дүүрэн (fullscreen) үед харагдахгүй

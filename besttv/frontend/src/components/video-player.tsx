@@ -7,6 +7,7 @@ import {
   MediaPlayer,
   MediaProvider,
   Poster,
+  Track,
   isHLSProvider,
   type MediaPlayerInstance,
   type MediaProviderAdapter,
@@ -47,6 +48,7 @@ export function VideoPlayer({
   onEnded,
   startAt,
   title,
+  subtitles,
   backHref,
 }: {
   src: string; // '/api/stream/movie/{id}/playlist.m3u8' гэх мэт
@@ -56,6 +58,12 @@ export function VideoPlayer({
   startAt?: number; // үргэлжлүүлэн үзэх — секундээр
   /** Дээд мөрөнд харуулах гарчиг (fullscreen үед ялангуяа чухал) */
   title?: string;
+  /**
+   * Хадмалууд — олон хэл. `isDefault` нь тоглуулахад автомат асна.
+   * ⚠️ `src` нь МАНАЙ API зам байх ёстой (R2 хаяг БИШ) — эрх
+   * шалгагдаж, орчуулга задгай татагдахгүй.
+   */
+  subtitles?: { lang: string; label: string; src: string; isDefault: boolean }[];
   /** Буцах холбоос — player дотроос шууд гарах зам */
   backHref?: string;
 }) {
@@ -163,6 +171,62 @@ export function VideoPlayer({
       cancelled = true;
     };
   }, [src]);
+
+  /**
+   * ХАДМАЛ — ТОКЕНТОЙ ТАТАЖ blob болгоно.
+   *
+   * ⚠️⚠️ `<Track src="/api/...">` гэж ШУУД өгвөл АЖИЛЛАХГҮЙ. Vidstack
+   * нь хадмалыг энгийн `fetch`-ээр татдаг тул манай `Authorization`
+   * header ЯВАХГҮЙ → endpoint 403 буцаана → хадмал ЧИМЭЭГҮЙ гарахгүй
+   * (thumbnails дээр яг ижил асуудал гарч, тэндээ шийдэгдсэн).
+   *
+   * Тиймээс өөрсдөө токентой татаад `blob:` URL болгоно.
+   *
+   * ⚠️ `blob:` нь тухайн хуудсанд л хүчинтэй — хэрэглэгч хаягийг
+   * хуулж авч хадмалыг тараах боломжгүй (нэмэлт хамгаалалт).
+   */
+  const [subtitleTracks, setSubtitleTracks] = useState<
+    { lang: string; label: string; blobUrl: string; isDefault: boolean }[]
+  >([]);
+
+  useEffect(() => {
+    if (!subtitles?.length) {
+      setSubtitleTracks([]);
+      return;
+    }
+    let cancelled = false;
+    const created: string[] = [];
+
+    (async () => {
+      const token = getAccessToken();
+      const out: typeof subtitleTracks = [];
+      for (const s of subtitles) {
+        try {
+          const res = await fetch(s.src, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (!res.ok) continue;
+          const text = await res.text();
+          const url = URL.createObjectURL(new Blob([text], { type: 'text/vtt' }));
+          created.push(url);
+          out.push({ lang: s.lang, label: s.label, blobUrl: url, isDefault: s.isDefault });
+        } catch {
+          /* ⚠️ Нэг хэл унасан ч бусад нь ажиллана — видео зогсох ёсгүй */
+        }
+      }
+      if (cancelled) {
+        created.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+      setSubtitleTracks(out);
+    })();
+
+    return () => {
+      cancelled = true;
+      /* ⚠️ blob-ыг ЗААВАЛ чөлөөлнө — эс бөгөөс санах ой алдагдана */
+      created.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [subtitles]);
 
   /**
    * ⚠️⚠️ BEARER TOKEN — ЗӨВХӨН МАНАЙ API руу.
@@ -340,6 +404,27 @@ export function VideoPlayer({
               alt={title ?? ''}
             />
           )}
+
+          {/*
+            ⚠️⚠️ ХАДМАЛ — `<Track>` нь `MediaProvider` ДОТОР байх ЁСТОЙ.
+            Гадна тавибал Vidstack танихгүй, хадмалын цэс ХООСОН гарна.
+
+            ⚠️ `default` нь МОНГОЛ дээр — тоглуулах үед автоматаар асна.
+            Хэрэглэгч цэснээс өөр хэл (English, 한국어) сонгож болно.
+
+            ⚠️ `src` нь МАНАЙ API (R2 хаяг БИШ) — эрх шалгагдана.
+            Ингэснээр төлбөргүй хүн орчуулгыг татаж авч чадахгүй.
+          */}
+          {subtitleTracks.map((s) => (
+            <Track
+              key={s.lang}
+              src={s.blobUrl}
+              kind="subtitles"
+              label={s.label}
+              lang={s.lang}
+              default={s.isDefault}
+            />
+          ))}
         </MediaProvider>
 
         {/*

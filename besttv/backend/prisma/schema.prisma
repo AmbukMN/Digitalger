@@ -95,6 +95,7 @@ model User {
   // ── Утасны дугаар (verify.mn MO SMS) ──────────────────────────────────
   /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -320,6 +321,9 @@ model Title {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Хадмалууд (олон хэл)
+  subtitles Subtitle[]
+
   @@index([type, isActive])
   @@index([isBanner, isActive])
   @@index([comingSoon, isActive])
@@ -412,6 +416,9 @@ model Episode {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// Хадмалууд (олон хэл)
+  subtitles Subtitle[]
 
   @@unique([seasonId, number])
   /// ⚠️ `video-recovery` cron (10 мин тутам) нь `streamStatus='PROCESSING'`
@@ -1345,6 +1352,7 @@ model EmailLog {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
    * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
    * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
@@ -1579,4 +1587,57 @@ model PhoneVerifySession {
 
   @@index([userId, status])
   @@index([verifyMnSessionId])
+}
+
+// ─── ХАДМАЛ (SUBTITLE) ───────────────────────────────────────────────────────
+
+/**
+ * Киноны хадмал — ТУСДАА файл (видеон дээр шатаагаагүй).
+ * ⚠️⚠️ ЯАГААД SOFT SUB ВЭ (hardsub-аас илүү):
+ * • Засах: файл солиод дуусна. Hardsub бол видеог БҮХЭЛД НЬ дахин
+ * encode (1-3 цаг) хийх ёстой.
+ * • Олон хэл: нэг видео + жижиг файлууд. Hardsub бол хэл тус бүрд
+ * ТУСДАА видео — R2 зай 3 дахин.
+ * • Хэрэглэгч унтраах/сонгох боломжтой.
+ * ⚠️ Кино (`titleId`) эсвэл анги (`episodeId`) — АЛЬ НЭГ нь заавал.
+ * Хоёулаа хоосон бол ямар ч видеотой холбогдохгүй хог мөр үлдэнэ.
+ * ⚠️ Файл нь R2-д ВСЕГДА `.vtt` хэлбэрээр хадгалагдана. Админ `.srt`
+ * оруулсан ч backend хөрвүүлнэ — браузер `.srt`-г ОГТ уншдаггүй.
+ */
+model Subtitle {
+  id String @id @default(cuid())
+
+  /// Аль кинонд (нэг ангит) — `episodeId`-тэй ХАМТ хоосон байж болохгүй
+  titleId String?
+  title   Title?  @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  /// Аль ангид (олон ангит)
+  episodeId String?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  /// ISO 639-1 хэлний код: mn | en | ko | ja | zh | ru
+  lang  String
+  /// Player-ийн цэсэнд харагдах нэр: «Монгол», «English»
+  label String
+
+  /// R2 key — ЗААВАЛ `.vtt` (`.srt` бол хөрвүүлээд хадгална)
+  fileKey String
+
+  /**
+   * ⚠️ АНХДАГЧ — тоглуулах үед АВТОМАТ асна.
+   * Нэг видеонд НЭГ л анхдагч байх ёстой (код талд хангана).
+   */
+  isDefault Boolean @default(false)
+
+  /// Цэсэнд харагдах дараалал (бага нь эхэнд)
+  order Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// ⚠️ Нэг видеонд нэг хэл ДАВХАРДАХГҮЙ
+  @@unique([titleId, lang])
+  @@unique([episodeId, lang])
+  @@index([titleId])
+  @@index([episodeId])
 }

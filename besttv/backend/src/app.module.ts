@@ -29,6 +29,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { BankModule } from './modules/bank/bank.module';
 import { CrosspostModule } from './modules/crosspost/crosspost.module';
+import { SubtitlesModule } from './modules/subtitles/subtitles.module';
 import { N8nModule } from './modules/n8n/n8n.module';
 import { BlogModule } from './modules/blog/blog.module';
 import { PagesModule } from './modules/pages/pages.module';
@@ -100,6 +101,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     PromotionsModule,
     BankModule,
     CrosspostModule,
+    SubtitlesModule,
     N8nModule,
     BlogModule,
     PagesModule,
