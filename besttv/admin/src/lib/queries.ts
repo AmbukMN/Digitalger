@@ -103,6 +103,13 @@ export interface AdminEpisode {
   isFreePreview: boolean;
   /** false = хэрэглэгчид харагдахгүй (админ нуусан) */
   isVisible: boolean;
+  /**
+   * Усан тэмдэг — ГУРВАН төлөв:
+   *   null/undefined = кинооос өвлөнө
+   *   true  = заавал тавина
+   *   false = заавал тавихгүй
+   */
+  watermark?: boolean | null;
 }
 
 export interface AdminSeason {

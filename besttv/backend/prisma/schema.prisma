@@ -432,8 +432,13 @@ model Episode {
   /// Хадмалууд (олон хэл)
   subtitles Subtitle[]
 
-  /// Видеон дээр BestTV лого шатаах эсэх
-  watermark Boolean @default(false)
+  /// Видеон дээр BestTV лого шатаах эсэх — ГУРВАН төлөв:
+  ///   null  = кинооос ӨВЛӨНӨ (анхдагч)
+  ///   true  = энэ ангид ЗААВАЛ тавина (кино унтраасан ч)
+  ///   false = энэ ангид ЗААВАЛ тавихгүй (кино асаасан ч)
+  /// ⚠️ `Boolean?` байх ЁСТОЙ — `false` анхдагчтай бол «тохируулаагүй»
+  /// болон «зориуд унтраасан» хоёрыг ялгах боломжгүй болно.
+  watermark Boolean?
 
   @@unique([seasonId, number])
   /// ⚠️ `video-recovery` cron (10 мин тутам) нь `streamStatus='PROCESSING'`

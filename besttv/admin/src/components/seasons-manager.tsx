@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Stamp,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -115,6 +116,9 @@ export function SeasonsManager({ titleId }: { titleId: string }) {
             <SeasonBlock
               key={s.id}
               season={s}
+              /* ⚠️ Киноны усан тэмдэг — анги «өвлөх» үед юу болохыг
+                 админд ХАРУУЛАХАД хэрэгтэй (таамаглуулахгүй) */
+              titleWatermark={Boolean(title?.watermark)}
               /* 1 улирал бол хаах утгагүй — үргэлж нээлттэй */
               open={single || openId === s.id}
               collapsible={!single}
@@ -130,12 +134,15 @@ export function SeasonsManager({ titleId }: { titleId: string }) {
 
 function SeasonBlock({
   season,
+  titleWatermark,
   open,
   collapsible,
   onToggle,
   onChange,
 }: {
   season: AdminSeason;
+  /** Киноны усан тэмдэг — «өвлөх» сонголтод юу болохыг харуулна */
+  titleWatermark: boolean;
   open: boolean;
   collapsible: boolean;
   onToggle: () => void;
@@ -252,6 +259,39 @@ function SeasonBlock({
       });
       onChange();
       toast.success(value ? 'Анги үнэгүй боллоо' : 'Анги төлбөртэй боллоо');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
+  };
+
+  /**
+   * ⚠️⚠️ АНГИЙН УСАН ТЭМДЭГ — ГУРВАН ТӨЛӨВ.
+   *
+   * БОДИТ ХЭРЭГЦЭЭ (админ): «зарим видеод лого тавина, зарим дээр нь
+   * тавихгүй». Өмнө нь тохиргоо ЗӨВХӨН кино түвшинд байсан тул
+   * бүх анги нэг л адил байх ёстой байв.
+   *
+   *   null  → кинооос өвлөнө
+   *   true  → заавал тавина
+   *   false → заавал тавихгүй
+   *
+   * ⚠️ Аль хэдийн хөрвүүлсэн видеонд НӨЛӨӨЛӨХГҮЙ — лого нь видеонд
+   * ШАТААГДСАН. Дараагийн upload-д л үйлчилнэ (доор анхааруулна).
+   */
+  const setWatermark = async (episodeId: string, value: boolean | null) => {
+    try {
+      await api(`/admin/titles/episodes/${episodeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ watermark: value }),
+      });
+      onChange();
+      toast.success(
+        value === null
+          ? `Кинооос өвлөнө (${titleWatermark ? 'лого ОРНО' : 'логогүй'})`
+          : value
+            ? 'Энэ ангид лого ОРНО'
+            : 'Энэ ангид лого ОРОХГҮЙ',
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
     }
@@ -526,6 +566,68 @@ function SeasonBlock({
                       </span>
                     </span>
                   </label>
+
+                  {/*
+                    ⚠️⚠️ УСАН ТЭМДЭГ — АНГИ ТУС БҮРД (админы хүсэлт:
+                    «зарим видеод лого тавина, зарим дээр нь тавихгүй»).
+
+                    ⚠️ Байрлал нь VideoUpload-ЫН ДЭЭР ЗААВАЛ: лого нь
+                    хөрвүүлэх ҮЕД шатаагддаг тул upload дарахаас ӨМНӨ
+                    сонгосон байх ёстой. Доор нь тавибал админ видеогоо
+                    оруулчихаад дараа нь олж хардаг.
+                  */}
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                        <Stamp size={13} className="shrink-0 text-muted-foreground" />
+                        BestTV лого
+                      </span>
+                      {/* ⚠️ Хөрвүүлсэн видеонд өөрчлөлт үйлчлэхгүйг ил хэлнэ */}
+                      {ep.streamStatus === 'READY' && (
+                        <span className="text-[11px] text-muted-foreground">
+                          дараагийн байршуулалтад
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1 rounded-lg bg-accent/40 p-1">
+                      {(
+                        [
+                          {
+                            v: null,
+                            label: `Кинооос (${titleWatermark ? 'орно' : 'орохгүй'})`,
+                            short: 'Кинооос',
+                          },
+                          { v: true, label: 'Заавал тавина', short: 'Тавина' },
+                          { v: false, label: 'Тавихгүй', short: 'Тавихгүй' },
+                        ] as const
+                      ).map((o) => {
+                        /* ⚠️ `undefined` ч «тохируулаагүй» = өвлөх (хуучин
+                           дата эсвэл backend талбар илгээгээгүй тохиолдол) */
+                        const cur = ep.watermark ?? null;
+                        const active = cur === o.v;
+                        return (
+                          <button
+                            key={String(o.v)}
+                            onClick={() => void setWatermark(ep.id, o.v)}
+                            title={o.label}
+                            className={cn(
+                              'flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors',
+                              active
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'text-muted-foreground hover:bg-background hover:text-foreground',
+                            )}
+                          >
+                            {o.short}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                      Зүүн дээд буланд, өргөний 10%. ⚠️ Лого видеонд{' '}
+                      <strong className="text-warning">шатаагдана</strong> — өөрчлөхийн тулд
+                      видеог дахин байршуулна.
+                    </p>
+                  </div>
 
                   <VideoUpload
                     target="episode"

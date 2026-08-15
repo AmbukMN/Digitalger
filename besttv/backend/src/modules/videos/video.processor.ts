@@ -416,7 +416,23 @@ export class VideoProcessor {
         select: { watermark: true, season: { select: { title: { select: { watermark: true } } } } },
       })
       .catch(() => null);
-    return Boolean(e?.watermark || e?.season.title.watermark);
+    if (!e) return false;
+    /**
+     * ⚠️⚠️ АНГИЙН ТОХИРГОО КИНОНЫХЫГ ДАРНА (override, OR БИШ).
+     *
+     * Өмнө нь `анги || кино` байсан тул:
+     *   • кинонд чагтлахад БҮХ ангид ХҮЧЭЭР ордог
+     *   • нэг ангид хасах боломж ОГТ байхгүй
+     * Гэтэл админ зарим ангийг логогүй үлдээх бодит хэрэгцээтэй
+     * (жишээ: өөр эх сурвалжаас авсан, аль хэдийн логотой бичлэг).
+     *
+     * Гурван төлөв:
+     *   null  → кинооос өвлөнө
+     *   true  → заавал тавина (кино унтраасан ч)
+     *   false → заавал тавихгүй (кино асаасан ч)
+     */
+    if (e.watermark !== null) return e.watermark;
+    return Boolean(e.season.title.watermark);
   }
 
   /**

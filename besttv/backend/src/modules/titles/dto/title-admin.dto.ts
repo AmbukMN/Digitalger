@@ -255,10 +255,17 @@ export class CreateEpisodeDto {
   @IsBoolean()
   isFreePreview?: boolean;
 
-  /** BestTV лого шатаах — кинонд чагтласан бол ангид ч үйлчилнэ */
+  /**
+   * BestTV лого шатаах — ГУРВАН төлөв:
+   *   null  = кинооос ӨВЛӨНӨ (анхдагч)
+   *   true  = заавал тавина
+   *   false = заавал тавихгүй
+   * ⚠️ `@IsOptional()` нь `null`-ыг зөвшөөрнө — өвлөх төлөв рүү
+   * буцаахад ЯГ `null` илгээнэ (талбарыг орхивол хэвээр үлдэнэ).
+   */
   @IsOptional()
   @IsBoolean()
-  watermark?: boolean;
+  watermark?: boolean | null;
 }
 
 export class UpdateEpisodeDto extends CreateEpisodeDto {
