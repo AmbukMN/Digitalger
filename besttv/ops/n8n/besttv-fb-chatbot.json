@@ -658,7 +658,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Постын текстээс BestTV линк олж, сэтгэгдэл + DM бэлдэнэ.\nvar c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nvar NL=String.fromCharCode(10);\n\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('besttv.us');\n  if(i===-1)return 'https://besttv.us';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n// Линкээс төрөл + slug задлах (regex-гүй, indexOf)\nfunction _slugAfter(s, marker){ var i=s.indexOf(marker); if(i===-1) return '';\n  var rest=s.slice(i+marker.length); var end=0; var stops=[47,63,35,32,10,13,9];\n  while(end<rest.length && stops.indexOf(rest.charCodeAt(end))===-1) end++;\n  return rest.slice(0,end); }\n\nvar linkType='none'; var slug='';\nvar ms=_slugAfter(link,'besttv.us/movie/');\nif(ms){ linkType='movie'; slug=ms; }\n\n/* ⚠️ ХОЁР ӨӨР DM:\n     linkType==='none' — постод киноны линк БАЙХГҮЙ → ерөнхий танилцуулга\n     linkType==='movie' — постод тодорхой киноны линк БАЙНА → шууд тэр кино\n\n   ⚠️ «бүртгүүлэлгүйгээр эхний ангиудыг шууд үзнэ» гэдэг нь БОДИТООР\n      батлагдсан: isFreePreview анги нь нэвтрэлтгүй HTTP 200 буцаадаг\n      (төлбөртэй анги 403). Энэ мөрийг өөрчлөх бол ЭХЛЭЭД шалга —\n      худал амлалт нь хэрэглэгчийн итгэлийг алдагдуулна. */\nvar dmText = (linkType==='none')\n  ? ('Сайн байна уу! 👋'+NL+NL\n    +'Та BestTV-г ҮНЭГҮЙ туршиж үзээрэй —'+NL\n    +'бүртгүүлэлгүйгээр эхний ангиудыг шууд үзнэ.'+NL+NL\n    +'🎬 Монгол, Солонгос, Орос, Хятад болон Ай кино, 18+ кино, шилдэг хит кинонууд'+NL\n    +'💳 Таалагдвал багц авах эсвэл нэг киног'+NL\n    +'   ширхэгээр түрээслэх боломжтой'+NL+NL\n    +'👉 Шууд үзэх: https://besttv.us')\n  /* ⚠️ Линктэй үеийн текстийг ЭНД БҮРЭН угсрахгүй — киноны ТӨРӨЛ\n     (кино/цуврал) энэ node дээр хараахан МЭДЭГДЭЭГҮЙ (Get DM Meta нь\n     ДАРАА нь ажиллана). «Эхний ангиуд» гэдэг нь НЭГ АНГИТ кинод\n     утгагүй тул төрөл мэдсэн хойно Build DM-д гүйцээнэ.\n     ⚠️ «Асуух зүйл байвал...» мөрийг ч ХОЁУЛАНД нь Build DM нэмнэ —\n        энд бичвэл ДАВХАРДАНА. */\n  : ('Сайн байна уу! 👋'+NL+NL\n    +'Таны сонирхсон кино энд байна:'+NL+NL\n    +link);\n\n// ⚠️ Сэтгэгдэл нь НИЙТЭД харагдана — киноны шууд линк тавихгүй, нүүр рүү\n// урина (Facebook гадагш линктэй сэтгэгдлийн хүрээг багасгадаг).\n// Тухайн киноны линк нь ХУВИЙН DM-д аль хэдийн явсан.\nvar replyText='Таньд чатаар мэдээлэл илгээлээ. Илүү дэлгэрэнгүй болон шууд үзэх бол https://besttv.us/';\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,\n  privCommentId:c.commentId,dmText:dmText,link:link,linkType:linkType,slug:slug}}];"
+        "jsCode": "// Постын текстээс BestTV линк олж, сэтгэгдэл + DM бэлдэнэ.\nvar c=$('Parse Comments').first().json;\nvar post=$input.first().json||{};\nvar s=String(post.message||post.caption||'');\nvar NL=String.fromCharCode(10);\n\nfunction findLink(s){\n  s=String(s||'');\n  var i=s.indexOf('besttv.us');\n  if(i===-1)return 'https://besttv.us';\n  var start=i;\n  if(s.substr(i-8,8).toLowerCase()==='https://')start=i-8;\n  else if(s.substr(i-7,7).toLowerCase()==='http://')start=i-7;\n  else if(s.substr(i-4,4).toLowerCase()==='www.')start=i-4;\n  var end=start; var stops=[32,10,13,9,41,34,39];\n  while(end<s.length && stops.indexOf(s.charCodeAt(end))===-1)end++;\n  var url=s.slice(start,end);\n  if(url.indexOf('http')!==0)url='https://'+url;\n  while(url.length && '.,)'.indexOf(url.charAt(url.length-1))!==-1)url=url.slice(0,-1);\n  return url;\n}\nvar link=findLink(s);\n\n// Линкээс төрөл + slug задлах (regex-гүй, indexOf)\nfunction _slugAfter(s, marker){ var i=s.indexOf(marker); if(i===-1) return '';\n  var rest=s.slice(i+marker.length); var end=0; var stops=[47,63,35,32,10,13,9];\n  while(end<rest.length && stops.indexOf(rest.charCodeAt(end))===-1) end++;\n  return rest.slice(0,end); }\n\nvar linkType='none'; var slug='';\nvar ms=_slugAfter(link,'besttv.us/movie/');\nif(ms){ linkType='movie'; slug=ms; }\n\n/* ⚠️ ХОЁР ӨӨР DM:\n     linkType==='none' — постод киноны линк БАЙХГҮЙ → ерөнхий танилцуулга\n     linkType==='movie' — постод тодорхой киноны линк БАЙНА → шууд тэр кино\n\n   ⚠️ «бүртгүүлэлгүйгээр эхний ангиудыг шууд үзнэ» гэдэг нь БОДИТООР\n      батлагдсан: isFreePreview анги нь нэвтрэлтгүй HTTP 200 буцаадаг\n      (төлбөртэй анги 403). Энэ мөрийг өөрчлөх бол ЭХЛЭЭД шалга —\n      худал амлалт нь хэрэглэгчийн итгэлийг алдагдуулна. */\nvar dmText = (linkType==='none')\n  ? ('Сайн байна уу! 👋'+NL+NL\n    +'Та BestTV-г ҮНЭГҮЙ туршиж үзээрэй —'+NL\n    +'бүртгүүлэлгүйгээр эхний ангиудыг шууд үзнэ.'+NL+NL\n    +'🎬 Монгол, Солонгос, Орос, Хятад болон Ай кино, 18+ кино, шилдэг хит кинонууд'+NL\n    +'💳 Таалагдвал багц авах эсвэл нэг киног'+NL\n    +'   ширхэгээр түрээслэх боломжтой'+NL+NL\n    +'👉 Шууд үзэх: https://besttv.us')\n  /* ⚠️ Линктэй үеийн текстийг ЭНД БҮРЭН угсрахгүй — киноны ТӨРӨЛ\n     (кино/цуврал) энэ node дээр хараахан МЭДЭГДЭЭГҮЙ (Get DM Meta нь\n     ДАРАА нь ажиллана). «Эхний ангиуд» гэдэг нь НЭГ АНГИТ кинод\n     утгагүй тул төрөл мэдсэн хойно Build DM-д гүйцээнэ.\n     ⚠️ «Асуух зүйл байвал...» мөрийг ч ХОЁУЛАНД нь Build DM нэмнэ —\n        энд бичвэл ДАВХАРДАНА. */\n  : ('Сайн байна уу! 👋'+NL+NL\n    +'Таны сонирхсон кино энд байна:'+NL+NL\n    +link);\n\n/* ⚠️⚠️ СЭТГЭГДЭЛД ЧУ ТУХАЙН КИНОНЫ ЛИНК ӨГНӨ.\n   БОДИТ АЛДАА: постонд киноны линк байхад ч сэтгэгдэлд ҮРГЭЛЖ\n   ерөнхий 'https://besttv.us/' өгдөг байв. Хэрэглэгч сэтгэгдэл\n   уншаад нүүр хуудас руу орж, тэндээс киног ДАХИН ХАЙХ шаардлагатай\n   болно — DM нь зөв линк өгдөг мөртлөө сэтгэгдэл нь өгдөггүй зөрүү.\n   ⚠️ Хуучин тайлбар «FB гадагш линктэй сэтгэгдлийн хүрээг багасгадаг»\n   гэж бичсэн нь энэ шийдлийг ЗӨВТГӨХГҮЙ — ерөнхий besttv.us ч мөн\n   ИЖИЛХЭН гадагш линк. Хоёуланд нь ижил хэмжээний нөлөө учирна.\n   Тэгвэл хэрэглэгчид ХЭРЭГТЭЙ линкийг өгөх нь дээр.\n   ⚠️ linkType==='none' (постод кино линк алга) үед л ерөнхий линк. */\nvar replyText = (linkType==='movie')\n  ? ('Таньд чатаар мэдээлэл илгээлээ 📩'+NL+'Шууд үзэх 👉 '+link)\n  : 'Таньд чатаар мэдээлэл илгээлээ. Илүү дэлгэрэнгүй болон шууд үзэх бол https://besttv.us/';\nreturn [{json:{platform:c.platform,commentId:c.commentId,replyText:replyText,\n  privCommentId:c.commentId,dmText:dmText,link:link,linkType:linkType,slug:slug}}];"
       },
       "id": "btv_build_reply",
       "name": "Build Reply",
@@ -719,7 +719,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Private DM бие угсарна (карт эсвэл текст).\nvar b=$('Build Reply').first().json;\nvar meta=$input.first().json||{};\nvar cid=b.privCommentId;\nvar linkType=b.linkType; var link=b.link;\nvar ok = meta && meta.title && linkType==='movie';\nvar body;\nif(ok){\n  var img = meta.posterUrl || meta.backdropUrl || '';\n  var title = String(meta.title||'').slice(0,80);\n  var bits=[];\n  if(meta.year) bits.push(String(meta.year));\n  if(meta.rating) bits.push('⭐ '+meta.rating);\n  bits.push(meta.type==='SERIES'?'📺 Цуврал':'🎬 Кино');\n  /**\n   * ⚠️⚠️ ҮНЭГҮЙ БАЙДЛЫГ КАРТАН ДЭЭР ҮНЭН ЗӨВ ХАРУУЛНА.\n   *\n   * Кино амжилттай олдвол ЭНЭ КАРТ явдаг — доорх текстийн салаа\n   * ОГТ харагдахгүй. Тиймээс «үнэгүй» мэдээллийг ЭНД бичих ёстой.\n   *\n   * ⚠️ ЦУВРАЛД «эхний ангиуд», КИНОД «үнэгүй» гэж ЯЛГАНА — нэг ангит\n   *    кинод «эхний ангиуд» гэдэг УТГАГҮЙ, бас ХУДАЛ амлалт болно.\n   * ⚠️ Цувралд үнэгүй анги ҮНЭХЭЭР тохируулсан эсэхийг шалгана —\n   *    админ нэгийг ч чагтлаагүй бол амлахгүй.\n   */\n  if(meta.type==='SERIES'){\n    var hasFreeEp=false; var sss=meta.seasons||[];\n    for(var s2=0;s2<sss.length && !hasFreeEp;s2++){\n      var eee=(sss[s2]&&sss[s2].episodes)||[];\n      for(var e3=0;e3<eee.length;e3++){ if(eee[e3]&&eee[e3].isFreePreview){hasFreeEp=true;break;} }\n    }\n    if(hasFreeEp) bits.push('Эхний анги ҮНЭГҮЙ');\n  } else if(meta.isPremium===false){\n    bits.push('ҮНЭГҮЙ');\n  }\n  /* ⚠️ subtitle 80 тэмдэгтээр таслагдана — «ҮНЭГҮЙ» нь эцэст байх тул\n     урт нэртэй кинод алга болж болзошгүй. Тиймээс хэтэрвэл эрэмбийг\n     эргүүлж, ҮНЭГҮЙ-г ЭХЭНД тавина (хамгийн чухал мэдээлэл). */\n  var sub = bits.join('  ·  ');\n  if(sub.length>80 && bits.length>1){\n    var last=bits.pop(); bits.unshift(last); sub=bits.join('  ·  ');\n  }\n  sub = sub.slice(0,80);\n  var el={title:title, subtitle:sub||' ', image_url:img,\n    default_action:{type:'web_url',url:link},\n    buttons:[{type:'web_url',url:link,title:'Үзэх'}]};\n  body={recipient:{comment_id:cid},\n    message:{attachment:{type:'template',payload:{template_type:'generic',elements:[el]}}}};\n} else {\n  /**\n   * ⚠️⚠️ «ЭХНИЙ АНГИУД» гэдгийг НЭГ АНГИТ КИНОД БИЧИХГҮЙ.\n   *\n   * Бодит алдаа: линктэй пост дээр ҮРГЭЛЖ «Эхний ангиудыг ҮНЭГҮЙ үзэж\n   * болно» гэж бичдэг байв — гэтэл тэр линк нь БҮТЭН УРТ КИНО байж\n   * болно. Кинод «эхний анги» гэж БАЙХГҮЙ тул утгагүй, бас ХУДАЛ\n   * амлалт болно (кино бүхэлдээ төлбөртэй).\n   *\n   * Build Reply нь киноны төрлийг МЭДЭХГҮЙ (Get DM Meta түүнээс ХОЙНО\n   * ажилладаг) тул нэмэлт мөрийг ЭНД гүйцээнэ.\n   *\n   * ⚠️ meta.title байхгүй (404/сүлжээ унасан) үед ямар ч нэмэлт мөр\n   *    бичихгүй — таамгаар амлахаас ЧИМЭЭГҮЙ байх нь дээр.\n   */\n  var NL2=String.fromCharCode(10);\n  var extra='';\n  if(meta && meta.title){\n    if(meta.type==='SERIES'){\n      /* Цуврал: үнэгүй анги ҮНЭХЭЭР тохируулсан эсэхийг шалгана —\n         админ нэгийг ч чагтлаагүй бол амлах ЁСГҮЙ */\n      var hasFree=false;\n      var ss=meta.seasons||[];\n      for(var si=0;si<ss.length && !hasFree;si++){\n        var ee=(ss[si]&&ss[si].episodes)||[];\n        for(var ei2=0;ei2<ee.length;ei2++){ if(ee[ei2]&&ee[ei2].isFreePreview){hasFree=true;break;} }\n      }\n      if(hasFree) extra=NL2+NL2+'🎬 Эхний ангиудыг ҮНЭГҮЙ үзэж болно';\n    } else if(meta.isPremium===false){\n      /* Төлбөргүй кино — бүхэлдээ үнэгүй */\n      extra=NL2+NL2+'🎬 Энэ киног ҮНЭГҮЙ үзэж болно';\n    }\n    /* Төлбөртэй КИНО — нэмэлт мөр бичихгүй (үнэгүй хэсэг байхгүй) */\n  }\n  body={recipient:{comment_id:cid},\n    message:{text:b.dmText+extra+NL2+NL2+'Асуух зүйл байвал энд бичээрэй 😊'}};\n}\nreturn [{json:{dmBody:JSON.stringify(body)}}];"
+        "jsCode": "// Private DM бие угсарна (карт эсвэл текст).\nvar b=$('Build Reply').first().json;\nvar meta=$input.first().json||{};\nvar cid=b.privCommentId;\nvar linkType=b.linkType; var link=b.link;\nvar NL=String.fromCharCode(10);\nvar ok = meta && meta.title && linkType==='movie';\n\n/**\n * ⚠️⚠️ ТАНИЛЦУУЛГА ТЕКСТ — БҮХ тохиолдолд ДЭЭД талд очно.\n *\n * БОДИТ АЛДАА: киноны линктэй пост дээр ЗӨВХӨН карт явдаг байсан тул\n * хэрэглэгч BestTV юу болох, ямар кино байдаг, хэрхэн үзэхийг ОГТ\n * мэдэхгүй байв. Линкгүй пост дээр л танилцуулга явдаг байсан —\n * яг эсрэгээрээ байх ёстой: сонирхол харуулсан хүнд илүү сайн\n * танилцуулах хэрэгтэй.\n *\n * ⚠️ Messenger нь НЭГ мессежид текст БА карт хамт багтаадаггүй тул\n * ХОЁР мессеж дараалж илгээнэ: эхлээд танилцуулга, дараа нь карт.\n */\nvar introText='Сайн байна уу! 👋'+NL+NL\n  +'🎬 Монгол, Солонгос, Орос, Хятад болон Ай кино, 18+ кино, шилдэг хит кинонууд'+NL\n  +'💳 Таалагдвал багц авах эсвэл киног ширхэгээр түрээслэх боломжтой'+NL+NL\n  +'Асуух зүйл байвал энд бичээрэй 😊';\n\nvar body;\nvar introBody=null;\n\nif(ok){\n  var img = meta.posterUrl || meta.backdropUrl || '';\n  var title = String(meta.title||'').slice(0,80);\n  var bits=[];\n  if(meta.year) bits.push(String(meta.year));\n  if(meta.rating) bits.push('⭐ '+meta.rating);\n  bits.push(meta.type==='SERIES'?'📺 Цуврал':'🎬 Кино');\n  /**\n   * ⚠️⚠️ ҮНЭГҮЙ БАЙДЛЫГ КАРТАН ДЭЭР ҮНЭН ЗӨВ ХАРУУЛНА.\n   *\n   * ⚠️ ЦУВРАЛД «эхний ангиуд», КИНОД «үнэгүй» гэж ЯЛГАНА — нэг ангит\n   *    кинод «эхний ангиуд» гэдэг УТГАГҮЙ, бас ХУДАЛ амлалт болно.\n   * ⚠️ Цувралд үнэгүй анги ҮНЭХЭЭР тохируулсан эсэхийг шалгана —\n   *    админ нэгийг ч чагтлаагүй бол амлахгүй.\n   */\n  if(meta.type==='SERIES'){\n    var hasFreeEp=false; var sss=meta.seasons||[];\n    for(var s2=0;s2<sss.length && !hasFreeEp;s2++){\n      var eee=(sss[s2]&&sss[s2].episodes)||[];\n      for(var e3=0;e3<eee.length;e3++){ if(eee[e3]&&eee[e3].isFreePreview){hasFreeEp=true;break;} }\n    }\n    if(hasFreeEp) bits.push('Эхний анги ҮНЭГҮЙ');\n  } else if(meta.isPremium===false){\n    bits.push('ҮНЭГҮЙ');\n  }\n  /* ⚠️ subtitle 80 тэмдэгтээр таслагдана — «ҮНЭГҮЙ» нь эцэст байх тул\n     урт нэртэй кинод алга болж болзошгүй. Тиймээс хэтэрвэл эрэмбийг\n     эргүүлж, ҮНЭГҮЙ-г ЭХЭНД тавина (хамгийн чухал мэдээлэл). */\n  var sub = bits.join('  ·  ');\n  if(sub.length>80 && bits.length>1){\n    var last=bits.pop(); bits.unshift(last); sub=bits.join('  ·  ');\n  }\n  sub = sub.slice(0,80);\n  var el={title:title, subtitle:sub||' ', image_url:img,\n    default_action:{type:'web_url',url:link},\n    buttons:[{type:'web_url',url:link,title:'Үзэх'}]};\n\n  /* 1) ДЭЭД талд — танилцуулга текст */\n  introBody={recipient:{comment_id:cid},message:{text:introText}};\n  /* 2) ДООД талд — киноны карт */\n  body={recipient:{comment_id:cid},\n    message:{attachment:{type:'template',payload:{template_type:'generic',elements:[el]}}}};\n} else {\n  /**\n   * ⚠️⚠️ «ЭХНИЙ АНГИУД» гэдгийг НЭГ АНГИТ КИНОД БИЧИХГҮЙ.\n   *\n   * Бодит алдаа: линктэй пост дээр ҮРГЭЛЖ «Эхний ангиудыг ҮНЭГҮЙ үзэж\n   * болно» гэж бичдэг байв — гэтэл тэр линк нь БҮТЭН УРТ КИНО байж\n   * болно. Кинод «эхний анги» гэж БАЙХГҮЙ тул утгагүй, бас ХУДАЛ\n   * амлалт болно (кино бүхэлдээ төлбөртэй).\n   *\n   * Build Reply нь киноны төрлийг МЭДЭХГҮЙ (Get DM Meta түүнээс ХОЙНО\n   * ажилладаг) тул нэмэлт мөрийг ЭНД гүйцээнэ.\n   *\n   * ⚠️ meta.title байхгүй (404/сүлжээ унасан) үед ямар ч нэмэлт мөр\n   *    бичихгүй — таамгаар амлахаас ЧИМЭЭГҮЙ байх нь дээр.\n   */\n  var extra='';\n  if(meta && meta.title){\n    if(meta.type==='SERIES'){\n      var hasFree=false;\n      var ss=meta.seasons||[];\n      for(var si=0;si<ss.length && !hasFree;si++){\n        var ee=(ss[si]&&ss[si].episodes)||[];\n        for(var ei2=0;ei2<ee.length;ei2++){ if(ee[ei2]&&ee[ei2].isFreePreview){hasFree=true;break;} }\n      }\n      if(hasFree) extra=NL+NL+'🎬 Эхний ангиудыг ҮНЭГҮЙ үзэж болно';\n    } else if(meta.isPremium===false){\n      extra=NL+NL+'🎬 Энэ киног ҮНЭГҮЙ үзэж болно';\n    }\n  }\n  body={recipient:{comment_id:cid},\n    message:{text:b.dmText+extra+NL+NL+'Асуух зүйл байвал энд бичээрэй 😊'}};\n}\n\n/* ⚠️ `introBody` NULL бол Send Intro node алгасна (доорх IF шалгана) */\nreturn [{json:{dmBody:JSON.stringify(body),\n  introBody:introBody?JSON.stringify(introBody):'',\n  hasIntro:!!introBody}}];"
       },
       "id": "btv_build_dm",
       "name": "Build DM",
@@ -766,6 +766,76 @@
       ],
       "onError": "continueRegularOutput",
       "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-intro",
+              "leftValue": "={{ $json.hasIntro }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "btv-has-intro-0001",
+      "name": "Has Intro?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/me/messages?access_token=__BESTTV_PAGE_TOKEN__",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('Build DM').first().json.introBody }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "btv-send-intro-0001",
+      "name": "Send Intro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        820
+      ]
     }
   ],
   "connections": {
@@ -1035,7 +1105,7 @@
       "main": [
         [
           {
-            "node": "Send Private Reply",
+            "node": "Has Intro?",
             "type": "main",
             "index": 0
           }
@@ -1059,6 +1129,35 @@
           {
             "node": "AI Agent",
             "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Intro?": {
+      "main": [
+        [
+          {
+            "node": "Send Intro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Private Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Intro": {
+      "main": [
+        [
+          {
+            "node": "Send Private Reply",
+            "type": "main",
             "index": 0
           }
         ]
