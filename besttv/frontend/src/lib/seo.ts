@@ -56,6 +56,27 @@ export async function getSiteSeo(): Promise<SeoSettings | null> {
 }
 
 /**
+ * ⚠️⚠️ БРЭНД (лого/нэр) — СЕРВЕР талд татна, ЛОГОНЫ АНИВЧИЛТ арилгана.
+ *
+ * БОДИТ АЛДАА: `useBrand()` нь client талд татдаг тул эхний рендерт
+ * `logoUrl` байхгүй → «BestTV» ТЕКСТ гарч, API ирэхэд ЗУРАГ болж
+ * СОЛИГДОНО. Хэрэглэгч refresh бүрт лого «үсрэхийг» хардаг.
+ *
+ * Layout нь SEO-д зориулж аль хэдийн backend рүү хүсэлт явуулдаг тул
+ * `Promise.all`-аар зэрэг татвал нэмэлт саатал БАРАГ БАЙХГҮЙ.
+ */
+export interface BrandSettings {
+  siteName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  defaultTheme?: 'dark' | 'light' | 'system';
+}
+
+export async function getSiteBrand(): Promise<BrandSettings | null> {
+  return fetchSeoJson<BrandSettings>(`${SERVER_API_URL}/api/settings/brand`);
+}
+
+/**
  * ⚠️⚠️ BUILD ҮЕД БАЙХГҮЙ BACKEND — ХАМГИЙН ЧУХАЛ.
  *
  * БОДИТ АЛДАА: `docker build` явагдах үед `besttv-backend` контейнер нь

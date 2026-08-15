@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { ThemeProvider, useTheme } from 'next-themes';
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
-import { useBrand } from '@/lib/queries';
+import { useBrand, type BrandSettings } from '@/lib/queries';
 import { useMyListStore } from '@/lib/my-list-store';
 import { api, clearTokens, getAccessToken, getRefreshToken } from '@/lib/api';
 import { OAuthSessionSync } from '@/components/auth/oauth-session-sync';
@@ -145,10 +145,32 @@ function BrandThemeSync() {
   return null;
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
-  const [client] = useState(
-    () => new QueryClient({ defaultOptions: { queries: { staleTime: 60_000 } } }),
-  );
+export function Providers({
+  children,
+  /**
+   * ⚠️⚠️ СЕРВЕР ТАЛААС ирсэн брэнд — ЛОГОНЫ ANIVCHIH-ЫГ АРИЛГАНА.
+   *
+   * БОДИТ АЛДАА: `useBrand()` нь client талд татдаг тул эхний рендерт
+   * `logoUrl` нь `undefined` байж, «BestTV» ТЕКСТ гарна. Дараа нь
+   * API ирээд ЗУРАГ болж СОЛИГДОНО — хэрэглэгч refresh бүрт лого
+   * «үсрэхийг» хардаг.
+   *
+   * Layout нь SEO-д зориулж аль хэдийн backend рүү хүсэлт явуулдаг
+   * тул тэндээс брэндийг ч авч, React Query-ийн ЭХНИЙ утга болгоно.
+   * Ингэснээр эхний рендерт л зөв лого гарна.
+   */
+  initialBrand,
+}: {
+  children: React.ReactNode;
+  initialBrand?: BrandSettings | null;
+}) {
+  const [client] = useState(() => {
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 60_000 } } });
+    /* ⚠️ `useBrand`-ийн queryKey-тэй ЯГ ТААРАХ ёстой — эс бөгөөс
+       кэш ажиллахгүй, дахин татаж flash үлдэнэ */
+    if (initialBrand) qc.setQueryData(['brand'], initialBrand);
+    return qc;
+  });
   const init = useAuth((s) => s.init);
 
   useEffect(() => {

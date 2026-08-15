@@ -655,9 +655,23 @@ export class EmailAdminController {
         clickRate: sent ? Math.round((agg._count.clickedAt / sent) * 100) : 0,
         deliveryRate: sent ? Math.round((agg._count.deliveredAt / sent) * 100) : 0,
         /**
-         * ⚠️ Хяналт асаагүй бол `deliveredAt` бүгд null — UI нь «0%»
-         * гэж ХУДАЛ харуулахгүйн тулд энэ тугийг үзнэ.
+         * ⚠️⚠️ ХОЁР ӨӨР ХЯНАЛТ — ЯЛГАХ ЁСТОЙ:
+         *
+         *   openTracking     — өөрийн 1×1 pixel (`/api/email/open`).
+         *                      AWS тохиргоо ШААРДЛАГАГҮЙ, ҮРГЭЛЖ ажиллана.
+         *                      Зөвхөн МАРКЕТИНГ имэйлд суудаг (нууц үг/OTP-д
+         *                      pixel тавихгүй — шүүлтүүр сэжиглэдэг).
+         *
+         *   deliveryTracking — AWS SES Configuration Set + SNS.
+         *                      Хүргэгдсэн/буцаагдсан эсэхийг мэдэхэд хэрэгтэй.
+         *                      Тохируулаагүй бол зөвхөн ЭНЭ хэсэг дутна.
+         *
+         * ⚠️ Өмнө нь нэг л туг байсан тул «нээлт хянахад AWS хэрэгтэй»
+         *    гэсэн ХУДАЛ ойлголт өгдөг байв — үнэндээ хэрэггүй.
          */
+        openTracking: agg._count.openedAt > 0,
+        deliveryTracking: agg._count.deliveredAt > 0,
+        /** @deprecated Хуучин UI-д зориулав — `deliveryTracking` ашигла */
         trackingActive: agg._count.deliveredAt > 0 || agg._count.openedAt > 0,
       },
     };

@@ -4,7 +4,7 @@ import Script from 'next/script';
 import { Providers } from './providers';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { ContentProtection } from '@/components/content-protection';
-import { SITE_URL, getSeoOverride, getSiteSeo, jsonLd } from '@/lib/seo';
+import { SITE_URL, getSeoOverride, getSiteBrand, getSiteSeo, jsonLd } from '@/lib/seo';
 import './globals.css';
 
 // Manrope — кирилл дэмжлэгтэй, орчин үеийн geometric font
@@ -58,7 +58,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const seo = await getSiteSeo();
+  /**
+   * ⚠️ ЗЭРЭГ татна — дараалуулбал хуудас 2 дахин удаан рендерлэнэ.
+   * `brand` нь лого/нэрийг СЕРВЕР талд бэлдэж, client дээр анивчихаас
+   * сэргийлнэ (доор `Providers`-д тайлбарласан).
+   */
+  const [seo, brand] = await Promise.all([getSiteSeo(), getSiteBrand()]);
 
   return (
     /**
@@ -151,7 +156,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             ]),
           }}
         />
-        <Providers>
+        <Providers initialBrand={brand}>
           {/* Баруун товч / хуулах / F12 хамгаалалт (бүх хуудсанд) */}
           <ContentProtection />
           {/* ⚠️ Chrome-ыг SiteChrome шийднэ — /watch дээр бүгд нуугдана */}

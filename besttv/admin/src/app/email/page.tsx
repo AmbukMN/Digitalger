@@ -130,7 +130,16 @@ interface EmailInsight {
   openRate: number;
   clickRate: number;
   deliveryRate: number;
-  /** false = SES хяналт (Configuration Set) асаагүй — хувийг харуулахгүй */
+  /**
+   * ⚠️ ХОЁР ӨӨР ХЯНАЛТ:
+   *   openTracking     — өөрийн pixel. AWS хэрэггүй, үргэлж ажиллана.
+   *                      Зөвхөн МАРКЕТИНГ имэйлд суудаг.
+   *   deliveryTracking — AWS SES Configuration Set + SNS. Хүргэгдсэн/
+   *                      буцаагдсан эсэхийг мэдэхэд л хэрэгтэй.
+   */
+  openTracking: boolean;
+  deliveryTracking: boolean;
+  /** @deprecated `deliveryTracking` ашигла */
   trackingActive: boolean;
 }
 
@@ -776,28 +785,52 @@ function EmailFunnel({ insight }: { insight?: EmailInsight }) {
     return <div className="mb-4 h-[92px] animate-pulse rounded-xl bg-foreground/5" />;
   }
 
-  /* Хяналт асаагүй — тоо харуулах нь төөрөгдүүлнэ */
-  if (!insight.trackingActive) {
-    return (
-      <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-premium/25 bg-premium/8 px-4 py-3">
-        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-premium" />
-        <div className="text-sm">
-          <p className="font-medium text-foreground">Хүргэлтийн хяналт идэвхгүй</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Имэйл хүрсэн эсэх, нээсэн эсэхийг мэдэхийн тулд AWS SES-д
-            Configuration Set үүсгээд <code className="rounded bg-foreground/10 px-1">SES_CONFIGURATION_SET</code>{' '}
-            орчны хувьсагчид оруулна. Одоогоор зөвхөн илгээсэн эсэх бүртгэгдэнэ.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+  /**
+   * ⚠️⚠️ ЖИМИЙГ ҮРГЭЛЖ ХАРУУЛНА — өмнө нь бүхэлд нь нуудаг байв.
+   *
+   * БОДИТ АЛДАА: `trackingActive` нэг л туг байсан тул AWS
+   * тохируулаагүй үед «Хүргэлтийн хяналт идэвхгүй» гэсэн анхааруулга
+   * гарч, БҮХ статистик нуугддаг байв. Гэтэл нээлтийн хяналт
+   * (өөрийн pixel) нь AWS-гүйгээр АЖИЛЛАДАГ — админ «нээлт хянахад
+   * AWS хэрэгтэй» гэж БУРУУ ойлгоно.
+   *
+   * Одоо: жим үргэлж харагдана, зөвхөн ДУТУУ багана дээр тэмдэглэгээ.
+   */
   const steps = [
-    { icon: Send, label: 'Илгээсэн', value: insight.sent, pct: null, tone: 'text-foreground/70' },
-    { icon: Inbox, label: 'Хүрсэн', value: insight.delivered, pct: insight.deliveryRate, tone: 'text-success' },
-    { icon: MailOpen, label: 'Нээсэн', value: insight.opened, pct: insight.openRate, tone: 'text-primary' },
-    { icon: MousePointerClick, label: 'Дарсан', value: insight.clicked, pct: insight.clickRate, tone: 'text-premium' },
+    {
+      icon: Send,
+      label: 'Илгээсэн',
+      value: insight.sent,
+      pct: null,
+      tone: 'text-foreground/70',
+      off: false,
+    },
+    {
+      icon: Inbox,
+      label: 'Хүрсэн',
+      value: insight.delivered,
+      pct: insight.deliveryRate,
+      tone: 'text-success',
+      /* AWS SES Configuration Set хэрэгтэй */
+      off: !insight.deliveryTracking,
+    },
+    {
+      icon: MailOpen,
+      label: 'Нээсэн',
+      value: insight.opened,
+      pct: insight.openRate,
+      tone: 'text-primary',
+      off: false,
+    },
+    {
+      icon: MousePointerClick,
+      label: 'Дарсан',
+      value: insight.clicked,
+      pct: insight.clickRate,
+      tone: 'text-premium',
+      /* Дарсныг хянахад ч SES хэрэгтэй (линк дамжуулалт) */
+      off: !insight.deliveryTracking,
+    },
   ];
 
   return (
@@ -805,18 +838,28 @@ function EmailFunnel({ insight }: { insight?: EmailInsight }) {
       {/* ⚠️ Мобайлд 2×2, десктопт 4 багана — жижиг дэлгэцэд шахагдахгүй */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {steps.map((s) => (
-          <div key={s.label} className="min-w-0">
+          <div key={s.label} className={cn('min-w-0', s.off && 'opacity-45')}>
             <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               <s.icon size={12} className={s.tone} /> {s.label}
             </p>
-            <p className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-xl font-bold tabular-nums text-foreground">{s.value}</span>
-              {s.pct != null && (
-                <span className={cn('text-xs font-semibold tabular-nums', s.tone)}>{s.pct}%</span>
-              )}
-            </p>
+            {s.off ? (
+              /**
+               * ⚠️ «0%» гэж ХУДАЛ харуулахгүй — хяналт байхгүй гэдэг нь
+               * «хэн ч хүрээгүй» гэсэн үг БИШ. Оронд нь «—».
+               */
+              <p className="mt-1 text-xl font-bold text-foreground/30" title="AWS SES хяналт тохируулаагүй">
+                —
+              </p>
+            ) : (
+              <p className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-xl font-bold tabular-nums text-foreground">{s.value}</span>
+                {s.pct != null && (
+                  <span className={cn('text-xs font-semibold tabular-nums', s.tone)}>{s.pct}%</span>
+                )}
+              </p>
+            )}
             {/* Явцын зураас — харьцааг нүдээр шууд ойлгуулна */}
-            {s.pct != null && (
+            {!s.off && s.pct != null && (
               <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-foreground/8">
                 <div
                   className={cn(
@@ -830,6 +873,24 @@ function EmailFunnel({ insight }: { insight?: EmailInsight }) {
           </div>
         ))}
       </div>
+
+      {/*
+        ⚠️ Хүргэлтийн хяналт дутуу үед л энэ мөр гарна — НЭЭЛТ нь
+        өөрийн pixel-ээр АЖИЛЛАЖ БАЙГААГ тодорхой хэлнэ. Өмнө нь
+        «нээсэн эсэхийг мэдэхийн тулд AWS хэрэгтэй» гэж ХУДАЛ бичсэн
+        байв — үнэндээ хэрэггүй.
+      */}
+      {!insight.deliveryTracking && (
+        <p className="mt-3 flex items-start gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
+          <AlertTriangle size={12} className="mt-0.5 shrink-0 text-premium" />
+          <span>
+            <span className="text-foreground/80">Нээлтийн хяналт ажиллаж байна.</span>{' '}
+            «Хүрсэн / Дарсан» багана хоосон — AWS SES-д Configuration Set үүсгээд{' '}
+            <code className="rounded bg-foreground/10 px-1">SES_CONFIGURATION_SET</code> тохируулбал
+            нэмэгдэнэ.
+          </span>
+        </p>
+      )}
 
       {/* ⚠️ Буцаагдсан нь 0-ээс их үед л харагдана — эрүүл үед анхаарал сарниулахгүй */}
       {insight.bounced > 0 && (
@@ -895,9 +956,25 @@ function EmailOpenCell({ log }: { log: EmailLog }) {
     );
   }
 
-  /* ⚠️ Хяналт асаагүй ЭСВЭЛ үйл явдал хараахан ирээгүй — таамаглахгүй */
+  /**
+   * ⚠️ Хяналтын мэдээлэл алга — «нээгээгүй» гэж ТААМАГЛАХГҮЙ.
+   *
+   * Гурван шалтгаан байж болно:
+   *   1. Гүйлгээний имэйл (нууц үг, OTP, төлбөр) — pixel ЗОРИУД суудаггүй
+   *      (шүүлтүүр сэжиглэж спам руу явуулах эрсдэлтэй)
+   *   2. Маркетинг имэйл, гэхдээ хараахан нээгээгүй
+   *   3. Шуудангийн клиент зураг блоклосон (Gmail-д түгээмэл)
+   */
+  const isMarketing = log.template === 'marketing';
   return (
-    <span className="text-xs text-muted-foreground/50" title="Хяналтын мэдээлэл алга">
+    <span
+      className="text-xs text-muted-foreground/50"
+      title={
+        isMarketing
+          ? 'Хараахан нээгээгүй (эсвэл клиент зураг блоклосон)'
+          : 'Гүйлгээний имэйл — нээлт хянадаггүй'
+      }
+    >
       —
     </span>
   );
