@@ -12,7 +12,7 @@ import {
   Ticket,
   UserPlus,
 } from 'lucide-react';
-import { cn } from '@besttv/shared';
+import { cn, formatDate } from '@besttv/shared';
 import { api } from '@/lib/api';
 
 interface FeedItem {
@@ -43,7 +43,7 @@ function ago(iso: string): string {
   if (h < 24) return `${h} цаг өмнө`;
   const d = Math.floor(h / 24);
   if (d < 30) return `${d} хоног өмнө`;
-  return new Date(iso).toLocaleDateString('mn-MN');
+  return formatDate(iso);
 }
 
 /**

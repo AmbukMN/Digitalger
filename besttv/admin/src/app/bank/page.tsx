@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatPrice } from '@besttv/shared';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,7 @@ import { ImageUpload } from '@/components/image-upload';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
+import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import {
@@ -88,11 +89,23 @@ export default function BankPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+
   /* ⚠️ Жагсаалт, статистик, export ГУРВУУЛАА ижил шүүлттэй */
   const filter = {
     status: tab === 'all' || tab === 'accounts' ? undefined : tab,
     from: from || undefined,
     to: to || undefined,
+    /**
+     * ⚠️⚠️ ХАЙЛТ СЕРВЕР ТАЛД — өмнө нь client талд, зөвхөн татагдсан
+     * 200 мөр дотор хайдаг байв. 200-аас цааш байгаа гүйлгээг хайхад
+     * «олдсонгүй» гэж гарч, админ «энэ төлбөр манайд ирээгүй» гэж
+     * буруу дүгнэх эрсдэлтэй байсан.
+     */
+    q: q || undefined,
+    page,
+    limit: 50,
   };
   const { data, isLoading, isError, error, refetch } = useAdminBankPayments(filter);
   const { data: stats } = useAdminBankStats(filter);
@@ -103,24 +116,17 @@ export default function BankPage() {
   const confirm = useConfirm();
   const prompt = usePrompt();
 
-  const [q, setQ] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [editAccount, setEditAccount] = useState<AdminBankAccount | 'new' | null>(null);
   /** ⚠️ Баримтын зургийг ТОМООР харах — жижиг зурагнаас дүн уншигдахгүй */
   const [zoom, setZoom] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return data ?? [];
-    return (data ?? []).filter(
-      (p) =>
-        p.bankReference?.toLowerCase().includes(needle) ||
-        p.user?.email.toLowerCase().includes(needle) ||
-        p.user?.name?.toLowerCase().includes(needle) ||
-        String(p.amount).includes(needle),
-    );
-  }, [data, q]);
+  const rows = data?.items ?? [];
+
+  /* ⚠️ Шүүлт/хайлт солиход 1-р хуудас руу — эс бөгөөс 5-р хуудсан
+     дээр байхад шүүвэл ХООСОН харагдана */
+  const resetPage = () => setPage(1);
 
   const approve = async (p: AdminBankPayment) => {
     const ok = await confirm({
@@ -375,7 +381,7 @@ export default function BankPage() {
             {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => { setTab(t); resetPage(); }}
                 className={cn(
                   'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
                   tab === t
@@ -406,7 +412,7 @@ export default function BankPage() {
               />
               <input
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => { setQ(e.target.value); resetPage(); }}
                 placeholder="Гүйлгээний утга, имэйл, дүнгээр хайх…"
                 className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
               />
@@ -419,7 +425,7 @@ export default function BankPage() {
               <input
                 type="date"
                 value={from}
-                onChange={(e) => setFrom(e.target.value)}
+                onChange={(e) => { setFrom(e.target.value); resetPage(); }}
                 aria-label="Эхлэх огноо"
                 className="rounded-lg border border-input bg-card px-2.5 py-2 text-sm text-foreground outline-none focus:border-primary"
               />
@@ -427,7 +433,7 @@ export default function BankPage() {
               <input
                 type="date"
                 value={to}
-                onChange={(e) => setTo(e.target.value)}
+                onChange={(e) => { setTo(e.target.value); resetPage(); }}
                 aria-label="Дуусах огноо"
                 className="rounded-lg border border-input bg-card px-2.5 py-2 text-sm text-foreground outline-none focus:border-primary"
               />
@@ -449,7 +455,7 @@ export default function BankPage() {
           {tab !== 'accounts' && (
             <button
               onClick={() => void exportCsv()}
-              disabled={exporting || (data?.length ?? 0) === 0}
+              disabled={exporting || (data?.total ?? 0) === 0}
               className="flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium text-foreground/75 transition-colors hover:border-primary/40 disabled:opacity-50"
             >
               {exporting ? (
@@ -755,7 +761,7 @@ export default function BankPage() {
                             ) : (
                               <span className="block text-right text-[11px] text-muted-foreground">
                                 {p.bankReviewedAt
-                                  ? new Date(p.bankReviewedAt).toLocaleDateString('mn-MN')
+                                  ? formatDate(p.bankReviewedAt)
                                   : ''}
                               </span>
                             )}
@@ -766,6 +772,20 @@ export default function BankPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {/*
+              ⚠️⚠️ ХУУДАСЛАЛТ — өмнө нь `take: 200` гэсэн ЧИМЭЭГҮЙ таслалт
+              байсан тул 200 дахь мөрнөөс цаашхи гүйлгээ ОГТ харагдахгүй
+              байв. Админ хуучин төлбөрийг «байхгүй» гэж үзэх эрсдэлтэй.
+            */}
+            {(data?.totalPages ?? 0) > 1 && (
+              <Pagination
+                page={data!.page}
+                totalPages={data!.totalPages}
+                total={data!.total}
+                onPage={setPage}
+              />
             )}
           </div>
         )}

@@ -7,6 +7,7 @@ import {
   HttpCode,
   Injectable,
   Logger,
+  Param,
   Post,
   Query,
   RawBodyRequest,
@@ -19,11 +20,15 @@ import type { Request, Response } from 'express';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEmail,
+  IsInt,
   IsOptional,
   IsString,
   Length,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { Prisma, Role, SubscriberStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -35,6 +40,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { EmailEventsService } from './email-events.service';
 import { verifySnsSignature } from './sns-signature.util';
 import { EmailService } from './email.service';
+import { LifecycleService } from './lifecycle.service';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
@@ -91,6 +97,86 @@ class SubscribeDto {
   @IsString()
   @MaxLength(40)
   source?: string;
+}
+
+/**
+ * Автомат имэйлийн урсгалуудын ЖАГСААЛТ (админд харуулах).
+ *
+ * ⚠️ `lifecycle.service.ts`-ийн `FLOWS`-тэй ЯГ ТААРАХ ёстой. Энд
+ * байхгүй түлхүүрийг админ засаж чадахгүй; тэнд байхгүйг хадгалвал
+ * хэзээ ч ажиллахгүй мөр үүснэ. Тиймээс шинэ урсгал нэмэхдээ ХОЁУЛАНГ
+ * нь заавал шинэчилнэ.
+ */
+const LIFECYCLE_FLOW_META = [
+  {
+    campaign: 'winback-3d',
+    label: 'Багц дуусаад 3 хоног',
+    description: 'Багц нь дуусаад шинэчлээгүй хүнд хямдралтай код илгээнэ',
+  },
+  {
+    campaign: 'winback-14d',
+    label: 'Багц дуусаад 14 хоног',
+    description: 'Сүүлийн санал — илүү өндөр хямдрал',
+  },
+  {
+    campaign: 'no-purchase-3d',
+    label: 'Бүртгүүлээд аваагүй',
+    description: 'Бүртгүүлээд 3 хоног болсон ч ямар ч төлбөр хийгээгүй',
+  },
+  {
+    campaign: 'watched-no-plan',
+    label: 'Үзсэн ч аваагүй',
+    description: 'Үнэгүй контент үзсэн ч багц аваагүй — хамгийн халуун бүлэг',
+  },
+  {
+    campaign: 'inactive-30d',
+    label: '30 хоног ороогүй',
+    description: 'Багцтай атлаа ороогүй — цуцлахаас сэргийлнэ (купонгүй)',
+  },
+  {
+    campaign: 'wallet-idle',
+    label: 'Хэтэвч зарцуулаагүй',
+    description: 'Хэтэвчинд мөнгө байгаа ч 14 хоног зарцуулаагүй',
+  },
+] as const;
+
+class LifecycleTemplateDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  subject?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  heading?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20_000)
+  bodyHtml?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  ctaText?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isEnabled?: boolean;
+
+  /** ⚠️ 0-100 — хэтэрвэл багц ҮНЭГҮЙ болно */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  couponPercent?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  couponDays?: number;
 }
 
 class BroadcastDto {
@@ -755,6 +841,131 @@ export class EmailAdminController {
     return { deleted: res.count };
   }
 
+  /**
+   * ─── АВТОМАТ ИМЭЙЛИЙН ЗАГВАРУУД ──────────────────────────────────
+   *
+   * ⚠️ Урсгал бүрийн текст, купоны хувь, асаах/унтраах тохиргоог
+   * админ өөрөө удирдана. Өмнө нь (DigitalGer дээр) бүх текст кодод
+   * шигдсэн байсан тул нэг үг засахад ч deploy шаардлагатай байв.
+   */
+  @Get('lifecycle')
+  async lifecycleFlows() {
+    const rows = await this.prisma.emailTemplateOverride.findMany();
+    const byKey = new Map(rows.map((r) => [r.campaign, r]));
+
+    /* ⚠️ Кодын анхдагчийг DB-ийн override-тай нийлүүлж буцаана —
+       админ юу байгааг БҮРЭН харах ёстой (хоосон формоос эхлэхгүй) */
+    return LIFECYCLE_FLOW_META.map((meta) => {
+      const row = byKey.get(meta.campaign);
+      return {
+        ...meta,
+        isEnabled: row?.isEnabled ?? true,
+        subject: row?.subject ?? '',
+        heading: row?.heading ?? '',
+        bodyHtml: row?.bodyHtml ?? '',
+        ctaText: row?.ctaText ?? '',
+        couponPercent: row?.couponPercent ?? 0,
+        couponDays: row?.couponDays ?? 0,
+        customized: Boolean(row),
+      };
+    });
+  }
+
+  @Post('lifecycle/:campaign')
+  async saveLifecycle(
+    @Param('campaign') campaign: string,
+    @Body() dto: LifecycleTemplateDto,
+  ) {
+    /* ⚠️ Мэдэгдэхгүй кампанит ажил үүсгэхийг хаана — алдаатай бичсэн
+       түлхүүр DB-д хуримтлагдаж, хэзээ ч ажиллахгүй мөр үлдэнэ */
+    if (!LIFECYCLE_FLOW_META.some((f) => f.campaign === campaign)) {
+      throw new BadRequestException('Ийм автомат имэйл байхгүй байна');
+    }
+    const data = {
+      subject: dto.subject ?? '',
+      heading: dto.heading ?? '',
+      bodyHtml: dto.bodyHtml ?? '',
+      ctaText: dto.ctaText ?? '',
+      isEnabled: dto.isEnabled ?? true,
+      couponPercent: dto.couponPercent ?? 0,
+      couponDays: dto.couponDays ?? 0,
+    };
+    await this.prisma.emailTemplateOverride.upsert({
+      where: { campaign },
+      create: { campaign, ...data },
+      update: data,
+    });
+    return { ok: true };
+  }
+
+  /** Загварыг кодын анхдагч руу буцаана */
+  @Post('lifecycle/:campaign/reset')
+  async resetLifecycle(@Param('campaign') campaign: string) {
+    await this.prisma.emailTemplateOverride
+      .delete({ where: { campaign } })
+      .catch(() => null);
+    return { ok: true };
+  }
+
+  /**
+   * Автомат имэйлийн үр дүн — урсгал бүрээр.
+   *
+   * ⚠️ Илгээсэн тоо ГАНЦААРАА утгагүй. Нээлт болон КУПОН АШИГЛАЛТ
+   * (бодит хөрвөлт) хамт харагдах ёстой — «энэ имэйл мөнгө авчирсан
+   * уу?» гэдэг л жинхэнэ асуулт.
+   */
+  @Get('lifecycle/stats')
+  async lifecycleStats(@Query('days') days?: string) {
+    const since = new Date(Date.now() - (Number(days) || 30) * 86_400_000);
+    const campaigns = LIFECYCLE_FLOW_META.map((f) => f.campaign);
+
+    const [logs, opened, coupons] = await Promise.all([
+      this.prisma.emailLog.groupBy({
+        by: ['template'],
+        where: { template: { in: campaigns }, createdAt: { gte: since } },
+        _count: true,
+      }),
+      this.prisma.emailLog.groupBy({
+        by: ['template'],
+        where: {
+          template: { in: campaigns },
+          createdAt: { gte: since },
+          openedAt: { not: null },
+        },
+        _count: true,
+      }),
+      /* Хувийн купон ашиглагдсан эсэх = бодит хөрвөлт */
+      this.prisma.coupon.groupBy({
+        by: ['campaign'],
+        where: { campaign: { in: campaigns }, createdAt: { gte: since } },
+        _count: true,
+        _sum: { usedCount: true },
+      }),
+    ]);
+
+    const sentMap = new Map(logs.map((l) => [l.template, l._count]));
+    const openMap = new Map(opened.map((l) => [l.template, l._count]));
+    const cpnMap = new Map(coupons.map((c) => [c.campaign, c]));
+
+    return LIFECYCLE_FLOW_META.map((f) => {
+      const sent = sentMap.get(f.campaign) ?? 0;
+      const open = openMap.get(f.campaign) ?? 0;
+      const cpn = cpnMap.get(f.campaign);
+      const used = cpn?._sum.usedCount ?? 0;
+      return {
+        campaign: f.campaign,
+        label: f.label,
+        sent,
+        opened: open,
+        openRate: sent ? Math.round((open / sent) * 100) : 0,
+        couponsIssued: cpn?._count ?? 0,
+        couponsUsed: used,
+        /* ⚠️ Хөрвөлт = купон ашигласан / илгээсэн */
+        conversionRate: sent ? Math.round((used / sent) * 100) : 0,
+      };
+    });
+  }
+
   /** Suppression жагсаалт (bounce/complaint) */
   @Get('suppressions')
   suppressions(@Query('limit') limit?: number) {
@@ -844,7 +1055,15 @@ export class EmailAdminController {
 @Global()
 @Module({
   controllers: [EmailPublicController, EmailOtpController, EmailAdminController, EmailEventsController],
-  providers: [EmailService, EmailOtpService, SubscriberService, EmailEventsService],
-  exports: [EmailService, SubscriberService],
+  providers: [
+    EmailService,
+    EmailOtpService,
+    SubscriberService,
+    EmailEventsService,
+    /* ⚠️ Амьдралын мөчлөгийн автомат имэйл (cron) — Redis түгжээтэй тул
+       backend/worker хоёулаа ачаалсан ч НЭГ л удаа явна */
+    LifecycleService,
+  ],
+  exports: [EmailService, SubscriberService, LifecycleService],
 })
 export class EmailModule {}

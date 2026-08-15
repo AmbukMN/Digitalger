@@ -57,6 +57,26 @@ export class TitlesAdminController {
     return this.svc.list({ q, type, genre, status, access, active, year, sort, dir, page, limit });
   }
 
+  /**
+   * CSV export — ХАРАГДАЖ БУЙ шүүлтийг ЯГ дагана.
+   * ⚠️ -ээс ӨМНӨ байрлана — эс бөгөөс «export» нь ID гэж
+   * ойлгогдож 404 буцаана.
+   */
+  @Get('export')
+  exportCsv(
+    @Query('q') q?: string,
+    @Query('type') type?: string,
+    @Query('genre') genre?: string,
+    @Query('status') status?: string,
+    @Query('access') access?: string,
+    @Query('active') active?: string,
+    @Query('year') year?: number,
+    @Query('sort') sort?: string,
+    @Query('dir') dir?: 'asc' | 'desc',
+  ) {
+    return this.svc.exportCsv({ q, type, genre, status, access, active, year, sort, dir });
+  }
+
   /** Шүүлтэд тохирсон тоолол — табын badge (`:id`-ээс ӨМНӨ байх ёстой) */
   @Get('counts')
   counts(@Query('q') q?: string, @Query('genre') genre?: string, @Query('year') year?: number) {

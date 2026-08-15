@@ -16,7 +16,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDateTime } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -397,7 +397,7 @@ function PostRow({
             </span>
           )}
           <span className="text-[10px] text-foreground/40">
-            {new Date(post.postedAt).toLocaleString('mn-MN')}
+            {formatDateTime(post.postedAt)}
           </span>
           {post.permalink && (
             <a
@@ -529,7 +529,7 @@ function HistoryTab({
                   </a>
                 )}
                 <span className="ml-auto text-[10px] text-foreground/35">
-                  {new Date(r.publishedAt ?? r.createdAt).toLocaleString('mn-MN')}
+                  {formatDateTime(r.publishedAt ?? r.createdAt)}
                 </span>
               </div>
               <p className="line-clamp-1 text-xs text-foreground/70">

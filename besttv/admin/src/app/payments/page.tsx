@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { Ban, Check, CreditCard, Loader2, Ticket, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+import { cn, formatDateTime, formatPrice } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { StatCard } from '@/components/stat-card';
@@ -334,10 +334,10 @@ export default function PaymentsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(p.createdAt).toLocaleString('mn-MN')}
+                    {formatDateTime(p.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {p.paidAt ? new Date(p.paidAt).toLocaleString('mn-MN') : '—'}
+                    {p.paidAt ? formatDateTime(p.paidAt) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5">

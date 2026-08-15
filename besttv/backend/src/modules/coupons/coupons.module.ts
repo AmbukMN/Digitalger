@@ -18,8 +18,10 @@ import { Throttle } from '@nestjs/throttler';
 import { DiscountType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser, type JwtPayload } from '../../common/decorators/current-user.decorator';
 
 class CouponDto {
   @IsString()
@@ -66,8 +68,24 @@ export class CouponsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * ⚠️⚠️ ХУВИЙН КУПОНЫГ ЯЛГАЖ ХАРУУЛНА.
+   *
+   * Автомат имэйл (re-engagement) нь хүн бүрд `BTV4A9F2C` маягийн
+   * ӨӨР код үүсгэдэг. Эзнийг нь харуулахгүй бол админ жагсаалтад
+   * зуу зуун ойлгомжгүй код хуримтлагдаж, аль нь хэнийх, яагаад
+   * үүссэн нь мэдэгдэхгүй болно.
+   */
   adminList() {
-    return this.prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } });
+    return this.prisma.coupon.findMany({
+      orderBy: { createdAt: 'desc' },
+      /* ⚠️ Хязгаар — хувийн купон автоматаар үүсдэг тул хугацаа
+         өнгөрөх тусам мянгаар нэмэгдэнэ */
+      take: 500,
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+      },
+    });
   }
 
   /**
@@ -141,11 +159,27 @@ export class CouponsService {
 
   /** Хямдрал тооцох (захиалга vүсгэхээс өмнө frontend талд шалгахад) — ашиглалт
    * ЗӨВХӨН энд нэмэгддэггүй, бодит incrementUse нь payment амжилттай болоход дуудагдана. */
-  async validate(dto: ValidateCouponDto) {
+  async validate(dto: ValidateCouponDto, userId?: string | null) {
     const coupon = await this.prisma.coupon.findUnique({ where: { code: dto.code.toUpperCase().trim() } });
     if (!coupon || !coupon.isActive) throw new BadRequestException('Хүчингүй купон код байна');
     if (coupon.expiresAt && coupon.expiresAt < new Date()) {
       throw new BadRequestException('Купон хугацаа дууссан байна');
+    }
+
+    /**
+     * ⚠️⚠️ ХУВИЙН КУПОН — ЗӨВХӨН ЭЗЭН НЬ АШИГЛАНА.
+     *
+     * Re-engagement имэйлээр олгосон код (`Coupon.userId` утгатай) нь
+     * тухайн НЭГ хүнд зориулагдсан. Шалгахгүй бол хэрэглэгч кодоо
+     * Facebook бүлэгт тавьж, мянган хүн ашиглана — захиалгын бизнест
+     * шууд алдагдал. Яг үүнээс сэргийлэхийн тулд хувийн код руу
+     * шилжсэн тул энэ шалгалт нь тэр бүтэн санааны ТУЛГУУР.
+     *
+     * ⚠️ Тодорхой мессеж өгөхгүй — «энэ код өөр хүнийх» гэвэл кодыг
+     * таамаглаж буй хүнд «энэ код БАЙНА» гэдгийг баталж өгнө.
+     */
+    if (coupon.userId && coupon.userId !== userId) {
+      throw new BadRequestException('Хүчингүй купон код байна');
     }
     if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
       throw new BadRequestException('Купон дүүрсэн байна');
@@ -220,10 +254,17 @@ export class CouponsController {
    * хязгааргүй бол скриптээр таах боломжтой. Минутад 15 нь хүн гараар
    * оролдоход хангалттай, автомат таалтад хангалтгүй.
    */
+  /**
+   * ⚠️⚠️ `OptionalJwtAuthGuard` — нэвтрээгүй ч үнэ харах боломжтой
+   * байх ёстой (зочин багц сонгож байхад). Гэвч нэвтэрсэн бол ХЭН
+   * болохыг мэдэх нь ЗААВАЛ: хувийн купон (`Coupon.userId`) зөвхөн
+   * эзэндээ хүчинтэй тул шалгахад хэрэглэгчийн ID хэрэгтэй.
+   */
   @Post('validate')
+  @UseGuards(OptionalJwtAuthGuard)
   @Throttle({ default: { limit: 15, ttl: 60_000 } })
-  validate(@Body() dto: ValidateCouponDto) {
-    return this.svc.validate(dto);
+  validate(@Body() dto: ValidateCouponDto, @CurrentUser() user?: JwtPayload) {
+    return this.svc.validate(dto, user?.sub ?? null);
   }
 }
 

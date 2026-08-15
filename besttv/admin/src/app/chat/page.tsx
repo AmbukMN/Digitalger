@@ -16,7 +16,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDate } from '@besttv/shared';
 import { Badge, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -152,7 +152,7 @@ function timeAgo(iso: string): string {
   if (h < 24) return `${h} цаг`;
   const d = Math.floor(h / 24);
   if (d < 30) return `${d} хоног`;
-  return new Date(iso).toLocaleDateString('mn-MN');
+  return formatDate(iso);
 }
 
 export default function ChatPage() {
@@ -555,7 +555,7 @@ export default function ChatPage() {
                         {detail.subscriptions.map((s, i) => (
                           <span
                             key={i}
-                            title={`${new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл`}
+                            title={`${formatDate(s.expiresAt)} хүртэл`}
                             className={cn(
                               'rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                               s.plan?.isVip

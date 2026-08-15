@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Eye, FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDate } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -140,7 +140,7 @@ export default function BlogPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(p.createdAt).toLocaleDateString('mn-MN')}
+                    {formatDate(p.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <span

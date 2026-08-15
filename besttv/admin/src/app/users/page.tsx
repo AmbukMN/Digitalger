@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { Loader2, ShieldCheck, UserCheck, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatPrice } from '@besttv/shared';
 import { AdminShell } from '@/components/admin-shell';
 import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -273,7 +273,7 @@ export default function UsersPage() {
                           {u.activeSubscription.planName}
                         </span>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {new Date(u.activeSubscription.expiresAt).toLocaleDateString('mn-MN')}{' '}
+                          {formatDate(u.activeSubscription.expiresAt)}{' '}
                           хүртэл
                         </p>
                       </div>
@@ -300,7 +300,7 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(u.createdAt).toLocaleDateString('mn-MN')}
+                    {formatDate(u.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <button

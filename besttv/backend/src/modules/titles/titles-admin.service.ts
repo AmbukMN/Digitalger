@@ -108,6 +108,92 @@ export class TitlesAdminService {
   }
 
   /** Шүүлтэд тохирсон тоолол — табын badge */
+  /**
+   * Контентын CSV export — ХАРАГДАЖ БУЙ шүүлтийг ЯГ дагана.
+   *
+   * ⚠️⚠️ `buildWhere`-ийг ДАХИН ашиглана. Өөрийн гэсэн шүүлт бичвэл
+   * жагсаалт болон CSV зөрж, админ 40 мөр хүлээгээд 500 мөр авна
+   * (захиалагчийн CSV дээр яг ийм алдаа гарсан).
+   *
+   * ⚠️ Хамгийн том хүснэгт тул `take` ЗААВАЛ — хязгааргүй бол
+   * каталог өсөхөд сервер унана.
+   */
+  async exportCsv(params: {
+    q?: string;
+    type?: string;
+    genre?: string;
+    status?: string;
+    access?: string;
+    active?: string;
+    year?: number;
+    sort?: string;
+    dir?: 'asc' | 'desc';
+  }) {
+    const where = this.buildWhere(params);
+    const orderBy = {
+      [params.sort ?? 'createdAt']: params.dir ?? 'desc',
+    } as Prisma.TitleOrderByWithRelationInput;
+
+    const rows = await this.prisma.title.findMany({
+      where,
+      orderBy,
+      take: 20_000,
+      select: {
+        title: true,
+        titleEn: true,
+        slug: true,
+        type: true,
+        year: true,
+        country: true,
+        isActive: true,
+        isPremium: true,
+        comingSoon: true,
+        views: true,
+        rating: true,
+        streamStatus: true,
+        durationSec: true,
+        createdAt: true,
+        genres: { select: { genre: { select: { name: true } } } },
+        _count: { select: { seasons: true, rentals: true } },
+      },
+    });
+
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const lines = [
+      'Нэр,Англи нэр,Slug,Төрөл,Он,Улс,Жанр,Идэвхтэй,Төлбөртэй,Удахгүй,Үзэлт,Үнэлгээ,Видео,Үргэлжлэх(мин),Улирал,Түрээс,Үүсгэсэн',
+      ...rows.map((r) =>
+        [
+          r.title,
+          r.titleEn ?? '',
+          r.slug,
+          r.type,
+          r.year ?? '',
+          r.country ?? '',
+          r.genres.map((g) => g.genre.name).join(' / '),
+          r.isActive ? 'Тийм' : 'Үгүй',
+          r.isPremium ? 'Тийм' : 'Үгүй',
+          r.comingSoon ? 'Тийм' : 'Үгүй',
+          r.views,
+          r.rating ?? '',
+          r.streamStatus,
+          r.durationSec ? Math.round(r.durationSec / 60) : '',
+          r._count.seasons,
+          r._count.rentals,
+          r.createdAt.toISOString().slice(0, 10),
+        ]
+          .map(esc)
+          .join(','),
+      ),
+    ];
+
+    /* ⚠️ BOM — Excel дээр кирилл зөв харагдана */
+    return { csv: '﻿' + lines.join('\n'), count: rows.length };
+  }
+
   async counts(params: { q?: string; genre?: string; year?: number }) {
     const base = this.buildWhere(params);
     const [all, movies, series, premium, free, inactive, noVideo] = await Promise.all([

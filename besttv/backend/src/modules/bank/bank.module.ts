@@ -365,7 +365,8 @@ export class BankService {
           `«${promo.name}» урамшууллын үед купон код ашиглах боломжгүй`,
         );
       }
-      const r = await this.coupons.validate({ code: dto.couponCode, price: amount });
+      /* ⚠️ `userId` ЗААВАЛ — хувийн купоныг өөр хүн ашиглахаас хамгаална */
+      const r = await this.coupons.validate({ code: dto.couponCode, price: amount }, userId);
       amount = r.finalPrice;
       normalizedCoupon = dto.couponCode.toUpperCase().trim();
     }
@@ -634,8 +635,27 @@ export class BankService {
    * 5 мөр харуулж байхад статистик 12 гэж бичих» гэсэн итгэл алдах
    * зөрчил үүснэ.
    */
-  private bankWhere(o: { status?: string; from?: string; to?: string }) {
+  private bankWhere(o: { status?: string; from?: string; to?: string; q?: string }) {
     const base: Record<string, unknown> = { bankReference: { not: null } };
+
+    /**
+     * ⚠️⚠️ ХАЙЛТ СЕРВЕР ТАЛД — өмнө нь ЗӨВХӨН client талд байсан.
+     *
+     * БОДИТ АЛДАА: жагсаалт нь `take: 200`-аар таслагддаг байсан тул
+     * админ 200 дахь мөрнөөс ХОЙШХИ гүйлгээг хайхад «олдсонгүй» гэж
+     * гарна — гэтэл DB-д БАЙГАА. Банкны хуулгатай тулгаж байхад
+     * «энэ гүйлгээ манайд ирээгүй» гэж буруу дүгнэх эрсдэлтэй.
+     */
+    if (o.q?.trim()) {
+      const q = o.q.trim();
+      base.OR = [
+        { bankReference: { contains: q, mode: 'insensitive' } },
+        { user: { email: { contains: q, mode: 'insensitive' } } },
+        { user: { name: { contains: q, mode: 'insensitive' } } },
+        /* Дүнгээр хайх — «50000» гэж бичихэд олдоно */
+        ...(Number.isFinite(Number(q)) && q !== '' ? [{ amount: Number(q) }] : []),
+      ];
+    }
 
     if (o.status === 'pending') {
       base.status = PaymentStatus.PENDING;
@@ -709,7 +729,7 @@ export class BankService {
    * CSV export — шүүсэн БҮХ мөр (хуудаслалтгүй).
    * ⚠️ 20,000-аар хязгаарлана — санах ой хамгаална.
    */
-  async adminExport(o: { status?: string; from?: string; to?: string }) {
+  async adminExport(o: { status?: string; from?: string; to?: string; q?: string }) {
     const rows = await this.prisma.payment.findMany({
       where: this.bankWhere(o),
       orderBy: { createdAt: 'desc' },
@@ -781,11 +801,32 @@ export class BankService {
     return { csv: '\ufeff' + lines.join('\n'), count: rows.length };
   }
 
-  async adminList(o: { status?: string; from?: string; to?: string }) {
+  /**
+   * ⚠️⚠️ ХУУДАСЛАЛТ — өмнө нь `take: 200` гэсэн ЧИМЭЭГҮЙ таслалт байв.
+   *
+   * 200-аас олон дансны төлбөр орсны дараа хуучин гүйлгээ жагсаалтад
+   * ОГТ гарахгүй болно — админ түүнийг «байхгүй» гэж үзэж, хэрэглэгчийн
+   * төлбөрийг хүлээн зөвшөөрөхгүй эрсдэлтэй. Одоо хуудаслаж бүгдийг
+   * харна.
+   */
+  async adminList(o: {
+    status?: string;
+    from?: string;
+    to?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, Number(o.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(o.limit) || 50));
+    const where = this.bankWhere(o);
+
+    const total = await this.prisma.payment.count({ where });
     const rows = await this.prisma.payment.findMany({
-      where: this.bankWhere(o),
+      where,
       orderBy: [{ bankClaimedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 200,
+      skip: (page - 1) * limit,
+      take: limit,
       select: {
         id: true,
         amount: true,
@@ -807,7 +848,7 @@ export class BankService {
 
     /* ⚠️ Баримтын URL — админ зургийг ШУУД харах ёстой (татаж
        үзэх нь удаан, ажлын урсгал тасална) */
-    return Promise.all(
+    const items = await Promise.all(
       rows.map(async (r) => ({
         ...r,
         receiptUrl: r.bankReceiptKey
@@ -815,6 +856,8 @@ export class BankService {
           : null,
       })),
     );
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   /**
@@ -1011,8 +1054,19 @@ export class BankAdminController {
     @Query('status') status?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    /* ⚠️ Хайлт СЕРВЕР талд — 200-гийн таслалтаас цааш хайхад ч олдоно */
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.svc.adminList({ status, from, to });
+    return this.svc.adminList({
+      status,
+      from,
+      to,
+      q,
+      page: Number(page),
+      limit: Number(limit),
+    });
   }
 
   /** Статистик — шүүлттэй ижил нөхцөлөөр */
@@ -1026,13 +1080,18 @@ export class BankAdminController {
   }
 
   /** CSV export — нягтлан бодох бүртгэлд */
+  /**
+   * ⚠️ CSV нь ЖАГСААЛТТАЙ ИЖИЛ шүүлттэй байх ЁСТОЙ —  дамжуулахгүй
+   * бол админ хайлт хийж 5 мөр хараад CSV дарахад МЯНГА татагдана.
+   */
   @Get('payments/export')
   exportCsv(
     @Query('status') status?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('q') q?: string,
   ) {
-    return this.svc.adminExport({ status, from, to });
+    return this.svc.adminExport({ status, from, to, q });
   }
 
   @Post('payments/:id/approve')

@@ -16,7 +16,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatPrice } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { ImageUpload } from '@/components/image-upload';
@@ -515,9 +515,9 @@ export default function PromotionsPage() {
                       </td>
 
                       <td className="whitespace-nowrap px-4 py-3 text-xs tabular-nums text-foreground/55">
-                        {new Date(p.startsAt).toLocaleDateString('mn-MN')}
+                        {formatDate(p.startsAt)}
                         <br />
-                        {new Date(p.endsAt).toLocaleDateString('mn-MN')}
+                        {formatDate(p.endsAt)}
                       </td>
 
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-foreground/70">

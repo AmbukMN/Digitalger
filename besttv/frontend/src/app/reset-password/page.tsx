@@ -35,13 +35,13 @@ export default function ResetPasswordPage() {
   );
 
   // ⚠️ Backend-ийн RegisterDto-той ИЖИЛ дүрэм (доод тал нь 8)
-  const tooShort = password.length > 0 && password.length < 8;
+  const tooShort = password.length > 0 && password.length < 6;
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) {
-      toast.error('Нууц үг доод тал нь 8 тэмдэгт байна');
+    if (password.length < 6) {
+      toast.error('Нууц үг доод тал нь 6 тэмдэгт байна');
       return;
     }
     if (password !== confirmPassword) {
@@ -147,11 +147,11 @@ export default function ResetPasswordPage() {
             <input
               type={showPassword ? 'text' : 'password'}
               required
-              minLength={8}
+              minLength={6}
               autoFocus
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Доод тал нь 8 тэмдэгт"
+              placeholder="Доод тал нь 6 тэмдэгт"
               autoComplete="new-password"
               aria-invalid={tooShort}
               className={cn('input-dark pr-11', tooShort && 'input-dark-error')}
@@ -166,7 +166,7 @@ export default function ResetPasswordPage() {
             </button>
           </div>
           {tooShort && (
-            <p className="mt-1.5 text-xs text-destructive">Доод тал нь 8 тэмдэгт байх ёстой</p>
+            <p className="mt-1.5 text-xs text-destructive">Доод тал нь 6 тэмдэгт байх ёстой</p>
           )}
         </label>
 
@@ -177,7 +177,7 @@ export default function ResetPasswordPage() {
           <input
             type="password"
             required
-            minLength={8}
+            minLength={6}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Шинэ нууц үгээ дахин оруулна уу"

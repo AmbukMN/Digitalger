@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Pencil, Plus, Search, Ticket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDate, formatPrice } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -78,7 +78,15 @@ export default function CouponsPage() {
       if (status && statusOf(c) !== status) return false;
       if (!needle) return true;
       const label = c.discountType === 'PERCENT' ? `${c.amount}%` : `${c.amount}₮`;
-      return c.code.toLowerCase().includes(needle) || label.toLowerCase().includes(needle);
+      /* ⚠️ Эзний имэйл/нэр, кампанит ажлаар ЧУ хайна — админ «энэ
+         хэрэглэгчид ямар код өгсөн бэ?» гэж хайх нь түгээмэл */
+      return (
+        c.code.toLowerCase().includes(needle) ||
+        label.toLowerCase().includes(needle) ||
+        (c.user?.email ?? '').toLowerCase().includes(needle) ||
+        (c.user?.name ?? '').toLowerCase().includes(needle) ||
+        (c.campaign ?? '').toLowerCase().includes(needle)
+      );
     });
   }, [data, q, status]);
 
@@ -264,15 +272,37 @@ export default function CouponsPage() {
                           {st === 'off' ? 'Идэвхгүй' : 'Дууссан'}
                         </span>
                       )}
+                      {/*
+                        ⚠️⚠️ ХУВИЙН КУПОНЫ ЭЗЭН — автомат имэйл нь хүн
+                        бүрд ӨӨР код үүсгэдэг. Эзнийг харуулахгүй бол
+                        админ жагсаалтад зуу зуун ойлгомжгүй код
+                        хуримтлагдаж, аль нь хэнийх, яагаад үүссэн нь
+                        мэдэгдэхгүй болно.
+                      */}
+                      {c.userId && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="rounded bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                            Хувийн
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {c.user?.email ?? '—'}
+                          </span>
+                          {c.campaign && (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              · {c.campaign}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-foreground">
-                      {c.discountType === 'PERCENT' ? `${c.amount}%` : `${c.amount.toLocaleString()}₮`}
+                      {c.discountType === 'PERCENT' ? `${c.amount}%` : `${formatPrice(c.amount)}`}
                     </td>
                     <td className={cn('px-4 py-3', st === 'used-up' ? 'font-medium text-destructive' : 'text-muted-foreground')}>
                       {c.usedCount}{c.maxUses ? ` / ${c.maxUses}` : ''}
                     </td>
                     <td className={cn('px-4 py-3', st === 'expired' ? 'font-medium text-destructive' : 'text-muted-foreground')}>
-                      {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('mn-MN') : 'Хугацаагүй'}
+                      {c.expiresAt ? formatDate(c.expiresAt) : 'Хугацаагүй'}
                     </td>
                     <td className="px-4 py-3">
                       <button

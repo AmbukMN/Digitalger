@@ -54,7 +54,7 @@ class UpdateUserDto {
 
 class SetPasswordDto {
   @IsString()
-  @MinLength(8)
+  @MinLength(6)
   password: string;
 }
 

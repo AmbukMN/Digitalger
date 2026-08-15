@@ -12,7 +12,7 @@ import {
   Search,
   ShieldAlert,
 } from 'lucide-react';
-import { cn } from '@besttv/shared';
+import { cn, formatDate } from '@besttv/shared';
 import { Badge } from '@besttv/shared/ui';
 import { useUserInsight, type UserInsight } from '@/lib/queries';
 
@@ -34,7 +34,7 @@ function timeAgo(iso: string | null): string {
   if (h < 24) return `${h} цаг өмнө`;
   const d = Math.floor(h / 24);
   if (d < 30) return `${d} хоног өмнө`;
-  return new Date(iso).toLocaleDateString('mn-MN');
+  return formatDate(iso);
 }
 
 const EVENT_LABEL: Record<string, { label: string; className: string }> = {

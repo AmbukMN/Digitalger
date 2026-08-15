@@ -97,7 +97,8 @@ export class PaymentsService {
         );
       }
       /* ⚠️ `plan.price` БИШ `amount` — урамшууллын ДАРААХ дүн дээр */
-      const result = await this.coupons.validate({ code: couponCode, price: amount });
+      /* ⚠️ `userId` ЗААВАЛ — хувийн купоныг өөр хүн ашиглахаас хамгаална */
+      const result = await this.coupons.validate({ code: couponCode, price: amount }, userId);
       amount = result.finalPrice;
       normalizedCoupon = couponCode.toUpperCase().trim();
     }
@@ -1201,7 +1202,8 @@ export class PaymentsService {
           `«${promo.name}» урамшууллын үед купон код ашиглах боломжгүй`,
         );
       }
-      const result = await this.coupons.validate({ code: couponCode, price: amount });
+      /* ⚠️ `userId` ЗААВАЛ — хувийн купоныг өөр хүн ашиглахаас хамгаална */
+      const result = await this.coupons.validate({ code: couponCode, price: amount }, userId);
       amount = result.finalPrice;
       normalizedCoupon = couponCode.toUpperCase().trim();
     }

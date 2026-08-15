@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDate } from '@besttv/shared';
 import { Badge, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -390,7 +390,7 @@ export default function ReviewsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleDateString('mn-MN')}
+                    {formatDate(r.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">

@@ -44,11 +44,20 @@ export default function LoginPage() {
 
   const passwordsMismatch =
     mode === 'register' && confirmPassword.length > 0 && password !== confirmPassword;
-  const passwordTooShort = mode === 'register' && password.length > 0 && password.length < 8;
+  const passwordTooShort = mode === 'register' && password.length > 0 && password.length < 6;
 
-  // Таб солиход өмнөх алдааны төлөв үлдэхгүй
+  /**
+   * Таб солиход өмнөх алдааны төлөв үлдэхгүй.
+   *
+   * ⚠️ `password`-ыг ЧУ цэвэрлэнэ. Өмнө нь зөвхөн `confirmPassword`
+   * цэвэрлэгддэг байсан тул: хэрэглэгч НЭВТРЭХ дээр нууц үгээ бичээд
+   * БҮРТГҮҮЛЭХ рүү шилжвэл нууц үг нь үлдэж, баталгаажуулах талбар
+   * хоосон болно → «Нууц үг таарахгүй байна» гэсэн алдаа гарна.
+   * Хэрэглэгч ямар ч буруу зүйл хийгээгүй атлаа алдаа хардаг.
+   */
   const switchMode = (m: 'login' | 'register') => {
     setMode(m);
+    setPassword('');
     setConfirmPassword('');
     setShowPassword(false);
   };
@@ -61,8 +70,8 @@ export default function LoginPage() {
         toast.error('Нууц үг таарахгүй байна');
         return;
       }
-      if (password.length < 8) {
-        toast.error('Нууц үг доод тал нь 8 тэмдэгт байна');
+      if (password.length < 6) {
+        toast.error('Нууц үг доод тал нь 6 тэмдэгт байна');
         return;
       }
     }
@@ -184,10 +193,10 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
-                  minLength={8}
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Доод тал нь 8 тэмдэгт"
+                  placeholder="Доод тал нь 6 тэмдэгт"
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   aria-invalid={passwordTooShort}
                   className={cn('input-dark pr-11', passwordTooShort && 'input-dark-error')}
@@ -202,7 +211,7 @@ export default function LoginPage() {
                 </button>
               </div>
               {passwordTooShort && (
-                <p className="mt-1.5 text-xs text-destructive">Доод тал нь 8 тэмдэгт байх ёстой</p>
+                <p className="mt-1.5 text-xs text-destructive">Доод тал нь 6 тэмдэгт байх ёстой</p>
               )}
             </Field>
             {mode === 'register' && (
@@ -210,7 +219,7 @@ export default function LoginPage() {
                 <input
                   type="password"
                   required
-                  minLength={8}
+                  minLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Нууц үгээ дахин оруулна уу"

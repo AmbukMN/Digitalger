@@ -46,7 +46,29 @@ export type EmailTemplate =
   | 'password-reset'
   /** Нууц үг АМЖИЛТТАЙ солигдсоны мэдэгдэл (халдлага илрүүлэх сануулга) */
   | 'password-changed'
-  | 'marketing';
+  | 'marketing'
+  /**
+   * ─── АМЬДРАЛЫН МӨЧЛӨГИЙН (re-engagement) ИМЭЙЛҮҮД ────────────────
+   *
+   * ⚠️⚠️ ТУС БҮР ТУСДАА ТӨРӨЛТЭЙ БАЙХ ЁСТОЙ. Бүгдийг `marketing`
+   * гэж нэрлэвэл `EmailLog`-оор давхардал шалгах боломжгүй болно:
+   * win-back авсан хүнд «багц аваарай» гэсэн имэйл дахин очиж,
+   * эсрэгээрээ ч болно. Мөн админ аль урсгал үр дүнтэйг мэдэхгүй.
+   */
+  /** Багц дуусаад 3 хоног — эргэж ирэхийг урих (купонтой) */
+  | 'winback-3d'
+  /** Багц дуусаад 14 хоног — сүүлийн санал (илүү өндөр хямдрал) */
+  | 'winback-14d'
+  /** Бүртгүүлээд 3 хоног болсон ч багц аваагүй */
+  | 'no-purchase-3d'
+  /** Үнэгүй контент үзсэн ч багц аваагүй */
+  | 'watched-no-plan'
+  /** Багцтай атлаа 30 хоног нэвтрээгүй — шинэ контент санал болгох */
+  | 'inactive-30d'
+  /** Хэтэвчинд мөнгө байгаа ч зарцуулаагүй */
+  | 'wallet-idle'
+  /** Дуусгаагүй кино сануулах */
+  | 'unfinished';
 
 /**
  * Имэйл илгээх сервис (AWS SES).
@@ -781,6 +803,21 @@ ${pixel}
     bodyHtml: string;
     ctaText?: string;
     ctaUrl?: string;
+    /**
+     * ⚠️⚠️ ЗААВАЛ дамжуулна (амьдралын мөчлөгийн имэйлд).
+     *
+     * БОДИТ АСУУДАЛ: өмнө нь энэ параметр БАЙХГҮЙ байсан тул бүх
+     * маркетингийн `EmailLog` мөр `userId = null` болдог. Тэгвэл
+     * «энэ хүнд өнгөрсөн 30 хоногт win-back илгээсэн үү?» гэдгийг
+     * ШАЛГАХ БОЛОМЖГҮЙ — хэрэглэгч ижил имэйлийг дахин дахин авна.
+     */
+    userId?: string;
+    /**
+     * ⚠️ Аль урсгалынх вэ. Анхдагч `marketing` — админы бөөн
+     * илгээлт. Автомат урсгалууд өөрийн төрлөө дамжуулна, эс бөгөөс
+     * давхардал шалгах ба үр дүн хэмжих боломжгүй.
+     */
+    template?: EmailTemplate;
   }) {
     const html = this.layout({
       heading: opts.heading,
@@ -803,8 +840,36 @@ ${pixel}
       to: opts.to,
       subject: opts.subject,
       html,
-      template: 'marketing',
+      template: opts.template ?? 'marketing',
+      userId: opts.userId,
       track: true,
     });
+  }
+
+  /**
+   * Амьдралын мөчлөгийн имэйлийн БИЕИЙГ бүрдүүлнэ (HTML).
+   *
+   * ⚠️ `layout` нь `private` тул `LifecycleService` түүнийг дуудаж
+   * чадахгүй. Энэ нь тэр хаалганы цорын ганц НАРИЙН нүх — бүтэн
+   * layout-ыг ил гаргахгүйгээр хэрэгцээт зүйлийг өгнө.
+   */
+  buildLifecycleHtml(opts: {
+    to: string;
+    heading: string;
+    bodyHtml: string;
+    ctaText?: string;
+    ctaUrl?: string;
+    preheader?: string;
+  }): string {
+    return this.layout({ ...opts, showUnsubscribe: true, email: opts.to });
+  }
+
+  /** Мөнгө/огноог имэйлийн ижил хэлбэрээр (гадна ашиглах) */
+  fmtMoney(n: number): string {
+    return this.money(n);
+  }
+
+  fmtDate(d: Date | string): string {
+    return this.date(d);
   }
 }

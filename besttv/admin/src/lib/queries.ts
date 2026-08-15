@@ -766,6 +766,14 @@ export interface AdminCoupon {
   expiresAt: string | null;
   isActive: boolean;
   createdAt: string;
+  /**
+   * ⚠️ ХУВИЙН КУПОН — автомат имэйлээр нэг хүнд олгосон код.
+   * NULL бол нийтийн код (админ гараар үүсгэсэн).
+   */
+  userId: string | null;
+  user: { id: string; email: string; name: string | null } | null;
+  /** Аль автомат урсгалаас үүссэн («winback-3d» г.м.) */
+  campaign: string | null;
 }
 
 export function useAdminCoupons() {
@@ -966,28 +974,55 @@ export interface BankStats {
 }
 
 /** Шүүлтийг query string болгоно — жагсаалт/стат/export бүгд ижил */
-function bankQuery(f: { status?: string; from?: string; to?: string }): string {
+export interface BankFilters {
+  status?: string;
+  from?: string;
+  to?: string;
+  /** Гүйлгээний утга / имэйл / нэр / дүнгээр хайх (СЕРВЕР талд) */
+  q?: string;
+  page?: number;
+  limit?: number;
+}
+
+function bankQuery(f: BankFilters, skipPaging = false): string {
   const q = new URLSearchParams();
   if (f.status) q.set('status', f.status);
   if (f.from) q.set('from', f.from);
   if (f.to) q.set('to', f.to);
+  if (f.q?.trim()) q.set('q', f.q.trim());
+  /* ⚠️ Статистик болон CSV-д хуудаслалт дамжуулахгүй — тэд БҮХ
+     тохирох мөрийг хамрах ёстой */
+  if (!skipPaging) {
+    if (f.page) q.set('page', String(f.page));
+    if (f.limit) q.set('limit', String(f.limit));
+  }
   const s = q.toString();
   return s ? `?${s}` : '';
 }
 
-export function useAdminBankPayments(f: { status?: string; from?: string; to?: string }) {
+export function useAdminBankPayments(f: BankFilters) {
   return useQuery({
     queryKey: ['admin-bank-payments', f],
-    queryFn: () => api<AdminBankPayment[]>(`/admin/bank/payments${bankQuery(f)}`),
+    queryFn: () =>
+      api<{
+        items: AdminBankPayment[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      }>(`/admin/bank/payments${bankQuery(f)}`),
+    /* ⚠️ Хуудас солиход хүснэгт хоосрохгүй */
+    placeholderData: (prev) => prev,
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
 }
 
-export function useAdminBankStats(f: { status?: string; from?: string; to?: string }) {
+export function useAdminBankStats(f: BankFilters) {
   return useQuery({
     queryKey: ['admin-bank-stats', f],
-    queryFn: () => api<BankStats>(`/admin/bank/payments/stats${bankQuery(f)}`),
+    /* ⚠️ `skipPaging` — статистик нь БҮХ тохирох мөрийг хамарна */
+    queryFn: () => api<BankStats>(`/admin/bank/payments/stats${bankQuery(f, true)}`),
     staleTime: 0,
     refetchOnWindowFocus: true,
   });

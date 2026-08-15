@@ -1,4 +1,5 @@
 'use client';
+import { formatPrice } from '@besttv/shared';
 
 import { useState } from 'react';
 import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Trash2, Unlock, X } from 'lucide-react';
@@ -159,7 +160,7 @@ export function BulkBar({
                   {impact.totalActiveRentals} идэвхтэй түрээс устана
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Нийт {impact.totalRentalAmount.toLocaleString()}₮ төлсөн хэрэглэгчид эрхээ
+                  Нийт {formatPrice(impact.totalRentalAmount)} төлсөн хэрэглэгчид эрхээ
                   алдана. Тэдэнд буцаалт хийх шаардлагатай байж болно.
                 </p>
                 <ul className="mt-2 space-y-0.5">

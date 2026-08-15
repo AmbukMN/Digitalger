@@ -16,7 +16,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDate, formatDateTime } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { StatCard } from '@/components/stat-card';
@@ -29,9 +29,11 @@ import { api } from '@/lib/api';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { useNewSince } from '@/lib/use-new-since';
+import { LifecycleTab } from './lifecycle-tab';
 
 const TABS = [
   { id: 'logs', label: 'Илгээсэн имэйл' },
+  { id: 'lifecycle', label: 'Автомат имэйл' },
   { id: 'subscribers', label: 'Бүртгүүлэгчид' },
   { id: 'broadcast', label: 'Олноор илгээх' },
   { id: 'suppressions', label: 'Хориглосон хаяг' },
@@ -110,6 +112,7 @@ export default function EmailPage() {
         </div>
 
         {tab === 'logs' && <LogsTab />}
+        {tab === 'lifecycle' && <LifecycleTab />}
         {tab === 'subscribers' && <SubscribersTab />}
         {tab === 'broadcast' && <BroadcastTab />}
         {tab === 'suppressions' && <SuppressionsTab />}
@@ -362,7 +365,7 @@ function LogsTab() {
                 </td>
 
                 <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {new Date(l.createdAt).toLocaleString('mn-MN')}
+                  {formatDateTime(l.createdAt)}
                 </td>
               </tr>
             ))}
@@ -555,7 +558,7 @@ function SubscribersTab() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {new Date(s.createdAt).toLocaleDateString('mn-MN')}
+                  {formatDate(s.createdAt)}
                 </td>
               </tr>
             ))}
@@ -768,7 +771,7 @@ function SuppressionsTab() {
                 {s.subType && ` · ${s.subType}`}
               </td>
               <td className="px-4 py-3 text-xs text-muted-foreground">
-                {new Date(s.createdAt).toLocaleDateString('mn-MN')}
+                {formatDate(s.createdAt)}
               </td>
             </tr>
           ))}
@@ -932,7 +935,7 @@ function EmailOpenCell({ log }: { log: EmailLog }) {
     return (
       <span
         className="inline-flex items-center gap-1 rounded-md bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
-        title={`Буцаагдсан: ${new Date(log.bouncedAt).toLocaleString('mn-MN')}`}
+        title={`Буцаагдсан: ${formatDateTime(log.bouncedAt)}`}
       >
         <AlertTriangle size={11} /> Буцсан
       </span>
@@ -944,7 +947,7 @@ function EmailOpenCell({ log }: { log: EmailLog }) {
       <span
         className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary"
         title={
-          `Нээсэн: ${new Date(log.openedAt).toLocaleString('mn-MN')}` +
+          `Нээсэн: ${formatDateTime(log.openedAt)}` +
           (log.openCount > 1 ? ` · ${log.openCount} удаа` : '') +
           (log.clickedAt ? ` · холбоос дарсан (${log.clickCount})` : '')
         }
@@ -961,7 +964,7 @@ function EmailOpenCell({ log }: { log: EmailLog }) {
     return (
       <span
         className="inline-flex items-center gap-1 rounded-md bg-foreground/8 px-2 py-0.5 text-xs text-muted-foreground"
-        title={`Хүрсэн: ${new Date(log.deliveredAt).toLocaleString('mn-MN')} · хараахан нээгээгүй`}
+        title={`Хүрсэн: ${formatDateTime(log.deliveredAt)} · хараахан нээгээгүй`}
       >
         <Inbox size={11} /> Хүрсэн
       </span>

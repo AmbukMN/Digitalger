@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatBytes } from '@besttv/shared';
+import { formatBytes, formatDateTime } from '@besttv/shared';
 import { useQuery } from '@tanstack/react-query';
 import { HardDrive, RefreshCw, Film, Image as ImageIcon, Clapperboard, FileVideo } from 'lucide-react';
 import { cn } from '@besttv/shared';
@@ -211,7 +211,7 @@ export function StorageUsageCard() {
       )}
 
       <p className="mt-3 text-center text-[10px] text-muted-foreground">
-        {new Date(data.computedAt).toLocaleString('mn-MN')}
+        {formatDateTime(data.computedAt)}
         {data.cached && ' · кэшээс'}
       </p>
     </div>

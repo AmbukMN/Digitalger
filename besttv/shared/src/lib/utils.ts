@@ -66,3 +66,67 @@ export function formatRentLeft(expiresAt: string | Date): string {
   if (d > 0) return `${d} өдөр ${h} цаг`;
   return h > 0 ? `${h} цаг ${m} мин` : `${m} мин`;
 }
+
+/**
+ * Огноо — «2026.08.15» (цаггүй).
+ *
+ * ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ — админ панелд огноо ГУРВАН өөр хэлбэрээр
+ * харагдаж байв: `toLocaleString()` (44 газар), `toLocaleDateString('mn-MN')`
+ * (22), `toLocaleString('mn-MN')` (19).
+ *
+ * Хамгийн ноцтой нь `toLocaleString()` — локалыг ЗААЖ ӨГӨӨГҮЙ тул
+ * хөтчийн тохиргооноос хамаарна. Англи локалтай компьютер дээр
+ * «8/15/2026» гэж АМЕРИК хэлбэрээр гарч, 8-р сарын 15 мөн үү, эсвэл
+ * 15-р сарын 8 мөн үү гэдэг нь ойлгомжгүй болно (төлбөрийн жагсаалтад
+ * бодит эргэлзээ).
+ *
+ * ⚠️ `sv-SE` локал — ISO-той ижил `2026-08-15` өгдөг цорын ганц
+ * стандарт локал. Түүнийг цэгээр солиод монгол хэлбэрт оруулна.
+ */
+export function formatDate(d: string | Date | null | undefined): string {
+  if (!d) return '—';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('sv-SE').replace(/-/g, '.');
+}
+
+/** Огноо + цаг — «2026.08.15 14:30» */
+export function formatDateTime(d: string | Date | null | undefined): string {
+  if (!d) return '—';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return '—';
+  const time = date.toLocaleTimeString('mn-MN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `${formatDate(date)} ${time}`;
+}
+
+/**
+ * Харьцангуй хугацаа — «5 минутын өмнө», «3 хоногийн өмнө».
+ *
+ * ⚠️ Жагсаалтад «саяхан юу болсныг» хурдан ойлгоход. 7 хоногоос
+ * хойш бол бүтэн огноо руу шилжинэ — «47 хоногийн өмнө» гэдэг нь
+ * «2026.07.01»-ээс дутуу мэдээлэлтэй.
+ */
+export function formatRelative(d: string | Date | null | undefined): string {
+  if (!d) return '—';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return formatDateTime(date);
+
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'дөнгөж сая';
+  if (mins < 60) return `${mins} минутын өмнө`;
+
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} цагийн өмнө`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} хоногийн өмнө`;
+
+  return formatDate(date);
+}

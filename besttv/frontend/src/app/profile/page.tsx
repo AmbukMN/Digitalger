@@ -198,7 +198,7 @@ export default function ProfilePage() {
   };
 
   const submitPasswordChange = async () => {
-    if (newPassword.length < 8) {
+    if (newPassword.length < 6) {
       toast.error('Шинэ нууц үг 8-с дээш тэмдэгттэй байх ёстой');
       return;
     }

@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   History, Activity, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, MessageSquare, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
 import {
   Badge,
   Dialog,
@@ -237,9 +237,9 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                 <InfoRow label="Нэвтрэх төрөл" value={data.provider} />
                 <InfoRow label="Имэйл баталгаажсан" value={data.emailVerified ? 'Тийм' : 'Үгүй'} />
                 <InfoRow label="Зочин эсэх" value={data.isGuest ? 'Тийм' : 'Үгүй'} />
-                <InfoRow label="Бүртгүүлсэн" value={new Date(data.createdAt).toLocaleDateString('mn-MN')} />
+                <InfoRow label="Бүртгүүлсэн" value={formatDate(data.createdAt)} />
                 <InfoRow label="Төлөв" value={data.isActive ? 'Идэвхтэй' : 'Хаагдсан'} />
-                <InfoRow label="Хэтэвч" value={`${data.walletBalance.toLocaleString()}₮`} />
+                <InfoRow label="Хэтэвч" value={`${formatPrice(data.walletBalance)}`} />
               </div>
 
               {/*
@@ -251,7 +251,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <MiniStat
                     label="Нийт төлсөн"
-                    value={`${data.activity.totalSpent.toLocaleString()}₮`}
+                    value={`${formatPrice(data.activity.totalSpent)}`}
                     hint="цэнэглэлт хасна"
                   />
                   <MiniStat
@@ -341,7 +341,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                                     left <= 3 ? 'text-destructive' : 'text-muted-foreground',
                                   )}
                                 >
-                                  {new Date(s.expiresAt).toLocaleDateString('mn-MN')} · {left} хоног
+                                  {formatDate(s.expiresAt)} · {left} хоног
                                 </span>
                               </div>
                               <div className="mt-1.5 flex flex-wrap gap-1">
@@ -383,7 +383,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                             >
                               <span className="text-muted-foreground">{s.plan.name}</span>
                               <span className="text-muted-foreground">
-                                {new Date(s.expiresAt).toLocaleDateString('mn-MN')}
+                                {formatDate(s.expiresAt)}
                               </span>
                             </div>
                           ))}
@@ -400,7 +400,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               <div className="rounded-lg border border-primary/25 bg-primary/8 p-4">
                 <p className="text-xs text-muted-foreground">Одоогийн үлдэгдэл</p>
                 <p className="mt-0.5 text-2xl font-black text-foreground">
-                  {data.walletBalance.toLocaleString()}₮
+                  {formatPrice(data.walletBalance)}
                 </p>
               </div>
 
@@ -478,7 +478,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                             <div className="min-w-0">
                               <p className="truncate text-foreground">{title}</p>
                               <p className="truncate text-xs text-muted-foreground">
-                                {new Date(tx.createdAt).toLocaleString('mn-MN')}
+                                {formatDateTime(tx.createdAt)}
                                 {showDesc && ` · ${tx.description}`}
                               </p>
                             </div>
@@ -486,10 +486,10 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                           <div className="shrink-0 text-right">
                             <p className={cn('font-semibold', meta.positive ? 'text-success' : 'text-foreground')}>
                               {meta.positive ? '+' : ''}
-                              {tx.amount.toLocaleString()}₮
+                              {formatPrice(tx.amount)}
                             </p>
                             <p className="text-[11px] text-muted-foreground">
-                              → {tx.balanceAfter.toLocaleString()}₮
+                              → {formatPrice(tx.balanceAfter)}
                             </p>
                           </div>
                         </div>
@@ -546,7 +546,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                       </p>
                       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                         {kind.sub && <span className="text-foreground/70">{kind.sub}</span>}
-                        <span>{new Date(p.createdAt).toLocaleString('mn-MN')}</span>
+                        <span>{formatDateTime(p.createdAt)}</span>
                         {p.couponCode && (
                           <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-500">
                             {p.couponCode}
@@ -556,11 +556,11 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <div className="text-right">
-                        <span className="font-semibold text-foreground">{p.amount.toLocaleString()}₮</span>
+                        <span className="font-semibold text-foreground">{formatPrice(p.amount)}</span>
                         {/* Хямдарсан бол анхны үнийг зурааслаж харуулна */}
                         {p.originalAmount != null && p.originalAmount > p.amount && (
                           <p className="text-[11px] text-muted-foreground line-through">
-                            {p.originalAmount.toLocaleString()}₮
+                            {formatPrice(p.originalAmount)}
                           </p>
                         )}
                       </div>
@@ -599,12 +599,12 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                           </p>
                           <p className="text-xs text-muted-foreground">
                             <span className="text-foreground/70">Хэтэвчнээс</span>{' '}
-                            {new Date(r.createdAt).toLocaleString('mn-MN')}
+                            {formatDateTime(r.createdAt)}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className="font-semibold text-foreground">
-                            {r.amount.toLocaleString()}₮
+                            {formatPrice(r.amount)}
                           </span>
                           <Badge variant="default">Төлсөн</Badge>
                         </div>
@@ -667,7 +667,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                           </span>
                           <span className="shrink-0 text-right text-[11px] text-muted-foreground">
                             {pct != null && <span className="mr-1.5">{pct}%</span>}
-                            {new Date(e.createdAt).toLocaleString('mn-MN')}
+                            {formatDateTime(e.createdAt)}
                             {e.device && <span className="ml-1.5">· {e.device}</span>}
                           </span>
                         </div>
@@ -706,7 +706,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                         </span>
                         <Badge variant={active ? 'success' : 'secondary'} className="shrink-0 text-[10px]">
                           {active
-                            ? `${new Date(r.expiresAt).toLocaleDateString('mn-MN')} хүртэл`
+                            ? `${formatDate(r.expiresAt)} хүртэл`
                             : 'Дууссан'}
                         </Badge>
                       </div>
@@ -730,7 +730,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                     >
                       <span className="text-foreground">{item.title.title}</span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(item.createdAt).toLocaleDateString('mn-MN')}
+                        {formatDate(item.createdAt)}
                       </span>
                     </div>
                   ))}
@@ -773,7 +773,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                         </div>
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           {fmtDur(wp.positionSec)} / {fmtDur(wp.durationSec)} ·{' '}
-                          {new Date(wp.updatedAt).toLocaleString('mn-MN')}
+                          {formatDateTime(wp.updatedAt)}
                         </p>
                       </div>
                     );
@@ -814,7 +814,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                       )}
                     </div>
                     <span className="text-[11px] text-muted-foreground">
-                      {new Date(c.lastMessageAt).toLocaleString('mn-MN')}
+                      {formatDateTime(c.lastMessageAt)}
                     </span>
                   </div>
 
@@ -855,7 +855,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                                 </p>
                               )}
                               <p className="mt-1 text-[10px] text-muted-foreground">
-                                {new Date(m.createdAt).toLocaleString('mn-MN')}
+                                {formatDateTime(m.createdAt)}
                               </p>
                             </div>
                           </div>

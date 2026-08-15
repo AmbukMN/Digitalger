@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileText, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { cn } from '@besttv/shared';
+import { cn, formatDate } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -149,7 +149,7 @@ export default function PagesListPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{p.order}</td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(p.updatedAt).toLocaleDateString('mn-MN')}
+                      {formatDate(p.updatedAt)}
                     </td>
                     <td className="px-4 py-3">
                       <button

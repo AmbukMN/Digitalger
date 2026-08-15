@@ -16,6 +16,7 @@ import { TableEmptyState } from '@/components/table-empty-state';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { DataToolbar, SortHeader } from '@/components/data-toolbar';
+import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { Pagination } from '@/components/pagination';
 import {
   useAdminGenres,
@@ -74,6 +75,7 @@ export default function MoviesPage() {
 
   /** Bulk үйлдэлд сонгосон мөрүүд */
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
   const ids = useMemo(() => [...selected], [selected]);
 
   const toggleOne = (id: string) =>
@@ -108,6 +110,21 @@ export default function MoviesPage() {
     // сонгоотой үлдэж, санамсаргүй устгахаас сэргийлнэ
     setSelected(new Set());
     setF((s) => ({ ...s, ...patch, page: patch.page ?? 1 }));
+  };
+
+  /**
+   * CSV татах — ХАРАГДАЖ БУЙ шүүлтийг ЯГ дагана.
+   *
+   * ⚠️ `filtersToQuery` нь `page`/`limit`/`sort`/`dir`-ыг хасдаг тул
+   * зөвхөн 20 мөр биш, шүүлтэд тохирох БҮХ контент татагдана.
+   * (Захиалагчийн CSV дээр шүүлт огт дамждаггүй байсан алдаанаас
+   * суралцаж, энд эхнээсээ жагсаалттай ижил шүүлт холбов.)
+   */
+  const exportCsv = async () => {
+    setExporting(true);
+    const qs = filtersToQuery(f);
+    await downloadCsv(`/admin/titles/export${qs ? `?${qs}` : ''}`, 'kinonuud');
+    setExporting(false);
   };
 
   const activeCount = useMemo(() => {
@@ -207,6 +224,8 @@ export default function MoviesPage() {
           onLimit={(n) => set({ limit: n })}
           activeCount={activeCount}
           onReset={() => setF(EMPTY)}
+          onExport={exportCsv}
+          exporting={exporting}
           actions={
             <button
               onClick={() => setEditing('new')}
