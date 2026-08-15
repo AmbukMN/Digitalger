@@ -417,6 +417,10 @@ export function useUserInsight(userId: string, enabled: boolean) {
 export interface AdminUserDetail extends AdminUser {
   provider: string;
   emailVerified: boolean;
+  /** Утас — баталгаажаагүй бол `phoneVerified` нь null */
+  phone?: string | null;
+  phoneVerified?: string | null;
+  pendingPhone?: string | null;
   isGuest: boolean;
   walletBalance: number;
   /**

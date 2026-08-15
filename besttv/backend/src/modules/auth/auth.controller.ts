@@ -6,6 +6,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  Logger,
   Param,
   Patch,
   Post,
@@ -21,12 +22,14 @@ import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { SessionService, type DeviceContext } from './session.service';
+import { PhoneVerifyService } from './phone-verify.service';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
+  RequestPhoneVerifyDto,
   ResetPasswordDto,
   UpdateProfileDto,
 } from './dto/auth.dto';
@@ -38,12 +41,22 @@ import { StorageService } from '../../storage/storage.service';
 const AVATAR_SIZE_LIMIT = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
 
+/**
+ * verify.mn callback-ийн source IP.
+ * ⚠️ Баримтжуулсан хаягууд — өөрчлөгдвөл callback ажиллахаа болино
+ * (гэхдээ polling нь ямар ч тохиолдолд баталгаажуулах тул эгзэгтэй биш).
+ */
+const VERIFY_MN_CALLBACK_IPS = new Set(['3.34.8.248', '13.124.219.192']);
+
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly auth: AuthService,
     private readonly storage: StorageService,
     private readonly sessions: SessionService,
+    private readonly phoneVerify: PhoneVerifyService,
   ) {}
 
   /**
@@ -249,5 +262,58 @@ export class AuthController {
     const key = this.storage.buildKey('avatars', 'avatar.webp');
     await this.storage.upload(key, buf, 'image/webp');
     return this.auth.updateProfile(user.sub, { avatarKey: key });
+  }
+
+  // ═══ УТАС БАТАЛГААЖУУЛАЛТ (verify.mn MO SMS) ═══════════════════════════
+
+  /**
+   * Баталгаажуулах хүсэлт — 144773 руу илгээх код + заавар буцаана.
+   * ⚠️ Rate limit чанга — session бүр verify.mn-д ЗАРДАЛТАЙ.
+   */
+  @Post('request-phone-verify')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  requestPhoneVerify(@CurrentUser() user: JwtPayload, @Body() dto: RequestPhoneVerifyDto) {
+    return this.phoneVerify.requestPhoneVerify(user.sub, dto.phone);
+  }
+
+  /**
+   * Polling — session-ий төлөв.
+   * ⚠️ Frontend 3 секунд тутам дуудна (verify.mn 2с дотор 429 буцаана).
+   */
+  @Get('phone-verify/status')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  phoneVerifyStatus(@CurrentUser() user: JwtPayload, @Query('sessionId') sessionId: string) {
+    return this.phoneVerify.getStatus(user.sub, sessionId);
+  }
+
+  /**
+   * verify.mn callback — НЭЭЛТТЭЙ (JWT байхгүй, verify.mn-ээс ирнэ).
+   *
+   * ⚠️⚠️ Энэ нь зөвхөн «сэрээх дохио». Дуудагчийн үгэнд ИТГЭХГҮЙ —
+   * `handleCallback` дотор verify.mn руу ДАХИН хүсэлт явуулж
+   * баталгаажуулна. Эс бөгөөс хэн нэгэн энэ URL-ыг таамаглаж дуудаад
+   * бусдын дугаарыг «баталгаажуулах» боломжтой болно.
+   *
+   * ⚠️ IP whitelist — verify.mn-ий баримтжуулсан source IP.
+   * ⚠️ ҮРГЭЛЖ 200 буцаана (403 биш) — verify.mn дахин дуудахгүйн тулд.
+   *    Polling нь ямар ч тохиолдолд баталгаажуулдаг тул эгзэгтэй биш.
+   */
+  @Get('phone-verify/callback')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  phoneVerifyCallback(@Query('sid') sid: string, @Req() req: Request): { ok: boolean } {
+    const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
+    /* ⚠️ Nginx ард тул `x-forwarded-for`-ийн ЭХНИЙ IP. `::ffff:` угтварыг хасна */
+    const clientIp = (fwd.split(',')[0]?.trim() || req.ip || '').replace(/^::ffff:/, '');
+
+    if (!VERIFY_MN_CALLBACK_IPS.has(clientIp)) {
+      this.logger.warn(`Phone verify callback — зөвшөөрөгдөөгүй IP: ${clientIp}`);
+      return { ok: false };
+    }
+    /* ⚠️ Хүлээхгүй — verify.mn-д 200-г ХУРДАН буцаана */
+    void this.phoneVerify.handleCallback(sid);
+    return { ok: true };
   }
 }

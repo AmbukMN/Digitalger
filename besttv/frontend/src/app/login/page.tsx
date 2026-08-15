@@ -18,6 +18,8 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  /** ⚠️ Бүртгэлийн утас — ЗААВАЛ БИШ */
+  const [phone, setPhone] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -59,6 +61,9 @@ export default function LoginPage() {
     setMode(m);
     setPassword('');
     setConfirmPassword('');
+    /* ⚠️ Утас ч цэвэрлэнэ — бүртгэлээс нэвтрэх рүү шилжихэд
+       нуугдсан талбарт утга үлдэх нь будлиан */
+    setPhone('');
     setShowPassword(false);
   };
 
@@ -78,7 +83,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (mode === 'login') await login(mail, password);
-      else await register(mail, password, name.trim() || undefined);
+      else await register(mail, password, name.trim() || undefined, phone.trim() || undefined);
       toast.success(mode === 'login' ? 'Тавтай морил!' : 'Бүртгэл амжилттай үүслээ');
       router.replace(nextUrl);
     } catch (err: unknown) {
@@ -177,17 +182,46 @@ export default function LoginPage() {
                 />
               </Field>
             )}
-            <Field label="Имэйл хаяг">
+            {/*
+              ⚠️⚠️ НЭВТРЭХЭД `type="email"` ХЭРЭГЛЭХГҮЙ.
+              Браузер өөрөө «@ байх ёстой» гэж шалгадаг тул утсаар
+              нэвтрэх боломж ХӨТЧИЙН ТҮВШИНД хаагдана — сервер рүү ч
+              хүрэхгүй. Бүртгүүлэхэд имэйл ЗААВАЛ тул тэнд хэвээр.
+            */}
+            <Field label={mode === 'login' ? 'Имэйл эсвэл утас' : 'Имэйл хаяг'}>
               <input
-                type="email"
+                type={mode === 'login' ? 'text' : 'email'}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="tanii@mail.mn"
-                autoComplete="email"
+                placeholder={mode === 'login' ? 'tanii@mail.mn эсвэл 99112233' : 'tanii@mail.mn'}
+                autoComplete={mode === 'login' ? 'username' : 'email'}
                 className="input-dark"
               />
             </Field>
+
+            {/*
+              ⚠️ Бүртгүүлэхэд утас — ЗААВАЛ БИШ. Хэрэглэгчийг
+              шаардлагагүй талбараар дарамтлахгүй, гэхдээ оруулбал
+              дараа нь утсаараа нэвтрэх боломжтой болно.
+            */}
+            {mode === 'register' && (
+              <Field label="Утасны дугаар (заавал биш)">
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="99112233"
+                  autoComplete="tel"
+                  className="input-dark"
+                />
+                <p className="mt-1.5 text-xs text-foreground/45">
+                  Оруулбал утсаараа ч нэвтэрч болно. Дараа нь профайлаасаа
+                  баталгаажуулна.
+                </p>
+              </Field>
+            )}
             <Field label="Нууц үг">
               <div className="relative">
                 <input

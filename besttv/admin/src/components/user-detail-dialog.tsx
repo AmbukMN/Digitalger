@@ -236,6 +236,22 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                 <InfoRow label="Эрх" value={data.role === 'ADMIN' ? 'Админ' : 'Хэрэглэгч'} />
                 <InfoRow label="Нэвтрэх төрөл" value={data.provider} />
                 <InfoRow label="Имэйл баталгаажсан" value={data.emailVerified ? 'Тийм' : 'Үгүй'} />
+                {/*
+                  ⚠️ Утас — гомдол шийдэхэд чухал. Баталгаажсан эсэхийг
+                  ЗААВАЛ ялгаж харуулна: баталгаажаагүй дугаар нь өөр
+                  хүнийх байж болно (эзэн нь хараахан авч аваагүй).
+                */}
+                <InfoRow
+                  label="Утас"
+                  value={
+                    data.phone
+                      ? `${data.phone}${data.phoneVerified ? ' ✅' : ' (баталгаажаагүй)'}`
+                      : '—'
+                  }
+                />
+                {data.pendingPhone && (
+                  <InfoRow label="Баталгаажуулж буй" value={data.pendingPhone} />
+                )}
                 <InfoRow label="Зочин эсэх" value={data.isGuest ? 'Тийм' : 'Үгүй'} />
                 <InfoRow label="Бүртгүүлсэн" value={formatDate(data.createdAt)} />
                 <InfoRow label="Төлөв" value={data.isActive ? 'Идэвхтэй' : 'Хаагдсан'} />

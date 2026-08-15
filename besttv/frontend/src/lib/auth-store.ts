@@ -24,6 +24,15 @@ export interface AuthUser {
   isGuest: boolean;
   provider: 'LOCAL' | 'GOOGLE' | 'FACEBOOK' | 'GUEST';
   emailVerified: boolean;
+  /**
+   * Утасны дугаар — ЗААВАЛ БИШ (8 орон, нормалчилсан).
+   * ⚠️ `phoneVerified` нь ОГНОО (ISO мөр) эсвэл `null`.
+   *    `null` = баталгаажаагүй — гэхдээ нэвтрэхэд саад БОЛОХГҮЙ.
+   */
+  phone?: string | null;
+  phoneVerified?: string | null;
+  /** Баталгаажуулж буй дугаар (verify дуустал `phone` солигдохгүй) */
+  pendingPhone?: string | null;
   /** Хэтэвчийн үлдэгдэл (₮) */
   walletBalance: number;
   /** Хамгийн сүүлд дуусах багц (backward-compat) */
@@ -47,7 +56,8 @@ interface AuthState {
   /** Апп ачаалахад токеноос хэрэглэгч сэргээнэ */
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  /** ⚠️ `phone` — ЗААВАЛ БИШ. Оруулбал утсаараа ч нэвтэрнэ. */
+  register: (email: string, password: string, name?: string, phone?: string) => Promise<void>;
   /** OAuth signIn амжилттай болсны дараа NextAuth session-оос ирсэн
    * accessToken/refreshToken-г манай localStorage руу хадгална. */
   syncFromOAuth: (accessToken: string, refreshToken: string) => Promise<void>;
@@ -165,10 +175,10 @@ export const useAuth = create<AuthState>((set, get) => ({
     await get().refreshMe();
   },
 
-  register: async (email, password, name) => {
+  register: async (email, password, name, phone) => {
     const data = await api<{ accessToken: string; refreshToken: string }>(
       '/auth/register',
-      { method: 'POST', body: JSON.stringify({ email, password, name }), auth: false },
+      { method: 'POST', body: JSON.stringify({ email, password, name, phone }), auth: false },
     );
     setTokens(data.accessToken, data.refreshToken);
     await get().refreshMe();

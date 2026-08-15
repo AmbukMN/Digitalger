@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -18,10 +19,32 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  /**
+   * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
+   * ⚠️ Regex СУЛ (зай/зураас/+976 зөвшөөрнө) — хатуу шалгалт болон
+   *    нормалчлалыг `normalizePhone` хийнэ. Энд хатуу барих нь
+   *    «+976 9900 1122» гэж бичсэн хүнийг шалтгаангүй татгалзана.
+   */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[+\d\s()-]{8,20}$/, { message: 'Утасны дугаар буруу байна' })
+  phone?: string;
 }
 
 export class LoginDto {
-  @IsEmail({}, { message: 'Имэйл хаяг буруу байна' })
+  /**
+   * ⚠️⚠️ ИМЭЙЛ ЭСВЭЛ УТАС — `@IsEmail` ХЭРЭГЛЭХГҮЙ.
+   *
+   * Нэвтрэх формд нэг л талбар байна. `@IsEmail` тавибал утсаар
+   * нэвтрэх боломж DTO түвшинд ХААГДАНА («Имэйл хаяг буруу байна»
+   * гэж 400 буцаана). Аль болохыг `auth.service` нь `@` тэмдэгтээр
+   * ялгаж, буруу бол «Имэйл/утас эсвэл нууц үг буруу» гэсэн НЭГ
+   * мессеж өгнө (бүртгэлтэй эсэхийг таахаас сэргийлнэ).
+   */
+  @IsString()
+  @IsNotEmpty({ message: 'Имэйл эсвэл утасны дугаар оруулна уу' })
+  @MaxLength(120)
   email: string;
 
   @IsString()
@@ -39,6 +62,14 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  /**
+   * Утас солих/устгах. Хоосон мөр = устгах.
+   * ⚠️ Солиход `phoneVerified` ЦУЦЛАГДАНА (дахин баталгаажуулна).
+   */
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @IsOptional()
   @IsString()
@@ -101,4 +132,17 @@ export class ChangePasswordDto {
   @IsString()
   @MinLength(6, { message: 'Шинэ нууц үг доод тал нь 6 тэмдэгт байна' })
   newPassword: string;
+}
+
+/**
+ * Утас баталгаажуулах хүсэлт.
+ *
+ * ⚠️ Regex нь СУЛ (зай/зураас/+976 зөвшөөрнө) — хатуу шалгалтыг
+ * `normalizePhone` хийнэ. Энд хатуу барих нь хэрэглэгчийг «+976 9900
+ * 1122» гэж бичихэд шалтгаангүй татгалзахад хүргэнэ.
+ */
+export class RequestPhoneVerifyDto {
+  @IsString()
+  @Matches(/^[+\d\s()-]{8,20}$/, { message: 'Утасны дугаар буруу байна' })
+  phone: string;
 }

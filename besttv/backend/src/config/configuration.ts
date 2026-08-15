@@ -69,6 +69,18 @@ export default () => ({
   //      CDN домэйнээс шууд уншина (presign-гүй → CDN кэштэй, хурдан).
   //      ⚠️ ВИДЕО (HLS m3u8/segment) нь ЭРХ шаарддаг тул ЭНЭ ҮЕД Ч presign-ээр
   //      явна — publicUrl нь видеонд ХЭРЭГЛЭГДЭХГҮЙ (stream module шийднэ).
+  /**
+   * verify.mn — утас баталгаажуулалт (MO SMS).
+   * ⚠️ BestTV-ийн ТУСДАА API түлхүүр (DigitalGer-ийнхээс өөр).
+   */
+  verifyMn: {
+    apiKey: process.env.VERIFY_MN_API_KEY ?? null,
+    baseUrl: process.env.VERIFY_MN_BASE_URL ?? 'https://api.verify.mn',
+    shortcode: process.env.VERIFY_MN_SHORTCODE ?? '144773',
+    /* ⚠️ Хоосон бол зөвхөн polling ажиллана — тэр нь ч хангалттай */
+    callbackUrl: process.env.VERIFY_MN_CALLBACK_URL ?? null,
+  },
+
   r2: {
     accountId: process.env.R2_ACCOUNT_ID,
     accessKeyId: process.env.R2_ACCESS_KEY_ID,

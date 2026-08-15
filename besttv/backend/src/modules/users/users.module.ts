@@ -227,6 +227,11 @@ export class UsersService {
         isActive: true,
         provider: true,
         emailVerified: true,
+        /* ⚠️ Утас — гомдол шийдэхэд чухал (хэн ямар дугаартай, эзэн нь
+           үнэхээр баталгаажуулсан эсэх) */
+        phone: true,
+        phoneVerified: true,
+        pendingPhone: true,
         isGuest: true,
         walletBalance: true,
         createdAt: true,

@@ -92,6 +92,21 @@ model User {
   facebookId    String?      @unique
   emailVerified Boolean      @default(false) // OAuth-аар ирвэл автоматаар true
 
+  // ── Утасны дугаар (verify.mn MO SMS) ──────────────────────────────────
+  /**
+   * /**
+   * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
+   * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
+   * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
+   * БАЙХГҮЙ тул «99001122» ба «+97699001122» нь ХОЁР өөр хэрэглэгч
+   * болох боломжтой байсан — тэр алдааг энд давтахгүй.
+   */
+  phone         String?   @unique
+  /// Баталгаажсан огноо. NULL = баталгаажаагүй (нэвтрэхэд саад БОЛОХГҮЙ)
+  phoneVerified DateTime?
+  /// Баталгаажуулж буй дугаар — verify хийж байж л `phone` солигдоно
+  pendingPhone  String?
+
   // ⚠️ Зочин (guest) нэвтрэлт БҮРМӨСӨН ХАСАГДСАН — зөвхөн Google/Facebook/
   // имэйл+нууц үгээр нэвтэрнэ. Хуучин зочин бүртгэлүүд DB-д үлдсэн бол
   // isGuest=true хэвээр байх ба нэвтрэх боломжгүй болно.
@@ -1329,6 +1344,7 @@ model EmailLog {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
    * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
    * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
@@ -1526,4 +1542,41 @@ model EmailTemplateOverride {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * УТАС БАТАЛГААЖУУЛАХ SESSION — verify.mn MO SMS.
+ * ⚠️⚠️ Энэ нь энгийн OTP БИШ. Бид код илгээдэггүй — ХЭРЭГЛЭГЧ өөрөө
+ * үүсгэсэн кодыг 144773 руу SMS-ээр илгээнэ. verify.mn тэр ирсэн
+ * SMS-ийн дугаарыг session-ий дугаартай тааруулж баталгаажуулна.
+ * Ингэснээр дугаар нь ҮНЭХЭЭР тухайн хүнийх гэдэг нь батлагдана.
+ * ⚠️⚠️ ХОЁР ӨӨР ID байгаа нь ЗОРИУД:
+ * `id`                — өөрсдийн UUID. verify.mn-ий callback нь
+ * БИЕГҮЙ ирдэг тул аль session болохыг зөвхөн
+ * URL-ийн `?sid=` -ээр л ялгана. verify.mn-ий
+ * sessionId-г урьдчилж мэдэх боломжгүй
+ * (POST хариунаас л ирнэ) тул өөрсдийнхөө
+ * ID-г урьдчилан үүсгэж callback-д суулгана.
+ * `verifyMnSessionId` — verify.mn-ийх. Polling-д ашиглана.
+ * ⚠️ User-тэй FK холбоогүй (EmailOtp-той ижил зарчим) — гараар цэвэрлэнэ.
+ */
+model PhoneVerifySession {
+  id     String @id
+  userId String
+  /// Баталгаажуулж буй дугаар (нормалчилсан, 8 орон)
+  phone  String
+  /// Хэрэглэгчийн 144773 руу илгээх код (6 орон)
+  code   String
+
+  /// verify.mn-ий session ID — polling-д
+  verifyMnSessionId String @unique
+
+  /// pending | verified | expired
+  status     String    @default("pending")
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([verifyMnSessionId])
 }

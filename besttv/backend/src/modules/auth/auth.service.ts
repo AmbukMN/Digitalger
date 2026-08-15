@@ -11,6 +11,7 @@ import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizePhone } from '../../common/phone';
 import { SessionService, MAX_DEVICES, type DeviceContext } from './session.service';
 import { EmailService } from '../email/email.service';
 import { SubscriberService } from '../email/email.module';
@@ -66,9 +67,35 @@ export class AuthService {
     const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) throw new ConflictException('Энэ имэйл бүртгэлтэй байна');
 
+    /**
+     * ⚠️ УТАС — ЗААВАЛ БИШ. Оруулаагүй бол `null`.
+     *
+     * ⚠️⚠️ Нормалчилсны ДАРАА давхардлыг шалгана. Нормалчлалгүй бол
+     * «+976 9900-1122» ба «99001122» нь ХОЁР өөр мөр болж, нэг хүн
+     * олон удаа бүртгүүлэх ба утсаар нэвтрэхэд ОЛДОХГҮЙ болно
+     * (DigitalGer-т яг тэр алдаа бий).
+     */
+    let phone: string | null = null;
+    if (dto.phone?.trim()) {
+      phone = normalizePhone(dto.phone);
+      if (!phone) {
+        throw new BadRequestException(
+          'Утасны дугаар буруу байна (8 оронтой, 5-9-өөр эхэлсэн байх ёстой)',
+        );
+      }
+      const taken = await this.prisma.user.findUnique({ where: { phone } });
+      if (taken) throw new ConflictException('Энэ утасны дугаар бүртгэлтэй байна');
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
-      data: { email, passwordHash, name: dto.name?.trim() || null, emailVerified: false },
+      data: {
+        email,
+        passwordHash,
+        name: dto.name?.trim() || null,
+        emailVerified: false,
+        phone,
+      },
     });
 
     await this.tracking.audit(user.id, 'register', { newValue: email });
@@ -84,10 +111,24 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, ctx: DeviceContext = {}): Promise<AuthResult> {
-    const email = dto.email.toLowerCase().trim();
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    /**
+     * ⚠️⚠️ ИМЭЙЛ ЭСВЭЛ УТАС — НЭГ талбараар хоёуланг хүлээж авна.
+     *
+     * Хэрэглэгчээс «имэйл үү, утас уу» гэж асуухгүй — `@` байгаа
+     * эсэхээр өөрсдөө ялгана. Нэвтрэх форм энгийн байх нь чухал.
+     *
+     * ⚠️ Утсыг ЗААВАЛ нормалчилна — хэрэглэгч «+976 9900 1122» гэж
+     * бичихэд ч бүртгэлтэй «99001122»-тай таарах ёстой.
+     * ⚠️ Баталгаажсан байхыг ШААРДАХГҮЙ — нууц үг нь аль хэдийн
+     * хамгаалдаг тул нэмэлт саад болгохгүй.
+     */
+    const raw = dto.email.trim();
+    const user = raw.includes('@')
+      ? await this.prisma.user.findUnique({ where: { email: raw.toLowerCase() } })
+      : await this.findByPhone(raw);
+
     if (!user?.passwordHash) {
-      throw new UnauthorizedException('Имэйл эсвэл нууц үг буруу байна');
+      throw new UnauthorizedException('Имэйл/утас эсвэл нууц үг буруу байна');
     }
     if (!user.isActive) {
       throw new UnauthorizedException('Таны бүртгэл хаагдсан байна');
@@ -98,10 +139,21 @@ export class AuthService {
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Имэйл эсвэл нууц үг буруу байна');
+    if (!ok) throw new UnauthorizedException('Имэйл/утас эсвэл нууц үг буруу байна');
 
     await this.tracking.audit(user.id, 'login');
     return this.buildAuthResult(user, ctx);
+  }
+
+  /**
+   * Утсаар хэрэглэгч олно (нормалчилсны дараа).
+   * ⚠️ Буруу форматтай бол `null` — «олдсонгүй» гэсэн ижил хариу өгнө
+   * (алдааны мессежээр дугаар бүртгэлтэй эсэхийг таахаас сэргийлнэ).
+   */
+  private async findByPhone(raw: string) {
+    const phone = normalizePhone(raw);
+    if (!phone) return null;
+    return this.prisma.user.findUnique({ where: { phone } });
   }
 
   /** Админ нэвтрэлт — зөвхөн ADMIN role */
@@ -161,6 +213,11 @@ export class AuthService {
         isGuest: true,
         provider: true,
         emailVerified: true,
+        /* ⚠️ Профайлын «баталгаажуулах» хэсэгт ЗААВАЛ — эдгээргүй бол
+           frontend утас байгаа эсэх, баталгаажсан эсэхийг мэдэхгүй */
+        phone: true,
+        phoneVerified: true,
+        pendingPhone: true,
         walletBalance: true,
         createdAt: true,
       },
@@ -362,12 +419,51 @@ export class AuthService {
       nextEmail = wantEmail;
     }
 
+    /**
+     * ── УТАС СОЛИХ ──────────────────────────────────────────────────
+     *
+     * ⚠️ Имэйлээс ЯЛГААТАЙ: нууц үг шаардахгүй, шууд солино. Учир нь
+     * утас нь имэйл шиг бүртгэл сэргээх хэрэгсэл БИШ (сэргээлт зөвхөн
+     * имэйлээр явдаг) тул булаах эрсдэл бага.
+     *
+     * ⚠️⚠️ СОЛИХОД БАТАЛГААЖУУЛАЛТ ЦУЦЛАГДАНА. Эс бөгөөс: хэрэглэгч
+     * дугаараа баталгаажуулаад дараа нь өөр дугаар руу солиход
+     * `phoneVerified` үлдэж, БАТАЛГААЖААГҮЙ дугаар «баталгаажсан»
+     * гэж харагдана.
+     */
+    let nextPhone: string | null | undefined;
+    let phoneChanged = false;
+    if (dto.phone !== undefined) {
+      const cur = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { phone: true },
+      });
+      /* Хоосон мөр = дугаараа УСТГАХ гэсэн үг */
+      nextPhone = dto.phone.trim() ? normalizePhone(dto.phone) : null;
+      if (dto.phone.trim() && !nextPhone) {
+        throw new BadRequestException(
+          'Утасны дугаар буруу байна (8 оронтой, 5-9-өөр эхэлсэн байх ёстой)',
+        );
+      }
+      if (nextPhone && nextPhone !== cur?.phone) {
+        const taken = await this.prisma.user.findFirst({
+          where: { phone: nextPhone, id: { not: userId } },
+          select: { id: true },
+        });
+        if (taken) throw new ConflictException('Энэ утасны дугаар өөр бүртгэлд ашиглагдсан байна');
+      }
+      phoneChanged = nextPhone !== (cur?.phone ?? null);
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() || null } : {}),
         ...(dto.avatarKey !== undefined ? { avatarKey: dto.avatarKey } : {}),
         ...(nextEmail ? { email: nextEmail, emailVerified: false } : {}),
+        ...(nextPhone !== undefined ? { phone: nextPhone } : {}),
+        /* ⚠️ Дугаар өөрчлөгдвөл хуучин баталгаажуулалт ХҮЧИНГҮЙ */
+        ...(phoneChanged ? { phoneVerified: null, pendingPhone: null } : {}),
       },
     });
 

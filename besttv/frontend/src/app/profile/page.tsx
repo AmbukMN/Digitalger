@@ -32,6 +32,7 @@ import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useMyPayments, useMyRentals, useWalletTransactions, type WalletTx } from '@/lib/queries';
 import { useBankAccounts } from '@/lib/queries';
 import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
+import { PhoneVerify } from '@/components/profile/phone-verify';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
 import { EmailVerifyCard } from '@/components/email-verify-card';
 import { DeviceSessionsCard } from '@/components/device-sessions-card';
@@ -199,7 +200,7 @@ export default function ProfilePage() {
 
   const submitPasswordChange = async () => {
     if (newPassword.length < 6) {
-      toast.error('Шинэ нууц үг 8-с дээш тэмдэгттэй байх ёстой');
+      toast.error('Шинэ нууц үг доод тал нь 6 тэмдэгт байх ёстой');
       return;
     }
     setSavingPassword(true);
@@ -559,6 +560,12 @@ export default function ProfilePage() {
                 }
               />
             </div>
+
+            {/*
+              ⚠️ УТАС БАТАЛГААЖУУЛАХ — имэйлийн ДООР, тусдаа хайрцагт.
+              Баталгаажаагүй бол шар анхааруулга болж анхаарал татна.
+            */}
+            <PhoneVerify />
 
             {user.provider === 'LOCAL' && (
               <div className="rounded-2xl border border-foreground/10 bg-foreground/3 p-5">
