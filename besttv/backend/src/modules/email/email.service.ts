@@ -74,6 +74,12 @@ export class EmailService {
   }
   private readonly from: string;
   private readonly siteUrl: string;
+  /**
+   * ⚠️ SES Configuration Set — Open/Click/Bounce үйл явдлыг SNS руу
+   * илгээхэд ЗААВАЛ. Тохируулаагүй бол `undefined` (имэйл хэвийн явна,
+   * зүгээр л хяналт ажиллахгүй).
+   */
+  private readonly configSet: string | undefined;
   private readonly queue: Array<() => Promise<unknown>> = [];
   private draining = false;
   /** email → suppressed. TTL 5 мин (шинэ bounce удалгүй мөрдөгдөнө) */
@@ -91,9 +97,15 @@ export class EmailService {
     const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
     const secretAccessKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
 
+    /* Хоосон мөр → undefined (SES хоосон нэр хүлээж авдаггүй) */
+    this.configSet = this.config.get<string>('SES_CONFIGURATION_SET')?.trim() || undefined;
+
     if (accessKeyId && secretAccessKey) {
       this.ses = new SESClient({ region, credentials: { accessKeyId, secretAccessKey } });
-      this.logger.log(`AWS SES бэлэн — ${region}, sender: ${this.from}`);
+      this.logger.log(
+        `AWS SES бэлэн — ${region}, sender: ${this.from}` +
+          (this.configSet ? `, хяналт: ${this.configSet}` : ', хяналтгүй'),
+      );
     } else {
       this.ses = null;
       this.logger.warn('AWS түлхүүр байхгүй — имэйл илгээхгүй (лог хийнэ)');
@@ -184,7 +196,14 @@ export class EmailService {
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        await this.ses.send(
+        /**
+         * ⚠️⚠️ ХАРИУГ ЗААВАЛ АВНА — `MessageId` нь SNS-ийн үйл явдлыг
+         * (Delivery/Open/Click/Bounce) энэ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
+         *
+         * Өмнө нь `await this.ses.send(...)` гэж хариуг ОГТ авдаггүй
+         * байсан тул MessageId алдагдаж, хүргэлт/нээлт хянах боломжгүй байв.
+         */
+        const res = await this.ses.send(
           new SendEmailCommand({
             Source: `BestTV <${this.from}>`,
             Destination: { ToAddresses: [to] },
@@ -193,9 +212,26 @@ export class EmailService {
               Subject: { Data: opts.subject, Charset: 'UTF-8' },
               Body: { Html: { Data: opts.html, Charset: 'UTF-8' } },
             },
+            /**
+             * ⚠️ Configuration Set — SES нь ЗӨВХӨН энэ тохируулагдсан үед
+             * Open/Click/Bounce үйл явдлыг SNS руу илгээнэ. Байхгүй бол
+             * ямар ч хяналт ажиллахгүй (чимээгүй).
+             *
+             * ⚠️ Тохируулаагүй бол `undefined` — SES алдаа өгөхгүй,
+             *    зүгээр л үйл явдал ирэхгүй. Имэйл ХЭВИЙН явна.
+             */
+            ConfigurationSetName: this.configSet,
           }),
         );
-        await this.log(to, opts.subject, opts.template, 'sent', null, opts.userId);
+        await this.log(
+          to,
+          opts.subject,
+          opts.template,
+          'sent',
+          null,
+          opts.userId,
+          res?.MessageId ?? null,
+        );
         return true;
       } catch (err) {
         lastErr = err;
@@ -224,9 +260,11 @@ export class EmailService {
     status: string,
     error: string | null,
     userId?: string,
+    /** SES-ийн MessageId — SNS үйл явдлыг холбох түлхүүр */
+    messageId?: string | null,
   ) {
     await this.prisma.emailLog
-      .create({ data: { to, subject, template, status, error, userId } })
+      .create({ data: { to, subject, template, status, error, userId, messageId } })
       .catch(() => null);
   }
 

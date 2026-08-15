@@ -1257,9 +1257,59 @@ model EmailLog {
   userId    String?
   createdAt DateTime @default(now())
 
+  // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
+  /**
+   * /**
+   * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
+   * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
+   * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
+   * боломжгүй байв. Одоо хадгална.
+   * ⚠️ `@unique` — SNS нь нэг үйл явдлыг ОЛОН УДАА илгээж болно
+   * (at-least-once). Давхардлыг DB түвшинд хаана.
+   */
+  messageId String? @unique
+
+  /**
+   * SNS-ээс «Delivery» ирсэн мөч — хүлээн авагчийн сервер хүлээж авав
+   */
+  deliveredAt DateTime?
+
+  /**
+   * ⚠️ Анх НЭЭСЭН мөч. Дараагийн нээлтэд ДАРЖ БИЧИХГҮЙ — эхнийх нь
+   * хамгийн үнэ цэнэтэй хэмжүүр (хэр хурдан нээв).
+   */
+  openedAt DateTime?
+
+  /**
+   * Хэдэн удаа нээсэн (нэг хүн олон удаа нээж болно)
+   */
+  openCount Int @default(0)
+
+  /**
+   * Имэйл доторх холбоос анх дарсан мөч
+   */
+  clickedAt DateTime?
+
+  /**
+   * Хэдэн удаа дарсан
+   */
+  clickCount Int @default(0)
+
+  /**
+   * Буцаагдсан/гомдол ирсэн мөч. `bounce` = хаяг байхгүй,
+   * `complaint` = спам гэж мэдээлсэн.
+   */
+  bouncedAt  DateTime?
+  bounceType String?
+
   @@index([template, createdAt])
   @@index([to, createdAt])
   @@index([status, createdAt])
+  /**
+   * ⚠️ Нээлтийн статистик — «нээгээгүй» шүүлтэд ч хэрэгтэй
+   */
+  @@index([openedAt])
+  @@index([template, openedAt])
 }
 
 /// Имэйл цуглуулга (мэдээллийн товхимол).

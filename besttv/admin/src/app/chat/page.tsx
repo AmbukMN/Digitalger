@@ -617,7 +617,20 @@ export default function ChatPage() {
                           )}
                         >
                           {isUser ? <UserIcon size={10} /> : isAdmin ? <Headphones size={10} /> : <Bot size={10} />}
-                          {isUser ? 'Хэрэглэгч' : isAdmin ? 'Админ (та)' : 'AI туслах'}
+                          {/*
+                            ⚠️ НЭР БАЙВАЛ НЭРИЙГ нь бичнэ — «Хэрэглэгч» гэсэн
+                            ерөнхий үг БИШ. Админ хэнтэй ярьж байгаагаа
+                            мессеж бүр дээр харах ёстой (толгойд нэг л удаа
+                            бичигдсэн байдаг тул гүйлгэхэд алга болно).
+
+                            Эрэмбэ: бүртгэлтэй нэр → чатад бичсэн нэр →
+                            «Зочин» (нэвтрээгүй).
+                          */}
+                          {isUser
+                            ? (detail.user?.name ?? detail.userName ?? 'Зочин')
+                            : isAdmin
+                              ? 'Админ (та)'
+                              : 'AI туслах'}
                           <span className="text-muted-foreground/60">· {timeAgo(m.createdAt)}</span>
                         </p>
                         <div

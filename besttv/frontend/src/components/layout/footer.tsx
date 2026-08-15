@@ -180,20 +180,40 @@ export function Footer() {
                      хатуу бичээгүй. Тохируулаагүй бол огт харагдахгүй.
                 */}
                 {col.heading === 'Тусламж' && (socials?.email || socials?.phone || socialLinks.length > 0) && (
-                  <div className="mt-3 space-y-2.5 md:mt-4">
+                  /**
+                   * ⚠️⚠️ МОБАЙЛ = НЭГ ЭГНЭЭ, ДЕСКТОП = БОСОО.
+                   *
+                   * БОДИТ АЛДАА: `space-y-2.5` нь БҮГДИЙГ доош цувруулдаг
+                   * байсан тул мобайлд имэйл icon, дараа нь Facebook icon
+                   * тус тусдаа мөр эзэлж, footer дэмий урт болж байв
+                   * (2 icon → 2 мөр).
+                   *
+                   * Одоо:
+                   *   МОБАЙЛ  — flex-row, icon-ууд зэрэгцээ (нэг эгнээ)
+                   *   ДЕСКТОП — flex-col, имэйл бүтэн хаягтай ДЭЭР,
+                   *             сошиал icon-ууд ДООР (md:)
+                   */
+                  /**
+                   * ⚠️ ЯАГААД FLEX-WRAP (grid БИШ):
+                   *   МОБАЙЛ  — бүх icon НЭГ эгнээнд урсана
+                   *   ДЕСКТОП — имэйл нь `md:basis-full` тул БҮТЭН мөр
+                   *             эзэлж, сошиал icon-ууд ДООД мөрөнд
+                   *             зэрэгцээ үлдэнэ (босоо цуварахгүй)
+                   */
+                  <div className="mt-3 flex flex-row flex-wrap items-center gap-2 md:mt-4 md:gap-x-2 md:gap-y-2.5">
                     {socials?.email && (
                       <a
                         href={`mailto:${socials.email}`}
                         aria-label={`Имэйл: ${socials.email}`}
                         title={socials.email}
-                        className="group flex items-center gap-2 text-[13px] text-foreground/65 transition-colors hover:text-foreground sm:text-sm"
+                        className="group flex items-center gap-2 text-[13px] text-foreground/65 transition-colors hover:text-foreground md:basis-full md:text-sm"
                       >
-                        {/* Мобайлд icon нь товч мэт харагдана (дарахад хялбар) */}
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/8 transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent group-hover:sm:bg-transparent group-hover:sm:text-foreground">
+                        {/* ⚠️ Мобайлд дугуй товч (дарахад хялбар), десктопт энгийн icon */}
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/8 transition-colors group-hover:bg-primary group-hover:text-primary-foreground md:h-auto md:w-auto md:rounded-none md:bg-transparent group-hover:md:bg-transparent group-hover:md:text-foreground">
                           <Mail size={14} />
                         </span>
-                        {/* ⚠️ Хаяг нь ЗӨВХӨН sm+ дээр — мобайлд тасрахаас сэргийлнэ */}
-                        <span className="hidden min-w-0 truncate sm:inline">{socials.email}</span>
+                        {/* ⚠️ Хаяг ЗӨВХӨН md+ — мобайлд багана нарийн тул тасарна */}
+                        <span className="hidden min-w-0 truncate md:inline">{socials.email}</span>
                       </a>
                     )}
 
@@ -202,33 +222,43 @@ export function Footer() {
                         href={`tel:${socials.phone.replace(/\s/g, '')}`}
                         aria-label={`Утас: ${socials.phone}`}
                         title={socials.phone}
-                        className="group flex items-center gap-2 text-[13px] text-foreground/65 transition-colors hover:text-foreground sm:text-sm"
+                        className="group flex items-center gap-2 text-[13px] text-foreground/65 transition-colors hover:text-foreground md:basis-full md:text-sm"
                       >
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/8 transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent group-hover:sm:bg-transparent group-hover:sm:text-foreground">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/8 transition-colors group-hover:bg-primary group-hover:text-primary-foreground md:h-auto md:w-auto md:rounded-none md:bg-transparent group-hover:md:bg-transparent group-hover:md:text-foreground">
                           <Phone size={14} />
                         </span>
-                        <span className="hidden min-w-0 truncate sm:inline">{socials.phone}</span>
+                        <span className="hidden min-w-0 truncate md:inline">{socials.phone}</span>
                       </a>
                     )}
 
-                    {/* ⚠️ Сошиал нь ҮРГЭЛЖ icon — нэр бичих шаардлагагүй */}
-                    {socialLinks.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-0.5">
-                        {socialLinks.map(({ href, label, Icon }) => (
-                          <a
-                            key={label}
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={label}
-                            title={label}
-                            className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground/8 text-foreground/60 transition-colors hover:bg-primary hover:text-primary-foreground"
-                          >
-                            <Icon size={14} />
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    {/*
+                      ⚠️ Сошиал нь ҮРГЭЛЖ icon — нэр бичих шаардлагагүй.
+
+                      ⚠️ ЭНЭ НЬ ЗАВСРЫН DIV-ГҮЙ — icon бүр эцэг flex-ийн
+                         ШУУД хүүхэд байна. Тиймээс:
+                           МОБАЙЛ  (flex-row) → имэйлтэй НЭГ ЭГНЭЭНД
+                           ДЕСКТОП (flex-col) → доор нь босоо
+                         Завсрын div тавибал мобайлд тусдаа МӨР үүсгэдэг
+                         (яг тэр алдаа гарч байсан).
+
+                      ⚠️ Десктопт icon-ууд хоорондоо зэрэгцээ байхын тулд
+                         сүүлийн icon бүрийг нэг мөрөнд багтаах хэрэгтэй —
+                         `md:-mr-1` нь хажуугийн зайг арилгаж, дараагийн
+                         icon шууд наалдана.
+                    */}
+                    {socialLinks.map(({ href, label, Icon }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={label}
+                        title={label}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/8 text-foreground/60 transition-colors hover:bg-primary hover:text-primary-foreground"
+                      >
+                        <Icon size={14} />
+                      </a>
+                    ))}
                   </div>
                 )}
               </nav>

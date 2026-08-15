@@ -5,8 +5,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   CheckCircle2,
+  Inbox,
   Loader2,
   Mail,
+  MailOpen,
+  MousePointerClick,
   Send,
   ShieldOff,
   Users,
@@ -36,13 +39,22 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
+/**
+ * ⚠️ Backend-ийн 10 загварыг БҮГДИЙГ хамруулна.
+ * Өмнө нь 7 л байсан тул `rental-expiring`, `password-reset`,
+ * `password-changed` гурав шүүлтийн жагсаалтад ГАРАХГҮЙ, хүснэгтэд
+ * түүхий slug-аараа («password-changed») харагддаг байв.
+ */
 const TEMPLATE_LABEL: Record<string, string> = {
   welcome: 'Тавтай морил',
   verify: 'Баталгаажуулалт',
   payment: 'Төлбөр',
   subscription: 'Багц',
   rental: 'Түрээс',
-  expiring: 'Дуусах сануулга',
+  'rental-expiring': 'Түрээс дуусах',
+  expiring: 'Багц дуусах',
+  'password-reset': 'Нууц үг сэргээх',
+  'password-changed': 'Нууц үг солигдсон',
   marketing: 'Маркетинг',
 };
 
@@ -54,6 +66,13 @@ interface EmailLog {
   status: string;
   error: string | null;
   createdAt: string;
+  /** ⚠️ Хүргэлтийн хяналт — SES Configuration Set асаасан үед л дүүрнэ */
+  deliveredAt: string | null;
+  openedAt: string | null;
+  openCount: number;
+  clickedAt: string | null;
+  clickCount: number;
+  bouncedAt: string | null;
 }
 
 interface Subscriber {
@@ -101,8 +120,30 @@ export default function EmailPage() {
 
 // ─── Илгээсэн имэйл ───────────────────────────────────────────────────────────
 
+/** Backend-ийн `insight` объект — хүргэлт/нээлтийн хураангуй */
+interface EmailInsight {
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  openRate: number;
+  clickRate: number;
+  deliveryRate: number;
+  /** false = SES хяналт (Configuration Set) асаагүй — хувийг харуулахгүй */
+  trackingActive: boolean;
+}
+
 function LogsTab() {
-  const [f, setF] = useState({ search: '', template: 'ALL', status: 'ALL', page: 1, limit: 20 });
+  const [f, setF] = useState({
+    search: '',
+    template: 'ALL',
+    status: 'ALL',
+    /** ⚠️ Нээсэн эсэхээр шүүх — 'ALL' | 'yes' | 'no' */
+    opened: 'ALL',
+    page: 1,
+    limit: 20,
+  });
 
   /* Олноор устгах — тест лог хуримтлагддаг */
   const sel = useBulkSelect({
@@ -125,6 +166,7 @@ function LogsTab() {
         limit: number;
         totalPages: number;
         stats: Record<string, number>;
+        insight: EmailInsight;
       }>(`/admin/email/logs?${qs}`);
     },
     placeholderData: (p) => p,
@@ -134,13 +176,24 @@ function LogsTab() {
 
   const set = (patch: Partial<typeof f>) => setF((s) => ({ ...s, ...patch, page: patch.page ?? 1 }));
   const activeCount = useMemo(
-    () => (f.template !== 'ALL' ? 1 : 0) + (f.status !== 'ALL' ? 1 : 0),
+    () =>
+      (f.template !== 'ALL' ? 1 : 0) + (f.status !== 'ALL' ? 1 : 0) + (f.opened !== 'ALL' ? 1 : 0),
     [f],
   );
 
   return (
     <>
-      <div className="mb-5 grid gap-3 grid-cols-1 sm:grid-cols-3">
+      {/*
+        ⚠️⚠️ ХҮРГЭЛТИЙН ЖИМ — илгээснээс хойш юу болсныг НЭГ ХАРЦААР.
+        Өмнө нь зөвхөн «Илгээгдсэн / Амжилтгүй / Хориглосон» гэсэн 3 карт
+        байсан тул имэйл ХҮРСЭН эсэх, НЭЭСЭН эсэхийг мэдэх аргагүй байв.
+
+        ⚠️ Тоонууд одоо ШҮҮЛТИЙГ ДАГАНА (backend-д `where` нэмсэн) —
+           өмнө нь шүүлт хийсэн ч дэлхийн нийт тоо гардаг байв.
+      */}
+      <EmailFunnel insight={data?.insight} />
+
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
           icon={<CheckCircle2 size={17} />}
           label="Илгээгдсэн"
@@ -164,7 +217,7 @@ function LogsTab() {
       <DataToolbar
         search={f.search}
         onSearch={(v) => set({ search: v })}
-        searchPlaceholder="Имэйл хаягаар хайх..."
+        searchPlaceholder="Имэйл хаяг эсвэл гарчгаар хайх..."
         selects={[
           {
             id: 'template',
@@ -188,11 +241,25 @@ function LogsTab() {
             ],
             onChange: (v) => set({ status: v }),
           },
+          {
+            /* ⚠️ Нээгээгүйг шүүх — дахин илгээх/сануулах хэрэглэгчийг олно */
+            id: 'opened',
+            label: 'Нээлт',
+            value: f.opened,
+            options: [
+              { value: 'ALL', label: 'Бүгд' },
+              { value: 'yes', label: 'Нээсэн' },
+              { value: 'no', label: 'Нээгээгүй' },
+            ],
+            onChange: (v) => set({ opened: v }),
+          },
         ]}
         limit={f.limit}
         onLimit={(n) => set({ limit: n })}
         activeCount={activeCount}
-        onReset={() => setF({ search: '', template: 'ALL', status: 'ALL', page: 1, limit: 20 })}
+        onReset={() =>
+          setF({ search: '', template: 'ALL', status: 'ALL', opened: 'ALL', page: 1, limit: 20 })
+        }
       />
 
       <div
@@ -216,6 +283,8 @@ function LogsTab() {
               <th className="px-4 py-3 text-left font-semibold">Гарчиг</th>
               <th className="px-4 py-3 text-left font-semibold">Төрөл</th>
               <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
+              {/* ⚠️ НЭЭЛТ — хэрэглэгч имэйлийг уншсан эсэх */}
+              <th className="px-4 py-3 text-left font-semibold">Нээлт</th>
               <th className="px-4 py-3 text-left font-semibold">Огноо</th>
             </tr>
           </thead>
@@ -267,6 +336,22 @@ function LogsTab() {
                     </p>
                   )}
                 </td>
+
+                {/*
+                  ⚠️⚠️ НЭЭЛТИЙН НҮД — таны хүссэн «нээсэн / нээгээгүй».
+
+                  Гурван төлөв:
+                    • Нээсэн   — хэзээ нээсэн + хэдэн удаа (hover-д)
+                    • Хүрсэн   — хүргэгдсэн ч хараахан нээгээгүй
+                    • Буцсан   — хаяг байхгүй / спам гэж мэдээлсэн
+
+                  ⚠️ Хяналт асаагүй эсвэл илгээгдээгүй мөрөнд «—» гаргана
+                     — «нээгээгүй» гэж ХУДАЛ харуулахгүй.
+                */}
+                <td className="px-4 py-3">
+                  <EmailOpenCell log={l} />
+                </td>
+
                 <td className="px-4 py-3 text-xs text-muted-foreground">
                   {new Date(l.createdAt).toLocaleString('mn-MN')}
                 </td>
@@ -675,3 +760,145 @@ function SuppressionsTab() {
   );
 }
 
+
+/**
+ * ХҮРГЭЛТИЙН ЖИМ — илгээснээс хойш юу болсныг харуулна.
+ *
+ * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: өмнө нь «Илгээгдсэн 14» гэж харагддаг ч
+ * тэдгээрийн хэд нь хүнд ХҮРСЭН, хэд нь НЭЭСЭН нь огт мэдэгддэггүй
+ * байв. Маркетингийн имэйл үр дүнтэй эсэхийг хэмжих боломжгүй байсан.
+ *
+ * ⚠️ Хяналт (SES Configuration Set) АСААГҮЙ үед «0%» гэж ХУДАЛ
+ *    харуулахгүй — оронд нь тохируулах зааврыг өгнө.
+ */
+function EmailFunnel({ insight }: { insight?: EmailInsight }) {
+  if (!insight) {
+    return <div className="mb-4 h-[92px] animate-pulse rounded-xl bg-foreground/5" />;
+  }
+
+  /* Хяналт асаагүй — тоо харуулах нь төөрөгдүүлнэ */
+  if (!insight.trackingActive) {
+    return (
+      <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-premium/25 bg-premium/8 px-4 py-3">
+        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-premium" />
+        <div className="text-sm">
+          <p className="font-medium text-foreground">Хүргэлтийн хяналт идэвхгүй</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Имэйл хүрсэн эсэх, нээсэн эсэхийг мэдэхийн тулд AWS SES-д
+            Configuration Set үүсгээд <code className="rounded bg-foreground/10 px-1">SES_CONFIGURATION_SET</code>{' '}
+            орчны хувьсагчид оруулна. Одоогоор зөвхөн илгээсэн эсэх бүртгэгдэнэ.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const steps = [
+    { icon: Send, label: 'Илгээсэн', value: insight.sent, pct: null, tone: 'text-foreground/70' },
+    { icon: Inbox, label: 'Хүрсэн', value: insight.delivered, pct: insight.deliveryRate, tone: 'text-success' },
+    { icon: MailOpen, label: 'Нээсэн', value: insight.opened, pct: insight.openRate, tone: 'text-primary' },
+    { icon: MousePointerClick, label: 'Дарсан', value: insight.clicked, pct: insight.clickRate, tone: 'text-premium' },
+  ];
+
+  return (
+    <div className="mb-4 rounded-xl border border-border bg-card p-4">
+      {/* ⚠️ Мобайлд 2×2, десктопт 4 багана — жижиг дэлгэцэд шахагдахгүй */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {steps.map((s) => (
+          <div key={s.label} className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <s.icon size={12} className={s.tone} /> {s.label}
+            </p>
+            <p className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold tabular-nums text-foreground">{s.value}</span>
+              {s.pct != null && (
+                <span className={cn('text-xs font-semibold tabular-nums', s.tone)}>{s.pct}%</span>
+              )}
+            </p>
+            {/* Явцын зураас — харьцааг нүдээр шууд ойлгуулна */}
+            {s.pct != null && (
+              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-foreground/8">
+                <div
+                  className={cn(
+                    'h-full rounded-full',
+                    s.label === 'Хүрсэн' ? 'bg-success' : s.label === 'Нээсэн' ? 'bg-primary' : 'bg-premium',
+                  )}
+                  style={{ width: `${Math.min(100, s.pct)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ⚠️ Буцаагдсан нь 0-ээс их үед л харагдана — эрүүл үед анхаарал сарниулахгүй */}
+      {insight.bounced > 0 && (
+        <p className="mt-3 flex items-center gap-1.5 border-t border-border pt-2.5 text-xs text-destructive">
+          <AlertTriangle size={12} />
+          {insight.bounced} имэйл буцаагдсан / спам гэж мэдээлэгдсэн — хаяг нь автоматаар хоригдов
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Нэг имэйлийн НЭЭЛТИЙН төлөв.
+ *
+ * ⚠️ «Нээгээгүй» гэж ХУДАЛ харуулахгүй: хяналт (SES Configuration Set)
+ * асаагүй үед бүх мөрөнд `deliveredAt=null` байх тул тэднийг
+ * «нээгээгүй» гэвэл админ буруу дүгнэлт хийнэ. Ийм үед «—».
+ */
+function EmailOpenCell({ log }: { log: EmailLog }) {
+  /* Илгээгдээгүй имэйлд нээлт ярих утгагүй */
+  if (log.status !== 'sent') {
+    return <span className="text-xs text-muted-foreground/50">—</span>;
+  }
+
+  if (log.bouncedAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-md bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+        title={`Буцаагдсан: ${new Date(log.bouncedAt).toLocaleString('mn-MN')}`}
+      >
+        <AlertTriangle size={11} /> Буцсан
+      </span>
+    );
+  }
+
+  if (log.openedAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary"
+        title={
+          `Нээсэн: ${new Date(log.openedAt).toLocaleString('mn-MN')}` +
+          (log.openCount > 1 ? ` · ${log.openCount} удаа` : '') +
+          (log.clickedAt ? ` · холбоос дарсан (${log.clickCount})` : '')
+        }
+      >
+        <MailOpen size={11} /> Нээсэн
+        {log.openCount > 1 && <span className="tabular-nums opacity-70">×{log.openCount}</span>}
+        {/* Холбоос дарсан нь нээснээс ЧУУХАЛ дохио — тусад нь тэмдэглэнэ */}
+        {log.clickedAt && <MousePointerClick size={11} className="text-premium" />}
+      </span>
+    );
+  }
+
+  if (log.deliveredAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-md bg-foreground/8 px-2 py-0.5 text-xs text-muted-foreground"
+        title={`Хүрсэн: ${new Date(log.deliveredAt).toLocaleString('mn-MN')} · хараахан нээгээгүй`}
+      >
+        <Inbox size={11} /> Хүрсэн
+      </span>
+    );
+  }
+
+  /* ⚠️ Хяналт асаагүй ЭСВЭЛ үйл явдал хараахан ирээгүй — таамаглахгүй */
+  return (
+    <span className="text-xs text-muted-foreground/50" title="Хяналтын мэдээлэл алга">
+      —
+    </span>
+  );
+}

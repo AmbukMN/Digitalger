@@ -4,7 +4,9 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Injectable,
+  Logger,
   Post,
   Query,
   UseGuards,
@@ -26,6 +28,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { EmailEventsService } from './email-events.service';
 import { EmailService } from './email.service';
 
 /** OTP хүчинтэй хугацаа + оролдлогын хязгаар */
@@ -360,6 +363,44 @@ export class EmailPublicController {
   }
 }
 
+/**
+ * AWS SES → SNS үйл явдлын webhook.
+ *
+ * ⚠️⚠️ НЭЭЛТТЭЙ endpoint (JwtAuthGuard БАЙХГҮЙ) — SNS нь токен
+ * дамжуулдаггүй. Хамгаалалт:
+ *   1. SNS зөвхөн `SubscriptionConfirmation` дээр л гаднаас HTTP хийдэг,
+ *      тэр URL нь ЗААВАЛ amazonaws.com байхыг шалгана (SSRF хамгаалалт).
+ *   2. Хуурамч үйл явдал илгээвэл хамгийн ихдээ имэйлийн статистик
+ *      гажина — мөнгө/эрхэд НӨЛӨӨЛӨХГҮЙ.
+ *   3. Throttle — үерлэхээс хамгаална.
+ *
+ * ⚠️ ҮРГЭЛЖ 200 буцаана. Алдаа буцаавал SNS дахин дахин илгээж, эцэст
+ *    нь subscription-ыг ӨӨРӨӨ УНТРААДАГ (бүх хяналт чимээгүй зогсоно).
+ *
+ * ⚠️ SNS нь `Content-Type: text/plain` илгээдэг тул Nest нь биеийг
+ *    JSON болгож задлахгүй — мөр хэлбэрээр ирнэ. `handle()` хоёуланг
+ *    хүлээж авдаг.
+ */
+@Controller('email/events')
+export class EmailEventsController {
+  private readonly log = new Logger('EmailEventsController');
+
+  constructor(private readonly events: EmailEventsService) {}
+
+  @Post()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
+  async sns(@Body() body: unknown) {
+    try {
+      return await this.events.handle(body as never);
+    } catch (e) {
+      /* ⚠️ Алдаа гарсан ч 200 — SNS-ийн дахин илгээлтийг зогсооно */
+      this.log.error(`SNS боловсруулахад алдаа: ${String(e)}`);
+      return { ok: true, action: 'error-swallowed' };
+    }
+  }
+}
+
 @Controller('email/otp')
 @UseGuards(JwtAuthGuard)
 export class EmailOtpController {
@@ -403,6 +444,8 @@ export class EmailAdminController {
     @Query('template') template?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    /** 'yes' = нээсэн, 'no' = нээгээгүй, эсвэл хоосон = бүгд */
+    @Query('opened') opened?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
@@ -411,9 +454,30 @@ export class EmailAdminController {
     const where: Prisma.EmailLogWhereInput = {};
     if (template && template !== 'ALL') where.template = template;
     if (status && status !== 'ALL') where.status = status;
-    if (search?.trim()) where.to = { contains: search.trim(), mode: 'insensitive' };
+    /**
+     * ⚠️ ХАЙЛТ нь ГАРЧГААР ч хайна — өмнө нь зөвхөн `to` талбарыг
+     * шалгадаг байсан тул «нууц үг» гэж хайхад юу ч олдохгүй байв.
+     */
+    if (search?.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { to: { contains: q, mode: 'insensitive' } },
+        { subject: { contains: q, mode: 'insensitive' } },
+      ];
+    }
 
-    const [items, total, byStatus] = await Promise.all([
+    /**
+     * ⚠️ Нээлтийн шүүлт — «нээсэн / нээгээгүй» гэж ялгах.
+     * `opened=yes` → openedAt бий; `opened=no` → зөвхөн ИЛГЭЭГДСЭН
+     * мөрүүдээс (амжилтгүйг «нээгээгүй» гэж тоолох нь утгагүй).
+     */
+    if (opened === 'yes') where.openedAt = { not: null };
+    else if (opened === 'no') {
+      where.openedAt = null;
+      where.status = where.status ?? 'sent';
+    }
+
+    const [items, total, byStatus, agg] = await Promise.all([
       this.prisma.emailLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -421,8 +485,21 @@ export class EmailAdminController {
         take,
       }),
       this.prisma.emailLog.count({ where }),
-      this.prisma.emailLog.groupBy({ by: ['status'], _count: true }),
+      /**
+       * ⚠️ БОДИТ АЛДАА: `where` ОРООГҮЙ байсан тул шүүлт хийхэд ч
+       * статистикийн картууд ДЭЛХИЙН нийт тоог харуулсаар байв —
+       * жагсаалт 3 мөр атал «Илгээгдсэн 14» гэж зөрөх.
+       */
+      this.prisma.emailLog.groupBy({ by: ['status'], where, _count: true }),
+      /** Хүргэлт/нээлт/дарсан — insight самбарт */
+      this.prisma.emailLog.aggregate({
+        where: { ...where, status: 'sent' },
+        _count: { openedAt: true, clickedAt: true, deliveredAt: true, bouncedAt: true },
+      }),
     ]);
+
+    const stats = Object.fromEntries(byStatus.map((s) => [s.status, s._count]));
+    const sent = (stats.sent as number) ?? 0;
 
     return {
       items,
@@ -430,7 +507,26 @@ export class EmailAdminController {
       page: p,
       limit: take,
       totalPages: Math.ceil(total / take),
-      stats: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
+      stats,
+      /**
+       * ⚠️ Хувийг BACKEND талд бодно — UI-д давхардаж бодуулбал
+       * хуудас бүрт өөр өөрөөр тооцох эрсдэлтэй.
+       */
+      insight: {
+        sent,
+        delivered: agg._count.deliveredAt,
+        opened: agg._count.openedAt,
+        clicked: agg._count.clickedAt,
+        bounced: agg._count.bouncedAt,
+        openRate: sent ? Math.round((agg._count.openedAt / sent) * 100) : 0,
+        clickRate: sent ? Math.round((agg._count.clickedAt / sent) * 100) : 0,
+        deliveryRate: sent ? Math.round((agg._count.deliveredAt / sent) * 100) : 0,
+        /**
+         * ⚠️ Хяналт асаагүй бол `deliveredAt` бүгд null — UI нь «0%»
+         * гэж ХУДАЛ харуулахгүйн тулд энэ тугийг үзнэ.
+         */
+        trackingActive: agg._count.deliveredAt > 0 || agg._count.openedAt > 0,
+      },
     };
   }
 
@@ -533,8 +629,8 @@ export class EmailAdminController {
  */
 @Global()
 @Module({
-  controllers: [EmailPublicController, EmailOtpController, EmailAdminController],
-  providers: [EmailService, EmailOtpService, SubscriberService],
+  controllers: [EmailPublicController, EmailOtpController, EmailAdminController, EmailEventsController],
+  providers: [EmailService, EmailOtpService, SubscriberService, EmailEventsService],
   exports: [EmailService, SubscriberService],
 })
 export class EmailModule {}
