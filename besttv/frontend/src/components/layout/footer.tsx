@@ -139,43 +139,11 @@ export function Footer() {
               </div>
             </div>
 
-            {(socials?.email || socials?.phone) && (
-              <div className="mt-4 space-y-1.5 text-sm text-foreground/55">
-                {socials.email && (
-                  <a
-                    href={`mailto:${socials.email}`}
-                    className="flex items-center gap-2 transition-colors hover:text-foreground"
-                  >
-                    <Mail size={14} /> {socials.email}
-                  </a>
-                )}
-                {socials.phone && (
-                  <a
-                    href={`tel:${socials.phone.replace(/\s/g, '')}`}
-                    className="flex items-center gap-2 transition-colors hover:text-foreground"
-                  >
-                    <Phone size={14} /> {socials.phone}
-                  </a>
-                )}
-              </div>
-            )}
-
-            {socialLinks.length > 0 && (
-              <div className="mt-5 flex gap-3">
-                {socialLinks.map(({ href, label, Icon }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={label}
-                    className="rounded-full bg-foreground/8 p-2.5 text-foreground/60 transition-colors hover:bg-primary hover:text-primary-foreground"
-                  >
-                    <Icon size={16} />
-                  </a>
-                ))}
-              </div>
-            )}
+            {/*
+              ⚠️ Холбоо барих (имэйл/утас) болон сошиал холбоос нь ЭНД БИШ
+              — «Тусламж» баганын 3 дахь мөрөнд зөөгдсөн. Хэрэглэгч
+              холбоо барих мэдээллийг ТУСЛАМЖ хэсгээс хайдаг.
+            */}
           </div>
 
           {/* ⚠️ Мобайл дээр 3 БАГАНА — нэг эгнээнд цуварвал footer хэт урт болно */}
@@ -198,6 +166,71 @@ export function Footer() {
                   ))}
                 </ul>
 
+                {/*
+                  ⚠️⚠️ ХОЛБОО БАРИХ — ЗӨВХӨН «Тусламж» баганад, 3 дахь мөрөнд.
+                  Хэрэглэгч холбоо барих мэдээллийг энэ хэсгээс хайдаг
+                  (өмнө нь зүүн талын лого доор байсан тул анзаарагддаггүй).
+
+                  ⚠️ Мобайл vs Десктоп ЯЛГААТАЙ:
+                    • МОБАЙЛ — багана нарийн (дэлгэцийн 1/3) тул урт имэйл
+                      хаяг тасарч «support@bes…» болно. Тиймээс ICON.
+                    • ДЕСКТОП — зай хангалттай тул бүтэн хаяг.
+
+                  ⚠️ Утга нь АДМИН панелиас (`/settings/socials`) ирнэ —
+                     хатуу бичээгүй. Тохируулаагүй бол огт харагдахгүй.
+                */}
+                {col.heading === 'Тусламж' && (socials?.email || socials?.phone || socialLinks.length > 0) && (
+                  <div className="mt-3 space-y-2.5 md:mt-4">
+                    {socials?.email && (
+                      <a
+                        href={`mailto:${socials.email}`}
+                        aria-label={`Имэйл: ${socials.email}`}
+                        title={socials.email}
+                        className="group flex items-center gap-2 text-[13px] text-foreground/65 transition-colors hover:text-foreground sm:text-sm"
+                      >
+                        {/* Мобайлд icon нь товч мэт харагдана (дарахад хялбар) */}
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/8 transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent group-hover:sm:bg-transparent group-hover:sm:text-foreground">
+                          <Mail size={14} />
+                        </span>
+                        {/* ⚠️ Хаяг нь ЗӨВХӨН sm+ дээр — мобайлд тасрахаас сэргийлнэ */}
+                        <span className="hidden min-w-0 truncate sm:inline">{socials.email}</span>
+                      </a>
+                    )}
+
+                    {socials?.phone && (
+                      <a
+                        href={`tel:${socials.phone.replace(/\s/g, '')}`}
+                        aria-label={`Утас: ${socials.phone}`}
+                        title={socials.phone}
+                        className="group flex items-center gap-2 text-[13px] text-foreground/65 transition-colors hover:text-foreground sm:text-sm"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/8 transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent group-hover:sm:bg-transparent group-hover:sm:text-foreground">
+                          <Phone size={14} />
+                        </span>
+                        <span className="hidden min-w-0 truncate sm:inline">{socials.phone}</span>
+                      </a>
+                    )}
+
+                    {/* ⚠️ Сошиал нь ҮРГЭЛЖ icon — нэр бичих шаардлагагүй */}
+                    {socialLinks.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-0.5">
+                        {socialLinks.map(({ href, label, Icon }) => (
+                          <a
+                            key={label}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={label}
+                            title={label}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground/8 text-foreground/60 transition-colors hover:bg-primary hover:text-primary-foreground"
+                          >
+                            <Icon size={14} />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </nav>
             ))}
           </div>
