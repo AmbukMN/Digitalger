@@ -381,6 +381,40 @@ export class TitlesAdminService {
       });
     }
 
+    /**
+     * ⚠️⚠️ ХҮЧЭЭР УСТГАХ ҮЕД ХЭН ХОХИРСНЫГ БИЧИЖ ҮЛДЭЭНЭ.
+     *
+     * `Rental` нь Cascade тул мөр нь ҮГҮЙ БОЛНО. `Payment` нь
+     * `rentalTitleId: SetNull` тул үлдэх ч ЯМАР кино байсан нь
+     * алга болно — «төлбөр байна, юуных нь мэдэгдэхгүй» гэсэн
+     * байдалд орж, буцаалт хийхэд гараар ухах шаардлагатай болно.
+     *
+     * Тиймээс устгахаас ӨМНӨ хохирогчдын жагсаалтыг лог руу бичнэ.
+     */
+    if (title.rentals.length && force) {
+      const victims = await this.prisma.rental.findMany({
+        where: { titleId: id, expiresAt: { gt: new Date() } },
+        select: {
+          userId: true,
+          amount: true,
+          expiresAt: true,
+          paymentId: true,
+          user: { select: { email: true } },
+        },
+      });
+      const sum = victims.reduce((s, r) => s + r.amount, 0);
+      this.logger.warn(
+        `⚠️ ХҮЧЭЭР УСТГАВ: "${title.title}" (${id}) — ${victims.length} идэвхтэй түрээс ` +
+          `${sum.toLocaleString()}₮ устлаа. Хохирогчид: ` +
+          victims
+            .map(
+              (v) =>
+                `${v.user.email}(${v.amount}₮, дуусах:${v.expiresAt.toISOString()}, payment:${v.paymentId ?? 'null'})`,
+            )
+            .join(', '),
+      );
+    }
+
     // R2 цэвэрлэгээ — HLS хавтаснууд + зургууд
     const keys = [
       title.posterKey,

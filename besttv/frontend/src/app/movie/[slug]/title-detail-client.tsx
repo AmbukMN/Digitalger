@@ -84,6 +84,23 @@ export function TitleDetailClient({ slug }: { slug: string }) {
   const seasons = data.seasons ?? [];
   const firstPlayableEpisode = seasons.flatMap((s) => s.episodes).find((e) => e.playable);
 
+  /**
+   * ⚠️⚠️ ҮНЭГҮЙ ТАНИЛЦУУЛГА АНГИ — ЭРХГҮЙ ХҮНД Ч ҮЗҮҮЛНЭ.
+   *
+   * БОДИТ АЛДАА: `locked` үед дээд талын товч ҮРГЭЛЖ `/pricing` руу
+   * явуулдаг байв. Гэтэл backend нь `isFreePreview` ангийг эрхгүй
+   * хүнд ЗӨВШӨӨРДӨГ (`stream.service.ts`: `isPremium && !isFreePreview`).
+   *
+   * Үр дүн: 1-р ангиа үнэгүй болгосон цувралд зочин орж ирэхэд зөвхөн
+   * «Багц авах» харагдана. Үнэгүй анги нь ЗӨВХӨН доод талын ангийн
+   * жагсаалтад л байдаг — гар утсан дээр эхний дэлгэцэнд ОГТ харагдахгүй
+   * тул ихэнх хүн скролл хийлгүй гардаг. Хамгийн чухал татах суваг
+   * (үнэгүй үзүүлээд дараа нь худалдан авах) бүрэн алдагдаж байв.
+   */
+  const freePreviewEpisode = seasons
+    .flatMap((s) => s.episodes)
+    .find((e) => e.isFreePreview && e.playable);
+
   // ⚠️ Зочин ч дуртай кино нэмнэ (localStorage). Нэвтрэхэд серверт нийлнэ.
   const toggleMyList = async () => {
     setMyListPending(true);
@@ -97,8 +114,11 @@ export function TitleDetailClient({ slug }: { slug: string }) {
     }
   };
 
+  /* ⚠️ Эрхгүй ч ҮНЭГҮЙ анги байвал тэр рүү нь явуулна (дээрх тайлбар) */
   const watchHref = locked
-    ? '/pricing'
+    ? freePreviewEpisode
+      ? `/watch/${data.slug}?ep=${freePreviewEpisode.id}`
+      : '/pricing'
     : data.type === 'MOVIE'
       ? `/watch/${data.slug}`
       : firstPlayableEpisode
@@ -177,6 +197,17 @@ export function TitleDetailClient({ slug }: { slug: string }) {
             <div className="flex min-w-0 flex-1 flex-col gap-2 pb-1 md:hidden">
               {locked ? (
                 <>
+                  {/* ⚠️ ҮНЭГҮЙ АНГИ — ХАМГИЙН ДЭЭР, хамгийн тод (дээрх тайлбар).
+                       Худалдан авахаас өмнө үзүүлэх нь гол татах суваг. */}
+                  {freePreviewEpisode && (
+                    <Link
+                      href={`/watch/${data.slug}?ep=${freePreviewEpisode.id}`}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 py-3 text-sm font-bold text-background shadow-lg active:scale-[0.98]"
+                    >
+                      <Play size={16} fill="currentColor" />
+                      {freePreviewEpisode.number}-р анги үнэгүй үзэх
+                    </Link>
+                  )}
                   {data.rental?.available && (
                     <button
                       onClick={() => setRentOpen(true)}
@@ -308,6 +339,17 @@ export function TitleDetailClient({ slug }: { slug: string }) {
               <div className="hidden flex-col gap-2.5 sm:flex-row md:flex">
                 {locked ? (
                   <>
+                    {/* ⚠️ ҮНЭГҮЙ АНГИ — ХАМГИЙН ЭХЭНД, хамгийн тод товчоор.
+                         Эрхгүй хүн ч үзэж чадна (дээрх тайлбарыг үз). */}
+                    {freePreviewEpisode && (
+                      <Link
+                        href={`/watch/${data.slug}?ep=${freePreviewEpisode.id}`}
+                        className="flex items-center justify-center gap-2 rounded-lg bg-foreground px-8 py-3 font-semibold text-background shadow-lg transition-all hover:opacity-90 active:scale-[0.98] sm:py-2.5"
+                      >
+                        <Play size={18} fill="currentColor" />
+                        {freePreviewEpisode.number}-р анги үнэгүй үзэх
+                      </Link>
+                    )}
                     {/* Ширхэгээр түрээслэх — багц авахгүйгээр яг энэ киног үзнэ */}
                     {data.rental?.available && (
                       <button
@@ -337,7 +379,10 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                     href={watchHref}
                     className="flex items-center justify-center gap-2 rounded-lg bg-foreground px-8 py-3 font-semibold text-background shadow-lg transition-all hover:opacity-90 active:scale-[0.98] sm:py-2.5"
                   >
-                    <Play size={18} fill="black" /> Үзэх
+                    {/* ⚠️ `fill="black"` БАЙВ — товч нь `bg-foreground
+                        text-background` тул light горимд ХАР дэвсгэр дээр
+                        ХАР гурвалжин болж, тоглуулах дүрс АЛГА болдог байв */}
+                    <Play size={18} fill="currentColor" /> Үзэх
                   </Link>
                 ) : (
                   <span className="flex items-center justify-center gap-2 rounded-lg bg-foreground/10 px-6 py-3 font-semibold text-foreground/40 sm:py-2.5">

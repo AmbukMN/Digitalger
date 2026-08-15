@@ -108,6 +108,18 @@ export default function GenresPage() {
   /* ⚠️ `runMutation` — өмнө нь try/catch БАЙХГҮЙ байсан тул жанр
      ашиглагдаж байгаа (FK) эсвэл 403 гарвал toast ч гарахгүй, мөр ч
      арилахгүй → админ устсан гэж бодно */
+  /**
+   * ⚠️⚠️ ЖАНР УСТГАХ — ХОЁР ШАТЛАЛТ (багц/захиалагч хамгаална).
+   *
+   * БОДИТ АЛДАА: энэ диалог «Энэ жанрыг ашигладаг багцаас автоматаар
+   * хасагдана» гэж ЭНГИЙН цэвэрлэгээ мэт бичдэг байв. Үнэндээ
+   * `PlanGenre` нь Cascade тул тэр багц авсан ТӨЛБӨРТЭЙ захиалагчид
+   * контентоо алддаг — админ үүнийг мэдэлгүй дардаг.
+   *
+   * Одоо backend нь багцад холбоотой жанрыг ТАТГАЛЗАж, хэдэн
+   * захиалагч хохирохыг хэлнэ. Админ тэр мэдээллийг ХАРСНЫ дараа л
+   * `force=1`-ээр давтаж болно.
+   */
   const remove = async (g: AdminGenre) => {
     const ok = await confirm({
       title: `"${g.name}" жанрыг устгах уу?`,
@@ -116,15 +128,41 @@ export default function GenresPage() {
         : 'Энэ жанрыг бүрмөсөн устгана.',
       bullets: [
         'Контент өөрөө устахгүй, зөвхөн жанрын холбоос сална',
-        'Энэ жанрыг ашигладаг багцаас автоматаар хасагдана',
+        '⚠️ Багцад холбоотой бол устахгүй — эхлээд анхааруулга харуулна',
       ],
       tone: 'danger',
     });
     if (!ok) return;
-    await runMutation(() => api(`/admin/genres/${g.id}`, { method: 'DELETE' }), {
-      success: 'Жанр устгагдлаа',
-      onDone: () => qc.invalidateQueries({ queryKey: ['admin-genres'] }),
-    });
+
+    try {
+      await api(`/admin/genres/${g.id}`, { method: 'DELETE' });
+      toast.success('Жанр устгагдлаа');
+      qc.invalidateQueries({ queryKey: ['admin-genres'] });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Алдаа гарлаа';
+      /* ⚠️ Багцад ашиглагдаж байгаагаас болж татгалзсан бол — админд
+         ЯГ хэдэн захиалагч хохирохыг үзүүлээд ХҮЧЭЭР устгах сонголт */
+      if (!msg.includes('багц')) {
+        toast.error(msg);
+        return;
+      }
+      const force = await confirm({
+        title: `«${g.name}» — багцад ашиглагдаж байна`,
+        description: msg,
+        bullets: [
+          'Устгавал тэдгээр багцын захиалагчид энэ жанрын контентоо АЛДАНА',
+          'Мөнгө буцаагдахгүй, холбоосыг сэргээх боломжгүй',
+          'Зөв арга: эхлээд Багц хуудаснаас энэ жанрыг хасах',
+        ],
+        confirmLabel: 'Ойлголоо, ХҮЧЭЭР устга',
+        tone: 'danger',
+      });
+      if (!force) return;
+      await runMutation(() => api(`/admin/genres/${g.id}?force=1`, { method: 'DELETE' }), {
+        success: 'Жанр хүчээр устгагдлаа',
+        onDone: () => qc.invalidateQueries({ queryKey: ['admin-genres'] }),
+      });
+    }
   };
 
   return (

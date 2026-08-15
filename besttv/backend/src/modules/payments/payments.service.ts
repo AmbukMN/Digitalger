@@ -6,9 +6,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentStatus } from '@prisma/client';
+import { PaymentStatus, PromotionType, WalletTxType } from '@prisma/client';
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
-import { WalletTxType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -39,6 +38,9 @@ interface QPayInvoiceResponse {
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private tokenCache: { token: string; expiresAt: number } | null = null;
+
+  /** ⚠️ Reconcile cron давхцахаас сэргийлэх түгжээ (доорх тайлбар) */
+  private reconcileRunning = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -103,6 +105,40 @@ export class PaymentsService {
     // ⚠️ 100% хямдрал (эсвэл үнэ 0) — QPay 0₮ нэхэмжлэл авдаггүй тул QPay
     // дамжуулахгүй, шууд төлөгдсөнд тооцож эрхийг нээнэ.
     if (amount <= 0) {
+      /**
+       * ⚠️⚠️ ДАВХАР ДАРАЛТААС ХАМГААЛАХ — ЭНД ЗААВАЛ.
+       *
+       * БОДИТ АЛДАА: доорх «PENDING нэхэмжлэлийг дахин ашиглах»
+       * шалгалт нь ЗӨВХӨН төлбөртэй урсгалд ажилладаг — 0₮ салаа
+       * түүнээс ДЭЭР байрлаж, шууд `create` + `completePayment`
+       * хийдэг байв.
+       *
+       * Үр дүн: 100% хямдралтай купонтой хэрэглэгч «Худалдан авах»
+       * товчийг ХОЁР УДАА дарвал хоёр Payment үүсч, `subs.grant`
+       * хоёуланд нь ажиллана → багц ХОЁР ДАХИН урт хугацаагаар
+       * нээгдэж, купон 2 удаа зарцуулагдана.
+       *
+       * Одоо: сүүлийн 30 минутад ижил төлбөр хийгдсэн бол ШИНЭ
+       * эрх нээхгүй, хуучныг нь буцаана.
+       */
+      const recentFree = await this.prisma.payment.findFirst({
+        where: {
+          userId,
+          planId,
+          amount: 0,
+          status: PaymentStatus.PAID,
+          createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (recentFree) {
+        this.logger.warn(
+          `0₮ төлбөр давхардлаа — эрх дахин нээгээгүй (user=${userId} plan=${planId})`,
+        );
+        return { devMode: true, paymentId: recentFree.id, status: 'PAID', amount: 0 };
+      }
+
       const freePayment = await this.prisma.payment.create({
         data: {
           userId,
@@ -492,29 +528,57 @@ export class PaymentsService {
    */
   async reconcilePending(maxAgeHours = 2): Promise<number> {
     if (!this.isQPayConfigured()) return 0;
-    const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
-    const pending = await this.prisma.payment.findMany({
-      where: {
-        status: PaymentStatus.PENDING,
-        qpayInvoiceId: { not: null },
-        createdAt: { gte: since },
-      },
-    });
-    if (pending.length === 0) return 0;
 
-    let confirmed = 0;
-    for (const payment of pending) {
-      try {
-        if (await this.verifyPaymentWithQpay(payment.qpayInvoiceId!)) {
-          await this.completePayment(payment.id);
-          confirmed++;
-        }
-      } catch (err) {
-        this.logger.error(`Reconcile алдаа: payment ${payment.id}`, err);
-      }
+    /**
+     * ⚠️⚠️ ДАВХАР АЖИЛЛАХААС СЭРГИЙЛНЭ.
+     *
+     * БОДИТ ЭРСДЭЛ: cron нь 5 минут тутам ажилладаг. QPay унавал
+     * PENDING төлбөр хуримтлагдаж, 500 мөр болвол энэ давталт
+     * 500 × 15 секунд ≈ 2 ЦАГ гүйнэ. Тэр хугацаанд дараагийн 24
+     * cron давхар эхэлж, ижил төлбөрүүд дээр зэрэг ажиллана —
+     * QPay рүү хүсэлтийн үер үүсч, эрх нь илүү ч удаан нээгдэнэ.
+     */
+    if (this.reconcileRunning) {
+      this.logger.warn('Reconcile аль хэдийн ажиллаж байна — энэ удаагийнхыг алгаслаа');
+      return 0;
     }
-    if (confirmed > 0) this.logger.log(`Reconcile: ${confirmed} төлбөр баталгаажив`);
-    return confirmed;
+    this.reconcileRunning = true;
+
+    try {
+      const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+      const pending = await this.prisma.payment.findMany({
+        where: {
+          status: PaymentStatus.PENDING,
+          qpayInvoiceId: { not: null },
+          createdAt: { gte: since },
+        },
+        /* ⚠️ ХЯЗГААР ЗААВАЛ — өмнө нь ХЯЗГААРГҮЙ байв. Хамгийн
+           хуучнаас нь эхэлнэ (хэрэглэгч удаан хүлээсэн нь эхэнд),
+           үлдсэнийг дараагийн cron барина. */
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      });
+      if (pending.length === 0) return 0;
+
+      let confirmed = 0;
+      for (const payment of pending) {
+        try {
+          if (await this.verifyPaymentWithQpay(payment.qpayInvoiceId!)) {
+            await this.completePayment(payment.id);
+            confirmed++;
+          }
+        } catch (err) {
+          this.logger.error(`Reconcile алдаа: payment ${payment.id}`, err);
+        }
+      }
+      if (confirmed > 0) this.logger.log(`Reconcile: ${confirmed} төлбөр баталгаажив`);
+      if (pending.length === 100) {
+        this.logger.warn('Reconcile: 100 хязгаарт хүрлээ — үлдсэнийг дараагийн ажиллагаа барина');
+      }
+      return confirmed;
+    } finally {
+      this.reconcileRunning = false;
+    }
   }
 
   /**
@@ -628,6 +692,78 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * ХЭТЭВЧИЙН БОНУС олгоно (`WALLET_BONUS` урамшуулал).
+   *
+   * ⚠️⚠️ БОДИТ АЛДАА байсан: энэ функц ОГТ БАЙХГҮЙ байв. Frontend нь
+   * «+10,000₮ бонус» гэж амлаад, хэрэглэгч цэнэглэхэд яг цэнэглэсэн
+   * дүн л ордог байсан — амлалт зөрчигдөж, мөрдөх бичлэг ч үлдэхгүй.
+   *
+   * ⚠️ АЛДАА ГАРВАЛ ЦЭНЭГЛЭЛТ ЗОГСОХГҮЙ — үндсэн мөнгө нь аль хэдийн
+   * орсон. Бонус олдохгүй бол `error` лог үлдэж админ гараар засна.
+   *
+   * @returns олгосон бонус дүн (имэйлд харуулахад)
+   */
+  private async applyWalletBonus(payment: {
+    id: string;
+    userId: string;
+    promotionId: string | null;
+    amount: number;
+  }): Promise<number> {
+    if (!payment.promotionId) return 0;
+
+    /**
+     * ⚠️ IDEMPOTENCY — `adminMarkPaid` нь FAILED төлбөрийг дахин PAID
+     * болгож `completePayment` дуудна. Тэр үед бонус ХОЁР ДАХЬ удаа
+     * орох ёсгүй. `PromotionRedemption.paymentId` нь `@unique` тул
+     * DB талд ч хамгаалалттай — энэ нь эхний давхарга.
+     */
+    const already = await this.prisma.promotionRedemption
+      .findUnique({ where: { paymentId: payment.id }, select: { id: true } })
+      .catch(() => null);
+    if (already) {
+      this.logger.warn(`Хэтэвчийн бонус аль хэдийн олгогдсон — алгаслаа (payment=${payment.id})`);
+      return 0;
+    }
+
+    try {
+      const promo = await this.prisma.promotion.findUnique({
+        where: { id: payment.promotionId },
+        select: { id: true, name: true, type: true, bonusAmount: true },
+      });
+      /* ⚠️ Төрлийг ЗААВАЛ шалгана — багцын урамшууллын id санамсаргүй
+         орвол хэтэвчид мөнгө цутгах эрсдэлтэй */
+      if (!promo || promo.type !== PromotionType.WALLET_BONUS || !promo.bonusAmount) return 0;
+
+      /* ⚠️ Транзакц — мөнгө орох ба тоолуур нэмэгдэх нь ЗААВАЛ хамт.
+         Салангид бол бонус орчихоод `usedCount` нэмэгдэхгүй үлдэж,
+         хэрэглэгч хязгаараас олон удаа бонус авна. */
+      await this.prisma.$transaction(async (tx) => {
+        await this.wallet.applyTransaction({
+          userId: payment.userId,
+          type: WalletTxType.BONUS,
+          amount: promo.bonusAmount!,
+          description: `«${promo.name}» урамшууллын бонус`,
+          paymentId: payment.id,
+          /* ⚠️ ЗААВАЛ дамжуулна — эс бөгөөс энэ гүйлгээ транзакцаас
+             ГАДНА бичигдэж, `redeem` унавал бонус буцаагдахгүй */
+          tx,
+        });
+        await this.promotions.redeem(tx, promo.id, payment.userId, payment.id, promo.bonusAmount!, 0);
+      });
+
+      this.logger.log(
+        `Хэтэвчийн бонус олгов: "${promo.name}" user=${payment.userId} +${promo.bonusAmount}₮`,
+      );
+      return promo.bonusAmount;
+    } catch (e) {
+      this.logger.error(
+        `Хэтэвчийн бонус олгож чадсангүй (payment=${payment.id}): ${String(e)}`,
+      );
+      return 0;
+    }
+  }
+
   async completePayment(paymentId: string) {
     const claimed = await this.prisma.payment.updateMany({
       where: { id: paymentId, status: PaymentStatus.PENDING },
@@ -679,6 +815,10 @@ export class PaymentsService {
       });
       this.logger.log(`Хэтэвч цэнэглэгдлээ: user=${payment.userId} +${payment.amount}₮`);
 
+      /* ⚠️⚠️ АМЛАСАН БОНУСЫГ ОЛГОНО — өмнө нь ОГТ олгогддоггүй байв
+         (дэлгэрэнгүйг `topupWallet` доторх тайлбараас үз) */
+      const bonusAmount = await this.applyWalletBonus(payment);
+
       // Мэдэгдэл — хэрэглэгч цэнэглэлт орсныг мэдэх ёстой
       const u = await this.prisma.user.findUnique({
         where: { id: payment.userId },
@@ -687,8 +827,11 @@ export class PaymentsService {
       if (u) {
         this.email.sendWalletTopup({
           to: u.email,
+          /* ⚠️ Бонус орсон бол имэйлд НИЙТ дүнг харуулна — эс бөгөөс
+             хэрэглэгч «би 60,000₮ авсан ч имэйл 50,000₮ гэж байна»
+             гэж эргэлзэнэ */
           name: u.name,
-          amount: payment.amount,
+          amount: payment.amount + bonusAmount,
           balance: u.walletBalance,
           userId: payment.userId,
         });
@@ -792,6 +935,31 @@ export class PaymentsService {
     if (payment.status === PaymentStatus.CANCELLED) {
       throw new BadRequestException(
         'Цуцлагдсан төлбөрийг дахин баталгаажуулах боломжгүй — шинэ төлбөр үүсгэнэ үү',
+      );
+    }
+
+    /**
+     * ⚠️⚠️ БУЦААГДСАН МӨНГИЙГ ДАХИН ЭРХ БОЛГОХГҮЙ.
+     *
+     * БОДИТ АЛДАА: `CANCELLED` хамгаалалт байсан ч `FAILED` салаа
+     * нээлттэй байв. Гэтэл `purchaseWithWallet` нь `subs.grant` унавал
+     * хэтэвчрүү мөнгийг БУЦААЖ өгөөд төлбөрийг `FAILED` болгодог.
+     *
+     * Тэр төлбөрийг админ «туслая» гээд PAID болговол: хэрэглэгч
+     * багцаа АВНА, буцаасан мөнгө нь хэтэвчиндээ ҮЛДЭНЭ — үнэгүй
+     * багц. Яг энэ эрсдэлээс сэргийлэхээр `CANCELLED` шалгалт
+     * бичигдсэн мөртлөө кодын өөрийн үүсгэдэг тохиолдлыг алгассан.
+     *
+     * Тиймээс: энэ төлбөрөөр REFUND гүйлгээ хийгдсэн бол ТАТГАЛЗАНА.
+     */
+    const refunded = await this.prisma.walletTransaction.findFirst({
+      where: { paymentId, type: { in: [WalletTxType.REFUND, WalletTxType.ADMIN_DEBIT] } },
+      select: { id: true, amount: true },
+    });
+    if (refunded) {
+      throw new BadRequestException(
+        'Энэ төлбөрийн мөнгө хэрэглэгчид аль хэдийн буцаагдсан байна. ' +
+          'Баталгаажуулбал багц үнэгүй олгогдоно — шинэ төлбөр үүсгэнэ үү.',
       );
     }
 
@@ -909,10 +1077,35 @@ export class PaymentsService {
     if (amount < 1000) throw new BadRequestException('Хамгийн бага дүн 1,000₮');
     if (amount > 5_000_000) throw new BadRequestException('Хамгийн их дүн 5,000,000₮');
 
+    /**
+     * ─── ХЭТЭВЧИЙН БОНУС УРАМШУУЛАЛ ─────────────────────────────────
+     *
+     * ⚠️⚠️ БОДИТ АЛДАА: `WALLET_BONUS` урамшууллыг frontend нь
+     * `GET /promotions/wallet-bonus`-ээр уншиж «+10,000₮ бонус» гэж
+     * ХАРУУЛДАГ мөртлөө, цэнэглэлт дуусахад бонус ОГТ ОРДОГГҮЙ байв.
+     * `walletBonusFor()` нь бүх кодын санд ЗӨВХӨН харуулах endpoint-
+     * оос дуудагддаг байсан — олгох зам БАЙХГҮЙ.
+     *
+     * Үр дүн: хэрэглэгч 50,000₮ цэнэглээд яг 50,000₮ авна. Амласан
+     * бонус ирэхгүй, `usedCount` 0 хэвээр, `PromotionRedemption` мөр
+     * үүсэхгүй тул ЯМАР Ч мөрдөх бичлэг үлдэхгүй.
+     *
+     * ⚠️ Багцын урсгалтай ЯГ ИЖИЛ зарчим: урамшууллыг ОДОО түгжиж
+     * `promotionId`-д тэмдэглэнэ. Хэрэглэгч QR-аа уншуулж байх зуур
+     * урамшуулал дуусвал ч амласан бонусаа АВНА (шударга).
+     */
+    const bonusPromo = await this.promotions.walletBonusFor(amount, userId);
+
     // DEV mode — QPay тохируулаагүй бол шууд цэнэглэнэ
     if (!this.isQPayConfigured()) {
       const devPayment = await this.prisma.payment.create({
-        data: { userId, amount, status: PaymentStatus.PENDING, isWalletTopup: true },
+        data: {
+          userId,
+          amount,
+          status: PaymentStatus.PENDING,
+          isWalletTopup: true,
+          promotionId: bonusPromo?.id ?? null,
+        },
       });
       this.logger.warn('QPay тохируулаагүй — dev mode: хэтэвч автомат цэнэглэгдлээ');
       await this.completePayment(devPayment.id);
@@ -959,6 +1152,8 @@ export class PaymentsService {
         amount,
         status: PaymentStatus.PENDING,
         isWalletTopup: true,
+        /* ⚠️ Бонусыг ОДОО түгжинэ — дээрх тайлбарыг үз */
+        promotionId: bonusPromo?.id ?? null,
         qpayInvoiceId: invoice.invoice_id,
         qpayQrText: invoice.qr_text,
         qpayQrImage: invoice.qr_image,

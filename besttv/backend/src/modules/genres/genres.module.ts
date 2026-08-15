@@ -1,14 +1,17 @@
 import { Module } from '@nestjs/common';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   Injectable,
+  Logger,
   NotFoundException,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -51,6 +54,8 @@ class ReorderDto {
 
 @Injectable()
 export class GenresService {
+  private readonly logger = new Logger(GenresService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     /* ⚠️ Постер presign — R2 bucket ХААЛТТАЙ, key ганцаараа зураг гаргахгүй */
@@ -89,8 +94,57 @@ export class GenresService {
     return this.prisma.genre.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string) {
+  /**
+   * ⚠️⚠️ ЖАНР УСТГАХ — ТӨЛБӨРТЭЙ ЭРХ УСТГАХ ЭРСДЭЛТЭЙ.
+   *
+   * БОДИТ АЛДАА: энэ функц ямар ч шалгалтгүй `delete` хийдэг байв.
+   * `PlanGenre.genre` нь `onDelete: Cascade` тул жанрыг устгамагц
+   * түүнийг агуулсан БҮХ багцын холбоос ЧИМЭЭГҮЙ устдаг.
+   *
+   * Үр дүн: «Солонгос кино» жанрыг устгавал зөвхөн тэр жанртай багц
+   * авсан ХЭДЭН ЗУУН төлбөртэй захиалагч бүх контентоо АЛДАНА —
+   * мөнгө нь буцаагдахгүй, ямар ч бүртгэл үлдэхгүй, сэргээх ч
+   * боломжгүй (`PlanGenre` мөр устсан).
+   *
+   * Одоо: багцад ашиглагдаж байвал ТАТГАЛЗНА. Админд ЯМАР багц,
+   * ХЭДЭН идэвхтэй захиалагч хамрагдахыг ЯГ хэлнэ.
+   *
+   * ⚠️ `force` нь СҮҮЛИЙН арга — админ үр дагаврыг нүдээр хараад
+   * зориуд баталсан үед л. `plans.remove`-той ижил зарчим.
+   */
+  async remove(id: string, force = false) {
+    const genre = await this.prisma.genre.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+    if (!genre) throw new NotFoundException('Жанр олдсонгүй');
+
+    const planLinks = await this.prisma.planGenre.findMany({
+      where: { genreId: id },
+      select: { plan: { select: { id: true, name: true } } },
+    });
+
+    if (planLinks.length && !force) {
+      const planIds = planLinks.map((p) => p.plan.id);
+      /* Тухайн багцуудын ИДЭВХТЭЙ захиалагчийн тоо — админд
+         «хэдэн хүн хохирохыг» ЯГ харуулна */
+      const affected = await this.prisma.subscription.count({
+        where: { planId: { in: planIds }, expiresAt: { gt: new Date() } },
+      });
+      const names = planLinks.map((p) => p.plan.name).join(', ');
+      throw new BadRequestException(
+        `«${genre.name}» жанрыг ${planLinks.length} багц ашиглаж байна (${names}). ` +
+          `Устгавал идэвхтэй ${affected} захиалагч энэ жанрын контентоо АЛДАНА. ` +
+          `Эхлээд багцаас нь хасна уу.`,
+      );
+    }
+
     await this.prisma.genre.delete({ where: { id } });
+    if (planLinks.length) {
+      this.logger.warn(
+        `Жанр "${genre.name}" ХҮЧЭЭР устгав — ${planLinks.length} багцын холбоос цуг устлаа`,
+      );
+    }
     return { ok: true };
   }
 
@@ -213,8 +267,9 @@ export class GenresAdminController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  remove(@Param('id') id: string, @Query('force') force?: string) {
+    /* ⚠️ `force=1` — админ багц алдагдахыг НҮДЭЭР хараад баталсан үед л */
+    return this.svc.remove(id, force === '1' || force === 'true');
   }
 
   /** Жанр доторх кинонууд — нүүр хуудсанд гарах ЯГ ТЭР дарааллаар */

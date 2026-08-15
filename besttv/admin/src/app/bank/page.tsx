@@ -139,7 +139,15 @@ export default function BankPage() {
     await runMutation(() => api(`/admin/bank/payments/${p.id}/approve`, { method: 'POST' }), {
       success: 'Баталгаажлаа — эрх нээгдэж, хэрэглэгчид мэдэгдэв',
       onDone: () => {
+        /**
+         * ⚠️⚠️ `admin-bank-stats` ЗААВАЛ — өмнө нь ЗӨВХӨН жагсаалт
+         * шинэчлэгддэг байв. Мөр нь «Шалгах хүлээж буй»-аас гарах ч
+         * ДЭЭД ТАЛЫН тоонууд (хүлээгдэж буй дүн, баталгаажсан дүн)
+         * ХУУЧИН утгаараа үлддэг. Админ банкны хуулгатай тулгаж
+         * байхад БУРУУ дүн харна — санхүүгийн ноцтой алдаа.
+         */
         qc.invalidateQueries({ queryKey: ['admin-bank-payments'] });
+        qc.invalidateQueries({ queryKey: ['admin-bank-stats'] });
         setBusy(null);
       },
     });
@@ -175,7 +183,9 @@ export default function BankPage() {
       {
         success: 'Татгалзлаа — хэрэглэгчид мэдэгдэв',
         onDone: () => {
+          /* ⚠️ Статистик ч ЗААВАЛ — дээрх `approve`-ын тайлбарыг үз */
           qc.invalidateQueries({ queryKey: ['admin-bank-payments'] });
+          qc.invalidateQueries({ queryKey: ['admin-bank-stats'] });
           setBusy(null);
         },
       },

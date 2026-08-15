@@ -126,10 +126,20 @@ export class WalletService {
   }
 
   async transactions(userId: string, limit = 50) {
+    /**
+     * ⚠️⚠️ СӨРӨГ/ХҮЧИНГҮЙ утгаас хамгаална.
+     *
+     * БОДИТ АЛДАА: `Math.min(200, limit)` нь зөвхөн ДЭЭД хязгаарыг
+     * барьдаг. `?limit=-5` илгээвэл `take: -5` болж, Prisma үүнийг
+     * «ЭЦСЭЭС нь ав» гэж ойлгодог — хэрэглэгчид хамгийн СҮҮЛИЙН
+     * биш, хамгийн ХУУЧИН гүйлгээ харагдана.
+     * `?limit=abc` бол `NaN` → Prisma алдаа шидэнэ.
+     */
+    const take = Math.min(200, Math.max(1, Math.floor(Number(limit)) || 50));
     const rows = await this.prisma.walletTransaction.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(200, limit),
+      take,
     });
 
     // planId-тай гүйлгээнд багцын нэрийг нөхөж өгнө (UI-д "ямар багц" харуулах)

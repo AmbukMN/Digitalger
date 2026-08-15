@@ -315,9 +315,17 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
                       className="h-32 w-32 object-contain sm:h-48 sm:w-48"
                     />
                   </div>
+                  {/*
+                    ⚠️⚠️ «15 минут» гэж ХУДЛАА бичсэн байв. Backend-ийн
+                    `PENDING_EXPIRE_HOURS = 24` — нэхэмжлэл 24 ЦАГ хүчинтэй.
+
+                    Хохирол: 20 минут төлбөрөө хийсэн хэрэглэгч «хугацаа
+                    дууссан» гэж бодоод орхидог. Мөнгө нь QPay-д яваад,
+                    захиалга нь PENDING-д үлдэж, дэмий гомдол болдог.
+                  */}
                   <p className="flex items-center gap-1 text-[10px] text-foreground/40">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-premium-solid" />
-                    QR хүчинтэй хугацаа: 15 минут
+                    QR хүчинтэй хугацаа: 24 цаг
                   </p>
                 </div>
               )}

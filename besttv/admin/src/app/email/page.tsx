@@ -422,9 +422,21 @@ function SubscribersTab() {
 
   const set = (patch: Partial<typeof f>) => setF((s) => ({ ...s, ...patch, page: patch.page ?? 1 }));
 
+  /**
+   * ⚠️⚠️ ХАРАГДАЖ БУЙ ШҮҮЛТҮҮРИЙГ ЯГ ДАГАНА.
+   *
+   * БОДИТ АЛДАА: зөвхөн `status` дамждаг байв. Админ эх сурвалж + хайлт
+   * шүүж 40 мөр хараад CSV дарахад МЯНГА МЯНГАН мөр татагддаг. Дээр нь
+   * «12,000 мөр татагдлаа» гэсэн toast гарах тул анзаарахгүй өнгөрч,
+   * зөвшөөрөөгүй хүмүүст сурталчилгаа явуулах эрсдэлтэй.
+   */
   const exportCsv = async () => {
     setExporting(true);
-    await downloadCsv(`/admin/email/subscribers/export?status=${f.status}`, 'subscribers');
+    const qs = filtersToQuery(f);
+    await downloadCsv(
+      `/admin/email/subscribers/export${qs ? `?${qs}` : ''}`,
+      'subscribers',
+    );
     setExporting(false);
   };
 

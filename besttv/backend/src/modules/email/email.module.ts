@@ -340,16 +340,18 @@ export class SubscriberService {
     }
   }
 
-  async list(params: {
+  /**
+   * Захиалагчийн шүүлтүүрийг `where` болгоно.
+   *
+   * ⚠️ НЭГ ЭХ СУРВАЛЖ — `list` ба `exportCsv` ХОЁУЛАА үүнийг ашиглана.
+   * Өмнө нь export нь өөрийн гэсэн хагас логиктой байсан тул CSV нь
+   * дэлгэц дээрх жагсаалтаас ӨӨР үр дүн буцаадаг байв.
+   */
+  private subscriberWhere(params: {
     q?: string;
     status?: string;
     source?: string;
-    page?: number;
-    limit?: number;
-  }) {
-    const page = Math.max(1, Number(params.page) || 1);
-    const limit = Math.min(200, Number(params.limit) || 20);
-
+  }): Prisma.SubscriberWhereInput {
     const where: Prisma.SubscriberWhereInput = {};
     if (params.q?.trim()) {
       where.OR = [
@@ -361,6 +363,20 @@ export class SubscriberService {
       where.status = params.status as SubscriberStatus;
     }
     if (params.source && params.source !== 'ALL') where.source = params.source;
+    return where;
+  }
+
+  async list(params: {
+    q?: string;
+    status?: string;
+    source?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(200, Number(params.limit) || 20);
+
+    const where = this.subscriberWhere(params);
 
     const [items, total, counts] = await Promise.all([
       this.prisma.subscriber.findMany({
@@ -383,10 +399,17 @@ export class SubscriberService {
     };
   }
 
-  /** CSV export — маркетингийн хэрэгсэлд оруулах */
-  async exportCsv(status?: string) {
+  /**
+   * CSV export — маркетингийн хэрэгсэлд оруулах.
+   *
+   * ⚠️ Дэлгэц дээр харагдаж буй шүүлтүүрийг ЯГ дагана (`subscriberWhere`).
+   * Өмнө нь зөвхөн `status` баримталдаг байсан тул шүүсэн 40 мөрийн
+   * оронд БҮХ захиалагч татагдаж, зөвшөөрөөгүй хүнд имэйл явах
+   * эрсдэлтэй байв.
+   */
+  async exportCsv(status?: string, q?: string, source?: string) {
     const rows = await this.prisma.subscriber.findMany({
-      where: status && status !== 'ALL' ? { status: status as SubscriberStatus } : {},
+      where: this.subscriberWhere({ status, q, source }),
       orderBy: { createdAt: 'desc' },
       take: 50_000,
     });
@@ -689,9 +712,21 @@ export class EmailAdminController {
     return this.subs.list({ q, status, source, page, limit });
   }
 
+  /**
+   * ⚠️⚠️ CSV нь ЖАГСААЛТТАЙ ЯГ ИЖИЛ шүүлтүүр хүлээж авна.
+   *
+   * БОДИТ АЛДАА: зөвхөн `status` дэмждэг байв. Админ `source=footer`
+   * + «gmail» хайлт хийж 40 мөр хараад CSV дарахад БҮХ захиалагч
+   * (мянга мянган мөр) татагддаг. Тэр жагсаалтаар сурталчилгаа
+   * илгээвэл ЗӨВШӨӨРӨӨГҮЙ хүмүүст очих эрсдэлтэй.
+   */
   @Get('subscribers/export')
-  exportSubscribers(@Query('status') status?: string) {
-    return this.subs.exportCsv(status);
+  exportSubscribers(
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('source') source?: string,
+  ) {
+    return this.subs.exportCsv(status, q, source);
   }
 
   /**

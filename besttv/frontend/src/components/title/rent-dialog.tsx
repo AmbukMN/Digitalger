@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Clock, Loader2, Ticket, Wallet, X } from 'lucide-react';
@@ -36,6 +36,19 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
   const [done, setDone] = useState(false);
   const [invoice, setInvoice] = useState<QPayInvoice | null>(null);
 
+  /**
+   * ⚠️⚠️ ДАВХАР ДАРАЛТААС ХАМГААЛАХ — `busy` state ХАНГАЛТГҮЙ.
+   *
+   * БОДИТ АЛДАА: `setBusy(true)` нь React-ийн дараагийн рендерт л
+   * үйлчилнэ. Гар утсан дээр хурдан 2 удаа хүрэхэд (`touchstart` нь
+   * рендерээс өмнө буудаг) хоёр дахь даралт нь `disabled` болоогүй
+   * товч дээр бууж, `/rentals/:id/wallet` ХОЁР УДАА явна → хэтэвчнээс
+   * ХОЁР ДАХИН мөнгө хасагдана.
+   *
+   * `ref` нь шууд, синхроноор өөрчлөгддөг тул энэ цонхыг бүрэн хаана.
+   */
+  const inFlight = useRef(false);
+
   const balance = user?.walletBalance ?? 0;
   const shortfall = Math.max(0, price - balance);
   // ⚠️ QPay хамгийн бага дүн 1,000₮ — дутагдал түүнээс бага ч 1,000₮ цэнэглэнэ
@@ -58,6 +71,9 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
 
   /** Хэтэвчээр түрээслэх (үлдэгдэл хүрсэн үед) */
   const rent = async () => {
+    /* ⚠️ Хэтэвчнээс ХОЁР ДАХИН хасагдахаас сэргийлнэ (дээрх тайлбар) */
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       await api(`/rentals/${titleId}/wallet`, { method: 'POST', body: JSON.stringify({}) });
@@ -69,6 +85,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа, дахин оролдоно уу');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -86,6 +103,8 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
    * `Rental` үүсгэнэ (`completePayment` → `rentals.grantFromPayment`).
    */
   const payDirect = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       const res = await api<QPayInvoice & { devMode?: boolean; already?: boolean }>(
@@ -118,12 +137,15 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'QPay нэхэмжлэл үүсгэж чадсангүй');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
 
   /** Дутуу дүнг QPay-ээр цэнэглэх → батлагдмагц автомат түрээслэнэ */
   const startTopup = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       const res = await api<QPayInvoice & { devMode?: boolean }>('/payments/wallet/topup', {
@@ -132,6 +154,9 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
       });
       if (res.devMode) {
         await refreshMe();
+        /* ⚠️ ЗААВАЛ суллана — `rent()` нь `inFlight`-ыг өөрөө шалгадаг
+           тул суллахгүй бол dev горимд түрээс ЧИМЭЭГҮЙ алгасагдана */
+        inFlight.current = false;
         await rent();
         return;
       }
@@ -146,6 +171,7 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'QPay нэхэмжлэл үүсгэж чадсангүй');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -167,6 +193,19 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
            *  `topup`  — зөвхөн хэтэвч цэнэглэгдсэн, түрээсийг ЭНД хийнэ.
            */
           if (invoice.kind === 'rental') {
+            /**
+             * ⚠️⚠️ `refreshMe()` ЗААВАЛ — өмнө нь ЭНД байхгүй байв.
+             *
+             * БОДИТ АЛДАА: `rentedTitleIds` нь `/auth/me`-ээс ирдэг ба
+             * зөвхөн 3 минут тутам шинэчлэгддэг. QPay-ээр түрээсэлсэн
+             * хэрэглэгч нүүр рүү буцахад САЯ мөнгө төлсөн кино нь
+             * «🔒 Төлбөртэй» гэж харагдаж, дарвал дахин түрээслэхийг
+             * санал болгодог байв — итгэл алдагдуулах шууд асуудал.
+             *
+             * ⚠️ `await` хийхгүй — модал хаагдахыг саатуулах хэрэггүй,
+             * гэхдээ алдааг чимээгүй залгина (эрх нь аль хэдийн нээгдсэн).
+             */
+            refreshMe().catch(() => null);
             setDone(true);
             onRented();
             setTimeout(onClose, 1500);
