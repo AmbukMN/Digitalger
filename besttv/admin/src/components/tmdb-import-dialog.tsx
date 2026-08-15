@@ -80,6 +80,8 @@ export function TmdbImportDialog({
   const [results, setResults] = useState<TmdbResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [importingId, setImportingId] = useState<number | null>(null);
+  /** ⚠️ Хайлт хийсэн эсэх — «олдсонгүй» ба «хараахан хайгаагүй»-г ЯЛГАНА */
+  const [searched, setSearched] = useState(false);
 
   /**
    * ⚠️ AI орчуулга идэвхтэй эсэхийг УРЬДЧИЛЖ мэдэж админд харуулна —
@@ -99,6 +101,8 @@ export function TmdbImportDialog({
     try {
       const res = await api<TmdbResult[]>(`/admin/tmdb/search?q=${encodeURIComponent(q)}&type=${type}`);
       setResults(res);
+      /* ⚠️ Хайлт хийгдсэн — «олдсонгүй» мессежийг зөвшөөрнө */
+      setSearched(true);
     } catch {
       toast.error('TMDB хайлт амжилтгүй — TMDB_API_KEY тохируулсан эсэхийг шалгана уу');
     } finally {
@@ -136,7 +140,27 @@ export function TmdbImportDialog({
       <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl bg-card p-6">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-foreground">TMDB-ээс импорт</h2>
+            {/*
+              ⚠️⚠️ АЛЬ ТӨРЛӨӨР ХАЙЖ БАЙГААГ ИЛ ХАРУУЛНА.
+
+              БОДИТ АСУУДАЛ: TMDB нь кино (`movie`) болон цуврал (`tv`)-ыг
+              ТУСДАА хайдаг. «Нэг ангит» табан дээр байхад цуврал ОГТ
+              гарахгүй — хэрэглэгч «TMDB-д байхгүй юм байна» гэж буруу
+              дүгнэнэ (бодитоор тохиолдсон: The Blacklist цуврал байсаар
+              атал «алга» гэж бодсон).
+            */}
+            <h2 className="flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
+              TMDB-ээс импорт
+              <span
+                className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                  type === 'tv'
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-foreground/10 text-foreground/60'
+                }`}
+              >
+                {type === 'tv' ? '📺 Цуврал хайж байна' : '🎬 Кино хайж байна'}
+              </span>
+            </h2>
             {/* ⚠️ Орчуулга идэвхтэй эсэхийг ЭХЛЭЭД харуулна — импорт хийсний
                 дараа англи гарч ирвэл гайхахгүй */}
             {status && (
@@ -219,8 +243,29 @@ export function TmdbImportDialog({
               {importingId === r.tmdbId && <Loader2 size={16} className="shrink-0 animate-spin text-primary" />}
             </button>
           ))}
+          {/*
+            ⚠️ ХАЙСАН ч олдоогүй үед «хайлт хийнэ үү» гэж хэлэх нь
+            ТӨӨРӨГДҮҮЛНЭ. Мөн TMDB нь кино/цуврал ТУСДАА хайдаг тул
+            «нөгөө төрлөөр оролдоно уу» гэж ЗААВАЛ санал болгоно.
+          */}
           {!searching && results.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Хайлт хийж контент сонгоно уу</p>
+            <div className="py-8 text-center">
+              {searched ? (
+                <>
+                  <p className="text-sm text-foreground/70">Олдсонгүй</p>
+                  <p className="mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-muted-foreground">
+                    {type === 'movie'
+                      ? 'Энэ нь ЦУВРАЛ байж магадгүй — модалыг хааж «Олон ангит» таб руу шилжээд дахин хайна уу.'
+                      : 'Энэ нь НЭГ АНГИТ кино байж магадгүй — модалыг хааж «Нэг ангит» таб руу шилжээд дахин хайна уу.'}
+                  </p>
+                  <p className="mt-2 text-[11px] text-muted-foreground/70">
+                    Нэрийг англиар, зайгүй бичиж үзээрэй (ж: «blacklist»)
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Хайлт хийж контент сонгоно уу</p>
+              )}
+            </div>
           )}
         </div>
       </div>
