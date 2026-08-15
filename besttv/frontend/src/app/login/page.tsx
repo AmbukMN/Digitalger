@@ -194,7 +194,9 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={mode === 'login' ? 'tanii@mail.mn эсвэл 99112233' : 'tanii@mail.mn'}
+                /* ⚠️ Богино байлгана — урт placeholder нь жижиг дэлгэц
+                   дээр таслагдаж уншигдахгүй болно */
+                placeholder={mode === 'login' ? 'Мэйл эсвэл утас оруулна уу' : 'tanii@mail.mn'}
                 autoComplete={mode === 'login' ? 'username' : 'email'}
                 className="input-dark"
               />
@@ -212,7 +214,9 @@ export default function LoginPage() {
                   inputMode="numeric"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="99112233"
+                  /* ⚠️ Жинхэнэ дугаар мэт placeholder ТАВИХГҮЙ — хэрэглэгч
+                     «аль хэдийн бөглөгдсөн» гэж андуурдаг (бодит гомдол) */
+                  placeholder="Утасны дугаар"
                   autoComplete="tel"
                   className="input-dark"
                 />

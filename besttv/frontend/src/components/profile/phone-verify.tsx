@@ -46,6 +46,8 @@ export function PhoneVerify() {
   const [status, setStatus] = useState<'idle' | 'pending' | 'verified' | 'expired'>('idle');
   const [busy, setBusy] = useState(false);
   const [remaining, setRemaining] = useState(0);
+  /** Баталгаажуулахаар илгээсэн дугаар — зааварт харуулна */
+  const [sentTo, setSentTo] = useState('');
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /** ⚠️ Амжилтын toast НЭГ Л УДАА гарах баталгаа */
@@ -140,6 +142,10 @@ export function PhoneVerify() {
         body: JSON.stringify({ phone: num }),
       });
       setSession(res);
+      /* ⚠️ Илгээсэн дугаараа ХАДГАЛНА — заавар харуулахад хэрэгтэй.
+         verify.mn-ий бичвэрээс regex-ээр салгаж авах нь эмзэг
+         (тэд формулировкоо солиход ХООСОН гарна). */
+      setSentTo(num);
       setStatus('pending');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
@@ -206,8 +212,8 @@ export function PhoneVerify() {
         </p>
         <p className="mb-3 text-xs leading-relaxed text-foreground/60">
           Бид танд код <strong className="text-foreground">илгээхгүй</strong>. Доорх кодыг
-          өөрийн <strong className="text-foreground">{formatMn(session.displayInstruction.match(/\d{8}/)?.[0] ?? '')}</strong>{' '}
-          дугаараас {session.shortcode} руу SMS-ээр илгээснээр дугаар тань баталгаажна.
+          өөрийн <strong className="text-foreground">{formatMn(sentTo)}</strong> дугаараас{' '}
+          {session.shortcode} руу SMS-ээр илгээснээр дугаар тань баталгаажна.
         </p>
 
         {/* Гар утсанд — нэг дарахад SMS апп бөглөгдсөн нээгдэнэ */}
@@ -339,7 +345,15 @@ export function PhoneVerify() {
               inputMode="numeric"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="99112233"
+              /**
+               * ⚠️⚠️ ЖИНХЭНЭ ДУГААР МЭТ placeholder ТАВИХГҮЙ.
+               *
+               * БОДИТ АЛДАА: «99112233» гэж бичсэн байсан тул хэрэглэгч
+               * (эзэн нь ӨӨРӨӨ ч) «миний дугаар аль хэдийн орсон юм
+               * байна» гэж андуурсан. Тэгээд шууд «Баталгаажуулах»
+               * дарахад ХООСОН талбар тул алдаа гарна.
+               */
+              placeholder="Утасны дугаараа оруулна уу"
               className="input-dark mb-2 w-full"
             />
           </motion.div>
