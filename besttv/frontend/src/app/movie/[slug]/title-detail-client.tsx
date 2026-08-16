@@ -558,7 +558,13 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                             alt={`${ep.number}-р анги`}
                             fill
                             sizes="112px"
-                            className={cn('object-cover', epLocked && 'brightness-50')}
+                            /* ⚠️ `brightness-75` — өмнө нь `50` байсан дээр
+                               `bg-black/40` давхарлагдаж НИЙЛБЭР нь хэт
+                               бараан болж зураг мэдэгдэхгүй байв (админ
+                               анзаарсан). Түгжээ мэдэгдэх ч зураг
+                               ТАНИГДАХ ёстой — аль анги болохыг постероор
+                               нь сонгодог. */
+                            className={cn('object-cover', epLocked && 'brightness-75')}
                           />
                         )}
                         {/*
@@ -569,8 +575,14 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                           дарж үзээд л /pricing руу шидэгдэнэ.
                         */}
                         {epLocked && (
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/40">
-                            <Lock size={18} className="text-white drop-shadow" />
+                          /* ⚠️ Дэвсгэрийг `/40` → `/25` болгож ГЭРЭЛТҮҮЛЭВ.
+                             Түгжээний дүрс өөрөө уншигдахын тулд ард нь
+                             ЖИЖИГ бүдгэрсэн дугуй тавьсан — бүтэн зургийг
+                             харанхуйлах шаардлагагүй. */
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+                            <span className="grid size-7 place-items-center rounded-full bg-black/55 backdrop-blur-[2px]">
+                              <Lock size={15} className="text-white" />
+                            </span>
                           </span>
                         )}
                       </div>

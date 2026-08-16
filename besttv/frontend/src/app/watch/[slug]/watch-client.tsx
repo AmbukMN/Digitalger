@@ -320,7 +320,26 @@ export function WatchClient({ slug }: { slug: string }) {
   const currentEpisode = episodeId
     ? flatEpisodes.find((e) => e.id === episodeId)
     : undefined;
-  const locked = data.isPremium && !data.hasAccess && !currentEpisode?.isFreePreview;
+  /**
+   * ⚠️ `hasAccess === undefined` = хариу хараахан ирээгүй (нэвтрэх үед
+   * placeholder эрхийн талбарыг цэвэрлэдэг) — тэр үед ТҮГЖЭЭТЭЙ гэж
+   * ҮЗЭХГҮЙ, эс бөгөөс төлбөр төлсөн хүнд түгжээний дэлгэц анивчина.
+   */
+  const accessKnown = data.hasAccess !== undefined;
+  const locked =
+    data.isPremium && accessKnown && !data.hasAccess && !currentEpisode?.isFreePreview;
+
+  /**
+   * ⚠️⚠️ ХАЖУУГИЙН ЖАГСААЛТАД ТҮГЖЭЭ — эрхгүй хэрэглэгчид.
+   *
+   * БОДИТ ГОМДОЛ: нэвтрээгүй/эрхгүй хүн ҮНЭГҮЙ анги үзэж байхад
+   * жагсаалтын БҮХ анги нээлттэй мэт харагдана. Дарахад л түгжээний
+   * дэлгэц гарч ирдэг тул хэрэглэгч «эвдэрсэн юм болов уу» гэж бодно.
+   *
+   * ⚠️ Кинонд хамаарахгүй (`isPremium` шалгалт) — үнэгүй контентод
+   * түгжээ харуулах нь буруу.
+   */
+  const gated = data.isPremium && accessKnown && !data.hasAccess;
   if (locked) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-5 bg-black px-4 text-center">
@@ -554,6 +573,9 @@ export function WatchClient({ slug }: { slug: string }) {
                           `/admin/stream/posters/backfill` засна.)
                         */}
                         <div className="relative flex h-12 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-white/8">
+                          {/* ⚠️ `epLocked` — энэ анги эрх шаардах эсэх.
+                              Үнэгүй танилцуулга анги нь `gated` үед ч
+                              НЭЭЛТТЭЙ (backend зөвшөөрдөг). */}
                           {ep.posterUrl ? (
                             <Image
                               src={ep.posterUrl}
@@ -564,6 +586,19 @@ export function WatchClient({ slug }: { slug: string }) {
                             />
                           ) : (
                             <span className="text-base font-bold text-white/25">{ep.number}</span>
+                          )}
+                          {/*
+                            ⚠️ ТҮГЖЭЭНИЙ ТЭМДЭГ — дэлгэрэнгүй хуудастай ИЖИЛ
+                            хэв маяг (жижиг бүдгэрсэн дугуй). Бүтэн зургийг
+                            харанхуйлахгүй — аль анги болохыг постероор нь
+                            танина.
+                          */}
+                          {gated && !ep.isFreePreview && (
+                            <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded bg-black/25">
+                              <span className="grid size-6 place-items-center rounded-full bg-black/55 backdrop-blur-[2px]">
+                                <Lock size={12} className="text-white" />
+                              </span>
+                            </span>
                           )}
                           {/* ⚠️ Идэвхтэй ангид тод хүрээ — жагсаалт урт үед
                               хаана байгаагаа алдахгүй */}
