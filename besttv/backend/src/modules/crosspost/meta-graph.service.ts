@@ -250,9 +250,18 @@ export class MetaGraphService {
     message: string;
     /// Холбоос — FB нь preview карт автоматаар үүсгэнэ
     link?: string;
+    /**
+     * ⚠️ FB ӨӨРӨӨ ТОВЛОХ (UNIX секунд). Meta баримт: 10 минут –
+     * 30 хоног. Заавал `published=false`-тэй хамт.
+     */
+    scheduledUnix?: number | null;
   }): Promise<string> {
     const body: Record<string, string> = { message: params.message };
     if (params.link) body.link = params.link;
+    if (params.scheduledUnix) {
+      body.published = 'false';
+      body.scheduled_publish_time = String(params.scheduledUnix);
+    }
 
     const res = await this.call<{ id: string }>('me/feed', {
       method: 'POST',
@@ -267,12 +276,20 @@ export class MetaGraphService {
    * ⚠️ `/photos` edge — зураг нэг бол энэ, олон бол доорх
    * `createPagePhotoPost` (unpublished хэсгүүдээр).
    */
-  async createPagePhoto(params: { imageUrl: string; caption?: string }): Promise<string> {
+  async createPagePhoto(params: {
+    imageUrl: string;
+    caption?: string;
+    scheduledUnix?: number | null;
+  }): Promise<string> {
     const res = await this.call<{ id: string; post_id?: string }>('me/photos', {
       method: 'POST',
       params: {
         url: params.imageUrl,
+        /* ⚠️ `message` нь DEPRECATED — зурагт `caption` (Meta баримт) */
         ...(params.caption ? { caption: params.caption } : {}),
+        ...(params.scheduledUnix
+          ? { published: 'false', scheduled_publish_time: String(params.scheduledUnix) }
+          : {}),
       },
     });
     /* ⚠️ `post_id` нь ФИД дэх постын ID (`{page}_{post}`), `id` нь
@@ -290,6 +307,7 @@ export class MetaGraphService {
   async createPageMultiPhoto(params: {
     imageUrls: string[];
     message: string;
+    scheduledUnix?: number | null;
   }): Promise<string> {
     const ids: string[] = [];
     for (const url of params.imageUrls) {
@@ -304,6 +322,10 @@ export class MetaGraphService {
     ids.forEach((id, i) => {
       attached[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
     });
+    if (params.scheduledUnix) {
+      attached.published = 'false';
+      attached.scheduled_publish_time = String(params.scheduledUnix);
+    }
 
     const res = await this.call<{ id: string }>('me/feed', {
       method: 'POST',
@@ -319,12 +341,21 @@ export class MetaGraphService {
    * ХЭРЭГГҮЙ (URL-ээр илгээх үед). Файл шууд upload хийвэл тэр
    * домэйн хэрэгтэй болно.
    */
-  async createPageVideo(params: { videoUrl: string; description?: string }): Promise<string> {
+  async createPageVideo(params: {
+    videoUrl: string;
+    description?: string;
+    scheduledUnix?: number | null;
+  }): Promise<string> {
     const res = await this.call<{ id: string }>('me/videos', {
       method: 'POST',
       params: {
+        /* ⚠️ `file_url` хангалттай — resumable upload ЗААВАЛ БИШ.
+           `upload_phase`-тэй ХАМТ хэрэглэж БОЛОХГҮЙ (Meta баримт). */
         file_url: params.videoUrl,
         ...(params.description ? { description: params.description } : {}),
+        ...(params.scheduledUnix
+          ? { published: 'false', scheduled_publish_time: String(params.scheduledUnix) }
+          : {}),
       },
     });
     return res.id;

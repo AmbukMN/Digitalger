@@ -1549,6 +1549,23 @@ enum SocialChannel {
   INSTAGRAM
 }
 
+/**
+ * Хуваарийн ТӨРӨЛ — Buffer-ийн гол механик.
+ *
+ * ⚠️⚠️ ЯАГААД ЯЛГАХ ШААРДЛАГАТАЙ ВЭ: slot бол «мөр» биш, ДАВТАГДАХ
+ * ЦАГИЙН ХУВААРЬ. Админ хуваариа өөрчлөхөд (жишээ: 19:00-ыг 20:00
+ * болгох) `NEXT_AVAILABLE` постууд ШИНЭ цаг руу автоматаар шилжинэ,
+ * харин `CUSTOM` постууд ХӨДӨЛДӨГГҮЙ.
+ *
+ * Хоёуланг нэг талбарт хадгалбал энэ зан төлөвийг гаргах боломжгүй.
+ */
+enum SocialScheduleKind {
+  /// Дараагийн сул slot — хуваарь өөрчлөгдөхөд ДАГАЖ шилжинэ
+  NEXT_AVAILABLE
+  /// Админ гараар сонгосон яг цаг — ХӨДӨЛӨХГҮЙ
+  CUSTOM
+}
+
 enum SocialPostStatus {
   /// Зохиож байгаа — хаана ч илгээгдэхгүй
   DRAFT
@@ -1591,6 +1608,12 @@ model SocialPost {
    * Cron минут тутам `scheduledAt <= now` бөгөөд `SCHEDULED`-ыг авна.
    */
   scheduledAt DateTime?
+
+  /**
+   * ⚠️ Хуваарь өөрчлөгдөхөд энэ пост ШИЛЖИХ эсэх (дээрх enum-ийн
+   * тайлбарыг үз). `NEXT_AVAILABLE` бол дахин хуваарилагдана.
+   */
+  scheduleKind SocialScheduleKind @default(CUSTOM)
 
   /// Кинотой холбоо — «шинэ кино → автомат draft» боломжид
   titleId String?
@@ -1651,6 +1674,32 @@ model SocialPostTarget {
    */
   idempotencyKey String? @unique
 
+  /**
+   * ⚠️⚠️ IG CONTAINER ID — retry-ийн ГОЛ ХАМГААЛАЛТ.
+   *
+   * Instagram-д нийтлэх нь 2 алхам: container үүсгэх → publish.
+   * Publish алхам сүлжээний алдаагаар унавал ДАХИН CONTAINER
+   * ҮҮСГЭХ ЁСГҮЙ — нэг container хоёр удаа publish хийгддэггүй тул
+   * хуучныг дахин ашиглах нь давхардлаас хамгаална (Meta-гийн
+   * зөвлөмж: idempotency key байхгүй тул `creation_id` нь орлоно).
+   *
+   * ⚠️ Container 24 цаг хүчинтэй. Хэтэрвэл `EXPIRED` болох тул
+   * шинээр үүсгэнэ — `igContainerAt`-аар шалгана.
+   */
+  igContainerId String?
+  igContainerAt DateTime?
+
+  /**
+   * ⚠️ FB ӨӨРӨӨ ТОВЛОСОН эсэх.
+   *
+   * Facebook нь `published=false` + `scheduled_publish_time`-аар
+   * ӨӨРИЙН ТАЛД товлодог (10 мин – 30 хоног). Тэр үед бидний cron
+   * нийтлэх ШААРДЛАГАГҮЙ — Meta автоматаар хийнэ.
+   *
+   * ⚠️ IG-д ийм боломж БАЙХГҮЙ тул хоёр суваг ӨӨР замаар явна.
+   */
+  fbNativeScheduled Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1677,6 +1726,26 @@ model SocialSlot {
 
   @@unique([channel, weekday, time])
   @@index([channel])
+}
+
+/**
+ * Сувгийн тохиргоо — түр зогсоох (pause).
+ *
+ * ⚠️ Buffer-т pause нь СУВАГ ТУС БҮРЭЭР хийгддэг (бөөнөөр биш).
+ * Зогсоосон үед товлосон постууд ЯВАХГҮЙ, дараалалдаа хэвээр
+ * үлдэнэ — сэргээхэд анхны дарааллаараа үргэлжилнэ.
+ *
+ * ⚠️ Buffer дээр pause нь календарь дээр ХАРАГДДАГГҮЙ (тэдний сул
+ * тал). Бид админд ТОДООР харуулна — эс бөгөөс «яагаад пост
+ * явахгүй байна» гэж удаан хайна.
+ */
+model SocialChannelSetting {
+  channel SocialChannel @id
+
+  /// true = товлосон пост явахгүй (дараалалд хэвээр үлдэнэ)
+  paused Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
 }
 
 // ─── RE-ENGAGEMENT / АМЬДРАЛЫН МӨЧЛӨГИЙН ИМЭЙЛ ───────────────────────────────

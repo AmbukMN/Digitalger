@@ -29,6 +29,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { BankModule } from './modules/bank/bank.module';
 import { CrosspostModule } from './modules/crosspost/crosspost.module';
+import { SocialModule } from './modules/social/social.module';
 import { SubtitlesModule } from './modules/subtitles/subtitles.module';
 import { N8nModule } from './modules/n8n/n8n.module';
 import { BlogModule } from './modules/blog/blog.module';
@@ -101,6 +102,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     PromotionsModule,
     BankModule,
     CrosspostModule,
+    /* Нийтлэл товлогч — FB/IG зэрэг, Buffer маягийн slot дараалалтай */
+    SocialModule,
     SubtitlesModule,
     N8nModule,
     BlogModule,

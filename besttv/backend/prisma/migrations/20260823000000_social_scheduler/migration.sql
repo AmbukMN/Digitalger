@@ -13,12 +13,17 @@ CREATE TYPE "SocialTargetStatus" AS ENUM (
   'PENDING', 'PUBLISHING', 'PUBLISHED', 'FAILED', 'SKIPPED'
 );
 
+-- ⚠️ Buffer-ийн гол механик: slot бол ДАВТАГДАХ ЦАГИЙН ХУВААРЬ.
+-- Хуваарь өөрчлөгдөхөд NEXT_AVAILABLE постууд шилжинэ, CUSTOM нь хөдөлдөггүй.
+CREATE TYPE "SocialScheduleKind" AS ENUM ('NEXT_AVAILABLE', 'CUSTOM');
+
 CREATE TABLE "SocialPost" (
   "id"          TEXT NOT NULL,
   "status"      "SocialPostStatus" NOT NULL DEFAULT 'DRAFT',
   "body"        TEXT NOT NULL DEFAULT '',
   "mediaKeys"   TEXT[],
   "scheduledAt" TIMESTAMP(3),
+  "scheduleKind" "SocialScheduleKind" NOT NULL DEFAULT 'CUSTOM',
   "titleId"     TEXT,
   "recycle"     JSONB,
   "createdById" TEXT,
@@ -42,6 +47,13 @@ CREATE TABLE "SocialPostTarget" (
   "attempts"       INTEGER NOT NULL DEFAULT 0,
   "publishedAt"    TIMESTAMP(3),
   "idempotencyKey" TEXT,
+  -- ⚠️ IG container-ыг retry-д ДАХИН ашиглана (Meta idempotency key
+  -- дэмждэггүй тул creation_id нь давхардлаас хамгаална). 24 цаг хүчинтэй.
+  "igContainerId" TEXT,
+  "igContainerAt" TIMESTAMP(3),
+  -- ⚠️ FB өөрөө товлосон эсэх (published=false + scheduled_publish_time).
+  -- Тэр үед бидний cron нийтлэхгүй — Meta автоматаар хийнэ.
+  "fbNativeScheduled" BOOLEAN NOT NULL DEFAULT false,
   "createdAt"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"      TIMESTAMP(3) NOT NULL,
   CONSTRAINT "SocialPostTarget_pkey" PRIMARY KEY ("id")
@@ -67,6 +79,14 @@ CREATE TABLE "SocialSlot" (
 CREATE UNIQUE INDEX "SocialSlot_channel_weekday_time_key"
   ON "SocialSlot"("channel", "weekday", "time");
 CREATE INDEX "SocialSlot_channel_idx" ON "SocialSlot"("channel");
+
+-- Сувгийн тохиргоо — pause (Buffer-т суваг тус бүрээр)
+CREATE TABLE "SocialChannelSetting" (
+  "channel"   "SocialChannel" NOT NULL,
+  "paused"    BOOLEAN NOT NULL DEFAULT false,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "SocialChannelSetting_pkey" PRIMARY KEY ("channel")
+);
 
 -- ⚠️ Кино устахад пост үлдэнэ (SetNull) — түүх алдагдах ёсгүй
 ALTER TABLE "SocialPost" ADD CONSTRAINT "SocialPost_titleId_fkey"
