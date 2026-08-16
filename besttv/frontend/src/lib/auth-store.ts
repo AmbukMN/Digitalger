@@ -128,10 +128,24 @@ export const useAuth = create<AuthState>((set, get) => ({
       return;
     }
 
-    // ⚠️ ХАМГИЙН ЧУХАЛ: кэшнээс ШУУД сэргээнэ — сервер хүлээхгүй.
-    // Ингэснээр "Нэвтрэх → Профайл" гэсэн харагдацын үсрэлт (flash) арилна.
+    /**
+     * ⚠️ ХАМГИЙН ЧУХАЛ: кэшнээс ШУУД сэргээнэ — сервер хүлээхгүй.
+     * Ингэснээр "Нэвтрэх → Профайл" гэсэн харагдацын үсрэлт (flash) арилна.
+     *
+     * ⚠️⚠️ ГЭХДЭЭ ACCESS ТОКЕН БАЙХГҮЙ ҮЕД `loading: false` ТАВИХГҮЙ.
+     *
+     * Хэрэв зөвхөн refresh token байвал (access хугацаа дуусаад
+     * localStorage-оос арилсан) `loading: false` нь эрхээс хамаарах
+     * query-үүдийг ЭРТ эхлүүлнэ. Тэдгээр нь refresh дуусахаас өмнө
+     * токенгүй явж, ЗОЧНЫ хариу авдаг — кино түгжээтэй харагдана.
+     * Refresh дуусмагц дахин татаад нээгддэг: «түгжигдээд дараа нь
+     * нээгдэх» гомдлын нэг эх үүсвэр.
+     *
+     * Хэрэглэгчийг ХАРУУЛНА (flash арилна), гэхдээ `loading` нь
+     * `/auth/me` дуусах хүртэл `true` хэвээр — query хүлээнэ.
+     */
     const cached = readUserCache();
-    if (cached) set({ user: cached, loading: false });
+    if (cached) set({ user: cached, loading: !getAccessToken() });
 
     try {
       const user = await api<AuthUser>('/auth/me');

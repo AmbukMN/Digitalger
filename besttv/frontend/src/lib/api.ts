@@ -144,9 +144,11 @@ export class ApiError extends Error {
 
 export async function api<T = unknown>(
   path: string,
-  options: RequestInit & { auth?: boolean } = {},
+  options: RequestInit & { auth?: boolean; __staleRetried?: boolean } = {},
 ): Promise<T> {
-  const { auth = true, ...init } = options;
+  /* ⚠️ `__staleRetried` — дотоод туг (`X-Auth-Stale` давталт хамгаалалт).
+     `init`-д ОРУУЛАХГҮЙ, эс бөгөөс fetch-д танихгүй талбар очно. */
+  const { auth = true, __staleRetried: staleRetried = false, ...init } = options;
 
   const doFetch = () => {
     const token = auth ? getAccessToken() : null;
@@ -221,6 +223,33 @@ export async function api<T = unknown>(
       clearTokens(); // сервер хүчингүй гэж баталсан үед л гаргана
     }
     // 'network' → токеныг хэвээр үлдээж, доорх алдаа шидэгдэнэ (дараа дахин оролдоно)
+  }
+
+  /**
+   * ⚠️⚠️ `X-Auth-Stale` — 200 БУЦААСАН ч токен нь ХҮЧИНГҮЙ байсан.
+   *
+   * БОДИТ ГОМДОЛ: «эрх заримдаа түгжигдээд, дараа нь нээгдээд байна».
+   *
+   * `OptionalJwtAuthGuard`-тай endpoint-ууд (`/titles/:slug`,
+   * `/chat/messages` …) нь хүчингүй токеныг ЧИМЭЭГҮЙ зочин болгож
+   * 200 буцаадаг — 401 БИШ. Тиймээс дээрх refresh блок ХЭЗЭЭ Ч
+   * ажиллахгүй бөгөөд хэрэглэгч ЗОЧНЫ хариуг (`hasAccess: false`)
+   * авч, кино түгжээтэй харагдана. Дараа нь өөр хүсэлт 401 авч
+   * refresh хийсний дараа л нээгддэг байв — яг «түгжигдээд дараа нь
+   * нээгдэх» зан.
+   *
+   * Одоо: дохио ирвэл ШУУД refresh хийж, ШИНЭ токеноор дахин татна.
+   * Хэрэглэгч зөв хариуг НЭГ ДОР авна.
+   */
+  if (auth && !staleRetried && res.headers.get('X-Auth-Stale') === '1' && getRefreshToken()) {
+    refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+    const result = await refreshPromise;
+    if (result === 'ok') {
+      /* ⚠️ `staleRetried` — сервер дохиогоо буруу тавьсан ч
+         ТӨГСГӨЛГҮЙ давталт үүсэхээс сэргийлнэ (нэг л удаа) */
+      return api<T>(path, { ...options, __staleRetried: true } as typeof options);
+    }
+    if (result === 'invalid') clearTokens();
   }
 
   if (!res.ok) {

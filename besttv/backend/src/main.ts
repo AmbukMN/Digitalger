@@ -44,7 +44,17 @@ async function bootstrap() {
     : isProd
       ? ['https://besttv.us', 'https://www.besttv.us', 'https://admin.besttv.us']
       : true;
-  app.enableCors({ origin: corsOrigin, credentials: true });
+  app.enableCors({
+    origin: corsOrigin,
+    credentials: true,
+    /**
+     * ⚠️ `X-Auth-Stale` — `OptionalJwtAuthGuard` нь токен хүчингүй үед
+     * тавьдаг дохио. Browser нь `exposedHeaders`-т заагаагүй header-ийг
+     * JS-д ХАРУУЛДАГГҮЙ тул энд заавал бүртгэнэ (frontend нь proxy-оор
+     * same-origin ирдэг ч, шууд домэйнээр хандах тохиолдол бий).
+     */
+    exposedHeaders: ['X-Auth-Stale'],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
