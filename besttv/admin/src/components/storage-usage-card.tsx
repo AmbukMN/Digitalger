@@ -5,6 +5,7 @@ import { formatBytes, formatDateTime } from '@besttv/shared';
 import { useQuery } from '@tanstack/react-query';
 import { HardDrive, RefreshCw, Film, Image as ImageIcon, Clapperboard, FileVideo } from 'lucide-react';
 import { cn } from '@besttv/shared';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
 /** Backend `/admin/analytics/storage` буцаах бүтэц */
@@ -74,6 +75,37 @@ export function StorageUsageCard() {
   const forceRefresh = async () => {
     await api<StorageUsage>('/admin/analytics/storage?refresh=1');
     refetch();
+  };
+
+  /**
+   * USD→MNT ханш солих.
+   *
+   * ⚠️ `prompt` — тусдаа модал үүсгэх нь энэ ховор үйлдэлд илүүц
+   * (`bank/page.tsx` ч ижил загвар ашигладаг).
+   *
+   * ⚠️ Backend нь 500-20,000 хязгаартай — энд ч урьдчилан шалгаж
+   * дэмий хүсэлт явуулахгүй, алдааг ШУУД хэлнэ.
+   */
+  const editRate = async () => {
+    const cur = data?.cost?.usdMnt ?? 3450;
+    const input = window.prompt('USD → MNT ханш:', String(cur));
+    if (input === null) return;
+    const usdMnt = Number(input.replace(/[^\d]/g, ''));
+    if (!Number.isFinite(usdMnt) || usdMnt < 500 || usdMnt > 20000) {
+      toast.error('Ханш 500-20,000 хооронд байх ёстой');
+      return;
+    }
+    if (usdMnt === cur) return;
+    try {
+      await api('/admin/analytics/storage/rate', {
+        method: 'PATCH',
+        body: JSON.stringify({ usdMnt }),
+      });
+      toast.success(`Ханш ${usdMnt.toLocaleString('mn-MN')}₮ болов`);
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
   };
 
   if (isLoading) {
@@ -180,7 +212,19 @@ export function StorageUsageCard() {
               {/* ⚠️ Тооцооны ил тод байдал — админ тоог шалгаж чадна */}
               {data.cost.billableGb.toLocaleString('mn-MN')} GB төлбөртэй
               (нийтээс {data.freeTierGb} GB үнэгүй хассан) × $
-              {data.cost.usdPerGb}/GB · ханш {data.cost.usdMnt.toLocaleString('mn-MN')}₮
+              {data.cost.usdPerGb}/GB · ханш{' '}
+              {/*
+                ⚠️ ХАНШ ЗАСАХ — тусдаа тохиргооны хуудас байхгүй тул
+                ашиглагдаж буй ЯГ ЭНД. Ханш байнга хөдөлдөг бөгөөд
+                кодод хатуу бичих нь буруу.
+              */}
+              <button
+                onClick={editRate}
+                className="font-semibold text-foreground underline decoration-dotted underline-offset-2 hover:text-primary"
+                title="USD→MNT ханш солих"
+              >
+                {data.cost.usdMnt.toLocaleString('mn-MN')}₮
+              </button>
               <br />
               {/* ⚠️ Egress $0 нь R2-ийн ГОЛ давуу тал — админ мэдэх ёстой */}
               Татацын (egress) төлбөргүй. Үйлдлийн төлбөр ороогүй.

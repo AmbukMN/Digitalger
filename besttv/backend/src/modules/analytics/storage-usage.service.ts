@@ -138,6 +138,43 @@ export class StorageUsageService {
   }
 
   /**
+   * Ханш солих (админ).
+   *
+   * ⚠️ Кэшийг ЗААВАЛ хүчингүй болгоно — эс бөгөөс 10 минутын турш
+   * ХУУЧИН ханшаар тооцсон төгрөгийн дүн харагдаж, админ «хадгалсан
+   * ч өөрчлөгдөөгүй» гэж бодно.
+   *
+   * ⚠️ Зөвхөн ханш өөрчлөгдөнө — R2 скан ДАХИН хийгдэхгүй (98 сек
+   * шаарддаг). Кэшлэгдсэн датаг ашиглаж дүнг л дахин бодно.
+   */
+  async setUsdMntRate(usdMnt: number) {
+    await this.prisma.settings.upsert({
+      where: { key: BILLING_KEY },
+      create: { key: BILLING_KEY, value: { usdMnt } },
+      update: { value: { usdMnt } },
+    });
+
+    /* Кэшлэгдсэн дүнг шинэ ханшаар дахин бодно (скангүйгээр) */
+    const cached = this.cache?.data;
+    if (cached) {
+      const recomputed: UsageResult = {
+        ...cached,
+        cost: {
+          ...cached.cost,
+          monthlyMnt: Math.round(cached.cost.monthlyUsd * usdMnt),
+          usdMnt,
+        },
+      };
+      this.cache = { at: this.cache!.at, data: recomputed };
+      void this.appCache.set(CACHE_KEY, recomputed, CACHE_TTL_MS / 1000);
+    }
+    /* ⚠️ Кэш байхгүй бол юу ч хийхгүй — дараагийн скан шинэ ханш
+       уншина (`usdMntRate()` нь DB-ээс шууд авдаг) */
+
+    return { ok: true, usdMnt };
+  }
+
+  /**
    * ⚠️⚠️ УРЬДЧИЛЖ ТООЦНО — админ ХЭЗЭЭ Ч ХҮЛЭЭХГҮЙ.
    *
    * Скан нь 98 СЕКУНД болдог (93,491 объект). Кэш хугацаа дуусмагц

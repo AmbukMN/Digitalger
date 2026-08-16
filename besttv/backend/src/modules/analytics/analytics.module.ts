@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { Controller, Get, Injectable, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Injectable, Patch, Query, UseGuards } from '@nestjs/common';
+import { IsInt, Max, Min } from 'class-validator';
 import { PaymentStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -225,6 +226,17 @@ export class AnalyticsService {
   }
 }
 
+/**
+ * ⚠️ Ханшийн хязгаар — буруу утга нь сая төгрөгийн ХУДАЛ тоо
+ * гаргах ёсгүй. 500-20,000 нь бодит ханшийг бүрэн хамарна.
+ */
+class UsdRateDto {
+  @IsInt()
+  @Min(500)
+  @Max(20000)
+  usdMnt: number;
+}
+
 @Controller('admin/analytics')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -254,6 +266,18 @@ export class AnalyticsController {
   @Get('storage')
   storage(@Query('refresh') refresh?: string) {
     return this.storageUsage.usage(refresh === '1' || refresh === 'true');
+  }
+
+  /**
+   * USD→MNT ханш солих (R2 төлбөрийг төгрөгөөр харуулахад).
+   *
+   * ⚠️ Ханш байнга хөдөлдөг тул кодод хатуу бичихгүй. Тусдаа
+   * тохиргооны хуудас байхгүй тул R2 картаас шууд засна — тэнд л
+   * ашиглагддаг.
+   */
+  @Patch('storage/rate')
+  setRate(@Body() dto: UsdRateDto) {
+    return this.storageUsage.setUsdMntRate(dto.usdMnt);
   }
 
   /**
