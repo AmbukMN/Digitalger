@@ -77,9 +77,17 @@ export function TitleDetailClient({ slug }: { slug: string }) {
     );
   }
 
-  // ⚠️ Эрх нь багц ↔ жанраар тодорхойлогдоно (backend hasAccess буцаана).
-  // Хуучин "premium эсэх" ганц шалгуур ХАНГАЛТГҮЙ.
-  const locked = data.isPremium && !data.hasAccess;
+  /**
+   * ⚠️ Эрх нь багц ↔ жанраар тодорхойлогдоно (backend `hasAccess` буцаана).
+   * Хуучин "premium эсэх" ганц шалгуур ХАНГАЛТГҮЙ.
+   *
+   * ⚠️⚠️ `hasAccess === undefined` = ХАРИУ ХАРААХАН ИРЭЭГҮЙ (нэвтрэх үед
+   * placeholder эрхийн талбарыг цэвэрлэдэг). Тэр үед ТҮГЖЭЭТЭЙ гэж
+   * ҮЗЭХГҮЙ — эс бөгөөс төлбөр төлсөн хэрэглэгчид «Багц авах» товч
+   * анивчиж гарна (бодит гомдол).
+   */
+  const accessKnown = data.hasAccess !== undefined;
+  const locked = data.isPremium && accessKnown && !data.hasAccess;
   const cheapestPlan = data.requiredPlans?.length
     ? [...data.requiredPlans].sort((a, b) => a.price - b.price)[0]
     : null;
