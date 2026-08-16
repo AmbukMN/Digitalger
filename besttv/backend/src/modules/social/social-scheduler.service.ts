@@ -120,6 +120,49 @@ export class SocialSchedulerService implements OnModuleDestroy {
 
     for (const t of stuck) await this.publisher.publishTarget(t.id);
     if (stuck.length) this.logger.log(`${stuck.length} амжилтгүй постыг дахин оролдов`);
+
+    await this.recoverStale();
+  }
+
+  /**
+   * ⚠️⚠️ ГАЦСАН `PUBLISHING` TARGET-ЫГ СЭРГЭЭНЭ.
+   *
+   * БОДИТ ЭРСДЭЛ: `claimTarget` нь target-ыг `PUBLISHING` болгодог.
+   * Хэрэв процесс тэр үед унавал (deploy, OOM, VPS restart) target
+   * МӨНХӨД `PUBLISHING` дээр үлдэнэ:
+   *   • `publishDue` нь `PENDING` шүүнэ → авахгүй
+   *   • `retryPending` нь `PENDING` шүүнэ → авахгүй
+   *   • UI-д «Илгээж байна» гэж мөнхөд харагдана
+   *   • `hasFailed` false тул «Дахин» товч ч ГАРАХГҮЙ
+   * Админд ямар ч гарц үлдэхгүй.
+   *
+   * ⚠️ 15 минут — IG видеоны `waitForContainer` дээд тал нь 5 минут
+   * тул хэвийн ажиллаж буй target-ыг санамсаргүй таслахгүй.
+   */
+  private async recoverStale() {
+    const cutoff = new Date(Date.now() - 15 * 60_000);
+    const stale = await this.prisma.socialPostTarget.findMany({
+      where: { status: SocialTargetStatus.PUBLISHING, updatedAt: { lt: cutoff } },
+      take: 10,
+      select: { id: true, attempts: true, postId: true },
+    });
+    if (!stale.length) return;
+
+    for (const t of stale) {
+      /* Оролдлого дуусаагүй бол дахин, дууссан бол FAILED */
+      await this.prisma.socialPostTarget.update({
+        where: { id: t.id },
+        data:
+          t.attempts < 3
+            ? { status: SocialTargetStatus.PENDING }
+            : {
+                status: SocialTargetStatus.FAILED,
+                error: 'Илгээх явцад тасарсан (процесс дахин эхэлсэн байж болзошгүй)',
+              },
+      });
+      await this.social.syncPostStatus(t.postId);
+    }
+    this.logger.warn(`${stale.length} гацсан target сэргээв (15 мин хэтэрсэн)`);
   }
 
   /**
@@ -154,6 +197,8 @@ export class SocialSchedulerService implements OnModuleDestroy {
         freq?: 'DAY' | 'WEEK' | 'MONTH';
         expireCount?: number;
         done?: number;
+        /** ⚠️ `updatedAt` найдваргүй тул ЭНЭ талбараар хэмжинэ */
+        lastRecycledAt?: string;
       } | null;
       if (!r?.gap || !r.freq) continue;
 
@@ -163,19 +208,38 @@ export class SocialSchedulerService implements OnModuleDestroy {
 
       const ms =
         r.freq === 'DAY' ? 86400_000 : r.freq === 'WEEK' ? 7 * 86400_000 : 30 * 86400_000;
-      if (Date.now() - post.updatedAt.getTime() < r.gap * ms) continue;
+      /**
+       * ⚠️⚠️ `lastRecycledAt`-ААР хэмжинэ, `updatedAt`-аар БИШ.
+       *
+       * Prisma-гийн `@updatedAt` нь ЯМАР Ч засварт (админ харах,
+       * `syncPostStatus`, төлөв солих) шинэчлэгддэг тул gap таймер
+       * санамсаргүй тэглэгдэж, recycle хэзээ ч ажиллахгүй болно.
+       */
+      const lastAt = r.lastRecycledAt
+        ? new Date(r.lastRecycledAt).getTime()
+        : post.createdAt.getTime();
+      if (Date.now() - lastAt < r.gap * ms) continue;
 
+      let copyId: string | null = null;
       try {
         const copy = await this.social.duplicate(post.id);
+        copyId = copy.id;
         await this.social.schedule({ postId: copy.id, at: null });
 
         await this.prisma.socialPost.update({
           where: { id: post.id },
-          data: { recycle: { ...r, done: done + 1 } },
+          data: { recycle: { ...r, done: done + 1, lastRecycledAt: new Date().toISOString() } },
         });
         this.logger.log(`Recycle: ${post.id} → ${copy.id} (${done + 1} дэх удаа)`);
       } catch (e) {
-        /* ⚠️ Нэг пост унасан нь бусдыг зогсоох ёсгүй */
+        /**
+         * ⚠️ Товлож чадаагүй бол ХУУЛБАРЫГ УСТГАНА — эс бөгөөс
+         * хуваарьгүй үед өдөр бүр орхигдсон draft хуримтлагдана
+         * (`done` нэмэгдэхгүй тул мөнхөд давтагдана).
+         */
+        if (copyId) {
+          await this.prisma.socialPost.delete({ where: { id: copyId } }).catch(() => null);
+        }
         this.logger.warn(`Recycle амжилтгүй (${post.id}): ${String(e)}`);
       }
     }

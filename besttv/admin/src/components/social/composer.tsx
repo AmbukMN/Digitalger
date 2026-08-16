@@ -58,8 +58,33 @@ export function SocialComposer({
   });
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [saving, setSaving] = useState(false);
-  const [when, setWhen] = useState<'queue' | 'custom' | 'draft'>('queue');
-  const [customAt, setCustomAt] = useState('');
+  /**
+   * ⚠️⚠️ ТОВЛОСОН ПОСТЫН ЦАГИЙГ УНШИНА.
+   *
+   * БОДИТ АЛДАА: өмнө нь үргэлж `'queue'`-ээс эхэлдэг байв. Админ
+   * тодорхой цагаар товлосон постоо засахад «Товлох» дарвал пост
+   * тэр цагаасаа ЧИМЭЭГҮЙ дараагийн сул slot руу шилждэг байсан.
+   */
+  const [when, setWhen] = useState<'queue' | 'custom' | 'draft'>(() => {
+    if (!post || post.status === 'DRAFT') return 'queue';
+    return post.scheduleKind === 'CUSTOM' ? 'custom' : 'queue';
+  });
+  /**
+   * ДАХИН НИЙТЛЭХ (evergreen) — Publer-ийн загвар.
+   * ⚠️ Backend бүрэн бэлэн байсан ч UI байхгүй тул ХҮРЭХ АРГАГҮЙ байв.
+   */
+  const [recycleOn, setRecycleOn] = useState(Boolean(post?.recycle?.gap));
+  const [recycleGap, setRecycleGap] = useState(String(post?.recycle?.gap ?? 2));
+  const [recycleFreq, setRecycleFreq] = useState(post?.recycle?.freq ?? 'WEEK');
+  const [recycleCount, setRecycleCount] = useState(String(post?.recycle?.expireCount ?? 5));
+
+  const [customAt, setCustomAt] = useState(() => {
+    if (!post?.scheduledAt) return '';
+    /* ⚠️ `datetime-local` нь ОРОН НУТГИЙН цагийг ХҮЛЭЭНЭ (Z-гүй) */
+    const d = new Date(post.scheduledAt);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
 
   /**
    * ⚠️ Валидацийг СЕРВЭРЭЭС — нэг эх сурвалж. Client талд давхардуулж
@@ -113,6 +138,15 @@ export function SocialComposer({
           mediaKeys,
           channels,
           captions: customize ? captions : undefined,
+          recycle: recycleOn
+            ? {
+                gap: Math.max(1, Number(recycleGap) || 2),
+                freq: recycleFreq,
+                expireCount: Math.max(1, Number(recycleCount) || 5),
+                /* ⚠️ `done` хадгалагдана — засварлахад тоолуур тэглэгдэхгүй */
+                done: post?.recycle?.done ?? 0,
+              }
+            : null,
         }),
       });
 
@@ -126,6 +160,19 @@ export function SocialComposer({
         });
         toast.success(when === 'queue' ? 'Дараалалд орлоо' : 'Товлогдлоо');
       } else {
+        /**
+         * ⚠️⚠️ ТОВЛОЛТЫГ ЦУЦЛАНА.
+         *
+         * БОДИТ АЛДАА: товлосон постыг «Ноорог хадгалах» дарахад
+         * `schedule` дуудагдахгүй тул пост `SCHEDULED` төлөвтэй,
+         * `scheduledAt` хэвээр үлддэг байв — UI «ноорог» гэж хэлэх
+         * атал cron нь цагт нь ИЛГЭЭДЭГ.
+         */
+        if (post && post.status === 'SCHEDULED') {
+          await api(`/admin/social/posts/${saved.post.id}/unschedule`, { method: 'POST' }).catch(
+            () => null,
+          );
+        }
         toast.success('Ноорог хадгалагдлаа');
       }
       onSaved();
@@ -267,7 +314,14 @@ export function SocialComposer({
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {channels.map((ch) => (
-                  <Preview key={ch} channel={ch} text={captionFor(ch)} media={mediaKeys.length} />
+                  <Preview
+                    key={ch}
+                    channel={ch}
+                    text={captionFor(ch)}
+                    /* ⚠️ БОДИТ зураг — харьцааны асуудлыг урьдчилж харна */
+                    mediaUrl={media[0]?.url ?? null}
+                    mediaCount={media.length}
+                  />
                 ))}
               </div>
             </div>
@@ -314,6 +368,62 @@ export function SocialComposer({
                 <Sparkles size={11} />
                 Хуваарийн дараагийн сул цагт орно. Хуваарь өөрчлөгдвөл ДАГАЖ шилжинэ.
               </p>
+            )}
+          </div>
+
+          {/*
+            ── 8) ДАХИН НИЙТЛЭХ (evergreen) ──
+            ⚠️ Кино сайтад тохиромжтой: «шинэ анги гарлаа» гэсэн пост
+            хэдэн долоо хоногт дахин эргэлдэж шинэ үзэгч татна.
+          */}
+          <div className="rounded-lg border border-border p-3">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={recycleOn}
+                onChange={(e) => setRecycleOn(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Тогтмол давтах
+              </span>
+            </label>
+
+            {recycleOn && (
+              <>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                  <input
+                    type="number"
+                    min={1}
+                    value={recycleGap}
+                    onChange={(e) => setRecycleGap(e.target.value)}
+                    className="admin-input w-16"
+                  />
+                  <select
+                    value={recycleFreq}
+                    onChange={(e) => setRecycleFreq(e.target.value as 'DAY' | 'WEEK' | 'MONTH')}
+                    className="admin-input w-28"
+                  >
+                    <option value="DAY">хоног</option>
+                    <option value="WEEK">долоо хоног</option>
+                    <option value="MONTH">сар</option>
+                  </select>
+                  <span className="text-muted-foreground">тутам,</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={recycleCount}
+                    onChange={(e) => setRecycleCount(e.target.value)}
+                    className="admin-input w-16"
+                  />
+                  <span className="text-muted-foreground">удаа давтаад зогсоно</span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  ⚠️ Давтах бүрд ХУУЛБАР үүсч дараагийн сул цагт орно — анхны
+                  пост хэвээр үлдэнэ (түүх, статистик алдагдахгүй).
+                  {post?.recycle?.done ? ` Одоогоор ${post.recycle.done} удаа давтсан.` : ''}
+                </p>
+              </>
             )}
           </div>
         </div>
@@ -363,21 +473,59 @@ function CharCount({ text, channels }: { text: string; channels: Channel[] }) {
  * ⚠️ IG дээр ~125, FB дээр ~477 тэмдэгтийн дараа эвхэгддэг. Админ
  * хамгийн чухал өгүүлбэрээ эхэнд бичих ёстойг харуулна.
  */
-function Preview({ channel, text, media }: { channel: Channel; text: string; media: number }) {
+function Preview({
+  channel,
+  text,
+  mediaUrl,
+  mediaCount,
+}: {
+  channel: Channel;
+  text: string;
+  mediaUrl: string | null;
+  mediaCount: number;
+}) {
   const m = CHANNEL_META[channel];
   const Icon = m.Icon;
   const fold = channel === 'INSTAGRAM' ? IG_FOLD : FB_FOLD;
   const visible = text.slice(0, fold);
   const hidden = text.slice(fold);
+  const isIg = channel === 'INSTAGRAM';
 
   return (
     <div className="rounded-lg border border-border bg-accent/20 p-2.5">
       <p className={cn('mb-1.5 flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold', m.cls)}>
         <Icon size={10} /> {m.label}
       </p>
-      {media > 0 && (
-        <div className="mb-1.5 flex h-16 items-center justify-center rounded bg-muted text-[11px] text-muted-foreground">
-          {media} медиа
+      {mediaCount > 0 && (
+        <div className="relative mb-1.5 overflow-hidden rounded bg-muted">
+          {mediaUrl ? (
+            /**
+             * ⚠️⚠️ IG-д 4:5 ХАРЬЦААГААР харуулна — тэр нь Meta-гийн
+             * ЗӨВШӨӨРӨХ дээд өндөр. Кино постер ихэвчлэн 2:3 тул
+             * дээд/доод хэсэг ТАЙРАГДАНА — админ түүнийг ЭНД харах
+             * ёстой, нийтэлсний дараа биш.
+             */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl}
+              alt=""
+              className={cn('w-full object-cover', isIg ? 'aspect-[4/5]' : 'aspect-video')}
+            />
+          ) : (
+            <div className="flex h-16 items-center justify-center text-[11px] text-muted-foreground">
+              {mediaCount} медиа
+            </div>
+          )}
+          {mediaCount > 1 && (
+            <span className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">
+              1/{mediaCount}
+            </span>
+          )}
+          {isIg && mediaUrl && (
+            <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
+              4:5 тайралт
+            </span>
+          )}
         </div>
       )}
       <p className="whitespace-pre-wrap break-words text-xs text-foreground">

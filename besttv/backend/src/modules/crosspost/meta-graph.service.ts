@@ -29,6 +29,23 @@ export interface FbPost {
  * анхны дахин ашиглагдах клиент. Токен алдагдах/дуусах үед бүх дуудлага
  * ижилхэн ажиллах ёстой тул алдааны боловсруулалтыг ЭНД төвлөрүүлэв.
  */
+/**
+ * Meta Graph API-ийн алдаа — КОДТОЙ.
+ *
+ * ⚠️ `message` нь МОНГОЛ (админд харуулна), `code` нь Meta-гийн
+ * тоо (retry-ийн шийдвэрт). Хоёуланг зэрэг барих ёстой.
+ */
+export class MetaError extends Error {
+  constructor(
+    message: string,
+    readonly code?: number,
+    readonly subcode?: number,
+  ) {
+    super(message);
+    this.name = 'MetaError';
+  }
+}
+
 @Injectable()
 export class MetaGraphService {
   private readonly logger = new Logger(MetaGraphService.name);
@@ -62,6 +79,15 @@ export class MetaGraphService {
    * («(#10) Requires instagram_content_publish permission» гэдгээс
    * ямар арга хэмжээ авахыг ойлгохгүй). Тиймээс монгол тайлбар руу
    * буулгана.
+   */
+  /**
+   * Meta-гийн алдааг КОДТОЙ нь дамжуулна.
+   *
+   * ⚠️⚠️ ЯАГААД ЗААВАЛ КЛАСС ВЭ: `humanError()` нь алдааг монгол
+   * текст болгодог тул `(#4)` гэсэн код УСТДАГ. Дуудагч тал
+   * «энэ түр зуурын алдаа мөн үү, дахин оролдох уу?» гэдгийг
+   * ТЕКСТЭЭР шийдэх БОЛОМЖГҮЙ (regex нь хэзээ ч таарахгүй).
+   * Кодыг тусад нь хадгалснаар retry-ийн шийдвэр найдвартай болно.
    */
   private async call<T>(
     path: string,
@@ -97,7 +123,12 @@ export class MetaGraphService {
 
     if (!res.ok || json?.error) {
       const err = json?.error;
-      throw new Error(this.humanError(err?.code, err?.error_subcode, err?.message));
+      /* ⚠️ Код ХАДГАЛАГДАНА — `isRetryable` түүнээс шийднэ */
+      throw new MetaError(
+        this.humanError(err?.code, err?.error_subcode, err?.message),
+        err?.code,
+        err?.error_subcode,
+      );
     }
     return json as T;
   }
@@ -417,9 +448,12 @@ export class MetaGraphService {
   /**
    * IG нийтлэлийн үлдсэн хязгаарыг шалгана.
    *
-   * ⚠️ Instagram нь 24 цагт 50 пост л зөвшөөрдөг. Хязгаарт хүрэхээс
-   * ӨМНӨ анхааруулбал админ 30 постыг дараалалд оруулаад дунд нь
-   * зогсох байдлаас сэргийлнэ.
+   * ⚠️ Instagram нь 24 цагийн ХӨВӨГЧ цонхонд 100 пост зөвшөөрдөг
+   * (Meta-гийн албан ёсны баримт; carousel = 1 пост). Хязгаарт
+   * хүрэхээс ӨМНӨ анхааруулбал админ 30 постыг дараалалд оруулаад
+   * дунд нь зогсох байдлаас сэргийлнэ.
+   *
+   * ⚠️ Анхдагчийг 100 болгов — өмнө нь 50 байсан нь хуучирсан утга.
    */
   async publishingLimit(): Promise<{ used: number; cap: number } | null> {
     try {
@@ -430,7 +464,9 @@ export class MetaGraphService {
       });
       const row = res.data?.[0];
       if (!row) return null;
-      return { used: row.quota_usage ?? 0, cap: row.config?.quota_total ?? 50 };
+      /* ⚠️ Meta өөрөө `quota_total` буцаана — түүнд итгэнэ. Байхгүй
+         үед л 100 (албан ёсны утга) */
+      return { used: row.quota_usage ?? 0, cap: row.config?.quota_total ?? 100 };
     } catch {
       /* ⚠️ Хязгаарыг мэдэхгүй нь нийтлэхийг зогсоох шалтгаан БИШ */
       return null;

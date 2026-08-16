@@ -64,8 +64,14 @@ export function upcomingSlots(slots: SlotDef[], from: Date, limit: number): Date
   const out: Date[] = [];
   const start = utcToUb(from);
 
-  /* Долоо хоног тутам эргэлдэж, өдөр бүрийн slot-уудыг цуглуулна */
-  for (let dayOffset = 0; dayOffset < 56 && out.length < limit; dayOffset++) {
+  /**
+   * ⚠️ Хязгаарыг ДИНАМИК — `limit` их үед 8 долоо хоног хүрэлцэхгүй
+   * (долоо хоногт 3 slot × 8 = 24 л гарна). Дээд тал нь 1 жил —
+   * түүнээс цааш хайх нь утгагүй.
+   */
+  const maxDays = Math.min(365, Math.max(56, Math.ceil((limit / Math.max(1, slots.length)) * 7) + 14));
+
+  for (let dayOffset = 0; dayOffset < maxDays && out.length < limit; dayOffset++) {
     const probe = new Date(
       Date.UTC(start.year, start.month, start.day + dayOffset, 12, 0, 0),
     );
@@ -136,11 +142,21 @@ export function reassignSlots(
   slots: SlotDef[],
   postIds: string[],
   from: Date = new Date(),
+  /**
+   * ⚠️ Тодорхой цагаар товлосон (`CUSTOM`) постуудын цаг —
+   * эдгээрийг АЛГАСНА. Эс бөгөөс нэг цагт хоёр пост давхцана.
+   */
+  taken: Date[] = [],
 ): Map<string, Date> {
   const out = new Map<string, Date>();
   if (!slots.length || !postIds.length) return out;
 
-  const times = upcomingSlots(slots, from, postIds.length);
+  const takenKeys = new Set(taken.map((d) => Math.floor(d.getTime() / 60_000)));
+  /* ⚠️ Эзлэгдсэнийг алгасах тул ИЛҮҮ гаргаж авна */
+  const times = upcomingSlots(slots, from, postIds.length + taken.length + 10).filter(
+    (t) => !takenKeys.has(Math.floor(t.getTime() / 60_000)),
+  );
+
   postIds.forEach((id, i) => {
     const t = times[i];
     if (t) out.set(id, t);

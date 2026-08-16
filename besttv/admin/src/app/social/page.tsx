@@ -37,7 +37,12 @@ const TABS = [
   { key: 'SCHEDULED', label: 'Товлосон' },
   { key: 'DRAFT', label: 'Ноорог' },
   { key: 'PUBLISHED', label: 'Нийтэлсэн' },
-  { key: 'FAILED', label: 'Амжилтгүй' },
+  /**
+   * ⚠️ `PARTIAL` нь ХАМГИЙН яаралтай төлөв (FB болсон, IG болоогүй)
+   * атлаа өмнө нь ямар ч табд харагддаггүй байв — зөвхөн «Бүгд»-д.
+   * `ATTENTION` нь FAILED + PARTIAL хоёуланг шүүнэ.
+   */
+  { key: 'ATTENTION', label: 'Анхаарах' },
   { key: 'ALL', label: 'Бүгд' },
 ] as const;
 

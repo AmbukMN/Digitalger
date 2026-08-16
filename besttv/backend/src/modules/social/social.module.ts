@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -65,6 +66,18 @@ class UpsertPostDto {
   @IsOptional()
   @IsString()
   titleId?: string | null;
+
+  /**
+   * ДАХИН НИЙТЛЭХ (evergreen) — `{ gap, freq, expireCount, done }`.
+   * ⚠️ `null` = давтахгүй.
+   */
+  @IsOptional()
+  recycle?: {
+    gap?: number;
+    freq?: 'DAY' | 'WEEK' | 'MONTH';
+    expireCount?: number;
+    done?: number;
+  } | null;
 }
 
 class ScheduleDto {
@@ -166,6 +179,7 @@ export class SocialController {
       channels: dto.channels,
       captions: dto.captions as Partial<Record<SocialChannel, string>>,
       titleId: dto.titleId,
+      recycle: dto.recycle,
       createdById: me?.sub,
     });
   }
@@ -190,8 +204,38 @@ export class SocialController {
   @Post('posts/:id/publish-now')
   async publishNow(@Param('id') id: string) {
     const post = await this.svc.get(id);
+
+    /**
+     * ⚠️⚠️ ВАЛИДАЦИ ЭНД Ч ЗААВАЛ — `schedule()` нь `block` асуудалд
+     * татгалздаг атал энэ зам түүнийг ТОЙРДОГ байв. Үр дүнд «медиагүй
+     * IG пост» шууд Meta руу явж алдаа авдаг.
+     */
+    const captions: Partial<Record<SocialChannel, string>> = {};
+    for (const t of post.targets) if (t.caption) captions[t.channel] = t.caption;
+    const blocking = this.svc
+      .validate({
+        channels: post.targets.map((t) => t.channel),
+        captions,
+        body: post.body,
+        mediaKeys: post.mediaKeys,
+      })
+      .filter((i) => i.level === 'block');
+
+    if (blocking.length) {
+      throw new BadRequestException(
+        `Нийтлэх боломжгүй: ${blocking.map((b) => b.message).join(' · ')}`,
+      );
+    }
+
     /* ⚠️ Товлолтыг ЦУЦЛАНА — эс бөгөөс cron дахин илгээнэ */
     await this.svc.unschedule(id).catch(() => null);
+
+    /**
+     * ⚠️ `fbNativeScheduled` цэвэрлэнэ — өнгөрсөн цагтай товлолт
+     * Meta руу явбал «10 мин – 30 хоног» алдаа гарна.
+     */
+    await this.svc.clearNativeSchedule(id);
+
     for (const t of post.targets) {
       await this.publisher.publishTarget(t.id);
     }

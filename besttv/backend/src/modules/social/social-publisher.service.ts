@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SocialChannel, SocialTargetStatus } from '@prisma/client';
+import { SocialChannel, SocialPostStatus, SocialTargetStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
-import { MetaGraphService } from '../crosspost/meta-graph.service';
+import { MetaError, MetaGraphService } from '../crosspost/meta-graph.service';
 import { SocialService } from './social.service';
 
 /** IG container 24 цаг хүчинтэй (Meta баримт) — түүнээс хойш EXPIRED */
@@ -11,6 +11,25 @@ const IG_CONTAINER_TTL_MS = 24 * 3600_000;
 const MEDIA_URL_TTL_SEC = 6 * 3600;
 
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm)$/i;
+
+/**
+ * ТҮР ЗУУРЫН алдааны кодууд (Meta Graph API Error Handling).
+ *   1, 2       — API доголдол
+ *   4, 17, 32  — throttling (апп / хэрэглэгч / Page)
+ *   341        — апп-ын хязгаар
+ *   368        — түр блок (policy)
+ *   80001/2    — BUC throttle
+ */
+const RETRYABLE_CODES = new Set([1, 2, 4, 17, 32, 341, 368, 80001, 80002]);
+
+/**
+ * БҮРМӨСӨН алдаа — дахин оролдох нь утгагүй, хүн оролцоно.
+ *   10  — эрх олгогдоогүй (App Review)
+ *   190 — токен хүчингүй
+ *   100 — параметр буруу (код/контент засах шаардлагатай)
+ *   200 — эрх дутуу (pages_manage_posts г.м)
+ */
+const PERMANENT_CODES = new Set([10, 100, 190, 200]);
 
 /**
  * НЭГ TARGET-ЫГ НИЙТЛЭХ.
@@ -46,16 +65,29 @@ export class SocialPublisherService {
    * Эдгээр нь БҮРМӨСӨН → дахин оролдох нь утгагүй, хүн оролцоно.
    */
   private isRetryable(err: unknown): boolean {
+    /**
+     * ⚠️⚠️ КОДООР шийднэ, ТЕКСТЭЭР БИШ.
+     *
+     * БОДИТ АЛДАА: өмнө нь `(#4)` маягийн кодыг regex-ээр хайдаг
+     * байв. Гэтэл `MetaGraphService.humanError()` нь бүх алдааг
+     * МОНГОЛ текст болгодог тул код УСТДАГ — regex ХЭЗЭЭ Ч таарахгүй.
+     * Үр дүнд throttle (хамгийн түгээмэл түр зуурын алдаа) үед
+     * автомат retry ОГТ ажиллахгүй, пост шууд FAILED болдог байв.
+     */
+    if (err instanceof MetaError && err.code != null) {
+      /* Түр зуурын — Meta-гийн албан ёсны баримтаас */
+      if (RETRYABLE_CODES.has(err.code)) return true;
+      /* Бүрмөсөн — эрх/токен. Хүний оролцоо шаардана */
+      if (PERMANENT_CODES.has(err.code)) return false;
+      /* Танихгүй код — давхардлаас сэргийлж retry ХИЙХГҮЙ */
+      return false;
+    }
+
+    /* Сүлжээний алдаа (MetaError биш) — дахин оролдоно */
     const msg = String(err instanceof Error ? err.message : err);
-    /* Бүрмөсөн — эрх/токен */
-    if (/\(#10\)|\(#190\)|permission|token/i.test(msg)) return false;
-    /* Түр зуурын — throttle/доголдол */
-    if (/\(#(1|2|4|17|32|341|368|80001|80002)\)|throttl|rate limit|temporar/i.test(msg)) {
+    if (/timeout|ECONN|fetch failed|socket|хариу өгсөнгүй|холбогдож чадсангүй/i.test(msg)) {
       return true;
     }
-    /* Сүлжээ */
-    if (/timeout|ECONN|fetch failed|socket/i.test(msg)) return true;
-    /* Тодорхойгүй — retry хийхгүй (давхардлаас сэргийлнэ) */
     return false;
   }
 
@@ -191,12 +223,27 @@ export class SocialPublisherService {
       where: { channel: target.channel },
     });
     if (setting?.paused) {
+      /**
+       * ⚠️⚠️ ПОСТЫГ `SCHEDULED` РУУ БУЦААНА.
+       *
+       * БОДИТ АЛДАА: өмнө нь зүгээр `return` хийдэг байв. Гэтэл
+       * `publishDue` нь постыг АЛЬ ХЭДИЙН `PUBLISHING` болгосон
+       * байдаг тул пост тэр төлөвт МӨНХӨД гацна — UI-д «Илгээж
+       * байна» гэж харагдаж, `hasFailed` false тул «Дахин» товч ч
+       * гарахгүй. Админд ямар ч гарц үлдэхгүй.
+       */
       this.logger.log(`${target.channel} зогсоосон — постыг хойшлууллаа (${targetId})`);
+      await this.prisma.socialPost
+        .update({
+          where: { id: target.postId, status: SocialPostStatus.PUBLISHING },
+          data: { status: SocialPostStatus.SCHEDULED },
+        })
+        .catch(() => null);
       return;
     }
 
-    const claimed = await this.social.claimTarget(targetId);
-    if (!claimed) return;
+    const claim = await this.social.claimTarget(targetId);
+    if (!claim.ok) return;
 
     const caption = target.caption ?? target.post.body;
 
@@ -254,7 +301,12 @@ export class SocialPublisherService {
            * ⚠️ Retry боломжтой бол `PENDING` руу буцаана — cron
            * дахин авна. Бүрмөсөн алдаа бол `FAILED` (админ засна).
            */
-          status: retryable && target.attempts < 3
+          /**
+           * ⚠️ `claim.attempts` — DB-ийн ШИНЭ утга. Локал
+           * `target.attempts` нь claim-ээс ӨМНӨХ тул 1-ээр
+           * хоцорч, бодит retry тоо зөрдөг байв.
+           */
+          status: retryable && claim.attempts < 3
             ? SocialTargetStatus.PENDING
             : SocialTargetStatus.FAILED,
           error: msg.slice(0, 500),
@@ -284,7 +336,23 @@ export class SocialPublisherService {
     for (const t of failed) {
       await this.prisma.socialPostTarget.update({
         where: { id: t.id },
-        data: { status: SocialTargetStatus.PENDING, error: null, attempts: 0 },
+        data: {
+          status: SocialTargetStatus.PENDING,
+          error: null,
+          attempts: 0,
+          /**
+           * ⚠️⚠️ `fbNativeScheduled` ЗААВАЛ цэвэрлэнэ.
+           *
+           * Товлосон цаг нь АЛЬ ХЭДИЙН ӨНГӨРСӨН тул Meta руу
+           * дахин илгээвэл «scheduled_publish_time must be
+           * 10 min – 30 days in future» гэсэн МӨНХИЙН алдаа гарна.
+           * Одоо ШУУД нийтлэгдэнэ.
+           */
+          fbNativeScheduled: false,
+          /* Хуучин container хугацаа дууссан байж болно */
+          igContainerId: null,
+          igContainerAt: null,
+        },
       });
     }
     return failed.length;

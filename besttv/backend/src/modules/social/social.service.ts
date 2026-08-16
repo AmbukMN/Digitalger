@@ -45,11 +45,17 @@ export class SocialService {
    * ⚠️ Аль хэдийн ЭЗЛЭГДСЭН цагууд — давхцлаас сэргийлнэ.
    * Хоёр пост нэг цагт таарвал IG-ийн rate limit-д ойртоно.
    */
-  private async takenSlots(): Promise<Date[]> {
+  private async takenSlots(channel: SocialChannel): Promise<Date[]> {
     const rows = await this.prisma.socialPost.findMany({
       where: {
         status: SocialPostStatus.SCHEDULED,
         scheduledAt: { not: null, gte: new Date() },
+        /**
+         * ⚠️ ЗӨВХӨН тухайн сувгийн постууд. Өмнө нь БҮХ постыг
+         * тоолдог байсан тул FB болон IG-д ӨӨР хуваарь тавибал
+         * IG-ийн пост FB-ийн slot-ыг «эзэлдэг» байв.
+         */
+        targets: { some: { channel } },
       },
       select: { scheduledAt: true },
     });
@@ -72,9 +78,10 @@ export class SocialService {
     channels: SocialChannel[];
     captions?: Partial<Record<SocialChannel, string>>;
     titleId?: string | null;
+    recycle?: { gap?: number; freq?: string; expireCount?: number; done?: number } | null;
     createdById?: string;
   }) {
-    const { body, mediaKeys, channels, captions = {}, titleId, createdById } = params;
+    const { body, mediaKeys, channels, captions = {}, titleId, recycle, createdById } = params;
 
     if (!channels.length) throw new BadRequestException('Дор хаяж нэг суваг сонгоно уу');
 
@@ -90,6 +97,14 @@ export class SocialService {
       body,
       mediaKeys,
       titleId: titleId ?? null,
+      /**
+       * ⚠️ `recycle` талбар ИРСЭН үед л хөндөнө. `undefined` бол
+       * хуучин утга хэвээр (засварлахад давталтын тохиргоо алдагдахгүй),
+       * `null` бол ЗОРИУД унтраасан.
+       */
+      ...(recycle !== undefined
+        ? { recycle: recycle === null ? Prisma.DbNull : (recycle as Prisma.InputJsonValue) }
+        : {}),
       ...(createdById ? { createdById } : {}),
     };
 
@@ -164,15 +179,28 @@ export class SocialService {
     let kind: SocialScheduleKind = SocialScheduleKind.CUSTOM;
 
     if (!at) {
-      /* Дараагийн сул slot — ЭХНИЙ сувгийн хуваарийг ашиглана */
-      const slots = await this.slotsFor(channels[0]);
+      /**
+       * ⚠️ ТОДОРХОЙ ДЭС ДАРААЛАЛ — FACEBOOK давуу.
+       *
+       * Өмнө нь `channels[0]` байсан нь `findMany`-ийн дараалалаас
+       * хамаарч ТОГТВОРГҮЙ байв — ижил постыг дахин товлоход өөр
+       * сувгийн хуваарь ашиглагдаж болно.
+       */
+      const primary = channels.includes(SocialChannel.FACEBOOK)
+        ? SocialChannel.FACEBOOK
+        : channels[0];
+      const slots = await this.slotsFor(primary);
       if (!slots.length) {
         throw new BadRequestException(
           'Хуваарь тодорхойлоогүй байна. Тохиргооноос цаг нэмэх эсвэл огноо сонгоно уу.',
         );
       }
-      const free = nextFreeSlot(slots, await this.takenSlots());
-      if (!free) throw new BadRequestException('Сул цаг олдсонгүй');
+      const free = nextFreeSlot(slots, await this.takenSlots(primary));
+      if (!free) {
+        throw new BadRequestException(
+          'Дараагийн 8 долоо хоногт сул цаг олдсонгүй. Хуваарьт цаг нэмэх эсвэл тодорхой огноо сонгоно уу.',
+        );
+      }
       at = free;
       kind = SocialScheduleKind.NEXT_AVAILABLE;
     }
@@ -198,6 +226,19 @@ export class SocialService {
     }
 
     return { at, kind, issues };
+  }
+
+  /**
+   * FB-ийн native товлолтыг цуцлана.
+   *
+   * ⚠️ «Одоо нийтлэх» эсвэл retry үед ЗААВАЛ — өнгөрсөн цагтай
+   * `scheduled_publish_time` илгээвэл Meta татгалзана.
+   */
+  async clearNativeSchedule(postId: string) {
+    await this.prisma.socialPostTarget.updateMany({
+      where: { postId, fbNativeScheduled: true },
+      data: { fbNativeScheduled: false },
+    });
   }
 
   /** Товлолт цуцлах — draft руу буцаана */
@@ -278,7 +319,29 @@ export class SocialService {
       select: { id: true },
     });
 
-    const moved = reassignSlots(slots, affected.map((p) => p.id));
+    /**
+     * ⚠️⚠️ `CUSTOM` постуудын цагийг ХАСНА.
+     *
+     * Админ Даваа 19:00-д тодорхой цагаар пост товлочихсон бол
+     * `NEXT_AVAILABLE` пост ЯГ ТЭР цагт хуваарилагдвал нэг цагт
+     * хоёр пост давхцаж, IG-ийн rate limit-д ойртоно.
+     */
+    const customTaken = await this.prisma.socialPost.findMany({
+      where: {
+        status: SocialPostStatus.SCHEDULED,
+        scheduleKind: SocialScheduleKind.CUSTOM,
+        scheduledAt: { gte: new Date() },
+        targets: { some: { channel } },
+      },
+      select: { scheduledAt: true },
+    });
+
+    const moved = reassignSlots(
+      slots,
+      affected.map((p) => p.id),
+      new Date(),
+      customTaken.map((c) => c.scheduledAt!).filter(Boolean),
+    );
     for (const [id, at] of moved) {
       await this.prisma.socialPost.update({ where: { id }, data: { scheduledAt: at } });
     }
@@ -293,7 +356,14 @@ export class SocialService {
 
   async list(params: { status?: string; from?: Date; to?: Date; limit?: number }) {
     const where: Prisma.SocialPostWhereInput = {};
-    if (params.status && params.status !== 'ALL') {
+    if (params.status === 'ATTENTION') {
+      /**
+       * ⚠️ `PARTIAL` нь ХАМГИЙН яаралтай (FB болсон, IG болоогүй) —
+       * `FAILED`-тэй хамт нэг табд гаргана, эс бөгөөс админ хаана ч
+       * харахгүй өнгөрнө.
+       */
+      where.status = { in: [SocialPostStatus.FAILED, SocialPostStatus.PARTIAL] };
+    } else if (params.status && params.status !== 'ALL') {
       where.status = params.status as SocialPostStatus;
     }
     if (params.from || params.to) {
@@ -381,26 +451,54 @@ export class SocialService {
    * сэргийлэх нь бүхэлдээ бидний хариуцлага. Түлхүүр нь `@unique`
    * тул хоёр процесс зэрэг оролдвол нэг нь л амжилттай болно.
    */
-  async claimTarget(targetId: string): Promise<boolean> {
-    const t = await this.prisma.socialPostTarget.findUnique({ where: { id: targetId } });
-    if (!t) return false;
-    if (t.status === SocialTargetStatus.PUBLISHED) return false;
+  async claimTarget(targetId: string): Promise<{ ok: boolean; attempts: number }> {
+    /**
+     * ⚠️⚠️ АТОМИК CAS (compare-and-set) — `updateMany` + төлөвийн шүүлт.
+     *
+     * БОДИТ АЛДАА: өмнө нь `findUnique` → шалгах → `update` гэсэн
+     * ГУРВАН алхам байв. Хоёр процесс зэрэг уншвал ХОЁУЛАА `PENDING`
+     * хараад ХОЁУЛАА бичнэ → нэг пост ХОЁР УДАА нийтлэгдэнэ.
+     *
+     * `idempotencyKey` нь хамгаалахгүй: хоёулаа `null` уншсан тул
+     * ХОЁР ӨӨР UUID үүсгэнэ, unique зөрчил гарахгүй.
+     *
+     * `updateMany` нь НЭГ SQL — `WHERE status IN (...)` нөхцөл DB
+     * түвшинд шалгагдана. Хоёр процессын ЗӨВХӨН НЭГ нь `count === 1`
+     * авна (нөгөө нь 0), тиймээс давхардал БОЛОМЖГҮЙ.
+     */
+    const claimed = await this.prisma.socialPostTarget.updateMany({
+      where: {
+        id: targetId,
+        /* ⚠️ PUBLISHING-ыг ОРУУЛАХГҮЙ — өөр процесс ажиллаж байна */
+        status: { in: [SocialTargetStatus.PENDING, SocialTargetStatus.FAILED] },
+      },
+      data: {
+        status: SocialTargetStatus.PUBLISHING,
+        attempts: { increment: 1 },
+        error: null,
+      },
+    });
 
-    try {
-      await this.prisma.socialPostTarget.update({
-        where: { id: targetId },
-        data: {
-          status: SocialTargetStatus.PUBLISHING,
-          attempts: { increment: 1 },
-          error: null,
-          idempotencyKey: t.idempotencyKey ?? randomUUID(),
-        },
-      });
-      return true;
-    } catch {
-      /* unique зөрчил = өөр процесс аль хэдийн авсан */
-      return false;
+    if (claimed.count !== 1) return { ok: false, attempts: 0 };
+
+    /**
+     * ⚠️ ШИНЭ `attempts` утгыг УНШИЖ буцаана — дуудагч тал retry
+     * хязгаарыг ЗӨВ тооцох ёстой. Өмнө нь локал (хуучин) утга
+     * ашиглаж байсан тул 1-ээр хоцорч, бодит хязгаар зөрдөг байв.
+     */
+    const row = await this.prisma.socialPostTarget.findUnique({
+      where: { id: targetId },
+      select: { attempts: true, idempotencyKey: true },
+    });
+
+    /* Анхны оролдлогод idempotency түлхүүр олгоно */
+    if (row && !row.idempotencyKey) {
+      await this.prisma.socialPostTarget
+        .update({ where: { id: targetId }, data: { idempotencyKey: randomUUID() } })
+        .catch(() => null);
     }
+
+    return { ok: true, attempts: row?.attempts ?? 1 };
   }
 
   /**
@@ -425,7 +523,12 @@ export class SocialService {
     else if (done === targets.length) status = SocialPostStatus.PUBLISHED;
     else if (done > 0) status = SocialPostStatus.PARTIAL;
     else if (failed > 0) status = SocialPostStatus.FAILED;
-    else status = SocialPostStatus.PUBLISHED;
+    /**
+     * ⚠️ Бүгд `SKIPPED` — хаана ч нийтлэгдээгүй. Өмнө нь `PUBLISHED`
+     * гэж тэмдэглэдэг байсан нь ХУДАЛ: админ «нийтэлсэн» гэж хараад
+     * хаана ч байхгүйг дараа мэднэ.
+     */
+    else status = SocialPostStatus.FAILED;
 
     await this.prisma.socialPost.update({ where: { id: postId }, data: { status } });
   }
