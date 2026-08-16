@@ -118,6 +118,27 @@ export class SubtitlesService {
       target.episodeId ? `subtitles/episodes/${target.episodeId}` : `subtitles/movies/${target.titleId}`,
       `${lang}.vtt`,
     );
+
+    /**
+     * ⚠️⚠️ ХУУЧИН ФАЙЛЫГ ТЭМДЭГЛЭНЭ — R2-д хог үлдэхээс сэргийлнэ.
+     *
+     * БОДИТ АЛДАА: `buildKey` нь ФАЙЛ БҮРД шинэ UUID үүсгэдэг бөгөөд
+     * доорх `upsert` нь DB МӨРИЙГ Л шинэчилдэг. Тиймээс хадмал
+     * засварлаж дахин оруулах бүрд ХУУЧИН .vtt нь R2-д ҮҮРД үлддэг
+     * байв — DB-д ямар ч заалтгүй тул дараа нь олох ч боломжгүй.
+     *
+     * The Blacklist-ийн 88 хадмалыг нэг удаа дахин оруулахад 88
+     * орхигдсон файл үүснэ. Орчуулга засварлах нь ТҮГЭЭМЭЛ үйлдэл.
+     */
+    const prev = await this.prisma.subtitle
+      .findFirst({
+        where: target.episodeId
+          ? { episodeId: target.episodeId, lang }
+          : { titleId: target.titleId, lang },
+        select: { fileKey: true },
+      })
+      .catch(() => null);
+
     await this.storage.upload(key, Buffer.from(vtt, 'utf8'), 'text/vtt; charset=utf-8');
 
     /**
@@ -170,6 +191,22 @@ export class SubtitlesService {
         ...(dto.order != null ? { order: dto.order } : {}),
       },
     });
+
+    /**
+     * ⚠️ Хуучин файлыг ОДОО устгана — DB аль хэдийн шинэ key рүү
+     * заасан тул алдаа гарсан ч хэрэглэгчид нөлөөлөхгүй.
+     *
+     * ⚠️ `await` ХИЙХГҮЙ (fire-and-forget) — админыг R2-ын хариу
+     * хүлээлгэх шаардлагагүй. Гэхдээ алдааг ЗААВАЛ бүртгэнэ: чимээгүй
+     * залгивал орхигдсон файлыг дараа нь олох арга байхгүй.
+     */
+    if (prev?.fileKey && prev.fileKey !== key) {
+      void this.storage
+        .delete(prev.fileKey)
+        .catch((e) =>
+          this.logger.error(`Хуучин хадмал устгаж чадсангүй (${prev.fileKey}): ${String(e)}`),
+        );
+    }
 
     this.logger.log(`Хадмал орлоо: ${lang} · ${cues} блок · ${key}`);
     return { ...row, cues };

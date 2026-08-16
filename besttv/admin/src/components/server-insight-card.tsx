@@ -62,6 +62,13 @@ const TONE_TEXT: Record<string, string> = {
   danger: 'text-destructive',
   muted: 'text-muted-foreground',
 };
+/** Дүрсний хайрцаг — доод картуудын `bg-primary/12` хэв маягтай ижил */
+const TONE_ICON: Record<string, string> = {
+  ok: 'bg-primary/12 text-primary',
+  warn: 'bg-warning/12 text-warning',
+  danger: 'bg-destructive/12 text-destructive',
+  muted: 'bg-muted text-muted-foreground',
+};
 
 /** Секунд → «12 хоног 4 цаг» / «3 цаг 20 мин» */
 function fmtUptime(sec: number): string {
@@ -73,6 +80,15 @@ function fmtUptime(sec: number): string {
   return `${m} мин`;
 }
 
+/**
+ * ⚠️⚠️ БҮТЭЦ нь хяналтын самбарын `Metric`-ТЭЙ ЯГ ИЖИЛ байх ёстой
+ * (`admin-card rounded-xl p-4`, гарчиг зүүн дээд, дүрс БАРУУН талд
+ * 36×36 хайрцагт, утга `text-xl font-black`).
+ *
+ * Өмнө нь дүрсийг гарчгийн ХАЖУУД, хувийг баруун дээр тавьсан тул
+ * доорх «Орлого / Шинэ хэрэглэгч» картуудтай ЗӨРЖ, хоёр өөр систем
+ * зэрэгцсэн мэт харагдаж байв (админ анзаарсан).
+ */
 function Metric({
   icon: Icon,
   label,
@@ -92,24 +108,36 @@ function Metric({
 }) {
   const t = tone(percent, warn, danger);
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Icon size={13} className="shrink-0" />
-          {label}
+    <div className="admin-card rounded-xl p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs text-muted-foreground">{label}</p>
+          <p className={cn('mt-1 text-xl font-black tabular-nums', TONE_TEXT[t])}>{value}</p>
+        </div>
+        {/* ⚠️ Дүрсний хайрцаг — доод картуудтай ижил 36×36, өнгө нь
+            эрсдэлийн түвшнийг дагана (тэдгээрт төрлийг заадаг) */}
+        <span
+          className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+            TONE_ICON[t],
+          )}
+        >
+          <Icon size={17} />
         </span>
+      </div>
+
+      {/* ⚠️ Доод мөр нь `Metric`-ийн өсөлт/hint мөртэй ижил өндөртэй */}
+      <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+        <span className="truncate text-muted-foreground">{sub ?? ''}</span>
         {percent != null && (
-          <span className={cn('text-xs font-bold tabular-nums', TONE_TEXT[t])}>
+          <span className={cn('shrink-0 font-semibold tabular-nums', TONE_TEXT[t])}>
             {percent.toFixed(0)}%
           </span>
         )}
       </div>
 
-      <p className={cn('mt-1.5 text-xl font-black tabular-nums', TONE_TEXT[t])}>{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
-
       {/* ⚠️ Дэвсгэр зураас — тоо уншихаас өмнө «дүүрсэн эсэх» нэг харцаар */}
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-accent">
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-accent">
         <div
           className={cn('h-full rounded-full transition-all duration-500', TONE_BAR[t])}
           style={{ width: `${Math.min(100, Math.max(0, percent ?? 0))}%` }}
@@ -140,12 +168,14 @@ export function ServerInsightCard() {
   });
 
   if (isLoading) {
+    /* ⚠️ Skeleton нь ЭЦСИЙН бүтэцтэй ижил — эс бөгөөс дата ирэхэд
+       layout үсэрнэ (CLS) */
     return (
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="space-y-3">
         <div className="h-4 w-40 animate-pulse rounded bg-accent" />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-accent" />
+            <div key={i} className="admin-skeleton h-28 rounded-xl" />
           ))}
         </div>
       </div>
@@ -175,8 +205,13 @@ export function ServerInsightCard() {
   if (!services.database.up) alerts.push('Өгөгдлийн сан холбогдохгүй байна');
   if (!services.redis.up) alerts.push('Redis холбогдохгүй байна');
 
+  /**
+   * ⚠️ ГАДНА ХҮРЭЭГҮЙ — картууд нь доорх «Орлого / Шинэ хэрэглэгч»
+   * эгнээтэй ИЖИЛ түвшинд зэрэгцэнэ. Өмнө нь бүхэлд нь хайрцагт
+   * хийсэн тул «карт доторх карт» болж, доод эгнээтэй зөрж байв.
+   */
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Server size={15} className="text-primary" />
@@ -196,7 +231,7 @@ export function ServerInsightCard() {
       </div>
 
       {alerts.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {alerts.map((a) => (
             <span
               key={a}
@@ -209,7 +244,7 @@ export function ServerInsightCard() {
         </div>
       )}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           icon={Cpu}
           label="Процессор"
@@ -251,8 +286,8 @@ export function ServerInsightCard() {
       </div>
 
       {/* ── Үйлчилгээ ба процесс ── */}
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-accent/20 p-3">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="admin-card rounded-xl p-4">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Үйлчилгээ
           </p>
@@ -272,7 +307,7 @@ export function ServerInsightCard() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-accent/20 p-3">
+        <div className="admin-card rounded-xl p-4">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Backend процесс
           </p>
