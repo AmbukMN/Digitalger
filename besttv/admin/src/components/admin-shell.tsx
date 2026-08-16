@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Gift,
-  Building2, Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, Instagram, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
+  Building2, CalendarClock, Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, Instagram, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
@@ -46,6 +46,10 @@ const NAV_GROUPS = [
          автомат хуваалцахыг зөвшөөрдөггүй тул гараар хийдэг байсныг
          бөөнөөр хийх хэрэгсэл */
       { href: '/crosspost', label: 'FB → Instagram', icon: Instagram },
+      /* ⚠️ Нийтлэл ТОВЛОГЧ — дээрхээс ТУСДАА. Тэр нь FB дээр АЛЬ
+         ХЭДИЙН байгаа постыг IG руу ХУУЛДАГ, энэ нь ШИНЭЭР зохиож
+         хоёр суваг руу товлодог (Buffer маягийн slot дараалалтай). */
+      { href: '/social', label: 'Нийтлэл товлох', icon: CalendarClock },
     ],
   },
   {
