@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { Heart, Film, Lock, Play, Star, Ticket, Clock } from 'lucide-react';
+import { ArrowLeft, Heart, Film, Lock, Play, Star, Ticket, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, episodeLabel, formatPrice, formatRentDurationShort, formatRentLeft } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
@@ -32,6 +33,7 @@ const REVIEWS_ENABLED = false;
 export function TitleDetailClient({ slug }: { slug: string }) {
   const { data, isLoading, isError, refetch } = useTitleDetail(slug);
   const qc = useQueryClient();
+  const router = useRouter();
   const { user } = useAuth();
   const [activeSeason, setActiveSeason] = useState(0);
   const [trailerOpen, setTrailerOpen] = useState(false);
@@ -128,6 +130,33 @@ export function TitleDetailClient({ slug }: { slug: string }) {
   return (
     <main className="min-h-screen bg-background pb-16">
       <section className="relative h-[46vw] max-h-[520px] min-h-[300px] w-full">
+        {/*
+          ⚠️⚠️ БУЦАХ ТОВЧ — өмнө нь ОГТ БАЙГААГҮЙ (админы гомдол).
+
+          Хэрэглэгч нүүр/хайлт/жанраас кино руу орвол гарах цорын ганц
+          зам нь browser-ийн back байсан. Гар утсанд тэр товч далд
+          (заримдаа зөвхөн зангаагаар), FB/IG webview-д БАЙХГҮЙ.
+
+          ⚠️ Яагаад `router.back()` вэ (`/movies` БИШ): хэрэглэгч энэ
+          хуудсанд ОЛОН замаар ирдэг — нүүр, хайлт, жанр, «Ижил төстэй»,
+          миний дуртай. Тодорхой зам руу хатуу явуулбал 5 тохиолдлын
+          4-д нь БУРУУ болно. Player-ийнхээс ЯЛГААТАЙ: тэнд түүх
+          эвдэрдэг байсан тул зорилтот хуудас зөв байв, харин энд түүх
+          цэвэр (`replace` ашигласнаар).
+
+          ⚠️ Түүхгүй үед (шинэ таб, хуваалцсан холбоос) нүүр рүү унана.
+        */}
+        <button
+          onClick={() => {
+            if (window.history.length > 1) router.back();
+            else router.push('/');
+          }}
+          aria-label="Буцах"
+          className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-black/70 md:left-6 md:top-6"
+        >
+          <ArrowLeft size={16} />
+          <span className="hidden sm:inline">Буцах</span>
+        </button>
         {data.backdropUrl ? (
           /**
            * ⚠️⚠️ `object-top` — ДЭЭД ТАЛ таслагдахгүй.
@@ -314,10 +343,22 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                 );
               })()}
               {data.director && <span>Найруулагч: {data.director}</span>}
+              {/*
+                ⚠️⚠️ ЖАНР = ДАРЖ БОЛОХ ХОЛБООС (админы хүсэлт).
+                Өмнө нь `<span>` байсан тул хэрэглэгч «Шилдэг кино» гэж
+                харах ч дарж чадахгүй — ижил жанрын бусад киног олохын
+                тулд Кино хуудас руу орж, шүүлтээс дахин сонгох ёстой
+                байв. Жанрын нэр дарагдахад хүлээлт нь ҮРГЭЛЖ «энэ
+                ангилал руу очно» гэсэн байдаг.
+              */}
               {data.genres?.map((g) => (
-                <span key={g.id} className="rounded bg-foreground/10 px-2 py-0.5">
+                <Link
+                  key={g.id}
+                  href={`/movies?genre=${encodeURIComponent(g.slug)}`}
+                  className="rounded bg-foreground/10 px-2 py-0.5 transition-colors hover:bg-primary/20 hover:text-primary"
+                >
                   {g.name}
-                </span>
+                </Link>
               ))}
             </div>
 

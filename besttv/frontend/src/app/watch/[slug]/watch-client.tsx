@@ -27,12 +27,25 @@ import { VideoPlayer } from '@/components/video-player';
  * ⚠️ `router.back()` нь түүхгүй үед (шинэ таб, гадны холбоос) юу ч
  * хийхгүй тул нүүр рүү унана.
  */
-function BackLink() {
+function BackLink({ slug }: { slug?: string }) {
   const router = useRouter();
   return (
     <button
       onClick={() => {
-        if (window.history.length > 1) router.back();
+        /**
+         * ⚠️⚠️ `router.back()` НАЙДВАРГҮЙ — түүхэнд юу байгааг МЭДЭХГҮЙ.
+         *
+         * Хуваалцсан холбоос, шинэ таб, эсвэл хэдэн анги солисны дараа
+         * back дарвал хаашаа очихыг таах аргагүй. Хамгийн муу нь
+         * `?ep=`-гүй watch хуудас руу буцаж, auto-redirect дахин
+         * player руу оруулж ЦИКЛ үүсгэдэг байв.
+         *
+         * ⚠️ Тодорхой ЗОРИЛТОТ хуудас руу явуулна: киноны дэлгэрэнгүй.
+         * Энэ нь хэрэглэгчийн хүлээлттэй ҮРГЭЛЖ таарна («үзэж байснаа
+         * болиод киноныхоо тухай хуудас руу гарна»).
+         */
+        if (slug) router.push(`/movie/${slug}`);
+        else if (window.history.length > 1) router.back();
         else router.push('/');
       }}
       className="mt-1 flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white/80"
@@ -180,7 +193,21 @@ export function WatchClient({ slug }: { slug: string }) {
       // Шинэ анги = шинэ "play" event
       playTracked.current = false;
       lastTracked.current = 0;
-      router.push(`/watch/${slug}?ep=${epId}`);
+      /**
+       * ⚠️⚠️ `replace` — `push` БИШ (бодит гомдол: «back дарахад
+       * player → detail → player гээд ЦИКЛ орно»).
+       *
+       * `push` үед анги солих БҮРД түүхэнд шинэ бичлэг үүснэ:
+       *   detail → E1 → E2 → E3 …
+       * Хэрэглэгч 5 анги үзчихээд back дарвал 5 УДАА дарж байж л
+       * дэлгэрэнгүй рүү гарна. Дунд нь `?ep=`-гүй бичлэг тааралдвал
+       * auto-redirect ажиллаж дахин player руу оруулна — ЭНЭ Л ЦИКЛ.
+       *
+       * Анги солих нь «шинэ хуудас» биш, НЭГ ХУУДСАН ДОТОРХ төлөвийн
+       * өөрчлөлт. Тиймээс түүхийг ОРЛУУЛНА: back дарахад ҮРГЭЛЖ
+       * өмнөх БОДИТ хуудас (дэлгэрэнгүй / нүүр) руу нэг алхмаар гарна.
+       */
+      router.replace(`/watch/${slug}?ep=${epId}`);
     },
     [router, slug],
   );
@@ -267,7 +294,7 @@ export function WatchClient({ slug }: { slug: string }) {
           message="Дахин оролдоно уу, эсвэл контент байхгүй болсон байж болзошгүй."
           onRetry={() => refetch()}
         />
-        <BackLink />
+        <BackLink slug={slug} />
       </main>
     );
   }
@@ -336,7 +363,7 @@ export function WatchClient({ slug }: { slug: string }) {
           ⚠️ `router.back()` нь түүх байхгүй үед (шинэ таб, гадны
           холбоос) юу ч хийхгүй тул `/` рүү унана.
         */}
-        <BackLink />
+        <BackLink slug={slug} />
       </main>
     );
   }
@@ -355,7 +382,7 @@ export function WatchClient({ slug }: { slug: string }) {
         >
           Дэлгэрэнгүй
         </Link>
-        <BackLink />
+        <BackLink slug={slug} />
       </main>
     );
   }
