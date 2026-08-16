@@ -171,6 +171,26 @@ export class EmailService {
 
   async isSuppressed(email: string): Promise<boolean> {
     const key = email.toLowerCase().trim();
+
+    /**
+     * ⚠️⚠️ ОРЛУУЛАГЧ ХАЯГ РУУ ХЭЗЭЭ Ч ИЛГЭЭХГҮЙ.
+     *
+     * Facebook нь хэрэглэгч имэйл хуваалцаагүй үед бид
+     * `oauth_facebook_{id}@noemail.besttv.mn` гэсэн ЖИНХЭНЭ БИШ хаяг
+     * үүсгэдэг (`User.email` нь required тул). Тэр домэйнд MX бичлэг
+     * БАЙХГҮЙ учир илгээх бүрд hard bounce болно.
+     *
+     * SES-д bounce харьцаа 5%-иас хэтэрвэл илгээх эрх ТҮДГЭЛЗҮҮЛНЭ —
+     * бүх хэрэглэгчийн имэйл (баталгаажуулалт, төлбөрийн баримт)
+     * зогсоно. Тиймээс DB хүртэл очихгүй, ЭНД шүүнэ.
+     *
+     * ⚠️ Форматгүй хог хаягийг ч мөн адил (OAuth-аас хачин утга ирж
+     * DB-д үлдсэн байж болно).
+     */
+    if (key.endsWith('@noemail.besttv.mn') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) {
+      return true;
+    }
+
     const c = this.suppressionCache.get(key);
     if (c && Date.now() - c.at < this.SUPPRESSION_TTL) return c.v;
     try {

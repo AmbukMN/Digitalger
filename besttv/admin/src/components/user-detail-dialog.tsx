@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   History, Activity, AlertTriangle, ArrowDownLeft, ArrowUpRight, Bookmark, Crown, KeyRound, Loader2, MessageSquare, Minus, PlayCircle, Plus, Receipt, Ticket, User as UserIcon, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
+import { cn, displayEmail, isPlaceholderEmail, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
 import {
   Badge,
   Dialog,
@@ -249,7 +249,11 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                 const flags: { text: string; tone: 'danger' | 'warn' }[] = [];
                 if (!data.isActive) flags.push({ text: 'Хаагдсан хэрэглэгч', tone: 'danger' });
                 if (data.isGuest) flags.push({ text: 'Зочин (бүртгэлгүй)', tone: 'warn' });
-                if (!data.emailVerified)
+                /* ⚠️ Орлуулагч хаягт «баталгаажаагүй» гэвэл төөрөгдүүлнэ —
+                   имэйл ОГТ БАЙХГҮЙ гэдгийг шууд хэлнэ */
+                if (isPlaceholderEmail(data.email))
+                  flags.push({ text: 'Имэйл хаяггүй (FB)', tone: 'warn' });
+                else if (!data.emailVerified)
                   flags.push({ text: 'Имэйл баталгаажаагүй', tone: 'warn' });
                 /* ⚠️ Баталгаажаагүй дугаар нь ӨӨР хүнийх байж болно */
                 if (data.phone && !data.phoneVerified)
@@ -283,7 +287,9 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               */}
               <div className="space-y-3">
                 <FieldGroup title="Холбоо барих">
-                  <InfoRow label="Имэйл" value={data.email} />
+                  {/* ⚠️ FB имэйл өгөөгүй бол орлуулагч хаяг — «—» болгоно
+                      (жинхэнэ утга DB-д хэвээр, unique түлхүүр) */}
+                  <InfoRow label="Имэйл" value={displayEmail(data.email)} />
                   {/*
                     ⚠️ Утас — гомдол шийдэхэд чухал. Баталгаажсан эсэхийг
                     ЗААВАЛ ялгаж харуулна: баталгаажаагүй дугаар нь өөр

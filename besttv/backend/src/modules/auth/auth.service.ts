@@ -341,7 +341,28 @@ export class AuthService {
     }
 
     const isGoogle = dto.provider === 'google';
-    const email = dto.email?.toLowerCase().trim();
+    /**
+     * ⚠️⚠️ ИМЭЙЛИЙН ФОРМАТЫГ ШАЛГАНА — OAuth провайдерт БҮҮ ИТГЭ.
+     *
+     * БОДИТ ХЭРЭГЦЭЭ (админ): «Google/FB-ээр нэвтэрсэн бол имэйл байвал
+     * бүртгэ, харин буруу/хүчингүй бол бүртгэхгүй».
+     *
+     * Facebook нь хэрэглэгч имэйл хуваалцаагүй үед талбарыг ОГТ
+     * илгээхгүй, эсвэл хоосон мөр буцаадаг. Урьд нь ямар ч утгыг
+     * шууд DB рүү бичдэг байсан тул хог өгөгдөл орох эрсдэлтэй байв
+     * (`@`-гүй мөр ч `String` тул Prisma зөвшөөрнө).
+     *
+     * ⚠️ Хатуу regex ХЭРЭГЛЭХГҮЙ — жинхэнэ имэйлийг андуурч
+     * татгалзвал хэрэглэгч нэвтэрч ЧАДАХГҮЙ болно. Зөвхөн илэрхий
+     * хог (`@` байхгүй, хоосон, зай, домэйнгүй) шүүнэ.
+     */
+    const rawEmail = dto.email?.toLowerCase().trim();
+    const email = rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : undefined;
+    if (rawEmail && !email) {
+      this.logger.warn(
+        `OAuth (${dto.provider}) хүчингүй имэйл илгээв — алгаслаа: ${rawEmail.slice(0, 60)}`,
+      );
+    }
     const providerEnum: 'GOOGLE' | 'FACEBOOK' = isGoogle ? 'GOOGLE' : 'FACEBOOK';
 
     let user = isGoogle
@@ -358,13 +379,36 @@ export class AuthService {
       const avatarKey = dto.image && !user.avatarKey
         ? await this.mirrorAvatarToR2(dto.image)
         : undefined;
+      /**
+       * ⚠️⚠️ ОРЛУУЛАГЧ ХАЯГТАЙ ХЭРЭГЛЭГЧ ДАРАА НЬ ИМЭЙЛ ӨГВӨЛ БҮРТГЭНЭ.
+       *
+       * Facebook-д хэрэглэгч эхлээд имэйл хуваалцахаас татгалзаад,
+       * дараа нь зөвшөөрөх нь түгээмэл. Өмнө нь орлуулагч хаяг нь
+       * ҮҮРД үлдэж, тэр хүн имэйл хүлээж авах боломжгүй байв.
+       *
+       * ⚠️ Зөвхөн ОРЛУУЛАГЧ хаягийг л дарж бичнэ — хэрэглэгчийн
+       * гараар оруулсан жинхэнэ хаягийг OAuth-ийн утгаар СОЛИХГҮЙ.
+       * ⚠️ Шинэ хаяг ӨӨР хүнд бүртгэлтэй бол алгасна (unique зөрчил).
+       */
+      const isPlaceholder = user.email.endsWith('@noemail.besttv.mn');
+      let emailUpdate: string | undefined;
+      if (email && isPlaceholder && email !== user.email) {
+        const taken = await this.prisma.user
+          .findUnique({ where: { email }, select: { id: true } })
+          .catch(() => null);
+        if (!taken) emailUpdate = email;
+        else this.logger.warn(`OAuth имэйл өөр бүртгэлд байна — алгаслаа: ${email}`);
+      }
+
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
           ...(isGoogle ? { googleId: dto.providerAccountId } : { facebookId: dto.providerAccountId }),
           provider: user.provider === 'LOCAL' ? providerEnum : undefined,
           name: user.name ?? dto.name?.trim(),
-          emailVerified: true,
+          ...(emailUpdate ? { email: emailUpdate } : {}),
+          /* ⚠️ Орлуулагч хаягтай хэвээр бол «баталгаажсан» ГЭХГҮЙ */
+          emailVerified: emailUpdate ? true : isPlaceholder ? false : true,
           ...(avatarKey ? { avatarKey } : {}),
         },
       });
@@ -372,11 +416,29 @@ export class AuthService {
       const avatarKey = dto.image ? await this.mirrorAvatarToR2(dto.image) : null;
       user = await this.prisma.user.create({
         data: {
+          /**
+           * ⚠️ Имэйлгүй үед ОРЛУУЛАГЧ хаяг. `User.email` нь
+           * `String @unique` (required) бөгөөд 30+ газарт ашиглагддаг
+           * тул nullable болгох нь эрсдэлтэй.
+           *
+           * ⚠️ `@noemail.besttv.mn` домэйн нь ЖИНХЭНЭ БИШ — имэйл
+           * илгээвэл буцна. Тиймээс доор `emailVerified: false`
+           * тавьж, UI/имэйл систем түүнийг «хаяггүй» гэж үзнэ.
+           */
           email: email ?? `oauth_${dto.provider}_${dto.providerAccountId}@noemail.besttv.mn`,
           name: dto.name?.trim() || null,
           provider: providerEnum,
           ...(isGoogle ? { googleId: dto.providerAccountId } : { facebookId: dto.providerAccountId }),
-          emailVerified: true,
+          /**
+           * ⚠️⚠️ ЗӨВХӨН БОДИТ имэйл ирсэн үед `true`.
+           *
+           * Өмнө нь ҮРГЭЛЖ `true` байсан тул орлуулагч хаяг ч
+           * «баталгаажсан» гэж тэмдэглэгддэг байв. Үр дүнд:
+           *   • маркетингийн имэйл тэр хаяг руу илгээгдэж bounce болно
+           *     (SES-ийн bounce харьцаа өсөж домэйн эрсдэлд орно)
+           *   • админд «баталгаажсан» гэж ХУДЛАА харагдана
+           */
+          emailVerified: !!email,
           avatarKey,
         },
       });

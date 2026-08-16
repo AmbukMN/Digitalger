@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { Loader2, ShieldCheck, UserCheck, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDate, formatPrice } from '@besttv/shared';
+import { cn, displayEmail, formatDate, formatPrice } from '@besttv/shared';
 import { AdminShell } from '@/components/admin-shell';
 import { UserAvatar } from '@/components/user-avatar';
 import { StatCard } from '@/components/stat-card';
@@ -263,7 +263,9 @@ export default function UsersPage() {
                             </span>
                           )}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {displayEmail(u.email)}
+                        </p>
                       </div>
                     </button>
                   </td>

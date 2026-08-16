@@ -165,3 +165,25 @@ export function formatRentDurationShort(hours: number): string {
   if (hours % 24 !== 0) return `${hours}ц`;
   return `${hours / 24} хоног`;
 }
+
+/**
+ * OAuth-ийн ОРЛУУЛАГЧ имэйл эсэх.
+ *
+ * ⚠️ Facebook нь хэрэглэгч имэйл хуваалцаагүй үед backend
+ * `oauth_facebook_{id}@noemail.besttv.mn` гэсэн ЖИНХЭНЭ БИШ хаяг
+ * үүсгэдэг (`User.email` нь required тул). Түүнийг админд
+ * харуулбал 45 тэмдэгтийн хог текст болж, «энэ хүн ямар хаягтай
+ * вэ?» гэдэг ойлгомжгүй болно.
+ */
+export function isPlaceholderEmail(email?: string | null): boolean {
+  return !!email && email.endsWith('@noemail.besttv.mn');
+}
+
+/**
+ * Админд харуулах имэйл — орлуулагч бол «—» болгоно.
+ * ⚠️ ЖИНХЭНЭ утга DB-д хэвээр (тодорхойлолт/unique түлхүүр).
+ */
+export function displayEmail(email?: string | null): string {
+  if (!email || isPlaceholderEmail(email)) return '—';
+  return email;
+}
