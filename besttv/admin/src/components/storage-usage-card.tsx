@@ -26,6 +26,14 @@ interface StorageUsage {
   titles: TitleUsage[];
   freeTierGb: number;
   usedPercentOfFreeTier: number;
+  /** Сарын хадгалалтын төлбөр — үнэгүй багцыг ХАССАН */
+  cost?: {
+    billableGb: number;
+    usdPerGb: number;
+    monthlyUsd: number;
+    monthlyMnt: number;
+    usdMnt: number;
+  };
   computedAt: string;
   cached: boolean;
 }
@@ -142,7 +150,44 @@ export function StorageUsageCard() {
             );
           })}
         </div>
-        {overFree && (
+        {/*
+          ⚠️⚠️ БОДИТ ТӨЛБӨР — «төлбөр эхэлнэ» гэсэн ерөнхий
+          анхааруулгаас хамаагүй үнэ цэнэтэй (админы хүсэлт).
+
+          ⚠️ USD БОЛОН MNT ХОЁУЛАА: Cloudflare нь USD-ээр нэхэмжилдэг
+          (данс тулгахад хэрэгтэй), харин төсөв нь төгрөгөөр
+          төлөвлөгддөг. Нэгийг нь л харуулбал админ тооцоолол хийнэ.
+
+          ⚠️ `cost` нь заавал биш (`?`) — хуучин кэш ирвэл блок
+          харагдахгүй, карт УНАХГҮЙ.
+        */}
+        {overFree && data.cost && (
+          <div className="mt-2 rounded-lg border border-rose-500/25 bg-rose-500/8 px-3 py-2.5">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="text-xs font-medium text-rose-500">
+                Сарын төлбөр (хадгалалт)
+              </span>
+              <span className="flex items-baseline gap-2 tabular-nums">
+                <span className="text-lg font-bold text-rose-500">
+                  ${data.cost.monthlyUsd.toFixed(2)}
+                </span>
+                <span className="text-sm font-semibold text-rose-500/80">
+                  ≈ {data.cost.monthlyMnt.toLocaleString('mn-MN')}₮
+                </span>
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {/* ⚠️ Тооцооны ил тод байдал — админ тоог шалгаж чадна */}
+              {data.cost.billableGb.toLocaleString('mn-MN')} GB төлбөртэй
+              (нийтээс {data.freeTierGb} GB үнэгүй хассан) × $
+              {data.cost.usdPerGb}/GB · ханш {data.cost.usdMnt.toLocaleString('mn-MN')}₮
+              <br />
+              {/* ⚠️ Egress $0 нь R2-ийн ГОЛ давуу тал — админ мэдэх ёстой */}
+              Татацын (egress) төлбөргүй. Үйлдлийн төлбөр ороогүй.
+            </p>
+          </div>
+        )}
+        {overFree && !data.cost && (
           <p className="mt-2 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-xs text-rose-500">
             ⚠️ Үнэгүй багц ({data.freeTierGb}GB) хэтэрсэн — R2 төлбөр эхэлнэ
           </p>

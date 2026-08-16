@@ -21,10 +21,46 @@ import { CacheService } from '../../common/cache/cache.service';
 /** Кэш хадгалах хугацаа */
 const CACHE_TTL_MS = 10 * 60 * 1000;
 /** Redis түлхүүр — процессын санах ойгоос ГАДНА (restart даана) */
-const CACHE_KEY = 'storage:usage:v1';
+/**
+ * ⚠️ ХУВИЛБАР (`v2`) — бүтэц өөрчлөгдвөл ЗААВАЛ ахиулна.
+ *
+ * `cost` талбар нэмэгдсэн тул хуучин `v1` кэш ирвэл UI нь
+ * `data.cost.monthlyUsd` уншиж УНАНА. Түлхүүрийг солиход хуучин
+ * утга автоматаар үл тоомсорлогдож, шинэ скан хийгдэнэ.
+ */
+const CACHE_KEY = 'storage:usage:v2';
 
 /** Хэмжээ хэтэрсэн үед сэрэмжлүүлэх босго (R2 үнэгүй багц = 10GB) */
 const FREE_TIER_GB = 10;
+
+/**
+ * ⚠️⚠️ CLOUDFLARE R2 ҮНИЙН МЭДЭЭЛЭЛ (2026 оны байдлаар).
+ *
+ *   Хадгалалт : $0.015 / GB-сар (эхний 10 GB ҮНЭГҮЙ)
+ *   Class A   : $4.50 / сая (бичих: PUT, LIST)
+ *   Class B   : $0.36 / сая (унших: GET)
+ *   Egress    : $0 — R2-ийн ГОЛ давуу тал (S3 нь $0.09/GB авдаг)
+ *
+ * ⚠️ Зөвхөн ХАДГАЛАЛТыг тооцно. Үйлдлийн төлбөр (Class A/B) нь
+ * бодит дуудалтын тооноос хамаарах бөгөөд бид түүнийг хэмждэггүй.
+ * Манай хэрэглээнд тэр нь хадгалалтын дэргэд өчүүхэн: сарын
+ * 10 сая GET ≈ $3.6 боловч кино үзэлт тийм өндөр биш.
+ *
+ * ⚠️ Тооцоог ХЭТРҮҮЛЭХГҮЙ — үнэгүй 10 GB-ыг ХАСНА. Эс бөгөөс
+ * админ бодит төлбөрөөс өндөр тоо хараад дэмий сандарна.
+ */
+const R2_USD_PER_GB_MONTH = 0.015;
+
+/**
+ * USD → MNT анхдагч ханш.
+ *
+ * ⚠️ Энэ нь ЗӨВХӨН анхдагч — админ `Settings` (`billing` key)-ээр
+ * дарж бичнэ. Ханш байнга хөдөлдөг тул кодод хатуу бичих нь буруу,
+ * гэхдээ тохиргоо хоосон үед ойролцоо тоо харуулах нь «—» гэхээс
+ * дээр (админ хэдэн төгрөг болохыг ойролцоогоор мэдэх ёстой).
+ */
+const DEFAULT_USD_MNT = 3450;
+const BILLING_KEY = 'billing';
 
 export interface TitleUsage {
   id: string;
@@ -48,6 +84,20 @@ export interface UsageResult {
   titles: TitleUsage[];
   freeTierGb: number;
   usedPercentOfFreeTier: number;
+  /**
+   * Сарын хадгалалтын төлбөр — үнэгүй 10 GB-ыг ХАССАН.
+   * ⚠️ Үйлдлийн (Class A/B) төлбөр ОРООГҮЙ — тэр нь дуудалтын
+   * тооноос хамаарна, бид хэмждэггүй.
+   */
+  cost: {
+    /** Төлбөртэй хэсэг (GB) — нийтээс үнэгүй багцыг хассан */
+    billableGb: number;
+    usdPerGb: number;
+    monthlyUsd: number;
+    monthlyMnt: number;
+    /** USD→MNT ханш (админ Settings-ээр солино) */
+    usdMnt: number;
+  };
   /** Кэш хэзээ шинэчлэгдсэн (ISO) */
   computedAt: string;
   cached: boolean;
@@ -66,6 +116,26 @@ export class StorageUsageService {
     /* ⚠️ Redis кэш — процессын санах ой restart-д алга болдог (@Global) */
     private readonly appCache: CacheService,
   ) {}
+
+  /**
+   * USD → MNT ханш (`Settings.billing.usdMnt`).
+   *
+   * ⚠️ Кодод ХАТУУ БИЧИХГҮЙ — ханш байнга хөдөлдөг тул админ
+   * тохиргооноос солино. Тохируулаагүй / уншиж чадаагүй бол
+   * анхдагч (ойролцоо тоо нь «—» гэхээс дээр).
+   *
+   * ⚠️ Утга нь утгагүй (0, сөрөг, хэт том) бол анхдагч руу унана —
+   * буруу бичсэн тохиргоо нь сая төгрөгийн худал тоо гаргах ёсгүй.
+   */
+  private async usdMntRate(): Promise<number> {
+    const row = await this.prisma.settings
+      .findUnique({ where: { key: BILLING_KEY } })
+      .catch(() => null);
+    const v = (row?.value as { usdMnt?: unknown } | null)?.usdMnt;
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isFinite(n) || n < 500 || n > 20000) return DEFAULT_USD_MNT;
+    return Math.round(n);
+  }
 
   /**
    * ⚠️⚠️ УРЬДЧИЛЖ ТООЦНО — админ ХЭЗЭЭ Ч ХҮЛЭЭХГҮЙ.
@@ -241,6 +311,18 @@ export class StorageUsageService {
 
     const list = [...usage.values()].filter((u) => u.bytes > 0).sort((a, b) => b.bytes - a.bytes);
 
+    /**
+     * ⚠️ Ханшийг `Settings` (`billing`)-ээс — хатуу бичихгүй.
+     * Уншиж чадахгүй бол анхдагч (админ «—» харахаас дээр).
+     */
+    const usdMnt = await this.usdMntRate();
+
+    /* ⚠️ ҮНЭГҮЙ 10 GB-ыг ХАСНА — эс бөгөөс бодит төлбөрөөс өндөр
+       тоо гарч админ дэмий сандарна */
+    const totalGb = totalBytes / 1024 ** 3;
+    const billableGb = Math.max(0, totalGb - FREE_TIER_GB);
+    const monthlyUsd = billableGb * R2_USD_PER_GB_MONTH;
+
     const result: UsageResult = {
       totalBytes,
       totalObjects: objects.length,
@@ -249,6 +331,14 @@ export class StorageUsageService {
       titles: list,
       freeTierGb: FREE_TIER_GB,
       usedPercentOfFreeTier: Math.round((totalBytes / (FREE_TIER_GB * 1024 ** 3)) * 100),
+      cost: {
+        billableGb: Math.round(billableGb * 10) / 10,
+        usdPerGb: R2_USD_PER_GB_MONTH,
+        /* ⚠️ 2 орон — центийн нарийвчлал (0.01 USD ≈ 35₮) */
+        monthlyUsd: Math.round(monthlyUsd * 100) / 100,
+        monthlyMnt: Math.round(monthlyUsd * usdMnt),
+        usdMnt,
+      },
       computedAt: new Date().toISOString(),
       cached: false,
     };
