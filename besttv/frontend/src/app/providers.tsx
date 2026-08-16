@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SessionProvider, signOut as nextAuthSignOut } from 'next-auth/react';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ThemeProvider, useTheme } from 'next-themes';
 import { UiProvider } from '@besttv/shared/ui';
 import { useAuth, type AuthUser } from '@/lib/auth-store';
@@ -25,6 +25,49 @@ function MyListSync() {
     else hydrateGuest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  return null;
+}
+
+/**
+ * ⚠️⚠️ ХЭРЭГЛЭГЧ СОЛИГДОХОД QUERY КЭШИЙГ ЦЭВЭРЛЭНЭ.
+ *
+ * БОДИТ ЭРСДЭЛ: `logout()` нь токен + user cache-ыг цэвэрлэдэг ч
+ * TanStack Query-ийн кэшийг ХӨНДДӨГГҮЙ байв. Дараах query-үүд
+ * `queryKey`-даа `userId` агуулаагүй тул шинэ хэрэглэгчид ӨМНӨХ
+ * хүний дата харагдана:
+ *   ['wallet'], ['wallet-transactions'] — ҮЛДЭГДЭЛ, ГҮЙЛГЭЭНИЙ ТҮҮХ
+ *   ['my-payments']                     — ТӨЛБӨРИЙН ТҮҮХ
+ *   ['my-rentals'], ['my-list']         — түрээс, дуртай кино
+ *   ['notifications']                   — уншаагүй мэдэгдэл
+ *
+ * Нэг компьютер дээр A гараад B нэвтрэхэд (гэр бүл, интернет кафе)
+ * B нь A-гийн санхүүгийн мэдээллийг харна. `staleTime: 60_000` тул
+ * 60 секунд үргэлжилнэ.
+ *
+ * ⚠️ `clear()` нь БҮХ кэшийг устгана — нүүр/каталог дахин татагдана.
+ * Тэр нь login/logout үед л болох тул хүлээн зөвшөөрөх зардал;
+ * key бүрд `userId` нэмэх нь 8+ файл хөндөх бөгөөд шинэ query
+ * нэмэхэд дахин мартагдах эрсдэлтэй.
+ *
+ * ⚠️ Анхны ачаалалтад ажиллуулахгүй (`prev.current === undefined`) —
+ * эс бөгөөс SSR-ээс ирсэн кэшийг дэмий устгана.
+ */
+function UserScopedCache() {
+  const userId = useAuth((s) => s.user?.id) ?? null;
+  const qc = useQueryClient();
+  const prev = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (prev.current === undefined) {
+      prev.current = userId;
+      return;
+    }
+    if (prev.current !== userId) {
+      prev.current = userId;
+      qc.clear();
+    }
+  }, [userId, qc]);
 
   return null;
 }
@@ -203,6 +246,9 @@ export function Providers({
             <BrandThemeSync />
             <OAuthSessionSync />
             <MyListSync />
+            {/* ⚠️ AuthSessionWatcher-ЭЭС ӨМНӨ — хэрэглэгч солигдоход
+                кэш цэвэрлэгдсэний дараа шинэ дата татагдана */}
+            <UserScopedCache />
             <AuthSessionWatcher />
             <PageTracker />
             {children}

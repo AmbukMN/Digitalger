@@ -178,6 +178,19 @@ export class StreamController {
     return this.stream.episodePlaylist(episodeId, user?.sub);
   }
 
+  /**
+   * ⚠️ АНГИЙН seek thumbnail — кинонийхтэй ижил.
+   *
+   * Sprite нь анги бүрд аль хэдийн үүсдэг байсан атлаа харуулах
+   * endpoint байгаагүй тул цуврал үзэхэд preview гардаггүй байв.
+   */
+  @Get('episode/:episodeId/thumbnails.vtt')
+  @Header('Content-Type', 'text/vtt')
+  @Header('Cache-Control', 'private, max-age=300')
+  episodeThumbs(@Param('episodeId') episodeId: string, @CurrentUser() user: JwtPayload | null) {
+    return this.stream.episodeThumbnails(episodeId, user?.sub);
+  }
+
   @Get('trailer/:titleId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
   @Header('Cache-Control', 'private, max-age=300')

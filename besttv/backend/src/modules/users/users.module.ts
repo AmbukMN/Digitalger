@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   Injectable,
+  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -27,6 +28,7 @@ import * as bcrypt from 'bcrypt';
 import { Role, Prisma, AuthProvider } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { TrackingService } from '../tracking/tracking.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -79,6 +81,8 @@ class BulkDeleteDto {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     /**
@@ -86,6 +90,8 @@ export class UsersService {
      * ЧАДАХГҮЙ. Хариунд presigned URL болгож өгнө.
      */
     private readonly storage: StorageService,
+    /* ⚠️ Аудит — админы эрсдэлтэй үйлдлийг мөрдөх (нууц үг солих г.м) */
+    private readonly tracking: TrackingService,
   ) {}
 
   /**
@@ -649,6 +655,24 @@ export class UsersService {
       throw new BadRequestException('Өөрийн эрхийг өөрчлөх боломжгүй');
     }
 
+    /**
+     * ⚠️⚠️ БУСАД АДМИНЫГ ХӨНДӨХИЙГ ХОРИГЛОНО.
+     *
+     * Өмнө нь ЗӨВХӨН `id === actorId` шалгагддаг байсан тул дурын
+     * админ өөр админы `role`-ыг `USER` болгож эрхийг нь хасах,
+     * эсвэл `isActive: false`-оор хаах боломжтой байв — эрх булаах
+     * шууд зам. `bulkDelete` (мөр 765) нь ADMIN-ыг зориуд
+     * хамгаалдаг — санаа нь илэрхий атлаа энэ зам нээлттэй байсан.
+     *
+     * ⚠️ Өөрийгөө засах нь ЗӨВШӨӨРӨГДӨНӨ (нэр солих гэх мэт) —
+     * дээрх шалгалт нь эрхээ бууруулахаас л сэргийлнэ.
+     */
+    if (user.role === Role.ADMIN && id !== actorId) {
+      throw new BadRequestException(
+        'Өөр админы мэдээллийг өөрчлөх боломжгүй. Эхлээд түүний эрхийг DB-д гараар солино уу.',
+      );
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: dto,
@@ -667,12 +691,53 @@ export class UsersService {
     });
   }
 
-  async setPassword(id: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+  /**
+   * @param actorId — үйлдэл хийж буй АДМИНЫ id
+   */
+  async setPassword(id: string, password: string, actorId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+
+    /**
+     * ⚠️⚠️ БУСАД АДМИНЫ НУУЦ ҮГИЙГ СОЛИХЫГ ХОРИГЛОНО.
+     *
+     * Өмнө нь ямар ч хамгаалалт байгаагүй тул дурын админ
+     * `POST /admin/users/{өөр админы id}/password` дуудаж түүний
+     * бүртгэлийг БҮРЭН булаах боломжтой байв.
+     */
+    if (user.role === Role.ADMIN && id !== actorId) {
+      throw new BadRequestException('Өөр админы нууц үгийг солих боломжгүй');
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     await this.prisma.user.update({ where: { id }, data: { passwordHash } });
-    return { ok: true };
+
+    /**
+     * ⚠️⚠️ БҮХ SESSION-ЫГ ХҮЧИНГҮЙ БОЛГОНО.
+     *
+     * Нууц үг солих гол шалтгаан нь «бүртгэл булаагдсан». Session
+     * цэвэрлэхгүй бол халдлагчийн refresh token нь `UserSession`-д
+     * хэвээр үлдэж 30 ХОНОГ хандсаар байна — нууц үг солих нь
+     * утгагүй болно.
+     *
+     * ⚠️ Алдааг залгихгүй: session үлдсэн бол админ МЭДЭХ ёстой.
+     */
+    const killed = await this.prisma.userSession
+      .deleteMany({ where: { userId: id } })
+      .catch((e) => {
+        this.logger.error(`Session цэвэрлэж чадсангүй (${id}): ${String(e)}`);
+        return null;
+      });
+
+    /* ⚠️ Аудит — хэн хэзээ солисныг мөрдөх (бусад админ үйлдэлтэй ижил) */
+    await this.tracking
+      .audit(id, 'password', { newValue: 'admin_reset', actorId })
+      .catch(() => null);
+
+    return { ok: true, sessionsCleared: killed?.count ?? 0 };
   }
 
   /**
@@ -828,8 +893,13 @@ export class UsersController {
   }
 
   @Post(':id/password')
-  setPassword(@Param('id') id: string, @Body() dto: SetPasswordDto) {
-    return this.svc.setPassword(id, dto.password);
+  setPassword(
+    @Param('id') id: string,
+    @Body() dto: SetPasswordDto,
+    /* ⚠️ `actorId` — өөр админы нууц үг солихыг хориглох + аудит */
+    @CurrentUser() me?: JwtPayload,
+  ) {
+    return this.svc.setPassword(id, dto.password, me?.sub);
   }
 
   @Post(':id/grant-subscription')

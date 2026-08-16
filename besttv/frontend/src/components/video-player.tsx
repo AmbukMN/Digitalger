@@ -121,7 +121,19 @@ export function VideoPlayer({
   >(undefined);
 
   useEffect(() => {
-    if (!src.includes('/movie/')) return;
+    /**
+     * ⚠️⚠️ КИНО БОЛОН АНГИ ХОЁУЛАА (өмнө нь зөвхөн `/movie/`).
+     *
+     * БОДИТ ГОМДОЛ: «хулгана хүргэхэд thumbnail гардаг байсан, гэнэт
+     * ажиллахаа болилоо». Үнэндээ ЦУВРАЛ дээр хэзээ ч гардаггүй
+     * байсан — sprite нь анги бүрд үүсдэг (R2-д баталгаажсан) атлаа
+     * энэ мөр ангийг алгасдаг, backend-д ч endpoint байгаагүй.
+     * Blacklist орсноос хойш цуврал үзэлт өссөн тул анзаарагдсан.
+     *
+     * ⚠️ Трейлер (`/trailer/`) нь ХЭВЭЭР алгасна — түүнд sprite
+     * үүсгэдэггүй (`video-hls.service.ts` тайлбар).
+     */
+    if (!src.includes('/movie/') && !src.includes('/episode/')) return;
     const url = src.replace('/playlist.m3u8', '/thumbnails.vtt');
     let cancelled = false;
 
@@ -161,9 +173,16 @@ export function VideoPlayer({
               : {}),
           });
         }
-        if (!cancelled && out.length) setThumbnails(out);
+        /**
+         * ⚠️ ХООСОН үед ч `setThumbnails` дуудна — анги солиход
+         * ХУУЧИН ангийн preview үлдэхээс сэргийлнэ (`src` солигдоход
+         * state автоматаар цэвэрлэгддэггүй). Sprite-гүй ангид буруу
+         * кадар харуулах нь preview огт байхгүйгээс МУУ.
+         */
+        if (!cancelled) setThumbnails(out.length ? out : undefined);
       } catch {
         /* preview байхгүй — видео хэвийн тоглоно */
+        if (!cancelled) setThumbnails(undefined);
       }
     })();
 

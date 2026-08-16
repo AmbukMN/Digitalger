@@ -123,6 +123,88 @@ export class StreamService {
   }
 
   /**
+   * ЦУВРАЛЫН АНГИЙН seek preview.
+   *
+   * ⚠️⚠️ ЯАГААД НЭМЭГДСЭН ВЭ: sprite (`thumbs.jpg` + `thumbs.vtt`) нь
+   * анги бүрд АЛЬ ХЭДИЙН үүсдэг байсан (`makeThumbnails` нь кино/анги
+   * ялгадаггүй — R2-д 50 ангийн sprite баталгаажсан) атлаа тэдгээрийг
+   * ХАРУУЛАХ endpoint огт байгаагүй. Зөвхөн `movie/:id/thumbnails.vtt`
+   * байсан тул хэрэглэгч цуврал үзэхэд seek preview ХЭЗЭЭ Ч гардаггүй,
+   * харин кино дээр гардаг — «гэнэт ажиллахаа болилоо» гэсэн гомдол
+   * үүнээс (Blacklist орсноос хойш цуврал үзэлт огцом өссөн).
+   *
+   * ⚠️ Эрхийн шалгалт нь `episodePlaylist`-ТЭЙ ЯГ ИЖИЛ байх ёстой —
+   * эс бөгөөс эрхгүй хүн preview-ээр киноны кадруудыг үзнэ.
+   */
+  async episodeThumbnails(episodeId: string, userId?: string | null): Promise<string> {
+    const episode = await this.prisma.episode.findUnique({
+      where: { id: episodeId },
+      select: {
+        videoKey: true,
+        streamStatus: true,
+        isFreePreview: true,
+        isVisible: true,
+        season: {
+          select: {
+            isVisible: true,
+            title: {
+              select: {
+                id: true,
+                isPremium: true,
+                isActive: true,
+                genres: { select: { genreId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (
+      !episode?.videoKey ||
+      episode.streamStatus !== 'READY' ||
+      !episode.season.title.isActive ||
+      /* ⚠️ Нуусан анги — playlist-тай ижил хаалт */
+      !episode.isVisible ||
+      !episode.season.isVisible
+    ) {
+      throw new NotFoundException('Видео бэлэн биш байна');
+    }
+
+    /* Үнэгүй танилцуулга анги — эрх шалгахгүй (playlist-тай ижил) */
+    const premium = episode.season.title.isPremium && !episode.isFreePreview;
+    await this.assertAccess(
+      premium,
+      episode.season.title.genres.map((g) => g.genreId),
+      userId,
+      /* ⚠️ Түрээс нь ЦУВРАЛ дээр — эцэг титулын id-аар шалгана */
+      episode.season.title.id,
+    );
+
+    const prefix = episode.videoKey.slice(0, episode.videoKey.lastIndexOf('/') + 1);
+    let vtt: string;
+    try {
+      vtt = await this.storage.downloadText(`${prefix}thumbs.vtt`);
+    } catch {
+      /* ⚠️ Хуучин ангид sprite байхгүй — ХООСОН VTT (алдаа биш).
+         Player нь preview-гүй хэвийн ажиллана. */
+      return 'WEBVTT\n';
+    }
+
+    /**
+     * ⚠️ Presign-ийн хугацааг ТҮРЭЭСИЙН ҮЛДЭГДЛЭЭР хязгаарлана —
+     * segment-тэй ижил зарчим (`presignTtl`). Sprite нь киноны
+     * кадруудыг агуулдаг тул түрээс дууссаны дараа хүчинтэй
+     * байлгах нь утгагүй.
+     */
+    /* ⚠️ `presignTtl` нь түрээсгүй үед `undefined` буцаана (кэш
+       ажиллуулахын тулд) — тэр үед кинонийхтэй ижил 4 цаг */
+    const ttl = (await this.presignTtl(userId, episode.season.title.id)) ?? this.SEGMENT_EXPIRES;
+    const spriteUrl = await this.storage.presignGet(`${prefix}thumbs.jpg`, ttl);
+    return vtt.replace(/^thumbs\.jpg(#[^\s]*)?$/gm, (_m, frag) => `${spriteUrl}${frag ?? ''}`);
+  }
+
+  /**
    * ХУУЧИН кинонуудад seek thumbnail НӨХӨХ (админ).
    *
    * ⚠️ Thumbnail нь 2026-08-06-нд нэмэгдсэн тул түүнээс өмнө хөрвүүлсэн
@@ -402,9 +484,24 @@ export class StreamService {
       /* ⚠️ Түрээс нь ЦУВРАЛ дээр ч боломжтой — эцэг титулын id-аар шалгана */
       episode.season.title.id,
     );
+    /**
+     * ⚠️⚠️ `ttl` ЗААВАЛ — өмнө нь дамжуулаагүй тул ХОЁР цоорхой байв:
+     *
+     * 1. `rewritePlaylist` нь `ttl === undefined` үед КЭШ асаадаг
+     *    (мөр 657). Түрээсчийн presigned URL кэшлэгдэж БУСДАД
+     *    хуваалцагдана — кэшийн тайлбар өөрөө үүнээс сэргийлэхийг
+     *    зорьсон атал ангид хэрэгжээгүй.
+     * 2. Кэшгүй ч гэсэн `SEGMENT_EXPIRES = 4 цаг`-аар presign хийгдэх
+     *    тул түрээс дуусахын өмнөхөн плеер нээсэн хүн дууссаны дараа
+     *    4 цаг тасралтгүй үзнэ.
+     *
+     * `moviePlaylist` (мөр 68) нь үүнийг зөв хийдэг — ангид хоцорсон.
+     */
+    const ttl = await this.presignTtl(userId, episode.season.title.id);
     return this.rewritePlaylist(
       episode.videoKey,
       `/api/stream/episode/${episodeId}/variant.m3u8`,
+      ttl,
     );
   }
 
@@ -587,8 +684,22 @@ export class StreamService {
    * ⚠️ Багцтай хэрэглэгчид хамаарахгүй — тэдний хугацаа хоногоор
    * хэмжигдэх тул 4 цаг нөлөөлөхгүй.
    */
-  private async presignTtl(userId?: string | null, titleId?: string): Promise<number> {
-    if (!userId || !titleId) return this.SEGMENT_EXPIRES;
+  /**
+   * ⚠️⚠️ ТҮРЭЭСГҮЙ ҮЕД `undefined` — `SEGMENT_EXPIRES` БИШ.
+   *
+   * `rewritePlaylist` нь `ttl === undefined` үед л кэш ашигладаг
+   * (мөр 752). Түрээсгүй хэрэглэгчид тодорхой тоо буцаавал кэш
+   * УНТАРЧ, дуудалт бүрд R2-оос playlist татаж, segment бүрийг
+   * дахин presign хийнэ — seek бүрд мэдэгдэхүйц удаашрал.
+   *
+   * Түрээсгүй хүнд хугацаа хязгаарлах шаардлагагүй (багц нь
+   * хоногоор хэмжигдэнэ) тул кэш аюулгүй.
+   */
+  private async presignTtl(
+    userId?: string | null,
+    titleId?: string,
+  ): Promise<number | undefined> {
+    if (!userId || !titleId) return undefined;
     const rental = await this.prisma.rental
       .findFirst({
         where: { userId, titleId, expiresAt: { gt: new Date() } },
@@ -596,7 +707,7 @@ export class StreamService {
         orderBy: { expiresAt: 'desc' },
       })
       .catch(() => null);
-    if (!rental) return this.SEGMENT_EXPIRES;
+    if (!rental) return undefined;
 
     const leftSec = Math.floor((rental.expiresAt.getTime() - Date.now()) / 1000);
     /* ⚠️ Доод хязгаар 5 минут — сүүлийн мөчид эхэлсэн хэрэглэгч

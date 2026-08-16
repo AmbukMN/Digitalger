@@ -16,6 +16,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  useConfirm,
 } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
 import { UserAvatar } from '@/components/user-avatar';
@@ -66,6 +67,8 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
   const { data: plans } = useAdminPlans();
   const { data: walletTxs, refetch: refetchTxs } = useAdminWalletTxs(user.id);
   const qc = useQueryClient();
+  /* ⚠️ Мөнгөний үйлдэлд баталгаажуулалт (bank/page.tsx-тэй ижил загвар) */
+  const confirm = useConfirm();
 
   const [tab, setTab] = useState('overview');
   const [newPassword, setNewPassword] = useState('');
@@ -82,6 +85,35 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
       toast.error('Дүн оруулна уу');
       return;
     }
+
+    /**
+     * ⚠️⚠️ БАТАЛГААЖУУЛАЛТ ЗААВАЛ — БОДИТ МӨНГӨ.
+     *
+     * `+` ба `−` товч ЗЭРЭГЦЭЭ, дүнгийн талбар НЭГ. Админ 50,000₮
+     * хасах гэж байгаад `+` дарвал хэрэглэгчид тэр дүн ҮНЭГҮЙ орно —
+     * буцаах товч байхгүй, зөвхөн эсрэг үйлдлээр л засна.
+     *
+     * ⚠️ Дүнг `formatPrice`-аар харуулна: `50000` гэж бичсэнийг
+     * «50,000₮» болгож үзүүлснээр нэмэлт тэг эндүүрлийг барина.
+     */
+    const ok = await confirm({
+      title:
+        direction === 'credit'
+          ? `${formatPrice(amount)} НЭМЭХ үү?`
+          : `${formatPrice(amount)} ХАСАХ уу?`,
+      description: user.name ? `${user.name} · ${user.email}` : user.email,
+      bullets: [
+        `Одоогийн үлдэгдэл: ${formatPrice(data?.walletBalance ?? 0)}`,
+        `Дараа нь: ${formatPrice(
+          (data?.walletBalance ?? 0) + (direction === 'credit' ? amount : -amount),
+        )}`,
+        ...(walletNote ? [`Тайлбар: ${walletNote}`] : []),
+      ],
+      confirmLabel: direction === 'credit' ? 'Нэмэх' : 'Хасах',
+      tone: direction === 'debit' ? 'danger' : undefined,
+    });
+    if (!ok) return;
+
     setWalletBusy(true);
     try {
       await api(`/admin/wallet/${user.id}/${direction}`, {
