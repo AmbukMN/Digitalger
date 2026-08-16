@@ -234,6 +234,102 @@ export class MetaGraphService {
     return res.id;
   }
 
+  // ─── FACEBOOK PAGE РУУ НИЙТЛЭХ ─────────────────────────────────────────
+  //
+  // ⚠️⚠️ `pages_manage_posts` ЭРХ ШААРДАНА. Тэр эрхгүй үед Meta нь
+  // HTTP 403 + code 200 буцаана. `call()` нь түүнийг монгол мессеж
+  // болгож хөрвүүлдэг тул админ юу хийхээ мэднэ.
+
+  /**
+   * FB Page-д ТЕКСТ пост.
+   *
+   * ⚠️ `me/feed` — Page токен тул `me` нь Page өөрөө (`fetchPosts` ч
+   * ингэж ажилладаг). Page ID-г тусад нь хадгалах шаардлагагүй.
+   */
+  async createPagePost(params: {
+    message: string;
+    /// Холбоос — FB нь preview карт автоматаар үүсгэнэ
+    link?: string;
+  }): Promise<string> {
+    const body: Record<string, string> = { message: params.message };
+    if (params.link) body.link = params.link;
+
+    const res = await this.call<{ id: string }>('me/feed', {
+      method: 'POST',
+      params: body,
+    });
+    return res.id;
+  }
+
+  /**
+   * FB Page-д ЗУРАГТАЙ пост.
+   *
+   * ⚠️ `/photos` edge — зураг нэг бол энэ, олон бол доорх
+   * `createPagePhotoPost` (unpublished хэсгүүдээр).
+   */
+  async createPagePhoto(params: { imageUrl: string; caption?: string }): Promise<string> {
+    const res = await this.call<{ id: string; post_id?: string }>('me/photos', {
+      method: 'POST',
+      params: {
+        url: params.imageUrl,
+        ...(params.caption ? { caption: params.caption } : {}),
+      },
+    });
+    /* ⚠️ `post_id` нь ФИД дэх постын ID (`{page}_{post}`), `id` нь
+       зургийнх. Админд харуулах/линк үүсгэхэд `post_id` хэрэгтэй. */
+    return res.post_id ?? res.id;
+  }
+
+  /**
+   * FB Page-д ОЛОН ЗУРАГТАЙ пост.
+   *
+   * ⚠️ Хоёр алхам: зураг бүрийг `published=false`-ээр байршуулаад,
+   * дараа нь `attached_media`-аар нэг постод холбоно. Шууд олон
+   * зураг илгээх API БАЙХГҮЙ.
+   */
+  async createPageMultiPhoto(params: {
+    imageUrls: string[];
+    message: string;
+  }): Promise<string> {
+    const ids: string[] = [];
+    for (const url of params.imageUrls) {
+      const r = await this.call<{ id: string }>('me/photos', {
+        method: 'POST',
+        params: { url, published: 'false' },
+      });
+      ids.push(r.id);
+    }
+
+    const attached: Record<string, string> = { message: params.message };
+    ids.forEach((id, i) => {
+      attached[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
+    });
+
+    const res = await this.call<{ id: string }>('me/feed', {
+      method: 'POST',
+      params: attached,
+    });
+    return res.id;
+  }
+
+  /**
+   * FB Page-д ВИДЕО пост.
+   *
+   * ⚠️ Видео нь `/videos` edge — `graph-video.facebook.com` домэйн
+   * ХЭРЭГГҮЙ (URL-ээр илгээх үед). Файл шууд upload хийвэл тэр
+   * домэйн хэрэгтэй болно.
+   */
+  async createPageVideo(params: { videoUrl: string; description?: string }): Promise<string> {
+    const res = await this.call<{ id: string }>('me/videos', {
+      method: 'POST',
+      params: {
+        file_url: params.videoUrl,
+        ...(params.description ? { description: params.description } : {}),
+      },
+    });
+    return res.id;
+  }
+
   /** Carousel контейнер — 2-10 гишүүнээс бүрдэнэ */
   async createCarouselContainer(childIds: string[], caption?: string): Promise<string> {
     const res = await this.call<{ id: string }>(`${this.igUserId}/media`, {

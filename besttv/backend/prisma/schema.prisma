@@ -97,6 +97,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -324,6 +325,9 @@ model Title {
 
   /// Хадмалууд (олон хэл)
   subtitles Subtitle[]
+
+  /// Энэ кинотой холбоотой нийгмийн сүлжээний постууд
+  socialPosts SocialPost[]
 
   /// Видеон дээр BestTV лого шатаах эсэх (зүүн дээд, 10%, 70%)
   watermark Boolean @default(false)
@@ -1374,6 +1378,7 @@ model EmailLog {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
    * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
    * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
@@ -1530,6 +1535,148 @@ model SocialCrosspost {
 
   @@index([status, createdAt])
   @@index([fbPostedAt])
+}
+
+// ─── НИЙТЛЭЛ ТОВЛОГЧ (FB + IG) ──────────────────────────────────────────────
+//
+// ⚠️⚠️ `SocialCrosspost`-ООС ТУСДАА. Тэр нь FB дээр АЛЬ ХЭДИЙН байгаа
+// постыг IG руу хуулдаг (нэг чиглэлт). Энэ нь админ панелаас ШИНЭЭР
+// пост зохиож, хоёр суваг руу товлодог. Хоёуланг нэг модел болгох нь
+// ажиллаж байгаа хуулбарлагчийг эвдэх эрсдэлтэй.
+
+enum SocialChannel {
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum SocialPostStatus {
+  /// Зохиож байгаа — хаана ч илгээгдэхгүй
+  DRAFT
+  /// Товлогдсон — `scheduledAt` болоход cron авна
+  SCHEDULED
+  /// Сувгууд руу илгээгдэж байна
+  PUBLISHING
+  /// БҮХ суваг амжилттай
+  PUBLISHED
+  /// ЗАРИМ суваг амжилттай (хэсэгчилсэн)
+  PARTIAL
+  /// БҮХ суваг амжилтгүй
+  FAILED
+  /// Админ цуцалсан
+  CANCELLED
+}
+
+enum SocialTargetStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  /// Энэ сувагт техникийн хувьд боломжгүй (ж: IG-д медиагүй)
+  SKIPPED
+}
+
+model SocialPost {
+  id String @id @default(cuid())
+
+  status SocialPostStatus @default(DRAFT)
+
+  /// Үндсэн текст — суваг тус бүр өөрийн хувилбартай байж болно
+  body String @default("")
+
+  /// R2 медиа key-үүд (зураг/видео). IG-д ЗААВАЛ нэг байх ёстой.
+  mediaKeys String[]
+
+  /**
+   * ⚠️ Хэзээ нийтлэх (UTC). `null` = draft.
+   * Cron минут тутам `scheduledAt <= now` бөгөөд `SCHEDULED`-ыг авна.
+   */
+  scheduledAt DateTime?
+
+  /// Кинотой холбоо — «шинэ кино → автомат draft» боломжид
+  titleId String?
+  title   Title?  @relation(fields: [titleId], references: [id], onDelete: SetNull)
+
+  /**
+   * ДАХИН НИЙТЛЭХ (evergreen). `null` = давтахгүй.
+   * `{ gap: 2, freq: 'WEEK', expireCount: 5, done: 1 }`
+   */
+  recycle Json?
+
+  /// Хэн үүсгэсэн (аудит)
+  createdById String?
+
+  targets SocialPostTarget[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// ⚠️ Cron-ий гол query — индексгүй бол минут тутам бүтэн скан
+  @@index([status, scheduledAt])
+  @@index([createdAt])
+}
+
+/**
+ * Суваг тус бүрийн ТУСДАА төлөв.
+ * ⚠️⚠️ ЯАГААД ТУСДАА ХҮСНЭГТ ВЭ: нэг суваг унасан нь бусдыг зогсоох
+ * ёсгүй бөгөөс дахин оролдохдоо ЗӨВХӨН унасан сувгийг илгээх ёстой.
+ * Нэг мөрөнд хоёуланг хадгалбал retry үед FB дээр ДАВХАР пост үүснэ
+ * (салбарын судалгаагаар хамгийн түгээмэл алдаа).
+ */
+model SocialPostTarget {
+  id String @id @default(cuid())
+
+  postId String
+  post   SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  channel SocialChannel
+  status  SocialTargetStatus @default(PENDING)
+
+  /// Энэ сувагт зориулсан текст. `null` = `post.body` ашиглана.
+  caption String?
+
+  /// Нийтлэгдсэн постын ID (fb_post_id / ig_media_id)
+  externalId String?
+
+  /// Алдааны шалтгаан — МОНГОЛООР (админ юу хийхээ мэдэх ёстой)
+  error String?
+
+  attempts    Int       @default(0)
+  publishedAt DateTime?
+
+  /**
+   * ⚠️⚠️ IDEMPOTENCY — retry үед ДАВХАР нийтлэхээс сэргийлнэ.
+   * Нийтлэх ажил эхлэхэд үүснэ. Сүлжээ тасарч хариу ирээгүй ч
+   * пост үүссэн байж болно — дараагийн оролдлогод энэ түлхүүрээр
+   * шалгаж давхардлыг барина.
+   */
+  idempotencyKey String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Нэг постод нэг суваг ЗӨВХӨН НЭГ УДАА
+  @@unique([postId, channel])
+  @@index([status])
+}
+
+/**
+ * ДАРААЛЛЫН SLOT (Buffer-ийн загвар).
+ * Долоо хоногийн тогтмол цагууд. Пост нэмэхэд «дараагийн сул slot»
+ * руу автоматаар орно — админ огноо сонгох шаардлагагүй.
+ */
+model SocialSlot {
+  id String @id @default(cuid())
+
+  channel SocialChannel
+  /// 0 = Ням … 6 = Бямба (JS `getDay()`-тэй ижил)
+  weekday Int
+  /// "19:00" — Улаанбаатарын цагаар
+  time    String
+
+  createdAt DateTime @default(now())
+
+  @@unique([channel, weekday, time])
+  @@index([channel])
 }
 
 // ─── RE-ENGAGEMENT / АМЬДРАЛЫН МӨЧЛӨГИЙН ИМЭЙЛ ───────────────────────────────
