@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { StorageUsageCard } from '@/components/storage-usage-card';
 import { ContentHealthCard } from '@/components/content-health-card';
+import { ServerInsightCard } from '@/components/server-insight-card';
 import {
   ArrowRight,
   Clock,
@@ -155,6 +156,21 @@ export default function DashboardPage() {
             байдлыг админ хамгийн түрүүнд хардаг байх ёстой.
             Асуудалгүй үед нимгэн ногоон мөр л харагдана. */}
         <ContentHealthCard />
+
+        {/*
+          ⚠️⚠️ СЕРВЕРИЙН LIVE ТӨЛӨВ — контентын эрүүл байдлын ДАРАА,
+          бизнесийн тооноос ӨМНӨ.
+
+          Яагаад ийм өндөрт вэ: сервер унасан/диск дүүрсэн бол доорх
+          бүх орлого, үзэлтийн тоо УТГАГҮЙ болно. Мөн админ «яагаад
+          сайт удаашрав», «дахин видео оруулж болох уу» гэдгийг
+          SSH-гүйгээр шууд мэдэх ёстой (HLS хөрвүүлэлт 4 цөмийг
+          бүрэн эзэлдэг, диск дүүрэхэд кино дунд замдаа УНАДАГ).
+
+          ⚠️ Хугацааны мужаас ХАМААРАХГҮЙ (одоогийн бодит төлөв) тул
+          `range`-ийн доторх графикуудаас ГАДНА байрлана.
+        */}
+        <ServerInsightCard />
 
         {isLoading || !data ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
