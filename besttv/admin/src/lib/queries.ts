@@ -304,6 +304,11 @@ export interface AdminUser {
   emailVerified: boolean;
   createdAt: string;
   walletBalance: number;
+  /**
+   * Профайл зураг — backend presigned URL болгож өгнө (`avatarKey` БИШ).
+   * ⚠️ ХУГАЦААТАЙ (2 цаг) тул `UserAvatar` нь `onError`-оор үсэг рүү буулгана.
+   */
+  avatarUrl?: string | null;
   activeSubscription: { planName: string; expiresAt: string } | null;
 }
 

@@ -18,6 +18,7 @@ import {
   TabsTrigger,
 } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
+import { UserAvatar } from '@/components/user-avatar';
 import { UserInsightTab } from '@/components/user-insight-tab';
 import { UserHistoryTab } from '@/components/user-history-tab';
 import { useAdminUser, useAdminPlans, useAdminWalletTxs, type AdminUser, type AdminWalletTx } from '@/lib/queries';
@@ -157,9 +158,14 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
       <DialogContent className="flex max-h-[88dvh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-              {(user.name?.[0] ?? user.email[0]).toUpperCase()}
-            </span>
+            {/* ⚠️ `data` ирэхээс өмнө `user` (жагсаалтын мөр) — хоёулаа
+                `avatarUrl`-тай тул модал нээмэгц зураг харагдана */}
+            <UserAvatar
+              src={(data?.avatarUrl as string | null) ?? user.avatarUrl}
+              name={user.name}
+              email={user.email}
+              size={32}
+            />
             {user.name ?? user.email}
           </DialogTitle>
         </DialogHeader>

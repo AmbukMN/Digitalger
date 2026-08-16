@@ -26,6 +26,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { Role, Prisma, AuthProvider } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -78,7 +79,26 @@ class BulkDeleteDto {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    /**
+     * ⚠️ Аватар — `avatarKey` нь R2-ийн KEY, browser шууд ачаалж
+     * ЧАДАХГҮЙ. Хариунд presigned URL болгож өгнө.
+     */
+    private readonly storage: StorageService,
+  ) {}
+
+  /**
+   * Аватарын key → үзэгдэх URL.
+   *
+   * ⚠️ Алдаа шидэхгүй — аватар нь ЧИМЭЭГҮЙ доройтох ёстой. R2 унавал
+   * хэрэглэгчийн жагсаалт БҮХЭЛДЭЭ унах ёсгүй (нэрийн эхний үсэг рүү
+   * буулгана).
+   */
+  private async avatarUrl(key?: string | null): Promise<string | null> {
+    if (!key) return null;
+    return this.storage.publicAssetUrl(key, 7200).catch(() => null);
+  }
 
   /**
    * Хэрэглэгчийн шүүлт — НЭГ цэгээс (жагсаалт, тоолол, export ижил).
@@ -191,6 +211,8 @@ export class UsersService {
           emailVerified: true,
           walletBalance: true,
           createdAt: true,
+          /* ⚠️ Аватар — жагсаалтад нүүрээр таних (админы хүсэлт) */
+          avatarKey: true,
           subscriptions: {
             where: { expiresAt: { gt: new Date() } },
             orderBy: { expiresAt: 'desc' },
@@ -202,9 +224,18 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
+    /**
+     * ⚠️ Аватарын URL-ийг БАГЦААР presign — мөр бүрд await хийвэл
+     * 20 хэрэглэгчид 20 дараалсан дуудалт болж жагсаалт удаашрана.
+     */
+    const avatarUrls = await Promise.all(items.map((u) => this.avatarUrl(u.avatarKey)));
+
     return {
-      items: items.map((u) => ({
+      items: items.map((u, i) => ({
         ...u,
+        avatarUrl: avatarUrls[i],
+        /* ⚠️ Түлхүүрийг клиент рүү явуулахгүй — зөвхөн URL */
+        avatarKey: undefined,
         activeSubscription: u.subscriptions[0]
           ? { planName: u.subscriptions[0].plan.name, expiresAt: u.subscriptions[0].expiresAt }
           : null,
@@ -235,6 +266,8 @@ export class UsersService {
         isGuest: true,
         walletBalance: true,
         createdAt: true,
+        /* ⚠️ Аватар — админ хэнтэй харьцаж буйгаа нүүрээр таана */
+        avatarKey: true,
         /**
          * ⚠️⚠️ ТӨЛБӨРИЙН 3 ТӨРӨЛ — ЯЛГАХ ТАЛБАР ЗААВАЛ.
          *
@@ -570,6 +603,9 @@ export class UsersService {
 
     return {
       ...user,
+      /* ⚠️ Key биш URL — browser нь R2 key-г ачаалж чадахгүй */
+      avatarUrl: await this.avatarUrl(user.avatarKey),
+      avatarKey: undefined,
       auditLog,
       bankPayments,
       recentSearches,

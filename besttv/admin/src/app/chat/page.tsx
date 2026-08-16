@@ -26,6 +26,7 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { CardSkeleton } from '@/components/table-skeleton';
 import { Pagination } from '@/components/pagination';
+import { UserAvatar } from '@/components/user-avatar';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
@@ -96,55 +97,15 @@ function ChannelBadge({ channel, size = 'sm' }: { channel: string; size?: 'sm' |
 }
 
 /**
- * Ярианы аватар — FB/IG профайл зураг, эсвэл нэрийн эхний үсэг.
+ * ⚠️ Ярианы аватар нь `UserAvatar`-ыг ашиглана (тусдаа хуулбар БАЙХГҮЙ).
  *
- * ⚠️⚠️ ЯАГААД ЗУРАГ ХЭРЭГТЭЙ ВЭ: админ өдөрт олон яриа хардаг.
- * Бүгд ижил саарал дугуйнд «М», «Б» гэсэн үсэгтэй бол хэн хэн болох
- * нь ялгагдахгүй — Messenger-т нүүр зурагтай харагддагтай зөрчилдөнө.
+ * Өмнө нь энд `ChatAvatar` гэсэн БАРАГ ИЖИЛ компонент байсан — `onError`
+ * fallback, `no-referrer`, хэмжээ бүгд давхардсан. Нэгийг нь зассан
+ * алдаа нөгөөд үлдэх эрсдэлтэй.
  *
- * ⚠️ FB-ийн `profile_pic` URL нь ХУГАЦААТАЙ (signed). Үхсэн үед
- * `onError` нь эхний үсэг рүү зөөлөн буулгана — хугарсан зургийн
- * дүрс харуулахгүй.
+ * ⚠️ Backend нь `userImage`-д FB/IG зураг ЭСВЭЛ манай сайтын аватарын
+ * presigned URL-ийг хийж өгдөг (FB/IG давуу — сувгийн бодит нүүр).
  */
-function ChatAvatar({
-  src,
-  name,
-  size = 28,
-}: {
-  src?: string | null;
-  name: string;
-  size?: number;
-}) {
-  const [failed, setFailed] = useState(false);
-  const letter = name[0]?.toUpperCase() ?? '?';
-  const cls = 'shrink-0 rounded-full object-cover';
-
-  if (!src || failed) {
-    return (
-      <span
-        style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
-        className="flex shrink-0 items-center justify-center rounded-full bg-accent font-bold text-foreground"
-      >
-        {letter}
-      </span>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={name}
-      width={size}
-      height={size}
-      loading="lazy"
-      /* ⚠️ FB CDN нь Referer шалгадаг — no-referrer байхгүй бол 403 */
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-      style={{ width: size, height: size }}
-      className={cls}
-    />
-  );
-}
 
 interface ConvListItem {
   id: string;
@@ -468,7 +429,7 @@ export default function ChatPage() {
                       className="min-w-0 flex-1 text-left"
                     >
                     <div className="flex items-center gap-2">
-                      <ChatAvatar src={c.userImage} name={name} size={28} />
+                      <UserAvatar src={c.userImage} name={name} size={28} />
                       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
                         {name}
                       </p>
@@ -557,9 +518,10 @@ export default function ChatPage() {
                 >
                   <ArrowLeft size={18} />
                 </button>
-                <ChatAvatar
+                <UserAvatar
                   src={detail.userImage}
-                  name={detail.user?.name ?? detail.userName ?? detail.user?.email ?? 'Зочин'}
+                  name={detail.user?.name ?? detail.userName}
+                  email={detail.user?.email ?? detail.userEmail}
                   size={36}
                 />
                 <div className="min-w-0 flex-1">
@@ -654,7 +616,7 @@ export default function ChatPage() {
                           нэмбэл давхардаж, чат бөглүү харагдана */}
                       {isUser && (
                         <div className="mt-5 shrink-0">
-                          <ChatAvatar
+                          <UserAvatar
                             src={detail.userImage}
                             name={detail.user?.name ?? detail.userName ?? 'Зочин'}
                             size={26}

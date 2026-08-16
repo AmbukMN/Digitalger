@@ -8,6 +8,7 @@ import { Loader2, ShieldCheck, UserCheck, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDate, formatPrice } from '@besttv/shared';
 import { AdminShell } from '@/components/admin-shell';
+import { UserAvatar } from '@/components/user-avatar';
 import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
@@ -249,9 +250,9 @@ export default function UsersPage() {
                       onClick={() => setDetailTarget(u)}
                       className="flex items-center gap-3 text-left"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-                        {(u.name?.[0] ?? u.email[0]).toUpperCase()}
-                      </span>
+                      {/* ⚠️ Аватар зурагтай бол зураг — нүүрээр таних
+                          нь имэйл уншихаас хамаагүй хурдан (админы хүсэлт) */}
+                      <UserAvatar src={u.avatarUrl} name={u.name} email={u.email} size={32} />
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 truncate font-medium text-foreground hover:text-primary">
                           {u.name ?? '—'}

@@ -412,9 +412,35 @@ export class ChatService {
     const channelCounts: Record<string, number> = {};
     for (const row of byChannel) channelCounts[row.channel] = row._count._all;
 
+    /**
+     * ⚠️⚠️ БҮРТГЭЛТЭЙ ХЭРЭГЛЭГЧИЙН АВАТАР — `avatarKey` нь R2-ийн KEY,
+     * browser шууд ачаалж ЧАДАХГҮЙ. Өмнө нь татагддаг байсан ч URL
+     * болгодоггүй, UI-д ч ашиглагддаггүй байв — зөвхөн FB/IG-ийн
+     * `userImage` харагддаг тул манай сайтаар бүртгүүлсэн хүн үргэлж
+     * нэрийн эхний үсгээр л харагддаг байсан (админы хүсэлт).
+     *
+     * ⚠️ Багцаар presign — мөр бүрд await хийвэл 30 ярианд 30
+     * дараалсан дуудалт болно.
+     */
+    const avatarUrls = await Promise.all(
+      items.map((c) =>
+        c.user?.avatarKey
+          ? this.storage.publicAssetUrl(c.user.avatarKey, 7200).catch(() => null)
+          : Promise.resolve(null),
+      ),
+    );
+    const withAvatars = items.map((c, i) => ({
+      ...c,
+      /**
+       * ⚠️ ЭРЭМБЭ: FB/IG-ийн профайл зураг ДАВУУ — тэр нь тухайн
+       * сувгийн бодит нүүр. Байхгүй бол манай сайтын аватар.
+       */
+      userImage: c.userImage ?? avatarUrls[i],
+    }));
+
     /* ⚠️ `totalPages` — админы `<Pagination>` энэ талбарыг шаардана */
     return {
-      items,
+      items: withAvatars,
       total,
       unreadTotal,
       channelCounts,
@@ -477,7 +503,18 @@ export class ChatService {
           .catch(() => [])
       : [];
 
-    return { ...conv, messages, subscriptions: subs };
+    /**
+     * ⚠️ Ярианы ТОЛГОЙД ч аватар — админ хэнтэй ярьж буйгаа нүүрээр
+     * таана. FB/IG профайл зураг ДАВУУ (сувгийн бодит нүүр), байхгүй
+     * бол манай сайтын аватар.
+     */
+    const userImage =
+      conv.userImage ??
+      (conv.user?.avatarKey
+        ? await this.storage.publicAssetUrl(conv.user.avatarKey, 7200).catch(() => null)
+        : null);
+
+    return { ...conv, userImage, messages, subscriptions: subs };
   }
 
   /** Админ гар аргаар хариулах */
