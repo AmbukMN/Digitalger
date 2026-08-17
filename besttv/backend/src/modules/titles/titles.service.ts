@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, TitleType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { expandQuery } from '../../common/transliterate';
@@ -83,6 +83,8 @@ const CARD_SELECT = {
 
 @Injectable()
 export class TitlesService {
+  private readonly logger = new Logger(TitlesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly media: TitleMediaHelper,
@@ -670,7 +672,100 @@ export class TitlesService {
       .slice(0, limit)
       .map((s) => s.t);
 
-    return this.media.decorateMany(relevant);
+    /**
+     * ⚠️⚠️ FUZZY FALLBACK — ЗӨВХӨН юу ч олдоогүй үед.
+     *
+     * ЯАГААД: `contains` нь ЯГ таарсан дэд мөрийг л олдог тул хүний
+     * энгийн алдааг таньдаггүй:
+     *   • «үлтаних»  — зай орхисон
+     *   • «танихох»  — үсэг дутуу
+     *   • «дангин»   — нөхцөл дутуу
+     * Хэрэглэгч «олдсонгүй» гээд явчихна, гэтэл кино байсаар.
+     *
+     * ⚠️ ЗӨВХӨН fallback — яг таарал байвал fuzzy ажиллуулахгүй.
+     * Эс бөгөөс ойролцоо кино зөв үр дүнг бохирдуулна.
+     */
+    if (relevant.length) return this.media.decorateMany(relevant);
+    return this.fuzzySearch(parsed.raw.join(' '), limit, type);
+  }
+
+  /**
+   * TRIGRAM ойролцоо хайлт (pg_trgm) — алдаатай бичилтэд.
+   *
+   * ⚠️ `similarity()` нь 0..1 — 0.3 нь практикт «ойролцоо» гэж
+   * тооцогдох босго (PostgreSQL-ийн анхдагч). Түүнээс доош болговол
+   * огт хамааралгүй кино гарч эхэлнэ.
+   *
+   * ⚠️ Кирилл + Латин ХОЁУЛАНГ шалгана — хэрэглэгч аль ч хэлбэрээр
+   * алдаатай бичиж болно.
+   */
+  private async fuzzySearch(raw: string, limit: number, type?: 'MOVIE' | 'SERIES') {
+    const q = raw.trim();
+    /* ⚠️ 3 үсгээс богино мөрөнд trigram утгагүй — бүх зүйл таарна */
+    if (q.length < 3) return [];
+
+    /* Галиг хувилбарууд — «ul tanih» ↔ «үл таних» */
+    const variants = [...new Set([q, ...expandQuery(q)])].filter((v) => v.length >= 3);
+
+    try {
+      const rows = await this.prisma.$queryRaw<{ id: string; sim: number }[]>`
+        SELECT t.id,
+               GREATEST(
+                 similarity(lower(t.title), lower(${q})),
+                 similarity(lower(COALESCE(t."titleEn", '')), lower(${q})),
+                 similarity(replace(lower(t.slug), '-', ' '), lower(${q}))
+               ) AS sim
+        FROM "Title" t
+        WHERE t."isActive" = true
+          AND (${type}::text IS NULL OR t.type::text = ${type}::text)
+          AND (
+            lower(t.title) % lower(${q})
+            OR lower(COALESCE(t."titleEn", '')) % lower(${q})
+            OR replace(lower(t.slug), '-', ' ') % lower(${q})
+          )
+        ORDER BY sim DESC
+        LIMIT ${Math.min(20, limit)}
+      `;
+
+      /**
+       * ⚠️ Галиг хувилбараар ч оролдоно — «ul tanih ohin» гэж алдаатай
+       * бичихэд кирилл гарчигтай харьцуулбал similarity бага гарна.
+       */
+      const ids = new Set(rows.map((r) => r.id));
+      if (!ids.size && variants.length > 1) {
+        for (const v of variants.slice(1, 4)) {
+          const alt = await this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT t.id FROM "Title" t
+            WHERE t."isActive" = true
+              AND (${type}::text IS NULL OR t.type::text = ${type}::text)
+              AND (
+                replace(lower(t.slug), '-', ' ') % lower(${v})
+                OR lower(COALESCE(t."titleEn", '')) % lower(${v})
+              )
+            LIMIT ${Math.min(10, limit)}
+          `;
+          for (const r of alt) ids.add(r.id);
+          if (ids.size) break;
+        }
+      }
+      if (!ids.size) return [];
+
+      const found = await this.prisma.title.findMany({
+        where: { id: { in: [...ids] } },
+        select: { ...CARD_SELECT, description: true },
+      });
+      /* ⚠️ similarity-ийн эрэмбийг хадгална — Prisma нь `in`-ий
+         дарааллыг баталгаажуулдаггүй */
+      const order = new Map(rows.map((r, i) => [r.id, i]));
+      found.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+
+      this.logger.log(`Fuzzy хайлт «${q}» → ${found.length} үр дүн`);
+      return this.media.decorateMany(found);
+    } catch (e) {
+      /* ⚠️ pg_trgm суугаагүй бол ХООСОН буцаана — хайлт УНАХГҮЙ */
+      this.logger.warn(`Fuzzy хайлт боломжгүй: ${String(e).slice(0, 120)}`);
+      return [];
+    }
   }
 
   // ─── 18+ хуудас (нас баталгаажуулсны дараа) ────────────────────────────────
