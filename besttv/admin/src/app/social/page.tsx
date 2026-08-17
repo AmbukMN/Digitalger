@@ -15,6 +15,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Repeat2,
   Send,
   Settings2,
   Trash2,
@@ -30,6 +31,7 @@ import { TableEmptyState } from '@/components/table-empty-state';
 import { api } from '@/lib/api';
 import { SocialComposer } from '@/components/social/composer';
 import { SocialSlots } from '@/components/social/slots';
+import { RepostDialog } from '@/components/social/repost-dialog';
 import type { SocialPost, ChannelInfo } from '@/components/social/types';
 import { CHANNEL_META, STATUS_META } from '@/components/social/types';
 
@@ -53,6 +55,8 @@ export default function SocialPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<SocialPost | null>(null);
   const [slotsOpen, setSlotsOpen] = useState(false);
+  /** ⚠️ Дахин нийтлэх диалог — нэг постыг ОЛОН цагт товлоно */
+  const [reposting, setReposting] = useState<SocialPost | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
@@ -122,7 +126,11 @@ export default function SocialPage() {
   const duplicate = async (p: SocialPost) => {
     setBusy(p.id);
     try {
-      await api(`/admin/social/posts/${p.id}/duplicate`, { method: 'POST' });
+      /* ⚠️ Хоосон body илгээнэ — DTO нь `undefined` биш объект хүлээнэ */
+      await api(`/admin/social/posts/${p.id}/duplicate`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
       toast.success('Хуулбар ноорог болж үүслээ');
       setTab('DRAFT');
       reload();
@@ -303,6 +311,7 @@ export default function SocialPage() {
                 onPublishNow={() => publishNow(p)}
                 onRetry={() => retry(p)}
                 onDuplicate={() => duplicate(p)}
+                onRepost={() => setReposting(p)}
                 onRemove={() => remove(p)}
               />
             ))}
@@ -326,6 +335,20 @@ export default function SocialPage() {
       )}
 
       {slotsOpen && <SocialSlots onClose={() => setSlotsOpen(false)} onSaved={reload} />}
+
+      {reposting && (
+        <RepostDialog
+          post={reposting}
+          onClose={() => setReposting(null)}
+          onDone={() => {
+            /* ⚠️ Шинэ хуулбарууд ТОВЛОСОН таб руу орно — админыг
+               тэр таб руу аваачихгүй бол «юу ч болсонгүй» гэж
+               андуурна */
+            setTab('SCHEDULED');
+            reload();
+          }}
+        />
+      )}
     </AdminShell>
   );
 }
@@ -339,6 +362,7 @@ function PostRow({
   onPublishNow,
   onRetry,
   onDuplicate,
+  onRepost,
   onRemove,
 }: {
   post: SocialPost;
@@ -347,6 +371,7 @@ function PostRow({
   onPublishNow: () => void;
   onRetry: () => void;
   onDuplicate: () => void;
+  onRepost: () => void;
   onRemove: () => void;
 }) {
   const st = STATUS_META[post.status] ?? STATUS_META.DRAFT;
@@ -459,10 +484,22 @@ function PostRow({
               <Send size={14} />
             </button>
           )}
+          {/* ⚠️ ДАХИН НИЙТЛЭХ — нэг постыг ОЛОН цагт товлоно.
+              Зөвхөн суваг тодорхойлсон постод утгатай. */}
+          {post.targets.length > 0 && (
+            <button
+              onClick={onRepost}
+              disabled={busy}
+              title="Дахин нийтлэх — олон цагт товлох"
+              className="rounded-md p-1.5 text-primary hover:bg-primary/10 disabled:opacity-50"
+            >
+              <Repeat2 size={14} />
+            </button>
+          )}
           <button
             onClick={onDuplicate}
             disabled={busy}
-            title="Хуулж дахин товлох"
+            title="Ноорог болгож хуулах"
             className="rounded-md p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50"
           >
             <Copy size={14} />

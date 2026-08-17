@@ -222,9 +222,11 @@ export class SocialSchedulerService implements OnModuleDestroy {
 
       let copyId: string | null = null;
       try {
-        const copy = await this.social.duplicate(post.id);
+        /* ⚠️ `at: null` = хуулбарыг ШУУД дараагийн сул slot руу товлоно
+           (хуулах + товлохыг НЭГ гүйлгээ шиг — дундуур унавал
+           `duplicate` өөрөө хуулбарыг устгана) */
+        const { post: copy } = await this.social.duplicate(post.id, null);
         copyId = copy.id;
-        await this.social.schedule({ postId: copy.id, at: null });
 
         await this.prisma.socialPost.update({
           where: { id: post.id },

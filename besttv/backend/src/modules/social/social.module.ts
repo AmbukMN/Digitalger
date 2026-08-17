@@ -80,6 +80,46 @@ class UpsertPostDto {
   } | null;
 }
 
+/**
+ * ДАХИН НИЙТЛЭХ (repost) — хуулбарыг шууд товлох эсэх.
+ *
+ * ⚠️ `schedule` талбар БАЙХГҮЙ бол зөвхөн ноорог үүснэ (хуучин зан
+ * төлөв хадгалагдана — өмнөх «Хуулах» товч эвдэрхгүй).
+ */
+class DuplicateDto {
+  /** `true` = товлоно, `false`/байхгүй = зөвхөн ноорог */
+  @IsOptional()
+  @IsBoolean()
+  schedule?: boolean;
+
+  /** ISO огноо. Байхгүй үед ДАРААГИЙН СУЛ SLOT руу орно. */
+  @IsOptional()
+  @IsISO8601()
+  at?: string;
+}
+
+/**
+ * ОЛОН ЦАГТ ДАХИН НИЙТЛЭХ.
+ *
+ * ⚠️ `at` (тодорхой огноонууд) ЭСВЭЛ `count` (хэдэн удаа дараагийн
+ * сул slot руу) — аль нэгийг нь заана.
+ */
+class RepostManyDto {
+  @IsOptional()
+  @IsArray()
+  @IsISO8601({}, { each: true })
+  /* ⚠️ Дээд тал нь 20 — санамсаргүй олон хуулбараас хамгаална */
+  @ArrayMaxSize(20)
+  at?: string[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  count?: number;
+}
+
 class ScheduleDto {
   /**
    * ISO огноо. Байхгүй бол ДАРААГИЙН СУЛ SLOT (Buffer-ийн
@@ -252,10 +292,33 @@ export class SocialController {
     return { retried: n };
   }
 
-  /** Нийтэлсэн постыг шинэ draft болгож хуулах */
+  /**
+   * ДАХИН НИЙТЛЭХ — нийтэлсэн постыг хуулна.
+   *
+   * ⚠️ `{schedule:true}` бол хуулбарыг ШУУД товлоно (`at` байхгүй
+   * бол дараагийн сул slot руу). Эс бөгөөс зөвхөн ноорог үүснэ.
+   */
   @Post('posts/:id/duplicate')
-  duplicate(@Param('id') id: string) {
-    return this.svc.duplicate(id);
+  duplicate(@Param('id') id: string, @Body() dto?: DuplicateDto) {
+    /* ⚠️ Body огт ирээгүй ч унахгүй — хуучин «Хуулах» товч
+       body-гүй дууддаг байсан */
+    const d = dto ?? {};
+    if (!d.schedule && !d.at) return this.svc.duplicate(id);
+    return this.svc.duplicate(id, d.at ? new Date(d.at) : null);
+  }
+
+  /**
+   * ⚠️ ОЛОН ЦАГТ ДАХИН НИЙТЛЭХ — товлолт бүрд бие даасан хуулбар.
+   *
+   * `{at:["2026-09-01T11:00:00Z", ...]}` эсвэл `{count:3}`.
+   */
+  @Post('posts/:id/repost')
+  repostMany(@Param('id') id: string, @Body() dto: RepostManyDto) {
+    return this.svc.repostMany({
+      postId: id,
+      at: dto.at?.map((s) => new Date(s)),
+      count: dto.count,
+    });
   }
 
   /** Зохиох үед шалгах — товлохоос ӨМНӨ алдааг барина */

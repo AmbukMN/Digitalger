@@ -255,16 +255,28 @@ export class SocialService {
   }
 
   /**
-   * ДАХИН ТОВЛОХ — нийтэлсэн постыг шинэ draft болгож хуулна.
+   * ДАХИН НИЙТЛЭХ (repost) — нийтэлсэн постыг ШИНЭ пост болгож хуулна.
    *
    * ⚠️ Анхны постыг ХӨНДӨХГҮЙ — түүх, аналитик хадгалагдана.
+   *
+   * ⚠️⚠️ ХУУЛБАР нь ЦЭВЭР ЭХЭЛНЭ: `externalId`, `error`, `attempts`,
+   * `igContainerId`, `idempotencyKey` зэргийг ХУУЛАХГҮЙ. Эдгээрийг
+   * хуулбал Meta-гийн хуучин пост руу заасан хог үлдэж, «аль хэдийн
+   * нийтлэгдсэн» гэж андуурч алгасах эрсдэлтэй.
+   *
+   * @param at  `undefined` = зөвхөн ноорог үүсгэнэ (хуучин зан төлөв)
+   *            `null`      = ДАРААГИЙН СУЛ SLOT руу товлоно
+   *            `Date`      = ТОДОРХОЙ цагт товлоно
    */
-  async duplicate(postId: string) {
+  async duplicate(postId: string, at?: Date | null) {
     const src = await this.prisma.socialPost.findUnique({
       where: { id: postId },
       include: { targets: true },
     });
     if (!src) throw new NotFoundException('Пост олдсонгүй');
+    if (!src.targets.length) {
+      throw new BadRequestException('Суваггүй постыг дахин нийтлэх боломжгүй');
+    }
 
     const copy = await this.prisma.socialPost.create({
       data: {
@@ -276,11 +288,109 @@ export class SocialService {
     });
 
     for (const t of src.targets) {
+      /* ⚠️ ЗӨВХӨН агуулга — төлөвийн талбарууд анхны утгаараа */
       await this.prisma.socialPostTarget.create({
         data: { postId: copy.id, channel: t.channel, caption: t.caption },
       });
     }
-    return copy;
+
+    /* Зөвхөн ноорог хүсвэл энд дуусна */
+    if (at === undefined) return { post: copy, scheduled: null };
+
+    /**
+     * ⚠️ Товлолт УНАВАЛ хуулбарыг УСТГАНА. Эс бөгөөс админд «дахин
+     * товлолоо» гэж хэлээд бодит байдалд товлогдоогүй ноорог үлдэнэ.
+     */
+    try {
+      const scheduled = await this.schedule({ postId: copy.id, at });
+      /* ⚠️ `post` нь ҮРГЭЛЖ хуулбарын мөр — дуудагч тал `id`-г
+         найдвартай авна (schedule нь өөр бүтэц буцаадаг) */
+      return { post: copy, scheduled };
+    } catch (e) {
+      await this.prisma.socialPost.delete({ where: { id: copy.id } }).catch(() => null);
+      throw e;
+    }
+  }
+
+  /**
+   * ⚠️⚠️ ОЛОН ЦАГТ ДАХИН НИЙТЛЭХ (bulk repost).
+   *
+   * ЯАГААД ХУУЛБАР ҮҮСГЭДЭГ ВЭ: нэг `SocialPost` нь НЭГ `scheduledAt`-
+   * тай. Нэг мөрийг олон цагт товлох боломжгүй — товлолт бүр өөрийн
+   * төлөв (нийтлэгдсэн/унасан), Meta-гийн ID, алдааны мессежтэй байх
+   * ЁСТОЙ. Тиймээс товлолт бүрд бие даасан хуулбар үүсгэнэ (Buffer,
+   * Publer, Hootsuite бүгд ийм загвартай).
+   *
+   * ⚠️ ХЭСЭГЧИЛСЭН АМЖИЛТ: нэг огноо унавал бусдыг ЗОГСООХГҮЙ.
+   * Админд аль нь болж, аль нь болоогүйг ТОДОРХОЙ хэлнэ.
+   *
+   * @param at  Тодорхой огноонууд. Хоосон бол `count` ширхэг
+   *            дараагийн сул slot руу дараалуулна.
+   */
+  async repostMany(params: {
+    postId: string;
+    at?: Date[];
+    count?: number;
+  }): Promise<{
+    created: { id: string; at: Date | null }[];
+    failed: { at: string | null; why: string }[];
+  }> {
+    const { postId, at = [], count = 0 } = params;
+
+    if (!at.length && count <= 0) {
+      throw new BadRequestException('Огноо эсвэл тоо заана уу');
+    }
+    /* ⚠️ Дээд хязгаар — санамсаргүй 500 хуулбараас хамгаална */
+    if (at.length > 20 || count > 20) {
+      throw new BadRequestException('Нэг удаад дээд тал нь 20 товлолт');
+    }
+
+    /* ⚠️ ӨНГӨРСӨН огноог урьдчилан таслана — cron нь шууд илгээх
+       гэж оролдоод FB-гийн «10 мин – 30 хоног» алдаанд унана */
+    const now = Date.now();
+    const past = at.filter((d) => d.getTime() <= now);
+    if (past.length) {
+      throw new BadRequestException(
+        `${past.length} огноо өнгөрсөн байна — ирээдүйн цаг сонгоно уу`,
+      );
+    }
+
+    /* ⚠️ Ижил огноог хоёр удаа өгвөл нэгийг нь хаяна — эс бөгөөс
+       нэг цагт хоёр ижил пост явна */
+    const uniq = [...new Map(at.map((d) => [Math.floor(d.getTime() / 60_000), d])).values()].sort(
+      (a, b) => a.getTime() - b.getTime(),
+    );
+
+    const created: { id: string; at: Date | null }[] = [];
+    const failed: { at: string | null; why: string }[] = [];
+
+    /**
+     * ⚠️⚠️ ДАРААЛАН (зэрэг БИШ) — `nextFreeSlot` нь одоо эзлэгдсэн
+     * цагуудыг DB-ээс уншдаг. Зэрэг ажиллуулбал хоёр хуулбар ИЖИЛ
+     * сул slot-ыг олж давхцана.
+     */
+    const targets: (Date | null)[] = uniq.length ? uniq : Array.from({ length: count }, () => null);
+
+    for (const when of targets) {
+      try {
+        const { post } = await this.duplicate(postId, when);
+        const row = await this.prisma.socialPost.findUnique({
+          where: { id: post.id },
+          select: { scheduledAt: true },
+        });
+        created.push({ id: post.id, at: row?.scheduledAt ?? null });
+      } catch (e) {
+        failed.push({
+          at: when ? when.toISOString() : null,
+          why: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    this.logger.log(
+      `Дахин товлолт: ${postId} → ${created.length} үүсэв, ${failed.length} унав`,
+    );
+    return { created, failed };
   }
 
   // ─── Хуваарь (slot) ─────────────────────────────────────────────────────
