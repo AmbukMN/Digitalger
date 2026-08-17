@@ -163,3 +163,52 @@ export function reassignSlots(
   });
   return out;
 }
+
+/**
+ * ДАРААГИЙН ТОДОРХОЙ ГАРАГ + ЦАГ (УБ).
+ *
+ * ⚠️⚠️ «Мягмар гараг бүр өглөө 07:00» гэх давталтад хэрэглэнэ.
+ * `upcomingSlots`-оос ЯЛГААТАЙ нь: тэр нь ДАРААЛЛЫН хуваарь
+ * (пост бүр ӨӨР slot авна), энэ нь НЭГ постын ДАВТАМЖ (үргэлж
+ * ижил гараг/цаг).
+ *
+ * @param weekday 0 = Ням … 6 = Бямба
+ * @param time    "07:00" — УЛААНБААТАРЫН цагаар
+ * @param from    Эндээс ХОЙШ (ихэвчлэн `now`)
+ * @param nth     1 = хамгийн ойрын, 2 = түүний дараагийнх …
+ */
+export function nextWeekdayTime(
+  weekday: number,
+  time: string,
+  from: Date = new Date(),
+  nth = 1,
+): Date | null {
+  if (weekday < 0 || weekday > 6) return null;
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+
+  const start = utcToUb(from);
+  let found = 0;
+
+  /* ⚠️ Дээд тал нь `nth` долоо хоног + 7 хоног — хязгааргүй давталтгүй */
+  for (let dayOffset = 0; dayOffset <= 7 * (nth + 1); dayOffset++) {
+    const probe = new Date(Date.UTC(start.year, start.month, start.day + dayOffset, 12, 0, 0));
+    if (probe.getUTCDay() !== weekday) continue;
+
+    const at = ubToUtc(
+      probe.getUTCFullYear(),
+      probe.getUTCMonth(),
+      probe.getUTCDate(),
+      hh,
+      mm,
+    );
+    /* ⚠️ ӨНГӨРСӨН цагийг алгасна — өнөөдрийн 07:00 нь 09:00 цагт утгагүй */
+    if (at.getTime() <= from.getTime()) continue;
+
+    found++;
+    if (found >= nth) return at;
+  }
+  return null;
+}

@@ -78,7 +78,14 @@ export class SocialService {
     channels: SocialChannel[];
     captions?: Partial<Record<SocialChannel, string>>;
     titleId?: string | null;
-    recycle?: { gap?: number; freq?: string; expireCount?: number; done?: number } | null;
+    recycle?: {
+      gap?: number;
+      freq?: string;
+      expireCount?: number;
+      done?: number;
+      weekday?: number;
+      time?: string;
+    } | null;
     createdById?: string;
   }) {
     const { body, mediaKeys, channels, captions = {}, titleId, recycle, createdById } = params;

@@ -77,6 +77,12 @@ class UpsertPostDto {
     freq?: 'DAY' | 'WEEK' | 'MONTH';
     expireCount?: number;
     done?: number;
+    /**
+     * ⚠️ ТОГТМОЛ ГАРАГ+ЦАГ — «Мягмар бүр 07:00» (УБ цагаар).
+     * Заасан бол давталт дараалалд БИШ, яг энэ цагт орно.
+     */
+    weekday?: number;
+    time?: string;
   } | null;
 }
 

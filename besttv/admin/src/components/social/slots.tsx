@@ -8,6 +8,7 @@ import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
 import { CHANNEL_META, WEEKDAYS, type Channel, type Slot } from './types';
+import { UB_LABEL, browserOffsetDiffersFromUb } from './ub-time';
 
 /**
  * ДАРААЛЛЫН ХУВААРЬ (Buffer-ийн posting schedule).
@@ -128,8 +129,18 @@ export function SocialSlots({ onClose, onSaved }: { onClose: () => void; onSaved
             <>
               {/* Цаг нэмэх */}
               <div className="rounded-lg border border-border p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Цаг нэмэх
+                </p>
+                {/* ⚠️⚠️ Цагийн бүсийг ИЛ — «Мя 07:00» гэдэг нь МОНГОЛЫН
+                    07:00. Админ хаанаас нэвтэрсэн ч ижил үр дүн. */}
+                <p className="mb-2 text-[11px] text-muted-foreground">
+                  Бүх цаг {UB_LABEL}-ийн цагаар
+                  {browserOffsetDiffersFromUb() && (
+                    <span className="ml-1 font-medium text-warning">
+                      · таны төхөөрөмжийн цагаас өөр
+                    </span>
+                  )}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <input

@@ -26,7 +26,15 @@ export interface SocialPost {
   scheduleKind: 'NEXT_AVAILABLE' | 'CUSTOM';
   titleId: string | null;
   title?: { id: string; title: string; slug: string } | null;
-  recycle?: { gap?: number; freq?: string; expireCount?: number; done?: number } | null;
+  recycle?: {
+    gap?: number;
+    freq?: string;
+    expireCount?: number;
+    done?: number;
+    /** ⚠️ Тогтмол гараг+цаг — «Мягмар бүр 07:00» (УБ) */
+    weekday?: number;
+    time?: string;
+  } | null;
   targets: SocialTarget[];
   createdAt: string;
 }

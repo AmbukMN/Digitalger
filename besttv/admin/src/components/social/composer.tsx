@@ -16,6 +16,12 @@ import {
   type SocialPost,
   type ValidationIssue,
 } from './types';
+import {
+  UB_LABEL,
+  browserOffsetDiffersFromUb,
+  ubInputToUtc,
+  utcToUbInput,
+} from './ub-time';
 
 /**
  * НИЙТЛЭЛ ЗОХИОХ (Buffer-ийн composer загвар).
@@ -77,14 +83,22 @@ export function SocialComposer({
   const [recycleGap, setRecycleGap] = useState(String(post?.recycle?.gap ?? 2));
   const [recycleFreq, setRecycleFreq] = useState(post?.recycle?.freq ?? 'WEEK');
   const [recycleCount, setRecycleCount] = useState(String(post?.recycle?.expireCount ?? 5));
+  /**
+   * ⚠️⚠️ ТОГТМОЛ ГАРАГ+ЦАГ — «Мягмар бүр өглөө 07:00».
+   * Заавал биш: хоосон бол давталт нь ДАРААЛЛЫН сул цаг руу орно.
+   */
+  const [recycleFixed, setRecycleFixed] = useState(post?.recycle?.time != null);
+  const [recycleWeekday, setRecycleWeekday] = useState(String(post?.recycle?.weekday ?? 2));
+  const [recycleTime, setRecycleTime] = useState(post?.recycle?.time ?? '07:00');
 
-  const [customAt, setCustomAt] = useState(() => {
-    if (!post?.scheduledAt) return '';
-    /* ⚠️ `datetime-local` нь ОРОН НУТГИЙН цагийг ХҮЛЭЭНЭ (Z-гүй) */
-    const d = new Date(post.scheduledAt);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  });
+  /**
+   * ⚠️⚠️ УЛААНБААТАРЫН цагаар. `datetime-local` нь browser-ийн бүсээр
+   * ажилладаг тул `utcToUbInput` / `ubInputToUtc`-ээр л хөрвүүлнэ —
+   * эс бөгөөс гадаадаас нэвтэрсэн админд цаг чимээгүй зөрнө.
+   */
+  const [customAt, setCustomAt] = useState(() =>
+    post?.scheduledAt ? utcToUbInput(new Date(post.scheduledAt)) : '',
+  );
 
   /**
    * ⚠️ Валидацийг СЕРВЭРЭЭС — нэг эх сурвалж. Client талд давхардуулж
@@ -143,6 +157,11 @@ export function SocialComposer({
                 gap: Math.max(1, Number(recycleGap) || 2),
                 freq: recycleFreq,
                 expireCount: Math.max(1, Number(recycleCount) || 5),
+                /* ⚠️ Тогтмол цаг сонгосон үед л илгээнэ — эс бөгөөс
+                   дараалалд орох горим хэвээр */
+                ...(recycleFixed
+                  ? { weekday: Number(recycleWeekday), time: recycleTime }
+                  : {}),
                 /* ⚠️ `done` хадгалагдана — засварлахад тоолуур тэглэгдэхгүй */
                 done: post?.recycle?.done ?? 0,
               }
@@ -155,7 +174,7 @@ export function SocialComposer({
           method: 'POST',
           body: JSON.stringify(
             /* ⚠️ Огноогүй = дараагийн сул slot (Buffer «Next Available») */
-            when === 'custom' ? { at: new Date(customAt).toISOString() } : {},
+            when === 'custom' ? { at: ubInputToUtc(customAt).toISOString() } : {},
           ),
         });
         toast.success(when === 'queue' ? 'Дараалалд орлоо' : 'Товлогдлоо');
@@ -356,12 +375,23 @@ export function SocialComposer({
               ))}
             </div>
             {when === 'custom' && (
-              <input
-                type="datetime-local"
-                value={customAt}
-                onChange={(e) => setCustomAt(e.target.value)}
-                className="admin-input mt-2 w-full sm:w-64"
-              />
+              <div className="mt-2 space-y-1">
+                <input
+                  type="datetime-local"
+                  value={customAt}
+                  onChange={(e) => setCustomAt(e.target.value)}
+                  className="admin-input w-full sm:w-64"
+                />
+                {/* ⚠️ Цагийн бүсийг ИЛ — таамаглуулахгүй */}
+                <p className="text-[11px] text-muted-foreground">
+                  Цаг: {UB_LABEL}
+                  {browserOffsetDiffersFromUb() && (
+                    <span className="ml-1 font-medium text-warning">
+                      · таны төхөөрөмжийн цагаас өөр
+                    </span>
+                  )}
+                </p>
+              </div>
             )}
             {when === 'queue' && (
               <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -418,9 +448,52 @@ export function SocialComposer({
                   />
                   <span className="text-muted-foreground">удаа давтаад зогсоно</span>
                 </div>
+
+                {/* ⚠️⚠️ ТОГТМОЛ ГАРАГ+ЦАГ — «Мягмар бүр өглөө 07:00».
+                    Идэвхгүй үед давталт нь дарааллын сул цаг руу орно. */}
+                <label className="mt-2.5 flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={recycleFixed}
+                    onChange={(e) => setRecycleFixed(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-primary"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Тогтмол гараг, цагт нийтлэх
+                  </span>
+                </label>
+
+                {recycleFixed && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm">
+                    <select
+                      value={recycleWeekday}
+                      onChange={(e) => setRecycleWeekday(e.target.value)}
+                      className="admin-input w-32"
+                    >
+                      {['Ням', 'Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба'].map(
+                        (w, i) => (
+                          <option key={i} value={i}>
+                            {w} гараг
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    <input
+                      type="time"
+                      value={recycleTime}
+                      onChange={(e) => setRecycleTime(e.target.value)}
+                      className="admin-input w-28"
+                    />
+                    <span className="text-[11px] text-muted-foreground">{UB_LABEL}</span>
+                  </div>
+                )}
+
                 <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                  ⚠️ Давтах бүрд ХУУЛБАР үүсч дараагийн сул цагт орно — анхны
-                  пост хэвээр үлдэнэ (түүх, статистик алдагдахгүй).
+                  ⚠️ Давтах бүрд ХУУЛБАР үүснэ — анхны пост хэвээр үлдэнэ
+                  (түүх, статистик алдагдахгүй).{' '}
+                  {recycleFixed
+                    ? 'Хуулбар нь заасан гараг/цагт товлогдоно.'
+                    : 'Хуулбар нь дараагийн сул цагт орно.'}
                   {post?.recycle?.done ? ` Одоогоор ${post.recycle.done} удаа давтсан.` : ''}
                 </p>
               </>

@@ -6,6 +6,7 @@ import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SocialPublisherService } from './social-publisher.service';
 import { SocialService } from './social.service';
+import { nextWeekdayTime } from './social-slots';
 
 /**
  * ⚠️⚠️ ХУВААРИЙН CRON — минут тутам.
@@ -199,6 +200,13 @@ export class SocialSchedulerService implements OnModuleDestroy {
         done?: number;
         /** ⚠️ `updatedAt` найдваргүй тул ЭНЭ талбараар хэмжинэ */
         lastRecycledAt?: string;
+        /**
+         * ⚠️⚠️ ТОГТМОЛ ГАРАГ+ЦАГ — «Мягмар бүр 07:00».
+         * Заасан бол хуулбар нь ДАРААЛЛЫН slot руу БИШ, яг энэ
+         * гараг/цагт товлогдоно.
+         */
+        weekday?: number;
+        time?: string;
       } | null;
       if (!r?.gap || !r.freq) continue;
 
@@ -220,19 +228,38 @@ export class SocialSchedulerService implements OnModuleDestroy {
         : post.createdAt.getTime();
       if (Date.now() - lastAt < r.gap * ms) continue;
 
+      /**
+       * ⚠️⚠️ ХОЁР ГОРИМ:
+       *   • `weekday`+`time` заасан → ЯГ тэр гараг/цагт (УБ)
+       *   • эс бөгөөс           → дараагийн сул slot (дараалал)
+       *
+       * Эхнийх нь «Мягмар бүр өглөө 7 цагт» гэх тогтмол давталтад,
+       * хоёр дахь нь «хуваарь дүүргэх» хэрэглээнд.
+       */
+      let at: Date | null = null;
+      if (r.weekday != null && r.time) {
+        at = nextWeekdayTime(r.weekday, r.time);
+        if (!at) {
+          this.logger.warn(`Recycle: ${post.id} — гараг/цаг буруу (${r.weekday} ${r.time})`);
+          continue;
+        }
+      }
+
       let copyId: string | null = null;
       try {
-        /* ⚠️ `at: null` = хуулбарыг ШУУД дараагийн сул slot руу товлоно
-           (хуулах + товлохыг НЭГ гүйлгээ шиг — дундуур унавал
-           `duplicate` өөрөө хуулбарыг устгана) */
-        const { post: copy } = await this.social.duplicate(post.id, null);
+        /* ⚠️ `at` = null бол дараагийн сул slot руу. Хуулах + товлохыг
+           НЭГ гүйлгээ шиг — дундуур унавал `duplicate` өөрөө устгана */
+        const { post: copy } = await this.social.duplicate(post.id, at);
         copyId = copy.id;
 
         await this.prisma.socialPost.update({
           where: { id: post.id },
           data: { recycle: { ...r, done: done + 1, lastRecycledAt: new Date().toISOString() } },
         });
-        this.logger.log(`Recycle: ${post.id} → ${copy.id} (${done + 1} дэх удаа)`);
+        this.logger.log(
+          `Recycle: ${post.id} → ${copy.id} (${done + 1} дэх удаа` +
+            `${at ? `, ${at.toISOString()}` : ', дараалал'})`,
+        );
       } catch (e) {
         /**
          * ⚠️ Товлож чадаагүй бол ХУУЛБАРЫГ УСТГАНА — эс бөгөөс

@@ -22,7 +22,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDateTime } from '@besttv/shared';
+import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -32,6 +32,9 @@ import { api } from '@/lib/api';
 import { SocialComposer } from '@/components/social/composer';
 import { SocialSlots } from '@/components/social/slots';
 import { RepostDialog } from '@/components/social/repost-dialog';
+/* ⚠️ Товлолтын цагийг УБ-аар (shared-ийн ерөнхий форматтер нь
+   browser-ийн цагийн бүс ашигладаг тул энд тохирохгүй) */
+import { formatUb } from '@/components/social/ub-time';
 import type { SocialPost, ChannelInfo } from '@/components/social/types';
 import { CHANNEL_META, STATUS_META } from '@/components/social/types';
 
@@ -434,7 +437,7 @@ function PostRow({
             {post.scheduledAt && (
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Clock size={10} />
-                {formatDateTime(post.scheduledAt)}
+                {formatUb(post.scheduledAt)}
                 {/* ⚠️ NEXT_AVAILABLE постууд хуваарь солиход ШИЛЖИНЭ */}
                 {post.scheduleKind === 'NEXT_AVAILABLE' && (
                   <span title="Хуваарь өөрчлөгдөхөд шилжинэ">· дараалал</span>

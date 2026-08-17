@@ -17,16 +17,29 @@
 import { useMemo, useState } from 'react';
 import { CalendarClock, Loader2, Plus, Repeat2, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDateTime } from '@besttv/shared';
+import { cn } from '@besttv/shared';
 import { api } from '@/lib/api';
 import type { SocialPost } from './types';
+import {
+  UB_LABEL,
+  browserOffsetDiffersFromUb,
+  formatUb,
+  ubInputAfterHours,
+  ubInputToUtc,
+} from './ub-time';
 
 type Mode = 'SLOT' | 'DATES' | 'INTERVAL';
 
-/** Огноог `datetime-local` input-ын хэлбэрт (орон нутгийн цагаар) */
-function toLocalInput(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+/** ⚠️ Цагийн бүсийг ИЛ — админ таамаглах ёсгүй */
+function TzNote() {
+  return (
+    <p className="text-[11px] text-muted-foreground">
+      Цаг: {UB_LABEL}
+      {browserOffsetDiffersFromUb() && (
+        <span className="ml-1 font-medium text-warning">· таны төхөөрөмжийн цагаас өөр</span>
+      )}
+    </p>
+  );
 }
 
 export function RepostDialog({
@@ -40,28 +53,31 @@ export function RepostDialog({
 }) {
   const [mode, setMode] = useState<Mode>('SLOT');
   const [count, setCount] = useState('1');
-  const [dates, setDates] = useState<string[]>([
-    /* ⚠️ Анхдагч нь МАРГААШ энэ цаг — өнгөрсөн огноо сонгогдохоос
-       сэргийлнэ (backend татгалздаг) */
-    toLocalInput(new Date(Date.now() + 24 * 3600_000)),
-  ]);
+  /* ⚠️ Анхдагч нь МАРГААШ энэ цаг (УБ) — өнгөрсөн огноо сонгогдохоос
+     сэргийлнэ (backend татгалздаг) */
+  const [dates, setDates] = useState<string[]>([ubInputAfterHours(24)]);
   const [everyDays, setEveryDays] = useState('7');
   const [times, setTimes] = useState('4');
-  const [startAt, setStartAt] = useState(toLocalInput(new Date(Date.now() + 24 * 3600_000)));
+  const [startAt, setStartAt] = useState(ubInputAfterHours(24));
   const [busy, setBusy] = useState(false);
 
   /** Давтамжийн горимд гарах бодит огноонууд — админ УРЬДЧИЛАН харна */
   const intervalDates = useMemo(() => {
     const n = Math.min(20, Math.max(1, Number(times) || 1));
     const gap = Math.max(1, Number(everyDays) || 1);
-    const base = new Date(startAt);
+    /* ⚠️ УБ мөрийг эхлээд UTC болгоно — эс бөгөөс browser-ийн бүсээр
+       тайлбарлагдаж цаг зөрнө */
+    const base = ubInputToUtc(startAt);
     if (Number.isNaN(base.getTime())) return [];
     return Array.from({ length: n }, (_, i) => new Date(base.getTime() + i * gap * 86400_000));
   }, [times, everyDays, startAt]);
 
   const addDate = () => {
-    const last = dates.length ? new Date(dates[dates.length - 1]) : new Date();
-    setDates([...dates, toLocalInput(new Date(last.getTime() + 7 * 86400_000))]);
+    /* ⚠️ Сүүлийн огнооноос 7 хоногийн дараа — UB мөр дээр шууд
+       ажиллана (хөрвүүлэлт шаардлагагүй, зөвхөн +7 хоног) */
+    const last = dates.length ? ubInputToUtc(dates[dates.length - 1]) : new Date();
+    const next = new Date(last.getTime() + 7 * 86400_000);
+    setDates([...dates, ubInputAfterHours((next.getTime() - Date.now()) / 3600_000)]);
   };
 
   const submit = async () => {
@@ -71,7 +87,8 @@ export function RepostDialog({
       if (mode === 'SLOT') {
         body = { count: Math.min(20, Math.max(1, Number(count) || 1)) };
       } else {
-        const list = mode === 'DATES' ? dates.map((d) => new Date(d)) : intervalDates;
+        /* ⚠️ УБ мөрүүдийг UTC болгоно */
+        const list = mode === 'DATES' ? dates.map((d) => ubInputToUtc(d)) : intervalDates;
         const bad = list.filter((d) => Number.isNaN(d.getTime()) || d.getTime() <= Date.now());
         if (bad.length) {
           toast.error('Огноо буруу эсвэл өнгөрсөн байна');
@@ -180,6 +197,7 @@ export function RepostDialog({
           {mode === 'DATES' && (
             <div className="space-y-2">
               <label className="text-xs font-medium">Огноо тус бүрээр</label>
+              <TzNote />
               {dates.map((d, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <input
@@ -215,6 +233,7 @@ export function RepostDialog({
 
           {mode === 'INTERVAL' && (
             <div className="space-y-3">
+              <TzNote />
               <div>
                 <label className="text-xs font-medium">Эхлэх</label>
                 <input
@@ -253,7 +272,7 @@ export function RepostDialog({
                 <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border bg-accent/20 p-2">
                   {intervalDates.map((d, i) => (
                     <p key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <CalendarClock size={11} /> {formatDateTime(d.toISOString())}
+                      <CalendarClock size={11} /> {formatUb(d)}
                     </p>
                   ))}
                 </div>
