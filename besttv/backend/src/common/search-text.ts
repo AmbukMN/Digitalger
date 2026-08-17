@@ -123,3 +123,53 @@ export function parseQuery(raw: string): ParsedQuery {
     usable: keywords.length > 0 || common.length > 0,
   };
 }
+
+/**
+ * ⚠️⚠️ БОГИНО ҮГ — санамсаргүй таарлын ГОЛ эх үүсвэр.
+ *
+ * БОДИТ АЛДАА: «Үл таних» гэж хайхад «Замд дайгдсан охин» гардаг байв.
+ * Шалтгаан: «үл» → галиг «ul» → тайлбар дотор «ул» гэсэн ҮСГИЙН
+ * ДАРААЛАЛ («булан», «сургууль», «хулгай» гэх мэт үгийн ДУНД) таарна.
+ * Богино үг хэдий чинээ богино, төдий чинээ олон үгэнд «нуугдана».
+ *
+ * Тиймээс 3 үсгээс богино үгийг ЗӨВХӨН гарчиг/slug-д, тэр ч бүү хэл
+ * ҮГИЙН ХИЛээр л хайна — тайлбар, жүжигчин зэрэгт ОГТ хайхгүй.
+ */
+export const SHORT_WORD_MAX = 3;
+
+export function isShortWord(w: string): boolean {
+  return w.length <= SHORT_WORD_MAX;
+}
+
+/** Regex-д тусгай тэмдэгтийг мултлана — хэрэглэгчийн оролт шууд орно */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * ҮГИЙН ХИЛЭЭР таарч байгаа эсэх — «үл» нь «дүлий» дотор таарахгүй.
+ *
+ * ⚠️ JS-ийн `` нь кирилл үсэгт НАЙДВАРГҮЙ (ASCII-д зориулагдсан).
+ * Тиймээс үсэг/тоо БИШ тэмдэгтээр өөрсдөө хүрээлүүлнэ.
+ */
+export function matchesWholeWord(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  const re = new RegExp(
+    `(^|[^\\p{L}\\p{N}])${escapeRe(needle)}([^\\p{L}\\p{N}]|$)`,
+    'iu',
+  );
+  return re.test(haystack);
+}
+
+/**
+ * ҮГИЙН ЭХЛЭЛД таарч байгаа эсэх — «таних» нь «Танихгүй»-д таарна,
+ * гэхдээ «мэдэхгүй»-д таарахгүй.
+ *
+ * ⚠️ Бүтэн үгийн таарлаас СУЛ, дэд мөрийн таарлаас ХҮЧТЭЙ. Монгол
+ * хэл нөхцөлтэй тул («охин» → «охины») энэ түвшин ЗААВАЛ хэрэгтэй.
+ */
+export function matchesWordStart(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(needle)}`, 'iu');
+  return re.test(haystack);
+}

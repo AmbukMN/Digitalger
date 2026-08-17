@@ -2,7 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TitleType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { expandQuery } from '../../common/transliterate';
-import { mnStem, parseQuery } from '../../common/search-text';
+import {
+  isShortWord,
+  matchesWholeWord,
+  matchesWordStart,
+  mnStem,
+  parseQuery,
+} from '../../common/search-text';
 import { TitleMediaHelper } from './title-media.helper';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CacheService } from '../../common/cache/cache.service';
@@ -496,7 +502,23 @@ export class TitlesService {
     const allVariants = [...keyVariants, ...commonVariants].flat();
     if (!allVariants.length) return [];
 
-    const matchClauses = (t: string): Prisma.TitleWhereInput[] => [
+    /**
+     * ⚠️⚠️ БОГИНО ҮГ (≤3 үсэг) — ЗӨВХӨН гарчиг/slug-д.
+     *
+     * БОДИТ АЛДАА: «Үл таних» → «үл» → галиг «ul» → тайлбар доторх
+     * «булан/сургууль/хулгай» гэх үгийн ДУНД таарч, огт хамааралгүй
+     * кино эхэнд гардаг байв. Богино үгийг тайлбар, жүжигчин,
+     * найруулагч, улс, жанрт хайх нь ЧИМЭЭ л нэмнэ.
+     */
+    const matchClauses = (t: string): Prisma.TitleWhereInput[] => {
+      if (isShortWord(t)) {
+        return [
+          { title: { contains: t, mode: 'insensitive' as const } },
+          { titleEn: { contains: t, mode: 'insensitive' as const } },
+          { slug: { contains: t, mode: 'insensitive' as const } },
+        ];
+      }
+      return [
       { title: { contains: t, mode: 'insensitive' as const } },
       { titleEn: { contains: t, mode: 'insensitive' as const } },
       { slug: { contains: t, mode: 'insensitive' as const } },
@@ -518,7 +540,8 @@ export class TitlesService {
           },
         },
       },
-    ];
+      ];
+    };
 
     // 3) Нэр дэвшигчдийг татна (эрэмбийг доор кодоор тооцно)
     const rows = await this.prisma.title.findMany({
@@ -549,28 +572,72 @@ export class TitlesService {
 
       let score = 0;
       let hits = 0;
+      /** ⚠️ Гарчигт БҮТЭН үгээр таарсан тоо — эрэмбийн гол хүчин зүйл */
+      let titleWordHits = 0;
 
       for (const variants of keyVariants) {
-        const inTitle = variants.some((v) => title.includes(v));
-        const inGenre = variants.some((v) => genreText.includes(v));
-        const inBody = variants.some((v) => body.includes(v));
-        if (inTitle) score += 10;
+        /**
+         * ⚠️⚠️ ГУРВАН ТҮВШНИЙ ТААРАЛТ (хүчтэйгээс сул руу):
+         *   1. БҮТЭН ҮГ    — «таних» ⊂ «Үл таних охин»       → 14
+         *   2. ҮГИЙН ЭХЛЭЛ — «таних» ⊂ «Танихгүй таашаал»    → 10
+         *   3. ДЭД МӨР     — «таних» ⊂ «үлтанихад» (ховор)   → 5
+         *
+         * Өмнө нь бүгд ижил 10 оноотой байсан тул «Танихгүй таашаал»
+         * (үзэлт 33) нь «Үл таних охин» (үзэлт 12)-оос ДЭЭР гардаг
+         * байв — хэрэглэгчийн хайсан яг тэр кино 2-рт.
+         */
+        const wholeInTitle = variants.some((v) => matchesWholeWord(title, v));
+        const startInTitle = !wholeInTitle && variants.some((v) => matchesWordStart(title, v));
+        const subInTitle = !wholeInTitle && !startInTitle && variants.some((v) => title.includes(v));
+        const inTitle = wholeInTitle || startInTitle || subInTitle;
+
+        /* ⚠️ Жанр/улсад ҮГИЙН ЭХЛЭЛ шаардана — «драм» нь «мелодрам»-д
+           таарах нь зөв, харин үгийн дунд санамсаргүй таарах нь БУРУУ */
+        const inGenre = variants.some((v) => matchesWordStart(genreText, v));
+
+        /**
+         * ⚠️⚠️ ТАЙЛБАРТ ЗӨВХӨН БҮТЭН ҮГ.
+         * Дэд мөрийн таарал (`includes`) нь «Үл таних → Замд дайгдсан
+         * охин» алдааны ШУУД шалтгаан байсан.
+         */
+        const inBody = variants.some((v) => matchesWholeWord(body, v));
+
+        if (wholeInTitle) {
+          score += 14;
+          titleWordHits += 1;
+        } else if (startInTitle) score += 10;
+        else if (subInTitle) score += 5;
         else if (inGenre) score += 6;
         else if (inBody) score += 3;
+
         if (inTitle || inGenre || inBody) hits += 1;
       }
       for (const variants of commonVariants) {
-        if (variants.some((v) => title.includes(v) || body.includes(v) || genreText.includes(v))) {
+        if (
+          variants.some(
+            (v) =>
+              matchesWordStart(title, v) ||
+              matchesWholeWord(body, v) ||
+              matchesWordStart(genreText, v),
+          )
+        ) {
           score += 1;
         }
       }
 
-      // Гарчиг ЯГ таарсан бол хамгийн дээр
+      /**
+       * ⚠️ БҮХ гол үг гарчигт БҮТНЭЭР таарсан бол ХАМГИЙН дээр.
+       * «Үл таних» → «Үл таних охин» нь 2/2 тул энэ урамшууллыг авна,
+       * «Замд дайгдсан охин» нь 0/2 тул авахгүй.
+       */
+      if (keyVariants.length && titleWordHits === keyVariants.length) score += 30;
+
+      // Гарчиг ЯГ таарсан бол бүр дээр
       const exact = parsed.raw.join(' ');
       if (t.title.toLowerCase() === exact) score += 50;
       else if (t.title.toLowerCase().startsWith(exact)) score += 20;
 
-      return { score, hits };
+      return { score, hits, titleWordHits };
     };
 
     const scored = rows.map((t) => ({ t, ...scoreOf(t) }));
@@ -578,9 +645,27 @@ export class TitlesService {
     // 5) ⚠️ maxHits шүүлт — олон гол үг таарсан байхад ганц үг таарсныг
     //    ХАЯНА (чимээ багасгах). Жишээ: "солонгос драм" → хоёуланг агуулсан
     //    байвал зөвхөн "драм"-тайг харуулахгүй.
-    const maxHits = scored.reduce((m, s) => Math.max(m, s.hits), 0);
-    const relevant = scored
-      .filter((s) => s.hits >= maxHits && s.score > 0)
+    /**
+     * ⚠️⚠️ `maxHits` ШҮҮЛТИЙГ ЗӨӨЛРҮҮЛЭВ.
+     *
+     * БОДИТ АЛДАА: хатуу `hits >= maxHits` нь ЗӨВ киног ХАЯДАГ байв.
+     * «Үл таних» гэж хайхад «Замд дайгдсан охин» нь тайлбар дотроос
+     * хоёр үгийг ЧУУ таарч 2 hits авдаг, харин хэрэглэгчийн хайсан
+     * «Үл таних охин» ч мөн 2 hits — гэтэл эрэмбэ буруу тул эхнийх
+     * дээр гарч, `slice` дээр нөгөө нь тасардаг байв.
+     *
+     * Одоо: гарчигт БҮТЭН үгээр таарсан кино БАЙВАЛ зөвхөн тэдгээрийг
+     * харуулна (хамгийн итгэлтэй дохио). Байхгүй үед л сул таарал руу
+     * ухарна.
+     */
+    const bestTitleHits = scored.reduce((m, s) => Math.max(m, s.titleWordHits), 0);
+    const pool =
+      bestTitleHits > 0
+        ? scored.filter((s) => s.titleWordHits === bestTitleHits)
+        : scored.filter((s) => s.hits >= scored.reduce((m, x) => Math.max(m, x.hits), 0));
+
+    const relevant = pool
+      .filter((s) => s.score > 0)
       .sort((a, b) => b.score - a.score || b.t.views - a.t.views)
       .slice(0, limit)
       .map((s) => s.t);
