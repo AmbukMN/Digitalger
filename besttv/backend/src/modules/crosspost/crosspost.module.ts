@@ -146,7 +146,16 @@ export class CrosspostAdminController {
       channels,
       createdById: me?.sub,
     });
-    return { ...created, importedKind: data.kind };
+    /* ⚠️ Явцын цонхонд харуулах статистик — медиа хэд, хэдэн МБ,
+       хэд нь унасан. Эдгээргүй бол админ юу татагдсаныг мэдэхгүй. */
+    return {
+      ...created,
+      importedKind: data.kind,
+      mediaTotal: data.mediaTotal,
+      mediaFailed: data.mediaFailed,
+      bytes: data.bytes,
+      isVideo: data.isVideo,
+    };
   }
 
   /** Шилжүүлэлтийн түүх */
