@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { StorageUsageCard } from '@/components/storage-usage-card';
 import { ContentHealthCard } from '@/components/content-health-card';
 import { ServerInsightCard } from '@/components/server-insight-card';
+import { TodayCard } from '@/components/dashboard/today-card';
 import {
   ArrowRight,
   Clock,
@@ -152,25 +153,19 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ⚠️ Sticky мөрийн ДАРАА — «мөнгө авчихаад үзүүлэх юмгүй»
-            байдлыг админ хамгийн түрүүнд хардаг байх ёстой.
-            Асуудалгүй үед нимгэн ногоон мөр л харагдана. */}
-        <ContentHealthCard />
-
         {/*
-          ⚠️⚠️ СЕРВЕРИЙН LIVE ТӨЛӨВ — контентын эрүүл байдлын ДАРАА,
-          бизнесийн тооноос ӨМНӨ.
+          ⚠️⚠️ ЭРЭМБЭ: ӨНӨӨДӨР → бизнес → систем.
 
-          Яагаад ийм өндөрт вэ: сервер унасан/диск дүүрсэн бол доорх
-          бүх орлого, үзэлтийн тоо УТГАГҮЙ болно. Мөн админ «яагаад
-          сайт удаашрав», «дахин видео оруулж болох уу» гэдгийг
-          SSH-гүйгээр шууд мэдэх ёстой (HLS хөрвүүлэлт 4 цөмийг
-          бүрэн эзэлдэг, диск дүүрэхэд кино дунд замдаа УНАДАГ).
+          Өмнө нь `ContentHealthCard` + `ServerInsightCard` хоёр
+          хамгийн эхэнд байсан тул эхний дэлгэцийг СИСТЕМИЙН техник
+          мэдээлэл эзэлж, админ «өнөөдөр хэдэн хүн орж, хэдэн төгрөг
+          орлоо» гэдгийг харахын тулд ДООШ гүйлгэдэг байв.
 
-          ⚠️ Хугацааны мужаас ХАМААРАХГҮЙ (одоогийн бодит төлөв) тул
-          `range`-ийн доторх графикуудаас ГАДНА байрлана.
+          Админ өдөр бүр хардаг зүйл нь бизнес, системийн төлөв нь
+          АСУУДАЛ ГАРСАН үед л чухал — тиймээс доор зөөв.
+          (`ContentHealthCard` нь асуудалтай үед л тод харагддаг.)
         */}
-        <ServerInsightCard />
+        <TodayCard />
 
         {isLoading || !data ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -220,15 +215,6 @@ export default function DashboardPage() {
 
                 {/* Юүлүүр — үзсэн → тоглуулсан → дуусгасан */}
                 {ins && <FunnelCard funnel={ins.funnel} />}
-
-                {/*
-                  Cloudflare R2 зай — аль кино хэдэн GB эзэлж байгаа.
-                  ⚠️ Хугацааны мужаас ХАМААРАХГҮЙ (одоогийн бодит төлөв) тул
-                  `range`-д хамаарах графикуудаас тусад нь байрлуулав.
-                */}
-                <div className="mt-5">
-                  <StorageUsageCard />
-                </div>
 
                 <div className="mt-5 grid gap-5 lg:grid-cols-2">
                   <ListCard
@@ -535,6 +521,24 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+        {/*
+          ⚠️ СИСТЕМИЙН ТӨЛӨВ — хамгийн доор, БҮХ табд.
+
+          Диск дүүрэх / CPU ачаалал / хөрвүүлэлт гацах зэрэг нь
+          ӨДӨР БҮР харах зүйл БИШ, харин асуудал гарсан үед ЗААВАЛ
+          хэрэгтэй. Эхний дэлгэцээс зайлуулснаар бизнесийн тоо
+          тэргүүн байрт гарна.
+
+          ⚠️ Хугацааны мужаас ХАМААРАХГҮЙ (одоогийн бодит төлөв).
+        */}
+        <div className="mt-6 space-y-4 border-t border-border pt-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Систем ба контентын төлөв
+          </p>
+          <ContentHealthCard />
+          <ServerInsightCard />
+          <StorageUsageCard />
+        </div>
       </main>
     </AdminShell>
   );
