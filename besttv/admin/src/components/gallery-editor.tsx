@@ -9,6 +9,12 @@ import { uploadImage } from '@/lib/upload';
 export interface GalleryEntry {
   key: string;
   url: string | null;
+  /**
+   * ⚠️ Видеоны thumbnail (`<key>.poster.jpg`). `<video>` тагийн эхний
+   * кадр нь browser/codec-ээс хамаарч ХАРАГДАХГҮЙ байж болох тул
+   * `poster` атрибутад өгнө.
+   */
+  posterUrl?: string | null;
 }
 
 /**
@@ -78,8 +84,10 @@ export function GalleryEditor({
                  видеог БИШ (10 видеотой хуудас 500МБ татахгүй) */
               <video
                 src={img.url}
+                poster={img.posterUrl ?? undefined}
                 muted
                 playsInline
+                controls
                 preload="metadata"
                 className="h-full w-full object-cover"
               />

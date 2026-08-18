@@ -1,9 +1,17 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CrosspostStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { MetaGraphService, type FbPost } from './meta-graph.service';
+
+/* ⚠️ `image-processor.service.ts`-тэй ИЖИЛ загвар (батлагдсан) */
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 /** IG-д шилжүүлэх боломжтой эсэх + шалтгаан */
 export interface Transferability {
@@ -268,7 +276,57 @@ export class CrosspostService {
     const key = `crosspost/${Date.now()}-${randomBytes(4).toString('hex')}.${ext}`;
 
     await this.storage.upload(key, buf, ct);
+
+    /**
+     * ⚠️⚠️ ВИДЕОНЫ THUMBNAIL — админ панелд БОДИТООР харагдахын тулд.
+     *
+     * БОДИТ АСУУДАЛ: `<video preload="metadata">` нь эхний кадрыг
+     * ЗААВАЛ харуулдаггүй (browser, codec-ээс хамаарна) тул админ
+     * «видео байгаа эсэх нь мэдэгдэхгүй» хар дөрвөлжин л хардаг.
+     *
+     * Тиймээс 1 сек дэх кадрыг .jpg болгож ХАЖУУД нь хадгална —
+     * `<video poster>` болон жагсаалтын зурган дээр хэрэглэнэ.
+     * Нэр нь `<key>.poster.jpg` — тусдаа DB талбар шаардлагагүй.
+     */
+    if (isVideo) {
+      /* ⚠️ Poster унасан ч импорт УНАХГҮЙ — гоо сайхны зүйл */
+      await this.makeVideoPoster(key, buf).catch((e) =>
+        this.logger.warn(`Видеоны poster үүсгэж чадсангүй (${key}): ${String(e).slice(0, 100)}`),
+      );
+    }
+
     return { key, bytes: buf.length };
+  }
+
+  /**
+   * Видеоны 1 дэх секундээс кадр авч `<key>.poster.jpg` болгож хадгална.
+   *
+   * ⚠️ Түр файлаар дамжина — ffmpeg нь stdin-ээс seek хийж чаддаггүй.
+   * `finally`-д ЗААВАЛ устгана, эс бөгөөс диск дүүрнэ.
+   */
+  private async makeVideoPoster(videoKey: string, buf: Buffer): Promise<void> {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'bt-poster-'));
+    const inPath = join(tmpDir, 'in.mp4');
+    const outPath = join(tmpDir, 'out.jpg');
+    try {
+      await writeFile(inPath, buf);
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(inPath)
+          /* ⚠️ 1 сек — 0 сек нь ихэвчлэн хар кадр байдаг */
+          .seekInput(1)
+          .frames(1)
+          /* ⚠️ 640px өргөн хангалттай — жагсаалтын зураг 64px */
+          .size('640x?')
+          .outputOptions(['-q:v', '4'])
+          .on('end', () => resolve())
+          .on('error', reject)
+          .save(outPath);
+      });
+      const jpg = await readFile(outPath);
+      await this.storage.upload(`${videoKey}.poster.jpg`, jpg, 'image/jpeg');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => null);
+    }
   }
 
   // ─── Нийтлэх ──────────────────────────────────────────────────────────────

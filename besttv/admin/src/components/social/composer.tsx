@@ -48,7 +48,12 @@ export function SocialComposer({
    * төлөв барина. Backend руу ЗӨВХӨН `key` явна.
    */
   const [media, setMedia] = useState<GalleryEntry[]>(
-    (post?.mediaKeys ?? []).map((k, i) => ({ key: k, url: post?.mediaUrls?.[i] ?? null })),
+    (post?.mediaKeys ?? []).map((k, i) => ({
+      key: k,
+      url: post?.mediaUrls?.[i] ?? null,
+      /* ⚠️ Видеоны thumbnail — эхний кадр харагдахгүй байхаас сэргийлнэ */
+      posterUrl: post?.posterUrls?.[i] ?? null,
+    })),
   );
   const mediaKeys = useMemo(() => media.map((m) => m.key), [media]);
   const [channels, setChannels] = useState<Channel[]>(
@@ -99,6 +104,15 @@ export function SocialComposer({
   const [customAt, setCustomAt] = useState(() =>
     post?.scheduledAt ? utcToUbInput(new Date(post.scheduledAt)) : '',
   );
+
+  /**
+   * ⚠️⚠️ Видео БОЛОН зураг холилдсон эсэх — сервер блоклодог ч
+   * админд ЭРТ хэлэх нь илүү (хадгалаад л татгалзуулахгүй).
+   */
+  const mixedMedia = useMemo(() => {
+    const vids = media.filter(isVideoEntry).length;
+    return vids > 0 && vids < media.length;
+  }, [media]);
 
   /**
    * ⚠️ Валидацийг СЕРВЭРЭЭС — нэг эх сурвалж. Client талд давхардуулж
@@ -297,6 +311,16 @@ export function SocialComposer({
             </p>
             {/* ⚠️ IG carousel дээд тал нь 10 — валидаци backend талд ч бий */}
             <GalleryEditor images={media} onChange={setMedia} />
+            {/* ⚠️⚠️ ВИДЕО + ЗУРАГ ХОЛИХ БОЛОХГҮЙ — publisher нь видео
+                олдмогц зөвхөн түүнийг илгээдэг тул зурагнууд ЧИМЭЭГҮЙ
+                алдагдана. Server ч блоклодог, гэхдээ энд ЭРТ хэлнэ. */}
+            {mixedMedia && (
+              <p className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-destructive/35 bg-destructive/5 px-2.5 py-2 text-[11px] text-destructive">
+                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                Видео болон зургийг ХАМТ нийтлэх боломжгүй — Meta нь Reels-ийг
+                цомогт холихыг зөвшөөрдөггүй. Аль нэгийг нь үлдээнэ үү.
+              </p>
+            )}
           </div>
 
           {/* ── 5) Шалгалт ── */}
@@ -342,6 +366,7 @@ export function SocialComposer({
                     /* ⚠️ Видео эсэхийг ДАМЖУУЛНА — `<img>` нь .mp4-ыг
                        харуулж чадахгүй, хоосон дөрвөлжин гарна */
                     mediaIsVideo={media[0] ? isVideoEntry(media[0]) : false}
+                    mediaPoster={media[0]?.posterUrl ?? null}
                     mediaCount={media.length}
                   />
                 ))}
@@ -554,12 +579,14 @@ function Preview({
   text,
   mediaUrl,
   mediaIsVideo,
+  mediaPoster,
   mediaCount,
 }: {
   channel: Channel;
   text: string;
   mediaUrl: string | null;
   mediaIsVideo: boolean;
+  mediaPoster: string | null;
   mediaCount: number;
 }) {
   const m = CHANNEL_META[channel];
@@ -584,11 +611,14 @@ function Preview({
              * ёстой, нийтэлсний дараа биш.
              */
             mediaIsVideo ? (
-              /* ⚠️ `preload="metadata"` — эхний кадрыг л татна */
+              /* ⚠️ `controls` — админ ЭНД шууд тоглуулж хянана.
+                 `poster` — thumbnail ЗААВАЛ харагдана. */
               <video
                 src={mediaUrl}
+                poster={mediaPoster ?? undefined}
                 muted
                 playsInline
+                controls
                 preload="metadata"
                 className={cn('w-full object-cover', isIg ? 'aspect-[4/5]' : 'aspect-video')}
               />

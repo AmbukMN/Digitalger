@@ -21,6 +21,8 @@ export interface SocialPost {
   body: string;
   mediaKeys: string[];
   mediaUrls?: (string | null)[];
+  /** ⚠️ Видеоны thumbnail — жагсаалт/preview-д ХАРАГДАХЫН тулд */
+  posterUrls?: (string | null)[];
   scheduledAt: string | null;
   /** ⚠️ NEXT_AVAILABLE постууд хуваарь солиход ШИЛЖИНЭ */
   scheduleKind: 'NEXT_AVAILABLE' | 'CUSTOM';

@@ -399,13 +399,24 @@ function PostRow({
         {post.mediaUrls?.[0] &&
           (isVideoEntry({ key: post.mediaKeys?.[0] ?? '' }) ? (
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
-              <video
-                src={post.mediaUrls[0]}
-                muted
-                playsInline
-                preload="metadata"
-                className="h-full w-full object-cover"
-              />
+              {/* ⚠️ poster байвал ЗУРГААР харуулна — <video> нь
+                  жагсаалтад хүнд бөгөөд эхний кадр найдваргүй */}
+              {post.posterUrls?.[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={post.posterUrls[0]}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <video
+                  src={post.mediaUrls[0]}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                />
+              )}
               <span className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 text-[8px] font-bold text-white">
                 ВИДЕО
               </span>

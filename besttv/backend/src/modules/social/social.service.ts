@@ -16,6 +16,9 @@ import { nextFreeSlot, reassignSlots, type SlotDef } from './social-slots';
 /** Видео эсэхийг key-ээс таана */
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm)$/i;
 
+/** ⚠️ `social-publisher.service.ts`-тэй ИЖИЛ жагсаалт байх ЁСТОЙ */
+const VIDEO_KEY_RE = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
+
 @Injectable()
 export class SocialService {
   private readonly logger = new Logger(SocialService.name);
@@ -27,6 +30,18 @@ export class SocialService {
   ) {}
 
   // ─── Тусламж ────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️⚠️ Видео БОЛОН зураг ХОЁУЛАА байгаа эсэх.
+   *
+   * Meta нь Reels-ийг цомогт холихыг зөвшөөрдөггүй бөгөөд publisher
+   * нь видео олдмогц зөвхөн түүнийг илгээдэг тул зурагнууд ЧИМЭЭГҮЙ
+   * алдагдана. Тиймээс валидацид ИЛ барина.
+   */
+  private hasMixedMedia(mediaKeys: string[]): boolean {
+    const vids = mediaKeys.filter((k) => VIDEO_KEY_RE.test(k)).length;
+    return vids > 0 && vids < mediaKeys.length;
+  }
 
   private hasVideo(mediaKeys: string[]): boolean {
     return mediaKeys.some((k) => VIDEO_EXT.test(k));
@@ -98,6 +113,7 @@ export class SocialService {
       body,
       mediaCount: mediaKeys.length,
       hasVideo: this.hasVideo(mediaKeys),
+      hasMixedMedia: this.hasMixedMedia(mediaKeys),
     });
 
     const data = {
@@ -174,6 +190,7 @@ export class SocialService {
       body: post.body,
       mediaCount: post.mediaKeys.length,
       hasVideo: this.hasVideo(post.mediaKeys),
+      hasMixedMedia: this.hasMixedMedia(post.mediaKeys),
     });
     const blocking = issues.filter((i) => i.level === 'block');
     if (blocking.length) {
@@ -507,7 +524,29 @@ export class SocialService {
         mediaUrls: await Promise.all(
           p.mediaKeys.map((k) => this.storage.publicAssetUrl(k, 7200).catch(() => null)),
         ),
+        /* ⚠️ Видеоны thumbnail — жагсаалтад ХАРАГДАХЫН тулд */
+        posterUrls: await this.posterUrls(p.mediaKeys),
       })),
+    );
+  }
+
+  /**
+   * ⚠️⚠️ ВИДЕОНЫ THUMBNAIL URL.
+   *
+   * `<video>` тагийн эхний кадр нь browser/codec-ээс хамаарч
+   * ХАРАГДАХГҮЙ байж болно (хар дөрвөлжин). Импортлох үед үүсгэсэн
+   * `<key>.poster.jpg`-ыг `poster` атрибутад өгвөл ҮРГЭЛЖ харагдана.
+   *
+   * ⚠️ Poster байхгүй (гараар оруулсан видео) бол `null` — UI нь
+   * `<video>`-гоор л харуулна, эвдрэхгүй.
+   */
+  private async posterUrls(keys: string[]): Promise<(string | null)[]> {
+    return Promise.all(
+      keys.map((k) =>
+        VIDEO_KEY_RE.test(k)
+          ? this.storage.publicAssetUrl(`${k}.poster.jpg`, 7200).catch(() => null)
+          : Promise.resolve(null),
+      ),
     );
   }
 
@@ -522,6 +561,7 @@ export class SocialService {
       mediaUrls: await Promise.all(
         post.mediaKeys.map((k) => this.storage.publicAssetUrl(k, 7200).catch(() => null)),
       ),
+      posterUrls: await this.posterUrls(post.mediaKeys),
     };
   }
 
@@ -663,6 +703,7 @@ export class SocialService {
       body: params.body,
       mediaCount: params.mediaKeys.length,
       hasVideo: this.hasVideo(params.mediaKeys),
+      hasMixedMedia: this.hasMixedMedia(params.mediaKeys),
     });
   }
 

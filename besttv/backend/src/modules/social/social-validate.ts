@@ -55,8 +55,10 @@ export function validateChannel(params: {
   caption: string;
   mediaCount: number;
   hasVideo: boolean;
+  /** ⚠️ Видео БОЛОН зураг ХОЛИЛДСОН эсэх */
+  hasMixedMedia?: boolean;
 }): ValidationIssue[] {
-  const { channel, caption, mediaCount, hasVideo } = params;
+  const { channel, caption, mediaCount, hasVideo, hasMixedMedia = false } = params;
   const out: ValidationIssue[] = [];
   const add = (level: 'block' | 'warn', message: string) =>
     out.push({ channel, level, message });
@@ -99,9 +101,37 @@ export function validateChannel(params: {
       /* ⚠️ Meta 2024-өөс IG видеог ЗӨВХӨН Reels болгодог */
       add('warn', 'Видео нь Reels хэлбэрээр орно (3 сек – 15 мин, max 300 MB)');
     }
+
+    /**
+     * ⚠️⚠️ ВИДЕО + ЗУРАГ ХОЛИХ БОЛОХГҮЙ.
+     *
+     * БОДИТ АЛДАА: publisher нь видео олдмогц `urls[0]`-ыг л авдаг тул
+     * зурагнууд ЧИМЭЭГҮЙ алга болдог байв. Админ 3 зураг + 1 видео
+     * тавиад «болсон» гэсэн хариу авна, гэтэл зөвхөн видео явна.
+     *
+     * Meta нь Reels-ийг carousel-д холихыг зөвшөөрдөггүй.
+     */
+    if (hasMixedMedia) {
+      add(
+        'block',
+        'Видео болон зургийг ХАМТ нийтлэх боломжгүй — Instagram нь Reels-ийг цомогт холихыг зөвшөөрдөггүй. Аль нэгийг нь үлдээнэ үү.',
+      );
+    }
   }
 
   if (channel === SocialChannel.FACEBOOK) {
+    /**
+     * ⚠️⚠️ FB-д ч ХОЛИХ БОЛОХГҮЙ — publisher нь видео олдмогц зөвхөн
+     * түүнийг илгээдэг тул зурагнууд ЧИМЭЭГҮЙ алдагдана. Чимээгүй
+     * алдагдахаас илүү нь ИЛ татгалзах.
+     */
+    if (hasMixedMedia) {
+      add(
+        'block',
+        'Видео болон зургийг ХАМТ нийтлэх боломжгүй — зурагнууд орхигдоно. Аль нэгийг нь үлдээнэ үү.',
+      );
+    }
+
     /* FB-д медиа заавал биш — текст ганцаараа болно */
     if (!caption.trim() && mediaCount === 0) {
       add('block', 'Facebook-д текст эсвэл медиа аль нэг нь байх ёстой');
@@ -129,6 +159,7 @@ export function validatePost(params: {
   body: string;
   mediaCount: number;
   hasVideo: boolean;
+  hasMixedMedia?: boolean;
 }): ValidationIssue[] {
   return params.channels.flatMap((channel) =>
     validateChannel({
@@ -136,6 +167,7 @@ export function validatePost(params: {
       caption: params.captions[channel] ?? params.body,
       mediaCount: params.mediaCount,
       hasVideo: params.hasVideo,
+      hasMixedMedia: params.hasMixedMedia,
     }),
   );
 }
