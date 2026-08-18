@@ -168,6 +168,11 @@ export class CrosspostService {
     body: string;
     mediaKeys: string[];
     kind: string;
+    /** ⚠️ UI-д харуулах: хэдэн медиа, хэдэн МБ, хэд нь унасан */
+    mediaTotal: number;
+    mediaFailed: number;
+    bytes: number;
+    isVideo: boolean;
   }> {
     if (!this.meta.isConfigured()) {
       throw new BadRequestException('Facebook токен тохируулаагүй байна');
@@ -185,10 +190,18 @@ export class CrosspostService {
      * валидаци барих асуудал, энд таслах шаардлагагүй.
      */
     const mediaKeys: string[] = [];
+    let mediaFailed = 0;
+    let bytes = 0;
+
     for (const url of cls.mediaUrls) {
       try {
-        mediaKeys.push(await this.mirrorToR2(url, isVideo));
+        /* ⚠️ Хэмжээг ТАТАХ үедээ тоолно — R2 руу нэмэлт дуудлага
+           хийхгүй (`headObject` шаардлагагүй) */
+        const { key, bytes: got } = await this.mirrorToR2(url, isVideo);
+        mediaKeys.push(key);
+        bytes += got;
       } catch (e) {
+        mediaFailed++;
         /* ⚠️ Нэг зураг унасан ч бусдыг үргэлжлүүлнэ — хэсэгчилсэн
            импорт нь огт импортлохгүйгээс дээр */
         this.logger.warn(`Медиа татаж чадсангүй (${fbPostId}): ${String(e).slice(0, 120)}`);
@@ -199,10 +212,17 @@ export class CrosspostService {
       body: post.message ?? '',
       mediaKeys,
       kind: cls.kind,
+      mediaTotal: cls.mediaUrls.length,
+      mediaFailed,
+      bytes,
+      isVideo,
     };
   }
 
-  private async mirrorToR2(url: string, isVideo: boolean): Promise<string> {
+  private async mirrorToR2(
+    url: string,
+    isVideo: boolean,
+  ): Promise<{ key: string; bytes: number }> {
     /* ⚠️ SSRF — зөвхөн Meta-гийн CDN. `chat.service.ts`-тэй ижил зарчим */
     let host: string;
     try {
@@ -248,7 +268,7 @@ export class CrosspostService {
     const key = `crosspost/${Date.now()}-${randomBytes(4).toString('hex')}.${ext}`;
 
     await this.storage.upload(key, buf, ct);
-    return key;
+    return { key, bytes: buf.length };
   }
 
   // ─── Нийтлэх ──────────────────────────────────────────────────────────────
@@ -290,7 +310,7 @@ export class CrosspostService {
       /* 1) Медиаг R2 руу толидуулна */
       const publicUrls: string[] = [];
       for (const url of cls.mediaUrls) {
-        const key = await this.mirrorToR2(url, isVideo);
+        const { key } = await this.mirrorToR2(url, isVideo);
         keys.push(key);
         publicUrls.push(await this.storage.publicAssetUrl(key, 24 * 3600));
       }

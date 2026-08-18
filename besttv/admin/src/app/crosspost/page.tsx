@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { cn, formatDateTime } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
+import { ImportProgress, type ImportRow } from '@/components/crosspost/import-progress';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
@@ -104,14 +105,34 @@ export default function CrosspostPage() {
    * зураг олонтой пост удаж болно.
    */
   const [importing, setImporting] = useState(false);
+  /** ⚠️ Мөр бүрийн бодит явц — админ юу болж байгааг ХАРНА */
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importDone, setImportDone] = useState(false);
+  /**
+   * ⚠️ `useRef` — `setState` нь давталтын дотор шинэчлэгддэггүй
+   * (closure нь хуучин утгыг барина) тул цуцлалтыг ref-ээр хянана.
+   */
+  const cancelRef = useRef(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const toScheduler = async () => {
-    const ids = [...selected];
+    /**
+     * ⚠️⚠️ ДАРААЛАЛ: FB жагсаалт нь ШИНЭ → ХУУЧИН эрэмбэтэй, харин
+     * ноорогийн жагсаалт нь `createdAt desc` (сүүлд үүссэн нь эхэнд).
+     *
+     * Хэрэв FB-ийн дарааллаар импортлобол хамгийн ХУУЧИН пост сүүлд
+     * үүсч, ноорогт ЭХЭНД гарна — яг ЭСРЭГЭЭР. Тиймээс УРВУУГААР
+     * (хуучин → шинэ) импортлоно: тэгвэл FB-ийн хамгийн шинэ пост
+     * хамгийн сүүлд үүсч, ноорогийн ТЭРГҮҮНД гарна.
+     */
+    const order = items.map((i) => i.fbPostId);
+    const ids = [...selected].sort((a, b) => order.indexOf(b) - order.indexOf(a));
     if (!ids.length) return;
     const ok = await confirm({
       title: `${ids.length} постыг товлогч руу импортлох уу?`,
       description: 'Ноорог пост үүснэ — дараа нь товлогчоос засаж, товлоно.',
       bullets: [
-        'Медиа R2 руу татагдана (хэдэн секунд)',
+        'Медиа R2 руу татагдана (пост тутам 2–5 секунд)',
         'Facebook-т ОДОО дахин нийтлэгдэхгүй',
         'Медиатай бол FB + IG хоёулаа сонгогдоно',
       ],
@@ -119,27 +140,94 @@ export default function CrosspostPage() {
     });
     if (!ok) return;
 
+    /* Постын эхний мөрийг шошго болгоно — админ алийг нь таних */
+    const byId = new Map(items.map((i) => [i.fbPostId, i]));
+    setImportRows(
+      ids.map((id) => {
+        const it = byId.get(id);
+        return {
+          fbPostId: id,
+          label: (it?.message ?? '').replace(/\s+/g, ' ').slice(0, 70),
+          state: 'WAIT' as const,
+          /* ⚠️ Урьдчилан мэдэгдэх мэдээлэл — админ юу татагдахыг ХАРНА */
+          kind: it?.kind,
+          mediaTotal: it?.mediaCount ?? 0,
+        };
+      }),
+    );
+    setImportDone(false);
+    cancelRef.current = false;
+    setCancelling(false);
     setImporting(true);
+
     let done = 0;
-    const failed: string[] = [];
+    let failedCount = 0;
+    /** ⚠️ Нийт татсан хэмжээ — админд «118 МБ татлаа» гэж харуулна */
+    let totalBytes = 0;
+
     /* ⚠️ ДАРААЛАН — медиа татах нь хүнд, зэрэг явуулбал Meta хязгаарлана */
     for (const id of ids) {
+      if (cancelRef.current) break;
+
+      setImportRows((cur) =>
+        cur.map((r) => (r.fbPostId === id ? { ...r, state: 'RUN' } : r)),
+      );
       try {
-        await api(`/admin/crosspost/${id}/to-scheduler`, { method: 'POST' });
+        const res = await api<{
+          importedKind: string;
+          post?: { mediaKeys?: string[] };
+          mediaTotal?: number;
+          mediaFailed?: number;
+          bytes?: number;
+        }>(`/admin/crosspost/${id}/to-scheduler`, { method: 'POST' });
         done++;
+        totalBytes += res.bytes ?? 0;
+        setImportRows((cur) =>
+          cur.map((r) =>
+            r.fbPostId === id
+              ? {
+                  ...r,
+                  state: 'OK',
+                  kind: res.importedKind,
+                  mediaOk: res.post?.mediaKeys?.length ?? 0,
+                  mediaFailed: res.mediaFailed ?? 0,
+                  bytes: res.bytes ?? 0,
+                }
+              : r,
+          ),
+        );
       } catch (e) {
-        failed.push(e instanceof Error ? e.message : 'Алдаа');
+        failedCount++;
+        const msg = e instanceof Error ? e.message : 'Алдаа';
+        setImportRows((cur) =>
+          cur.map((r) => (r.fbPostId === id ? { ...r, state: 'FAIL', error: msg } : r)),
+        );
       }
     }
+
+    /**
+     * ⚠️ Цуцалсан бол ҮЛДСЭН мөрүүдийг «хүлээгдэж буй» хэвээр орхихгүй —
+     * дуусаагүй гэж андуурч мөнхөд хүлээнэ. Тодорхой тэмдэглэнэ.
+     */
+    if (cancelRef.current) {
+      setImportRows((cur) =>
+        cur.map((r) =>
+          r.state === 'WAIT' ? { ...r, state: 'FAIL', error: 'Цуцлагдсан' } : r,
+        ),
+      );
+    }
+
     setImporting(false);
+    setImportDone(true);
     setSelected(new Set());
 
-    if (done && failed.length) {
-      toast.warning(`${done} импортлогдлоо, ${failed.length} унав`, { description: failed[0] });
+    const mb = totalBytes ? ` · ${(totalBytes / 1048576).toFixed(1)} МБ` : '';
+    if (done && failedCount) {
+      toast.warning(`${done} импортлогдлоо, ${failedCount} унав${mb}`);
     } else if (done) {
-      toast.success(`${done} ноорог үүслээ — «Нийтлэл товлох» хэсгээс товлоно уу`);
-    } else {
-      toast.error(failed[0] ?? 'Импортолж чадсангүй');
+      toast.success(`${done} ноорог үүслээ${mb} — «Нийтлэл товлох» хэсгээс товлоно уу`);
+    } else if (!cancelRef.current) {
+      toast.error('Импортолж чадсангүй');
     }
   };
 
@@ -333,6 +421,24 @@ export default function CrosspostPage() {
           />
         )}
       </main>
+      {/* ⚠️ ЯВЦЫН ЦОНХ — 25 пост × видео = хэдэн минут. Админ юу
+          болж байгааг БОДИТООР харна. */}
+      {(importing || importRows.length > 0) && (
+        <ImportProgress
+          rows={importRows}
+          done={importDone}
+          cancelling={cancelling}
+          onCancel={() => {
+            cancelRef.current = true;
+            setCancelling(true);
+          }}
+          onClose={() => {
+            setImportRows([]);
+            setImportDone(false);
+          }}
+        />
+      )}
+
     </AdminShell>
   );
 }

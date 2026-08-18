@@ -32,6 +32,7 @@ import { api } from '@/lib/api';
 import { SocialComposer } from '@/components/social/composer';
 import { SocialSlots } from '@/components/social/slots';
 import { RepostDialog } from '@/components/social/repost-dialog';
+import { isVideoEntry } from '@/components/gallery-editor';
 /* ⚠️ Товлолтын цагийг УБ-аар (shared-ийн ерөнхий форматтер нь
    browser-ийн цагийн бүс ашигладаг тул энд тохирохгүй) */
 import { formatUb } from '@/components/social/ub-time';
@@ -392,14 +393,31 @@ function PostRow({
     >
       <div className="flex flex-wrap items-start gap-3">
         {/* Медиа */}
-        {post.mediaUrls?.[0] && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.mediaUrls[0]}
-            alt=""
-            className="h-16 w-16 shrink-0 rounded-lg object-cover"
-          />
-        )}
+        {/* ⚠️⚠️ ВИДЕО эсэхийг ЗААВАЛ шалгана — `<img>` нь .mp4-ыг
+            харуулж чадахгүй, хоосон дөрвөлжин гарна. FB-ээс
+            импортолсон постуудын ИХЭНХ нь видео. */}
+        {post.mediaUrls?.[0] &&
+          (isVideoEntry({ key: post.mediaKeys?.[0] ?? '' }) ? (
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
+              <video
+                src={post.mediaUrls[0]}
+                muted
+                playsInline
+                preload="metadata"
+                className="h-full w-full object-cover"
+              />
+              <span className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 text-[8px] font-bold text-white">
+                ВИДЕО
+              </span>
+            </div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.mediaUrls[0]}
+              alt=""
+              className="h-16 w-16 shrink-0 rounded-lg object-cover"
+            />
+          ))}
 
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-1.5">

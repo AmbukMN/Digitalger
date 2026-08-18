@@ -11,6 +11,20 @@ export interface GalleryEntry {
   url: string | null;
 }
 
+/**
+ * ⚠️⚠️ ВИДЕО ЭСЭХ — `next/image` нь `.mp4`-ыг харуулж ЧАДАХГҮЙ.
+ *
+ * БОДИТ АЛДАА: Facebook-ээс импортолсон постуудын ИХЭНХ нь видео
+ * атал галерей нь бүгдийг `<Image>`-ээр харуулдаг байсан тул
+ * АГУУЛГАГҮЙ хар дөрвөлжин гарч, админ «видео орж ирээгүй» гэж
+ * бодох болов. Бодит байдал дээр R2-д хадгалагдсан байсан.
+ */
+const VIDEO_EXT = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
+
+export function isVideoEntry(e: { key: string }): boolean {
+  return VIDEO_EXT.test(e.key);
+}
+
 export function GalleryEditor({
   images,
   onChange,
@@ -58,7 +72,25 @@ export function GalleryEditor({
     <div className="flex flex-wrap gap-3">
       {images.map((img, i) => (
         <div key={img.key} className="group relative h-24 w-40 shrink-0 overflow-hidden rounded-md bg-muted">
-          {img.url && <Image src={img.url} alt="" fill sizes="160px" className="object-cover" />}
+          {img.url &&
+            (isVideoEntry(img) ? (
+              /* ⚠️ `preload="metadata"` — эхний кадрыг л татна, бүтэн
+                 видеог БИШ (10 видеотой хуудас 500МБ татахгүй) */
+              <video
+                src={img.url}
+                muted
+                playsInline
+                preload="metadata"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Image src={img.url} alt="" fill sizes="160px" className="object-cover" />
+            ))}
+          {isVideoEntry(img) && (
+            <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
+              ВИДЕО
+            </span>
+          )}
           <button
             type="button"
             onClick={() => remove(i)}

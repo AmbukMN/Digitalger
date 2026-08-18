@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
-import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
+import { GalleryEditor, isVideoEntry, type GalleryEntry } from '@/components/gallery-editor';
 import {
   CHANNEL_META,
   FB_FOLD,
@@ -339,6 +339,9 @@ export function SocialComposer({
                     text={captionFor(ch)}
                     /* ⚠️ БОДИТ зураг — харьцааны асуудлыг урьдчилж харна */
                     mediaUrl={media[0]?.url ?? null}
+                    /* ⚠️ Видео эсэхийг ДАМЖУУЛНА — `<img>` нь .mp4-ыг
+                       харуулж чадахгүй, хоосон дөрвөлжин гарна */
+                    mediaIsVideo={media[0] ? isVideoEntry(media[0]) : false}
                     mediaCount={media.length}
                   />
                 ))}
@@ -550,11 +553,13 @@ function Preview({
   channel,
   text,
   mediaUrl,
+  mediaIsVideo,
   mediaCount,
 }: {
   channel: Channel;
   text: string;
   mediaUrl: string | null;
+  mediaIsVideo: boolean;
   mediaCount: number;
 }) {
   const m = CHANNEL_META[channel];
@@ -578,12 +583,23 @@ function Preview({
              * дээд/доод хэсэг ТАЙРАГДАНА — админ түүнийг ЭНД харах
              * ёстой, нийтэлсний дараа биш.
              */
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={mediaUrl}
-              alt=""
-              className={cn('w-full object-cover', isIg ? 'aspect-[4/5]' : 'aspect-video')}
-            />
+            mediaIsVideo ? (
+              /* ⚠️ `preload="metadata"` — эхний кадрыг л татна */
+              <video
+                src={mediaUrl}
+                muted
+                playsInline
+                preload="metadata"
+                className={cn('w-full object-cover', isIg ? 'aspect-[4/5]' : 'aspect-video')}
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mediaUrl}
+                alt=""
+                className={cn('w-full object-cover', isIg ? 'aspect-[4/5]' : 'aspect-video')}
+              />
+            )
           ) : (
             <div className="flex h-16 items-center justify-center text-[11px] text-muted-foreground">
               {mediaCount} медиа
