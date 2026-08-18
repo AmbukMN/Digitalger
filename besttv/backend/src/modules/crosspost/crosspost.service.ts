@@ -150,6 +150,58 @@ export class CrosspostService {
    * R2 руу хуулснаар: найдвартай, `assets.besttv.us` домэйнтэй,
    * хугацаа дуусахгүй.
    */
+  /**
+   * ⚠️⚠️ ХУУЧИН FB ПОСТЫГ ТОВЛОГЧ РУУ ИМПОРТЛОХ.
+   *
+   * ЯАГААД ХЭРЭГТЭЙ ВЭ: «FB → Instagram» хэсэг нь ЗӨВХӨН IG руу
+   * шилжүүлдэг — FB руу дахин нийтлэхгүй, товлохгүй. Админ хуучин
+   * амжилттай постоо дахин эргэлдүүлэх боломжгүй байв.
+   *
+   * ⚠️⚠️ МЕДИАГ ЗААВАЛ R2 РУУ ТАТНА, Meta-гийн URL-ыг ХАДГАЛАХГҮЙ.
+   * Meta-гийн CDN хаяг нь ХУГАЦААТАЙ (хэдэн цагийн дараа 403 болно).
+   * Хэрэв шууд хадгалбал 3 хоногийн дараа товлосон пост «медиа
+   * татагдсангүй» гэж УНАНА — админ шалтгааныг нь ойлгохгүй.
+   *
+   * @returns Товлогчийн `upsert`-д шууд өгөх боломжтой өгөгдөл
+   */
+  async importToScheduler(fbPostId: string): Promise<{
+    body: string;
+    mediaKeys: string[];
+    kind: string;
+  }> {
+    if (!this.meta.isConfigured()) {
+      throw new BadRequestException('Facebook токен тохируулаагүй байна');
+    }
+
+    const post = await this.meta.fetchPost(fbPostId);
+    if (!post) throw new NotFoundException('Facebook пост олдсонгүй');
+
+    const cls = this.classify(post);
+    const isVideo = cls.kind === 'VIDEO';
+
+    /**
+     * ⚠️ Медиагүй (TEXT/LINK) постыг ч ИМПОРТЛОНО — товлогч нь FB-д
+     * текст пост зөвшөөрдөг. IG-д зөвшөөрөхгүй ч тэр нь товлогчийн
+     * валидаци барих асуудал, энд таслах шаардлагагүй.
+     */
+    const mediaKeys: string[] = [];
+    for (const url of cls.mediaUrls) {
+      try {
+        mediaKeys.push(await this.mirrorToR2(url, isVideo));
+      } catch (e) {
+        /* ⚠️ Нэг зураг унасан ч бусдыг үргэлжлүүлнэ — хэсэгчилсэн
+           импорт нь огт импортлохгүйгээс дээр */
+        this.logger.warn(`Медиа татаж чадсангүй (${fbPostId}): ${String(e).slice(0, 120)}`);
+      }
+    }
+
+    return {
+      body: post.message ?? '',
+      mediaKeys,
+      kind: cls.kind,
+    };
+  }
+
   private async mirrorToR2(url: string, isVideo: boolean): Promise<string> {
     /* ⚠️ SSRF — зөвхөн Meta-гийн CDN. `chat.service.ts`-тэй ижил зарчим */
     let host: string;

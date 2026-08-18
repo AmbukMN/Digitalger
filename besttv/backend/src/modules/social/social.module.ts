@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   UseGuards,
+  forwardRef,
 } from '@nestjs/common';
 import { Role, SocialChannel } from '@prisma/client';
 import {
@@ -372,7 +373,11 @@ export class SocialController {
 @Module({
   /* ⚠️ `MetaGraphService`-ыг дахин ашиглана — FB/IG нийтлэх бүх
      логик тэнд бий (crosspost модулиас экспортлогдсон) */
-  imports: [CrosspostModule],
+  imports: [
+    /* ⚠️ Хоёр тал бие биеэ импортолдог (crosspost → social импорт
+       нэмэгдсэн) тул ХОЁУЛАНД нь forwardRef ЗААВАЛ */
+    forwardRef(() => CrosspostModule),
+  ],
   controllers: [SocialController],
   providers: [SocialService, SocialPublisherService, SocialSchedulerService],
   exports: [SocialService],

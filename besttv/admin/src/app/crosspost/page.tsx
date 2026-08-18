@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   Clock,
   ExternalLink,
@@ -91,6 +92,55 @@ export default function CrosspostPage() {
       else n.add(id);
       return n;
     });
+  };
+
+  /**
+   * ⚠️⚠️ ХУУЧИН FB ПОСТЫГ «НИЙТЛЭЛ ТОВЛОГЧ» РУУ ИМПОРТЛОХ.
+   *
+   * IG руу шилжүүлэхээс ЯЛГААТАЙ: энэ нь ноорог пост үүсгэнэ. Админ
+   * дараа нь FB/IG-д хэдэн ч удаа, хэзээ ч товлож болно.
+   *
+   * ⚠️ Медиаг R2 руу ТАТНА (Meta-гийн CDN хаяг хугацаатай) тул
+   * зураг олонтой пост удаж болно.
+   */
+  const [importing, setImporting] = useState(false);
+  const toScheduler = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const ok = await confirm({
+      title: `${ids.length} постыг товлогч руу импортлох уу?`,
+      description: 'Ноорог пост үүснэ — дараа нь товлогчоос засаж, товлоно.',
+      bullets: [
+        'Медиа R2 руу татагдана (хэдэн секунд)',
+        'Facebook-т ОДОО дахин нийтлэгдэхгүй',
+        'Медиатай бол FB + IG хоёулаа сонгогдоно',
+      ],
+      confirmLabel: 'Импортлох',
+    });
+    if (!ok) return;
+
+    setImporting(true);
+    let done = 0;
+    const failed: string[] = [];
+    /* ⚠️ ДАРААЛАН — медиа татах нь хүнд, зэрэг явуулбал Meta хязгаарлана */
+    for (const id of ids) {
+      try {
+        await api(`/admin/crosspost/${id}/to-scheduler`, { method: 'POST' });
+        done++;
+      } catch (e) {
+        failed.push(e instanceof Error ? e.message : 'Алдаа');
+      }
+    }
+    setImporting(false);
+    setSelected(new Set());
+
+    if (done && failed.length) {
+      toast.warning(`${done} импортлогдлоо, ${failed.length} унав`, { description: failed[0] });
+    } else if (done) {
+      toast.success(`${done} ноорог үүслээ — «Нийтлэл товлох» хэсгээс товлоно уу`);
+    } else {
+      toast.error(failed[0] ?? 'Импортолж чадсангүй');
+    }
   };
 
   const toggleAll = () => {
@@ -223,6 +273,20 @@ export default function CrosspostPage() {
               >
                 <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
                 Шинэчлэх
+              </button>
+              {/* ⚠️ ТОВЛОГЧ РУУ — IG руу шилжүүлэхээс ТУСДАА үйлдэл */}
+              <button
+                onClick={toScheduler}
+                disabled={!selected.size || importing || sending}
+                title="Ноорог пост үүсгээд дараа нь товлоно"
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-foreground/5 disabled:opacity-40"
+              >
+                {importing ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <CalendarClock size={13} />
+                )}
+                Товлогч руу{selected.size ? ` (${selected.size})` : ''}
               </button>
               <div className="ml-auto">
                 <button

@@ -4,13 +4,15 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Module,
   Param,
   Post,
   Query,
   UseGuards,
+  forwardRef,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Role, SocialChannel } from '@prisma/client';
 import { IsArray, IsObject, IsOptional, IsString } from 'class-validator';
 import type { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,6 +22,9 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CrosspostService } from './crosspost.service';
 import { MetaGraphService } from './meta-graph.service';
 import { CROSSPOST_QUEUE, type CrosspostJob } from './crosspost-queue.types';
+import { CurrentUser, type JwtPayload } from '../../common/decorators/current-user.decorator';
+import { SocialService } from '../social/social.service';
+import { SocialModule } from '../social/social.module';
 
 class EnqueueDto {
   @IsArray()
@@ -47,6 +52,14 @@ export class CrosspostAdminController {
     private readonly svc: CrosspostService,
     private readonly meta: MetaGraphService,
     private readonly prisma: PrismaService,
+    /**
+     * ⚠️⚠️ ЭРГЭЛТИЙН ХАМААРАЛ: `SocialModule` нь `CrosspostModule`-ыг
+     * импортолдог (Meta нийтлэх логикийг дахин ашиглахын тулд).
+     * Урвуу чиглэлд шууд импортлобол Nest эхлэхдээ унана —
+     * `forwardRef` ЗААВАЛ.
+     */
+    @Inject(forwardRef(() => SocialService))
+    private readonly social: SocialService,
     @InjectQueue(CROSSPOST_QUEUE) private readonly queue: Queue<CrosspostJob>,
   ) {}
 
@@ -108,6 +121,34 @@ export class CrosspostAdminController {
     return { ok: true };
   }
 
+  /**
+   * ⚠️ ХУУЧИН FB ПОСТЫГ «НИЙТЛЭЛ ТОВЛОГЧ» РУУ ИМПОРТЛОНО.
+   *
+   * Медиаг R2 руу татаад ноорог пост үүсгэнэ. Админ дараа нь
+   * товлогчоос засаж, FB/IG-д хэдэн ч удаа товлож болно.
+   */
+  @Post(':id/to-scheduler')
+  async toScheduler(@Param('id') fbPostId: string, @CurrentUser() me?: JwtPayload) {
+    const data = await this.svc.importToScheduler(fbPostId);
+
+    /**
+     * ⚠️ Анхдагчаар ЗӨВХӨН FACEBOOK — IG нь медиа шаарддаг тул
+     * текст постод сонгоод өгвөл товлогч татгалзана. Админ өөрөө
+     * нэмнэ.
+     */
+    const channels: SocialChannel[] = data.mediaKeys.length
+      ? [SocialChannel.FACEBOOK, SocialChannel.INSTAGRAM]
+      : [SocialChannel.FACEBOOK];
+
+    const created = await this.social.upsert({
+      body: data.body,
+      mediaKeys: data.mediaKeys,
+      channels,
+      createdById: me?.sub,
+    });
+    return { ...created, importedKind: data.kind };
+  }
+
   /** Шилжүүлэлтийн түүх */
   @Get('history')
   history(
@@ -132,7 +173,11 @@ export class CrosspostAdminController {
 }
 
 @Module({
-  imports: [BullModule.registerQueue({ name: CROSSPOST_QUEUE })],
+  imports: [
+    BullModule.registerQueue({ name: CROSSPOST_QUEUE }),
+    /* ⚠️ Эргэлтийн хамаарал — дээрх тайлбарыг үзнэ үү */
+    forwardRef(() => SocialModule),
+  ],
   controllers: [CrosspostAdminController],
   /* ⚠️ StorageService нэмэхгүй — StorageModule нь @Global */
   providers: [CrosspostService, MetaGraphService],
