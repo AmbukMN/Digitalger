@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Subtitles, X } from 'lucide-react';
 import { cn } from '@besttv/shared';
 
@@ -53,6 +54,31 @@ export function SubtitleMenu({
   /** Хадмалын ард хар дэвсгэр — гэрэлтэй кадрт уншихад хэрэгтэй */
   const [bg, setBg] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
+  /** ⚠️ Цэсний DOM — `contains` шалгалтад ЗААВАЛ (portal-д гардаг) */
+  const sheetRef = useRef<HTMLDivElement>(null);
+  /**
+   * ⚠️ SSR-д `document` байхгүй тул portal-ыг зөвхөн browser-т
+   * рендерлэнэ (Next.js hydration алдаанаас сэргийлнэ).
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  /**
+   * ⚠️⚠️ ДЭЛГЭЦ ДҮҮРЭН ҮЕД PORTAL-ЫН ЗОРИЛГО ӨӨРЧЛӨГДӨНӨ.
+   *
+   * Fullscreen горимд browser нь ЗӨВХӨН `fullscreenElement`-ийн
+   * доторх DOM-ыг зурдаг. `document.body`-д гаргасан цэс нь тэр
+   * модны ГАДНА үлдэх тул ОГТ ХАРАГДАХГҮЙ.
+   *
+   * Тиймээс fullscreen үед portal-ыг тэр элемент рүү шилжүүлнэ.
+   */
+  const [fsEl, setFsEl] = useState<Element | null>(null);
+  useEffect(() => {
+    const sync = () => setFsEl(document.fullscreenElement);
+    sync();
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
 
   /* ⚠️ Тохиргоог САНАНА — хэрэглэгч анги бүрд дахин тохируулах ёсгүй */
   useEffect(() => {
@@ -79,11 +105,38 @@ export function SubtitleMenu({
     }
   }, [size, bg]);
 
-  /* ⚠️ Гадна дарах + Esc — цэс мөнхөд нээлттэй үлдэхээс сэргийлнэ */
+  /**
+   * ⚠️⚠️ ГАДНА ДАРАХ — ГАР УТАСНЫ «АНИВЧААД АЛГА БОЛОХ» АЛДАА.
+   *
+   * БОДИТ АЛДАА: гар утсанд нэг хүрэлт нь ХОЁР эвент өгдөг —
+   * эхлээд `touchstart`, дараа нь ~300ms-ийн дотор СИНТЕТИК
+   * `mousedown`. Товч дарахад:
+   *   1. `onClick` → цэс НЭЭГДЭНЭ
+   *   2. Синтетик `mousedown` ирнэ → «гадна дарсан» гэж үзэж ХААНА
+   * Үр дүнд цэс анивчаад алга болно (хэрэглэгчийн гомдол).
+   *
+   * ⚠️ Мөн bottom sheet нь `fixed` боловч DOM-д `rootRef` ДОТОР
+   * үлддэг тул `contains` зөв ажиллана — асуудал нь ЗӨВХӨН
+   * эвентийн давхардал.
+   *
+   * ЗАСВАР:
+   *   • `pointerdown` — touch/mouse/pen БҮГДИЙГ НЭГ удаа барина
+   *     (синтетик `mousedown` давхардахгүй)
+   *   • Нээгдсэн ЯГ тэр мөчид ирсэн эвентийг алгасна (`openedAt`)
+   */
+  const openedAt = useRef(0);
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    openedAt.current = Date.now();
+
+    const onDown = (e: PointerEvent) => {
+      /* ⚠️ Нээсэн дарагдалтын үлдэгдэл эвентийг алгасна */
+      if (Date.now() - openedAt.current < 250) return;
+      const t = e.target as Node;
+      /* ⚠️ Portal-д гарсан цэс нь `rootRef`-ийн ГАДНА байрлана —
+         тусад нь шалгахгүй бол цэс дотор дарахад ХААГДАНА */
+      if (rootRef.current?.contains(t) || sheetRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -91,10 +144,10 @@ export function SubtitleMenu({
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey, true);
     return () => {
-      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
@@ -105,7 +158,21 @@ export function SubtitleMenu({
   return (
     <div ref={rootRef} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        /**
+         * ⚠️⚠️ ЭВЕНТИЙГ ЗОГСООНО — Vidstack руу ЦААШ БҮҮ ЯВУУЛ.
+         *
+         * Товч нь player-ийн ДОТОР байрладаг тул дарагдалт нь
+         * player руу «бөмбөрцөглөж» очоод:
+         *   • play/pause солигдох (gestures)
+         *   • удирдлага нуугдаж, товч алга болох
+         * Эдгээр нь цэсийг ч хамт хаадаг.
+         */
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
         aria-expanded={open}
         aria-label="Хадмал"
         title="Хадмал"
@@ -124,7 +191,23 @@ export function SubtitleMenu({
         )}
       </button>
 
-      {open && (
+      {/**
+        * ⚠️⚠️ PORTAL — ЦЭС АНИВЧААД АЛГА БОЛДОГ БАЙСНЫ ГОЛ ШАЛТГААН.
+        *
+        * БОДИТ АЛДАА: товч нь Vidstack-ийн УДИРДЛАГЫН МӨРӨНД
+        * байрладаг. Тэр мөр нь хэрэглэгч 2 сек хөдөлгөөнгүй байхад
+        * `opacity: 0` болдог — `opacity` нь ҮР УДАМД УДАМШДАГ тул
+        * `fixed` байсан ч цэс ХАМТ алга болно.
+        *
+        * Мөн удирдлагын мөр нь `overflow`/`transform`-тэй байж
+        * болох тул `fixed` нь түүнд харьцангуй болж, дэлгэцийн
+        * доод талд наалдахгүй.
+        *
+        * `createPortal(document.body)` нь цэсийг DOM-ийн ҮНДЭС рүү
+        * гаргана — эцгийн `opacity`, `transform`, `overflow` ямар ч
+        * нөлөөгүй.
+        */}
+      {open && mounted && createPortal(
         <>
           {/*
             ⚠️⚠️ MOBILE — ДООРООС ГАРАХ ХУУДАС (bottom sheet).
@@ -140,17 +223,30 @@ export function SubtitleMenu({
           */}
           <div
             className="fixed inset-0 z-50 bg-black/60 sm:hidden"
-            onClick={() => setOpen(false)}
+            onPointerDown={(e) => {
+              /* ⚠️ Player руу явуулахгүй — эс бөгөөс дэвсгэр дарахад
+                 кино зогсдог/эхэлдэг */
+              e.stopPropagation();
+              setOpen(false);
+            }}
             aria-hidden
           />
         <div
+          ref={sheetRef}
+          /* ⚠️ Цэс дотор дарахад player руу очих ёсгүй (play/pause) */
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           className={cn(
             'z-50 overflow-hidden border-white/12 bg-[#151515]/97 shadow-2xl backdrop-blur',
             /* Mobile: доод талд наалдсан бүтэн өргөн хуудас */
             'fixed inset-x-0 bottom-0 max-h-[70dvh] overflow-y-auto rounded-t-2xl border-t',
             'animate-in slide-in-from-bottom duration-200',
-            /* Desktop: товчны дээр гарах жижиг цэс */
-            'sm:absolute sm:inset-x-auto sm:bottom-12 sm:right-0 sm:max-h-none sm:w-60 sm:rounded-xl sm:border',
+            /**
+             * Desktop: баруун доод буланд жижиг цэс.
+             * ⚠️ Portal-д гарсан тул `absolute` нь `body`-д харьцангуй
+             * болно — `fixed`-ээр байрлуулж, товчны ойролцоо тавина.
+             */
+            'sm:inset-x-auto sm:bottom-20 sm:right-6 sm:max-h-[70dvh] sm:w-64 sm:rounded-xl sm:border',
             'sm:animate-in sm:fade-in sm:slide-in-from-bottom-2 sm:duration-150',
           )}
           role="menu"
@@ -226,7 +322,8 @@ export function SubtitleMenu({
             </div>
           )}
         </div>
-        </>
+        </>,
+        fsEl ?? document.body,
       )}
     </div>
   );
