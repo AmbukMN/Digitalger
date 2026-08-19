@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
@@ -8,6 +8,7 @@ import { cn } from '@besttv/shared';
 /* ⚠️ `useWheelScroll` ХАСАГДСАН — доод тайлбарыг харна уу.
    Hook нь бусад газар (cast-row, gallery-row) хэвээр ажиллана. */
 import { TitleCard, Top10Card } from './title-card';
+import { api } from '@/lib/api';
 
 interface TitleRowProps {
   title: string;
@@ -27,6 +28,17 @@ interface TitleRowProps {
    * хэвтээ гүйлгэнэ (сум товч / хуруу).
    */
   singleRow?: boolean;
+  /**
+   * ⚠️⚠️ ДУУСТАЛ АЧААЛАХ — жанрын slug.
+   *
+   * Нүүр хуудас нь эгнээ бүрд 24 кино л өгдөг (илүү өгвөл анхны
+   * ачаалалт УДААШИРНА). Хэрэглэгч баруун тийш гүйлгэж төгсгөлд
+   * ойртоход тухайн жанрын ДАРААГИЙН хуудсыг нэмж татна.
+   *
+   * ⚠️ Заагаагүй бол lazy-load ОГТ ажиллахгүй (top10, continue
+   * watching зэрэгт хэрэггүй).
+   */
+  genreSlug?: string;
 }
 
 /** Жанрын карусель мөр — hide-scrollbar + чиглэл товч + edge fade (Netflix загвар) */
@@ -37,8 +49,52 @@ export function TitleRow({
   variant = 'default',
   progressById,
   singleRow,
+  genreSlug,
 }: TitleRowProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * ⚠️⚠️ ГҮЙЛГЭХЭД НЭМЖ АЧААЛНА (нүүрийг удаашруулахгүй).
+   *
+   * Анх нээхэд эгнээ бүрд 24 кино л ирнэ. Хэрэглэгч төгсгөлд
+   * ойртоход л дараагийн хуудас татагдана — 4 жанр × бүх кино
+   * гэдэг нь эхний ачаалалтад хэдэн зуун мөр болно.
+   */
+  const [extra, setExtra] = useState<TitleCardType[]>([]);
+  const [page, setPage] = useState(1);
+  const [exhausted, setExhausted] = useState(!genreSlug);
+  const loadingRef = useRef(false);
+
+  /* ⚠️ Эх жагсаалт + нэмж татсан. Давхардлыг ID-аар шүүнэ —
+     backend-ийн эрэмбэ өөрчлөгдвөл ижил кино хоёр удаа ирж болно. */
+  const allItems = useMemo(() => {
+    if (!extra.length) return items;
+    const seen = new Set(items.map((t) => t.id));
+    return [...items, ...extra.filter((t) => !seen.has(t.id) && !seen.has(t.id))];
+  }, [items, extra]);
+
+  const loadMore = useCallback(async () => {
+    if (!genreSlug || exhausted || loadingRef.current) return;
+    loadingRef.current = true;
+    try {
+      const next = page + 1;
+      const r = await api<{ items: TitleCardType[]; totalPages: number }>(
+        `/titles?genre=${encodeURIComponent(genreSlug)}&page=${next}&limit=24`,
+      );
+      const rows = r.items ?? [];
+      setExtra((cur) => [...cur, ...rows]);
+      setPage(next);
+      /* ⚠️ Төгсгөлд хүрсэн эсэхийг ХОЁР шалгуураар — хоосон хариу
+         эсвэл сүүлийн хуудас (аль нэг нь буруу байж болно) */
+      if (!rows.length || next >= (r.totalPages ?? next)) setExhausted(true);
+    } catch {
+      /* ⚠️ Алдаа гарвал ДАХИН оролдохгүй — эс бөгөөс гүйлгэх бүрд
+         унасан хүсэлт давтагдана */
+      setExhausted(true);
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [genreSlug, exhausted, page]);
 
   /**
    * ⚠️⚠️ ХОЁР ЭГНЭЭ — ЗӨВХӨН нэг мөр ДҮҮРСНИЙ ДАРАА.
@@ -83,7 +139,20 @@ export function TitleRow({
       left: el.scrollLeft > 8,
       right: el.scrollLeft + el.clientWidth < el.scrollWidth - 8,
     });
+
+    /**
+     * ⚠️⚠️ ТӨГСГӨЛД ОЙРТВОЛ ДАРААГИЙН ХУУДСЫГ ТАТНА.
+     *
+     * ⚠️ 2 дэлгэцийн өргөнөөр урьдчилна — хэрэглэгч төгсгөлд ХҮРТЭЛ
+     * хүлээвэл эгнээ гэнэт зогсоод дараа нь үсэрч уртсана. Урьдчилж
+     * татвал гүйлт ТАСРАЛТГҮЙ мэдрэгдэнэ.
+     */
+    const remaining = el.scrollWidth - (el.scrollLeft + el.clientWidth);
+    if (remaining < el.clientWidth * 2) void loadMoreRef.current?.();
   }, []);
+
+  /* ⚠️ `useCallback`-ийн хамаарлын гогцоо үүсэхээс сэргийлж ref-ээр */
+  const loadMoreRef = useRef<(() => void) | null>(null);
 
   /**
    * ⚠️⚠️ MOUNT + ХЭМЖЭЭ ӨӨРЧЛӨГДӨХӨД шалгана.
@@ -118,6 +187,23 @@ export function TitleRow({
     const first = el.firstElementChild as HTMLElement | null;
     if (!first) return;
 
+    /**
+     * ⚠️⚠️ ХЭМЖЭЭГ ҮРГЭЛЖ НЭГ МӨРИЙН ТӨЛӨВӨӨР ТООЦНО.
+     *
+     * БОДИТ АЛДАА: 2 мөр болмогц контейнер нь `grid grid-rows-2`
+     * болдог. Тэр үед `el.clientWidth` нь ГҮЙЛТИЙН бүтэн өргөнийг
+     * (scrollWidth-тэй ойролцоо) өгч эхэлдэг тул `perRow` нь бодит
+     * дэлгэцээс ХАМААГҮЙ ИХ гарна. Үр дүнд `cols >= perRow` нөхцөл
+     * хэзээ ч худал болохгүй → нэгэнт 2 мөр болсон эгнээ БУЦАЖ
+     * НЭГ МӨР БОЛДОГГҮЙ (хэрэглэгчийн скриншот: 16 кино 8+8 болж,
+     * баруун тал хоосон).
+     *
+     * ЗАСВАР: эцэг элементийн (`overflow` савны) өргөнийг хэмжинэ —
+     * тэр нь мөрийн тооноос ХАМААРАХГҮЙ, үргэлж дэлгэцийн бодит
+     * харагдах өргөн.
+     */
+    const viewport = el.parentElement?.clientWidth || el.clientWidth;
+
     /* ⚠️ `gap-3` = 0.75rem. CSS-ээс уншина — Tailwind класс өөрчлөгдвөл
        энд гараар засах шаардлагагүй. */
     const gap = parseFloat(getComputedStyle(el).columnGap || '0') || 12;
@@ -128,7 +214,7 @@ export function TitleRow({
      * ⚠️ `+ gap` хоёр талд — n ширхэг карт нь `n*w + (n-1)*gap` эзэлнэ.
      * Томьёог хөрвүүлбэл `n = (W + gap) / (w + gap)`.
      */
-    const perRow = Math.max(1, Math.floor((el.clientWidth + gap) / (cardWidth + gap)));
+    const perRow = Math.max(1, Math.floor((viewport + gap) / (cardWidth + gap)));
 
     /**
      * ⚠️⚠️ 2 МӨР БОЛБОЛ БАГАНЫН ТОО = `ceil(n / 2)`.
@@ -151,9 +237,18 @@ export function TitleRow({
      * нэг баганын зайгаар илүү зөрүү шаардана (1↔2 хооронд
      * хязгааргүй сэлгэхээс сэргийлнэ).
      */
-    const cols = Math.ceil(items.length / 2);
-    setTwoRows((prev) => (prev ? cols >= perRow - 1 : cols >= perRow));
-  }, [allowTwoRows, items.length]);
+    const cols = Math.ceil(allItems.length / 2);
+    /**
+     * ⚠️ Гистерезис: 1→2 руу шилжихэд `perRow` хүрэх ёстой, 2→1 руу
+     * буцахад нэг баганын зөрүү өгнө (хязгааргүй сэлгэхээс сэргийлнэ).
+     * Хэмжилт нь одоо мөрийн тооноос хамаарахгүй тул найдвартай.
+     */
+    setTwoRows((prev) => (prev ? cols > perRow : cols >= perRow));
+  }, [allowTwoRows, allItems.length]);
+
+  useEffect(() => {
+    loadMoreRef.current = loadMore;
+  }, [loadMore]);
 
   useEffect(() => {
     updateScrollState();
@@ -166,7 +261,7 @@ export function TitleRow({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [items.length, updateScrollState, updateRows]);
+  }, [allItems.length, updateScrollState, updateRows]);
 
   const scroll = (dir: 1 | -1) => {
     const el = trackRef.current;
@@ -271,8 +366,8 @@ export function TitleRow({
           )}
         >
           {variant === 'top10'
-            ? items.slice(0, 10).map((t, i) => <Top10Card key={t.id} title={t} rank={i + 1} />)
-            : items.map((t) => (
+            ? allItems.slice(0, 10).map((t, i) => <Top10Card key={t.id} title={t} rank={i + 1} />)
+            : allItems.map((t) => (
                 <TitleCard key={t.id} title={t} progressPercent={progressById?.[t.id]} />
               ))}
         </div>

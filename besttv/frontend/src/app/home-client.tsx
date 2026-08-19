@@ -105,6 +105,9 @@ export function HomeClient() {
               title={row.name}
               items={row.titles}
               href={`/movies?genre=${row.slug}`}
+              /* ⚠️ Гүйлгэхэд тухайн жанрын үлдсэн киног нэмж татна —
+                 нүүр нь эгнээ бүрд 24 л өгдөг (анхны ачаалалт хурдан) */
+              genreSlug={row.slug}
             />
             {bannersByPosition.get(i + 1)?.map((b) => (
               <HomeBannerStrip key={b.id} banner={b} />
