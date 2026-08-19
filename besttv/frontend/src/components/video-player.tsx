@@ -534,6 +534,31 @@ export function VideoPlayer({
         <DefaultVideoLayout
           icons={defaultLayoutIcons}
           /**
+           * ⚠️⚠️ CC ТОВЧИЙГ ӨӨРИЙН ЦЭСЭЭР СОЛИНО (`slots`).
+           *
+           * БОДИТ АЛДАА: өмнө нь өөрийн товчийг player дээр ХӨВҮҮЛЖ
+           * тавиад, Vidstack-ийнхыг CSS-ээр нуухыг оролдсон. Гэвч
+           * `aria-label` нь хэлний тохиргооноос хамаарч өөрчлөгддөг
+           * тул сонгогч ОНОХГҮЙ — ХОЁР товч зэрэг харагдаж, бүр
+           * давхарлаж байв (хэрэглэгчийн гомдол).
+           *
+           * `slots` нь Vidstack-ийн АЛБАН ЁСНЫ арга: тухайн байрлалд
+           * байгаа товчийг ОРЛУУЛНА. Тиймээс давхардах боломжгүй.
+           *
+           * ⚠️ `captionButton` нь desktop + mobile ХОЁУЛАНД үйлчилнэ.
+           * ⚠️ Хадмалгүй видеонд `SubtitleMenu` өөрөө `null` буцаадаг
+           * тул слот хоосон үлдэж, товч огт гарахгүй.
+           */
+          slots={{
+            captionButton: (
+              <SubtitleMenu
+                tracks={subtitleTracks.map((t) => ({ lang: t.lang, label: t.label }))}
+                activeLang={activeCue}
+                onSelect={setActiveCue}
+              />
+            ),
+          }}
+          /**
            * ⚠️⚠️ SEEK PREVIEW — sprite + WebVTT (хөрвүүлэлтэд бэлдэнэ).
            *
            * Өмнөх player нь НУУГДМАЛ 2 дахь `<video>`-г seek хийж preview
@@ -613,37 +638,6 @@ export function VideoPlayer({
                 Буцах
               </a>
             )}
-          </div>
-        </div>
-      )}
-
-      {/*
-        ⚠️⚠️ ХАДМАЛЫН ТОВЧ — player-ийн ДООД БАРУУН буланд, Vidstack-ийн
-        удирдлагын мөрөөс ДЭЭР.
-
-        ЯАГААД ӨӨРСДӨӨ ТАВЬСАН БЭ: Vidstack-ийн CC товч нь дарахад
-        зүгээр л асаадаг/унтраадаг бөгөөд хэл сонгох нь «Тохиргоо →
-        Хадмал → …» гэсэн 3 давхар цэсний ард нуугдана. Хэрэглэгч
-        «баахан юм руу орж байна» гэж гомдоллосон.
-
-        ⚠️ Хадмалгүй үед `SubtitleMenu` өөрөө `null` буцаана.
-        ⚠️ Удирдлага нуугдахад ХАМТ бүдгэрнэ (`data-user-idle`).
-      */}
-      {subtitleTracks.length > 0 && (
-        <div className="pointer-events-none absolute bottom-16 right-3 z-30 sm:bottom-[4.5rem] sm:right-4">
-          <div
-            className={[
-              'transition-opacity duration-200',
-              /* ⚠️ Удирдлагатай ХАМТ — буцах товчтой ИЖИЛ зарчим
-                 (`controlsOn` нь `onControlsChange`-ээс ирнэ) */
-              controlsOn ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
-            ].join(' ')}
-          >
-            <SubtitleMenu
-              tracks={subtitleTracks.map((t) => ({ lang: t.lang, label: t.label }))}
-              activeLang={activeCue}
-              onSelect={setActiveCue}
-            />
           </div>
         </div>
       )}

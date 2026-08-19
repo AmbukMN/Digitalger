@@ -172,7 +172,20 @@ export function TitleDetailClient({ slug }: { slug: string }) {
            * `bg-black/50` нь БҮДГЭРЧ, товч огт харагдахгүй байв.
            * ⚠️ `h-11` — Apple/Google-ийн хүрэх талбайн доод хязгаар.
            */
-          className="absolute left-3 top-3 z-20 flex h-11 items-center gap-1.5 rounded-full border border-white/15 bg-black/70 px-4 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-white/70 md:left-6 md:top-6"
+          /**
+           * ⚠️⚠️ NAVBAR-ЫН ДООР — ард нь ОРЖ ДАВХЦАЖ байсныг зассан.
+           *
+           * БОДИТ АЛДАА: navbar нь `fixed top-0 z-50`, товч нь
+           * `top-3 z-20` байсан тул ТУСЛАХ БОЛОМЖГҮЙ давхцаж, лого
+           * болон цэсний ард ороод дарагдахгүй байв.
+           *
+           * ⚠️ `top-20` (80px) = navbar-ын 64px + 16px зай.
+           * ⚠️ `z-30` — hero-гийн градиентээс дээр, navbar-аас ДООР
+           *   (navbar-тай өрсөлдөх ёсгүй — тэр нь үргэлж дээр байна).
+           * ⚠️ Гар утсанд navbar доод талд шилждэг (bottom nav) ч
+           *   дээд мөр нь үлддэг тул ижил зай хэрэгтэй.
+           */
+          className="absolute left-3 top-20 z-30 flex h-11 items-center gap-1.5 rounded-full border border-white/15 bg-black/70 px-4 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-white/70 md:left-6"
         >
           <ArrowLeft size={17} />
           Буцах
