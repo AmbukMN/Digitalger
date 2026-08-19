@@ -18,7 +18,7 @@ import {
   defaultLayoutIcons,
 } from '@vidstack/react/player/layouts/default';
 import { getAccessToken } from '@/lib/api';
-import { SubtitleMenu } from '@/components/player/subtitle-menu';
+import { PlayerMenu } from '@/components/player/player-menu';
 
 import '@vidstack/react/player/styles/default/theme.css';
 import '@vidstack/react/player/styles/default/layouts/video.css';
@@ -248,6 +248,39 @@ export function VideoPlayer({
       created.forEach((u) => URL.revokeObjectURL(u));
     };
   }, [subtitles]);
+
+  /**
+   * ⚠️⚠️ ЧАНАР + ХУРД — өөрсдийн цэс хянадаг тул төлвийг энд барина.
+   *
+   * Vidstack-ийн `qualities` нь HLS manifest ачаалагдмагц дүүрдэг
+   * тул `change` эвентээр дагана.
+   */
+  const [qualities, setQualities] = useState<{ index: number; label: string }[]>([]);
+  const [activeQuality, setActiveQuality] = useState(-1);
+  const [speed, setSpeed] = useState(1);
+
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    const sync = () => {
+      const list = [...p.qualities].map((q, i) => ({
+        index: i,
+        label: `${q.height}p`,
+      }));
+      /* ⚠️ «Авто» нь ЭХЭНД — анхдагч сонголт, хамгийн олон хүн ашиглана */
+      setQualities(list.length ? [{ index: -1, label: 'Авто' }, ...list] : []);
+      /* ⚠️ `autoSelect` нь МЕТОД (шинжилгээ БИШ) — авто эсэхийг
+         `selectedIndex` -ээр л мэдэж болно (-1 = ABR сонгож байна) */
+      setActiveQuality(p.qualities.selectedIndex);
+    };
+    sync();
+    p.qualities.addEventListener('add', sync);
+    p.qualities.addEventListener('change', sync);
+    return () => {
+      p.qualities.removeEventListener('add', sync);
+      p.qualities.removeEventListener('change', sync);
+    };
+  }, [ready]);
 
   /**
    * ⚠️⚠️ ИДЭВХТЭЙ ХАДМАЛЫН ХЭЛ — өөрсдийн цэс хянана.
@@ -551,11 +584,46 @@ export function VideoPlayer({
            * тул слот хоосон үлдэж, товч огт гарахгүй.
            */
           slots={{
-            captionButton: (
-              <SubtitleMenu
+            /**
+             * ⚠️⚠️ ХАДМАЛ + ТОХИРГОО = НЭГ ЦЭС.
+             *
+             * Vidstack-ийн CC товч болон тохиргооны цэс хоёулаа
+             * товчны дэргэд байрладаг тул гар утсанд ДЭЭШЭЭ ГАРЧ
+             * ТАСАРДАГ. CSS-ээр засах хоёр оролдлого бүтэлгүйтсэн
+             * (Vidstack нь JS-ээр inline байрлал бичдэг).
+             *
+             * Тиймээс хоёуланг нь ӨӨРИЙН цэсээр сольсон — portal-аар
+             * дэлгэцэд харьцангуй байрлуулна.
+             */
+            captionButton: null,
+            settingsMenu: (
+              <PlayerMenu
                 tracks={subtitleTracks.map((t) => ({ lang: t.lang, label: t.label }))}
                 activeLang={activeCue}
-                onSelect={setActiveCue}
+                onSelectLang={setActiveCue}
+                qualities={qualities}
+                activeQuality={activeQuality}
+                onSelectQuality={(i) => {
+                  const p = playerRef.current;
+                  if (!p) return;
+                  /* ⚠️ `-1` = ABR авто; бусад нь тухайн түвшинг тогтооно */
+                  /* ⚠️ `autoSelect()` нь МЕТОД; тухайн түвшинг
+                     `q.selected = true` -ээр биш `selectQuality`-аар
+                     сонгоно (Vidstack 1.15 API) */
+                  if (i < 0) {
+                    p.qualities.autoSelect();
+                  } else {
+                    const q = p.qualities[i];
+                    if (q) p.remoteControl.changeQuality(i);
+                  }
+                  setActiveQuality(i);
+                }}
+                speed={speed}
+                onSelectSpeed={(r) => {
+                  const p = playerRef.current;
+                  if (p) p.playbackRate = r;
+                  setSpeed(r);
+                }}
               />
             ),
           }}
