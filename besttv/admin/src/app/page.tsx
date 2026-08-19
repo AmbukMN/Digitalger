@@ -114,6 +114,19 @@ export default function DashboardPage() {
           ⚠️ Хугацаа + таб НЭГ мөрөнд, sticky — доош гүйхэд ч сонголт
           гараас гарахгүй (урт хуудсанд буцаж гүйлгэх шаардлагагүй).
         */}
+        {/*
+          ⚠️⚠️ «ӨНӨӨДӨР» КАРТ — МУЖИЙН СОНГОЛТООС ДЭЭР.
+
+          БОДИТ ЭНДҮҮРЭЛ: доор байрлуулахад админ «Сар» дарчихаад
+          дээрх «Өнөөдөр» тоог хараад «муж ажиллахгүй байна» гэж
+          ойлгож байв. Мужийн сонголтоос ДЭЭР байрлуулснаар түүнд
+          ХАМААРАХГҮЙ нь бүтцээрээ илэрхий болно.
+
+          ⚠️ Эрэмбэ: ӨНӨӨДӨР → [муж сонголт] → мужийн үзүүлэлт →
+          систем. Админ өдөр бүр хардаг зүйл нь бизнес.
+        */}
+        <TodayCard />
+
         <div className="sticky top-0 z-20 -mx-4 mb-5 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex flex-wrap gap-1">
@@ -154,18 +167,25 @@ export default function DashboardPage() {
         </div>
 
         {/*
-          ⚠️⚠️ ЭРЭМБЭ: ӨНӨӨДӨР → бизнес → систем.
-
-          Өмнө нь `ContentHealthCard` + `ServerInsightCard` хоёр
-          хамгийн эхэнд байсан тул эхний дэлгэцийг СИСТЕМИЙН техник
-          мэдээлэл эзэлж, админ «өнөөдөр хэдэн хүн орж, хэдэн төгрөг
-          орлоо» гэдгийг харахын тулд ДООШ гүйлгэдэг байв.
-
-          Админ өдөр бүр хардаг зүйл нь бизнес, системийн төлөв нь
-          АСУУДАЛ ГАРСАН үед л чухал — тиймээс доор зөөв.
-          (`ContentHealthCard` нь асуудалтай үед л тод харагддаг.)
+          ⚠️ МУЖИЙН ХИЛИЙГ ИЛ ХЭЛНЭ — «Сар» гэдэг нь ЯГ хэдэн өдөр,
+          ямар огнооноос эхэлж байгааг админ таамаглах ёсгүй.
+          Дээрх «Өнөөдөр» картаас ялгарна.
         */}
-        <TodayCard />
+        {data && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            <b className="text-foreground">{rangeLabel}</b> — сүүлийн {data.days} хоног
+            {data.days > 1 && (
+              <>
+                {' '}
+                ({new Date(Date.now() - data.days * 86400_000).toLocaleDateString('mn-MN', {
+                  month: 'numeric',
+                  day: 'numeric',
+                })}{' '}
+                – өнөөдөр)
+              </>
+            )}
+          </p>
+        )}
 
         {isLoading || !data ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -187,7 +187,13 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
         + `flex-col` + доторх `overflow-y-auto` нь толгойг байрандаа үлдээж,
         зөвхөн агуулгыг гүйлгэнэ.
       */}
-      <DialogContent className="flex max-h-[88dvh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden">
+      {/*
+        ⚠️ MOBILE-Д ӨРГӨНИЙГ БҮРЭН АШИГЛАНА.
+        `calc(100vw-2rem)` нь утсан дээр хоёр талаас 16px хасдаг тул
+        аль хэдийн нарийн дэлгэцэд агуулга улам шахагдана. 0.75rem
+        болгож зай хэмнэв; `max-h` нь `dvh` (хаяг талбар).
+      */}
+      <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-1.5rem)] max-w-2xl flex-col overflow-hidden sm:max-h-[88dvh] sm:w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {/* ⚠️ `data` ирэхээс өмнө `user` (жагсаалтын мөр) — хоёулаа
@@ -208,21 +214,32 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
           </div>
         ) : (
           <Tabs value={tab} onValueChange={setTab} className="mt-2">
-            {/* ⚠️ 8 таб — Чат нэмэгдсэн (өмнө 7) */}
-            <TabsList className="grid w-full grid-cols-8">
-              <TabsTrigger value="overview">
+            {/*
+              ⚠️⚠️ 8 ТАБ — MOBILE-Д ХЭВТЭЭ ГҮЙНЭ (`grid-cols-8` БИШ).
+
+              БОДИТ АЛДАА: `grid-cols-8` нь 8 баганыг ТЭНЦҮҮ хуваадаг
+              тул 360px өргөнтэй утсан дээр таб бүр ~40px болж, «Захиалга»
+              гэх урт үг ДАВХАРЛАЖ уншигдахгүй байв (хэрэглэгчийн зураг).
+
+              Хэвтээ гүйлт нь: өргөн дэлгэцэд бүгд багтана, нарийн
+              дэлгэцэд гүйнэ. Таб бүр өөрийн БАЙГАЛИЙН өргөнтэй.
+
+              ⚠️ `scrollbar` нуусан — 8 табын доор судал гарвал бохир.
+            */}
+            <TabsList className="flex w-full justify-start gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-8 sm:gap-0 [&::-webkit-scrollbar]:hidden">
+              <TabsTrigger value="overview" className="shrink-0">
                 <UserIcon size={13} className="mr-1" /> Тойм
               </TabsTrigger>
-              <TabsTrigger value="insight">
+              <TabsTrigger value="insight" className="shrink-0">
                 <Activity size={13} className="mr-1" /> Идэвх
               </TabsTrigger>
-              <TabsTrigger value="wallet">
+              <TabsTrigger value="wallet" className="shrink-0">
                 <Wallet size={13} className="mr-1" /> Хэтэвч
               </TabsTrigger>
-              <TabsTrigger value="orders">
+              <TabsTrigger value="orders" className="shrink-0">
                 <Receipt size={13} className="mr-1" /> Захиалга
               </TabsTrigger>
-              <TabsTrigger value="library">
+              <TabsTrigger value="library" className="shrink-0">
                 <Bookmark size={13} className="mr-1" /> Сан
               </TabsTrigger>
               {/*
@@ -230,7 +247,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                 гомдол бичсэн ч админ тусдаа Чат хуудас руу орж хайх
                 шаардлагатай байсан. Гомдол шийдэхэд шууд хэрэгтэй.
               */}
-              <TabsTrigger value="chat">
+              <TabsTrigger value="chat" className="shrink-0">
                 <MessageSquare size={13} className="mr-1" /> Чат
                 {!!data?.chats?.length && (
                   <span className="ml-1 rounded bg-primary/20 px-1 text-[10px] text-primary">
@@ -238,14 +255,14 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="access">
+              <TabsTrigger value="access" className="shrink-0">
                 <Ticket size={13} className="mr-1" /> Эрх
               </TabsTrigger>
               {/*
                 ⚠️ ТҮҮХ — аудит лог, төхөөрөмж, мэдэгдэл, дансны төлбөр.
                 Гомдол шийдэхэд «хэзээ юу болсон» гэдгийг мэдэх ёстой.
               */}
-              <TabsTrigger value="history">
+              <TabsTrigger value="history" className="shrink-0">
                 <History size={13} className="mr-1" /> Түүх
               </TabsTrigger>
             </TabsList>
