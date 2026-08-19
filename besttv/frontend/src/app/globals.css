@@ -635,43 +635,37 @@ video {
    ═══════════════════════════════════════════════════════════════════ */
 
 /**
- * ⚠️⚠️ ТОХИРГООНЫ ЦЭС — ДООРООС ГАРАХ ХУУДАС БОЛГОНО.
+ * ⚠️⚠️ ТОХИРГООНЫ ЦЭС — ГАР УТСАНД БАГТААНА.
  *
- * БОДИТ АСУУДАЛ: Vidstack-ийн анхдагч цэс нь товчны дэргэд жижиг
- * попап болж гардаг. Гар утсанд удирдлагын мөр дэлгэцийн ёроолд
- * байдаг тул цэс нь ҮЛДСЭН БАГА зайд шахагдаж, 6 мөр (Хурд, Чанар,
- * Хүртээмж, Дуу, Хадмал…) нь 100px өндөрт багтахыг оролдож
- * УНШИГДАХГҮЙ болдог байв (хэрэглэгчийн зураг).
+ * БОДИТ АСУУДАЛ #1: гар утсанд цэс нь үлдсэн бага зайд шахагдаж,
+ * 6 мөр (Хурд, Чанар, Хүртээмж, Дуу, Хадмал…) уншигдахгүй байв.
  *
- * Bottom sheet нь дэлгэцийн доод хэсгийг БҮТНЭЭР эзэлнэ — Netflix,
- * YouTube, Spotify бүгд гар утсанд ийм загвартай.
+ * ⚠️⚠️ БОДИТ АСУУДАЛ #2 (энэ засварын шалтгаан): өмнө нь
+ * `position: fixed !important` + `bottom: 0` тавьж bottom sheet
+ * болгохыг оролдсон. Гэвч Vidstack нь цэсийг JS-ЭЭР байрлуулж,
+ * элемент дээр inline `transform`/`top`/`left` бичдэг. `!important`
+ * нь тэдгээртэй ЗӨРЧИЛДӨЖ, цэс ОГТ НЭЭГДЭХГҮЙ болсон
+ * (хэрэглэгчийн гомдол).
  *
- * ⚠️ ЗӨВХӨН 640px-ээс нарийн дэлгэцэд. Desktop дээр анхдагч попап
- * зөв ажилладаг тул хөндөхгүй.
+ * ЗӨВ АРГА: БАЙРЛАЛЫГ ОГТ ХӨНДӨХГҮЙ — Vidstack өөрөө зөв тооцно.
+ * Зөвхөн ХЭМЖЭЭ, гүйлт, хүрэх талбайг тохируулна.
  */
 @media (max-width: 639px) {
   .vds-menu-items {
-    position: fixed !important;
-    inset-inline: 0 !important;
-    bottom: 0 !important;
-    top: auto !important;
+    /* ⚠️ Дэлгэцээс хэтрэхээс сэргийлнэ — байрлалыг хөндөхгүй */
+    max-width: calc(100vw - 1.5rem);
     /* ⚠️ `dvh` — хаяг талбар нуугдахад `vh` буруу тооцоологддог */
-    max-height: 70dvh !important;
-    width: 100% !important;
-    max-width: none !important;
-    overflow-y: auto !important;
-    border-radius: 1rem 1rem 0 0 !important;
-    /* ⚠️ Хадмалын цэснээс (z-50) ДООГУУР — хоёулаа зэрэг нээгдэхгүй
-       ч давхцвал Vidstack-ийнх нь ард байх нь зөв */
-    z-index: 40 !important;
-    padding-bottom: env(safe-area-inset-bottom, 0.5rem) !important;
+    max-height: 60dvh;
+    overflow-y: auto;
+    /* ⚠️ iPhone-ы доод зурвас — сүүлийн мөр далдрахгүй */
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   /* ⚠️ Цэсний мөр 44px — Apple/Google-ийн хүрэх талбайн доод хязгаар.
      Анхдагч 32px нь хуруунд ЖИЖИГ, буруу мөр дардаг. */
   .vds-menu-item,
   .vds-menu-button {
-    min-height: 44px !important;
+    min-height: 44px;
   }
 
   /**
@@ -681,8 +675,30 @@ video {
    * хоорондоо 4px зайтай шахагддаг тул хэрэглэгч буруу товч дардаг.
    */
   .vds-controls-group .vds-button {
-    min-width: 40px !important;
-    min-height: 40px !important;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /**
+   * ⚠️⚠️ УДИРДЛАГЫН МӨР — ТОВЧ БАГТААХ.
+   *
+   * `smallLayoutWhen={false}` тул Vidstack нь desktop layout
+   * ашиглана (бүх товч ДООД мөрөнд — эрхий хуруунд ойр). Гэвч
+   * тэр layout нь 6-7 товчийг нэг мөрөнд эгнүүлдэг тул 360px
+   * өргөнтэй утсанд ШАХАГДАНА.
+   *
+   * ⚠️ Зайг багасгаж, шаардлагатай бол гүйлгэнэ — товч ХАСАГДАХААС
+   * (`display:none`) илүү нь ГҮЙЛГЭХ: хэрэглэгч бүх боломжид
+   * хүрнэ.
+   */
+  .vds-controls-group {
+    gap: 0.125rem;
+  }
+
+  /* ⚠️ Цагийн бичиг — нарийн дэлгэцэд хамгийн түрүүнд хасагдана
+     (товчнууд илүү чухал; цаг нь seek мөрөн дээр ч харагдана) */
+  .vds-time-group {
+    font-size: 0.7rem;
   }
 }
 
@@ -692,6 +708,8 @@ video {
  */
 @media (max-width: 639px) and (orientation: landscape) {
   .vds-menu-items {
-    max-height: 85dvh !important;
+    /* ⚠️ Landscape-д өндөр бага тул илүү өгнө. `!important` БАЙХГҮЙ —
+       Vidstack-ийн inline байрлалтай зөрчилдвөл цэс нээгдэхгүй */
+    max-height: 75dvh;
   }
 }

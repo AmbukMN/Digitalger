@@ -171,6 +171,16 @@ export function SubtitleMenu({
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
+          /**
+           * ⚠️ Vidstack-ийн ТОХИРГООНЫ цэс нээлттэй бол ХААНА —
+           * хоёр цэс зэрэг нээгдвэл давхцаж, аль нь ажиллаж байгаа
+           * нь ойлгомжгүй болно.
+           */
+          if (!open) {
+            document
+              .querySelectorAll<HTMLElement>('.vds-menu-button[aria-expanded="true"]')
+              .forEach((b) => b.click());
+          }
           setOpen((v) => !v);
         }}
         aria-expanded={open}
@@ -222,7 +232,10 @@ export function SubtitleMenu({
             бүгд гар утсанд ийм загвартай (эрхий хуруунд ойр).
           */}
           <div
-            className="fixed inset-0 z-50 bg-black/60 sm:hidden"
+            /* ⚠️ Vidstack-ийн цэс 1000+ z-index-тэй тул Tailwind-ийн
+               `z-50` (=50) нь ДООГУУР үлдэнэ — inline утга өгнө */
+            style={{ zIndex: 2147483000 }}
+            className="fixed inset-0 bg-black/60 sm:hidden"
             onPointerDown={(e) => {
               /* ⚠️ Player руу явуулахгүй — эс бөгөөс дэвсгэр дарахад
                  кино зогсдог/эхэлдэг */
@@ -236,8 +249,10 @@ export function SubtitleMenu({
           /* ⚠️ Цэс дотор дарахад player руу очих ёсгүй (play/pause) */
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
+          /* ⚠️ Дэвсгэрээс 1-ээр дээш — цэс нь дэвсгэр дээр байна */
+          style={{ zIndex: 2147483001 }}
           className={cn(
-            'z-50 overflow-hidden border-white/12 bg-[#151515]/97 shadow-2xl backdrop-blur',
+            'overflow-hidden border-white/12 bg-[#151515]/97 shadow-2xl backdrop-blur',
             /* Mobile: доод талд наалдсан бүтэн өргөн хуудас */
             'fixed inset-x-0 bottom-0 max-h-[70dvh] overflow-y-auto rounded-t-2xl border-t',
             'animate-in slide-in-from-bottom duration-200',
