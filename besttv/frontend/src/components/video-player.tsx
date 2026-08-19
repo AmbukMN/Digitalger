@@ -18,6 +18,7 @@ import {
   defaultLayoutIcons,
 } from '@vidstack/react/player/layouts/default';
 import { getAccessToken } from '@/lib/api';
+import { SubtitleMenu } from '@/components/player/subtitle-menu';
 
 import '@vidstack/react/player/styles/default/theme.css';
 import '@vidstack/react/player/styles/default/layouts/video.css';
@@ -248,6 +249,51 @@ export function VideoPlayer({
   }, [subtitles]);
 
   /**
+   * ⚠️⚠️ ИДЭВХТЭЙ ХАДМАЛЫН ХЭЛ — өөрсдийн цэс хянана.
+   *
+   * Vidstack-ийн `textTracks` нь `mode` талбартай (`showing` /
+   * `disabled`). Нэг л track `showing` байх ЁСТОЙ — олон бол
+   * хадмал давхарлаж, уншигдахгүй болно.
+   */
+  const [activeCue, setActiveCue] = useState<string | null>(null);
+
+  /* Анхдагч хэлийг track ачаалагдмагц тохируулна */
+  useEffect(() => {
+    if (!subtitleTracks.length) {
+      setActiveCue(null);
+      return;
+    }
+    const def = subtitleTracks.find((t) => t.isDefault) ?? subtitleTracks[0];
+    setActiveCue(def.lang);
+  }, [subtitleTracks]);
+
+  /**
+   * Сонгосон хэлийг Vidstack-д тавина.
+   *
+   * ⚠️ `player.textTracks` нь ачаалагдахад хугацаа шаардана тул
+   * `activeCue` болон track-ийн тоо ХОЁУЛАНГ хамаарал болгоно.
+   */
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    const apply = () => {
+      for (const t of p.textTracks) {
+        /* ⚠️ `language` нь `lang` атрибутаас ирнэ */
+        t.mode = t.language === activeCue ? 'showing' : 'disabled';
+      }
+    };
+    apply();
+    /**
+     * ⚠️ Track хожуу нэмэгдэж болно (blob URL асинхрон бэлддэг) —
+     * `add` эвентээр дахин тавина.
+     */
+    p.textTracks.addEventListener('add', apply);
+    return () => {
+      p.textTracks.removeEventListener('add', apply);
+    };
+  }, [activeCue, subtitleTracks.length]);
+
+  /**
    * ⚠️⚠️ BEARER TOKEN — ЗӨВХӨН МАНАЙ API руу.
    *
    * Segment-үүд нь R2-оос ШУУД татагддаг (presigned URL). Тэдгээрт
@@ -417,7 +463,26 @@ export function VideoPlayer({
          * CSS-ийн дүрэм нь `globals.css`-д.
          */
         data-has-subtitles={subtitleTracks.length > 0 ? 'true' : 'false'}
-        className="aspect-video w-full overflow-hidden bg-black text-white"
+        /**
+         * ⚠️⚠️ ӨНДРИЙН ХЯЗГААР — МОБАЙЛД ДЭЛГЭЦЭЭС ХЭТЭРДЭГ БАЙСАН.
+         *
+         * БОДИТ АСУУДАЛ: `aspect-video` (16:9) ганцаараа бол ӨРГӨНӨӨС
+         * өндрийг тооцно. Утсыг ХЭВТЭЭ эргүүлэхэд өргөн нь дэлгэцийн
+         * бүтэн өргөн болж, өндөр нь дэлгэцээс ХЭТЭРНЭ — удирдлагын
+         * мөр доогуур гарч, хэрэглэгч видеогоо бүтнээр нь харахгүй.
+         *
+         * `max-h` нь өндрийг таслана; `aspect-video`-тэй хамт ажиллахад
+         * өргөн нь автоматаар багасаж, харьцаа хадгалагдана.
+         *
+         * ⚠️ `100dvh` — мобайл browser-ийн хаяг талбар нуугдах/гарахад
+         * `vh` буруу тооцоологддог (Safari-д 100vh нь хаяг талбарыг
+         * ОРУУЛААД тооцдог тул хэсэг нь далдардаг).
+         *
+         * ⚠️ `dvh` дэмжихгүй хуучин browser-т (iOS < 15.4 — таны
+         * iPhone 7) `svh` fallback хэрэггүй: `aspect-video` дангаараа
+         * ажиллаж, зөвхөн хязгаар нь идэвхгүй болно.
+         */
+        className="aspect-video max-h-[100dvh] w-full overflow-hidden bg-black text-white sm:max-h-[calc(100dvh-4rem)]"
       >
         <MediaProvider>
           {poster && (
@@ -553,6 +618,37 @@ export function VideoPlayer({
       )}
 
       {/*
+        ⚠️⚠️ ХАДМАЛЫН ТОВЧ — player-ийн ДООД БАРУУН буланд, Vidstack-ийн
+        удирдлагын мөрөөс ДЭЭР.
+
+        ЯАГААД ӨӨРСДӨӨ ТАВЬСАН БЭ: Vidstack-ийн CC товч нь дарахад
+        зүгээр л асаадаг/унтраадаг бөгөөд хэл сонгох нь «Тохиргоо →
+        Хадмал → …» гэсэн 3 давхар цэсний ард нуугдана. Хэрэглэгч
+        «баахан юм руу орж байна» гэж гомдоллосон.
+
+        ⚠️ Хадмалгүй үед `SubtitleMenu` өөрөө `null` буцаана.
+        ⚠️ Удирдлага нуугдахад ХАМТ бүдгэрнэ (`data-user-idle`).
+      */}
+      {subtitleTracks.length > 0 && (
+        <div className="pointer-events-none absolute bottom-16 right-3 z-30 sm:bottom-[4.5rem] sm:right-4">
+          <div
+            className={[
+              'transition-opacity duration-200',
+              /* ⚠️ Удирдлагатай ХАМТ — буцах товчтой ИЖИЛ зарчим
+                 (`controlsOn` нь `onControlsChange`-ээс ирнэ) */
+              controlsOn ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
+            ].join(' ')}
+          >
+            <SubtitleMenu
+              tracks={subtitleTracks.map((t) => ({ lang: t.lang, label: t.label }))}
+              activeLang={activeCue}
+              onSelect={setActiveCue}
+            />
+          </div>
+        </div>
+      )}
+
+      {/*
         ⚠️ Буцах товч — player-ийн ДЭЭД зүүн буланд.
         Дэлгэц дүүрэн үед доорх холбоос харагдахгүй тул хэрэглэгч гарах
         замгүй үлддэг байв. `pointer-events-none` бүхий саванд байрлуулж,
@@ -590,12 +686,21 @@ export function VideoPlayer({
         >
           <Link
             href={backHref}
-            /* ⚠️ 44px — Apple/Google-ийн хүрэх талбайн доод хязгаар
-               (өмнө нь 40px байсан) */
-            className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-colors hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-white/70"
+            /**
+             * ⚠️⚠️ «БУЦАХ» БИЧИГТЭЙ — дүрс тэмдэг ганцаараа ХОЁРДМОЛ.
+             *
+             * БОДИТ АСУУДАЛ: зүүн сум ганцаараа байхад хэрэглэгч
+             * «өмнөх анги руу очих товч» гэж андуурдаг. Player дотор
+             * гарах зам байгааг МЭДЭХГҮЙ тул browser-ийн back дарж,
+             * заримдаа огт өөр хуудсанд очдог.
+             *
+             * ⚠️ 44px өндөр — Apple/Google-ийн хүрэх талбайн хязгаар.
+             */
+            className="pointer-events-auto flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-black/65 px-4 text-sm font-semibold text-white backdrop-blur-md transition-colors hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-white/70"
             aria-label="Буцах"
           >
-            <ChevronLeft size={22} />
+            <ChevronLeft size={20} />
+            Буцах
           </Link>
           {title && (
             <p className="mt-2 line-clamp-1 text-sm font-semibold text-white drop-shadow-lg md:text-base">

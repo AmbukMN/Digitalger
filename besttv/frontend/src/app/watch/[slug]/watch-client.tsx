@@ -114,6 +114,24 @@ export function WatchClient({ slug }: { slug: string }) {
     if (currentSeasonId) setOpenSeason(currentSeasonId);
   }, [currentSeasonId]);
 
+  /**
+   * ⚠️⚠️ ИДЭВХТЭЙ УЛИРЛЫН ТАБ РУУ АВТОМАТААР ГҮЙНЭ.
+   *
+   * 10 улиралтай цувралд «7-р бүлэг» үзэж байхад таб мөр нь 1-рээс
+   * эхэлж харагдвал хэрэглэгч хаана байгаагаа ОЛОХГҮЙ — гараар
+   * баруун тийш гүйлгэж хайх шаардлагатай болно.
+   */
+  const seasonBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!openSeason || !seasonBarRef.current) return;
+    const el = seasonBarRef.current.querySelector<HTMLElement>(
+      `[data-season="${openSeason}"]`,
+    );
+    /* ⚠️ `block: 'nearest'` — босоо гүйлтийг ХӨНДӨХГҮЙ (эс бөгөөс
+       хуудас өөрөө үсэрч, видео дэлгэцээс гарна) */
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [openSeason]);
+
   // Analytics: "эхэлсэн" нэг л удаа, "явц" 60 сек тутам (progress хадгалалт 5 сек
   // тутам — түүн бүрд event бичвэл хэт олон мөр үүснэ)
   const playTracked = useRef(false);
@@ -507,49 +525,61 @@ export function WatchClient({ slug }: { slug: string }) {
                 {flatEpisodes.filter((e) => e.playable).length}/{flatEpisodes.length}
               </span>
             </div>
-            {/* ⚠️ `100dvh` — мобайл browser-ийн хаяг талбар нуугдахад
-                `vh` буруу тооцоологддог (жагсаалт таслагдана) */}
-            <div className="space-y-1 p-3 lg:max-h-[calc(100dvh-3.25rem)] lg:overflow-y-auto">
-              {seasons.map((s) => {
-                /* ⚠️ 1 улирал бол эвхэх утгагүй — үргэлж нээлттэй */
-                const multi = seasons.length > 1;
-                const open = !multi || openSeason === s.id;
-                const ready = s.episodes.filter((e) => e.playable).length;
-                return (
-                <div key={s.id}>
-                  {multi && (
-                    /*
-                      ⚠️ УЛИРЛЫН ТОЛГОЙ = ДАРЖ БОЛОХ ТОВЧ.
-                      Өмнө нь зүгээр текст байсан тул эвхэх боломжгүй.
-                      Ангийн тоо + бэлэн тоог харуулснаар хэрэглэгч
-                      нээлгүйгээр аль улирал үзэх боломжтойг мэднэ.
-                    */
+            {/*
+              ⚠️⚠️ УЛИРЛЫН СОНГОЛТ = ХЭВТЭЭ ТАБ (эвхэгддэг жагсаалт БИШ).
+
+              БОДИТ АСУУДАЛ: 10 улиралтай цуврал (The Blacklist) дээр
+              улирлууд БОСОО цувж, мобайл дээр «5-р бүлэг» рүү очихын
+              тулд дэлгэц дүүрэн гүйлгэх шаардлагатай байв. Эвхээстэй
+              байсан ч толгойнууд нь өөрсдөө 10 мөр эзэлнэ.
+
+              Хэвтээ таб нь НЭГ мөрөнд багтана — Netflix, YouTube,
+              Disney+ бүгд ийм загвартай. Идэвхтэй таб автоматаар
+              харагдах байрлал руу гүйнэ.
+            */}
+            {seasons.length > 1 && (
+              <div
+                ref={seasonBarRef}
+                className="flex gap-1.5 overflow-x-auto border-b border-white/10 px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {seasons.map((s) => {
+                  const active = openSeason === s.id;
+                  const ready = s.episodes.filter((e) => e.playable).length;
+                  return (
                     <button
-                      onClick={() => setOpenSeason(open ? null : s.id)}
-                      aria-expanded={open}
+                      key={s.id}
+                      data-season={s.id}
+                      onClick={() => setOpenSeason(s.id)}
+                      aria-pressed={active}
                       className={cn(
-                        'mt-2 flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors',
-                        open ? 'bg-white/8' : 'hover:bg-white/5',
+                        'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                        active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-white/8 text-white/70 hover:bg-white/12 hover:text-white',
                       )}
                     >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <ChevronDown
-                          size={14}
-                          className={cn(
-                            'shrink-0 text-white/40 transition-transform duration-200',
-                            open && 'rotate-180',
-                          )}
-                        />
-                        <span className="truncate text-sm font-semibold text-white/85">
-                          {s.name ?? `${s.number}-р улирал`}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[11px] text-white/40">
-                        {ready}/{s.episodes.length}
+                      {s.name ?? `${s.number}-р бүлэг`}
+                      {/* ⚠️ Бэлэн ангийн тоо — нээхээс өмнө мэдэгдэнэ */}
+                      <span className={cn('text-[10px]', active ? 'opacity-75' : 'text-white/40')}>
+                        {ready}
                       </span>
                     </button>
-                  )}
-                  {open && s.episodes.map((ep) => {
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ⚠️ `100dvh` — мобайл browser-ийн хаяг талбар нуугдахад
+                `vh` буруу тооцоологддог (жагсаалт таслагдана) */}
+            <div className="space-y-1 p-3 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto">
+              {seasons.map((s) => {
+                /* ⚠️ Нэг улирал бол таб хэрэггүй — үргэлж нээлттэй.
+                   Олон улирал бол ЗӨВХӨН сонгосон нь харагдана. */
+                const open = seasons.length === 1 || openSeason === s.id;
+                if (!open) return null;
+                return (
+                <div key={s.id}>
+                  {s.episodes.map((ep) => {
                     const active = ep.id === episodeId;
                     return (
                       <button

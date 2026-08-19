@@ -160,10 +160,22 @@ export function TitleDetailClient({ slug }: { slug: string }) {
             else router.push('/');
           }}
           aria-label="Буцах"
-          className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-black/70 md:left-6 md:top-6"
+          /**
+           * ⚠️⚠️ «БУЦАХ» БИЧГИЙГ ГАР УТСАНД Ч ХАРУУЛНА.
+           *
+           * БОДИТ АСУУДАЛ: `hidden sm:inline` тул утсан дээр ЗӨВХӨН
+           * сум харагдаж, хэрэглэгч «энэ юуны товч вэ» гэж ойлгохгүй
+           * байв. Дүрс тэмдэг ганцаараа хоёрдмол — зүүн сум нь
+           * «өмнөх анги», «зүүн тийш гүйлгэх» гэж ч ойлгогдоно.
+           *
+           * ⚠️ `bg-black/70` + border — гэрэлтэй backdrop дээр
+           * `bg-black/50` нь БҮДГЭРЧ, товч огт харагдахгүй байв.
+           * ⚠️ `h-11` — Apple/Google-ийн хүрэх талбайн доод хязгаар.
+           */
+          className="absolute left-3 top-3 z-20 flex h-11 items-center gap-1.5 rounded-full border border-white/15 bg-black/70 px-4 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-white/70 md:left-6 md:top-6"
         >
-          <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Буцах</span>
+          <ArrowLeft size={17} />
+          Буцах
         </button>
         {data.backdropUrl ? (
           /**
