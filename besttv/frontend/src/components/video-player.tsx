@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import {
   MediaPlayer,
@@ -68,6 +68,7 @@ export function VideoPlayer({
   /** Буцах холбоос — player дотроос шууд гарах зам */
   backHref?: string;
 }) {
+  const router = useRouter();
   const playerRef = useRef<MediaPlayerInstance>(null);
   /** Хамгийн сүүлд хадгалсан байрлал — давхардсан бичилтээс сэргийлнэ */
   const lastSaved = useRef(0);
@@ -693,8 +694,24 @@ export function VideoPlayer({
             controlsOn ? 'opacity-100' : 'opacity-0',
           ].join(' ')}
         >
-          <Link
-            href={backHref}
+          <button
+            onClick={() => {
+              /**
+               * ⚠️⚠️ `replace` — `push` БИШ.
+               *
+               * БОДИТ АЛДАА: `<Link href>` нь түүхэнд ШИНЭ бичлэг
+               * нэмдэг тул зам нь болдог:
+               *   нүүр → movie → watch → movie   (4 бичлэг)
+               * Тэгээд movie дээрх «Буцах» нь `router.back()` хийхэд
+               * WATCH руу буцаж, хэрэглэгч player-т дахин ордог байв
+               * — гарах гэж оролдоод буцаад кинондоо ордог ЦИКЛ.
+               *
+               * `replace` нь watch-ыг movie-ЭЭР СОЛИНО:
+               *   нүүр → movie                    (2 бичлэг)
+               * Ингэснээр movie дээрх «Буцах» нь НҮҮР рүү зөв очно.
+               */
+              router.replace(backHref);
+            }}
             /**
              * ⚠️⚠️ «БУЦАХ» БИЧИГТЭЙ — дүрс тэмдэг ганцаараа ХОЁРДМОЛ.
              *
@@ -710,7 +727,7 @@ export function VideoPlayer({
           >
             <ChevronLeft size={20} />
             Буцах
-          </Link>
+          </button>
           {title && (
             <p className="mt-2 line-clamp-1 text-sm font-semibold text-white drop-shadow-lg md:text-base">
               {title}

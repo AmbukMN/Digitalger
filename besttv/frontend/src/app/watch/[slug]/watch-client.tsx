@@ -44,9 +44,20 @@ function BackLink({ slug }: { slug?: string }) {
          * Энэ нь хэрэглэгчийн хүлээлттэй ҮРГЭЛЖ таарна («үзэж байснаа
          * болиод киноныхоо тухай хуудас руу гарна»).
          */
-        if (slug) router.push(`/movie/${slug}`);
+        /**
+         * ⚠️⚠️ `replace` — `push` БИШ.
+         *
+         * `push` нь түүхэнд ШИНЭ бичлэг нэмдэг тул зам нь болно:
+         *   нүүр → movie → watch → movie   (4 бичлэг)
+         * Тэгээд movie дээрх «Буцах» нь WATCH руу буцаж, хэрэглэгч
+         * player-т дахин ордог ЦИКЛ үүсдэг.
+         *
+         * `replace` нь watch-ыг movie-ЭЭР СОЛИНО:
+         *   нүүр → movie                    (2 бичлэг)
+         */
+        if (slug) router.replace(`/movie/${slug}`);
         else if (window.history.length > 1) router.back();
-        else router.push('/');
+        else router.replace('/');
       }}
       className="mt-1 flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white/80"
     >
