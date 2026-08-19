@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,6 +23,8 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
  */
 @Injectable()
 export class StreamService {
+  private readonly logger = new Logger(StreamService.name);
+
   // Segment presign хугацаа — урт кино үзэж дуустал хүрэлцэнэ
   private readonly SEGMENT_EXPIRES = 4 * 60 * 60; // 4 цаг
 
@@ -312,6 +315,65 @@ export class StreamService {
     }
 
     return { done, skipped, failed };
+  }
+
+  /**
+   * ⚠️⚠️ НЭГ АНГИЙН ЭВДЭРСЭН ПОСТЕРЫГ СЭРГЭЭНЭ.
+   *
+   * `backfillPosters` нь БҮХ ангийг дараалан шалгадаг тул нэг
+   * эвдэрсэн ангид хүрэхэд удаан (177 анги). Энэ нь ЯГ ТЭР
+   * ангийг л засна — frontend зураг унасныг мэдэмгц дуудна.
+   *
+   * ⚠️ Постер БАЙГАА бол юу ч хийхгүй — хэрэглэгч дахин дахин
+   * дуудсан ч ffmpeg дэмий ажиллахгүй.
+   */
+  async repairEpisodePoster(
+    episodeId: string,
+  ): Promise<{ status: 'repaired' | 'already' | 'unavailable'; posterUrl?: string }> {
+    const ep = await this.prisma.episode.findUnique({
+      where: { id: episodeId },
+      select: { id: true, videoKey: true, posterKey: true, streamStatus: true },
+    });
+    /* ⚠️ Видеогүй/хөрвүүлээгүй бол кадар авах эх сурвалж БАЙХГҮЙ */
+    if (!ep?.videoKey || ep.streamStatus !== 'READY') return { status: 'unavailable' };
+
+    const prefix = ep.videoKey.slice(0, ep.videoKey.lastIndexOf('/') + 1);
+
+    /* Постер бодитоор байгаа эсэхийг шалгана (DB-д зам байж ч
+       R2-д файл байхгүй байж болно — яг энэ алдаа гардаг) */
+    if (ep.posterKey) {
+      try {
+        const cur = await this.storage.downloadBuffer(ep.posterKey);
+        /* ⚠️ 5 KB-ээс жижиг нь хар/хоосон кадар — дахин үүсгэнэ */
+        if (cur.length >= 5120) return { status: 'already' };
+      } catch {
+        /* байхгүй — доор үүсгэнэ */
+      }
+    }
+
+    try {
+      /* ⚠️ ХАМГИЙН БАГА чанарын дэд playlist — постер 640px тул
+         өндөр чанар хэрэггүй, татах хэмжээ хэд дахин бага */
+      const master = await this.storage.downloadText(ep.videoKey);
+      const variants = master
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => /^v\d+\.m3u8$/.test(l));
+      const listKey = variants.length ? `${prefix}${variants[variants.length - 1]}` : ep.videoKey;
+      const playlist = await this.variantPlaylistRaw(listKey, prefix);
+
+      const newKey = await this.hls.backfillPoster(playlist, prefix);
+      await this.prisma.episode.update({ where: { id: ep.id }, data: { posterKey: newKey } });
+
+      this.logger.log(`Постер сэргээв: ${episodeId} → ${newKey}`);
+      return {
+        status: 'repaired',
+        posterUrl: await this.storage.publicAssetUrl(newKey, 7200).catch(() => undefined),
+      };
+    } catch (e) {
+      this.logger.warn(`Постер сэргээж чадсангүй (${episodeId}): ${String(e).slice(0, 120)}`);
+      return { status: 'unavailable' };
+    }
   }
 
   async backfillThumbnails(limit = 5): Promise<{

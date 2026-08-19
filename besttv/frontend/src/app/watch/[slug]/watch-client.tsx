@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { cn, episodeLabel } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useQuery } from '@tanstack/react-query';
+import { EpisodeThumb } from '@/components/title/episode-thumb';
 import { useTitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
 import { loginUrl } from '@/lib/auth-intent';
@@ -617,17 +618,13 @@ export function WatchClient({ slug }: { slug: string }) {
                           {/* ⚠️ `epLocked` — энэ анги эрх шаардах эсэх.
                               Үнэгүй танилцуулга анги нь `gated` үед ч
                               НЭЭЛТТЭЙ (backend зөвшөөрдөг). */}
-                          {ep.posterUrl ? (
-                            <Image
-                              src={ep.posterUrl}
-                              alt=""
-                              fill
-                              sizes="80px"
-                              className="object-cover"
-                            />
-                          ) : (
-                            <span className="text-base font-bold text-white/25">{ep.number}</span>
-                          )}
+                          {/* ⚠️ Эвдэрсэн постерыг ӨӨРӨӨ сэргээнэ —
+                              дэлгэрэнгүй хуудастай ижил зарчим */}
+                          <EpisodeThumb
+                            episodeId={ep.id}
+                            posterUrl={ep.posterUrl}
+                            number={ep.number}
+                          />
                           {/*
                             ⚠️ ТҮГЖЭЭНИЙ ТЭМДЭГ — дэлгэрэнгүй хуудастай ИЖИЛ
                             хэв маяг (жижиг бүдгэрсэн дугуй). Бүтэн зургийг

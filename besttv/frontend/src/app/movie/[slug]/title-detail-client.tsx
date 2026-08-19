@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Heart, Film, Lock, Play, Star, Ticket, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { EpisodeThumb } from '@/components/title/episode-thumb';
 import { cn, episodeLabel, formatPrice, formatRentDurationShort, formatRentLeft } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { useTitleDetail } from '@/lib/queries';
@@ -577,21 +578,24 @@ export function TitleDetailClient({ slug }: { slug: string }) {
                       )}
                     >
                       <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded bg-foreground/10">
-                        {ep.posterUrl && (
-                          <Image
-                            src={ep.posterUrl}
-                            alt={`${ep.number}-р анги`}
-                            fill
-                            sizes="112px"
-                            /* ⚠️ `brightness-75` — өмнө нь `50` байсан дээр
-                               `bg-black/40` давхарлагдаж НИЙЛБЭР нь хэт
-                               бараан болж зураг мэдэгдэхгүй байв (админ
-                               анзаарсан). Түгжээ мэдэгдэх ч зураг
-                               ТАНИГДАХ ёстой — аль анги болохыг постероор
-                               нь сонгодог. */
-                            className={cn('object-cover', epLocked && 'brightness-75')}
-                          />
-                        )}
+                        {/*
+                          ⚠️⚠️ ЭВДЭРСЭН ПОСТЕРЫГ ӨӨРӨӨ СЭРГЭЭНЭ.
+                          Хөрвүүлэлтийн үед постер R2 руу байршиж
+                          чадаагүй бол DB-д зам үлдэж, зураг эвдэрдэг.
+                          `EpisodeThumb` нь унамагц backend-ээс дахин
+                          үүсгүүлээд тавина.
+
+                          ⚠️ `brightness-75` — өмнө нь `50` байсан дээр
+                          `bg-black/40` давхарлагдаж хэт бараан болж
+                          зураг мэдэгдэхгүй байв. Түгжээ мэдэгдэх ч
+                          зураг ТАНИГДАХ ёстой.
+                        */}
+                        <EpisodeThumb
+                          episodeId={ep.id}
+                          posterUrl={ep.posterUrl}
+                          number={ep.number}
+                          dim={epLocked}
+                        />
                         {/*
                           ⚠️⚠️ ТҮГЖЭЭНИЙ ТЭМДЭГ — эрхгүй хэрэглэгч аль анги
                           нээлттэй, аль нь хаалттайг НЭГ ХАРЦААР мэдэх ёстой.
