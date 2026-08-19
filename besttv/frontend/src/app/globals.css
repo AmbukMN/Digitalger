@@ -629,3 +629,69 @@ video {
   /* ⚠️ Ёроолоос дээш — удирдлагын мөр халхлахгүй */
   inset-inline: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PLAYER — ГАР УТАСНЫ ЗОХИЦУУЛАЛТ
+   ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️⚠️ ТОХИРГООНЫ ЦЭС — ДООРООС ГАРАХ ХУУДАС БОЛГОНО.
+ *
+ * БОДИТ АСУУДАЛ: Vidstack-ийн анхдагч цэс нь товчны дэргэд жижиг
+ * попап болж гардаг. Гар утсанд удирдлагын мөр дэлгэцийн ёроолд
+ * байдаг тул цэс нь ҮЛДСЭН БАГА зайд шахагдаж, 6 мөр (Хурд, Чанар,
+ * Хүртээмж, Дуу, Хадмал…) нь 100px өндөрт багтахыг оролдож
+ * УНШИГДАХГҮЙ болдог байв (хэрэглэгчийн зураг).
+ *
+ * Bottom sheet нь дэлгэцийн доод хэсгийг БҮТНЭЭР эзэлнэ — Netflix,
+ * YouTube, Spotify бүгд гар утсанд ийм загвартай.
+ *
+ * ⚠️ ЗӨВХӨН 640px-ээс нарийн дэлгэцэд. Desktop дээр анхдагч попап
+ * зөв ажилладаг тул хөндөхгүй.
+ */
+@media (max-width: 639px) {
+  .vds-menu-items {
+    position: fixed !important;
+    inset-inline: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    /* ⚠️ `dvh` — хаяг талбар нуугдахад `vh` буруу тооцоологддог */
+    max-height: 70dvh !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow-y: auto !important;
+    border-radius: 1rem 1rem 0 0 !important;
+    /* ⚠️ Хадмалын цэснээс (z-50) ДООГУУР — хоёулаа зэрэг нээгдэхгүй
+       ч давхцвал Vidstack-ийнх нь ард байх нь зөв */
+    z-index: 40 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem) !important;
+  }
+
+  /* ⚠️ Цэсний мөр 44px — Apple/Google-ийн хүрэх талбайн доод хязгаар.
+     Анхдагч 32px нь хуруунд ЖИЖИГ, буруу мөр дардаг. */
+  .vds-menu-item,
+  .vds-menu-button {
+    min-height: 44px !important;
+  }
+
+  /**
+   * ⚠️ УДИРДЛАГЫН ТОВЧНУУД — ХООРОНДОО ЗАЙТАЙ.
+   *
+   * Гар утсанд 6 товч (CC, тохиргоо, cast, PiP, fullscreen…) нь
+   * хоорондоо 4px зайтай шахагддаг тул хэрэглэгч буруу товч дардаг.
+   */
+  .vds-controls-group .vds-button {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+}
+
+/**
+ * ⚠️ ДЭЛГЭЦ ДҮҮРЭН ҮЕД — цэс ч мөн доороос.
+ * Landscape-д өндөр бага тул `85dvh` хүртэл өгнө.
+ */
+@media (max-width: 639px) and (orientation: landscape) {
+  .vds-menu-items {
+    max-height: 85dvh !important;
+  }
+}

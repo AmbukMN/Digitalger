@@ -125,10 +125,38 @@ export function SubtitleMenu({
       </button>
 
       {open && (
+        <>
+          {/*
+            ⚠️⚠️ MOBILE — ДООРООС ГАРАХ ХУУДАС (bottom sheet).
+
+            БОДИТ АЛДАА: `absolute bottom-12 right-0` нь ТОВЧНЫ
+            байрлалаас хамаардаг. Player-ийн удирдлага mobile-д ДЭЭД
+            талд байрлах үед цэс нь дэлгэцээс ДЭЭШ гарч, огт
+            харагдахгүй байв (хэрэглэгчийн зураг).
+
+            Bottom sheet нь товчны байрлалаас ХАМААРАХГҮЙ — үргэлж
+            дэлгэцийн доод талд наалдана. Netflix, YouTube, Spotify
+            бүгд гар утсанд ийм загвартай (эрхий хуруунд ойр).
+          */}
+          <div
+            className="fixed inset-0 z-50 bg-black/60 sm:hidden"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
         <div
-          className="absolute bottom-12 right-0 z-50 w-60 overflow-hidden rounded-xl border border-white/12 bg-[#151515]/97 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150"
+          className={cn(
+            'z-50 overflow-hidden border-white/12 bg-[#151515]/97 shadow-2xl backdrop-blur',
+            /* Mobile: доод талд наалдсан бүтэн өргөн хуудас */
+            'fixed inset-x-0 bottom-0 max-h-[70dvh] overflow-y-auto rounded-t-2xl border-t',
+            'animate-in slide-in-from-bottom duration-200',
+            /* Desktop: товчны дээр гарах жижиг цэс */
+            'sm:absolute sm:inset-x-auto sm:bottom-12 sm:right-0 sm:max-h-none sm:w-60 sm:rounded-xl sm:border',
+            'sm:animate-in sm:fade-in sm:slide-in-from-bottom-2 sm:duration-150',
+          )}
           role="menu"
         >
+          {/* ⚠️ Барих зурвас — mobile-д «доошоо чирж хаах» дохио */}
+          <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-white/25 sm:hidden" />
           <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
             <p className="text-xs font-bold text-white">Хадмал</p>
             <button
@@ -198,6 +226,7 @@ export function SubtitleMenu({
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
@@ -218,7 +247,8 @@ function Row({
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        'flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm transition-colors',
+        /* ⚠️ Mobile-д 44px өндөр — Apple/Google-ийн хүрэх талбай */
+        'flex w-full items-center justify-between rounded-md px-3 py-3 text-left text-sm transition-colors sm:px-2 sm:py-2',
         active ? 'bg-primary/20 text-white' : 'text-white/75 hover:bg-white/8',
       )}
     >
