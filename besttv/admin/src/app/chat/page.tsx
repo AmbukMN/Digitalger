@@ -156,6 +156,46 @@ function timeAgo(iso: string): string {
   return formatDate(iso);
 }
 
+/**
+ * URL/имэйлийг автоматаар холбоос болгоно.
+ *
+ * ⚠️ БОДИТ ГОМДОЛ: чатбот «https://besttv.us/ руу орж үзээрэй» гэж
+ * хариулдаг атал админ панельд нүцгэн текст болж харагдаж, дарж
+ * болдоггүй байв — админ гараар хуулж авах шаардлагатай байлаа.
+ *
+ * ⚠️ `dangerouslySetInnerHTML` ХЭРЭГЛЭХГҮЙ — React node массив (XSS-гүй).
+ */
+function renderRichText(text: string) {
+  const pattern = /(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = pattern.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    const token = m[0];
+    /* Өгүүлбэрийн төгсгөлийн цэг/таслалыг холбоосоос хасна */
+    const trail = token.match(/[.,;:!?)]+$/);
+    const clean = trail ? token.slice(0, token.length - trail[0].length) : token;
+    const isEmail = !clean.startsWith('http');
+    parts.push(
+      <a
+        key={`${m.index}-${clean}`}
+        href={isEmail ? `mailto:${clean}` : clean}
+        {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        onClick={(e) => e.stopPropagation()}
+        className="text-primary underline underline-offset-2 hover:brightness-110"
+      >
+        {clean}
+      </a>,
+    );
+    if (trail) parts.push(trail[0]);
+    last = m.index + token.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 export default function ChatPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
@@ -678,7 +718,9 @@ export default function ChatPage() {
                                 : 'rounded-br-md bg-primary/10 text-foreground',
                           )}
                         >
-                          {m.text}
+                          {/* ⚠️ Хэрэглэгчийн текстийг холбоос болгохгүй (аюулгүй) —
+                              зөвхөн AI/админы мессежид. Вэб чаттай ижил зарчим. */}
+                          {isUser ? m.text : renderRichText(m.text)}
                         </div>
                         {/*
                           ⚠️⚠️ БАРИМТЫН ЗУРАГ — дансаар шилжүүлсэн баримт.

@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@besttv/shared';
-import { chatApi, type ChatTitleCard } from '@/lib/chat-api';
+import { chatApi, type ChatLinkPreview, type ChatTitleCard } from '@/lib/chat-api';
 import { useAuth } from '@/lib/auth-store';
 import { useChatUi } from '@/store/chat-ui';
 
@@ -101,6 +101,80 @@ function renderRichText(text: string) {
   }
   if (last < text.length) parts.push(text.slice(last));
   return parts;
+}
+
+/** Мессежийн текстээс ЭХНИЙ besttv.us холбоосыг олно */
+function firstPreviewUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/(?:www\.)?besttv\.us[^\s]*/i);
+  if (!m) return null;
+  /* Өгүүлбэрийн төгсгөлийн цэг/таслалыг хасна */
+  return m[0].replace(/[.,;:!?)]+$/, '');
+}
+
+/**
+ * ХОЛБООСЫН УРЬДЧИЛАН ХАРАХ КАРТ (Messenger/Facebook загвар).
+ *
+ * ⚠️ ЯАГААД: чатбот тоо бичсэн хэрэглэгчид «besttv.us руу орж
+ * үзээрэй» гэж хариулдаг. Нүцгэн текст линк дээр хэн ч дардаггүй.
+ * Зураг+гарчигтай карт болгосноор дарах магадлал эрс нэмэгдэнэ.
+ *
+ * ⚠️ Татаж чадаагүй бол ЮУ Ч харуулахгүй — линк текст хэвээр үлдэнэ,
+ * чат хэзээ ч эвдрэхгүй.
+ */
+function LinkPreviewCard({ url }: { url: string }) {
+  const [data, setData] = useState<ChatLinkPreview | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    chatApi
+      .linkPreview(url)
+      .then((d) => {
+        if (alive) setData(d);
+      })
+      .catch(() => null);
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+
+  if (!data || (!data.title && !data.image)) return null;
+
+  return (
+    <a
+      href={data.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="mt-1.5 block overflow-hidden rounded-xl border border-foreground/12 bg-foreground/5 transition-colors hover:border-primary/50 hover:bg-foreground/8"
+    >
+      {data.image && (
+        /* ⚠️ next/image БИШ — OG зураг гадаад домэйнаас ирнэ, мөн
+           хуучин browser-т (FB webview) найдвартай ажиллана */
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={data.image}
+          alt={data.title ?? ''}
+          loading="lazy"
+          className="aspect-[1200/630] w-full object-cover"
+        />
+      )}
+      <div className="px-3 py-2">
+        {data.siteName && (
+          <p className="text-[10px] uppercase tracking-wide text-foreground/45">
+            {data.siteName}
+          </p>
+        )}
+        {data.title && (
+          <p className="line-clamp-2 text-xs font-semibold text-foreground">{data.title}</p>
+        )}
+        {data.description && (
+          <p className="mt-0.5 line-clamp-2 text-[11px] text-foreground/60">
+            {data.description}
+          </p>
+        )}
+      </div>
+    </a>
+  );
 }
 
 /** Санал болгосон кино — хэвтээ гүйлгэдэг постер карт */
@@ -665,6 +739,14 @@ export function ChatWidget() {
                         {/* ⚠️ Хэрэглэгчийн текстийг холбоос болгохгүй (аюулгүй) */}
                         {isUser ? m.text : renderRichText(m.text)}
                       </div>
+                      {/* ⚠️ Карт БАЙХГҮЙ үед л холбоосын урьдчилан харах —
+                          хоёулаа гарвал нэг мессежид хоёр том блок болж
+                          чат хэт бөглөрнө. Кино карт нь илүү мэдээлэлтэй. */}
+                      {!isUser && !(m.titles && m.titles.length > 0) &&
+                        (() => {
+                          const u = firstPreviewUrl(m.text);
+                          return u ? <LinkPreviewCard url={u} /> : null;
+                        })()}
                       {!isUser && m.titles && m.titles.length > 0 && (
                         <TitleCarousel titles={m.titles} />
                       )}

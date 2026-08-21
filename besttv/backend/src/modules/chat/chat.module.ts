@@ -17,6 +17,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ChatService, type ChatTitleCard } from './chat.service';
+import { LinkPreviewService } from './link-preview.service';
 
 /**
  * ⚠️⚠️ ЧАТБОТЫН ХЯЗГААР — БҮХ бакетыг дарж бичнэ.
@@ -45,7 +46,10 @@ const BOT_LIMIT = {
  */
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chat: ChatService) {}
+  constructor(
+    private readonly chat: ChatService,
+    private readonly preview: LinkPreviewService,
+  ) {}
 
   /** Handoff үед widget шууд энд бичнэ (n8n дамжуулахгүй) */
   /**
@@ -199,6 +203,20 @@ export class ChatController {
   unread(@Query('sessionId') sessionId: string, @CurrentUser() me?: JwtPayload) {
     return this.chat.getUnreadForUser(sessionId ?? '', me?.sub);
   }
+
+  /**
+   * Холбоосын OG урьдчилан харах (зураг + гарчиг).
+   *
+   * ⚠️ Чатбот тоо бичсэн хэрэглэгчид besttv.us линк илгээдэг. Нүцгэн
+   * текст болж харагдвал хэн ч дардаггүй тул Messenger шиг карт болгоно.
+   *
+   * ⚠️ Зөвхөн besttv.us домэйн — SSRF-ээс хамгаална (service дотор).
+   */
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('link-preview')
+  linkPreview(@Query('url') url: string) {
+    return this.preview.fetchPreview(url ?? '');
+  }
 }
 
 /** Олноор устгах хүсэлт (чат/захиалагч/лог бүгдэд ижил хэлбэр) */
@@ -264,7 +282,7 @@ export class ChatAdminController {
 
 @Module({
   controllers: [ChatController, ChatAdminController],
-  providers: [ChatService],
+  providers: [ChatService, LinkPreviewService],
   exports: [ChatService],
 })
 export class ChatModule {}
