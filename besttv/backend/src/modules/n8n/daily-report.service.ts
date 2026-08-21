@@ -74,17 +74,41 @@ export class DailyReportService implements OnModuleDestroy {
    * буруу өдөрт хамааруулна.
    */
   private dayRange(offsetDays = 0): { start: Date; end: Date } {
-    const now = new Date();
-    const ubToday = new Date(
-      now.toLocaleString('en-US', { timeZone: 'Asia/Ulaanbaatar' }),
-    );
-    ubToday.setHours(0, 0, 0, 0);
-    ubToday.setDate(ubToday.getDate() + offsetDays);
+    /**
+     * ⚠️⚠️ ДАВХАР ХӨРВҮҮЛЭЛТИЙН АЛДААГ ЗАСАВ (бодитоор гарсан).
+     *
+     * Хуучин код:
+     *   new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ulaanbaatar' }))
+     * нь UB-гийн ЦАГИЙН УТГЫГ уншаад түүнийг СЕРВЕРИЙН (UTC) цаг мэт
+     * Date объект болгодог. Дараа нь дахин 8 цаг хасахад ХОЁР ДАХИН
+     * хөрвүүлэлт болж, муж 8 цагаар ХОЦОРДОГ байв.
+     *
+     * БОДИТ ҮР ДАГАВАР (2026-08-21 тайлан):
+     *   Авсан муж : 08-20T08:00Z → 08-21T08:00Z  ❌
+     *   Зөв муж   : 08-20T16:00Z → 08-21T16:00Z
+     *   → Өчигдрийн 25,000₮ орлого ӨНӨӨДӨР гэж тоологдож,
+     *     өнөөдрийн 13,000₮ + 4,900₮ ОГТ ТООЛОГДООГҮЙ.
+     *   → «Шинэ хэрэглэгч: 0» гэдэг нь ч мөн энэ шалтгаантай.
+     *
+     * ЗАСВАР: UB-гийн ОГНООГ (YYYY-MM-DD) шууд авч, тухайн өдрийн
+     * 00:00 UB = UTC-ийн өмнөх өдрийн 16:00 гэж ТООЦООЛНО.
+     * Монгол зуны цагийн шилжилтгүй тул офсет ҮРГЭЛЖ +8.
+     */
+    const UB_OFFSET_MS = 8 * 3600_000;
 
-    /* UB нь UTC+8 — локал өдрийн эхлэлээс 8 цаг хасаж UTC болгоно */
-    const start = new Date(ubToday.getTime() - 8 * 3600_000);
-    const end = new Date(start.getTime() + 24 * 3600_000);
-    return { start, end };
+    /* UB-гийн өнөөдрийн огноо, жишээ: "2026-08-21" */
+    const ubDate = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Ulaanbaatar',
+    });
+    const [y, mo, d] = ubDate.split('-').map(Number);
+
+    /* Тухайн UB өдрийн 00:00-ийг UTC-ээр илэрхийлнэ */
+    const startMs = Date.UTC(y, mo - 1, d) - UB_OFFSET_MS + offsetDays * 86_400_000;
+
+    return {
+      start: new Date(startMs),
+      end: new Date(startMs + 86_400_000),
+    };
   }
 
   private async build(): Promise<void> {
