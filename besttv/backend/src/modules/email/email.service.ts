@@ -286,6 +286,14 @@ export class EmailService {
         const px = `<img src="${this.apiUrl}/api/email/open?l=${encodeURIComponent(logId)}&e=${encodeURIComponent(to)}&t=${encodeURIComponent(opts.template)}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`;
         html = html.includes('</body>') ? html.replace('</body>', `${px}</body>`) : html + px;
       }
+
+      /* ⚠️ Pixel НЭМЭГДСЭН хувилбарыг хадгална — хэрэглэгчийн
+         хүлээн авсантай ЯГ ИЖИЛ байх ёстой */
+      if (logId) {
+        await this.prisma.emailLog
+          .update({ where: { id: logId }, data: { html } })
+          .catch(() => null);
+      }
     }
 
     let lastErr: unknown = null;
@@ -350,6 +358,8 @@ export class EmailService {
             null,
             opts.userId,
             res?.MessageId ?? null,
+            /* ⚠️ track унтарсан үед ч HTML хадгална — админ харна */
+            html,
           );
         }
         return true;
@@ -401,9 +411,11 @@ export class EmailService {
     userId?: string,
     /** SES-ийн MessageId — SNS үйл явдлыг холбох түлхүүр */
     messageId?: string | null,
+    /** ⚠️ Яг илгээсэн HTML — админ бодит имэйлийг харна */
+    html?: string | null,
   ) {
     await this.prisma.emailLog
-      .create({ data: { to, subject, template, status, error, userId, messageId } })
+      .create({ data: { to, subject, template, status, error, userId, messageId, html } })
       .catch(() => null);
   }
 

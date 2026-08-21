@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -13,6 +13,7 @@ import {
   Send,
   ShieldOff,
   Users,
+  X,
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -158,6 +159,8 @@ function LogsTab() {
   });
 
   /* Олноор устгах — тест лог хуримтлагддаг */
+  /** ⚠️ Нээгдсэн имэйлийн лог ID — modal харуулна */
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const sel = useBulkSelect({
     endpoint: '/admin/email/logs/bulk-delete',
     invalidate: ['admin-email-logs'],
@@ -302,8 +305,14 @@ function LogsTab() {
           </thead>
           <tbody className="divide-y divide-border">
             {data?.items.map((l) => (
-              <tr key={l.id} className="transition-colors hover:bg-accent/40">
-                <td className="px-4 py-3">
+              <tr
+                key={l.id}
+                /* ⚠️ Мөр дээр дарахад бодит илгээсэн имэйл нээгдэнэ */
+                onClick={() => setPreviewId(l.id)}
+                className="cursor-pointer transition-colors hover:bg-accent/40"
+                title="Илгээсэн имэйлийг харах"
+              >
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <SelectBox
                     checked={sel.isSelected(l.id)}
                     onChange={() => sel.toggle(l.id)}
@@ -384,6 +393,11 @@ function LogsTab() {
         onPage={(p) => setF((s) => ({ ...s, page: p }))}
       />
       <BulkBar {...sel.bar} />
+
+      {/* ⚠️ Бодит илгээсэн имэйлийг харах */}
+      {previewId && (
+        <EmailPreviewModal id={previewId} onClose={() => setPreviewId(null)} />
+      )}
     </>
   );
 }
@@ -925,6 +939,97 @@ function EmailFunnel({ insight }: { insight?: EmailInsight }) {
  * асаагүй үед бүх мөрөнд `deliveredAt=null` байх тул тэднийг
  * «нээгээгүй» гэвэл админ буруу дүгнэлт хийнэ. Ийм үед «—».
  */
+/**
+ * ⚠️⚠️ БОДИТ ИЛГЭЭСЭН ИМЭЙЛИЙГ ХАРУУЛАХ MODAL.
+ *
+ * Админ гомдол шалгахад «хэрэглэгчид ЯГ ЮУ очсон» бэ гэдгийг харах
+ * ёстой. Өмнө нь зөвхөн хаяг, гарчиг л харагддаг тул загвар зөв
+ * эсэхийг таамаглах шаардлагатай байв.
+ *
+ * ⚠️ `srcDoc`-той iframe — гадаад скрипт ажиллуулахгүй (sandbox),
+ * гэхдээ имэйлийн CSS/зураг бүрэн харагдана.
+ */
+function EmailPreviewModal({ id, onClose }: { id: string; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-email-html', id],
+    queryFn: () =>
+      api<{
+        found: boolean;
+        to?: string;
+        subject?: string;
+        template?: string;
+        status?: string;
+        html?: string | null;
+        createdAt?: string;
+      }>(`/admin/email/logs/${id}/html`),
+    enabled: !!id,
+  });
+
+  /* Esc дарахад хаана */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {data?.subject ?? 'Имэйл'}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {data?.to}
+              {data?.createdAt ? ` · ${formatDateTime(data.createdAt)}` : ''}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Хаах"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto bg-white">
+          {isLoading ? (
+            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+              Ачаалж байна…
+            </div>
+          ) : data?.html ? (
+            /* ⚠️ sandbox — имэйл доторх скрипт ХЭЗЭЭ Ч ажиллахгүй */
+            <iframe
+              srcDoc={data.html}
+              sandbox=""
+              title="Имэйлийн урьдчилан харах"
+              className="h-[70vh] w-full border-0"
+            />
+          ) : (
+            <div className="flex h-64 flex-col items-center justify-center gap-2 p-6 text-center">
+              <p className="text-sm font-medium text-foreground">Агуулга хадгалагдаагүй</p>
+              <p className="max-w-sm text-xs text-muted-foreground">
+                Энэ имэйл нь HTML хадгалах боломж нэмэгдэхээс ӨМНӨ илгээгдсэн байна.
+                Үүнээс хойш илгээгдсэн имэйлүүд бүрэн харагдана.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmailOpenCell({ log }: { log: EmailLog }) {
   /* Илгээгдээгүй имэйлд нээлт ярих утгагүй */
   if (log.status !== 'sent') {

@@ -291,6 +291,19 @@ export class ChatAdminController {
   handoff(@Param('id') id: string, @Body() body: { handedOff?: boolean }) {
     return this.chat.setHandoff(id, body.handedOff !== false);
   }
+
+  /**
+   * БҮГДИЙГ УНШСАН болгох.
+   *
+   * ⚠️ 22 шинэ яриаг нэг нэгээр нь нээж уншсан болгох нь ядаргаатай —
+   * Gmail/Messenger-т байдаг «mark all read» товч.
+   *
+   * ⚠️ `ids` өгвөл ЗӨВХӨН тэднийг, эс бөгөөс БҮГДИЙГ.
+   */
+  @Post('conversations/mark-read')
+  markRead(@Body() body: { ids?: string[] }) {
+    return this.chat.markRead(body?.ids);
+  }
 }
 
 @Module({

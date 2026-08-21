@@ -680,6 +680,26 @@ export class EmailAdminController {
     private readonly email: EmailService,
   ) {}
 
+  /**
+   * ⚠️⚠️ ЯГ ИЛГЭЭСЭН ИМЭЙЛИЙГ ХАРАХ.
+   *
+   * Админ гомдол шалгахад «хэрэглэгчид ЯГ ЮУ очсон» бэ гэдгийг
+   * харах ёстой. Өмнө нь зөвхөн гарчиг, хаяг л харагддаг байв.
+   *
+   * ⚠️ Нээлтийн pixel НЭМЭГДСЭН хувилбар — хэрэглэгчийн хүлээн
+   * авсантай ЯГ ИЖИЛ.
+   */
+  @Get('logs/:id/html')
+  async logHtml(@Param('id') id: string) {
+    const log = await this.prisma.emailLog.findUnique({
+      where: { id },
+      select: { id: true, to: true, subject: true, template: true,
+        status: true, html: true, createdAt: true },
+    });
+    if (!log) return { found: false };
+    return { found: true, ...log };
+  }
+
   /** Илгээсэн имэйлийн лог */
   @Get('logs')
   async logs(

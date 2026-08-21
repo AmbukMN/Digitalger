@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import {
   ArrowLeft,
   Bot,
+  CheckCheck,
   Film,
   Headphones,
   Loader2,
@@ -307,6 +308,32 @@ export default function ChatPage() {
     );
   };
 
+  /**
+   * ⚠️ Бүх яриаг уншсан болгоно.
+   *
+   * Backend нь уншаагүй байгааг л шинэчилдэг тул давхар бичилт үүсэхгүй.
+   * Дараа нь жагсаалт, badge гурвуулаа шинэчлэгдэнэ.
+   */
+  const [markingRead, setMarkingRead] = useState(false);
+  const markAllRead = async () => {
+    if (markingRead) return;
+    setMarkingRead(true);
+    try {
+      const r = await api<{ updated: number }>('/admin/chat/conversations/mark-read', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      toast.success(`${r.updated} яриа уншсан боллоо`);
+      await qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
+      void qc.invalidateQueries({ queryKey: ['admin-chat-unread'] });
+      void qc.invalidateQueries({ queryKey: ['admin-badges'] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Уншсан болгож чадсангүй');
+    } finally {
+      setMarkingRead(false);
+    }
+  };
+
   const items = list?.items ?? [];
 
   return (
@@ -365,6 +392,26 @@ export default function ChatPage() {
               Шинэ {list?.unreadTotal ? `(${list.unreadTotal})` : ''}
             </button>
           </div>
+
+          {/*
+            ⚠️⚠️ БҮГДИЙГ УНШСАН — 22 шинэ яриаг нэг нэгээр нь нээх нь
+            ядаргаатай (Gmail/Messenger-т байдаг «mark all read»).
+            Зөвхөн уншаагүй байгаа үед л харагдана.
+          */}
+          {(list?.unreadTotal ?? 0) > 0 && (
+            <button
+              onClick={markAllRead}
+              disabled={markingRead}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            >
+              {markingRead ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <CheckCheck size={13} />
+              )}
+              Бүгдийг уншсан болгох ({list?.unreadTotal})
+            </button>
+          )}
 
           {/*
             ⚠️ СУВГИЙН ШҮҮЛТ — зөвхөн FB/IG-ээс яриа ИРСЭН үед л

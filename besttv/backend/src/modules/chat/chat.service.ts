@@ -778,6 +778,23 @@ export class ChatService {
     return { deleted: res.count };
   }
 
+  /**
+   * Яриаг «уншсан» болгох.
+   *
+   * ⚠️ `ids` өгвөл ЗӨВХӨН тэднийг, эс бөгөөс уншаагүй БҮГДИЙГ.
+   * Аль хэдийн уншсаныг дахин бичихгүй (`adminUnread: true` шүүлт).
+   */
+  async markRead(ids?: string[]) {
+    const res = await this.prisma.chatConversation.updateMany({
+      where: {
+        adminUnread: true,
+        ...(ids?.length ? { id: { in: ids } } : {}),
+      },
+      data: { adminUnread: false },
+    });
+    return { updated: res.count };
+  }
+
   async unreadCount() {
     const unreadTotal = await this.prisma.chatConversation.count({ where: { adminUnread: true } });
     return { unreadTotal };
