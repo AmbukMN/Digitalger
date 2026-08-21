@@ -183,7 +183,8 @@ export class ChatService {
         },
       });
 
-      return { ok: true, conversationId: conversation.id, messageId: message.id };
+      /* ⚠️ `linkPreview`-г буцаана — n8n нь widget рүү дамжуулна */
+      return { ok: true, conversationId: conversation.id, messageId: message.id, linkPreview };
     } catch (err) {
       this.logger.warn(`Чат хадгалахад алдаа: ${(err as Error).message}`);
       return { ok: true, skipped: true };

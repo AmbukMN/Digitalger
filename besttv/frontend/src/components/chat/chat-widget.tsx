@@ -472,6 +472,8 @@ export function ChatWidget() {
           role: 'bot',
           text: data?.reply || 'Уучлаарай, хариу авч чадсангүй. Дахин оролдоно уу.',
           titles: Array.isArray(data?.titles) ? data.titles : undefined,
+          /* ⚠️ Backend-ийн татсан OG — FB/IG/админтай ИЖИЛ карт */
+          linkPreview: data?.linkPreview ?? null,
         },
       ]);
     } catch {

@@ -17,7 +17,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ChatService, type ChatTitleCard } from './chat.service';
-import { LinkPreviewService } from './link-preview.service';
+import { LinkPreviewService, type LinkPreview } from './link-preview.service';
 
 /**
  * ⚠️⚠️ ЧАТБОТЫН ХЯЗГААР — БҮХ бакетыг дарж бичнэ.
@@ -133,8 +133,20 @@ export class ChatController {
         attachmentType: body.attachmentType,
       });
     }
+    /**
+     * ⚠️⚠️ `linkPreview`-г БУЦААНА — вэб widget-д хэрэгтэй.
+     *
+     * БОДИТ АЛДАА: widget нь n8n-ий ШУУД хариуг (`/webhook/besttv-chat`)
+     * харуулдаг, `/chat/messages` polling нь зөвхөн АДМИНЫ хариуг
+     * татдаг. Тиймээс backend хадгалсан ч widget-д хүрэхгүй, зөвхөн
+     * нүцгэн текст харагдаж байв.
+     *
+     * Энд буцаавал n8n нь `Build JSON`-оор дамжуулж widget-д хүргэнэ —
+     * OG-г ДАХИН татахгүй, нэг эх сурвалж хэвээр.
+     */
+    let linkPreview: LinkPreview | null = null;
     if (body.assistantText?.trim()) {
-      await this.chat.saveMessage({
+      const saved = await this.chat.saveMessage({
         channel,
         sessionId,
         role: 'assistant',
@@ -148,8 +160,9 @@ export class ChatController {
         userName: body.userName,
         userImage: body.userImage,
       });
+      linkPreview = saved.linkPreview ?? null;
     }
-    return { ok: true };
+    return { ok: true, linkPreview };
   }
 
   /**
