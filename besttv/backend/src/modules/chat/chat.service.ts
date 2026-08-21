@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { N8nService } from '../n8n/n8n.service';
 /* ⚠️ StorageModule нь @Global тул module-д импортлох шаардлагагүй */
 import { StorageService } from '../../storage/storage.service';
+import { LinkPreviewService } from './link-preview.service';
 
 /**
  * ⚠️⚠️ `facebook`/`instagram` ЗААВАЛ — n8n чатбот эдгээр сувгаас
@@ -74,6 +75,7 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly n8n: N8nService,
     private readonly storage: StorageService,
+    private readonly preview: LinkPreviewService,
   ) {}
 
   /** userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ */
@@ -153,12 +155,30 @@ export class ChatService {
       /* ⚠️ Хавсралтыг R2 руу хуулна — Meta-гийн URL хугацаатай */
       const att = await this.saveAttachment(input.attachmentUrl, input.attachmentType);
 
+      /**
+       * ⚠️⚠️ ХОЛБООСЫН OG КАРТ — НЭГ ГАЗАР, ГУРВАН СУВАГТ.
+       *
+       * Хариунд besttv.us линк орвол OG-г ЭНД нэг удаа татаад
+       * хадгална. Вэб чат, админ панель, FB/IG гурвуулаа энэ нэг
+       * талбараас уншина — тус тусад нь татвал зөрөх, давхардах,
+       * нэгийг зассан алдаа нөгөөд үлдэх эрсдэлтэй.
+       *
+       * ⚠️ ЗӨВХӨН кино карт БАЙХГҮЙ үед — кино нь илүү мэдээлэлтэй,
+       *    хоёулаа гарвал нэг мессежид хоёр том блок болно.
+       * ⚠️ Хэрэглэгчийн мессежид ХИЙХГҮЙ — зөвхөн бот/админы хариунд.
+       */
+      const linkPreview =
+        !input.titles?.length && role !== 'user'
+          ? await this.preview.fromText(text)
+          : null;
+
       const message = await this.prisma.chatMessage.create({
         data: {
           conversationId: conversation.id,
           role,
           text,
           ...(input.titles?.length ? { titles: input.titles as object } : {}),
+          ...(linkPreview ? { linkPreview: linkPreview as object } : {}),
           ...(att ? { attachmentKey: att.key, attachmentType: att.type } : {}),
         },
       });
@@ -308,7 +328,7 @@ export class ChatService {
       },
       orderBy: { createdAt: 'asc' },
       take: 50,
-      select: { id: true, role: true, text: true, titles: true, createdAt: true },
+      select: { id: true, role: true, text: true, titles: true, linkPreview: true, createdAt: true },
     });
 
     // Админы мессежийг хэрэглэгч харсан тул тоолуур тэглэнэ
@@ -501,7 +521,7 @@ export class ChatService {
           orderBy: { createdAt: 'asc' },
           take: 200,
           select: {
-            id: true, role: true, text: true, titles: true, createdAt: true,
+            id: true, role: true, text: true, titles: true, linkPreview: true, createdAt: true,
             attachmentKey: true, attachmentType: true,
           },
         },

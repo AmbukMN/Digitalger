@@ -1,5 +1,7 @@
 'use client';
 
+import type { ChatLinkPreview } from '@besttv/shared/ui';
+
 import { api } from './api';
 
 /** n8n-ээс ирэх санал болгосон кино/цуврал */
@@ -18,28 +20,12 @@ export interface ServerChatMessage {
   role: 'user' | 'assistant' | 'admin';
   text: string;
   titles?: ChatTitleCard[] | null;
+  /** ⚠️ Backend нь хадгалах үед OG-г татсан — гурван суваг нэг эх сурвалж */
+  linkPreview?: ChatLinkPreview | null;
   createdAt: string;
 }
 
-/** Чат доторх холбоосын OG урьдчилан харах */
-export interface ChatLinkPreview {
-  url: string;
-  title: string | null;
-  description: string | null;
-  image: string | null;
-  siteName: string | null;
-}
-
 export const chatApi = {
-  /**
-   * Холбоосын зураг/гарчиг татна (Messenger шиг карт).
-   *
-   * ⚠️ Backend нь ЗӨВХӨН besttv.us домэйныг зөвшөөрнө (SSRF хамгаалалт),
-   * бусад бүх URL-д `null` буцаана — карт харагдахгүй, линк текст хэвээр.
-   */
-  linkPreview: (url: string) =>
-    api<ChatLinkPreview | null>(`/chat/link-preview?url=${encodeURIComponent(url)}`),
-
   /** Нэвтрэх үед зочны яриаг өөрийн бүртгэлд холбоно (JWT шаардана) */
   linkSession: (sessionId: string) =>
     api<{ ok: boolean; linked: number }>('/chat/link-session', {

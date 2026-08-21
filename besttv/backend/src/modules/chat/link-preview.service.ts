@@ -71,6 +71,19 @@ export class LinkPreviewService {
       .replace(/&#x27;/gi, "'");
   }
 
+  /**
+   * Текстээс ЭХНИЙ besttv.us холбоосыг олж OG-г татна.
+   *
+   * ⚠️ Гурван суваг (вэб/админ/FB) ЭНЭ НЭГ функцийг л ашиглана —
+   * тус тусад нь regex бичвэл зөрөх эрсдэлтэй.
+   */
+  async fromText(text: string): Promise<LinkPreview | null> {
+    const m = String(text || '').match(/https?:\/\/(?:www\.)?besttv\.us[^\s]*/i);
+    if (!m) return null;
+    /* Өгүүлбэрийн төгсгөлийн цэг/таслалыг хасна */
+    return this.fetchPreview(m[0].replace(/[.,;:!?)]+$/, ''));
+  }
+
   async fetchPreview(rawUrl: string): Promise<LinkPreview | null> {
     let url: URL;
     try {

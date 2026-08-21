@@ -21,3 +21,4 @@ export * from './confirm-dialog';
 export * from './prompt-dialog';
 export * from './ui-provider';
 export * from './brand-logo';
+export * from './link-preview-card';

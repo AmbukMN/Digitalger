@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDate } from '@besttv/shared';
-import { Badge, useConfirm } from '@besttv/shared/ui';
+import { Badge, LinkPreviewCard, type ChatLinkPreview, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
@@ -136,6 +136,8 @@ interface ConvDetail extends ConvListItem {
       year?: number;
       rating?: number;
     }[] | null;
+    /** ⚠️ Backend нь хадгалах үед татсан OG — LIVE-тай ИЖИЛ харагдана */
+    linkPreview?: ChatLinkPreview | null;
     /** FB/IG-ээс ирсэн баримтын зураг (R2-д хадгалагдсан) */
     attachmentUrl?: string;
     attachmentType?: string;
@@ -759,6 +761,12 @@ export default function ChatPage() {
                           саарал текст харуулдаг байв — админ юу илгээснийг
                           НҮДЭЭР харж чадахгүй, гомдол шалгахад ойлгомжгүй.
                         */}
+                        {/* ⚠️⚠️ Админ панель нь LIVE дээр ЯГ ЮУ харагдаж
+                            байгааг тэр чигээр нь харуулна — FB дээр карт
+                            очиж байхад энд текст л харагддаг байв */}
+                        {!(Array.isArray(m.titles) && m.titles.length > 0) && (
+                          <LinkPreviewCard data={m.linkPreview} className="max-w-xs" />
+                        )}
                         {Array.isArray(m.titles) && m.titles.length > 0 && (
                           <div className="mt-1.5 flex max-w-full gap-2 overflow-x-auto pb-1">
                             {m.titles.map((t, ti) => (
