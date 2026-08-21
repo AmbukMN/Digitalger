@@ -503,7 +503,8 @@ export class SocialService {
     if (params.from || params.to) {
       where.scheduledAt = {
         ...(params.from ? { gte: params.from } : {}),
-        ...(params.to ? { lte: params.to } : {}),
+        /* WARN `to` is now an EXCLUSIVE upper bound (next day 00:00 UB) */
+        ...(params.to ? { lt: params.to } : {}),
       };
     }
 

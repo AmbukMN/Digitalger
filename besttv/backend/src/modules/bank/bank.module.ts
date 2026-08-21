@@ -23,6 +23,7 @@ import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-va
 import { NotificationType, PaymentStatus, Role } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ubRangeFilter } from '../../common/ub-date';
 import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -669,18 +670,18 @@ export class BankService {
       base.status = PaymentStatus.CANCELLED;
     }
 
-    /* ⚠️ `to` нь ТУХАЙН ӨДРИЙГ ОРУУЛНА — «08-13 хүртэл» гэвэл
-       08-13-ны 23:59 хүртэл. Эс бөгөөс тэр өдрийн төлбөр алга болно. */
-    if (o.from || o.to) {
-      const range: { gte?: Date; lt?: Date } = {};
-      if (o.from) range.gte = new Date(o.from);
-      if (o.to) {
-        const end = new Date(o.to);
-        end.setDate(end.getDate() + 1);
-        range.lt = end;
-      }
-      base.createdAt = range;
-    }
+    /**
+     * ⚠️⚠️ UB ӨДРИЙН ХИЛЭЭР шүүнэ (`ubRangeFilter`).
+     *
+     * БОДИТ АЛДАА: `new Date('2026-08-13')` нь ISO мөр тул TZ-ээс үл
+     * хамааран UTC шөнө дунд = UB-гийн 08:00 өгдөг. Тиймээс админ
+     * «08-13» гэж шүүхэд тэр өдрийн 00:00–08:00-ын төлбөр АЛДАГДАЖ,
+     * оронд нь 08-14-ний өглөөнийх нэмэгддэг байв.
+     *
+     * ⚠️ `to` нь тухайн ӨДРИЙГ БҮТНЭЭР хамруулна.
+     */
+    const dateRange = ubRangeFilter(o.from, o.to);
+    if (dateRange) base.createdAt = dateRange;
     return base;
   }
 

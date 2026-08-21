@@ -31,6 +31,7 @@ import { Type } from 'class-transformer';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ubRangeFilter } from '../../common/ub-date';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CrosspostModule } from '../crosspost/crosspost.module';
 import { SocialService } from './social.service';
@@ -206,8 +207,17 @@ export class SocialController {
   ) {
     return this.svc.list({
       status,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      /**
+       * ⚠️⚠️ UB ӨДРИЙН ХИЛЭЭР (`ubRangeFilter`).
+       *
+       * Өмнө нь `new Date('2026-08-13')` нь UTC шөнө дунд (= UB 08:00)
+       * өгч, мөн `to` нь тухайн өдрийг БҮТНЭЭР хамруулдаггүй байв —
+       * «08-13 хүртэл» гэвэл 08-13-ны 00:00 хүртэл л авдаг байлаа.
+       */
+      ...(() => {
+        const r = ubRangeFilter(from, to);
+        return { from: r?.gte, to: r?.lt };
+      })(),
       limit: limit ? Number(limit) : undefined,
     });
   }

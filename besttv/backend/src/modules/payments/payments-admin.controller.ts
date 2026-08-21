@@ -6,6 +6,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ubRangeFilter } from '../../common/ub-date';
 
 type SortField = 'createdAt' | 'amount' | 'paidAt';
 
@@ -55,16 +56,16 @@ export class PaymentsAdminController {
 
     // ⚠️ `to` нь тухайн ӨДРИЙГ БҮТНЭЭР хамруулна (23:59:59) — эс бөгөөс
     // "өнөөдөр" гэж сонгоход өнөөдрийн гүйлгээ харагдахгүй
-    if (q.from || q.to) {
-      const range: Prisma.DateTimeFilter = {};
-      if (q.from) range.gte = new Date(q.from);
-      if (q.to) {
-        const end = new Date(q.to);
-        end.setHours(23, 59, 59, 999);
-        range.lte = end;
-      }
-      where.createdAt = range;
-    }
+    /**
+     * ⚠️⚠️ UB ӨДРИЙН ХИЛЭЭР шүүнэ (`ubRangeFilter`).
+     *
+     * Өмнө нь ХОЛИМОГ байв: `gte` нь ISO мөрийг UTC шөнө дунд гэж
+     * уншдаг (= UB 08:00), харин `lte` нь `setHours` тул локал (TZ)
+     * цагаар ажилладаг. Хоёр өөр цагийн бүсээр шүүж, өдрийн хил
+     * 8 цагаар зөрдөг байлаа.
+     */
+    const dateRange = ubRangeFilter(q.from, q.to);
+    if (dateRange) where.createdAt = dateRange;
 
     if (q.minAmount != null || q.maxAmount != null) {
       const range: Prisma.IntFilter = {};
