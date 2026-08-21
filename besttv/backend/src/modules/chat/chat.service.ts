@@ -436,6 +436,8 @@ export class ChatService {
        * сувгийн бодит нүүр. Байхгүй бол манай сайтын аватар.
        */
       userImage: c.userImage ?? avatarUrls[i],
+      /* ⚠️ Нэргүй FB/IG чатад таних тэмдэг — «Зочин» давхардахгүй */
+      userName: this.displayName(c),
     }));
 
     /* ⚠️ `totalPages` — админы `<Pagination>` энэ талбарыг шаардана */
@@ -448,6 +450,46 @@ export class ChatService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  /**
+   * ⚠️⚠️ FB/IG ХЭРЭГЛЭГЧИЙН ТАНИХ ТЭМДЭГ — «Зочин» гэж бүгд ижил
+   * харагдахаас сэргийлнэ.
+   *
+   * БОДИТ АСУУДАЛ: Messenger-ээс ирсэн 8 чатаас 7 нь нэргүй тул
+   * админ панел дээр бүгд «Зочин» гэж харагддаг — аль нь хэн болох
+   * нь ялгагдахгүй, өмнөх яриаг ч холбож чадахгүй.
+   *
+   * ШАЛТГААН (судалгаагаар): Meta-гийн `Business Asset User Profile
+   * Access` FEATURE нь App Review-д батлагдаагүй. Батлагдаагүй
+   * feature нь ЗӨВХӨН App дээр role-той хүнд (Admin/Tester)
+   * ажилладаг тул бодит хэрэглэгчид код 100/33 буцаана.
+   * Эрх ирэх хүртэл (App Review ~20 хоног) энэ fallback хэрэгтэй.
+   *
+   * ⚠️ Нэр ОЛДСОН бол түүнийг ҮРГЭЛЖ давуу — fallback нь зөвхөн
+   * NULL үед.
+   */
+  private displayName(c: {
+    channel: string;
+    sessionId: string;
+    userName: string | null;
+    user?: { name: string | null; email: string } | null;
+  }): string | null {
+    if (c.user?.name) return c.user.name;
+    if (c.userName) return c.userName;
+    if (c.user?.email) return c.user.email;
+
+    /* ⚠️ Зөвхөн FB/IG-д — вэб зочин нь `sessionId` нь утгагүй hash */
+    if (c.channel === 'web') return null;
+
+    /**
+     * PSID-ийн сүүлийн 4 орон — тогтмол, товч, ялгаатай.
+     * «Messenger #7547» гэх мэт. Chatwoot, Re:amaze зэрэг бодит
+     * бүтээгдэхүүнүүд ижил аргыг хэрэглэдэг.
+     */
+    const tail = c.sessionId.slice(-4);
+    const label = c.channel === 'instagram' ? 'Instagram' : 'Messenger';
+    return `${label} #${tail}`;
   }
 
   async getConversation(id: string) {
@@ -514,7 +556,14 @@ export class ChatService {
         ? await this.storage.publicAssetUrl(conv.user.avatarKey, 7200).catch(() => null)
         : null);
 
-    return { ...conv, userImage, messages, subscriptions: subs };
+    return {
+      ...conv,
+      userImage,
+      /* ⚠️ Жагсаалттай ИЖИЛ таних тэмдэг — хоёр дэлгэц зөрөх ёсгүй */
+      userName: this.displayName(conv),
+      messages,
+      subscriptions: subs,
+    };
   }
 
   /** Админ гар аргаар хариулах */
