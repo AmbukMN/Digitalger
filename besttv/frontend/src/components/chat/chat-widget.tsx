@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@besttv/shared';
-import { LinkPreviewCard, type ChatLinkPreview } from '@besttv/shared/ui';
+import { LinkPreviewCard, renderRichText, type ChatLinkPreview } from '@besttv/shared/ui';
 import { chatApi, type ChatTitleCard } from '@/lib/chat-api';
 import { useAuth } from '@/lib/auth-store';
 import { useChatUi } from '@/store/chat-ui';
@@ -69,41 +69,6 @@ function getSessionId(): string {
        яриа хадгалагдахгүй ч БУСДЫНХ уншигдахгүй */
     return 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
-}
-
-/**
- * URL/имэйлийг автоматаар холбоос болгоно.
- * ⚠️ `dangerouslySetInnerHTML` ХЭРЭГЛЭХГҮЙ — React node массив буцаана (XSS-гүй).
- */
-function renderRichText(text: string) {
-  const pattern = /(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-  const parts: React.ReactNode[] = [];
-  let last = 0;
-  let m: RegExpExecArray | null;
-
-  while ((m = pattern.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    const token = m[0];
-    // Өгүүлбэрийн төгсгөлийн цэг/таслалыг холбоосоос хасна
-    const trail = token.match(/[.,;:!?)]+$/);
-    const clean = trail ? token.slice(0, token.length - trail[0].length) : token;
-    const isEmail = !clean.startsWith('http');
-    parts.push(
-      <a
-        key={`${m.index}-${clean}`}
-        href={isEmail ? `mailto:${clean}` : clean}
-        {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
-        onClick={(e) => e.stopPropagation()}
-        className="text-primary underline underline-offset-2 hover:brightness-110"
-      >
-        {clean}
-      </a>,
-    );
-    if (trail) parts.push(trail[0]);
-    last = m.index + token.length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
 }
 
 /** Санал болгосон кино — хэвтээ гүйлгэдэг постер карт */

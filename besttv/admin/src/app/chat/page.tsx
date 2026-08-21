@@ -20,7 +20,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDate } from '@besttv/shared';
-import { Badge, LinkPreviewCard, type ChatLinkPreview, useConfirm } from '@besttv/shared/ui';
+import {
+  Badge,
+  LinkPreviewCard,
+  renderRichText,
+  type ChatLinkPreview,
+  useConfirm,
+} from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
@@ -156,46 +162,6 @@ function timeAgo(iso: string): string {
   const d = Math.floor(h / 24);
   if (d < 30) return `${d} хоног`;
   return formatDate(iso);
-}
-
-/**
- * URL/имэйлийг автоматаар холбоос болгоно.
- *
- * ⚠️ БОДИТ ГОМДОЛ: чатбот «https://besttv.us/ руу орж үзээрэй» гэж
- * хариулдаг атал админ панельд нүцгэн текст болж харагдаж, дарж
- * болдоггүй байв — админ гараар хуулж авах шаардлагатай байлаа.
- *
- * ⚠️ `dangerouslySetInnerHTML` ХЭРЭГЛЭХГҮЙ — React node массив (XSS-гүй).
- */
-function renderRichText(text: string) {
-  const pattern = /(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-  const parts: React.ReactNode[] = [];
-  let last = 0;
-  let m: RegExpExecArray | null;
-
-  while ((m = pattern.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    const token = m[0];
-    /* Өгүүлбэрийн төгсгөлийн цэг/таслалыг холбоосоос хасна */
-    const trail = token.match(/[.,;:!?)]+$/);
-    const clean = trail ? token.slice(0, token.length - trail[0].length) : token;
-    const isEmail = !clean.startsWith('http');
-    parts.push(
-      <a
-        key={`${m.index}-${clean}`}
-        href={isEmail ? `mailto:${clean}` : clean}
-        {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
-        onClick={(e) => e.stopPropagation()}
-        className="text-primary underline underline-offset-2 hover:brightness-110"
-      >
-        {clean}
-      </a>,
-    );
-    if (trail) parts.push(trail[0]);
-    last = m.index + token.length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
 }
 
 export default function ChatPage() {
