@@ -5,6 +5,7 @@ import { Loader2, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, getAccessToken } from '@/lib/api';
 import { VideoPreview } from '@/components/video-preview';
+import { VideoDownload } from './video-download';
 
 type Target = 'movie' | 'episode' | 'trailer';
 
@@ -204,6 +205,10 @@ export function VideoUpload({
           <p className="mt-2 flex items-center gap-1.5 text-xs text-success">Видео бэлэн, тоглуулах боломжтой</p>
           {/* ⚠️ Байршуулсан видеогоо ШАЛГАХ — буруу файл орсныг эндээс мэднэ */}
           <VideoPreview kind={target} id={targetId} />
+          {/* ⚠️ Трейлерийг татахгүй — зөвхөн кино/анги */}
+          {target !== 'trailer' && (
+            <VideoDownload kind={target as 'movie' | 'episode'} id={targetId} />
+          )}
         </>
       )}
     </div>
