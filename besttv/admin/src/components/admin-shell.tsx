@@ -120,6 +120,35 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       .catch(() => null);
   }, [pathname, user, qc]);
 
+  /**
+   * ⚠️⚠️ БОДИТ АЛДАА: тухайн ХУУДАСТАА БАЙХАД badge цэвэрлэгддэггүй байв.
+   *
+   * Дээрх effect нь `seenRef.current === section` тул нэг л удаа ажиллана.
+   * Чат хуудсан дээр сууж байхад шинэ мессеж ирэхэд badge өснө, гэтэл
+   * `markSeen` ДАХИН дуудагдахгүй — админ өөр хуудас руу ороод БУЦАЖ
+   * ирж байж л тоо арилдаг байлаа. Хэрэглэгчийн гомдол яг энэ:
+   * «зөв UX логик алга».
+   *
+   * ЗАСВАР: badge-ын тоо шинэчлэгдэх бүрд, хэрэв админ ТУХАЙН хэсгийн
+   * хуудсан дээр ИДЭВХТЭЙ байвал шууд «харсан» гэж тэмдэглэнэ.
+   */
+  useEffect(() => {
+    if (!user || !badges) return;
+    const item = NAV_GROUPS.flatMap((g) => g.items).find(
+      (i) => 'section' in i && i.section && pathname.startsWith(i.href),
+    ) as { section?: string } | undefined;
+    const section = item?.section;
+    if (!section) return;
+    if ((badges[section] ?? 0) <= 0) return;
+
+    /* ⚠️ Таб far background бол хараагүй — хэрэглэгч харж байж л уншсан */
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+    api(`/admin/notifications/seen/${section}`, { method: 'POST' })
+      .then(() => qc.invalidateQueries({ queryKey: ['admin-badges'] }))
+      .catch(() => null);
+  }, [badges, pathname, user, qc]);
+
   // Хуудас солигдоход мобайл drawer хаагдана
   useEffect(() => setNavOpen(false), [pathname]);
 

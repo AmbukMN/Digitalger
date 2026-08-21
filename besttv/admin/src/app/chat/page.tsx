@@ -213,6 +213,27 @@ export default function ChatPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [detail?.messages?.length]);
 
+  /**
+   * ⚠️⚠️ ЯРИА НЭЭМЭГЦ «шинэ» тоог ШУУД цэвэрлэнэ.
+   *
+   * БОДИТ АЛДАА: backend нь `getConversation`-д `adminUnread=false`
+   * болгодог АТЛАА frontend нь жагсаалт/badge-аа дахин татдаггүй байв.
+   * Тиймээс уншсан яриа «шинэ» хэвээр 15 секунд харагдаж, админ өөр
+   * хуудас руу ороод буцаж ирж байж л тоо арилдаг байлаа.
+   *
+   * ⚠️ Мессежийн ТОО-г ч хамааралд оруулав: нээлттэй яриа руу шинэ
+   * мессеж ирэхэд backend дахин `adminUnread=true` болгодог. Дараагийн
+   * таталт (6 сек) түүнийг `false` болгоно — тэр мөчид жагсаалтаа ч
+   * шинэчилж байж badge үнэн утгаа хадгална.
+   */
+  useEffect(() => {
+    if (!detail?.id) return;
+    void qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
+    void qc.invalidateQueries({ queryKey: ['admin-chat-unread'] });
+    /* Sidebar-ийн «Чат N» badge — AdminShell-ээс тусад нь татагддаг */
+    void qc.invalidateQueries({ queryKey: ['admin-badges'] });
+  }, [detail?.id, detail?.messages?.length, qc]);
+
   const send = async () => {
     const text = reply.trim();
     if (!text || !selected || sending) return;
