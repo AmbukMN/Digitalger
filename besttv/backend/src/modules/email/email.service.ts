@@ -471,7 +471,7 @@ export class EmailService {
      */
     const unsub =
       opts.showUnsubscribe && opts.email
-        ? `<p style="margin:8px 0 0;font-size:11px;color:#666">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}&sig=${signUnsubscribe(opts.email)}" style="color:#888;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
+        ? `<p style="margin:8px 0 0;font-size:11px;color:#666">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}&sig=${signUnsubscribe(opts.email)}" style="color:#888;text-decoration:underline">Unsubscribe</a>.</p>`
         : '';
 
     /**
@@ -545,7 +545,7 @@ ${pixel}
       bodyHtml:
         this.p('Таны BestTV бүртгэл амжилттай үүслээ.') +
         this.p(
-          'Одооноос та үнэгүй кинонуудыг шууд үзэх боломжтой. Төлбөртэй контентыг үзэхийн тулд багц авах эсвэл киног ширхэгээр түрээслэнэ үү.',
+          'Одооноос та хүссэн кинонуудаа шууд үзэх боломжтой. Төлбөртэй контентыг үзэхийн тулд багц авах эсвэл киног ширхэгээр түрээслэнэ үү.',
         ),
       ctaText: 'Кино үзэж эхлэх',
       ctaUrl: this.siteUrl,
@@ -645,6 +645,10 @@ ${pixel}
    *
    * WARN Transactional in tone but it IS a nudge, so `showUnsubscribe`
    * stays on and the caller must skip users who opted out.
+   *
+   * WARN Wording is the admin's own - warm and forward-looking rather
+   * than an "ignore this if you changed your mind" disclaimer. Do not
+   * rewrite it back to the reassurance pattern used by password reset.
    */
   async sendPaymentAbandoned(opts: {
     to: string;
@@ -662,16 +666,20 @@ ${pixel}
       bodyHtml:
         this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
         this.p(
-          `Та <strong style="color:#fff">${opts.planName}</strong> багцыг ` +
-            `<strong style="color:#fff">${this.money(opts.amount)}</strong>-өөр авахаар ` +
-            'эхэлсэн ч төлбөр дуусаагүй байна.',
+          /* ⚠️ «багц» гэдэг үгийг НЭМЭХГҮЙ — багцын нэрэнд аль хэдийн
+             орсон байдаг («Монгол кино багц»), эс бөгөөс «багц багцыг»
+             гэж давхардана. */
+          `Та <strong style="color:#fff">${opts.planName}</strong>-ыг ` +
+            `<strong style="color:#fff">${this.money(opts.amount)}</strong>-өөр ` +
+            'авахаар дарсан ч төлбөр төлөгдөөгүй байна.',
         ) +
-        this.p('Доорх товчийг дарж хэдхэн секундэд үргэлжлүүлж болно.') +
-        /* Same reassurance pattern as password reset - if they changed
-           their mind, inaction must feel safe and final. */
         this.p(
-          'Хэрэв та бодлоо өөрчилсөн бол энэ имэйлийг үл тоомсорлоно уу — ' +
-            'ямар ч төлбөр авагдаагүй.',
+          'Доорх товчийг дарж хэдхэн секундэд үргэлжлүүлж төлбөрөө ' +
+            'баталгаажуулах боломжтой.',
+        ) +
+        this.p(
+          'Бидэнтэй хамт байгаад баярлалаа. Маш олон сонирхолтой кино ' +
+            'нэмэгдсэн байгаа шүү 🎬',
         ),
       ctaText: 'Үргэлжлүүлэх',
       ctaUrl: url,
