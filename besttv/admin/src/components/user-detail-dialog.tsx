@@ -213,7 +213,25 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
             <Loader2 size={20} className="animate-spin" />
           </div>
         ) : (
-          <Tabs value={tab} onValueChange={setTab} className="mt-2">
+          /**
+           * ⚠️⚠️ ГҮЙЛТИЙН БҮТЭЦ — таб бүрийн агуулга БҮРЭН харагдана.
+           *
+           * БОДИТ АЛДАА: `DialogContent` нь `overflow-hidden` бөгөөд
+           * `Tabs` дээр гүйлт ОГТ байгаагүй тул урт агуулгатай таб
+           * (Тойм — эрхийн жагсаалт, Идэвх — 50 үйлдэл) дэлгэцээс
+           * халиад доод хэсэг нь ТАСЛАГДДАГ байв.
+           *
+           * ⚠️ `min-h-0` ЗААВАЛ — flex хүүхэд анхдагчаар
+           * `min-height:auto` тул агуулгаасаа багасахгүй,
+           * `overflow-y-auto` ажиллахгүй. Flexbox-ийн түгээмэл алдаа.
+           *
+           * ⚠️ Толгой (нэр, таб) байрандаа үлдэж, ЗӨВХӨН агуулга гүйнэ.
+           */
+          <Tabs
+            value={tab}
+            onValueChange={setTab}
+            className="mt-2 flex min-h-0 flex-1 flex-col"
+          >
             {/*
               ⚠️⚠️ 8 ТАБ — MOBILE-Д ХЭВТЭЭ ГҮЙНЭ (`grid-cols-8` БИШ).
 
@@ -226,7 +244,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
 
               ⚠️ `scrollbar` нуусан — 8 табын доор судал гарвал бохир.
             */}
-            <TabsList className="flex w-full justify-start gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-8 sm:gap-0 [&::-webkit-scrollbar]:hidden">
+            <TabsList className="flex w-full shrink-0 justify-start gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-8 sm:gap-0 [&::-webkit-scrollbar]:hidden">
               <TabsTrigger value="overview" className="shrink-0">
                 <UserIcon size={13} className="mr-1" /> Тойм
               </TabsTrigger>
@@ -268,7 +286,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
             </TabsList>
 
             {/* ⚠️ `data` (дэлгэрэнгүй) — `user` нь зөвхөн хураангуй */}
-            <TabsContent value="history">
+            <TabsContent value="history" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1">
               {data ? (
                 <UserHistoryTab user={data} />
               ) : (
@@ -281,11 +299,11 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
             </TabsContent>
 
             {/* ⚠️ Зөвхөн таб нээгдсэн үед л дуудна (insight query хүнд) */}
-            <TabsContent value="insight">
+            <TabsContent value="insight" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1">
               <UserInsightTab userId={user.id} active={tab === 'insight'} />
             </TabsContent>
 
-            <TabsContent value="overview" className="space-y-3">
+            <TabsContent value="overview" className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-1">
               {/*
                 ⚠️⚠️ АНХААРУУЛГЫН МӨР — АСУУДАЛТАЙ зүйл ХАМГИЙН ДЭЭР.
 
@@ -587,7 +605,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
             </TabsContent>
 
             {/* ── ХЭТЭВЧ ── */}
-            <TabsContent value="wallet" className="space-y-4">
+            <TabsContent value="wallet" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-1">
               <div className="rounded-lg border border-primary/25 bg-primary/8 p-4">
                 <p className="text-xs text-muted-foreground">Одоогийн үлдэгдэл</p>
                 <p className="mt-0.5 text-2xl font-black text-foreground">
@@ -637,7 +655,9 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Гүйлгээний түүх ({walletTxs?.length ?? 0})
                 </p>
-                <div className="max-h-64 space-y-1.5 overflow-y-auto">
+                {/* ⚠️ Дотоод гүйлт ХАСАВ — таб өөрөө гүйдэг болсон тул давхар
+                    гүйлт нь админыг төөрүүлнэ (жижиг цонх дотор гүйлгэх). */}
+                <div className="space-y-1.5">
                   {walletTxs?.length ? (
                     walletTxs.map((tx) => {
                       /* ⚠️ txMeta() — шинэ enum утга дээр таб унахаас сэргийлнэ */
@@ -700,7 +720,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               «Хэтэвч цэнэглэлт» гэж бичигддэг байв. Хэрэглэгч 4,900₮-өөр
               кино түрээсэлсэн атал «цэнэглэлт» гэж харагдсан (бодит).
             */}
-            <TabsContent value="orders" className="space-y-2">
+            <TabsContent value="orders" className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-1">
               {data.payments.length === 0 && (
                 <p className="py-4 text-center text-sm text-muted-foreground">Захиалга байхгүй байна</p>
               )}
@@ -806,7 +826,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               })()}
             </TabsContent>
 
-            <TabsContent value="library" className="space-y-4">
+            <TabsContent value="library" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-1">
               {/*
                 ⚠️⚠️ АНГИ БҮРИЙН ҮЗСЭН ТҮҮХ — ХАМГИЙН ЧУХАЛ tracking.
 
@@ -823,7 +843,8 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <PlayCircle size={12} /> Анги бүрийн түүх ({data.episodeHistory.length})
                   </p>
-                  <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border p-1.5">
+                  {/* ⚠️ Дотоод гүйлт ХАСАВ — таб өөрөө гүйнэ */}
+                  <div className="space-y-1 rounded-lg border border-border p-1.5">
                     {data.episodeHistory.map((e) => {
                       const done = e.type === 'complete';
                       const pct =
@@ -982,7 +1003,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               тул ХАРУУЛАХДАА эргүүлж, хуучин→шинэ дараалалтай болгоно —
               яриа уншихад зөв дараалал.
             */}
-            <TabsContent value="chat" className="space-y-4">
+            <TabsContent value="chat" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-1">
               {!data.chats?.length && (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   Чат яриа байхгүй байна
@@ -1057,7 +1078,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
               ))}
             </TabsContent>
 
-            <TabsContent value="access" className="space-y-5">
+            <TabsContent value="access" className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-1">
               <div>
                 <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <KeyRound size={12} /> Нууц үг тохируулах
