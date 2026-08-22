@@ -10,6 +10,7 @@ import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
 import { useAuth } from '@/lib/auth-store';
 import { useBrand } from '@/lib/queries';
+import { trackRegistration } from '@/lib/track';
 import { SocialButtons } from '@/components/auth/social-buttons';
 
 const PERKS = ['Мянга мянган кино', 'Хүссэн үедээ, хүссэн төхөөрөмжөөрөө', 'Хэзээ ч цуцалж болно'];
@@ -83,7 +84,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (mode === 'login') await login(mail, password);
-      else await register(mail, password, name.trim() || undefined, phone.trim() || undefined);
+      else {
+        await register(mail, password, name.trim() || undefined, phone.trim() || undefined);
+        /* ⚠️ Meta CompleteRegistration — ЗӨВХӨН бодит бүртгэлд,
+           нэвтрэхэд ХЭЗЭЭ Ч илгээхгүй (тоо гуйвна) */
+        trackRegistration('email');
+      }
       toast.success(mode === 'login' ? 'Тавтай морил!' : 'Бүртгэл амжилттай үүслээ');
       router.replace(nextUrl);
     } catch (err: unknown) {

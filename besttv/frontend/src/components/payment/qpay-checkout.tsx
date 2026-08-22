@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Loader2, RefreshCw, X } from 'lucide-react';
 import { formatPrice } from '@besttv/shared';
 import { api } from '@/lib/api';
+import { trackCheckoutStart, trackPurchase } from '@/lib/track';
 
 export interface QPayInvoice {
   paymentId: string;
@@ -183,6 +184,18 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
       if (res.paid) {
         stop();
         setPaid(true);
+        /**
+         * WARN Meta Purchase - fire BEFORE onPaid().
+         *
+         * onPaid() often navigates or closes the modal; firing after it
+         * risks the page unloading before the pixel request leaves.
+         */
+        trackPurchase({
+          paymentId: invoice.paymentId,
+          amount: invoice.amount,
+          itemName: subtitle,
+          kind: invoice.kind,
+        });
         await onPaid();
       }
     } catch {
@@ -191,6 +204,23 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
       if (!silent) setChecking(false);
     }
   };
+
+  /**
+   * WARN Meta InitiateCheckout - once per invoice.
+   *
+   * Keyed on `invoice.paymentId` so a re-render never double-counts.
+   * Measured: 29% of QRs expire unpaid, so the gap between this and
+   * Purchase is the real drop-off.
+   */
+  useEffect(() => {
+    trackCheckoutStart({
+      paymentId: invoice.paymentId,
+      amount: invoice.amount,
+      itemName: subtitle,
+      kind: invoice.kind,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice.paymentId]);
 
   useEffect(() => {
     // ⚠️ try/catch check() дотор — сүлжээ тасрахад polling зогсож,
