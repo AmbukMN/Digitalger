@@ -98,55 +98,57 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   });
 
   const qc = useQueryClient();
-  const seenRef = useRef<string | null>(null);
   /** ⚠️ Мобайлд sidebar нь drawer — 264px хатуу эзэлбэл контент шахагдана */
   const [navOpen, setNavOpen] = useState(false);
 
   /**
-   * Хуудас солигдоход тухайн хэсгийг "харсан" гэж тэмдэглэнэ.
-   * ⚠️ `seenRef` — нэг хуудсанд НЭГ л удаа дуудна (re-render бүрд биш).
-   */
-  useEffect(() => {
-    if (!user) return;
-    const item = NAV_GROUPS.flatMap((g) => g.items).find(
-      (i) => 'section' in i && i.section && pathname.startsWith(i.href),
-    ) as { section?: string } | undefined;
-    const section = item?.section;
-    if (!section || seenRef.current === section) return;
-
-    seenRef.current = section;
-    api(`/admin/notifications/seen/${section}`, { method: 'POST' })
-      .then(() => qc.invalidateQueries({ queryKey: ['admin-badges'] }))
-      .catch(() => null);
-  }, [pathname, user, qc]);
-
-  /**
-   * ⚠️⚠️ БОДИТ АЛДАА: тухайн ХУУДАСТАА БАЙХАД badge цэвэрлэгддэггүй байв.
+   * ⚠️⚠️ ХАРСНЫ ДАРАА арилна — ШУУД БИШ.
    *
-   * Дээрх effect нь `seenRef.current === section` тул нэг л удаа ажиллана.
-   * Чат хуудсан дээр сууж байхад шинэ мессеж ирэхэд badge өснө, гэтэл
-   * `markSeen` ДАХИН дуудагдахгүй — админ өөр хуудас руу ороод БУЦАЖ
-   * ирж байж л тоо арилдаг байлаа. Хэрэглэгчийн гомдол яг энэ:
-   * «зөв UX логик алга».
+   * БОДИТ АЛДАА: badge гармагц энэ effect тэр дороо «харсан» гэж
+   * тэмдэглэдэг байв. Админ Хэрэглэгчид хуудсан дээр сууж байхад
+   * шинэ хүн бүртгүүлбэл тоо гарч ирээд 1 секундын дотор алга болно —
+   * админ ХЭЗЭЭ Ч харахгүй. DB-д `users` нь 09:59-д «үзсэн» гэж
+   * бичигдсэн атал сүүлийн хэрэглэгч 09:49-д бүртгүүлсэн байсан нь
+   * яг үүнээс.
    *
-   * ЗАСВАР: badge-ын тоо шинэчлэгдэх бүрд, хэрэв админ ТУХАЙН хэсгийн
-   * хуудсан дээр ИДЭВХТЭЙ байвал шууд «харсан» гэж тэмдэглэнэ.
+   * ЗАСВАР: 6 секунд ХАРУУЛААД дараа нь тэмдэглэнэ. Админ тоог
+   * хараад, юу шинэ болохыг мэдэж амжина.
+   *
+   * ⚠️ Таб background бол таймер ажиллуулахгүй — хараагүй зүйлийг
+   * «уншсан» гэж тооцох нь буруу.
    */
+  const seenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!user || !badges) return;
+
+    /**
+     * ⚠️ ЯГ ТААРАХ зам — `startsWith` нь Хянах самбарын `/`-д БҮХ
+     * зам таарах тул буруу хэсгийг «үзсэн» гэж тэмдэглэх эрсдэлтэй.
+     */
     const item = NAV_GROUPS.flatMap((g) => g.items).find(
-      (i) => 'section' in i && i.section && pathname.startsWith(i.href),
+      (i) =>
+        'section' in i &&
+        i.section &&
+        (pathname === i.href || pathname.startsWith(i.href + '/')),
     ) as { section?: string } | undefined;
     const section = item?.section;
     if (!section) return;
     if ((badges[section] ?? 0) <= 0) return;
-
-    /* ⚠️ Таб far background бол хараагүй — хэрэглэгч харж байж л уншсан */
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-    api(`/admin/notifications/seen/${section}`, { method: 'POST' })
-      .then(() => qc.invalidateQueries({ queryKey: ['admin-badges'] }))
-      .catch(() => null);
+    seenTimer.current = setTimeout(() => {
+      seenTimer.current = null;
+      api(`/admin/notifications/seen/${section}`, { method: 'POST' })
+        .then(() => qc.invalidateQueries({ queryKey: ['admin-badges'] }))
+        .catch(() => null);
+    }, 6000);
+
+    return () => {
+      if (seenTimer.current) {
+        clearTimeout(seenTimer.current);
+        seenTimer.current = null;
+      }
+    };
   }, [badges, pathname, user, qc]);
 
   // Хуудас солигдоход мобайл drawer хаагдана
