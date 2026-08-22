@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { CacheService } from '../../common/cache/cache.service';
 
 /**
  * АДМИН — БАЙРШУУЛСАН ВИДЕОГ ТАТАЖ АВАХ.
@@ -45,6 +46,8 @@ export class VideoDownloadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    /* @Global module - no import needed in UploadsModule */
+    private readonly cache: CacheService,
   ) {}
 
   /**
@@ -63,20 +66,58 @@ export class VideoDownloadService {
    */
   private readonly tickets = new Map<string, { kind: string; id: string; v: number; at: number }>();
   private static readonly TICKET_TTL_MS = 2 * 60_000;
+  private static readonly TICKET_TTL_SEC = 120;
 
-  issueTicket(kind: 'movie' | 'episode', id: string, v: number): string {
-    /* Хугацаа хэтэрсэн тасалбаруудыг цэвэрлэнэ — Map хязгааргүй өсөхгүй */
+  /**
+   * WARN Redis first, in-memory only as a fallback.
+   *
+   * The Map works today because a single backend process runs. The day
+   * a second one is added, a ticket issued by process A would be
+   * unredeemable on process B and downloads would fail at random.
+   * Redis is shared, so the ticket is valid whichever process serves
+   * the download.
+   *
+   * The Map stays as a fallback for when Redis is down - losing
+   * downloads entirely would be worse than the single-process limit.
+   */
+  async issueTicket(kind: 'movie' | 'episode', id: string, v: number): Promise<string> {
+    const token = randomUUID().replace(/-/g, '');
+    const payload = { kind, id, v };
+
+    if (this.cache.isReady) {
+      await this.cache.set(
+        `dl:${token}`,
+        payload,
+        VideoDownloadService.TICKET_TTL_SEC,
+      );
+      return token;
+    }
+
+    /* Fallback: sweep expired first so the Map cannot grow unbounded */
     const now = Date.now();
     for (const [k, t] of this.tickets) {
       if (now - t.at > VideoDownloadService.TICKET_TTL_MS) this.tickets.delete(k);
     }
-    const token = randomUUID().replace(/-/g, '');
-    this.tickets.set(token, { kind, id, v, at: now });
+    this.tickets.set(token, { ...payload, at: now });
     return token;
   }
 
-  /** Тасалбарыг шалгаад ЗААВАЛ устгана (нэг удаагийн) */
-  redeemTicket(token: string): { kind: 'movie' | 'episode'; id: string; v: number } | null {
+  /**
+   * WARN Single use - the ticket is consumed on read.
+   *
+   * Redis `take` is atomic (GETDEL), so two concurrent requests cannot
+   * both redeem the same ticket.
+   */
+  async redeemTicket(
+    token: string,
+  ): Promise<{ kind: 'movie' | 'episode'; id: string; v: number } | null> {
+    if (this.cache.isReady) {
+      const hit = await this.cache.take<{ kind: string; id: string; v: number }>(
+        `dl:${token}`,
+      );
+      return hit ? { kind: hit.kind as 'movie' | 'episode', id: hit.id, v: hit.v } : null;
+    }
+
     const t = this.tickets.get(token);
     if (!t) return null;
     this.tickets.delete(token);

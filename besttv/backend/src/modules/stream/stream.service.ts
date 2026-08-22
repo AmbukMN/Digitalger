@@ -327,7 +327,60 @@ export class StreamService {
    * ⚠️ Постер БАЙГАА бол юу ч хийхгүй — хэрэглэгч дахин дахин
    * дуудсан ч ffmpeg дэмий ажиллахгүй.
    */
+  /**
+   * ⚠️⚠️ ffmpeg-ийн ХАМГААЛАЛТ — энэ endpoint зориудаар НИЙТИЙН.
+   *
+   * Зураг 404 болоход `<EpisodeThumb>` үүнийг АВТОМАТААР дууддаг тул
+   * ADMIN болгож болохгүй. Гэвч ffmpeg ажиллуулдаг учир хэн ч 264
+   * ангийн ID-г давтан дуудвал серверийг ачаалж, төлбөр төлсөн
+   * хэрэглэгчийн үзэлтийг удаашруулна.
+   *
+   * Хоёр түгжээ, хоёулаа хямд:
+   *   1. Анги тус бүрд НЭГ л зэрэг — явж байхад дахин дуудвал ffmpeg
+   *      хоёр дахин салаалахгүй, шууд буцна
+   *   2. Амжилтгүй оролдлогыг 10 минут дахин оролдохгүй — эх сурвалж
+   *      байхгүй ангийг CPU-гийн цорго болгон ашиглах боломжгүй
+   *
+   * Маршрутын 6/мин throttle нь эдгээрийн ДЭЭР үлдэнэ.
+   */
+  private readonly posterRepairs = new Set<string>();
+  private readonly posterCooldown = new Map<string, number>();
+  private static readonly POSTER_COOLDOWN_MS = 10 * 60_000;
+
   async repairEpisodePoster(
+    episodeId: string,
+  ): Promise<{ status: 'repaired' | 'already' | 'unavailable'; posterUrl?: string }> {
+    /* Энэ ангид аль хэдийн ажиллаж байна — хоёр дахь ffmpeg гаргахгүй */
+    if (this.posterRepairs.has(episodeId)) return { status: 'unavailable' };
+
+    const until = this.posterCooldown.get(episodeId);
+    if (until && Date.now() < until) return { status: 'unavailable' };
+
+    /* ⚠️ Хугацаа дууссаныг цэвэрлэнэ — Map хязгааргүй өсөхгүй */
+    if (this.posterCooldown.size > 500) {
+      const now = Date.now();
+      for (const [k, t] of this.posterCooldown) {
+        if (now >= t) this.posterCooldown.delete(k);
+      }
+    }
+
+    this.posterRepairs.add(episodeId);
+    try {
+      const out = await this.repairEpisodePosterInner(episodeId);
+      /* Зөвхөн БОДИТ засвар л cooldown-гүй; бүтэлгүйтэл хүлээлгэнэ */
+      if (out.status !== 'repaired') {
+        this.posterCooldown.set(episodeId, Date.now() + StreamService.POSTER_COOLDOWN_MS);
+      }
+      return out;
+    } catch (e) {
+      this.posterCooldown.set(episodeId, Date.now() + StreamService.POSTER_COOLDOWN_MS);
+      throw e;
+    } finally {
+      this.posterRepairs.delete(episodeId);
+    }
+  }
+
+  private async repairEpisodePosterInner(
     episodeId: string,
   ): Promise<{ status: 'repaired' | 'already' | 'unavailable'; posterUrl?: string }> {
     const ep = await this.prisma.episode.findUnique({

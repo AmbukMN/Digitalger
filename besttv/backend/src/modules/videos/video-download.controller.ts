@@ -46,12 +46,12 @@ export class VideoDownloadController {
    * АЮУЛТАЙ — оронд нь 2 минутын хугацаатай, нэг удаагийн тасалбар.
    */
   @Post(':kind/:id/ticket')
-  ticket(
+  async ticket(
     @Param('kind') kind: 'movie' | 'episode',
     @Param('id') id: string,
     @Body() body: { v?: number },
   ) {
-    return { ticket: this.svc.issueTicket(kind, id, Number(body?.v) || 0) };
+    return { ticket: await this.svc.issueTicket(kind, id, Number(body?.v) || 0) };
   }
 }
 
@@ -67,8 +67,8 @@ export class VideoDownloadPublicController {
   constructor(private readonly svc: VideoDownloadService) {}
 
   @Get('file')
-  file(@Query('t') ticket: string, @Res() res: Response) {
-    const claim = this.svc.redeemTicket(String(ticket ?? ''));
+  async file(@Query('t') ticket: string, @Res() res: Response) {
+    const claim = await this.svc.redeemTicket(String(ticket ?? ''));
     if (!claim) {
       throw new BadRequestException('Тасалбар хүчингүй эсвэл хугацаа дууссан');
     }

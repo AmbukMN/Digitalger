@@ -81,6 +81,9 @@ const CARD_SELECT = {
  *    контентыг бүрмөсөн нуух нь админд ойлгомжгүй байдал үүсгэдэг.
  */
 
+/** sitemap.xml стандартын дээд хязгаар */
+const SITEMAP_MAX = 50_000;
+
 @Injectable()
 export class TitlesService {
   private readonly logger = new Logger(TitlesService.name);
@@ -326,7 +329,23 @@ export class TitlesService {
       where: { isActive: true, genres: { none: { genre: { isAdult: true } } } },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
+      /**
+       * ⚠️⚠️ ДЭЭД ХЯЗГААР — sitemap нь `items` массивыг ШУУД уншдаг
+       * (frontend/src/app/sitemap.ts) тул хуудаслалт нэмбэл эвдэрнэ.
+       *
+       * 50,000 нь sitemap.xml стандартын дээд хязгаар. Каталог одоо
+       * 151 тул хол хүрэхгүй, гэхдээ хамгаалалтгүй байснаас дээр.
+       */
+      take: SITEMAP_MAX,
     });
+
+    /* ⚠️ Хязгаарт хүрвэл ЗААВАЛ мэдэгдэнэ — дутуу sitemap нь SEO-д
+       хохиролтой атлаа гаднаас нь огт харагдахгүй */
+    if (items.length >= SITEMAP_MAX) {
+      this.logger.warn(
+        `Sitemap ${SITEMAP_MAX} хязгаарт хүрлээ — хуудаслалт нэмэх шаардлагатай`,
+      );
+    }
     return { items, total: items.length };
   }
 

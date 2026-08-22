@@ -240,17 +240,27 @@ export class ReviewsService {
       });
     }
 
-    const votes = await this.prisma.reviewVote.findMany({
-      where: { reviewId },
-      select: { userId: true, value: true },
-    });
-    const helpful = votes.filter((v) => v.value === 1).length;
-    const notHelpful = votes.filter((v) => v.value === -1).length;
+    /**
+     * ⚠️⚠️ DB талд ТООЛНО — бүх саналыг санах ойд татахгүй.
+     *
+     * Өмнө нь хоёрхон тоо гаргахын тулд тухайн сэтгэгдлийн БҮХ санлын
+     * мөрийг уншдаг байв. Олон санал авсан сэтгэгдэлд санал өгөх бүрд
+     * мянга мянган мөр санах ойд ачаалагдана.
+     */
+    const [helpful, notHelpful, mine] = await Promise.all([
+      this.prisma.reviewVote.count({ where: { reviewId, value: 1 } }),
+      this.prisma.reviewVote.count({ where: { reviewId, value: -1 } }),
+      /* ⚠️ Зөвхөн ӨӨРИЙН саналыг татна — бүх мөрийг шүүхийн оронд */
+      this.prisma.reviewVote.findFirst({
+        where: { reviewId, userId },
+        select: { value: true },
+      }),
+    ]);
     return {
       helpful,
       notHelpful,
       score: helpful - notHelpful,
-      myVote: votes.find((v) => v.userId === userId)?.value ?? 0,
+      myVote: mine?.value ?? 0,
     };
   }
 

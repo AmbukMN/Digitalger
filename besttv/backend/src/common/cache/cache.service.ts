@@ -61,6 +61,36 @@ export class CacheService implements OnModuleDestroy {
   }
 
   /**
+   * WARN ATOMIC take - read the value AND delete it in one step.
+   *
+   * For one-time tokens (download tickets). `get` then `del` would let
+   * two concurrent requests both read the value before either deletes
+   * it, so the ticket would work twice. `GETDEL` closes that window.
+   *
+   * @returns the value, or null if absent / Redis unavailable
+   */
+  async take<T>(key: string): Promise<T | null> {
+    if (!this.redis) return null;
+    try {
+      /* GETDEL needs Redis 6.2+; fall back to a MULTI if unsupported */
+      const raw = await this.redis
+        .getdel(key)
+        .catch(async () => {
+          const res = await this.redis!.multi().get(key).del(key).exec();
+          return (res?.[0]?.[1] as string | null) ?? null;
+        });
+      return raw ? (JSON.parse(raw) as T) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Redis бодитоор холбогдсон эсэх — fallback шийдэхэд хэрэгтэй */
+  get isReady(): boolean {
+    return this.redis !== null;
+  }
+
+  /**
    * Кэшээс уншина, байхгүй бол `fn()` ажиллуулж хадгална.
    *
    * ⚠️ Санамсаргүй нэг зэрэг олон хүсэлт ирвэл `fn` хэд хэдэн удаа

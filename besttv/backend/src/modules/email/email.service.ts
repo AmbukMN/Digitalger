@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { PrismaService } from '../../prisma/prisma.service';
+import { signUnsubscribe } from '../../common/unsub-token';
 
 /**
  * SES-ийн ТҮР зуурын алдаанууд — эдгээрт л дахин оролдоно.
@@ -47,6 +48,14 @@ export type EmailTemplate =
   /** Нууц үг АМЖИЛТТАЙ солигдсоны мэдэгдэл (халдлага илрүүлэх сануулга) */
   | 'password-changed'
   | 'marketing'
+  /** WARN Unsubscribe request that arrived WITHOUT a valid signature -
+   *  we mail a signed link instead of trusting the request. Separate
+   *  template so admins can see these attempts in EmailLog. */
+  | 'unsubscribe-confirm'
+  /** WARN QPay QR generated but never paid - a nudge 2h later.
+   *  Separate template so EmailLog can dedupe and admins can measure
+   *  how much of the 29% abandon rate this recovers. */
+  | 'payment-abandoned'
   /**
    * ─── АМЬДРАЛЫН МӨЧЛӨГИЙН (re-engagement) ИМЭЙЛҮҮД ────────────────
    *
@@ -453,9 +462,16 @@ export class EmailService {
     const pre = opts.preheader
       ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${opts.preheader}</div>`
       : '';
+    /**
+     * ⚠️⚠️ ГАРЫН ҮСЭГТЭЙ ХОЛБООС.
+     *
+     * Өмнө нь зөвхөн `?email=…` байсан тул ХЭН Ч дурын хаягийг бичээд
+     * тэр хүнийг маркетингаас салгаж чаддаг байв. Одоо HMAC гарын
+     * үсэг нэмнэ — зөвхөн сервер тооцоолж чадна.
+     */
     const unsub =
       opts.showUnsubscribe && opts.email
-        ? `<p style="margin:8px 0 0;font-size:11px;color:#666">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}" style="color:#888;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
+        ? `<p style="margin:8px 0 0;font-size:11px;color:#666">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}&sig=${signUnsubscribe(opts.email)}" style="color:#888;text-decoration:underline">энд дарж цуцлана уу</a>.</p>`
         : '';
 
     /**
@@ -586,6 +602,89 @@ ${pixel}
    * мэдэгдэх хэрэгтэй (гэхдээ хэрэглэгчид ЯЛГААТАЙ хариу өгөхгүй —
    * `auth.service.ts` дахь тайлбарыг үз).
    */
+  /**
+   * WARN Sent when someone requests unsubscribe WITHOUT a valid signature.
+   *
+   * Emails sent before signatures existed carry no `sig`, so a real user
+   * clicking an old link must still be able to opt out. Rather than
+   * trusting the request (which is exactly the hole we closed), we mail
+   * the address a freshly signed link. Only the real owner can act on it.
+   */
+  async sendUnsubscribeConfirm(to: string) {
+    const url = `${this.siteUrl}/unsubscribe?email=${encodeURIComponent(to)}&sig=${signUnsubscribe(to)}`;
+    const html = this.layout({
+      heading: 'Имэйл цуцлахыг баталгаажуулна уу',
+      preheader: 'Доорх товчийг дарж маркетингийн имэйлээс салгана',
+      bodyHtml:
+        this.p('Та BestTV-ийн маркетингийн имэйлээс салах хүсэлт илгээлээ.') +
+        this.p('Баталгаажуулахын тулд доорх товчийг дарна уу. Үүнийг хийтэл таны тохиргоо ӨӨРЧЛӨГДӨӨГҮЙ.') +
+        /* Same reassurance pattern as password reset: if a stranger
+           triggered this, the real owner must know inaction is safe. */
+        this.p('Хэрэв та энэ хүсэлтийг илгээгээгүй бол энэ имэйлийг үл тоомсорлоно уу — юу ч өөрчлөгдөхгүй.') +
+        `<p style="margin:16px 0 0;font-size:11px;line-height:1.6;color:#777;word-break:break-all">
+           Товч ажиллахгүй бол энэ хаягийг browser-т хуулна уу:<br>${url}
+         </p>`,
+      ctaText: 'Тийм, цуцлах',
+      ctaUrl: url,
+    });
+    return this.send({
+      to,
+      subject: 'BestTV — имэйл цуцлахыг баталгаажуулна уу',
+      html,
+      template: 'unsubscribe-confirm',
+    });
+  }
+
+  /**
+   * WARN QPay QR created but never paid.
+   *
+   * Measured on production: 10 of 34 payment attempts expired unpaid
+   * (29%). We do not know why - wrong bank app, second thoughts, or a
+   * technical snag - so this is a plain, non-pushy reminder with a
+   * direct link back, not a discount offer.
+   *
+   * WARN Transactional in tone but it IS a nudge, so `showUnsubscribe`
+   * stays on and the caller must skip users who opted out.
+   */
+  async sendPaymentAbandoned(opts: {
+    to: string;
+    name?: string | null;
+    planName: string;
+    amount: number;
+    userId?: string;
+  }) {
+    const url = `${this.siteUrl}/pricing`;
+    const html = this.layout({
+      heading: 'Төлбөр дуусаагүй байна',
+      preheader: `${opts.planName} — ${this.money(opts.amount)}`,
+      email: opts.to,
+      showUnsubscribe: true,
+      bodyHtml:
+        this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
+        this.p(
+          `Та <strong style="color:#fff">${opts.planName}</strong> багцыг ` +
+            `<strong style="color:#fff">${this.money(opts.amount)}</strong>-өөр авахаар ` +
+            'эхэлсэн ч төлбөр дуусаагүй байна.',
+        ) +
+        this.p('Доорх товчийг дарж хэдхэн секундэд үргэлжлүүлж болно.') +
+        /* Same reassurance pattern as password reset - if they changed
+           their mind, inaction must feel safe and final. */
+        this.p(
+          'Хэрэв та бодлоо өөрчилсөн бол энэ имэйлийг үл тоомсорлоно уу — ' +
+            'ямар ч төлбөр авагдаагүй.',
+        ),
+      ctaText: 'Үргэлжлүүлэх',
+      ctaUrl: url,
+    });
+    return this.send({
+      to: opts.to,
+      subject: 'BestTV — төлбөр дуусаагүй байна',
+      html,
+      template: 'payment-abandoned',
+      userId: opts.userId,
+    });
+  }
+
   async sendPasswordReset(opts: {
     to: string;
     resetUrl: string;

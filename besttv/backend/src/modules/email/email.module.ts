@@ -33,6 +33,7 @@ import {
 import { Prisma, Role, SubscriberStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { verifyUnsubscribe } from '../../common/unsub-token';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -68,6 +69,21 @@ class VerifyOtpDto {
   @IsString()
   @Length(6, 6)
   code: string;
+}
+
+class UnsubscribeDto {
+  @IsEmail()
+  email: string;
+
+  /**
+   * WARN HMAC signature from the email link. Optional on purpose:
+   * emails sent before this change have none, and a legitimate user
+   * clicking such a link must still be able to opt out - they just get
+   * a fresh signed link mailed to them instead of an instant opt-out.
+   */
+  @IsOptional()
+  @IsString()
+  sig?: string;
 }
 
 class SubscribeDto {
@@ -320,7 +336,11 @@ export class EmailOtpService {
 /** Мэдээллийн товхимол — имэйл цуглуулга */
 @Injectable()
 export class SubscriberService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    /* WARN Same module, so no circular-dependency forwardRef needed */
+    private readonly email: EmailService,
+  ) {}
 
   /**
    * Бүртгэх (идемпотент).
@@ -374,6 +394,33 @@ export class SubscriberService {
    * хүснэгтээс (isActive+emailVerified) сонгодог тул БҮРТГЭЛТЭЙ
    * хэрэглэгч цуцалсан ч маркетинг имэйл авсаар байв (CAN-SPAM зөрчил).
    */
+  /**
+   * WARN Signature gate in front of the real unsubscribe.
+   *
+   *  - valid signature  -> unsubscribe immediately
+   *  - missing/bad sig  -> do NOT unsubscribe; mail that address a
+   *                        fresh signed link so the real owner can
+   *                        finish, and an attacker achieves nothing
+   *
+   * Reply is identical in both cases: an attacker cannot use this to
+   * discover whether an address is registered.
+   */
+  async unsubscribeSigned(email: string, sig?: string) {
+    const clean = email.toLowerCase().trim();
+
+    if (verifyUnsubscribe(clean, sig ?? '')) {
+      await this.unsubscribe(clean);
+      return { ok: true, done: true };
+    }
+
+    /* WARN Never await-block the response on mail delivery */
+    void this.email
+      .sendUnsubscribeConfirm(clean)
+      .catch(() => null);
+
+    return { ok: true, done: false };
+  }
+
   async unsubscribe(email: string) {
     const clean = email.toLowerCase().trim();
     await Promise.all([
@@ -529,10 +576,23 @@ export class EmailPublicController {
     return this.subs.subscribe(dto);
   }
 
+  /**
+   * WARN SIGNED LINK REQUIRED.
+   *
+   * Real hole (verified in production, returned HTTP 201 with no token):
+   * anyone could POST an arbitrary address and unsubscribe that person
+   * from marketing. The victim never learns it happened.
+   *
+   * WARN Old emails carry no signature. Rejecting them outright would
+   * break a legitimate user clicking a link we sent last month, so an
+   * unsigned request does NOT unsubscribe - it emails that address a
+   * fresh signed link instead. The reply is identical either way, so an
+   * attacker cannot tell whether the address exists.
+   */
   @Post('unsubscribe')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  unsubscribe(@Body('email') email: string) {
-    return this.subs.unsubscribe(email);
+  unsubscribe(@Body() dto: UnsubscribeDto) {
+    return this.subs.unsubscribeSigned(dto.email, dto.sig);
   }
 
   /**

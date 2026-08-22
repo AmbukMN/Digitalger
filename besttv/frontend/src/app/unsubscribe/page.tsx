@@ -23,19 +23,31 @@ import { useBrand } from '@/lib/queries';
 function UnsubscribeContent() {
   const params = useSearchParams();
   const email = params.get('email')?.trim().toLowerCase() ?? '';
+  /**
+   * WARN HMAC signature from the emailed link.
+   *
+   * Without it the backend does NOT unsubscribe - it mails a fresh
+   * signed link instead, so nobody can opt someone else out. Old
+   * emails (sent before signatures existed) simply have no `sig`.
+   */
+  const sig = params.get('sig')?.trim() ?? '';
   const { data: brand } = useBrand();
 
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  /** true = backend sent a confirmation email instead of opting out */
+  const [mailed, setMailed] = useState(false);
 
   const submit = async () => {
     if (!email) return;
     setLoading(true);
     try {
-      await api('/email/unsubscribe', {
+      const r = await api<{ ok: boolean; done?: boolean }>('/email/unsubscribe', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(sig ? { email, sig } : { email }),
       });
+      /* Unsigned link -> backend mailed a confirmation instead */
+      setMailed(r?.done === false);
       setDone(true);
     } catch (e) {
       /**
@@ -76,10 +88,21 @@ function UnsubscribeContent() {
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/15">
                 <CheckCircle2 size={26} className="text-success" />
               </div>
-              <h1 className="text-lg font-bold text-foreground">Цуцлагдлаа</h1>
+              <h1 className="text-lg font-bold text-foreground">
+                {mailed ? 'Имэйл илгээлээ' : 'Цуцлагдлаа'}
+              </h1>
+              {/*
+                ⚠️⚠️ ХОЁР ӨӨР ТӨЛӨВ.
+                Гарын үсэгтэй холбоос → шууд цуцлагдана.
+                Гарын үсэггүй (хуучин имэйл) → баталгаажуулах имэйл очно.
+                Хоёуланг нэг мессежээр харуулбал хэрэглэгч цуцлагдсан гэж
+                бодоод, үнэндээ цуцлагдаагүй байх эрсдэлтэй.
+              */}
               <p className="mt-2 text-sm leading-relaxed text-foreground/60">
-                <span className="font-medium text-foreground/80">{email}</span> хаяг руу
-                маркетингийн имэйл илгээхээ больлоо.
+                <span className="font-medium text-foreground/80">{email}</span>{' '}
+                {mailed
+                  ? 'хаяг руу баталгаажуулах холбоос илгээлээ. Имэйлээ шалгаад товч дээр дарна уу — түүнийг хийтэл тохиргоо өөрчлөгдөхгүй.'
+                  : 'хаяг руу маркетингийн имэйл илгээхээ больлоо.'}
               </p>
               {/*
                 ⚠️ Гүйлгээний имэйл ҮРГЭЛЖИЛНЭ гэдгийг ЗААВАЛ хэлнэ —

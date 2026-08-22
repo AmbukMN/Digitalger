@@ -35,6 +35,9 @@ class ProgressDto {
   durationSec: number;
 }
 
+/** WARN Upper bound for a user's saved list */
+const MY_LIST_MAX = 500;
+
 @Injectable()
 export class LibraryService {
   constructor(
@@ -80,6 +83,12 @@ export class LibraryService {
     const rows = await this.prisma.myListItem.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      /**
+       * WARN Cap. Each row also gets a presigned poster URL below, so an
+       * uncapped list means one unbounded query PLUS that many presign
+       * operations on a single request. 500 is far above any real list.
+       */
+      take: MY_LIST_MAX,
       include: {
         title: {
           select: {
@@ -103,6 +112,8 @@ export class LibraryService {
     const rows = await this.prisma.myListItem.findMany({
       where: { userId },
       select: { titleId: true },
+      /* WARN Called on every card-render path - must stay bounded */
+      take: MY_LIST_MAX,
     });
     return rows.map((r) => r.titleId);
   }

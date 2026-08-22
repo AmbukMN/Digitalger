@@ -139,26 +139,57 @@ export class ContentHealthService {
     ]);
     const readyIds = new Set([...readyMovies, ...readySeries].map((t) => t.id));
 
+    /**
+     * ⚠️⚠️ БАГЦ БҮРД АСУУЛГА ХИЙХГҮЙ — БҮГДИЙГ НЭГ УДАА.
+     *
+     * Өмнө нь давталт дотор багц тус бүрд хязгааргүй `findMany`
+     * дуудагддаг байв. 5 багц × 151 кино үед хурдан ч, каталог 1,000
+     * болоход энэ хуудас олон секунд болно (админ хүлээнэ).
+     *
+     * Одоо: бүх жанр→кино холбоосыг НЭГ асуулгаар аваад санах ойд
+     * бүлэглэнэ. Багцын тоо хэдэн ч байсан асуулга 2 хэвээр.
+     */
+    const allGenreIds = [...new Set(plans.flatMap((p) => p.genres.map((g) => g.genreId)))];
+
+    const [genreLinks, allActive] = await Promise.all([
+      allGenreIds.length
+        ? this.prisma.titleGenre.findMany({
+            where: {
+              genreId: { in: allGenreIds },
+              title: { isActive: true, comingSoon: false },
+            },
+            select: { genreId: true, titleId: true },
+          })
+        : Promise.resolve([]),
+      /* VIP нь бүх киног хамардаг — жанрын холбоосгүй */
+      plans.some((p) => p.isVip)
+        ? this.prisma.title.findMany({
+            where: { isActive: true, comingSoon: false },
+            select: { id: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    /** genreId → тухайн жанрын киноны ID-ууд */
+    const byGenre = new Map<string, string[]>();
+    for (const l of genreLinks) {
+      const arr = byGenre.get(l.genreId);
+      if (arr) arr.push(l.titleId);
+      else byGenre.set(l.genreId, [l.titleId]);
+    }
+    const allActiveIds = allActive.map((t) => t.id);
+
     for (const plan of plans) {
       const genreIds = plan.genres.map((g) => g.genreId);
 
       /* ⚠️ VIP нь БҮХ киног хамардаг (жанрын холбоосгүй) — тусад нь бодно */
-      const links = plan.isVip
-        ? await this.prisma.title.findMany({
-            where: { isActive: true, comingSoon: false },
-            select: { id: true },
-          })
-        : genreIds.length
-          ? (
-              await this.prisma.titleGenre.findMany({
-                where: { genreId: { in: genreIds }, title: { isActive: true, comingSoon: false } },
-                select: { titleId: true },
-              })
-            ).map((l) => ({ id: l.titleId }))
-          : [];
+      const ids = plan.isVip
+        ? allActiveIds
+        : genreIds.flatMap((g) => byGenre.get(g) ?? []);
 
-      const total = new Set(links.map((l) => l.id)).size;
-      const playable = [...new Set(links.map((l) => l.id))].filter((id) => readyIds.has(id)).length;
+      const uniq = new Set(ids);
+      const total = uniq.size;
+      const playable = [...uniq].filter((id) => readyIds.has(id)).length;
 
       if (!plan.isVip && !genreIds.length) {
         issues.push({

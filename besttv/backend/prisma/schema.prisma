@@ -591,6 +591,9 @@ model Payment {
   /// хоёулаа `status` + `createdAt`-аар шүүдэг. Индексгүй бол Payment
   /// хүснэгтийг БҮТНЭЭР скан хийнэ — мөр өсөх тусам cron удаашрана.
   @@index([status, createdAt])
+  /// WARN Admin feed: status=PAID + paidAt DESC, polled every 30s.
+  /// Without this it read and sorted the whole payments table.
+  @@index([status, paidAt])
 }
 
 // ─── Үзэлтийн явц + жагсаалт ─────────────────────────────────────────────────
@@ -674,6 +677,9 @@ model Review {
   @@index([titleId, parentId, createdAt])
   @@index([titleId, createdAt])
   @@index([isHidden, reportCount])
+  /// WARN Admin feed sorts ALL reviews by recency; every other
+  /// index is titleId-prefixed and therefore unusable here.
+  @@index([createdAt])
 }
 
 /// Сэтгэгдэлд өгсөн санал (хэрэгтэй / хэрэггүй)
@@ -1232,6 +1238,9 @@ model ChatMessage {
   createdAt      DateTime         @default(now())
 
   @@index([conversationId, createdAt])
+  /// WARN Admin feed: role=user + createdAt DESC. The only index
+  /// starts with conversationId, so it could not serve this sort.
+  @@index([role, createdAt])
 }
 
 /// Кино ширхэгээр түрээслэх — багц авахгүйгээр нэг киног хугацаатай үзэх.
