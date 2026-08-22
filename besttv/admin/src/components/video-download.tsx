@@ -97,8 +97,16 @@ export function VideoDownload({
         `/admin/video-download/${kind}/${id}/ticket`,
         { method: 'POST', body: JSON.stringify({ v: v.index }) },
       );
+      /**
+       * ⚠️⚠️ `/api` УГТВАР ЗААВАЛ.
+       *
+       * БОДИТ АЛДАА: `NEXT_PUBLIC_API_URL` нь `https://api.besttv.us`
+       * буюу угтваргүй. `lib/api.ts` нь дотроо `/api`-г НЭМДЭГ тул
+       * `api()` дуудлагууд зөв ажилладаг ч, энд шууд угсарсан URL-д
+       * тэр угтвар дутаж 404 өгч байв.
+       */
       window.location.href =
-        `${process.env.NEXT_PUBLIC_API_URL}/admin/video-download/file?t=${encodeURIComponent(r.ticket)}`;
+        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/video-download/file?t=${encodeURIComponent(r.ticket)}`;
       toast.success(`${v.label} татаж эхэллээ — хөтчийн татах хэсгээс харна уу`);
       setTimeout(() => setOpen(false), 900);
     } catch (e) {
