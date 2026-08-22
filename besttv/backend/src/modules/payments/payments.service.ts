@@ -16,6 +16,7 @@ import { WalletService } from '../wallet/wallet.module';
 import { RentalsService } from '../rentals/rentals.module';
 import { PromotionsService } from '../promotions/promotions.service';
 import { N8nService } from '../n8n/n8n.service';
+import { MetaCapiService } from '../analytics/meta-capi.service';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -55,6 +56,9 @@ export class PaymentsService {
     private readonly promotions: PromotionsService,
     /* ⚠️ Telegram мэдэгдэл — @Global тул import хэрэггүй */
     private readonly n8n: N8nService,
+    /* ⚠️ Meta Conversions API — сервер талаас Purchase (данс, хэтэвч ч
+       хамрагдана; browser pixel тэднийг барьж чадахгүй) */
+    private readonly capi: MetaCapiService,
   ) {}
 
   isQPayConfigured(): boolean {
@@ -805,6 +809,28 @@ export class PaymentsService {
       paidAt: new Date().toISOString(),
     });
 
+    /**
+     * WARN Meta Conversions API - server-side Purchase.
+     *
+     * Placed HERE for the same reason as the Telegram notify above:
+     * every branch below returns, so anything at the end of the method
+     * would only fire for plans and silently miss rentals and top-ups.
+     *
+     * WARN `void` - Meta must never delay or break a payment.
+     * WARN Wallet TOP-UPS are excluded: the money has not been spent
+     * yet, and counting both the top-up and the later purchase would
+     * double-count revenue.
+     */
+    if (!payment.isWalletTopup) {
+      void this.capi.purchase({
+        eventId: payment.id,
+        email: payment.user?.email,
+        value: payment.amount,
+        contentName: payment.plan?.name ?? payment.rentalTitle?.title ?? null,
+        kind: payment.rentalTitleId ? 'rental' : 'plan',
+      });
+    }
+
     // ── Хэтэвч цэнэглэлт ────────────────────────────────────────────────
     if (payment.isWalletTopup) {
       await this.wallet.applyTransaction({
@@ -1210,7 +1236,10 @@ export class PaymentsService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { walletBalance: true },
+      /* WARN `email` is needed by Meta CAPI below - without a hashed
+         identifier Meta accepts the event but can match it to nobody,
+         making it worthless for ad optimisation. */
+      select: { walletBalance: true, email: true },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
     if (user.walletBalance < amount) {
@@ -1330,6 +1359,24 @@ export class PaymentsService {
      * `await` ХИЙХГҮЙ — имэйл унасан ч худалдан авалт амжилттай хэвээр.
      */
     void this.sendWalletPurchaseEmail(userId, plan.id, plan.name, amount);
+
+    /**
+     * WARN Meta Purchase - the wallet path BYPASSES `completePayment`
+     * (it writes PAID straight into its own transaction), so the CAPI
+     * call there never runs for wallet buys. Without this line every
+     * wallet purchase is invisible to Meta and ad optimisation is
+     * trained on partial data.
+     *
+     * WARN Same `eventId` shape as the QPay path (the payment id), so
+     * browser and server events still deduplicate.
+     */
+    void this.capi.purchase({
+      eventId: payment.id,
+      email: user.email,
+      value: amount,
+      contentName: plan.name,
+      kind: 'plan',
+    });
 
     this.logger.log(`Хэтэвчээр эрх нээгдлээ: user=${userId} plan=${plan.name} -${amount}₮`);
     return { ok: true, paymentId: payment.id, planName: plan.name };

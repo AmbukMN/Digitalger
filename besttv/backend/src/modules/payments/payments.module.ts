@@ -4,6 +4,7 @@ import { PaymentsAdminController } from './payments-admin.controller';
 import { PaymentsService } from './payments.service';
 import { PaymentCleanupService } from './payment-cleanup.service';
 import { EmailModule } from '../email/email.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { PaymentsReconcileService } from './payments-reconcile.service';
 import { CouponsModule } from '../coupons/coupons.module';
 import { WalletModule } from '../wallet/wallet.module';
@@ -21,7 +22,15 @@ import { RentalsModule } from '../rentals/rentals.module';
    */
   /* ⚠️ EmailModule — дуусаагүй төлбөрийн сануулга илгээхэд шаардлагатай.
      Дутуу бол DI ажиллах үед унана (typecheck барихгүй). */
-  imports: [CouponsModule, WalletModule, RentalsModule, PromotionsModule, EmailModule],
+  /* ⚠️ AnalyticsModule — Meta Conversions API (сервер талаас Purchase) */
+  imports: [
+    CouponsModule,
+    WalletModule,
+    RentalsModule,
+    PromotionsModule,
+    EmailModule,
+    AnalyticsModule,
+  ],
   controllers: [PaymentsController, PaymentsAdminController],
   providers: [PaymentsService, PaymentsReconcileService, PaymentCleanupService],
   exports: [PaymentsService],

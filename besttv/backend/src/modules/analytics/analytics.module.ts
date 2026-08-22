@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { Body, Controller, Get, Injectable, Patch, Query, UseGuards } from '@nestjs/common';
 import { IsInt, Max, Min } from 'class-validator';
+import { MetaCapiService } from './meta-capi.service';
 import { PaymentStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -298,6 +299,14 @@ export class AnalyticsController {
 
 @Module({
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, InsightsService, StorageUsageService, ContentHealthService],
+  providers: [
+    AnalyticsService,
+    InsightsService,
+    StorageUsageService,
+    ContentHealthService,
+    MetaCapiService,
+  ],
+  /* ⚠️ PaymentsModule нь Purchase илгээхэд ашиглана */
+  exports: [MetaCapiService],
 })
 export class AnalyticsModule {}
