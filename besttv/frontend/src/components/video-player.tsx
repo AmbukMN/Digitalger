@@ -88,6 +88,17 @@ export function VideoPlayer({
   const [controlsOn, setControlsOn] = useState(true);
   /** ⚠️ Плеер унасан үед хар дэлгэц биш ТАЙЛБАР харуулна */
   const [playError, setPlayError] = useState<string | null>(null);
+  /**
+   * ⚠️ Сэргэлт хүлээх таймер — түр зуурын сүлжээний алдааг шууд
+   * үхлийн гэж үзэхгүй (дэлгэрэнгүйг `onError`-оос харна уу).
+   */
+  const recoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (recoverTimer.current) clearTimeout(recoverTimer.current);
+    },
+    [],
+  );
 
   /**
    * SEEK PREVIEW (thumbnail).
@@ -361,7 +372,48 @@ export function VideoPlayer({
          * сүлжээнд тохируулж өөрөө өсгөнө.
          */
         startLevel: -1,
-        maxBufferLength: 30,
+        /**
+         * ⚠️⚠️ БУФЕР — АЛСЫН үзэгчид зориулав.
+         *
+         * БОДИТ ГОМДОЛ: Чехээс үзэж байсан хэрэглэгч кино дунд «Видео
+         * ачаалахад алдаа» гэж тасарсан. R2 нь Европоос хол тул нэг
+         * сегмент удаашрахад буфер шавхагдаж тоглолт зогсдог байв.
+         *
+         * 60 секунд (өмнө 30) нь хэдэн секундын саатлыг хэрэглэгч
+         * мэдэлгүй давна. `maxMaxBufferLength` нь хурдан сүлжээнд
+         * хэт урагш гүйхийг хязгаарлана — хэрэглэгчийн дата дэмий
+         * зарцуулагдахгүй.
+         */
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+        /**
+         * ⚠️⚠️ ДАХИН ОРОЛДОХ БОДЛОГО — тоглолтыг үнэхээр амьд байлгадаг нь энэ.
+         *
+         * hls.js-ийн анхдагч нь цөөн, хурдан оролдлого хийдэг. Олон
+         * улсын урт зам дээр тэр нь хангалтгүй: сегмент унамагц player
+         * бууж өгч, ердөө хоёр секундын саатлын улмаас хэрэглэгч алдаа
+         * хардаг байв.
+         *
+         * 6 оролдлого, exponential backoff (1с → 8с) нь ~20 секундын
+         * бодит тасалдлыг давна. Player чимээгүй сэргэнэ.
+         */
+        fragLoadPolicy: {
+          default: {
+            maxTimeToFirstByteMs: 12_000,
+            maxLoadTimeMs: 60_000,
+            timeoutRetry: { maxNumRetry: 4, retryDelayMs: 1_000, maxRetryDelayMs: 8_000 },
+            errorRetry: { maxNumRetry: 6, retryDelayMs: 1_000, maxRetryDelayMs: 8_000 },
+          },
+        },
+        /* Playlist жижиг — эндээс хурдан унана, гэхдээ бас дахин оролдоно */
+        playlistLoadPolicy: {
+          default: {
+            maxTimeToFirstByteMs: 10_000,
+            maxLoadTimeMs: 20_000,
+            timeoutRetry: { maxNumRetry: 3, retryDelayMs: 1_000, maxRetryDelayMs: 4_000 },
+            errorRetry: { maxNumRetry: 3, retryDelayMs: 1_000, maxRetryDelayMs: 4_000 },
+          },
+        },
         xhrSetup: (xhr, requestUrl) => {
           if (!requestUrl.includes('/api/')) return;
           const token = getAccessToken();
@@ -467,12 +519,51 @@ export function VideoPlayer({
          */
         onError={(e) => {
           const code = (e as { code?: number } | undefined)?.code;
-          /* 403/401 → эрх дууссан. Бусад → сүлжээ/кодек */
-          setPlayError(
-            code === 4
-              ? 'Видео тоглуулах боломжгүй байна. Түрээсийн хугацаа дууссан эсвэл эрх дууссан байж магадгүй.'
-              : 'Видео ачаалахад алдаа гарлаа. Сүлжээгээ шалгаад дахин оролдоно уу.',
-          );
+
+          /**
+           * ⚠️⚠️ ЗӨВХӨН СЭРГЭХГҮЙ АЛДААНД зогсооно.
+           *
+           * БОДИТ ГОМДОЛ: кино 3 минут тоглоод «Видео ачаалахад алдаа»
+           * гэж зогсдог байв. Чехээс үзэж байсан хэрэглэгч дээр
+           * давтагдсан — алсын зайнаас сүлжээний саатал их.
+           *
+           * ШАЛТГААН: HLS-д сегмент нэг татагдахгүй байх нь ХЭВИЙН,
+           * ТҮР зуурын үзэгдэл. hls.js өөрөө дахин оролдож сэргэдэг.
+           * Гэтэл бид ЯМАР Ч алдаанд шууд бүтэн дэлгэц дүүрэн мессеж
+           * гаргаж тоглолтыг зогсоодог байсан тул сэргэх боломжийг нь
+           * булааж байлаа.
+           *
+           * ⚠️ `code === 4` (SRC_NOT_SUPPORTED) нь ҮНЭХЭЭР эцсийн —
+           * эрх дууссан (403), файл байхгүй (404), кодек дэмжигдэхгүй.
+           * Түүнийг шууд харуулна.
+           *
+           * ⚠️ Бусад код (сүлжээ, decode) — 12 секунд ХҮЛЭЭНЭ. Тэр
+           * хугацаанд player сэргэвэл (`onPlaying`) таймер цуцлагдана.
+           */
+          if (code === 4) {
+            setPlayError(
+              'Видео тоглуулах боломжгүй байна. Түрээсийн хугацаа дууссан эсвэл эрх дууссан байж магадгүй.',
+            );
+            return;
+          }
+
+          if (recoverTimer.current) return; // аль хэдийн хүлээж байна
+          recoverTimer.current = setTimeout(() => {
+            recoverTimer.current = null;
+            setPlayError('Видео ачаалахад алдаа гарлаа. Сүлжээгээ шалгаад дахин оролдоно уу.');
+          }, 12_000);
+        }}
+        /**
+         * ⚠️ Сэргэсэн — хүлээлтийн таймерыг цуцална.
+         *
+         * Player дахин тоглож эхэлмэгц алдааны мессеж гаргах ёсгүй.
+         */
+        onPlaying={() => {
+          if (recoverTimer.current) {
+            clearTimeout(recoverTimer.current);
+            recoverTimer.current = null;
+          }
+          setPlayError(null);
         }}
         /* ⚠️ Буцах товчийг удирдлагатай хамт харуулах (дээрх тайлбар) */
         onControlsChange={setControlsOn}
