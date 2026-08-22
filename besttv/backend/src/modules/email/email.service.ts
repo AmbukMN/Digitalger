@@ -456,7 +456,7 @@ export class EmailService {
     const cta =
       opts.ctaText && opts.ctaUrl
         ? `<tr><td style="padding:4px 32px 28px;text-align:center">
-             <a href="${opts.ctaUrl}" style="display:inline-block;background:#e50914;color:#fff;font-weight:700;font-size:15px;padding:14px 34px;border-radius:10px;text-decoration:none">${opts.ctaText}</a>
+             <a href="${opts.ctaUrl}" class="btv-cta" style="display:inline-block;background:#e50914;color:#fff;font-weight:700;font-size:15px;padding:14px 34px;border-radius:10px;text-decoration:none">${opts.ctaText}</a>
            </td></tr>`
         : '';
     const pre = opts.preheader
@@ -493,24 +493,70 @@ export class EmailService {
         ? `<img src="${this.apiUrl}/api/email/open?l=${encodeURIComponent(opts.logId)}&e=${encodeURIComponent(opts.email)}&t=${encodeURIComponent(opts.template ?? '')}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`
         : '';
 
-    return `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0d0e11;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
+    /**
+     * WARN DARK-MODE DECLARATION - without it the email is unreadable.
+     *
+     * Real complaint: text vanished for some recipients. This template
+     * is dark by design (#0d0e11 ground, white text), but Gmail and
+     * Outlook assume an email is LIGHT unless told otherwise. In the
+     * reader's dark mode they then "helpfully" invert the colors -
+     * white text becomes dark, the dark ground becomes light, and the
+     * result is white-on-white.
+     *
+     * Three things are needed, and all three must agree:
+     *   1. `<meta name="color-scheme">` - tells the client this email
+     *      already handles both schemes, so stop transforming it
+     *   2. `supported-color-schemes` - the same signal for Apple Mail
+     *   3. `:root { color-scheme }` in CSS - Gmail strips <meta> in
+     *      some views but keeps the style block
+     *
+     * WARN We deliberately declare `dark light` (dark FIRST): the
+     * design IS dark, and this order stops clients from forcing a
+     * light repaint. Do not "simplify" this to `only light`.
+     */
+    return `<!DOCTYPE html><html lang="mn"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<style>
+  :root { color-scheme: dark light; supported-color-schemes: dark light; }
+  /* WARN Gmail/Outlook dark mode: keep OUR colors, block the inversion */
+  @media (prefers-color-scheme: dark) {
+    .btv-bg   { background:#0d0e11 !important; }
+    .btv-card { background:#17181c !important; }
+    .btv-head { background:#000000 !important; }
+    .btv-foot { background:#101114 !important; }
+    .btv-text, .btv-text * { color:#ffffff !important; }
+    .btv-muted, .btv-muted * { color:#c8c8ce !important; }
+    .btv-box  { background:#1e1f24 !important; }
+    /* WARN Brand red must survive inversion - it is the only CTA */
+    .btv-cta  { background:#e50914 !important; color:#ffffff !important; }
+  }
+  /* Outlook.com rewrites classes with a [data-ogsc] prefix */
+  [data-ogsc] .btv-bg   { background:#0d0e11 !important; }
+  [data-ogsc] .btv-card { background:#17181c !important; }
+  [data-ogsc] .btv-text, [data-ogsc] .btv-text * { color:#ffffff !important; }
+  [data-ogsc] .btv-muted, [data-ogsc] .btv-muted * { color:#c8c8ce !important; }
+</style>
+</head>
+<body class="btv-bg" style="margin:0;padding:0;background:#0d0e11;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
 ${pre}
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d0e11;padding:32px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#0d0e11;padding:32px 16px">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#17181c;border-radius:16px;overflow:hidden;max-width:600px;width:100%">
-  <tr><td style="background:#000;padding:22px 32px;text-align:center">
-    <a href="${this.siteUrl}" style="text-decoration:none;font-size:24px;font-weight:900;color:#fff;letter-spacing:-0.5px">
+<table width="600" cellpadding="0" cellspacing="0" class="btv-card" style="background:#17181c;border-radius:16px;overflow:hidden;max-width:600px;width:100%">
+  <tr><td class="btv-head" style="background:#000;padding:22px 32px;text-align:center">
+    <a href="${this.siteUrl}" class="btv-text" style="text-decoration:none;font-size:24px;font-weight:900;color:#fff;letter-spacing:-0.5px">
       Best<span style="color:#e50914">TV</span>
     </a>
   </td></tr>
   <tr><td style="padding:32px 32px 8px">
-    <h1 style="margin:0 0 14px;font-size:21px;font-weight:800;color:#fff;line-height:1.35">${opts.heading}</h1>
+    <h1 class="btv-text" style="margin:0 0 14px;font-size:21px;font-weight:800;color:#fff;line-height:1.35">${opts.heading}</h1>
     ${opts.bodyHtml}
   </td></tr>
   ${cta}
-  <tr><td style="background:#101114;padding:20px 32px;text-align:center;border-top:1px solid #26272b">
-    <p style="margin:0;font-size:12px;color:#777">© ${new Date().getFullYear()} BestTV · <a href="${this.siteUrl}" style="color:#999;text-decoration:none">besttv.us</a></p>
+  <tr><td class="btv-foot" style="background:#101114;padding:20px 32px;text-align:center;border-top:1px solid #26272b">
+    <p class="btv-muted" style="margin:0;font-size:12px;color:#777">© ${new Date().getFullYear()} BestTV · <a href="${this.siteUrl}" style="color:#999;text-decoration:none">besttv.us</a></p>
     ${unsub}
 ${pixel}
   </td></tr>
@@ -521,19 +567,19 @@ ${pixel}
 
   /** Дотоод мэдээллийн хайрцаг (захиалгын дэлгэрэнгүй гэх мэт) */
   private box(rows: [string, string][]): string {
-    return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1f24;border-radius:10px;margin:16px 0">
+    return `<table width="100%" cellpadding="0" cellspacing="0" class="btv-box" style="background:#1e1f24;border-radius:10px;margin:16px 0">
       ${rows
         .map(
           ([k, v]) =>
-            `<tr><td style="padding:10px 16px;font-size:13px;color:#9a9aa0">${k}</td>
-             <td style="padding:10px 16px;font-size:14px;color:#fff;font-weight:600;text-align:right">${v}</td></tr>`,
+            `<tr><td class="btv-muted" style="padding:10px 16px;font-size:13px;color:#9a9aa0">${k}</td>
+             <td class="btv-text" style="padding:10px 16px;font-size:14px;color:#fff;font-weight:600;text-align:right">${v}</td></tr>`,
         )
         .join('')}
     </table>`;
   }
 
   private p = (t: string) =>
-    `<p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">${t}</p>`;
+    `<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">${t}</p>`;
 
   // ─── Public template-ууд ────────────────────────────────────────────────────
 
