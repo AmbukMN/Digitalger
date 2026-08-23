@@ -246,6 +246,15 @@ class PromoteTitleDto {
   @IsOptional()
   @IsString()
   audience?: string;
+
+  /**
+   * ⚠️ ТЕСТ ГОРИМ — өгвөл ЗӨВХӨН энэ хаягт илгээнэ (bulk биш).
+   * Админ бодит илгээхээс өмнө өөртөө туршихад. batchId-гүй тул
+   * жагсаалтад «фолдер» болж харагдахгүй, ганц имэйл болно.
+   */
+  @IsOptional()
+  @IsEmail()
+  testEmail?: string;
 }
 
 /** Admin гараар имэйл нэмэх (нэг эсвэл олноор) */
@@ -833,8 +842,11 @@ export class EmailAdminController {
     });
     if (!title) throw new BadRequestException('Кино олдсонгүй');
 
-    const audience = dto.audience ?? 'both';
-    const emails = await this.resolveTargets(audience);
+    /* ⚠️ ТЕСТ ГОРИМ — зөвхөн нэг хаяг (opt-out шалгахгүй, өөртөө туршина) */
+    const isTest = !!dto.testEmail;
+    const emails = isTest
+      ? [dto.testEmail!.toLowerCase().trim()]
+      : await this.resolveTargets(dto.audience ?? 'both');
     if (!emails.length) return { queued: 0 };
 
     // email → userId (статистик/давхардалд)
@@ -861,9 +873,12 @@ export class EmailAdminController {
       `<p class="btv-muted" style="margin:0 0 6px;text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9a9aa0">${kind}</p>` +
       `<p class="btv-muted" style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#c8c8ce">${desc}</p>`;
 
-    const batchId = randomUUID();
-    const batchLabel = `Кино реклам: ${title.title}`;
-    const subject = dto.subject?.trim() || `${title.title} — BestTV дээр үзээрэй`;
+    /* ⚠️ Тест үед batchId-гүй — фолдер болохгүй, ганц имэйл болно */
+    const batchId = isTest ? undefined : randomUUID();
+    const batchLabel = isTest ? undefined : `Кино реклам: ${title.title}`;
+    const subject =
+      (dto.subject?.trim() || `${title.title} — BestTV дээр үзээрэй`) +
+      (isTest ? ' [ТЕСТ]' : '');
     const heading = dto.heading?.trim() || title.title;
 
     for (const to of emails) {
@@ -879,7 +894,7 @@ export class EmailAdminController {
         batchLabel,
       });
     }
-    return { queued: emails.length, batchId, batchLabel };
+    return { queued: emails.length, batchId, batchLabel, test: isTest };
   }
 
   /**
