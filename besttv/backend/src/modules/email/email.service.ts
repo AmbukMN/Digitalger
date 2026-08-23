@@ -667,7 +667,7 @@ ${pixel}
         /* Same reassurance pattern as password reset: if a stranger
            triggered this, the real owner must know inaction is safe. */
         this.p('Хэрэв та энэ хүсэлтийг илгээгээгүй бол энэ имэйлийг үл тоомсорлоно уу — юу ч өөрчлөгдөхгүй.') +
-        `<p style="margin:16px 0 0;font-size:11px;line-height:1.6;color:#777;word-break:break-all">
+        `<p class="btv-muted" style="margin:16px 0 0;font-size:11px;line-height:1.6;word-break:break-all">
            Товч ажиллахгүй бол энэ хаягийг browser-т хуулна уу:<br>${url}
          </p>`,
       ctaText: 'Тийм, цуцлах',
@@ -764,7 +764,7 @@ ${pixel}
           'Хэрэв та энэ хүсэлтийг илгээгээгүй бол энэ имэйлийг үл тоомсорлоно уу — таны нууц үг хэвээр хадгалагдана.',
         ) +
         /* Зарим имэйл клиент товчийг блоклодог тул түүхий URL-ыг ч өгнө */
-        `<p style="margin:16px 0 0;font-size:11px;line-height:1.6;color:#777;word-break:break-all">
+        `<p class="btv-muted" style="margin:16px 0 0;font-size:11px;line-height:1.6;word-break:break-all">
            Товч ажиллахгүй бол энэ хаягийг browser-т хуулна уу:<br>${opts.resetUrl}
          </p>`,
       ctaText: 'Нууц үг сэргээх',

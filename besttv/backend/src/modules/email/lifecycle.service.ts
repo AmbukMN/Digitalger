@@ -45,11 +45,11 @@ export const FLOWS: Record<string, FlowDefaults> = {
     subject: 'Таны багц дууслаа — {{percent}}% хямдралтай эргэн ирээрэй',
     heading: 'Таныг санаж байна 🎬',
     bodyHtml:
-      '<p>Таны багц дууссан байна. Энэ хугацаанд шинэ кино, цуврал олноор нэмэгдлээ.</p>' +
-      '<p>Танд зориулж <strong>{{percent}}% хямдралтай</strong> код бэлдлээ:</p>' +
-      '<p style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;' +
-      'background:#111;color:#fff;padding:14px;border-radius:8px">{{coupon}}</p>' +
-      '<p style="font-size:13px;color:#888">Код {{expires}} хүртэл хүчинтэй. ' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Таны багц дууссан байна. Энэ хугацаанд шинэ кино, цуврал олноор нэмэгдлээ.</p>' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Танд зориулж <strong class="btv-text" style="color:#ffffff">{{percent}}% хямдралтай</strong> код бэлдлээ:</p>' +
+      '<p class="btv-box btv-text" style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;background:#1e1f24;color:#ffffff;' +
+      'padding:14px;border-radius:8px">{{coupon}}</p>' +
+      '<p class="btv-muted" style="font-size:13px;color:#9a9aa0">Код {{expires}} хүртэл хүчинтэй. ' +
       'Зөвхөн танд зориулсан.</p>',
     ctaText: 'Багцаа сунгах',
     ctaPath: '/pricing',
@@ -62,11 +62,11 @@ export const FLOWS: Record<string, FlowDefaults> = {
     subject: 'Сүүлийн санал — {{percent}}% хямдрал',
     heading: 'Хамгийн сайн саналаа өглөө',
     bodyHtml:
-      '<p>Та удаагүй биднийг орхисон байна. Сүүлчийн удаа урьж байна —' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Та удаагүй биднийг орхисон байна. Сүүлчийн удаа урьж байна —' +
       ' энэ бол бидний хамгийн өндөр хямдрал.</p>' +
-      '<p style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;' +
-      'background:#111;color:#fff;padding:14px;border-radius:8px">{{coupon}}</p>' +
-      '<p style="font-size:13px;color:#888">{{expires}} хүртэл. Дараа нь энэ хямдрал дуусна.</p>',
+      '<p class="btv-box btv-text" style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;background:#1e1f24;color:#ffffff;' +
+      'padding:14px;border-radius:8px">{{coupon}}</p>' +
+      '<p class="btv-muted" style="font-size:13px;color:#9a9aa0">{{expires}} хүртэл. Дараа нь энэ хямдрал дуусна.</p>',
     ctaText: '{{percent}}% хямдралтай авах',
     ctaPath: '/pricing',
     couponPercent: 30,
@@ -78,12 +78,12 @@ export const FLOWS: Record<string, FlowDefaults> = {
     subject: 'Юу үзэхээ шийдэж чадахгүй байна уу?',
     heading: 'Тавтай морил 👋',
     bodyHtml:
-      '<p>Та бүртгүүлсэн ч хараахан багц аваагүй байна. Юунаас эхлэхээ мэдэхгүй байвал' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Та бүртгүүлсэн ч хараахан багц аваагүй байна. Юунаас эхлэхээ мэдэхгүй байвал' +
       ' үнэгүй үзэх боломжтой кинонуудаас эхлээрэй.</p>' +
-      '<p>Шийдвэрээ гаргахад тань туслах <strong>{{percent}}% хямдрал</strong>:</p>' +
-      '<p style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;' +
-      'background:#111;color:#fff;padding:14px;border-radius:8px">{{coupon}}</p>' +
-      '<p style="font-size:13px;color:#888">{{expires}} хүртэл хүчинтэй.</p>',
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Шийдвэрээ гаргахад тань туслах <strong class="btv-text" style="color:#ffffff">{{percent}}% хямдрал</strong>:</p>' +
+      '<p class="btv-box btv-text" style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;background:#1e1f24;color:#ffffff;' +
+      'padding:14px;border-radius:8px">{{coupon}}</p>' +
+      '<p class="btv-muted" style="font-size:13px;color:#9a9aa0">{{expires}} хүртэл хүчинтэй.</p>',
     ctaText: 'Багцуудыг харах',
     ctaPath: '/pricing',
     couponPercent: 15,
@@ -95,12 +95,12 @@ export const FLOWS: Record<string, FlowDefaults> = {
     subject: 'Үлдсэн ангиудыг үзэх үү?',
     heading: 'Сайхан эхэллээ 🍿',
     bodyHtml:
-      '<p>Та үнэгүй контентыг үзсэн байна. Багц авбал бүх кино, бүх ангид' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Та үнэгүй контентыг үзсэн байна. Багц авбал бүх кино, бүх ангид' +
       ' хязгааргүй нэвтэрнэ.</p>' +
-      '<p>Танд зориулсан <strong>{{percent}}% хямдрал</strong>:</p>' +
-      '<p style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;' +
-      'background:#111;color:#fff;padding:14px;border-radius:8px">{{coupon}}</p>' +
-      '<p style="font-size:13px;color:#888">{{expires}} хүртэл.</p>',
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Танд зориулсан <strong class="btv-text" style="color:#ffffff">{{percent}}% хямдрал</strong>:</p>' +
+      '<p class="btv-box btv-text" style="text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;background:#1e1f24;color:#ffffff;' +
+      'padding:14px;border-radius:8px">{{coupon}}</p>' +
+      '<p class="btv-muted" style="font-size:13px;color:#9a9aa0">{{expires}} хүртэл.</p>',
     ctaText: 'Бүгдийг үзэх',
     ctaPath: '/pricing',
     couponPercent: 15,
@@ -112,7 +112,7 @@ export const FLOWS: Record<string, FlowDefaults> = {
     subject: 'Таны багцаар үзэх шинэ кинонууд',
     heading: 'Шинэ контент нэмэгдлээ 🎬',
     bodyHtml:
-      '<p>Та удаан хугацаанд ороогүй байна. Таны багц хүчинтэй хэвээр —' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Та удаан хугацаанд ороогүй байна. Таны багц хүчинтэй хэвээр —' +
       ' шинэ кинонууд хүлээж байна.</p>',
     ctaText: 'Шинэ кинонуудыг үзэх',
     ctaPath: '/movies',
@@ -127,7 +127,7 @@ export const FLOWS: Record<string, FlowDefaults> = {
     subject: 'Таны хэтэвчинд {{balance}} байна',
     heading: 'Хэтэвчээ ашиглаарай 💳',
     bodyHtml:
-      '<p>Таны хэтэвчинд <strong>{{balance}}</strong> үлдэгдэлтэй байна.' +
+      '<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">Таны хэтэвчинд <strong class="btv-text" style="color:#ffffff">{{balance}}</strong> үлдэгдэлтэй байна.' +
       ' Үүгээрээ багц авах эсвэл кино түрээслэх боломжтой.</p>',
     ctaText: 'Юу үзэхээ сонгох',
     ctaPath: '/pricing',
