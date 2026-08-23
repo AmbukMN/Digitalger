@@ -829,6 +829,74 @@ export class EmailAdminController {
   }
 
   /**
+   * ⚠️ ХҮЛЭЭН АВАГЧИЙН ТОО — аль сонголт хэдэн бодит хүнд очихыг
+   * харуулна (opt-out хасагдсаны ДАРААХ тоо). Promotion/broadcast
+   * модалд «(69)» гэж харуулж, админ мэдэж илгээнэ.
+   */
+  @Get('audience-counts')
+  async audienceCounts() {
+    const [subscribers, users, both] = await Promise.all([
+      this.resolveTargets('subscribers'),
+      this.resolveTargets('users'),
+      this.resolveTargets('both'),
+    ]);
+    return {
+      subscribers: subscribers.length,
+      users: users.length,
+      both: both.length,
+    };
+  }
+
+  /**
+   * Киноны promotion имэйлийн БИЕ (постер + төрөл + тайлбар).
+   * ⚠️ Илгээх ба preview ХОЁУЛАА ашиглана — логик зөрөхгүй.
+   */
+  private async buildTitlePromoBody(title: {
+    title: string;
+    slug: string;
+    description: string;
+    posterKey: string | null;
+    type: string;
+  }): Promise<string> {
+    const posterUrl = title.posterKey
+      ? await this.storage.publicAssetUrl(title.posterKey, 30 * 86400).catch(() => null)
+      : null;
+    const link = `https://besttv.us/title/${title.slug}`;
+    const kind = title.type === 'SERIES' ? 'Цуврал' : 'Кино';
+    const desc =
+      (title.description ?? '').trim() || 'Шинэ контент BestTV дээр — одоо үзээрэй.';
+    return (
+      (posterUrl
+        ? `<a href="${link}" style="text-decoration:none"><img src="${posterUrl}" alt="${title.title}" width="240" style="display:block;margin:0 auto 18px;max-width:240px;width:60%;border-radius:12px" /></a>`
+        : '') +
+      `<p class="btv-muted" style="margin:0 0 6px;text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9a9aa0">${kind}</p>` +
+      `<p class="btv-muted" style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#c8c8ce">${desc}</p>`
+    );
+  }
+
+  /**
+   * ⚠️ PREVIEW — киноны promotion имэйл ЯГ ЯАЖ ОЧИХ бүрэн HTML буцаана
+   * (илгээхгүй). Admin модалд iframe-д харуулна.
+   */
+  @Get('promote-title/:titleId/preview')
+  async promoteTitlePreview(@Param('titleId') titleId: string) {
+    const title = await this.prisma.title.findUnique({
+      where: { id: titleId },
+      select: { id: true, title: true, slug: true, description: true, posterKey: true, type: true },
+    });
+    if (!title) return { found: false };
+    const bodyHtml = await this.buildTitlePromoBody(title);
+    const html = this.email.buildLifecycleHtml({
+      to: 'preview@besttv.us',
+      heading: title.title,
+      bodyHtml,
+      ctaText: 'Одоо үзэх',
+      ctaUrl: `https://besttv.us/title/${title.slug}`,
+    });
+    return { found: true, html };
+  }
+
+  /**
    * ⚠️⚠️ КИНО РЕКЛАМ — тухайн киног promotion имэйл болгож бүх
    * хэрэглэгчид bulk илгээнэ (кино/сериал ялгаагүй).
    *
@@ -859,22 +927,8 @@ export class EmailAdminController {
     });
     const uidByEmail = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
 
-    const posterUrl = title.posterKey
-      ? await this.storage.publicAssetUrl(title.posterKey, 30 * 86400).catch(() => null)
-      : null;
     const link = `https://besttv.us/title/${title.slug}`;
-    const kind = title.type === 'SERIES' ? 'Цуврал' : 'Кино';
-
-    // ⚠️ Promotion body — постер (public URL) + тайлбар. Хоосон тайлбарт fallback.
-    const desc =
-      (title.description ?? '').trim() ||
-      'Шинэ контент BestTV дээр — одоо үзээрэй.';
-    const bodyHtml =
-      (posterUrl
-        ? `<a href="${link}" style="text-decoration:none"><img src="${posterUrl}" alt="${title.title}" width="240" style="display:block;margin:0 auto 18px;max-width:240px;width:60%;border-radius:12px" /></a>`
-        : '') +
-      `<p class="btv-muted" style="margin:0 0 6px;text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9a9aa0">${kind}</p>` +
-      `<p class="btv-muted" style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#c8c8ce">${desc}</p>`;
+    const bodyHtml = await this.buildTitlePromoBody(title);
 
     /* ⚠️ Тест үед batchId-гүй — фолдер болохгүй, ганц имэйл болно */
     const batchId = isTest ? undefined : randomUUID();

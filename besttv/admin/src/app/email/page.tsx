@@ -697,6 +697,22 @@ function BroadcastTab() {
   });
   const [busy, setBusy] = useState(false);
 
+  /** Хүлээн авагчийн бодит тоо — аль сонголт хэдэн хүнд очих */
+  const { data: counts } = useQuery({
+    queryKey: ['admin-email-audience-counts'],
+    queryFn: () =>
+      api<{ subscribers: number; users: number; both: number }>(
+        '/admin/email/audience-counts',
+      ),
+    staleTime: 60_000,
+  });
+  const audienceCount =
+    form.audience === 'subscribers'
+      ? counts?.subscribers
+      : form.audience === 'users'
+        ? counts?.users
+        : counts?.both;
+
   const send = async () => {
     if (!form.subject.trim() || !form.heading.trim() || !form.body.trim()) {
       return toast.error('Гарчиг, толгой, агуулга заавал');
@@ -757,10 +773,26 @@ function BroadcastTab() {
             onChange={(e) => setForm({ ...form, audience: e.target.value })}
             className="admin-select"
           >
-            <option value="subscribers">Мэдээллийн товхимол бүртгүүлэгчид</option>
-            <option value="users">Бүртгэлтэй хэрэглэгчид (баталгаажсан)</option>
-            <option value="both">Хоёулаа</option>
+            <option value="subscribers">
+              Зөвхөн имэйл өгсөн (бүртгүүлэгч){counts ? ` — ${counts.subscribers}` : ''}
+            </option>
+            <option value="users">
+              Данс нээсэн хэрэглэгчид{counts ? ` — ${counts.users}` : ''}
+            </option>
+            <option value="both">Хоёулаа{counts ? ` — ${counts.both}` : ''}</option>
           </select>
+          {/* ⚠️ Ялгааг ТОДОРХОЙ тайлбарлана — «хэрэглэгч» vs «бүртгүүлэгч»
+              андуурагдахгүй. Тоо нь opt-out хасагдсаны ДАРААХ бодит хүн. */}
+          <span className="mt-1.5 block text-[11px] leading-relaxed text-muted-foreground">
+            <strong className="text-foreground">Хэрэглэгч</strong> = сайтад данс нээж нэвтэрдэг ·{' '}
+            <strong className="text-foreground">Бүртгүүлэгч</strong> = зөвхөн имэйлээ өгсөн (данс нээгээгүй)
+            {typeof audienceCount === 'number' && (
+              <>
+                {' · '}
+                <strong className="text-primary">{audienceCount.toLocaleString()} хүнд очно</strong>
+              </>
+            )}
+          </span>
         </label>
 
         <label className="block">

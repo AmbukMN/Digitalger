@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Megaphone, Send, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Eye, Loader2, Megaphone, Send, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
@@ -10,8 +11,8 @@ import { api } from '@/lib/api';
  * КИНО РЕКЛАМ — тухайн киног бүх хэрэглэгчид promotion имэйлээр bulk илгээх.
  *
  * ⚠️ Backend нь постер + тайлбар + «Үзэх» товч бүхий имэйл автоматаар үүсгэнэ
- *    (кино/сериал ялгаагүй). Энд зөвхөн хүлээн авагч бүлэг + (сонголтоор)
- *    гарчиг тохируулна. Давхардал/цуцалсныг backend хасна.
+ *    (кино/сериал ялгаагүй). Энд хүлээн авагч бүлэг (тоотой) + гарчиг +
+ *    ЯГ ЯАЖ ОЧИХ preview харна. Давхардал/цуцалсныг backend хасна.
  */
 export function PromoteTitleDialog({
   titleId,
@@ -26,6 +27,28 @@ export function PromoteTitleDialog({
   const [subject, setSubject] = useState('');
   const [heading, setHeading] = useState('');
   const [sending, setSending] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  /** Хүлээн авагчийн БОДИТ тоо (opt-out хасагдсан) */
+  const { data: counts } = useQuery({
+    queryKey: ['admin-email-audience-counts'],
+    queryFn: () =>
+      api<{ subscribers: number; users: number; both: number }>(
+        '/admin/email/audience-counts',
+      ),
+    staleTime: 60_000,
+  });
+
+  /** Preview — имэйл яг яаж очих (iframe) */
+  const { data: preview, isFetching: previewLoading } = useQuery({
+    queryKey: ['admin-email-promote-preview', titleId],
+    queryFn: () =>
+      api<{ found: boolean; html: string }>(
+        `/admin/email/promote-title/${titleId}/preview`,
+      ),
+    enabled: showPreview,
+    staleTime: 5 * 60_000,
+  });
 
   const send = async () => {
     setSending(true);
@@ -49,10 +72,27 @@ export function PromoteTitleDialog({
   };
 
   const AUDIENCES = [
-    { id: 'both' as const, label: 'Бүгд', desc: 'Хэрэглэгч + бүртгүүлэгчид' },
-    { id: 'users' as const, label: 'Хэрэглэгчид', desc: 'Бүртгэлтэй хэрэглэгчид' },
-    { id: 'subscribers' as const, label: 'Бүртгүүлэгчид', desc: 'Имэйл жагсаалт' },
+    {
+      id: 'both' as const,
+      label: 'Бүгд',
+      desc: 'Хэрэглэгч + бүртгүүлэгч',
+      count: counts?.both,
+    },
+    {
+      id: 'users' as const,
+      label: 'Хэрэглэгчид',
+      desc: 'Данс нээсэн, нэвтэрдэг',
+      count: counts?.users,
+    },
+    {
+      id: 'subscribers' as const,
+      label: 'Бүртгүүлэгчид',
+      desc: 'Зөвхөн имэйл өгсөн',
+      count: counts?.subscribers,
+    },
   ];
+
+  const activeCount = AUDIENCES.find((a) => a.id === audience)?.count;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -70,7 +110,7 @@ export function PromoteTitleDialog({
             promotion имэйл болгож сонгосон бүлэгт илгээнэ.
           </p>
 
-          {/* Хүлээн авагч */}
+          {/* Хүлээн авагч — БОДИТ тоотой */}
           <div>
             <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Users size={13} /> Хүлээн авагч
@@ -87,14 +127,23 @@ export function PromoteTitleDialog({
                       : 'border-input hover:border-primary/40')
                   }
                 >
-                  <span className="block text-sm font-medium text-foreground">{a.label}</span>
-                  <span className="block text-[11px] text-muted-foreground">{a.desc}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-foreground">{a.label}</span>
+                    {typeof a.count === 'number' && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                        {a.count.toLocaleString()}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
+                    {a.desc}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Гарчиг (сонголтоор) */}
+          {/* Гарчиг + Толгой */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
               Имэйлийн гарчиг <span className="text-muted-foreground/60">(хоосон = автомат)</span>
@@ -107,7 +156,6 @@ export function PromoteTitleDialog({
               className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary"
             />
           </div>
-
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
               Толгой текст <span className="text-muted-foreground/60">(хоосон = киноны нэр)</span>
@@ -121,22 +169,64 @@ export function PromoteTitleDialog({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-1">
+          {/* Preview — имэйл яг яаж очих */}
+          <div>
             <button
-              onClick={onClose}
-              disabled={sending}
-              className="rounded-lg border border-input px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => setShowPreview((v) => !v)}
+              className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
-              Болих
+              <Eye size={15} /> {showPreview ? 'Preview нуух' : 'Имэйл preview харах'}
             </button>
-            <button
-              onClick={send}
-              disabled={sending}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            >
-              {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-              Илгээх
-            </button>
+            {showPreview && (
+              <div className="mt-2 overflow-hidden rounded-lg border border-border bg-white">
+                {previewLoading ? (
+                  <div className="flex h-64 items-center justify-center">
+                    <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                  </div>
+                ) : preview?.html ? (
+                  <iframe
+                    srcDoc={preview.html}
+                    title="Имэйл preview"
+                    sandbox=""
+                    className="h-[440px] w-full border-0"
+                  />
+                ) : (
+                  <p className="p-4 text-center text-sm text-muted-foreground">
+                    Preview ачаалж чадсангүй
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-xs text-muted-foreground">
+              {typeof activeCount === 'number' ? (
+                <>
+                  <strong className="text-foreground">{activeCount.toLocaleString()}</strong> хүнд
+                  очно
+                </>
+              ) : (
+                'Хүлээн авагчийг тоолж байна…'
+              )}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                disabled={sending}
+                className="rounded-lg border border-input px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Болих
+              </button>
+              <button
+                onClick={send}
+                disabled={sending || activeCount === 0}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                Илгээх
+              </button>
+            </div>
           </div>
         </div>
       </DialogContent>
