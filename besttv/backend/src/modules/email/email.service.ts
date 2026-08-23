@@ -542,9 +542,10 @@ export class EmailService {
        #0d0e11 (бүтэн хар) байсан тул имэйл «pad хар» харагддаг байв. */
     .btv-bg   { background:#20222a !important; }
     .btv-card { background:#17181c !important; }
-    /* ⚠️ Толгой ЦАГААН хэвээр (dark OS-д ч) — лого «Best» хэсэг хар/улаан
-       тул хар дэвсгэрт үл үзэгдэнэ. Цагаан толгой = лого үргэлж бүтэн. */
-    .btv-head { background:#ffffff !important; }
+    /* ⚠️ Толгой БАРААН (#17181c — картын өнгөтэй нэг). Лого «Best»=улаан,
+       «TV»=ЦАГААН тул цагаан дэвсгэрт «TV» алга болно; бараан дэвсгэрт
+       улаан+цагаан ХОЁУЛАА бүтэн харагдана. */
+    .btv-head { background:#17181c !important; }
     .btv-foot { background:#101114 !important; }
     .btv-text, .btv-text * { color:#ffffff !important; }
     .btv-muted, .btv-muted * { color:#c8c8ce !important; }
@@ -564,7 +565,7 @@ ${pre}
 <table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#f4f5f7;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="btv-card" style="background:#17181c;border-radius:16px;overflow:hidden;max-width:600px;width:100%">
-  <tr><td class="btv-head" style="background:#ffffff;padding:20px 32px;text-align:center;border-bottom:1px solid #ececec">
+  <tr><td class="btv-head" style="background:#17181c;padding:22px 32px;text-align:center">
     <a href="${this.siteUrl}" style="display:inline-block;text-decoration:none">
       <img src="${this.logoUrl}" alt="BestTV" height="34" style="display:block;height:34px;width:auto;border:0" />
     </a>
