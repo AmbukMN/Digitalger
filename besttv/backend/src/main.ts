@@ -69,10 +69,10 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   await app.listen(port);
-  console.log(
-    `BestTV API listening on http://localhost:${port}/api` +
-      (cluster.isWorker ? ` (worker ${process.env.NODE_APP_INSTANCE})` : ''),
-  );
+  const role = cluster.isWorker
+    ? ` (worker ${cluster.worker?.id}${process.env.CRON_ENABLED !== 'false' ? ', cron' : ''})`
+    : '';
+  console.log(`BestTV API listening on http://localhost:${port}/api${role}`);
 }
 
 /**
