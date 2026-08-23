@@ -111,6 +111,13 @@ export class EmailService {
   private readonly from: string;
   private readonly siteUrl: string;
   /**
+   * ⚠️ БРЭНДИЙН ЛОГО — имэйлийн толгойд жинхэнэ PNG лого (текст биш).
+   * Admin-д оруулсан лого R2-д `brand/logo.png` нэрээр хадгалагддаг
+   * (settings brand). Тогтмол тул хатуу URL — имэйл бүрд settings
+   * дуудвал удаана. Solix биш бол ENV-ээр дарж бичиж болно.
+   */
+  private readonly logoUrl: string;
+  /**
    * ⚠️ API-ийн ГАДААД хаяг — нээлтийн pixel-д. Шуудангийн клиент
    * (Gmail сервер) энэ хаягийг ИНТЕРНЭТЭЭС татна, тиймээс дотоод
    * docker хаяг (besttv-backend:4100) БОЛОХГҮЙ.
@@ -134,6 +141,8 @@ export class EmailService {
   ) {
     this.from = this.config.get<string>('MAIL_FROM') ?? 'noreply@besttv.us';
     this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
+    this.logoUrl =
+      this.config.get<string>('EMAIL_LOGO_URL') ?? 'https://assets.besttv.us/brand/logo.png';
     /* ⚠️ Gmail сервер интернэтээс татна — дотоод docker хаяг БОЛОХГҮЙ */
     this.apiUrl = (
       this.config.get<string>('PUBLIC_API_URL') ?? 'https://api.besttv.us'
@@ -528,9 +537,14 @@ export class EmailService {
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
   /* WARN Gmail/Outlook dark mode: keep OUR colors, block the inversion */
   @media (prefers-color-scheme: dark) {
-    .btv-bg   { background:#0d0e11 !important; }
+    /* ⚠️ Гадна дэвсгэр (btv-bg) нь ХАР БИШ — зөвхөн КАРТ бараан.
+       HBO/Netflix шиг: карт голлож, гадна нь зөөлөн саарал. Өмнө нь
+       #0d0e11 (бүтэн хар) байсан тул имэйл «pad хар» харагддаг байв. */
+    .btv-bg   { background:#20222a !important; }
     .btv-card { background:#17181c !important; }
-    .btv-head { background:#000000 !important; }
+    /* ⚠️ Толгой ЦАГААН хэвээр (dark OS-д ч) — лого «Best» хэсэг хар/улаан
+       тул хар дэвсгэрт үл үзэгдэнэ. Цагаан толгой = лого үргэлж бүтэн. */
+    .btv-head { background:#ffffff !important; }
     .btv-foot { background:#101114 !important; }
     .btv-text, .btv-text * { color:#ffffff !important; }
     .btv-muted, .btv-muted * { color:#c8c8ce !important; }
@@ -539,20 +553,20 @@ export class EmailService {
     .btv-cta  { background:#e50914 !important; color:#ffffff !important; }
   }
   /* Outlook.com rewrites classes with a [data-ogsc] prefix */
-  [data-ogsc] .btv-bg   { background:#0d0e11 !important; }
+  [data-ogsc] .btv-bg   { background:#20222a !important; }
   [data-ogsc] .btv-card { background:#17181c !important; }
   [data-ogsc] .btv-text, [data-ogsc] .btv-text * { color:#ffffff !important; }
   [data-ogsc] .btv-muted, [data-ogsc] .btv-muted * { color:#c8c8ce !important; }
 </style>
 </head>
-<body class="btv-bg" style="margin:0;padding:0;background:#0d0e11;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
+<body class="btv-bg" style="margin:0;padding:0;background:#f4f5f7;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
 ${pre}
-<table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#0d0e11;padding:32px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#f4f5f7;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="btv-card" style="background:#17181c;border-radius:16px;overflow:hidden;max-width:600px;width:100%">
-  <tr><td class="btv-head" style="background:#000;padding:22px 32px;text-align:center">
-    <a href="${this.siteUrl}" class="btv-text" style="text-decoration:none;font-size:24px;font-weight:900;color:#fff;letter-spacing:-0.5px">
-      Best<span style="color:#e50914">TV</span>
+  <tr><td class="btv-head" style="background:#ffffff;padding:20px 32px;text-align:center;border-bottom:1px solid #ececec">
+    <a href="${this.siteUrl}" style="display:inline-block;text-decoration:none">
+      <img src="${this.logoUrl}" alt="BestTV" height="34" style="display:block;height:34px;width:auto;border:0" />
     </a>
   </td></tr>
   <tr><td style="padding:32px 32px 8px">
