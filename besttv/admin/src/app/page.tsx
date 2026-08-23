@@ -107,7 +107,10 @@ export default function DashboardPage() {
   const { data: content, isFetching: contentFetching } = useContentInsights(tab === 'content');
 
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? '';
-  const busy = isFetching || insFetching || contentFetching;
+  /* ⚠️ contentFetching-ийг busy-д ОРУУЛАХГҮЙ — Content таб дээр биш байхад
+     тэр fetch болвол бүх контент бүдгэрэх нь эвгүй. Content таб өөрийн
+     skeleton-той. */
+  const busy = isFetching || insFetching;
 
   return (
     <AdminShell>
@@ -131,15 +134,24 @@ export default function DashboardPage() {
         */}
         <TodayCard />
 
-        <div className="sticky top-0 z-20 -mx-4 mb-5 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="flex flex-wrap gap-1">
+        {/*
+          ⚠️ RESPONSIVE: мобайлд range + tab нэг flex-wrap дотор 10 товч
+          2-3 мөр болж sticky өндөр хэт өсдөг байв. Одоо:
+            • Range — хэвтээ scroll (нэг мөр, snap), гүйлгэж сонгоно
+            • Tab   — доод мөрөнд БҮРЭН ӨРГӨН segmented control
+            • sm-ээс дээш л нэг мөрөнд (ml-auto зөвхөн sm)
+        */}
+        <div className="sticky top-0 z-20 -mx-4 mb-5 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur sm:-mx-8 sm:px-8 sm:py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+            {/* Range — мобайлд хэвтээ scroll (нэг мөр) */}
+            <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {RANGES.map((r) => (
                 <button
                   key={r.id}
                   onClick={() => setRange(r.id)}
+                  aria-pressed={range === r.id}
                   className={cn(
-                    'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                    'shrink-0 snap-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                     range === r.id
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-accent/60 text-muted-foreground hover:text-foreground',
@@ -150,14 +162,15 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            <div className="ml-auto flex gap-1 rounded-lg bg-accent/60 p-1">
+            {/* Tab — мобайлд бүрэн өргөн, sm-д баруун талд */}
+            <div className="flex w-full gap-1 rounded-lg bg-accent/60 p-1 sm:ml-auto sm:w-auto">
               {TABS.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   aria-pressed={tab === t.id}
                   className={cn(
-                    'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                    'flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors sm:flex-none sm:px-3',
                     tab === t.id
                       ? 'bg-card text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground',
@@ -235,7 +248,14 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {data.series.length > 1 && <TrendChart series={data.series} />}
+                {data.series.length > 1 ? (
+                  <TrendChart series={data.series} />
+                ) : (
+                  <div className="admin-card mt-5 flex items-center justify-center rounded-xl px-5 py-8 text-center text-sm text-muted-foreground">
+                    Чиг хандлагын график харахын тулд хамгийн багадаа{' '}
+                    <span className="mx-1 font-semibold text-foreground">7 хоног</span> сонгоно уу
+                  </div>
+                )}
 
                 {/* Юүлүүр — үзсэн → тоглуулсан → дуусгасан */}
                 {ins && <FunnelCard funnel={ins.funnel} />}
@@ -319,7 +339,14 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {data.series.length > 1 && <TrendChart series={data.series} />}
+                {data.series.length > 1 ? (
+                  <TrendChart series={data.series} />
+                ) : (
+                  <div className="admin-card mt-5 flex items-center justify-center rounded-xl px-5 py-8 text-center text-sm text-muted-foreground">
+                    Чиг хандлагын график харахын тулд хамгийн багадаа{' '}
+                    <span className="mx-1 font-semibold text-foreground">7 хоног</span> сонгоно уу
+                  </div>
+                )}
 
                 <div className="mt-5 grid gap-5 lg:grid-cols-2">
                   <section className="admin-card rounded-xl p-5">
@@ -480,29 +507,33 @@ export default function DashboardPage() {
                         {content.topRented.length === 0 ? (
                           <p className="text-sm text-muted-foreground">Түрээс байхгүй байна</p>
                         ) : (
-                          <div className="space-y-2.5">
+                          <div className="space-y-3">
                             {content.topRented.map((t, i) => {
                               const max = content.topRented[0]?.count || 1;
                               return (
-                                <div key={t.id} className="flex items-center gap-3 text-sm">
-                                  <span className="w-5 shrink-0 text-right text-xs font-semibold text-muted-foreground tabular-nums">
-                                    {i + 1}
-                                  </span>
-                                  <span className="w-32 shrink-0 truncate text-foreground sm:w-40">
-                                    {t.title}
-                                  </span>
-                                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                <div key={t.id} className="text-sm">
+                                  {/* Дээд мөр: rank + нэр + тоо/орлого */}
+                                  <div className="mb-1 flex items-baseline gap-2">
+                                    <span className="w-5 shrink-0 text-right text-xs font-semibold text-muted-foreground tabular-nums">
+                                      {i + 1}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-foreground">
+                                      {t.title}
+                                    </span>
+                                    <span className="shrink-0 font-semibold text-foreground tabular-nums">
+                                      {t.count}
+                                    </span>
+                                    <span className="shrink-0 text-xs text-success tabular-nums">
+                                      {formatPrice(t.revenue)}
+                                    </span>
+                                  </div>
+                                  {/* Доод мөр: bar бүтэн өргөн (мобайлд ч уншигдана) */}
+                                  <div className="ml-7 h-2 overflow-hidden rounded-full bg-muted">
                                     <div
                                       className="h-full rounded-full bg-success transition-all"
                                       style={{ width: `${(t.count / max) * 100}%` }}
                                     />
                                   </div>
-                                  <span className="w-8 shrink-0 text-right font-semibold text-foreground tabular-nums">
-                                    {t.count}
-                                  </span>
-                                  <span className="hidden w-20 shrink-0 text-right text-xs text-success tabular-nums sm:inline">
-                                    {formatPrice(t.revenue)}
-                                  </span>
                                 </div>
                               );
                             })}
@@ -518,26 +549,28 @@ export default function DashboardPage() {
                         {content.byGenre.length === 0 ? (
                           <p className="text-sm text-muted-foreground">Мэдээлэл байхгүй</p>
                         ) : (
-                          <div className="space-y-2.5">
+                          <div className="space-y-3">
                             {content.byGenre.slice(0, 10).map((g) => {
                               const max = content.byGenre[0]?.revenue || 1;
                               return (
-                                <div key={g.name} className="flex items-center gap-3 text-sm">
-                                  <span className="w-28 shrink-0 truncate text-foreground sm:w-32">
-                                    {g.name}
-                                  </span>
-                                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                <div key={g.name} className="text-sm">
+                                  <div className="mb-1 flex items-baseline gap-2">
+                                    <span className="min-w-0 flex-1 truncate text-foreground">
+                                      {g.name}
+                                    </span>
+                                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                                      {g.count} түрээс
+                                    </span>
+                                    <span className="shrink-0 font-semibold text-foreground tabular-nums">
+                                      {formatPrice(g.revenue)}
+                                    </span>
+                                  </div>
+                                  <div className="h-2 overflow-hidden rounded-full bg-muted">
                                     <div
                                       className="h-full rounded-full bg-primary transition-all"
                                       style={{ width: `${(g.revenue / max) * 100}%` }}
                                     />
                                   </div>
-                                  <span className="w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                                    {g.count}
-                                  </span>
-                                  <span className="w-20 shrink-0 text-right font-semibold text-foreground tabular-nums">
-                                    {formatPrice(g.revenue)}
-                                  </span>
                                 </div>
                               );
                             })}
@@ -574,6 +607,23 @@ export default function DashboardPage() {
             )}
 
             {/* ─── ЗАН ТӨЛӨВ ────────────────────────────────────────────── */}
+            {/* ⚠️ Behavior таб — ins бэлэн болтол ХООСОН дэлгэц үзүүлдэг байв.
+                Одоо skeleton (KPI + section) — «эвдэрсэн» мэт харагдахаас сэргийлнэ. */}
+            {tab === 'behavior' && !ins && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="admin-card h-24 animate-pulse rounded-xl" />
+                  ))}
+                </div>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="admin-card h-56 animate-pulse rounded-xl" />
+                  ))}
+                </div>
+              </>
+            )}
+
             {tab === 'behavior' && ins && (
               <>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
