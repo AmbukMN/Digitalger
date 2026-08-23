@@ -259,9 +259,12 @@ class PromoteTitleDto {
 
 /** Admin гараар имэйл нэмэх (нэг эсвэл олноор) */
 class AddSubscribersDto {
+  /** ⚠️ @IsEmail each ХЭРЭГЛЭХГҮЙ — нэг буруу хаяг бүхэл багцыг татгалзана.
+     Оронд нь string[], буруугаа endpoint дотор алгасна (олон хаяг буулгахад
+     нэг алдаа бүгдийг зогсоохгүй). */
   @IsArray()
   @ArrayMaxSize(5000)
-  @IsEmail({}, { each: true })
+  @IsString({ each: true })
   emails: string[];
 
   /** Нэр (зөвхөн нэг имэйл нэмэхэд утгатай) */
@@ -903,7 +906,11 @@ export class EmailAdminController {
    */
   @Post('subscribers/add')
   async addSubscribers(@Body() dto: AddSubscribersDto) {
-    const clean = [...new Set(dto.emails.map((e) => e.toLowerCase().trim()).filter(Boolean))];
+    /* ⚠️ Буруу хаягийг алгасна (frontend бас шүүдэг — давхар хамгаалалт) */
+    const isEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+    const clean = [
+      ...new Set(dto.emails.map((e) => e.toLowerCase().trim()).filter((e) => e && isEmail(e))),
+    ];
     let added = 0;
     for (const email of clean) {
       try {
