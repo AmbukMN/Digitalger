@@ -79,6 +79,14 @@
     --bg-rgb: 255 255 255;
     --card-rgb: 255 255 255;
     --primary-rgb: 229 9 20;
+    --secondary-rgb: 243 244 246;
+    --muted-rgb: 243 244 247;
+    --accent-rgb: 177 6 15;
+    --destructive-rgb: 220 38 38;
+    --success-rgb: 0 165 68;
+    --warning-rgb: 237 178 0;
+    --premium-rgb: 166 120 0;
+    --border-rgb: 227 228 231;
     --black-rgb: 0 0 0;
     --white-rgb: 255 255 255;
   }
@@ -124,6 +132,14 @@
     --bg-rgb: 5 5 5;
     --card-rgb: 18 18 18;
     --primary-rgb: 229 9 20;
+    --secondary-rgb: 31 31 31;
+    --muted-rgb: 23 23 23;
+    --accent-rgb: 255 44 56;
+    --destructive-rgb: 244 63 77;
+    --success-rgb: 0 199 88;
+    --warning-rgb: 255 195 0;
+    --premium-rgb: 237 178 0;
+    --border-rgb: 255 255 255;
     --black-rgb: 0 0 0;
     --white-rgb: 255 255 255;
   }
@@ -133,53 +149,17 @@
   }
 
   /**
-   * ⚠️⚠️ ХУУЧИН БРАУЗЕР FALLBACK — ЗӨВХӨН color-mix ДЭМЖДЭГГҮЙ үед.
+   * ⚠️⚠️ ХУУЧИН БРАУЗЕР OPACITY FALLBACK — АВТОМАТ (build дараа).
    *
-   * Шинэ browser (iOS 16.2+, Chrome 111+) энэ блокийг АЛГАСна — Tailwind-ийн
-   * гоё color-mix opacity хэвээр. Зөвхөн ХУУЧИН browser энд орж, opacity
-   * utility-г `rgb(R G B / alpha)`-аар дарж бичнэ (color-mix биш тул ажиллана).
+   * Дээрх RGB суваг (--fg-rgb гэх) нь `scripts/css-fallbacks.mjs`-д
+   * ашиглагдана. Тэр скрипт build CSS доторх БҮХ
+   *   `color-mix(in oklab, var(--X) N%, transparent)`
+   * -ийг олж, `@supports not (color-mix)` блокт `rgb(var(--X-rgb) / a)`
+   * fallback АВТОМАТААР үүсгэнэ. Тиймээс энд гараар нэг ч class бичихгүй —
+   * бүх opacity utility (одоо + ирээдүйн) автоматаар хамрагдана.
    *
-   * ⚠️ Зурган дээр илэрсэн ГОЛ асуудлын classes: карт/дэвсгэр (bg-foreground/X,
-   *    bg-white/X, bg-black/X, bg-card, bg-primary/X). Light/dark хоёуланд
-   *    зөв — суваг theme-ээр солигдоно.
-   * ⚠️ `!important` — Tailwind-ийн color-mix дүрмийг дарахын тулд.
+   * Шинэ browser `@supports not`-ийг алгасна → color-mix хэвээр (давуу тал).
    */
-  @supports not (background: color-mix(in oklab, red, red)) {
-    /* Дэвсгэр — foreground opacity (карт, хуваалт) */
-    .bg-foreground\/3  { background-color: rgb(var(--fg-rgb) / 0.03) !important; }
-    .bg-foreground\/4  { background-color: rgb(var(--fg-rgb) / 0.04) !important; }
-    .bg-foreground\/5  { background-color: rgb(var(--fg-rgb) / 0.05) !important; }
-    .bg-foreground\/8  { background-color: rgb(var(--fg-rgb) / 0.08) !important; }
-    .bg-foreground\/10 { background-color: rgb(var(--fg-rgb) / 0.10) !important; }
-    .bg-foreground\/12 { background-color: rgb(var(--fg-rgb) / 0.12) !important; }
-    .bg-foreground\/14 { background-color: rgb(var(--fg-rgb) / 0.14) !important; }
-    .bg-foreground\/16 { background-color: rgb(var(--fg-rgb) / 0.16) !important; }
-    .bg-foreground\/20 { background-color: rgb(var(--fg-rgb) / 0.20) !important; }
-
-    /* Хар/цагаан overlay (title-card постер градиент, badge) */
-    .bg-black\/20 { background-color: rgb(var(--black-rgb) / 0.20) !important; }
-    .bg-black\/45 { background-color: rgb(var(--black-rgb) / 0.45) !important; }
-    .bg-black\/55 { background-color: rgb(var(--black-rgb) / 0.55) !important; }
-    .bg-black\/75 { background-color: rgb(var(--black-rgb) / 0.75) !important; }
-    .bg-black\/80 { background-color: rgb(var(--black-rgb) / 0.80) !important; }
-    .bg-white\/20 { background-color: rgb(var(--white-rgb) / 0.20) !important; }
-    .bg-white\/85 { background-color: rgb(var(--white-rgb) / 0.85) !important; }
-
-    /* Primary opacity (CTA badge) */
-    .bg-primary\/90 { background-color: rgb(var(--primary-rgb) / 0.90) !important; }
-
-    /* Текст opacity (бүдэг тайлбар) — уншигдахгүй болохоос сэргийлнэ */
-    .text-foreground\/35 { color: rgb(var(--fg-rgb) / 0.55) !important; }
-    .text-foreground\/40 { color: rgb(var(--fg-rgb) / 0.60) !important; }
-    .text-foreground\/50 { color: rgb(var(--fg-rgb) / 0.68) !important; }
-    .text-foreground\/60 { color: rgb(var(--fg-rgb) / 0.72) !important; }
-    .text-foreground\/70 { color: rgb(var(--fg-rgb) / 0.82) !important; }
-
-    /* Хүрээ opacity */
-    .border-foreground\/10 { border-color: rgb(var(--fg-rgb) / 0.16) !important; }
-    .border-foreground\/12 { border-color: rgb(var(--fg-rgb) / 0.18) !important; }
-    .border-foreground\/20 { border-color: rgb(var(--fg-rgb) / 0.22) !important; }
-  }
 
   html {
     scroll-behavior: smooth;

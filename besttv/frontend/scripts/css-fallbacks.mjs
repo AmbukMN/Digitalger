@@ -1,36 +1,90 @@
 /**
  * ⚠️⚠️ ХУУЧИН БРАУЗЕР CSS FALLBACK — build ДАРАА ажиллана.
  *
- * БОДИТ АСУУДАЛ: Tailwind 4 нь opacity utility (bg-white/90, text-foreground/60,
- * hover states) бүрийг `color-mix(in oklab, ...)` / `oklch()` болгож гаргадаг.
- * Хуучин iOS Safari (< 16.2) эдгээрийг ДЭМЖДЭГГҮЙ тул property бүхэлдээ
- * алдагдаж, карт/товч ЦАГААН харагдана.
+ * БОДИТ АСУУДАЛ: Tailwind 4 нь opacity utility (bg-foreground/8, text-white/85,
+ * bg-black/75 гэх) бүрийг `color-mix(in oklab, var(--foreground) 8%, transparent)`
+ * болгож гаргадаг. Хуучин iOS Safari (< 16.2) `color-mix()`-ийг ДЭМЖДЭГГҮЙ тул
+ * тэр property бүхэлдээ алдагдаж, карт/товч/текст ЦАГААН эсвэл үл үзэгдэнэ.
  *
- * ЯАГААД BUILD ДАРАА (Next.js postcss биш): Next.js webpack loader нь ESM-only
- * plugin (@csstools/*)-ыг require() хийж чаддаггүй (ERR_REQUIRE_ESM). Тиймээс
- * Next build-ийн ГАРАЛТ CSS-ийг ЭНД тусдаа боловсруулна — build tooling-д
- * хамааралгүй, найдвартай.
+ * ЯАГААД BUILD ДАРАА: Next.js webpack loader нь ESM-only @csstools plugin-ыг
+ * require() хийж чаддаггүй (ERR_REQUIRE_ESM). Мөн @csstools нь `var()`-тай
+ * color-mix-ийг fallback хийж ЧАДДАГГҮЙ (compile-time-д variable мэдэхгүй).
  *
- * ⚠️ preserve: true — fallback + оригинал ХОЁУЛАНГ үлдээнэ:
- *   • Хуучин browser → rgb() fallback (эхэнд)
- *   • Шинэ browser  → color-mix/oklch (cascade-аар дарна, давуу тал хэвээр)
+ * ⚠️⚠️ ЭНЭ СКРИПТИЙН ГОЛ АЖИЛ: build CSS доторх
+ *   `color-mix(in oklab, var(--X) N%, transparent)`
+ * бүрийг олж, ДООР нь `@supports not` блокт
+ *   `rgb(var(--X-rgb) / 0.NN)`
+ * fallback АВТОМАТААР генерацлана. RGB суваг (--X-rgb) нь shared globals-д
+ * light/dark тус тусад тодорхойлогдсон тул theme-ээр солигдоно.
  *
- * ⚠️ ЗӨВХӨН build-time. Runtime JS ОГТ нэмэгддэггүй → сайт удаашрахгүй.
+ * ⚠️ БҮХ opacity class-ийг АВТОМАТААР хамарна — гараар нэг ч бичихгүй.
+ *    Шинэ browser `@supports not`-ийг алгасна → color-mix хэвээр (давуу тал).
+ * ⚠️ Runtime JS ОГТ нэмэгддэггүй → сайт удаашрахгүй.
  */
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import postcss from 'postcss';
-import oklabFunction from '@csstools/postcss-oklab-function';
-import colorMixFunction from '@csstools/postcss-color-mix-function';
 
 const CSS_DIR = '.next/static/css';
 
-const processor = postcss([
-  // oklch/oklab → rgb fallback (эхэлж — color-mix дотор ч байж болно)
-  oklabFunction({ preserve: true, subFeatures: { displayP3: false } }),
-  // color-mix() → rgb fallback
-  colorMixFunction({ preserve: true }),
-]);
+/** var(--X)-ийг --X-rgb суваг руу буулгах — shared globals-д тодорхойлсонтой таарна */
+const VAR_TO_RGB = {
+  '--foreground': '--fg-rgb',
+  '--background': '--bg-rgb',
+  '--card': '--card-rgb',
+  '--primary': '--primary-rgb',
+  '--secondary': '--secondary-rgb',
+  '--muted': '--muted-rgb',
+  '--accent': '--accent-rgb',
+  '--destructive': '--destructive-rgb',
+  '--success': '--success-rgb',
+  '--warning': '--warning-rgb',
+  '--premium': '--premium-rgb',
+  '--border': '--border-rgb',
+  '--color-black': '--black-rgb',
+  '--color-white': '--white-rgb',
+};
+
+/**
+ * CSS доторх бүх дүрмийг гүйж, доторх нэг ба түүнээс дээш
+ * `color-mix(in oklab, var(--X) N%, transparent)` бүхий property-г олоод,
+ * тэр property-г `rgb(var(--X-rgb) / a)` болгосон fallback дүрэм үүсгэнэ.
+ *
+ * ⚠️ Минифицид CSS — селектор{prop:val;prop:val} хэлбэрээр задална.
+ */
+function buildFallbacks(css) {
+  const fallbackRules = [];
+  // селектор + { ... } блок бүрийг барина (медиа/supports гүнзгийрүүлэлтгүй энгийн дүрэм)
+  const ruleRe = /([^{}]+)\{([^{}]*)\}/g;
+  let m;
+  while ((m = ruleRe.exec(css)) !== null) {
+    const selector = m[1].trim();
+    const body = m[2];
+    if (!selector || selector.startsWith('@')) continue;
+    if (!body.includes('color-mix(in oklab,var(')) continue;
+
+    const outProps = [];
+    // property:value; тус бүрийг үзнэ
+    for (const decl of body.split(';')) {
+      const idx = decl.indexOf(':');
+      if (idx === -1) continue;
+      const prop = decl.slice(0, idx).trim();
+      const value = decl.slice(idx + 1).trim();
+      // color-mix(in oklab, var(--X) N%, transparent) — эсвэл % бутархайтай
+      const cm = value.match(
+        /^color-mix\(in oklab,var\((--[a-z-]+)\)\s*([\d.]+)%?,\s*transparent\)$/,
+      );
+      if (!cm) continue;
+      const rgbVar = VAR_TO_RGB[cm[1]];
+      if (!rgbVar) continue;
+      const alpha = (parseFloat(cm[2]) / 100).toFixed(4).replace(/0+$/, '').replace(/\.$/, '.0');
+      outProps.push(`${prop}:rgb(var(${rgbVar}) / ${alpha})`);
+    }
+    if (outProps.length) {
+      fallbackRules.push(`${selector}{${outProps.join(';')}}`);
+    }
+  }
+  return fallbackRules;
+}
 
 async function run() {
   let files = [];
@@ -44,18 +98,20 @@ async function run() {
   let changed = 0;
   for (const file of files) {
     const path = join(CSS_DIR, file);
-    const before = await readFile(path, 'utf8');
-    // Хурдан шалгалт — fallback хэрэгтэй эсэх
-    if (!before.includes('color-mix') && !before.includes('oklab') && !before.includes('oklch')) {
-      continue;
-    }
-    const result = await processor.process(before, { from: path, to: path });
-    if (result.css !== before) {
-      await writeFile(path, result.css, 'utf8');
-      changed++;
-      const kb = (Buffer.byteLength(result.css) / 1024).toFixed(0);
-      console.log(`[css-fallbacks] ${file} — fallback нэмэв (${kb}KB)`);
-    }
+    const css = await readFile(path, 'utf8');
+    if (!css.includes('color-mix(in oklab,var(')) continue;
+
+    const rules = buildFallbacks(css);
+    if (!rules.length) continue;
+
+    /* ⚠️ @supports not блок — ЗӨВХӨН color-mix дэмждэггүй хуучин browser
+       энд орно. Шинэ browser алгасна (color-mix хэвээр). !important-гүй ч
+       эх дүрэмтэй ижил селектор + дараа байрлах тул cascade-аар давна. */
+    const block = `\n@supports not (color:color-mix(in oklab,red,red)){${rules.join('')}}\n`;
+    await writeFile(path, css + block, 'utf8');
+    changed++;
+    const kb = (Buffer.byteLength(css + block) / 1024).toFixed(0);
+    console.log(`[css-fallbacks] ${file} — ${rules.length} дүрэмд fallback нэмэв (${kb}KB)`);
   }
   console.log(`[css-fallbacks] ${changed} файлд fallback нэмэгдлээ.`);
 }
