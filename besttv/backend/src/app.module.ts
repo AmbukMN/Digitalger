@@ -46,7 +46,18 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    ScheduleModule.forRoot(),
+    /**
+     * ⚠️⚠️ CRON ЗӨВХӨН НЭГ INSTANCE-Д.
+     *
+     * Backend-ийг олон хуулбараар (PM2/cluster) ажиллуулж хурд нэмэхэд
+     * `@Cron` бүр ХУУЛБАР ТУС БҮР дээр давхар ажиллах эрсдэлтэй —
+     * өдрийн тайлан 3 удаа, дуусаагүй төлбөрийн сануулга 3 удаа г.м.
+     *
+     * ШИЙДЭЛ: зөвхөн `CRON_ENABLED=false` тавьсан instance-д cron
+     * унтраана. Хувьсагч тавиагүй бол ХЭВЭЭР (нэг процессын үед юу ч
+     * өөрчлөгдөхгүй) — PM2 доор зөвхөн instance 0-д cron асаана.
+     */
+    ...(process.env.CRON_ENABLED === 'false' ? [] : [ScheduleModule.forRoot()]),
     /**
      * ⚠️ ДАВХАРЛАСАН хязгаар — нэг л хязгаар хангалтгүй:
      *   short  — гэнэтийн үер (secondly burst)

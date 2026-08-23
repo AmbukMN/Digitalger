@@ -1,3 +1,5 @@
+import cluster from 'node:cluster';
+import { cpus } from 'node:os';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -67,7 +69,47 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   await app.listen(port);
-  console.log(`BestTV API listening on http://localhost:${port}/api`);
+  console.log(
+    `BestTV API listening on http://localhost:${port}/api` +
+      (cluster.isWorker ? ` (worker ${process.env.NODE_APP_INSTANCE})` : ''),
+  );
 }
 
-bootstrap();
+/**
+ * ⚠️⚠️ CLUSTER — олон CPU цөм ашиглаж зэрэг хандалтыг хурдасгана.
+ *
+ * БОДИТ АСУУДАЛ: NestJS default нь ГАНЦ процесс — 4 цөмтэй серверт
+ * зөвхөн 1 цөм ажиллаж, огцом ачаалалд хүсэлтүүд дараалалд орж
+ * удаашрдаг байв (500 зэрэг хандалтад p50 ~5.9с).
+ *
+ * ⚠️ ЦӨМИЙН ХУВААРЬ: видео worker тусдаа container-т 1 цөм иддэг тул
+ *    backend-т CLUSTER_WORKERS-аар (default 2) хязгаарлана — бүх цөмийг
+ *    авахгүй.
+ *
+ * ⚠️⚠️ CRON ЗӨВХӨН worker 0-Д: NODE_APP_INSTANCE-ыг node:cluster
+ *    автоматаар өгдөг. Worker 0-оос бусдад CRON_ENABLED=false тавьж
+ *    @Cron-г унтраана (app.module.ts) — тайлан/сануулга ДАВХАРЛАХГҮЙ.
+ *
+ * ⚠️ CLUSTER_WORKERS=1 (эсвэл тохируулаагүй хөгжүүлэлт) үед cluster
+ *    огт ажиллахгүй — нэг процессын хуучин зан төлөв ХЭВЭЭР.
+ */
+const WORKERS = Math.max(1, Math.min(Number(process.env.CLUSTER_WORKERS ?? 1), cpus().length));
+
+if (WORKERS > 1 && cluster.isPrimary) {
+  console.log(`BestTV primary ${process.pid} — ${WORKERS} worker асааж байна`);
+  /* worker.id → cron эзэн эсэх. Cron эзэн унавал шинийг нь мөн cron эзэн болгоно. */
+  const cronOwner = new Map<number, boolean>();
+  const fork = (isCron: boolean) => {
+    const w = cluster.fork({ CRON_ENABLED: isCron ? 'true' : 'false' });
+    cronOwner.set(w.id, isCron);
+  };
+  for (let i = 0; i < WORKERS; i++) fork(i === 0);
+  cluster.on('exit', (worker, code, signal) => {
+    const wasCron = cronOwner.get(worker.id) ?? false;
+    cronOwner.delete(worker.id);
+    console.error(`Worker ${worker.process.pid} унав (${signal || code}) — сэргээж байна`);
+    fork(wasCron);
+  });
+} else {
+  bootstrap();
+}
