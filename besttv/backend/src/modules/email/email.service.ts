@@ -247,6 +247,9 @@ export class EmailService {
      * шуудангийн шүүлтүүр pixel-тэй имэйлийг сэжиглэдэг.
      */
     track?: boolean;
+    /** ⚠️ Bulk бүлэг — нэг илгээлтийн бүх имэйл ижил batchId (фолдер) */
+    batchId?: string;
+    batchLabel?: string;
   }): Promise<boolean> {
     const to = opts.to.toLowerCase().trim();
 
@@ -283,6 +286,8 @@ export class EmailService {
             template: opts.template,
             status: 'sending',
             userId: opts.userId,
+            batchId: opts.batchId,
+            batchLabel: opts.batchLabel,
           },
           select: { id: true },
         })
@@ -1003,6 +1008,9 @@ ${pixel}
      * давхардал шалгах ба үр дүн хэмжих боломжгүй.
      */
     template?: EmailTemplate;
+    /** ⚠️ Bulk бүлэг — кино реклам/broadcast-ийн бүх имэйл ижил batchId */
+    batchId?: string;
+    batchLabel?: string;
   }) {
     const html = this.layout({
       heading: opts.heading,
@@ -1028,6 +1036,8 @@ ${pixel}
       template: opts.template ?? 'marketing',
       userId: opts.userId,
       track: true,
+      batchId: opts.batchId,
+      batchLabel: opts.batchLabel,
     });
   }
 

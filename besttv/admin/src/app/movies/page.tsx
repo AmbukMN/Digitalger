@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { TableSkeleton } from '@/components/table-skeleton';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Check, Clapperboard, Film, Lock, Pencil, Plus, Settings2, Tv, X } from 'lucide-react';
+import { Check, Clapperboard, Film, Lock, Megaphone, Pencil, Plus, Settings2, Tv, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn, formatBytes } from '@besttv/shared';
@@ -15,6 +15,7 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
+import { PromoteTitleDialog } from '@/components/promote-title-dialog';
 import { DataToolbar, SortHeader } from '@/components/data-toolbar';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { Pagination } from '@/components/pagination';
@@ -55,6 +56,8 @@ export default function MoviesPage() {
   const { data: genres } = useAdminGenres();
   /** null = хаалттай, 'new' = шинэ, id = засах */
   const [editing, setEditing] = useState<string | null | 'new'>(null);
+  /** Рекламдах модал — тухайн кино */
+  const [promoting, setPromoting] = useState<{ id: string; title: string } | null>(null);
   const qc = useQueryClient();
 
   /**
@@ -434,6 +437,16 @@ export default function MoviesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5">
+                      {/* ⚠️ РЕКЛАМДАХ — тухайн киног бүх хэрэглэгчид
+                          promotion имэйлээр bulk илгээх модал нээнэ */}
+                      <button
+                        onClick={() => setPromoting({ id: t.id, title: t.title })}
+                        title="Рекламын имэйл илгээх"
+                        aria-label="Рекламдах"
+                        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+                      >
+                        <Megaphone size={15} />
+                      </button>
                       <button
                         onClick={() => setEditing(t.id)}
                         title="Хурдан засах"
@@ -489,6 +502,14 @@ export default function MoviesPage() {
         titleId={editing === 'new' ? null : editing}
         onClose={() => setEditing(null)}
       />
+
+      {promoting && (
+        <PromoteTitleDialog
+          titleId={promoting.id}
+          titleName={promoting.title}
+          onClose={() => setPromoting(null)}
+        />
+      )}
     </AdminShell>
   );
 }

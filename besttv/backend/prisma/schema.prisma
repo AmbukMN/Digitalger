@@ -1399,6 +1399,15 @@ model EmailLog {
   status    String   @default("sent")
   error     String?
   userId    String?
+
+  /// ⚠️ BULK / КАМПАНИТ ИЛГЭЭЛТИЙН БҮЛЭГ.
+  /// Нэг bulk илгээлт (кино реклам, broadcast) доторх БҮХ имэйл ижил
+  /// batchId-тай. Admin-д «фолдер» болгож бүлэглэхэд ашиглана — 500
+  /// имэйлийг тусдаа мөр болгож пагинаци тэсэлгэхгүй.
+  /// Ганц (transactional) имэйлд null — жагсаалтад дангаараа харагдана.
+  batchId    String?
+  /// Bulk бүлгийн ГАРЧИГ (жишээ: «Кино реклам: Амьдрал чамд жүрж өгөхөд»)
+  batchLabel String?
   /**
    * ⚠️⚠️ ЯГ ИЛГЭЭСЭН HTML — админ бодит имэйлийг ХАРНА.
    *
@@ -1466,6 +1475,8 @@ model EmailLog {
   @@index([template, createdAt])
   @@index([to, createdAt])
   @@index([status, createdAt])
+  /// ⚠️ Bulk бүлэглэлт — batchId-ээр групплэх/тоолоход хурдан байх
+  @@index([batchId, createdAt])
   /**
    * ⚠️ Нээлтийн статистик — «нээгээгүй» шүүлтэд ч хэрэгтэй
    */

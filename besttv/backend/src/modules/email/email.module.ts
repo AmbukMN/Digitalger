@@ -32,7 +32,9 @@ import {
 } from 'class-validator';
 import { Prisma, Role, SubscriberStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../storage/storage.service';
 import { verifyUnsubscribe } from '../../common/unsub-token';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -221,6 +223,43 @@ class BroadcastDto {
   @IsOptional()
   @IsString()
   audience?: string;
+}
+
+/** Кино рекламын bulk илгээлт */
+class PromoteTitleDto {
+  @IsString()
+  titleId: string;
+
+  /** Гарчиг (хоосон бол «<нэр> — BestTV дээр үзээрэй») */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  subject?: string;
+
+  /** Толгой (хоосон бол киноны нэр) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  heading?: string;
+
+  /** 'subscribers' | 'users' | 'both' (өгөгдмөл both) */
+  @IsOptional()
+  @IsString()
+  audience?: string;
+}
+
+/** Admin гараар имэйл нэмэх (нэг эсвэл олноор) */
+class AddSubscribersDto {
+  @IsArray()
+  @ArrayMaxSize(5000)
+  @IsEmail({}, { each: true })
+  emails: string[];
+
+  /** Нэр (зөвхөн нэг имэйл нэмэхэд утгатай) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
 }
 
 /**
@@ -738,7 +777,245 @@ export class EmailAdminController {
     private readonly prisma: PrismaService,
     private readonly subs: SubscriberService,
     private readonly email: EmailService,
+    /** ⚠️ Кино реклам имэйлд постерын public URL хэрэгтэй */
+    private readonly storage: StorageService,
   ) {}
+
+  /**
+   * ⚠️⚠️ BULK ИЛГЭЭЛТИЙН TARGET — цуцалсан/зочин хасна (CAN-SPAM).
+   * broadcast болон кино реклам ХОЁУЛАА ашиглана (нэг эх сурвалж —
+   * логик хоёр газар зөрөхгүй).
+   */
+  private async resolveTargets(audience: string): Promise<string[]> {
+    const targets = new Set<string>();
+    if (audience === 'subscribers' || audience === 'both') {
+      const rows = await this.prisma.subscriber.findMany({
+        where: { status: SubscriberStatus.ACTIVE },
+        select: { email: true },
+      });
+      rows.forEach((r) => targets.add(r.email.toLowerCase()));
+    }
+    if (audience === 'users' || audience === 'both') {
+      const rows = await this.prisma.user.findMany({
+        where: { isActive: true, emailVerified: true, marketingOptOut: false, isGuest: false },
+        select: { email: true },
+      });
+      rows.forEach((r) => targets.add(r.email.toLowerCase()));
+    }
+    // Цуцалсан/bounce хасна (эцсийн шат)
+    if (targets.size) {
+      const optedOut = await this.prisma.subscriber.findMany({
+        where: {
+          email: { in: [...targets] },
+          status: { in: [SubscriberStatus.UNSUBSCRIBED, SubscriberStatus.BOUNCED] },
+        },
+        select: { email: true },
+      });
+      optedOut.forEach((r) => targets.delete(r.email.toLowerCase()));
+    }
+    return [...targets];
+  }
+
+  /**
+   * ⚠️⚠️ КИНО РЕКЛАМ — тухайн киног promotion имэйл болгож бүх
+   * хэрэглэгчид bulk илгээнэ (кино/сериал ялгаагүй).
+   *
+   * • Постер + тайлбар + «Үзэх» товч бүхий картан имэйл.
+   * • Нэг batchId → admin-д «фолдер» болж бүлэглэгдэнэ (пагинаци тэсэлгэхгүй).
+   * • userId холбоно — давхардал/статистик шалгах боломжтой.
+   */
+  @Post('promote-title')
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  async promoteTitle(@Body() dto: PromoteTitleDto) {
+    const title = await this.prisma.title.findUnique({
+      where: { id: dto.titleId },
+      select: { id: true, title: true, slug: true, description: true, posterKey: true, type: true },
+    });
+    if (!title) throw new BadRequestException('Кино олдсонгүй');
+
+    const audience = dto.audience ?? 'both';
+    const emails = await this.resolveTargets(audience);
+    if (!emails.length) return { queued: 0 };
+
+    // email → userId (статистик/давхардалд)
+    const users = await this.prisma.user.findMany({
+      where: { email: { in: emails } },
+      select: { id: true, email: true },
+    });
+    const uidByEmail = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
+
+    const posterUrl = title.posterKey
+      ? await this.storage.publicAssetUrl(title.posterKey, 30 * 86400).catch(() => null)
+      : null;
+    const link = `https://besttv.us/title/${title.slug}`;
+    const kind = title.type === 'SERIES' ? 'Цуврал' : 'Кино';
+
+    // ⚠️ Promotion body — постер (public URL) + тайлбар. Хоосон тайлбарт fallback.
+    const desc =
+      (title.description ?? '').trim() ||
+      'Шинэ контент BestTV дээр — одоо үзээрэй.';
+    const bodyHtml =
+      (posterUrl
+        ? `<a href="${link}" style="text-decoration:none"><img src="${posterUrl}" alt="${title.title}" width="240" style="display:block;margin:0 auto 18px;max-width:240px;width:60%;border-radius:12px" /></a>`
+        : '') +
+      `<p class="btv-muted" style="margin:0 0 6px;text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9a9aa0">${kind}</p>` +
+      `<p class="btv-muted" style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#c8c8ce">${desc}</p>`;
+
+    const batchId = randomUUID();
+    const batchLabel = `Кино реклам: ${title.title}`;
+    const subject = dto.subject?.trim() || `${title.title} — BestTV дээр үзээрэй`;
+    const heading = dto.heading?.trim() || title.title;
+
+    for (const to of emails) {
+      this.email.sendMarketing({
+        to,
+        subject,
+        heading,
+        bodyHtml,
+        ctaText: 'Одоо үзэх',
+        ctaUrl: link,
+        userId: uidByEmail.get(to),
+        batchId,
+        batchLabel,
+      });
+    }
+    return { queued: emails.length, batchId, batchLabel };
+  }
+
+  /**
+   * ⚠️ ADMIN ГАРААР ИМЭЙЛ НЭМЭХ — нэг эсвэл олноор.
+   * Идемпотент (upsert) тул давхардвал алдаа өгөхгүй, цуцалсныг сэргээнэ.
+   */
+  @Post('subscribers/add')
+  async addSubscribers(@Body() dto: AddSubscribersDto) {
+    const clean = [...new Set(dto.emails.map((e) => e.toLowerCase().trim()).filter(Boolean))];
+    let added = 0;
+    for (const email of clean) {
+      try {
+        await this.prisma.subscriber.upsert({
+          where: { email },
+          create: {
+            email,
+            name: clean.length === 1 ? dto.name : undefined,
+            source: 'admin',
+          },
+          update: { status: SubscriberStatus.ACTIVE },
+        });
+        added++;
+      } catch {
+        /* нэг имэйл унавал бусдыг зогсоохгүй */
+      }
+    }
+    return { ok: true, added, total: clean.length };
+  }
+
+  /**
+   * ⚠️⚠️ ИЛГЭЭСЭН ИМЭЙЛ — ФОЛДЕР БАЙДЛААР.
+   *
+   * БОДИТ АСУУДАЛ: bulk илгээлт (кино реклам, broadcast) 500 имэйл
+   * тус бүр мөр болж пагинаци тэсэлдэг. Оронд нь:
+   *   • batchId-тай имэйлүүд → НЭГ «фолдер» мөр (тоо, статистиктай)
+   *   • batchId-гүй (transactional) → дангаараа мөр
+   */
+  @Get('logs/grouped')
+  async logsGrouped(@Query('page') page = '1', @Query('limit') limit = '20') {
+    const take = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const p = Math.max(Number(page) || 1, 1);
+
+    // 1) Bulk бүлгүүд (batchId бүрээр нэгтгэсэн)
+    const batches = await this.prisma.emailLog.groupBy({
+      by: ['batchId', 'batchLabel'],
+      where: { batchId: { not: null } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+      _min: { subject: true },
+    });
+    const folders = await Promise.all(
+      batches.map(async (b) => {
+        const [sent, opened] = await Promise.all([
+          this.prisma.emailLog.count({ where: { batchId: b.batchId, status: 'sent' } }),
+          this.prisma.emailLog.count({ where: { batchId: b.batchId, openedAt: { not: null } } }),
+        ]);
+        return {
+          type: 'folder' as const,
+          batchId: b.batchId!,
+          label: b.batchLabel ?? b._min.subject ?? 'Бөөн илгээлт',
+          total: b._count._all,
+          sent,
+          opened,
+          createdAt: b._max.createdAt,
+        };
+      }),
+    );
+
+    // 2) Ганц (batchId-гүй) имэйлүүд
+    const singleWhere = { batchId: null } as const;
+    const [singles, singleTotal] = await Promise.all([
+      this.prisma.emailLog.findMany({
+        where: singleWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * take,
+        take,
+        select: {
+          id: true, to: true, subject: true, template: true,
+          status: true, openedAt: true, createdAt: true,
+        },
+      }),
+      this.prisma.emailLog.count({ where: singleWhere }),
+    ]);
+
+    return {
+      folders: folders.sort(
+        (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
+      ),
+      singles: singles.map((s) => ({ type: 'single' as const, ...s })),
+      singleTotal,
+      page: p,
+      limit: take,
+      singlePages: Math.ceil(singleTotal / take),
+    };
+  }
+
+  /** Нэг фолдер (batchId)-ын дэлгэрэнгүй — модалд харуулна */
+  @Get('logs/batch/:batchId')
+  async logsBatch(
+    @Param('batchId') batchId: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '30',
+  ) {
+    const take = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const p = Math.max(Number(page) || 1, 1);
+    const [items, total, sent, opened, first] = await Promise.all([
+      this.prisma.emailLog.findMany({
+        where: { batchId },
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * take,
+        take,
+        select: {
+          id: true, to: true, subject: true, status: true, openedAt: true, createdAt: true,
+        },
+      }),
+      this.prisma.emailLog.count({ where: { batchId } }),
+      this.prisma.emailLog.count({ where: { batchId, status: 'sent' } }),
+      this.prisma.emailLog.count({ where: { batchId, openedAt: { not: null } } }),
+      this.prisma.emailLog.findFirst({
+        where: { batchId },
+        select: { batchLabel: true, subject: true, createdAt: true },
+      }),
+    ]);
+    return {
+      label: first?.batchLabel ?? first?.subject ?? 'Бөөн илгээлт',
+      subject: first?.subject,
+      createdAt: first?.createdAt,
+      total,
+      sent,
+      opened,
+      items,
+      page: p,
+      limit: take,
+      totalPages: Math.ceil(total / take),
+    };
+  }
 
   /**
    * ⚠️⚠️ ЯГ ИЛГЭЭСЭН ИМЭЙЛИЙГ ХАРАХ.
