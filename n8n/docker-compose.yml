@@ -113,8 +113,17 @@ services:
       - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-debug}
       - N8N_LOG_OUTPUT=console
 
+      # ── Task runner (Code node) ──────────────────────────────────────────────
+      # ⚠️⚠️ Runner-ыг БҮРЭН унтраав. n8n 2.x-ийн internal runner нь Python 3-ыг
+      # эхлүүлэх гэж оролдоод (Docker Hardened Alpine image-д тогтворгүй) execution-ыг
+      # `running`-д мөнхөд гацаадаг байв → FB/IG чат чимээгүй хариулахгүй. ENABLED=false
+      # үед Code node n8n үндсэн процесст (main-thread) найдвартай ажиллана.
+      # (2026-08-23 production дээр батлагдсан. N8N_RUNNERS_MODE-ыг БҮҮ тавь.)
+      - N8N_RUNNERS_ENABLED=false
+
       # ── Limits ───────────────────────────────────────────────────────────────
       - N8N_PAYLOAD_SIZE_MAX=${N8N_PAYLOAD_SIZE_MAX:-64}
+      - N8N_CONCURRENCY_PRODUCTION_LIMIT=${N8N_CONCURRENCY_PRODUCTION_LIMIT:-200}
 
       # ── Custom nodes ─────────────────────────────────────────────────────────
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
