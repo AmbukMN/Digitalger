@@ -417,7 +417,7 @@ function SeasonBlock({
             <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
               <span>{episodes.length} анги</span>
               {readyCount > 0 && <span>· {readyCount} бэлэн</span>}
-              {freeCount > 0 && <span className="text-secondary">· {freeCount} үнэгүй</span>}
+              {freeCount > 0 && <span className="text-warning">· {freeCount} үнэгүй</span>}
               {hiddenEps > 0 && <span className="text-warning">· {hiddenEps} нуусан</span>}
             </p>
           </div>
@@ -499,7 +499,7 @@ function SeasonBlock({
                   */}
                   <span className="ml-auto flex shrink-0 items-center gap-1.5">
                     {ep.isFreePreview && (
-                      <span className="rounded bg-secondary/15 px-1.5 py-0.5 text-[10px] font-medium text-secondary">
+                      <span className="shrink-0 rounded bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning">
                         Үнэгүй
                       </span>
                     )}
