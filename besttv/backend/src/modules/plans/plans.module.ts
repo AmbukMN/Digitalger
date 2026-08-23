@@ -58,6 +58,16 @@ class PlanDto {
   @IsBoolean()
   isBestValue?: boolean;
 
+  /** Badge текст (хоосон бол «Хамгийн ашигтай») */
+  @IsOptional()
+  @IsString()
+  badgeText?: string;
+
+  /** Badge/хүрээний өнгө HEX (хоосон бол premium алтан) */
+  @IsOptional()
+  @IsString()
+  badgeColor?: string;
+
   /** Энэ багц ямар жанруудын контентыг нээхийг тодорхойлно */
   @IsOptional()
   @IsArray()

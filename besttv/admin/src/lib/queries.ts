@@ -175,6 +175,8 @@ export interface AdminPlan {
   isActive: boolean;
   isVip: boolean;
   isBestValue: boolean;
+  badgeText?: string;
+  badgeColor?: string;
   order: number;
   genres: { id: string; name: string; slug: string; isAdult: boolean }[];
 }

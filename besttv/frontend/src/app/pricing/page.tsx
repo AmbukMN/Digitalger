@@ -36,6 +36,20 @@ function formatDuration(days: number): string {
   return `${days} хоног`;
 }
 
+/**
+ * Badge-ийн дэвсгэр өнгөнд тохирсон ТЕКСТИЙН өнгө (уншигдахуйц байх).
+ * Гэрэлтэй дэвсгэрт хар, бараанд цагаан — YIQ гэрэлтэлтээр шийднэ.
+ */
+function pickTextColor(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return '#000';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 150 ? '#111' : '#fff';
+}
+
 export default function PricingPage() {
   const { data: plans, isLoading, isError, refetch } = usePlans();
   /* ⚠️ Урамшуулал — planId → тохирсон урамшуулал. Backend нь ХАМГИЙН
@@ -407,6 +421,16 @@ export default function PricingPage() {
           return (
             <div
               key={plan.id}
+              /* ⚠️ Admin badgeColor өгсөн + «Хамгийн ашигтай» бол хүрээг тэр
+                 өнгөөр буднэ (класс биш inline — динамик HEX). */
+              style={
+                plan.isBestValue && plan.badgeColor
+                  ? {
+                      borderColor: plan.badgeColor,
+                      boxShadow: `0 20px 45px -15px ${plan.badgeColor}66`,
+                    }
+                  : undefined
+              }
               className={cn(
                 // ⚠️ `h-full` — доторх `mt-auto` (товчны блок) ажиллахад ЗААВАЛ
                 'relative flex h-full flex-col rounded-2xl border p-3 transition-transform sm:p-6',
@@ -434,19 +458,33 @@ export default function PricingPage() {
                       : 'border-foreground/10 bg-foreground/3 hover:border-foreground/20',
               )}
             >
-              {/* ⚠️ «Хамгийн ашигтай» — ADMIN удирдана (isBestValue).
-                  Өмнө бүх VIP-д авто гардаг тул 2 VIP ялгагдахгүй байв.
-                  Урт хугацаат VIP-д тусад нь «ХЭМНЭЛТТЭЙ» тэмдэг —
-                  «6 сар авбал хэмнэнэ» гэдгийг шууд ойлгуулна. */}
-              {plan.isBestValue && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
-                  Хамгийн ашигтай
+              {/* ⚠️ Badge БҮРЭН ДИНАМИК — ADMIN удирдана:
+                    isBestValue = харуулах эсэх
+                    badgeText   = текст (хоосон бол «Хамгийн ашигтай»)
+                    badgeColor  = өнгө (хоосон бол premium алтан)
+                  Урт хугацаат VIP-д (badge тавиагүй бол) авто «Хэмнэлттэй». */}
+              {plan.isBestValue ? (
+                <span
+                  className={cn(
+                    'absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide shadow-lg',
+                    /* Өнгө заагаагүй бол системийн premium алтан */
+                    !plan.badgeColor && 'bg-premium-solid text-premium-foreground',
+                  )}
+                  style={
+                    plan.badgeColor
+                      ? { background: plan.badgeColor, color: pickTextColor(plan.badgeColor) }
+                      : undefined
+                  }
+                >
+                  {plan.badgeText?.trim() || 'Хамгийн ашигтай'}
                 </span>
-              )}
-              {!plan.isBestValue && plan.isVip && plan.durationDays > 30 && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
-                  Хэмнэлттэй
-                </span>
+              ) : (
+                plan.isVip &&
+                plan.durationDays > 30 && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
+                    Хэмнэлттэй
+                  </span>
+                )
               )}
 
               {/*

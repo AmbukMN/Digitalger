@@ -59,6 +59,10 @@ export interface PlanInfo {
   isVip: boolean;
   /** «Хамгийн ашигтай» тэмдэг — admin удирдана (бүх VIP-д авто биш) */
   isBestValue?: boolean;
+  /** Badge текст (хоосон бол «Хамгийн ашигтай») */
+  badgeText?: string;
+  /** Badge/хүрээний өнгө HEX (хоосон бол premium алтан) */
+  badgeColor?: string;
   /** Энэ багц нээх жанрууд (VIP бол хоосон) */
   genres: { id: string; name: string; slug: string; isAdult: boolean }[];
 }

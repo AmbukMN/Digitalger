@@ -472,6 +472,14 @@ model Plan {
   /// ганц багцад л тавина — маркетингийн анхаарал татах цэг.
   isBestValue Boolean @default(false)
 
+  /// Badge-ийн ТЕКСТ — admin өөрөө бичнэ (хоосон бол «Хамгийн ашигтай»).
+  /// isBestValue=true үед л харагдана.
+  badgeText String @default("")
+
+  /// Badge + картын хүрээний ӨНГӨ (HEX, ж: "#ffbe00"). Хоосон бол
+  /// системийн premium алтан өнгө. isBestValue=true үед л хэрэглэнэ.
+  badgeColor String @default("")
+
   genres        PlanGenre[]
   subscriptions Subscription[]
   payments      Payment[]

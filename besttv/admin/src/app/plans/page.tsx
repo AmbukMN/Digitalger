@@ -23,6 +23,8 @@ interface FormState {
   features: string;
   isVip: boolean;
   isBestValue: boolean;
+  badgeText: string;
+  badgeColor: string;
   isActive: boolean;
   order: string;
   genreIds: string[];
@@ -36,10 +38,22 @@ const EMPTY: FormState = {
   features: 'Завсаргүй үзвэр, FHD чанар, Олон төхөөрөмж',
   isVip: false,
   isBestValue: false,
+  badgeText: '',
+  badgeColor: '',
   isActive: true,
   order: '0',
   genreIds: [],
 };
+
+/** Badge дэвсгэрт тохирсон текст өнгө (frontend-тэй ижил YIQ логик) */
+function badgeTextColor(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return '#000';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 150 ? '#111' : '#fff';
+}
 
 /** Хугацааны товч сонголтууд — уян хатан, гараар ч бичиж болно */
 const DURATION_PRESETS = [
@@ -97,6 +111,8 @@ export default function PlansPage() {
             features: (plan.features ?? []).join(', '),
             isVip: plan.isVip,
             isBestValue: plan.isBestValue ?? false,
+            badgeText: plan.badgeText ?? '',
+            badgeColor: plan.badgeColor ?? '',
             isActive: plan.isActive,
             order: String(plan.order),
             genreIds: plan.genres.map((g) => g.id),
@@ -123,6 +139,8 @@ export default function PlansPage() {
         features: form.features.split(',').map((f) => f.trim()).filter(Boolean),
         isVip: form.isVip,
         isBestValue: form.isBestValue,
+        badgeText: form.badgeText.trim(),
+        badgeColor: form.badgeColor.trim(),
         isActive: form.isActive,
         order: Number(form.order) || 0,
         genreIds: form.isVip ? [] : form.genreIds,
@@ -524,10 +542,76 @@ export default function PlansPage() {
                     ⭐ «Хамгийн ашигтай» тэмдэг
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    Pricing хуудсанд алтан тэмдгээр онцолно. Ганц багцад л тавихыг зөвлөнө.
+                    Pricing хуудсанд онцолно. Ганц багцад л тавихыг зөвлөнө.
                   </span>
                 </span>
               </label>
+
+              {/* ⚠️ Badge тохиргоо — checked үед л. Текст болон өнгийг
+                  admin ӨӨРӨӨ бичнэ (динамик). Хоосон бол өгөгдмөл. */}
+              {form.isBestValue && (
+                <div className="space-y-3 rounded-lg border border-warning/20 bg-warning/4 p-3">
+                  <Field label="Тэмдгийн текст">
+                    <input
+                      value={form.badgeText}
+                      onChange={(e) => setForm((f) => ({ ...f, badgeText: e.target.value }))}
+                      placeholder="Хамгийн ашигтай"
+                      maxLength={24}
+                      className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Хоосон бол «Хамгийн ашигтай». Дээд тал нь 24 тэмдэгт.
+                    </p>
+                  </Field>
+
+                  <Field label="Тэмдэг + хүрээний өнгө">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={form.badgeColor || '#ffbe00'}
+                        onChange={(e) => setForm((f) => ({ ...f, badgeColor: e.target.value }))}
+                        className="h-9 w-14 cursor-pointer rounded-md border border-input bg-card"
+                        aria-label="Өнгө сонгох"
+                      />
+                      <input
+                        value={form.badgeColor}
+                        onChange={(e) => setForm((f) => ({ ...f, badgeColor: e.target.value }))}
+                        placeholder="#ffbe00 (хоосон = алтан)"
+                        className="flex-1 rounded-md border border-input bg-card px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                      />
+                      {form.badgeColor && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, badgeColor: '' }))}
+                          className="rounded-md border border-input px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Арилгах
+                        </button>
+                      )}
+                    </div>
+                    {/* Урьдчилан харах */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Харагдах байдал:</span>
+                      <span
+                        className={cn(
+                          'rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide',
+                          !form.badgeColor && 'bg-premium-solid text-premium-foreground',
+                        )}
+                        style={
+                          form.badgeColor
+                            ? {
+                                background: form.badgeColor,
+                                color: badgeTextColor(form.badgeColor),
+                              }
+                            : undefined
+                        }
+                      >
+                        {form.badgeText.trim() || 'Хамгийн ашигтай'}
+                      </span>
+                    </div>
+                  </Field>
+                </div>
+              )}
 
               {!form.isVip && (
                 <Field label={`Нээгдэх жанрууд (${form.genreIds.length} сонгосон)`}>
