@@ -279,7 +279,11 @@ export interface DashboardStats {
     name: string;
     price: number;
     isVip: boolean;
+    durationDays: number;
     activeCount: number;
+    totalSold: number;
+    revenue: number;
+    expiredCount: number;
   }[];
   // backward-compat
   newUsersMonth: number;
@@ -293,6 +297,23 @@ export function useDashboard(range = '30d') {
     queryFn: () => api<DashboardStats>(`/admin/analytics/dashboard?range=${range}`),
     staleTime: 60_000,
     placeholderData: (prev) => prev,
+  });
+}
+
+/** Контентын гүйцэтгэл — топ түрээс/үзэлт, жанрын орлого */
+export interface ContentInsights {
+  topRented: { id: string; title: string; type: string; count: number; revenue: number }[];
+  topViewed: { id: string; title: string; type: string; views: number; rating: number }[];
+  byGenre: { name: string; count: number; revenue: number }[];
+  rentalTotal: { count: number; revenue: number };
+}
+
+export function useContentInsights(enabled = true) {
+  return useQuery({
+    queryKey: ['admin-content-insights'],
+    queryFn: () => api<ContentInsights>('/admin/analytics/content-insights'),
+    staleTime: 2 * 60_000,
+    enabled,
   });
 }
 

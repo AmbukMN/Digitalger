@@ -21,6 +21,7 @@ import {
   Search,
   Smartphone,
   Star,
+  Ticket,
   TrendingDown,
   TrendingUp,
   Tv,
@@ -31,7 +32,7 @@ import { cn, formatPrice } from '@besttv/shared';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { api } from '@/lib/api';
-import { useDashboard } from '@/lib/queries';
+import { useDashboard, useContentInsights } from '@/lib/queries';
 
 /**
  * НЭГДСЭН ХЯНАХ САМБАР.
@@ -57,6 +58,7 @@ const RANGES = [
 const TABS = [
   { id: 'overview', label: 'Тойм' },
   { id: 'revenue', label: 'Орлого & Багц' },
+  { id: 'content', label: 'Контент' },
   { id: 'behavior', label: 'Зан төлөв' },
 ] as const;
 
@@ -101,9 +103,11 @@ export default function DashboardPage() {
     staleTime: 60_000,
     placeholderData: (p) => p,
   });
+  /* Контент insight — зөвхөн тэр таб идэвхтэй үед татна (хүнд query) */
+  const { data: content, isFetching: contentFetching } = useContentInsights(tab === 'content');
 
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? '';
-  const busy = isFetching || insFetching;
+  const busy = isFetching || insFetching || contentFetching;
 
   return (
     <AdminShell>
@@ -320,36 +324,74 @@ export default function DashboardPage() {
                 <div className="mt-5 grid gap-5 lg:grid-cols-2">
                   <section className="admin-card rounded-xl p-5">
                     <h2 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
-                      <Crown size={16} className="text-premium" /> Багцын идэвхтэй захиалагч
+                      <Crown size={16} className="text-premium" /> Багцын гүйцэтгэл
                     </h2>
-                    <div className="space-y-2">
-                      {data.planBreakdown.map((p) => {
-                        const max = Math.max(...data.planBreakdown.map((x) => x.activeCount), 1);
-                        return (
-                          <div key={p.id} className="flex items-center gap-3 text-sm">
-                            <span className="w-36 shrink-0 truncate text-foreground">
-                              {p.isVip && <Crown size={11} className="mr-1 inline text-premium" />}
-                              {p.name}
-                            </span>
-                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className={cn(
-                                  'h-full rounded-full transition-all',
-                                  p.isVip ? 'bg-premium' : 'bg-primary',
+                    {data.planBreakdown.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Багц байхгүй</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[420px] text-sm">
+                          <thead>
+                            <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+                              <th className="pb-2 text-left font-semibold">Багц</th>
+                              <th className="pb-2 text-right font-semibold">Идэвхтэй</th>
+                              <th className="pb-2 text-right font-semibold">Зарагдсан</th>
+                              <th className="pb-2 text-right font-semibold">Орлого</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {[...data.planBreakdown]
+                              .sort((a, b) => b.revenue - a.revenue)
+                              .map((p) => (
+                                <tr key={p.id}>
+                                  <td className="py-2.5 pr-2">
+                                    <span className="flex items-center gap-1 text-foreground">
+                                      {p.isVip && <Crown size={11} className="text-premium" />}
+                                      <span className="truncate">{p.name}</span>
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 text-right font-semibold text-foreground tabular-nums">
+                                    {p.activeCount}
+                                    {p.expiredCount > 0 && (
+                                      <span
+                                        className="ml-1 text-xs font-normal text-muted-foreground"
+                                        title="Дууссан (сунгаж болно)"
+                                      >
+                                        +{p.expiredCount}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 text-right text-muted-foreground tabular-nums">
+                                    {p.totalSold}
+                                  </td>
+                                  <td className="py-2.5 text-right font-semibold text-success tabular-nums">
+                                    {formatPrice(p.revenue)}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-border text-sm font-semibold">
+                              <td className="pt-2.5 text-foreground">Нийт</td>
+                              <td className="pt-2.5 text-right text-foreground tabular-nums">
+                                {data.planBreakdown.reduce((s, p) => s + p.activeCount, 0)}
+                              </td>
+                              <td className="pt-2.5 text-right text-muted-foreground tabular-nums">
+                                {data.planBreakdown.reduce((s, p) => s + p.totalSold, 0)}
+                              </td>
+                              <td className="pt-2.5 text-right text-success tabular-nums">
+                                {formatPrice(
+                                  data.planBreakdown.reduce((s, p) => s + p.revenue, 0),
                                 )}
-                                style={{ width: `${(p.activeCount / max) * 100}%` }}
-                              />
-                            </div>
-                            <span className="w-10 shrink-0 text-right font-semibold text-foreground">
-                              {p.activeCount}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {data.planBreakdown.length === 0 && (
-                        <p className="text-sm text-muted-foreground">Багц байхгүй</p>
-                      )}
-                    </div>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          «Идэвхтэй» = одоо эрхтэй · <span className="text-muted-foreground">+N</span> = дууссан (сунгаж болно) · Орлого = топапгүй
+                        </p>
+                      </div>
+                    )}
                   </section>
 
                   <ListCard
@@ -398,6 +440,136 @@ export default function DashboardPage() {
                     icon={<PlayCircle size={17} />}
                   />
                 </div>
+              </>
+            )}
+
+            {/* ─── КОНТЕНТ ──────────────────────────────────────────────── */}
+            {tab === 'content' && (
+              <>
+                {!content ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className="admin-card h-64 animate-pulse rounded-xl" />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {/* Түрээсийн хураангуй — 2 карт */}
+                    <div className="mb-5 grid gap-3 grid-cols-1 sm:grid-cols-2">
+                      <Metric
+                        icon={<Ticket size={17} />}
+                        label="Кино түрээсийн орлого"
+                        value={formatPrice(content.rentalTotal.revenue)}
+                        hint={`${content.rentalTotal.count.toLocaleString()} түрээс`}
+                        tone="success"
+                      />
+                      <Metric
+                        icon={<Film size={17} />}
+                        label="Түрээслэгдсэн кино"
+                        value={content.topRented.length.toLocaleString()}
+                        hint="өөр гарчиг"
+                      />
+                    </div>
+
+                    <div className="grid gap-5 lg:grid-cols-2">
+                      {/* Хамгийн их түрээслэгдсэн */}
+                      <section className="admin-card rounded-xl p-5">
+                        <h2 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                          <Ticket size={16} className="text-success" /> Хамгийн их түрээслэгдсэн
+                        </h2>
+                        {content.topRented.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Түрээс байхгүй байна</p>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {content.topRented.map((t, i) => {
+                              const max = content.topRented[0]?.count || 1;
+                              return (
+                                <div key={t.id} className="flex items-center gap-3 text-sm">
+                                  <span className="w-5 shrink-0 text-right text-xs font-semibold text-muted-foreground tabular-nums">
+                                    {i + 1}
+                                  </span>
+                                  <span className="w-32 shrink-0 truncate text-foreground sm:w-40">
+                                    {t.title}
+                                  </span>
+                                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full bg-success transition-all"
+                                      style={{ width: `${(t.count / max) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-8 shrink-0 text-right font-semibold text-foreground tabular-nums">
+                                    {t.count}
+                                  </span>
+                                  <span className="hidden w-20 shrink-0 text-right text-xs text-success tabular-nums sm:inline">
+                                    {formatPrice(t.revenue)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
+
+                      {/* Жанр бүрийн орлого */}
+                      <section className="admin-card rounded-xl p-5">
+                        <h2 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                          <TrendingUp size={16} className="text-primary" /> Жанрын түрээсийн орлого
+                        </h2>
+                        {content.byGenre.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Мэдээлэл байхгүй</p>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {content.byGenre.slice(0, 10).map((g) => {
+                              const max = content.byGenre[0]?.revenue || 1;
+                              return (
+                                <div key={g.name} className="flex items-center gap-3 text-sm">
+                                  <span className="w-28 shrink-0 truncate text-foreground sm:w-32">
+                                    {g.name}
+                                  </span>
+                                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full bg-primary transition-all"
+                                      style={{ width: `${(g.revenue / max) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                                    {g.count}
+                                  </span>
+                                  <span className="w-20 shrink-0 text-right font-semibold text-foreground tabular-nums">
+                                    {formatPrice(g.revenue)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    </div>
+
+                    {/* Хамгийн их үзэгдсэн */}
+                    <section className="admin-card mt-5 rounded-xl p-5">
+                      <h2 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                        <Eye size={16} className="text-premium" /> Хамгийн их үзэгдсэн
+                      </h2>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {content.topViewed.map((t, i) => (
+                          <div
+                            key={t.id}
+                            className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2 text-sm"
+                          >
+                            <span className="w-5 text-right text-xs font-semibold text-muted-foreground tabular-nums">
+                              {i + 1}
+                            </span>
+                            <span className="flex-1 truncate text-foreground">{t.title}</span>
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                              <Eye size={11} /> {t.views.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </>
+                )}
               </>
             )}
 

@@ -230,6 +230,14 @@ export class AnalyticsService {
   }
 
   /** Багц бүрийн идэвхтэй захиалагч — аль багц эрэлттэйг харна */
+  /**
+   * ⚠️ Багц бүрийн ГҮЙЦЭТГЭЛ — олон үзүүлэлт (админ хүсэлт):
+   *   • activeCount   — одоо идэвхтэй захиалагч
+   *   • totalSold     — нийт хэдэн удаа зарагдсан (бүх PAID)
+   *   • revenue       — тухайн багцаар олсон нийт орлого (₮)
+   *   • expiredCount  — дууссан захиалга (сунгах боломжит хэрэглэгч)
+   * ⚠️ Орлогод топап тоологдохгүй (planId-тэй PAID л).
+   */
   private async planBreakdown(now: Date) {
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
@@ -239,16 +247,48 @@ export class AnalyticsService {
         name: true,
         price: true,
         isVip: true,
-        _count: { select: { subscriptions: { where: { expiresAt: { gt: now } } } } },
+        durationDays: true,
+        _count: {
+          select: {
+            subscriptions: { where: { expiresAt: { gt: now } } },
+          },
+        },
       },
     });
-    return plans.map((p) => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      isVip: p.isVip,
-      activeCount: p._count.subscriptions,
-    }));
+
+    // Багц бүрийн борлуулалт + орлого (нэг query, groupBy)
+    const sales = await this.prisma.payment.groupBy({
+      by: ['planId'],
+      where: { status: PaymentStatus.PAID, isWalletTopup: false, planId: { not: null } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    const byPlan = new Map(
+      sales.map((s) => [s.planId, { revenue: s._sum.amount ?? 0, sold: s._count._all }]),
+    );
+
+    // Дууссан захиалга (сунгах боломжит) багц бүрээр
+    const expired = await this.prisma.subscription.groupBy({
+      by: ['planId'],
+      where: { expiresAt: { lte: now } },
+      _count: { _all: true },
+    });
+    const expByPlan = new Map(expired.map((e) => [e.planId, e._count._all]));
+
+    return plans.map((p) => {
+      const s = byPlan.get(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        isVip: p.isVip,
+        durationDays: p.durationDays,
+        activeCount: p._count.subscriptions,
+        totalSold: s?.sold ?? 0,
+        revenue: s?.revenue ?? 0,
+        expiredCount: expByPlan.get(p.id) ?? 0,
+      };
+    });
   }
 }
 
@@ -278,6 +318,15 @@ export class AnalyticsController {
   @Get('insights')
   insightsOverview(@Query('range') range?: string) {
     return this.insights.overview(range ?? '30d');
+  }
+
+  /**
+   * Контентын гүйцэтгэл — хамгийн их түрээслэгдсэн/үзэгдсэн кино,
+   * жанр бүрийн орлого. Админд «аль кино зарагдаж байна» гэдгийг харуулна.
+   */
+  @Get('content-insights')
+  contentInsights() {
+    return this.insights.contentInsights();
   }
 
   @Get('dashboard')

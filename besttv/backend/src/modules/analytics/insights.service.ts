@@ -249,4 +249,92 @@ export class InsightsService {
       return 'Тодорхойгүй';
     }
   }
+
+  /**
+   * ⚠️⚠️ КОНТЕНТ ГҮЙЦЭТГЭЛ — админд нарийн insight (хүсэлт).
+   *
+   * • topRented   — хамгийн их түрээслэгдсэн кино (тоо + орлого)
+   * • topViewed   — хамгийн их үзэгдсэн кино (views)
+   * • byGenre     — жанр бүрийн түрээсийн орлого + ширхэг
+   * • rentalTotal — нийт түрээсийн орлого/тоо (топапгүй)
+   *
+   * ⚠️ 5 минут кэштэй (groupBy + join хүнд).
+   */
+  async contentInsights() {
+    return this.cache.wrap('content-insights', 300, () => this.contentInsightsFresh());
+  }
+
+  private async contentInsightsFresh() {
+    // 1. Түрээсийн төлбөр кино бүрээр (PAID, rentalTitleId-тэй)
+    const rentalSales = await this.prisma.payment.groupBy({
+      by: ['rentalTitleId'],
+      where: { status: 'PAID', isWalletTopup: false, rentalTitleId: { not: null } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    const titleIds = rentalSales.map((r) => r.rentalTitleId!).filter(Boolean);
+
+    // 2. Тэдгээр киноны нэр/жанр
+    const titles = titleIds.length
+      ? await this.prisma.title.findMany({
+          where: { id: { in: titleIds } },
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            views: true,
+            genres: { select: { genre: { select: { name: true, slug: true } } } },
+          },
+        })
+      : [];
+    const titleById = new Map(titles.map((t) => [t.id, t]));
+
+    // 3. Хамгийн их түрээслэгдсэн — тоогоор эрэмбэлж, дээд 10
+    const topRented = rentalSales
+      .map((r) => {
+        const t = titleById.get(r.rentalTitleId!);
+        return {
+          id: r.rentalTitleId!,
+          title: t?.title ?? '(устсан)',
+          type: t?.type ?? 'MOVIE',
+          count: r._count._all,
+          revenue: r._sum.amount ?? 0,
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // 4. Жанр бүрийн түрээсийн орлого/тоо (кино → жанрууд)
+    const genreMap = new Map<string, { name: string; count: number; revenue: number }>();
+    for (const r of rentalSales) {
+      const t = titleById.get(r.rentalTitleId!);
+      if (!t) continue;
+      for (const g of t.genres) {
+        const key = g.genre.slug;
+        const cur = genreMap.get(key) ?? { name: g.genre.name, count: 0, revenue: 0 };
+        cur.count += r._count._all;
+        cur.revenue += r._sum.amount ?? 0;
+        genreMap.set(key, cur);
+      }
+    }
+    const byGenre = [...genreMap.values()].sort((a, b) => b.revenue - a.revenue);
+
+    // 5. Хамгийн их үзэгдсэн кино (views — түрээснээс үл хамааран бүх идэвхтэй)
+    const topViewed = await this.prisma.title.findMany({
+      where: { isActive: true },
+      orderBy: { views: 'desc' },
+      take: 10,
+      select: { id: true, title: true, type: true, views: true, rating: true },
+    });
+
+    const rentalTotal = rentalSales.reduce(
+      (acc, r) => ({
+        count: acc.count + r._count._all,
+        revenue: acc.revenue + (r._sum.amount ?? 0),
+      }),
+      { count: 0, revenue: 0 },
+    );
+
+    return { topRented, topViewed, byGenre, rentalTotal };
+  }
 }
