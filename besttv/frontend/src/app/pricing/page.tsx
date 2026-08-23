@@ -24,6 +24,18 @@ import {
 
 type PayMethod = 'wallet' | 'qpay';
 
+/**
+ * Хугацааг УХААЛГААР харуулна — «180 хоног» гэхээс «6 сар» илүү ойлгомжтой.
+ * 30-д хуваагдах бүтэн сар бол сараар, эс бол хоногоор.
+ *   30→«1 сар», 90→«3 сар», 180→«6 сар», 365→«1 жил», 45→«45 хоног»
+ */
+function formatDuration(days: number): string {
+  if (days === 365) return '1 жил';
+  if (days === 180) return '6 сар';
+  if (days % 30 === 0) return `${days / 30} сар`;
+  return `${days} хоног`;
+}
+
 export default function PricingPage() {
   const { data: plans, isLoading, isError, refetch } = usePlans();
   /* ⚠️ Урамшуулал — planId → тохирсон урамшуулал. Backend нь ХАМГИЙН
@@ -404,19 +416,36 @@ export default function PricingPage() {
                 lgCenter,
                 !supersededByVip && 'hover:-translate-y-1',
                 supersededByVip && 'opacity-55',
-                plan.isVip
-                  ? 'border-premium/60 bg-linear-to-b from-premium/10 to-transparent shadow-xl shadow-premium/10'
-                  : /* ⚠️ УРАМШУУЛАЛТАЙ багц ЯЛГАРНА — маркетингийн гол
-                       зорилго нь анхаарал татах. VIP нь өөрийн загвартай
-                       тул дарж бичихгүй (VIP+урамшуулал бол VIP ялгарна). */
-                    promo
-                    ? 'border-premium/45 bg-linear-to-b from-premium/6 to-transparent hover:border-premium/70'
-                    : 'border-foreground/10 bg-foreground/3 hover:border-foreground/20',
+                /* ⚠️⚠️ ГУРВАН ТӨРЛИЙН ЯЛГАРАЛ:
+                     1) Урт хугацаат VIP (6 сар/1 жил) — АЛТАН+SPECIAL хүрээ,
+                        илүү тод, «хамгийн их хэмнэлт» гэсэн сэтгэгдэл өгнө.
+                        2 VIP-ийг андуурахгүй болгох гол шийдэл.
+                     2) Энгийн VIP (1 сар) — стандарт premium.
+                     3) VIP биш — энгийн эсвэл урамшуулалтай. */
+                plan.isVip && plan.durationDays > 30
+                  ? 'border-premium bg-linear-to-b from-premium/20 via-premium/8 to-transparent shadow-2xl shadow-premium/25 ring-1 ring-premium/30'
+                  : plan.isVip
+                    ? 'border-premium/60 bg-linear-to-b from-premium/10 to-transparent shadow-xl shadow-premium/10'
+                    : /* ⚠️ УРАМШУУЛАЛТАЙ багц ЯЛГАРНА — маркетингийн гол
+                         зорилго нь анхаарал татах. VIP нь өөрийн загвартай
+                         тул дарж бичихгүй (VIP+урамшуулал бол VIP ялгарна). */
+                      promo
+                      ? 'border-premium/45 bg-linear-to-b from-premium/6 to-transparent hover:border-premium/70'
+                      : 'border-foreground/10 bg-foreground/3 hover:border-foreground/20',
               )}
             >
-              {plan.isVip && (
+              {/* ⚠️ «Хамгийн ашигтай» — ADMIN удирдана (isBestValue).
+                  Өмнө бүх VIP-д авто гардаг тул 2 VIP ялгагдахгүй байв.
+                  Урт хугацаат VIP-д тусад нь «ХЭМНЭЛТТЭЙ» тэмдэг —
+                  «6 сар авбал хэмнэнэ» гэдгийг шууд ойлгуулна. */}
+              {plan.isBestValue && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
                   Хамгийн ашигтай
+                </span>
+              )}
+              {!plan.isBestValue && plan.isVip && plan.durationDays > 30 && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-premium-solid px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-premium-foreground shadow-lg">
+                  Хэмнэлттэй
                 </span>
               )}
 
@@ -482,13 +511,24 @@ export default function PricingPage() {
                     гэж хараад «30-ыг төлж 60 авна» гэдэг нь шууд ойлгогдоно */}
                 {promo?.bonusDays ? (
                   <span className="text-xs font-semibold text-premium">
-                    / {promo.totalDays} хоног
+                    / {formatDuration(promo.totalDays)}
                     <span className="ml-1 text-foreground/35 line-through">
-                      {plan.durationDays}
+                      {formatDuration(plan.durationDays)}
                     </span>
                   </span>
                 ) : (
-                  <span className="text-xs text-foreground/40">/ {plan.durationDays} хоног</span>
+                  /* ⚠️ Урт хугацаат багц (6 сар/1 жил) ЯЛГАРНА — алтан өнгө,
+                     хоногоор биш сараар. Хэрэглэгч 2 VIP-ийг андуурахгүй. */
+                  <span
+                    className={cn(
+                      'text-xs',
+                      plan.durationDays > 30
+                        ? 'font-bold text-premium'
+                        : 'text-foreground/40',
+                    )}
+                  >
+                    / {formatDuration(plan.durationDays)}
+                  </span>
                 )}
               </div>
 

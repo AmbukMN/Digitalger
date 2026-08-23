@@ -22,6 +22,7 @@ interface FormState {
   durationDays: string;
   features: string;
   isVip: boolean;
+  isBestValue: boolean;
   isActive: boolean;
   order: string;
   genreIds: string[];
@@ -34,6 +35,7 @@ const EMPTY: FormState = {
   durationDays: '30',
   features: 'Завсаргүй үзвэр, FHD чанар, Олон төхөөрөмж',
   isVip: false,
+  isBestValue: false,
   isActive: true,
   order: '0',
   genreIds: [],
@@ -94,6 +96,7 @@ export default function PlansPage() {
             durationDays: String(plan.durationDays),
             features: (plan.features ?? []).join(', '),
             isVip: plan.isVip,
+            isBestValue: plan.isBestValue ?? false,
             isActive: plan.isActive,
             order: String(plan.order),
             genreIds: plan.genres.map((g) => g.id),
@@ -119,6 +122,7 @@ export default function PlansPage() {
         durationDays: Number(form.durationDays),
         features: form.features.split(',').map((f) => f.trim()).filter(Boolean),
         isVip: form.isVip,
+        isBestValue: form.isBestValue,
         isActive: form.isActive,
         order: Number(form.order) || 0,
         genreIds: form.isVip ? [] : form.genreIds,
@@ -501,6 +505,26 @@ export default function PlansPage() {
                   </span>
                   <span className="text-xs text-muted-foreground">
                     Бүх жанрын контент нээгдэнэ (18+ хамт). Жанр сонгох шаардлагагүй.
+                  </span>
+                </span>
+              </label>
+
+              {/* ⚠️ «Хамгийн ашигтай» тэмдэг — pricing хуудсанд онцолно.
+                  Ихэвчлэн ГАНЦ багцад л тавина (олон багцад тавибал утга
+                  алдагдана). VIP эсэхээс хамаарахгүй. */}
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-warning/30 bg-warning/8 p-3">
+                <input
+                  type="checkbox"
+                  checked={form.isBestValue}
+                  onChange={(e) => setForm((f) => ({ ...f, isBestValue: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 rounded border-input"
+                />
+                <span>
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    ⭐ «Хамгийн ашигтай» тэмдэг
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Pricing хуудсанд алтан тэмдгээр онцолно. Ганц багцад л тавихыг зөвлөнө.
                   </span>
                 </span>
               </label>

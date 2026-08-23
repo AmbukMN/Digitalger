@@ -174,6 +174,7 @@ export interface AdminPlan {
   features: string[];
   isActive: boolean;
   isVip: boolean;
+  isBestValue: boolean;
   order: number;
   genres: { id: string; name: string; slug: string; isAdult: boolean }[];
 }
@@ -684,7 +685,7 @@ export interface AdminPaymentsResult {
   page: number;
   limit: number;
   totalPages: number;
-  stats: { totalAmount: number; paidAmount: number; paidCount: number };
+  stats: { totalAmount: number; paidAmount: number; paidCount: number; topupAmount: number; topupCount: number };
 }
 
 

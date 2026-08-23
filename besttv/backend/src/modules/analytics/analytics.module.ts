@@ -89,19 +89,37 @@ export class AnalyticsService {
       this.prisma.title.count(),
       this.prisma.title.count({ where: { type: 'MOVIE' } }),
       this.prisma.title.count({ where: { type: 'SERIES' } }),
+      /**
+       * ⚠️⚠️ ОРЛОГО — ХЭТЭВЧ ЦЭНЭГЛЭЛТ (топап) ХАСНА.
+       *
+       * БОДИТ АСУУДАЛ: хэрэглэгч 13,000₮ хэтэвчээ цэнэглээд (PAID),
+       * дараа тэр 13,000₮-өөр багц авбал (PAID) хоёулаа тоологдож
+       * орлого 26,000₮ гэж ХОЁР ДАХИН харагдана. Гэтэл жинхэнэ орсон
+       * мөнгө 13,000₮.
+       *
+       * Топап нь МӨНГӨ ШИЛЖҮҮЛЭГ (орлого биш) — жинхэнэ орлого нь
+       * зарцуулалт (багц/кино/түрээс). Тиймээс бүх revenue-гээс
+       * `isWalletTopup=false` шүүнэ. Топапыг тусад нь харуулж болно.
+       */
       this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.PAID },
+        where: { status: PaymentStatus.PAID, isWalletTopup: false },
         _sum: { amount: true },
       }),
       this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.PAID, paidAt: { gte: from } },
+        where: { status: PaymentStatus.PAID, isWalletTopup: false, paidAt: { gte: from } },
         _sum: { amount: true },
       }),
       this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.PAID, paidAt: { gte: prevFrom, lt: from } },
+        where: {
+          status: PaymentStatus.PAID,
+          isWalletTopup: false,
+          paidAt: { gte: prevFrom, lt: from },
+        },
         _sum: { amount: true },
       }),
-      this.prisma.payment.count({ where: { status: PaymentStatus.PAID, paidAt: { gte: from } } }),
+      this.prisma.payment.count({
+        where: { status: PaymentStatus.PAID, isWalletTopup: false, paidAt: { gte: from } },
+      }),
       this.prisma.rental.count({ where: { createdAt: { gte: from } } }),
       this.prisma.payment.findMany({
         where: { status: PaymentStatus.PAID },
@@ -166,7 +184,8 @@ export class AnalyticsService {
   private async dailySeries(from: Date, days: number) {
     const [payments, users] = await Promise.all([
       this.prisma.payment.findMany({
-        where: { status: PaymentStatus.PAID, paidAt: { gte: from } },
+        /* ⚠️ Топап хасна — орлогын графикт давхар тоологдохгүй (dashboard-той нийцтэй) */
+        where: { status: PaymentStatus.PAID, isWalletTopup: false, paidAt: { gte: from } },
         select: { paidAt: true, amount: true },
       }),
       this.prisma.user.findMany({

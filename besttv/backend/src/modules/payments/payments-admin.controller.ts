@@ -104,7 +104,7 @@ export class PaymentsAdminController {
 
     const orderBy = { [sort ?? 'createdAt']: dir ?? 'desc' } as Prisma.PaymentOrderByWithRelationInput;
 
-    const [items, total, agg, paidAgg] = await Promise.all([
+    const [items, total, agg, paidAgg, topupAgg] = await Promise.all([
       this.prisma.payment.findMany({
         where,
         orderBy,
@@ -127,9 +127,22 @@ export class PaymentsAdminController {
       this.prisma.payment.count({ where }),
       // Шүүсэн БҮХ мөрийн нийлбэр (зөвхөн энэ хуудас биш)
       this.prisma.payment.aggregate({ where, _sum: { amount: true } }),
-      // Үүнээс БОДИТ орлого (төлөгдсөн нь)
+      /**
+       * ⚠️⚠️ БОДИТ ОРЛОГО — ТОПАП ХАСНА.
+       *
+       * Хэтэвч цэнэглэлт → дараа багц авбал хоёулаа PAID болж давхар
+       * тоологдоно. Орлого = зөвхөн багц/кино/түрээс. Тиймээс энд
+       * `isWalletTopup=false`. Хэрэглэгч тусгайлан `kind=topup` шүүвэл
+       * тэр шүүлт `where`-д орсон тул топап харагдана (доор `topupAgg`).
+       */
       this.prisma.payment.aggregate({
-        where: { ...where, status: PaymentStatus.PAID },
+        where: { ...where, status: PaymentStatus.PAID, isWalletTopup: false },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      /* Хэтэвч цэнэглэлт — тусад нь (толгойд мэдээлэл болгож) */
+      this.prisma.payment.aggregate({
+        where: { ...where, status: PaymentStatus.PAID, isWalletTopup: true },
         _sum: { amount: true },
         _count: true,
       }),
@@ -146,6 +159,9 @@ export class PaymentsAdminController {
         totalAmount: agg._sum.amount ?? 0,
         paidAmount: paidAgg._sum.amount ?? 0,
         paidCount: paidAgg._count,
+        /* Хэтэвч цэнэглэлт — орлогод тоологдоогүй, тусад нь мэдээлэл */
+        topupAmount: topupAgg._sum.amount ?? 0,
+        topupCount: topupAgg._count,
       },
     };
   }

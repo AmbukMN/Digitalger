@@ -57,6 +57,8 @@ export interface PlanInfo {
   features: string[];
   /** VIP = бүх жанрын контент нээгдэнэ */
   isVip: boolean;
+  /** «Хамгийн ашигтай» тэмдэг — admin удирдана (бүх VIP-д авто биш) */
+  isBestValue?: boolean;
   /** Энэ багц нээх жанрууд (VIP бол хоосон) */
   genres: { id: string; name: string; slug: string; isAdult: boolean }[];
 }

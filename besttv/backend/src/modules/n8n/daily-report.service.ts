@@ -99,7 +99,8 @@ export class DailyReportService implements OnModuleDestroy {
           },
         }),
         this.prisma.payment.aggregate({
-          where: { status: 'PAID', paidAt: { gte: prev.start, lt: prev.end } },
+          /* ⚠️ Топап хасна — өнөөдрийн орлоготой (доор мөн топапгүй) ижил суурьтай харьцуулна */
+          where: { status: 'PAID', isWalletTopup: false, paidAt: { gte: prev.start, lt: prev.end } },
           _sum: { amount: true },
         }),
         this.prisma.user.count({ where: { createdAt: { gte: start, lt: end } } }),
@@ -161,7 +162,9 @@ export class DailyReportService implements OnModuleDestroy {
 
     this.n8n.emitDailyReport({
       date: this.dayKey(),
-      totalRevenue: planRevenue + rentalRevenue + topupRevenue,
+      /* ⚠️ Орлого = багц + түрээс (ТОПАП ХАСНА — давхар тооцоо болно).
+         Топапыг тусдаа `topupRevenue`-д мэдээлэл болгож харуулна. */
+      totalRevenue: planRevenue + rentalRevenue,
       planRevenue,
       rentalRevenue,
       topupRevenue,
@@ -177,7 +180,7 @@ export class DailyReportService implements OnModuleDestroy {
     });
 
     this.logger.log(
-      `Өдрийн тайлан илгээв: ${planRevenue + rentalRevenue + topupRevenue}₮ · ${planCount} багц · ${rentalCount} түрээс`,
+      `Өдрийн тайлан илгээв: ${planRevenue + rentalRevenue}₮ орлого (+${topupRevenue}₮ топап) · ${planCount} багц · ${rentalCount} түрээс`,
     );
   }
 }

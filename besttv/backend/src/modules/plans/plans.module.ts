@@ -53,6 +53,11 @@ class PlanDto {
   @IsBoolean()
   isVip?: boolean;
 
+  /** «Хамгийн ашигтай» тэмдэг — pricing хуудсанд онцолно (admin удирдана) */
+  @IsOptional()
+  @IsBoolean()
+  isBestValue?: boolean;
+
   /** Энэ багц ямар жанруудын контентыг нээхийг тодорхойлно */
   @IsOptional()
   @IsArray()

@@ -467,6 +467,11 @@ model Plan {
   /// false бол зөвхөн PlanGenre-д холбогдсон жанрууд нээгдэнэ.
   isVip Boolean @default(false)
 
+  /// «Хамгийн ашигтай» тэмдэг — admin-аас удирдана (өмнө нь бүх VIP-д
+  /// автоматаар гардаг байсан тул 2 VIP ялгагдахгүй байв). Ихэвчлэн
+  /// ганц багцад л тавина — маркетингийн анхаарал татах цэг.
+  isBestValue Boolean @default(false)
+
   genres        PlanGenre[]
   subscriptions Subscription[]
   payments      Payment[]

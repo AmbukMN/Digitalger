@@ -164,12 +164,19 @@ export default function PaymentsPage() {
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
         {/* ── Статистик — ШҮҮЛТЭД тохирсон дүн (зөвхөн энэ хуудас биш) ── */}
         <div className="mb-5 grid gap-3 grid-cols-1 sm:grid-cols-3">
+          {/* ⚠️ Орлого = багц/кино/түрээс. Хэтэвч цэнэглэлт ХАСАГДСАН
+              (топап дараа багц болвол давхар тоологдоно). Топапыг hint-д
+              тусад нь мэдээлнэ. */}
           <StatCard
             layout="stack"
             icon={<TrendingUp size={18} />}
-            label="Төлөгдсөн орлого"
+            label="Бодит орлого"
             value={formatPrice(stats?.paidAmount ?? 0)}
-            hint={`${(stats?.paidCount ?? 0).toLocaleString()} гүйлгээ`}
+            hint={
+              stats?.topupAmount
+                ? `${(stats?.paidCount ?? 0).toLocaleString()} гүйлгээ · хэтэвч цэнэглэлт хасав`
+                : `${(stats?.paidCount ?? 0).toLocaleString()} гүйлгээ`
+            }
             tone="success"
           />
           <StatCard
@@ -177,7 +184,11 @@ export default function PaymentsPage() {
             icon={<CreditCard size={18} />}
             label="Нийт дүн (бүх төлөв)"
             value={formatPrice(stats?.totalAmount ?? 0)}
-            hint={`${(data?.total ?? 0).toLocaleString()} гүйлгээ`}
+            hint={
+              stats?.topupAmount
+                ? `${(data?.total ?? 0).toLocaleString()} гүйлгээ · +${formatPrice(stats.topupAmount)} топап`
+                : `${(data?.total ?? 0).toLocaleString()} гүйлгээ`
+            }
           />
           <StatCard
             layout="stack"
