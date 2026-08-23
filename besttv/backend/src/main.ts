@@ -26,7 +26,33 @@ async function bootstrap() {
   // nginx reverse proxy-ийн ард — жинхэнэ клиент IP X-Forwarded-For-оос
   app.set('trust proxy', 1);
 
-  app.use(express.json({ limit: '10mb' }));
+  /**
+   * ⚠️⚠️ RAW BODY ХАДГАЛАХ — AWS SNS webhook-д ЗААВАЛ.
+   *
+   * БОДИТ АЛДАА: `bodyParser: false` тул Nest `req.rawBody`-г бөглөдөггүй.
+   * SNS нь `Content-Type: text/plain` илгээдэг тул default `express.json`
+   * биеийг ОГТ уншдаггүй → `/api/email/events` handler хоосон бие авч,
+   * SubscriptionConfirmation-ыг боловсруулж чадахгүй (subscription
+   * «Pending confirmation» хэвээр үлдэнэ, хүргэлтийн event ирэхгүй).
+   *
+   * ЗАСВАР: (1) verify callback-аар БҮХ хүсэлтийн rawBody-г хадгална.
+   *         (2) `type`-ийг өргөтгөж SNS-ийн text/plain-ыг ч JSON гэж үзнэ
+   *             (SNS бие үнэндээ JSON, зөвхөн Content-Type буруу).
+   */
+  const keepRawBody = (req: express.Request & { rawBody?: Buffer }, _res: unknown, buf: Buffer) => {
+    if (buf?.length) req.rawBody = buf;
+  };
+  app.use(
+    express.json({
+      limit: '10mb',
+      verify: keepRawBody,
+      // ⚠️ SNS text/plain-ыг ч JSON-оор parse (бие нь JSON, толгой нь буруу)
+      type: (req) =>
+        (req.headers['content-type'] ?? '').includes('json') ||
+        (req.headers['content-type'] ?? '').includes('text/plain') ||
+        Boolean(req.headers['x-amz-sns-message-type']),
+    }),
+  );
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
   // crossOriginResourcePolicy: false — /media/* дор буй зураг/HLS segment
   // өөр origin-той frontend/admin-аас (localhost:3100/3101) чөлөөтэй ачаалагдана
