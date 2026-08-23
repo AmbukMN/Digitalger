@@ -582,12 +582,39 @@ function SubscribersTab() {
         activeCount={f.source !== 'ALL' ? 1 : 0}
         onReset={() => setF({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 })}
         actions={
-          <button
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <UserPlus size={15} /> Имэйл нэмэх
-          </button>
+          <div className="flex gap-2">
+            {/* ⚠️ Дутуу нэгтгэх — данс нээсэн ч Subscriber-т ороогүй
+                (хуучин/OAuth) баталгаажсан хэрэглэгчдийг нэгтгэнэ */}
+            <button
+              onClick={async () => {
+                try {
+                  const res = await api<{ added: number; scanned: number }>(
+                    '/admin/email/subscribers/backfill',
+                    { method: 'POST' },
+                  );
+                  toast.success(
+                    res.added
+                      ? `${res.added} дутуу хэрэглэгч нэгтгэгдлээ`
+                      : 'Дутуу хэрэглэгч алга — бүгд нэгдсэн',
+                  );
+                  qc.invalidateQueries({ queryKey: ['admin-subscribers'] });
+                  qc.invalidateQueries({ queryKey: ['admin-email-audience-counts'] });
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Нэгтгэж чадсангүй');
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              title="Данс нээсэн ч жагсаалтад ороогүй хэрэглэгчдийг нэгтгэх"
+            >
+              <Users size={15} /> Дутуу нэгтгэх
+            </button>
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <UserPlus size={15} /> Имэйл нэмэх
+            </button>
+          </div>
         }
       />
 
