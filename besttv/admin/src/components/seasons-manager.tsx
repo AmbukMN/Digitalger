@@ -175,6 +175,8 @@ function SeasonBlock({
   const episodes = season.episodes ?? [];
   const readyCount = episodes.filter((e) => e.streamStatus === 'READY').length;
   const hiddenEps = episodes.filter((e) => !e.isVisible).length;
+  /* ⚠️ Үнэгүй ангийн тоо — улирлын толгойд шууд харуулна */
+  const freeCount = episodes.filter((e) => e.isFreePreview).length;
 
   /**
    * ⚠️⚠️ УЛИРАЛ НУУХ — хэрэглэгчид ОГТ харагдахгүй болно.
@@ -415,6 +417,7 @@ function SeasonBlock({
             <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
               <span>{episodes.length} анги</span>
               {readyCount > 0 && <span>· {readyCount} бэлэн</span>}
+              {freeCount > 0 && <span className="text-secondary">· {freeCount} үнэгүй</span>}
               {hiddenEps > 0 && <span className="text-warning">· {hiddenEps} нуусан</span>}
             </p>
           </div>
@@ -488,7 +491,20 @@ function SeasonBlock({
                       {ep.number}. {ep.name ?? `Анги ${ep.number}`}
                     </span>
                   </span>
-                  <StatusBadge status={ep.streamStatus} />
+                  {/*
+                    ⚠️ ҮНЭГҮЙ ТЭМДЭГ — ЖАГСААЛТЫН МӨР ДЭЭР ШУУД.
+                    Задалж байж л checkbox харагддаг байсан тул 32
+                    ангитай улиралд «аль нь үнэгүй вэ» гэдгийг мэдэх
+                    боломжгүй байв.
+                  */}
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {ep.isFreePreview && (
+                      <span className="rounded bg-secondary/15 px-1.5 py-0.5 text-[10px] font-medium text-secondary">
+                        Үнэгүй
+                      </span>
+                    )}
+                    <StatusBadge status={ep.streamStatus} />
+                  </span>
                 </button>
 
                 {/*
