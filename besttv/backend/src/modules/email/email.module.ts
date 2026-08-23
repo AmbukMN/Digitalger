@@ -1008,6 +1008,53 @@ export class EmailAdminController {
   }
 
   /**
+   * ⚠️⚠️ BACKFILL — Subscriber-т ДУТУУ хэрэглэгчдийг нэгтгэх.
+   *
+   * БОДИТ АСУУДАЛ: `subscribe()` нэмэгдэхээс өмнө бүртгүүлсэн, эсвэл
+   * OAuth-аар нэвтэрсэн (subscribe дуудаагүй) хэрэглэгчид Subscriber
+   * жагсаалтад ОРООГҮЙ. Тэдгээр нь данс нээж, имэйлээ баталгаажуулсан
+   * тул мэдээллийн товхимол авах эрхтэй.
+   *
+   * ⚠️ Зөвхөн: emailVerified + !marketingOptOut + !isGuest + бодит имэйл.
+   *    opt-out хийсэн хэнийг ч НЭМЭХГҮЙ (CAN-SPAM).
+   */
+  @Post('subscribers/backfill')
+  async backfillSubscribers() {
+    /* ⚠️ User↔Subscriber relation байхгүй тул email-ээр шүүнэ:
+       Subscriber-т аль хэдийн байгаа хаягуудыг татаж, тэдгээрээс
+       БУСАД баталгаажсан хэрэглэгчийг л нэмнэ. */
+    const existing = await this.prisma.subscriber.findMany({ select: { email: true } });
+    const existingSet = new Set(existing.map((s) => s.email.toLowerCase()));
+
+    const candidates = await this.prisma.user.findMany({
+      where: {
+        isGuest: false,
+        emailVerified: true,
+        marketingOptOut: false,
+        email: { not: { endsWith: '@noemail.besttv.mn' } },
+      },
+      select: { id: true, email: true, name: true },
+    });
+    const users = candidates.filter((u) => !existingSet.has(u.email.toLowerCase()));
+
+    let added = 0;
+    for (const u of users) {
+      const email = u.email.toLowerCase().trim();
+      try {
+        await this.prisma.subscriber.upsert({
+          where: { email },
+          create: { email, name: u.name ?? undefined, source: 'register', userId: u.id },
+          update: { status: SubscriberStatus.ACTIVE, userId: u.id },
+        });
+        added++;
+      } catch {
+        /* нэг унавал бусдыг зогсоохгүй */
+      }
+    }
+    return { ok: true, added, scanned: users.length };
+  }
+
+  /**
    * ⚠️⚠️ ИЛГЭЭСЭН ИМЭЙЛ — ФОЛДЕР БАЙДЛААР.
    *
    * БОДИТ АСУУДАЛ: bulk илгээлт (кино реклам, broadcast) 500 имэйл

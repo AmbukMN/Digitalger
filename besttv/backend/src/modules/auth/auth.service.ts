@@ -448,6 +448,24 @@ export class AuthService {
       throw new UnauthorizedException('Таны бүртгэл хаагдсан байна');
     }
 
+    /**
+     * ⚠️⚠️ OAUTH ХЭРЭГЛЭГЧИЙГ Ч МЭДЭЭЛЛИЙН ТОВХИМОЛД НЭМНЭ.
+     *
+     * БОДИТ АЛДАА: `register` (email/password) нь subscribe хийдэг ч
+     * `oauthLogin` (Google/FB) ХИЙДЭГГҮЙ байсан тул сошиалаар нэвтэрсэн
+     * бүх хэрэглэгч Subscriber жагсаалтад ОРОХГҮЙ, маркетинг имэйл
+     * хүлээж авдаггүй байв.
+     *
+     * ⚠️ Зөвхөн БОДИТ имэйлтэй (орлуулагч @noemail биш) үед — эс бол
+     *    хог хаяг жагсаалт бохирдуулна. `subscribe` идемпотент тул
+     *    давхардвал алдаагүй (дахин нэвтрэхэд дахин нэмэхгүй).
+     */
+    if (email && !user.email.endsWith('@noemail.besttv.mn')) {
+      void this.subscribers
+        .subscribe({ email, name: user.name ?? undefined, source: 'oauth', userId: user.id })
+        .catch(() => null);
+    }
+
     await this.tracking.audit(user.id, 'oauth_login', { newValue: providerEnum });
     return this.buildAuthResult(user, ctx);
   }
