@@ -257,7 +257,7 @@ class PromoteTitleDto {
   testEmail?: string;
 }
 
-/** Admin гараар имэйл нэмэх (нэг эсвэл олноор) */
+/** Admin гараар/файлаас имэйл нэмэх (нэг, олноор, файл) */
 class AddSubscribersDto {
   /** ⚠️ @IsEmail each ХЭРЭГЛЭХГҮЙ — нэг буруу хаяг бүхэл багцыг татгалзана.
      Оронд нь string[], буруугаа endpoint дотор алгасна (олон хаяг буулгахад
@@ -272,6 +272,16 @@ class AddSubscribersDto {
   @IsString()
   @MaxLength(120)
   name?: string;
+
+  /**
+   * ⚠️ Файлаас нэртэй имэйл — {email, name}[]. Excel/CSV-д name багана
+   * байвал хэрэглэгчийн нэрийг ч хадгална (зөвхөн имэйл биш).
+   * Байвал `emails`-аас давуу — эндээс email+name хоёуланг авна.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5000)
+  items?: { email: string; name?: string }[];
 }
 
 /**
@@ -962,27 +972,39 @@ export class EmailAdminController {
   async addSubscribers(@Body() dto: AddSubscribersDto) {
     /* ⚠️ Буруу хаягийг алгасна (frontend бас шүүдэг — давхар хамгаалалт) */
     const isEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-    const clean = [
-      ...new Set(dto.emails.map((e) => e.toLowerCase().trim()).filter((e) => e && isEmail(e))),
-    ];
+
+    /**
+     * ⚠️ items (файлаас, нэртэй) байвал ТЭР давуу — email+name хоёуланг авна.
+     * Эс бол emails (гараар). email → name map, давхардлыг арилгана.
+     */
+    const nameByEmail = new Map<string, string | undefined>();
+    const source: { email: string; name?: string }[] = dto.items?.length
+      ? dto.items
+      : dto.emails.map((e) => ({ email: e, name: dto.emails.length === 1 ? dto.name : undefined }));
+
+    for (const it of source) {
+      const email = String(it.email ?? '').toLowerCase().trim();
+      if (!email || !isEmail(email)) continue;
+      // Эхний тааралдсан нэрийг хадгална (давхар мөрд хоосон нэр дарж бичихгүй)
+      if (!nameByEmail.has(email)) nameByEmail.set(email, it.name?.trim() || undefined);
+      else if (!nameByEmail.get(email) && it.name?.trim()) nameByEmail.set(email, it.name.trim());
+    }
+
     let added = 0;
-    for (const email of clean) {
+    for (const [email, name] of nameByEmail) {
       try {
         await this.prisma.subscriber.upsert({
           where: { email },
-          create: {
-            email,
-            name: clean.length === 1 ? dto.name : undefined,
-            source: 'admin',
-          },
-          update: { status: SubscriberStatus.ACTIVE },
+          create: { email, name, source: 'admin' },
+          /* Нэр ирсэн бол шинэчилнэ (файлд байсан бол), эс бол хэвээр */
+          update: { status: SubscriberStatus.ACTIVE, ...(name ? { name } : {}) },
         });
         added++;
       } catch {
         /* нэг имэйл унавал бусдыг зогсоохгүй */
       }
     }
-    return { ok: true, added, total: clean.length };
+    return { ok: true, added, total: nameByEmail.size };
   }
 
   /**
