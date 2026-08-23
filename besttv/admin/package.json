@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3101",
-    "build": "next build",
+    "build": "next build && node scripts/css-fallbacks.mjs",
     "start": "next start -p 3101",
     "lint": "next lint"
   },
@@ -44,6 +44,14 @@
     "eslint": "^9",
     "eslint-config-next": "15.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+    "typescript": "^5",
+    "@csstools/postcss-color-mix-function": "^4.0.8",
+    "@csstools/postcss-oklab-function": "^5.0.8"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "iOS >= 12",
+    "Safari >= 12"
+  ]
 }
