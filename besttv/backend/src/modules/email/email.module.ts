@@ -1050,7 +1050,14 @@ export class EmailAdminController {
   ) {
     const p = Math.max(1, Number(page) || 1);
     const take = Math.min(200, Number(limit) || 20);
+    /**
+     * ⚠️⚠️ ЗӨВХӨН ГАНЦ (batchId=null) ИМЭЙЛ. Bulk илгээлт (кино реклам,
+     * broadcast) нь энэ жагсаалтад ОРОХГҮЙ — оронд нь «фолдер» болж
+     * `logs/grouped`-д харагдана (пагинаци тэсэлгэхгүй). Хайхдаа
+     * search байвал bulk дотор ч хайж болно (нээлттэй).
+     */
     const where: Prisma.EmailLogWhereInput = {};
+    if (!search?.trim()) where.batchId = null;
     if (template && template !== 'ALL') where.template = template;
     if (status && status !== 'ALL') where.status = status;
     /**

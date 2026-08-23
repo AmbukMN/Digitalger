@@ -12,6 +12,8 @@ import {
   MousePointerClick,
   Send,
   ShieldOff,
+  UserPlus,
+  FolderOpen,
   Users,
   X,
   XCircle,
@@ -26,6 +28,8 @@ import { TableEmptyState } from '@/components/table-empty-state';
 import { DataToolbar } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { NewBadge } from '@/components/new-badge';
+import { AddSubscribersDialog } from '@/components/add-subscribers-dialog';
+import { EmailBatchDialog } from '@/components/email-batch-dialog';
 import { api } from '@/lib/api';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
@@ -161,10 +165,32 @@ function LogsTab() {
   /* Олноор устгах — тест лог хуримтлагддаг */
   /** ⚠️ Нээгдсэн имэйлийн лог ID — modal харуулна */
   const [previewId, setPreviewId] = useState<string | null>(null);
+  /** Идэвхтэй bulk фолдер (batchId) — модал */
+  const [openBatch, setOpenBatch] = useState<string | null>(null);
   const sel = useBulkSelect({
     endpoint: '/admin/email/logs/bulk-delete',
     invalidate: ['admin-email-logs'],
     label: 'лог',
+  });
+
+  /**
+   * ⚠️ BULK ФОЛДЕРУУД — кино реклам/broadcast нэг «фолдер» болж
+   * харагдана (500 имэйл тус тусдаа мөр болж пагинаци тэсэлгэхгүй).
+   */
+  const { data: grouped } = useQuery({
+    queryKey: ['admin-email-folders'],
+    queryFn: () =>
+      api<{
+        folders: {
+          batchId: string;
+          label: string;
+          total: number;
+          sent: number;
+          opened: number;
+          createdAt: string;
+        }[];
+      }>('/admin/email/logs/grouped?limit=1'),
+    staleTime: 30_000,
   });
 
   const { data, isFetching } = useQuery({
@@ -207,6 +233,48 @@ function LogsTab() {
            өмнө нь шүүлт хийсэн ч дэлхийн нийт тоо гардаг байв.
       */}
       <EmailFunnel insight={data?.insight} />
+
+      {/* ⚠️ BULK / КАМПАНИТ ФОЛДЕРУУД — кино реклам, broadcast.
+          Нэг фолдер = нэг илгээлт. Дарж дэлгэрэнгүйг модалд харна
+          (пагинаци тэсэлгэхгүй). */}
+      {!!grouped?.folders?.length && (
+        <div className="mb-5">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Бөөн илгээлтүүд ({grouped.folders.length})
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {grouped.folders.map((fo) => {
+              const rate = fo.total ? Math.round((fo.opened / fo.total) * 100) : 0;
+              return (
+                <button
+                  key={fo.batchId}
+                  onClick={() => setOpenBatch(fo.batchId)}
+                  className="flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
+                >
+                  <span className="mt-0.5 shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                    <FolderOpen size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">
+                      {fo.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {fo.total.toLocaleString()} имэйл · {rate}% нээлт
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground/70">
+                      {formatDate(fo.createdAt)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {openBatch && (
+        <EmailBatchDialog batchId={openBatch} onClose={() => setOpenBatch(null)} />
+      )}
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
@@ -409,6 +477,8 @@ function SubscribersTab() {
   const isNew = useNewSince('subscribers');
   const [f, setF] = useState({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 });
   const [exporting, setExporting] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const qc = useQueryClient();
 
   /* Олноор устгах — тест бүртгэл цэвэрлэх */
   const sel = useBulkSelect({
@@ -511,7 +581,24 @@ function SubscribersTab() {
         exporting={exporting}
         activeCount={f.source !== 'ALL' ? 1 : 0}
         onReset={() => setF({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 })}
+        actions={
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <UserPlus size={15} /> Имэйл нэмэх
+          </button>
+        }
       />
+
+      {adding && (
+        <AddSubscribersDialog
+          onClose={() => {
+            setAdding(false);
+            qc.invalidateQueries({ queryKey: ['admin-subscribers'] });
+          }}
+        />
+      )}
 
       <div
         className={cn(
