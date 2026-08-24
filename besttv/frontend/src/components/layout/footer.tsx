@@ -285,18 +285,24 @@ export function Footer() {
             ДЕСКТОПТ: линкүүдийн ДООД талд (баруун тийш),
             МОБАЙЛД: голд (доод талд) — тайлбарыг `PaymentMarks` дээр үз.
           */}
-          <div className="flex flex-col items-center gap-3 sm:items-end">
+          {/*
+            ⚠️⚠️ Хууль эрх зүйн линк нь заавал ХАРАГДАХ ёстой (Meta/Apple
+            зэрэг платформ шалгадаг, хэрэглэгчийн эрхийн шаардлага).
+            Тиймээс төлбөрийн логотой НЭГ баганад хийхдээ линкийг ДЭЭР,
+            логог ДООР нь тавьж, `shrink-0` өгч дарагдахаас хамгаална.
+          */}
+          <div className="flex shrink-0 flex-col items-center gap-2.5 sm:items-end">
             {!!pages?.length && (
               <nav
                 aria-label="Хууль эрх зүй"
-                className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1.5 sm:justify-start"
+                className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 sm:justify-end"
               >
                 {pages.map((p, i) => (
-                  <span key={p.slug} className="flex items-center gap-1">
-                    {i > 0 && <span aria-hidden>·</span>}
+                  <span key={p.slug} className="flex items-center gap-1.5">
+                    {i > 0 && <span aria-hidden className="text-foreground/20">·</span>}
                     <Link
                       href={`/p/${p.slug}`}
-                      className="transition-colors hover:text-foreground/70"
+                      className="whitespace-nowrap transition-colors hover:text-foreground/70"
                     >
                       {p.title}
                     </Link>
