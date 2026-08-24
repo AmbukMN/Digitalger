@@ -289,7 +289,19 @@ export function useTitleDetail(slug: string, initial?: TitleDetail) {
    * Query АЖИЛЛААГҮЙ БАЙГАА нь "олдсонгүй" гэсэн үг БИШ — ачаалж
    * байна гэсэн үг. Иймд `isLoading`-д тэр төлөвийг НЭГТГЭНЭ.
    */
-  return { ...q, isLoading: q.isLoading || authLoading || !slug };
+  /**
+   * ⚠️⚠️ SSR ДАТА БАЙВАЛ «АЧААЛЖ БАЙНА» ГЭЖ ХЭЛЭХГҮЙ.
+   *
+   * `authLoading` нь эхлэлийн утга `true` тул SSR болон эхний render-т
+   * `isLoading` мөнхөд `true` болж, сервер `initialData` өгсөн ч
+   * компонент SKELETON рендерлэдэг байв. Улмаас Googlebot HTML-д
+   * бодит контент (h1, тайлбар) ОГТ ХАРАХГҮЙ хэвээр үлдэж байв.
+   *
+   * Дата гарт байгаа бол ачаалалт ДУУССАН — эрхийн талбарууд дараа
+   * шинэчлэгдэнэ (`placeholderData` тэдгээрийг `undefined` болгодог
+   * тул буруу мэдээлэл ХЭЗЭЭ Ч гарахгүй).
+   */
+  return { ...q, isLoading: !q.data && (q.isLoading || authLoading || !slug) };
 }
 
 /**
