@@ -9,6 +9,11 @@ import { formatPrice, formatRentDuration, formatRentDurationShort } from '@bestt
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
+import {
+  PaymentMethodSheet,
+  useCardPaymentEnabled,
+  type PayMethod as SheetMethod,
+} from '@/components/payment/payment-method-sheet';
 import { loginUrlWithIntent } from '@/lib/auth-intent';
 
 interface Props {
@@ -35,6 +40,9 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [invoice, setInvoice] = useState<QPayInvoice | null>(null);
+  /* ⚠️ Төлбөрийн аргын цонх — «төлж түрээслэх» дарахад */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const cardEnabled = useCardPaymentEnabled();
 
   /**
    * ⚠️⚠️ ДАВХАР ДАРАЛТААС ХАМГААЛАХ — `busy` state ХАНГАЛТГҮЙ.
@@ -102,15 +110,23 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
    * Одоо ЯГ киноны үнээр төлнө. Төлбөр батлагдмагц backend өөрөө
    * `Rental` үүсгэнэ (`completePayment` → `rentals.grantFromPayment`).
    */
-  const payDirect = async () => {
+  const payDirect = async (method?: SheetMethod) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     try {
-      const res = await api<QPayInvoice & { devMode?: boolean; already?: boolean }>(
-        '/payments/rental/initiate',
-        { method: 'POST', body: JSON.stringify({ titleId }) },
-      );
+      const res = await api<
+        QPayInvoice & { devMode?: boolean; already?: boolean; redirectUrl?: string }
+      >('/payments/rental/initiate', {
+        method: 'POST',
+        /* ⚠️ `method` байхгүй = QPay (хуучин зам огт өөрчлөгдөөгүй) */
+        body: JSON.stringify({ titleId, ...(method ? { method } : {}) }),
+      });
+      /* ─── Карт · Apple Pay · Google Pay · WeChat → hosted хуудас ─── */
+      if (res.redirectUrl) {
+        window.location.href = res.redirectUrl;
+        return;
+      }
       /* ⚠️ Хэрэглэгч өөр таб дээр аль хэдийн түрээсэлсэн байж болно */
       if (res.already) {
         onRented();
@@ -176,7 +192,42 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     }
   };
 
+  /** Цонхон дээр арга сонгоод «Төлөх» дарахад */
+  const paySelected = async (method: SheetMethod) => {
+    setSheetOpen(false);
+    if (method === 'wallet') {
+      await rent();
+      return;
+    }
+    if (method === 'qpay') {
+      await payDirect();
+      return;
+    }
+    /* карт/Apple/Google/WeChat — hosted хуудас руу */
+    await payDirect(method);
+  };
+
   if (!open) return null;
+
+  /* Төлбөрийн аргын цонх — үндсэн модалын ОРОНД харагдана */
+  if (sheetOpen) {
+    return (
+      <PaymentMethodSheet
+        open
+        onClose={() => setSheetOpen(false)}
+        amount={price}
+        subtitle={`${titleName} — ${formatRentDurationShort(hours)} түрээс`}
+        kind="rental"
+        walletBalance={balance}
+        /* ⚠️ Кино түрээслэхэд дансаар шилжүүлэх БАЙХГҮЙ (гараар
+           баталгаажуулах удаан — түрээс шуурхай байх ёстой) */
+        bankEnabled={false}
+        cardEnabled={cardEnabled}
+        busy={busy}
+        onSelect={paySelected}
+      />
+    );
+  }
 
   // QPay төлбөрийн модал — цэнэглэгдмэгц автоматаар түрээслэнэ
   if (invoice) {
@@ -305,8 +356,10 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                     мэт харагдана, (2) "хэтэвч" гэдэг нь киноны хуудсанд
                     хамааралгүй ойлголт (бодит гомдол).
                   */}
+                  {/* ⚠️ Төлбөрийн аргын цонх нээнэ (QPay default, карт/
+                      Apple/Google/WeChat/хэтэвч мөн тэндээс) */}
                   <button
-                    onClick={shortfall > 0 ? payDirect : rent}
+                    onClick={() => setSheetOpen(true)}
                     disabled={busy}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 font-semibold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                   >

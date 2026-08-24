@@ -6,6 +6,7 @@ import { PaymentCleanupService } from './payment-cleanup.service';
 import { EmailModule } from '../email/email.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { PaymentsReconcileService } from './payments-reconcile.service';
+import { BonumService } from './bonum.service';
 import { CouponsModule } from '../coupons/coupons.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { PromotionsModule } from '../promotions/promotions.module';
@@ -32,7 +33,7 @@ import { RentalsModule } from '../rentals/rentals.module';
     AnalyticsModule,
   ],
   controllers: [PaymentsController, PaymentsAdminController],
-  providers: [PaymentsService, PaymentsReconcileService, PaymentCleanupService],
+  providers: [PaymentsService, BonumService, PaymentsReconcileService, PaymentCleanupService],
   exports: [PaymentsService],
 })
 export class PaymentsModule {}

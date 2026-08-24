@@ -17,6 +17,13 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
 import {
+  PaymentMethodSheet,
+  useCardPaymentEnabled,
+  /* ⚠️ Энэ файлд `PayMethod` нэр аль хэдийн БАЙНА (нэвтрэх intent —
+     зөвхөн wallet|qpay). Тиймээс өөр нэрээр импортолно. */
+  type PayMethod as SheetMethod,
+} from '@/components/payment/payment-method-sheet';
+import {
   consumeAuthIntent,
   consumePostPurchaseReturn,
   loginUrlWithIntent,
@@ -64,6 +71,12 @@ export default function PricingPage() {
 
   const [payment, setPayment] = useState<QPayInvoice | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  /* ⚠️ Төлбөрийн аргын цонх — «Худалдан авах» дарахад нээгдэнэ */
+  const [sheetPlan, setSheetPlan] = useState<{ id: string; name: string; price: number } | null>(
+    null,
+  );
+  /* ⚠️ Карт/Apple/Google/WeChat тохируулаагүй бол цонхонд ГАРАХГҮЙ */
+  const cardEnabled = useCardPaymentEnabled();
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
@@ -229,6 +242,73 @@ export default function PricingPage() {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally {
       setLoadingPlan(null);
+    }
+  };
+
+  /**
+   * ─── ТӨЛБӨРИЙН АРГЫН ЦОНХ ────────────────────────────────────────
+   *
+   * ⚠️ Карт бүрд олон товч бөөгнөрөхийн оронд НЭГ «Худалдан авах» товч
+   * → энэ цонх → арга сонгоно. QPay нь default (QR-ийн урсгал ХЭВЭЭР).
+   */
+  const openSheet = (plan: { id: string; name: string }, finalPrice: number) => {
+    if (!user) {
+      /* ⚠️ Нэвтрээгүй бол зорилгыг санаж, нэвтэрсний дараа үргэлжилнэ */
+      return router.push(
+        loginUrlWithIntent({
+          type: 'buy-plan',
+          planId: plan.id,
+          method: 'qpay',
+          couponCode: appliedCoupon?.code,
+        }),
+      );
+    }
+    setSheetPlan({ id: plan.id, name: plan.name, price: finalPrice });
+  };
+
+  /** Цонхон дээр арга сонгоод «Төлөх» дарахад */
+  const paySelected = async (method: SheetMethod) => {
+    const plan = sheetPlan;
+    if (!plan) return;
+
+    if (method === 'wallet') {
+      setSheetPlan(null);
+      await buyWithWallet(plan.id, plan.price);
+      return;
+    }
+    if (method === 'bank') {
+      setSheetPlan(null);
+      setBankPlan({ id: plan.id, name: plan.name });
+      return;
+    }
+    if (method === 'qpay') {
+      setSheetPlan(null);
+      await buyWithQpay(plan.id);
+      return;
+    }
+
+    /* ─── Карт · Apple Pay · Google Pay · WeChat ───
+       ⚠️ Hosted checkout руу шилжинэ. Буцаж ирэхэд webhook/polling
+       эрхийг нээнэ (QPay-тэй ижил найдвартай гурван зам). */
+    setLoadingPlan(plan.id);
+    try {
+      const res = await api<{ redirectUrl?: string; devMode?: boolean }>('/payments/initiate', {
+        method: 'POST',
+        body: JSON.stringify({ planId: plan.id, couponCode: appliedCoupon?.code, method }),
+      });
+      if (res.devMode) {
+        toast.success('Эрх нээгдлээ (dev mode)');
+        await refreshAll();
+        return;
+      }
+      if (!res.redirectUrl) throw new Error('Төлбөрийн холбоос ирсэнгүй');
+      /* ⚠️ Тухайн цонхонд шилжинэ — буцаж ирэхэд түүх хадгалагдана */
+      window.location.href = res.redirectUrl;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа, дахин оролдоно уу');
+    } finally {
+      setLoadingPlan(null);
+      setSheetPlan(null);
     }
   };
 
@@ -649,90 +729,38 @@ export default function PricingPage() {
                     VIP багц энэ бүх контентыг аль хэдийн нээсэн байна
                   </p>
                 )}
+                {/*
+                  ⚠️⚠️ НЭГ ТОВЧ — өмнө нь «Хэтэвчээр авах / QPay-ээр
+                  төлөх / Дансаар шилжүүлэх» гэсэн 3 товч бөөгнөрдөг
+                  байв. Карт/Apple Pay/Google Pay/WeChat нэмэхэд 7 товч
+                  болж мобайлд уншигдахгүй болно.
+
+                  Одоо нэг тод товч → төлбөрийн аргын цонх (QPay нь
+                  дотроо DEFAULT сонгогдсон). Арга нэмэхэд энэ карт
+                  ОГТ өөрчлөгдөхгүй.
+                */}
                 <button
-                  onClick={() => buyWithWallet(plan.id, finalPrice)}
+                  onClick={() => openSheet(plan, finalPrice)}
                   // ⚠️ !!loadingPlan — өөр багц ачаалж байхад ч дарж болохгүй
                   // (хоёр гүйлгээ зэрэг эхлэхээс сэргийлнэ)
                   disabled={!!loadingPlan}
                   className={cn(
-                    // ⚠️ `whitespace-nowrap` — mobile-д текст мөр таслахгүй
-                    /* ⚠️ `min-h-10` — хүрэх талбар (WCAG) */
-                    'flex min-h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:py-2.5 sm:text-sm',
-                    canPayWithWallet
-                      ? plan.isVip
-                        ? 'bg-premium-solid text-premium-foreground hover:brightness-105'
-                        : 'bg-primary text-primary-foreground hover:brightness-110'
-                      : 'bg-foreground/8 text-foreground/50',
+                    /* ⚠️ `min-h-11` — хүрэх талбар (мобайл, WCAG) */
+                    'flex min-h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50',
+                    plan.isVip
+                      ? 'bg-premium-solid text-premium-foreground hover:brightness-105'
+                      : 'bg-primary text-primary-foreground hover:brightness-110',
                   )}
                 >
-                  {loadingPlan === plan.id ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <Wallet size={15} />
-                  )}
-                  {owned ? 'Хэтэвчээр сунгах' : 'Хэтэвчээр авах'}
+                  {loadingPlan === plan.id && <Loader2 size={15} className="animate-spin" />}
+                  {owned ? 'Сунгах' : 'Худалдан авах'}
                 </button>
 
-                <button
-                  onClick={() => buyWithQpay(plan.id)}
-                  disabled={!!loadingPlan}
-                  /* ⚠️ `whitespace-nowrap` — mobile-д текст 2 мөр болж
-                     товчны өндөр зөрөхөөс сэргийлнэ (зэрэгцээ жигд) */
-                  /* ⚠️ ХҮРЭЭТЭЙ — `bg-foreground/8` ганцаараа гэрэл горимд
-                     саарал картан дээр БҮДЭГ харагдаж, товч эсэхийг ялгахад
-                     хэцүү байв. Хүрээ + бараан текст нь хоёр горимд ч тод. */
-                  className="flex min-h-9 w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-foreground/15 bg-foreground/5 py-1.5 text-[11px] font-semibold text-foreground/85 transition-colors hover:border-foreground/30 hover:bg-foreground/12 hover:text-foreground disabled:opacity-50 sm:gap-1.5 sm:py-2 sm:text-xs"
-                >
-                  {loadingPlan === plan.id && <Loader2 size={12} className="animate-spin" />}
-                  {/*
-                    ⚠️ Текстийг БОГИНО, ЖИГД байлгана. Өмнө нь "QPay-ээр
-                    шууд төлөх" гэсэн урт бичиг байсан тул mobile-д мөр
-                    таарахгүй, багц бүрийн товч өөр өндөртэй болж
-                    зэрэгцээ нь замбараагүй харагддаг байв.
-                  */}
-                  {owned ? 'QPay-ээр сунгах' : 'QPay-ээр төлөх'}
-                </button>
-
-                {/*
-                  ⚠️ ДАНСААР ШИЛЖҮҮЛЭХ — ЗӨВХӨН админ асаасан үед.
-                  Унтраалттай үед backend нь дансны дугаарыг ч
-                  буцаадаггүй тул товч харуулах утгагүй.
-
-                  ⚠️ ЖИЖИГ, гуравдугаар зэрэглэлийн товч — QPay нь
-                  автоматаар баталгаажих тул ҮНДСЭН зам байх ёстой.
-                  Дансаар нь гараар шалгадаг (удаан) тул нөөц сонголт.
-                */}
-                {bank?.enabled && !supersededByVip && (
-                  <button
-                    onClick={() => {
-                      /**
-                       * ⚠️⚠️ НЭВТРЭЭГҮЙ БОЛ ЭХЛЭЭД НЭВТРҮҮЛНЭ.
-                       *
-                       * Өмнө нь модал шууд нээгдээд `/bank/initiate`
-                       * нь 401 буцааж «Authentication required» гэсэн
-                       * АНГЛИ алдаа гардаг байв (хэрэглэгчийн скриншот).
-                       *
-                       * `loginUrlWithIntent` нь нэвтэрсний дараа ЭНЭ
-                       * хуудас руу буцаж, модалыг автоматаар нээнэ.
-                       */
-                      if (!user) {
-                        router.push(
-                          loginUrlWithIntent({
-                            type: 'buy-plan',
-                            planId: plan.id,
-                            method: 'bank',
-                            couponCode: appliedCoupon?.code,
-                          }),
-                        );
-                        return;
-                      }
-                      setBankPlan({ id: plan.id, name: plan.name });
-                    }}
-                    className="flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg py-1 text-[10px] font-medium text-foreground/45 transition-colors hover:text-foreground/75 sm:text-[11px]"
-                  >
-                    <Building2 size={11} />
-                    Дансаар шилжүүлэх
-                  </button>
+                {/* ⚠️ Хэтэвчийн үлдэгдэл — сануулга (товч БИШ, цонхонд сонгоно) */}
+                {user && canPayWithWallet && (
+                  <p className="flex items-center justify-center gap-1 text-[11px] text-foreground/45">
+                    <Wallet size={11} /> Хэтэвчээр төлөх боломжтой
+                  </p>
                 )}
               </div>
             </div>
@@ -763,6 +791,26 @@ export default function PricingPage() {
       <p className="mx-auto mt-10 max-w-md text-center text-xs text-foreground/35">
         Олон багц зэрэг авч болно. Идэвхтэй багцаа дахин авбал хугацаа нь ДЭЭР НЬ нэмэгдэнэ. Автомат сунгалт байхгүй.
       </p>
+
+      {/*
+        ТӨЛБӨРИЙН АРГЫН ЦОНХ — «Худалдан авах» дарахад.
+        ⚠️ QPay сонгоход доорх QPayCheckout нээгдэнэ (хуучин урсгал
+        ХЭВЭЭР), карт/Apple/Google/WeChat бол hosted хуудас руу шилжинэ.
+      */}
+      {sheetPlan && (
+        <PaymentMethodSheet
+          open
+          onClose={() => setSheetPlan(null)}
+          amount={sheetPlan.price}
+          subtitle={sheetPlan.name}
+          kind="plan"
+          walletBalance={user?.walletBalance ?? 0}
+          bankEnabled={!!bank?.enabled}
+          cardEnabled={cardEnabled}
+          busy={!!loadingPlan}
+          onSelect={paySelected}
+        />
+      )}
 
       {/* QPay төлбөр — QR + мобайл дээр банкны аппын deeplink товчнууд */}
       {payment && (

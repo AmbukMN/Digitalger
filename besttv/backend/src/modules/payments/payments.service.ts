@@ -17,6 +17,8 @@ import { RentalsService } from '../rentals/rentals.module';
 import { PromotionsService } from '../promotions/promotions.service';
 import { N8nService } from '../n8n/n8n.service';
 import { MetaCapiService } from '../analytics/meta-capi.service';
+import { BonumService } from './bonum.service';
+import type { BonumMethod } from './dto/payments.dto';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -59,6 +61,9 @@ export class PaymentsService {
     /* ⚠️ Meta Conversions API — сервер талаас Purchase (данс, хэтэвч ч
        хамрагдана; browser pixel тэднийг барьж чадахгүй) */
     private readonly capi: MetaCapiService,
+    /* ⚠️ Bonum — карт/Apple/Google/WeChat. QPay-ийн урсгалыг ОГТ
+       хөндөхгүй, зэрэгцээ зам (хэрэглэгчид нэр нь харагдахгүй) */
+    private readonly bonum: BonumService,
   ) {}
 
   isQPayConfigured(): boolean {
@@ -66,8 +71,51 @@ export class PaymentsService {
     return Boolean(qpay.username && qpay.password && qpay.invoiceCode);
   }
 
-  /** Багц сонгоод QPay invoice үүсгэнэ (QR + банкны deeplink), купон код заавал биш */
-  async initiate(planId: string, userId: string, couponCode?: string) {
+  /**
+   * BONUM-аар төлөх нийтлэг хэсэг — invoice үүсгээд Payment бичлэгийн
+   * талбаруудыг буцаана. Багц/түрээс/цэнэглэлт ГУРВУУЛАА үүнийг дуудна
+   * (QPay-ийн `createQPayInvoice`-тэй ижил зарчим — нэг газарт).
+   *
+   * ⚠️ `method` нь зөвхөн Bonum-ын `providers` шүүлтэд ашиглагдана;
+   *    хэрэглэгчид ямар ч брэнд нэр харагдахгүй.
+   */
+  private async createBonumPayment(amount: number, method: BonumMethod) {
+    if (!this.bonum.isConfigured()) {
+      throw new BadRequestException('Энэ төлбөрийн арга түр боломжгүй байна');
+    }
+    const inv = await this.bonum.createInvoice(amount, method);
+    return { bonumInvoiceId: inv.invoiceId, bonumFollowUpLink: inv.followUpLink };
+  }
+
+  /**
+   * Боломжтой төлбөрийн аргууд — frontend UI-д харуулахад.
+   * ⚠️ `card` нь карт/Apple Pay/Google Pay/WeChat-ыг НЭГЭН зэрэг
+   *    илэрхийлнэ (бүгд нэг зуучлагчаар).
+   */
+  availableMethods() {
+    return {
+      qpay: this.isQPayConfigured(),
+      card: this.bonum.isConfigured(),
+    };
+  }
+
+  /** Bonum төлбөрийн хариу — frontend redirect хийхэд хангалттай хэлбэр */
+  private bonumResult(paymentId: string, link: string, amount: number) {
+    return {
+      devMode: false as const,
+      paymentId,
+      /* ⚠️ frontend энэ талбар байвал ШИЛЖҮҮЛНЭ (QR харуулахгүй) */
+      redirectUrl: link,
+      amount,
+    };
+  }
+
+  /**
+   * Багц сонгоод нэхэмжлэл үүсгэнэ.
+   * ⚠️ `method` байхгүй = QPay (QR + банкны deeplink, ХУУЧИН зам огт
+   *    өөрчлөгдөөгүй). card/applepay/googlepay/wechat = Bonum redirect.
+   */
+  async initiate(planId: string, userId: string, couponCode?: string, method?: BonumMethod) {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) throw new NotFoundException('Багц олдсонгүй');
 
@@ -162,12 +210,14 @@ export class PaymentsService {
     // Idempotent: сүүлийн 30 мин доторх PENDING invoice байвал дахин ашиглана.
     // ⚠️ couponCode-ыг ЗААВАЛ тааруулна — эс бөгөөс хэрэглэгч купон оруулсны
     // дараа хуучин бүтэн үнийн QR-ыг буцааж, хямдрал алга болно.
+    // ⚠️ Аргыг ч тааруулна: QPay-ийн PENDING-ыг картын хүсэлтэд буцаах
+    //    (эсрэгээр нь) буруу — тус тусдаа invoice хэрэгтэй.
     const existing = await this.prisma.payment.findFirst({
       where: {
         userId,
         planId,
         status: PaymentStatus.PENDING,
-        qpayInvoiceId: { not: null },
+        ...(method ? { bonumInvoiceId: { not: null } } : { qpayInvoiceId: { not: null } }),
         couponCode: normalizedCoupon ?? null,
         amount,
         createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
@@ -175,6 +225,9 @@ export class PaymentsService {
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
+      if (method) {
+        return this.bonumResult(existing.id, existing.bonumFollowUpLink ?? '', existing.amount);
+      }
       return {
         devMode: false,
         paymentId: existing.id,
@@ -184,6 +237,25 @@ export class PaymentsService {
         urls: (existing.qpayUrls as object[]) ?? [],
         amount: existing.amount,
       };
+    }
+
+    /* ─── BONUM (карт · Apple Pay · Google Pay · WeChat) ───────────
+       ⚠️ QPay-ийн доорх кодыг огт хөндөхгүй, энд салаалж гарна. */
+    if (method) {
+      const bonumFields = await this.createBonumPayment(amount, method);
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          planId,
+          amount,
+          status: PaymentStatus.PENDING,
+          couponCode: normalizedCoupon,
+          promotionId,
+          originalAmount: normalizedCoupon || promotionId ? plan.price : undefined,
+          ...bonumFields,
+        },
+      });
+      return this.bonumResult(payment.id, bonumFields.bonumFollowUpLink, amount);
     }
 
     // DEV mode — QPay тохируулаагүй бол шууд төлөгдсөнд тооцно
@@ -311,7 +383,7 @@ export class PaymentsService {
    *
    * ⚠️ `completePayment` нь `rentalTitleId` байвал Rental үүсгэнэ.
    */
-  async initiateRental(titleId: string, userId: string) {
+  async initiateRental(titleId: string, userId: string, method?: BonumMethod) {
     const info = await this.rentals.priceFor(titleId);
     if (!info.available) {
       throw new BadRequestException('Энэ киног ширхэгээр түрээслэх боломжгүй');
@@ -333,13 +405,16 @@ export class PaymentsService {
         userId,
         rentalTitleId: titleId,
         status: PaymentStatus.PENDING,
-        qpayInvoiceId: { not: null },
+        ...(method ? { bonumInvoiceId: { not: null } } : { qpayInvoiceId: { not: null } }),
         amount: info.price,
         createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
       },
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
+      if (method) {
+        return this.bonumResult(existing.id, existing.bonumFollowUpLink ?? '', existing.amount);
+      }
       return {
         devMode: false,
         paymentId: existing.id,
@@ -357,6 +432,15 @@ export class PaymentsService {
       amount: info.price,
       status: PaymentStatus.PENDING,
     };
+
+    /* ─── BONUM салаа (QPay-ийн доорх кодыг хөндөхгүй) ─── */
+    if (method) {
+      const bonumFields = await this.createBonumPayment(info.price, method);
+      const payment = await this.prisma.payment.create({
+        data: { ...base, ...bonumFields },
+      });
+      return this.bonumResult(payment.id, bonumFields.bonumFollowUpLink, info.price);
+    }
 
     /* ⚠️ QPay тохируулаагүй (dev) — шууд төлөгдсөнд тооцно */
     if (!this.isQPayConfigured()) {
@@ -455,6 +539,23 @@ export class PaymentsService {
     });
     if (!payment) throw new NotFoundException('Төлбөр олдсонгүй');
     if (payment.status === PaymentStatus.PAID) return { paid: true };
+
+    /**
+     * ⚠️ BONUM төлбөр — webhook нь ҮНДСЭН зам (Bonum-ын баримт status
+     * API-г production-д түшихийг зөвлөдөггүй). Энэ нь зөвхөн НӨӨЦ:
+     * webhook хоцорсон/тасарсан үед хэрэглэгч цонхон дээрээ хүлээж
+     * сууснаар эрх нээгдэнэ. UNKNOWN бол хүлээсээр байна.
+     */
+    if (payment.bonumInvoiceId) {
+      if (!this.bonum.isConfigured()) return { paid: false };
+      const status = await this.bonum.checkInvoice(payment.bonumInvoiceId);
+      if (status === 'PAID') {
+        await this.completePayment(payment.id);
+        return { paid: true };
+      }
+      return { paid: false };
+    }
+
     if (!payment.qpayInvoiceId || !this.isQPayConfigured()) return { paid: false };
 
     const isPaid = await this.verifyPaymentWithQpay(payment.qpayInvoiceId);
@@ -528,11 +629,90 @@ export class PaymentsService {
   }
 
   /**
+   * BONUM webhook (карт · Apple Pay · Google Pay · WeChat).
+   *
+   * ⚠️⚠️ QPay-ийн `handleWebhook`-оос ТУСДАА — тэр функц огт хөндөгдөөгүй.
+   *
+   * ⚠️ FAIL-CLOSED: `x-checksum-v2` = HMAC-SHA256(rawBody, CHECKSUM_KEY).
+   *    Тохиргоо дутуу эсвэл гарын үсэг таарахгүй бол 401 (QPay-тэй ижил
+   *    зарчим). Checksum нь БҮХЭЛ body-г хамардаг тул QPay шиг нэмэлт
+   *    "API-аас дахин шалгах" алхам заавал биш — гэхдээ status-ыг
+   *    payload-аас ЗААВАЛ PAID гэж уншина.
+   *
+   * Body: { type:'PAYMENT', status:'SUCCESS', body:{ invoiceId, status:'PAID', ... } }
+   */
+  async handleBonumWebhook(
+    body: Record<string, unknown>,
+    rawBody: string,
+    checksum?: string,
+  ) {
+    if (!this.bonum.isConfigured()) {
+      this.logger.error('Bonum тохируулаагүй — webhook хаагдлаа');
+      throw new UnauthorizedException('Webhook тохиргоо дутуу');
+    }
+    if (!checksum || !this.bonum.verifyChecksum(rawBody, checksum)) {
+      throw new UnauthorizedException('Webhook гарын үсэг буруу');
+    }
+
+    const type = String(body.type ?? '').toUpperCase();
+    const inner = (body.body ?? {}) as Record<string, unknown>;
+    const invoiceId = String(inner.invoiceId ?? body.invoiceId ?? '');
+    if (!invoiceId) throw new BadRequestException('Webhook payload буруу');
+
+    /* ⚠️ CARD-TOKEN / SUBSCRIPTION-PAYMENT төрлийг одоогоор хүлээж авах
+       боловч боловсруулахгүй (карт хадгалах дараагийн үе шатанд) */
+    if (type && type !== 'PAYMENT') {
+      this.logger.log(`Bonum webhook төрөл «${type}» — алгаслаа (${invoiceId})`);
+      return { received: true, matched: false };
+    }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { bonumInvoiceId: invoiceId },
+    });
+    if (!payment) {
+      this.logger.warn(`Bonum webhook: payment олдсонгүй (${invoiceId})`);
+      return { received: true, matched: false };
+    }
+    /* ⚠️ Идемпотент — PAID дээр дахин ирвэл юу ч хийхгүй */
+    if (payment.status !== PaymentStatus.PENDING) {
+      return { received: true, matched: true };
+    }
+
+    const paid =
+      String(inner.status ?? '').toUpperCase() === 'PAID' ||
+      String(body.status ?? '').toUpperCase() === 'SUCCESS';
+    if (!paid) {
+      this.logger.warn(
+        `Bonum webhook амжилтгүй төлбөр: payment=${payment.id} status=${String(inner.status ?? body.status)}`,
+      );
+      return { received: true, matched: true };
+    }
+
+    /**
+     * ⚠️ ДҮН ТААРАХ ЁСТОЙ — payload дахь дүн Payment-тэйгээ зөрвөл
+     * эрх нээхгүй (дутуу төлөлт/зөрчилтэй мэдэгдлээс хамгаална).
+     * Bonum decimal (10000.00) илгээдэг тул Math.round.
+     */
+    const paidAmount = Math.round(Number(inner.amount ?? payment.amount));
+    if (Number.isFinite(paidAmount) && paidAmount !== payment.amount) {
+      this.logger.error(
+        `Bonum webhook дүн зөрүү: payment=${payment.id} хүлээсэн=${payment.amount} ирсэн=${paidAmount}`,
+      );
+      return { received: true, matched: true };
+    }
+
+    await this.completePayment(payment.id);
+    return { received: true, matched: true };
+  }
+
+  /**
    * PENDING төлбөрүүдийг QPay-аас шалгаж автомат баталгаажуулна (cron fallback —
    * webhook найдваргүй үед хэрэглэгч төлсөн ч эрх нээгдээгүй үлдэхээс сэргийлнэ).
    */
   async reconcilePending(maxAgeHours = 2): Promise<number> {
-    if (!this.isQPayConfigured()) return 0;
+    /* ⚠️ Аль нэг нь тохируулагдсан бол ажиллана (QPay унтраатай ч
+       Bonum-ын PENDING-ыг барих ёстой) */
+    if (!this.isQPayConfigured() && !this.bonum.isConfigured()) return 0;
 
     /**
      * ⚠️⚠️ ДАВХАР АЖИЛЛАХААС СЭРГИЙЛНЭ.
@@ -551,19 +731,21 @@ export class PaymentsService {
 
     try {
       const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
-      const pending = await this.prisma.payment.findMany({
-        where: {
-          status: PaymentStatus.PENDING,
-          qpayInvoiceId: { not: null },
-          createdAt: { gte: since },
-        },
-        /* ⚠️ ХЯЗГААР ЗААВАЛ — өмнө нь ХЯЗГААРГҮЙ байв. Хамгийн
-           хуучнаас нь эхэлнэ (хэрэглэгч удаан хүлээсэн нь эхэнд),
-           үлдсэнийг дараагийн cron барина. */
-        orderBy: { createdAt: 'asc' },
-        take: 100,
-      });
-      if (pending.length === 0) return 0;
+      /* ⚠️ QPay тохируулаагүй бол хоосон (доорх Bonum хэсэг ажиллана) */
+      const pending = this.isQPayConfigured()
+        ? await this.prisma.payment.findMany({
+            where: {
+              status: PaymentStatus.PENDING,
+              qpayInvoiceId: { not: null },
+              createdAt: { gte: since },
+            },
+            /* ⚠️ ХЯЗГААР ЗААВАЛ — өмнө нь ХЯЗГААРГҮЙ байв. Хамгийн
+               хуучнаас нь эхэлнэ (хэрэглэгч удаан хүлээсэн нь эхэнд),
+               үлдсэнийг дараагийн cron барина. */
+            orderBy: { createdAt: 'asc' },
+            take: 100,
+          })
+        : [];
 
       let confirmed = 0;
       for (const payment of pending) {
@@ -576,6 +758,34 @@ export class PaymentsService {
           this.logger.error(`Reconcile алдаа: payment ${payment.id}`, err);
         }
       }
+      /**
+       * ⚠️ BONUM PENDING-ыг ч барина — webhook тасарсан тохиолдолд
+       * хэрэглэгч цонхоо хаачихсан ч эрх нь нээгдэнэ. Bonum-ын status
+       * API нь UNKNOWN буцааж болох тул зөвхөн ТОДОРХОЙ PAID дээр л
+       * баталгаажуулна (QPay-ийн ижил болгоомжтой зарчим).
+       */
+      if (this.bonum.isConfigured()) {
+        const bonumPending = await this.prisma.payment.findMany({
+          where: {
+            status: PaymentStatus.PENDING,
+            bonumInvoiceId: { not: null },
+            createdAt: { gte: since },
+          },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        });
+        for (const payment of bonumPending) {
+          try {
+            if ((await this.bonum.checkInvoice(payment.bonumInvoiceId!)) === 'PAID') {
+              await this.completePayment(payment.id);
+              confirmed++;
+            }
+          } catch (err) {
+            this.logger.error(`Reconcile (bonum) алдаа: payment ${payment.id}`, err);
+          }
+        }
+      }
+
       if (confirmed > 0) this.logger.log(`Reconcile: ${confirmed} төлбөр баталгаажив`);
       if (pending.length === 100) {
         this.logger.warn('Reconcile: 100 хязгаарт хүрлээ — үлдсэнийг дараагийн ажиллагаа барина');
@@ -804,7 +1014,14 @@ export class PaymentsService {
       planName: payment.plan?.name ?? null,
       titleName: payment.rentalTitle?.title ?? null,
       isWalletTopup: payment.isWalletTopup,
-      method: payment.bankReference ? 'BANK' : payment.qpayInvoiceId ? 'QPAY' : 'WALLET',
+      /* ⚠️ Bonum-ыг нэмэхдээ дараалал чухал: bank → qpay → bonum → wallet */
+      method: payment.bankReference
+        ? 'BANK'
+        : payment.qpayInvoiceId
+          ? 'QPAY'
+          : payment.bonumInvoiceId
+            ? 'CARD'
+            : 'WALLET',
       couponCode: payment.couponCode,
       paidAt: new Date().toISOString(),
     });
@@ -1099,8 +1316,12 @@ export class PaymentsService {
 
   // ─── Хэтэвч ───────────────────────────────────────────────────────────────
 
-  /** Хэтэвч цэнэглэх QPay invoice үүсгэнэ */
-  async topupWallet(userId: string, amount: number) {
+  /**
+   * Хэтэвч цэнэглэх нэхэмжлэл.
+   * ⚠️ Хэтэвч бол ЭХ СУРВАЛЖ — түүнийг ЯГ ижил аргуудаар (QPay эсвэл
+   *    карт/Apple/Google/WeChat) цэнэглэнэ. `method` байхгүй = QPay.
+   */
+  async topupWallet(userId: string, amount: number, method?: BonumMethod) {
     if (amount < 1000) throw new BadRequestException('Хамгийн бага дүн 1,000₮');
     if (amount > 5_000_000) throw new BadRequestException('Хамгийн их дүн 5,000,000₮');
 
@@ -1122,6 +1343,23 @@ export class PaymentsService {
      * урамшуулал дуусвал ч амласан бонусаа АВНА (шударга).
      */
     const bonusPromo = await this.promotions.walletBonusFor(amount, userId);
+
+    /* ─── BONUM салаа (карт/Apple/Google/WeChat-ээр цэнэглэх) ───────
+       ⚠️ Бонусыг ЭНД ч түгжинэ — QPay-ийн доорхтой яг ижил зарчим. */
+    if (method) {
+      const bonumFields = await this.createBonumPayment(amount, method);
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          amount,
+          status: PaymentStatus.PENDING,
+          isWalletTopup: true,
+          promotionId: bonusPromo?.id ?? null,
+          ...bonumFields,
+        },
+      });
+      return this.bonumResult(payment.id, bonumFields.bonumFollowUpLink, amount);
+    }
 
     // DEV mode — QPay тохируулаагүй бол шууд цэнэглэнэ
     if (!this.isQPayConfigured()) {

@@ -97,6 +97,23 @@ export default () => ({
     callbackUrl: process.env.QPAY_CALLBACK_URL,
     webhookSecret: process.env.QPAY_WEBHOOK_SECRET,
   },
+  /**
+   * Bonum Gateway — карт (VISA/Master/UnionPay/Amex), Apple Pay,
+   * Google Pay, WeChat Pay. Hosted checkout (redirect) загвартай.
+   *
+   * ⚠️⚠️ Credential нь DIGITALGER merchant дээр бүртгэлтэй (Terminal
+   * 17173069) — invoice/callback/item-д брэнд нэр ОГТ явуулахгүй
+   * (QPay-ийн ижил зарчим, дээрх qpay тайлбарыг үз).
+   *
+   * ⚠️ Callback нь x-checksum-v2 = HMAC-SHA256(rawBody, checksumKey).
+   */
+  bonum: {
+    baseUrl: process.env.BONUM_BASE_URL ?? 'https://apis.bonum.mn',
+    appSecret: process.env.BONUM_APP_SECRET,
+    terminalId: process.env.BONUM_TERMINAL_ID,
+    checksumKey: process.env.BONUM_CHECKSUM_KEY,
+    callbackUrl: process.env.BONUM_CALLBACK_URL,
+  },
   tmdb: {
     apiKey: process.env.TMDB_API_KEY ?? null,
   },

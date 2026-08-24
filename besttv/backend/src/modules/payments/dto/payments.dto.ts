@@ -1,4 +1,12 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+
+/**
+ * ⚠️ Bonum-аар явах төлбөрийн аргууд. `qpay` бол ХУУЧИН зам (default,
+ * энэ жагсаалтад ОРОХГҮЙ) — тэр урсгал огт өөрчлөгдөөгүй.
+ * Хэрэглэгчид «Bonum» гэсэн нэр харагдахгүй, зөвхөн эдгээр түлхүүр.
+ */
+export const BONUM_METHODS = ['card', 'applepay', 'googlepay', 'wechat'] as const;
+export type BonumMethod = (typeof BONUM_METHODS)[number];
 
 /**
  * ⚠️⚠️ ЯАГААД DTO ХЭРЭГТЭЙ ВЭ.
@@ -27,6 +35,15 @@ export class TopupDto {
   @Min(1000, { message: 'Хамгийн бага цэнэглэлт 1,000₮' })
   @Max(5_000_000, { message: 'Хамгийн их цэнэглэлт 5,000,000₮' })
   amount: number;
+
+  /**
+   * ⚠️ Хэтэвч бол «арга» БИШ, ЭХ СУРВАЛЖ — түүнийг ЯГ ЭНЭ аргуудаар
+   * цэнэглэнэ (QPay эсвэл карт/Apple/Google/WeChat). Тиймээс цэнэглэх
+   * цонхонд «хэтэвч» сонголт ГАРАХГҮЙ (давхардал үүсэхгүй).
+   */
+  @IsOptional()
+  @IsIn([...BONUM_METHODS], { message: 'Төлбөрийн арга буруу' })
+  method?: BonumMethod;
 }
 
 /** Багц худалдан авах (QPay эсвэл хэтэвч) */
@@ -40,6 +57,14 @@ export class PurchasePlanDto {
   @IsString()
   @MaxLength(64)
   couponCode?: string;
+
+  /**
+   * Төлбөрийн арга — оруулаагүй бол QPay (хуучин зам, өөрчлөгдөөгүй).
+   * card/applepay/googlepay/wechat бол Bonum hosted checkout.
+   */
+  @IsOptional()
+  @IsIn([...BONUM_METHODS], { message: 'Төлбөрийн арга буруу' })
+  method?: BonumMethod;
 }
 
 /** Кино түрээслэх */
@@ -47,4 +72,9 @@ export class RentTitleDto {
   @IsString()
   @IsNotEmpty({ message: 'Кино сонгоно уу' })
   titleId: string;
+
+  /** ⚠️ PurchasePlanDto-той ижил — оруулаагүй бол QPay */
+  @IsOptional()
+  @IsIn([...BONUM_METHODS], { message: 'Төлбөрийн арга буруу' })
+  method?: BonumMethod;
 }

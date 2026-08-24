@@ -1,0 +1,361 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Building2, Loader2, Wallet, X } from 'lucide-react';
+import { cn, formatPrice } from '@besttv/shared';
+import { api } from '@/lib/api';
+import {
+  AmexMark,
+  ApplePayMark,
+  GooglePayMark,
+  MastercardMark,
+  QPayMark,
+  UnionPayMark,
+  VisaMark,
+  WeChatPayMark,
+} from './brand-marks';
+
+/**
+ * ТӨЛБӨРИЙН АРГЫН ЦОНХ — accordion (Temu маягийн).
+ *
+ * ⚠️⚠️ ЯАГААД ЭНЭ ЦОНХ ХЭРЭГТЭЙ ВЭ: өмнө нь багц бүрийн карт дээр
+ * «Хэтэвчээр авах / QPay-ээр төлөх / Дансаар шилжүүлэх» гэсэн 3 товч
+ * бөөгнөрдөг байв. Карт/Apple Pay/Google Pay/WeChat нэмбэл 7 товч болж
+ * мобайлд уншигдахгүй болно. Тиймээс НЭГ «Худалдан авах» товч →
+ * энэ цонх → арга бүр өөрийн мөр.
+ *
+ * ⚠️⚠️ QPay нь ЭХЛЭЭД СОНГОГДСОН БАЙНА — цонх нээгдэнгүүт QR + банкны
+ * deeplink шууд харагдана (хамгийн түгээмэл арга, нэмэлт дарах
+ * шаардлагагүй). Бусад арга дарвал ДОР НЬ задарна.
+ *
+ * ⚠️⚠️ «Bonum» гэдэг нэр ХЭРЭГЛЭГЧИД ХЭЗЭЭ Ч ХАРАГДАХГҮЙ — зүгээр л
+ * «Карт», «Apple Pay». Аль зуучлагчаар явж байгаа нь хэрэглэгчид
+ * хамаагүй (мөн зуучлагч солигдвол UI өөрчлөгдөх ёсгүй).
+ *
+ * ⚠️ Хэтэвч бол «арга» БИШ, ЭХ СУРВАЛЖ: түүнийг ЯГ эдгээр аргаар
+ * цэнэглэдэг. Тиймээс `kind='topup'` үед хэтэвчийн мөр ГАРАХГҮЙ
+ * (өөрийгөө цэнэглэх утгагүй давхардал).
+ */
+
+export type PayMethod = 'qpay' | 'card' | 'applepay' | 'googlepay' | 'wechat' | 'bank' | 'wallet';
+
+export interface PaymentSheetProps {
+  open: boolean;
+  onClose: () => void;
+  /** Төлөх дүн (харуулахад) */
+  amount: number;
+  /** Гарчиг доорх мөр — «Шилдэг кино багц», «Хэтэвч цэнэглэх» */
+  subtitle?: string;
+  kind: 'plan' | 'rental' | 'topup';
+  /** Хэтэвчийн үлдэгдэл — хүрэлцэхгүй бол мөр бүдгэрнэ */
+  walletBalance?: number;
+  /** Дансаар шилжүүлэх идэвхтэй эсэх (админ тохиргоо) */
+  bankEnabled?: boolean;
+  /** Карт/Apple/Google/WeChat боломжтой эсэх (backend тохируулаагүй бол false) */
+  cardEnabled?: boolean;
+  /**
+   * Арга сонгогдоод «Төлөх» дарахад. QPay бол дуудагч тал QR цонхоо
+   * нээнэ; card/applepay/googlepay/wechat бол redirect хийнэ.
+   */
+  onSelect: (method: PayMethod) => void | Promise<void>;
+  /** Гадна талын ачаалал (invoice үүсгэж байх зуур) */
+  busy?: boolean;
+}
+
+const CHIP = 'flex h-7 items-center justify-center rounded bg-white px-1.5 ring-1 ring-black/10';
+
+export function PaymentMethodSheet({
+  open,
+  onClose,
+  amount,
+  subtitle,
+  kind,
+  walletBalance = 0,
+  bankEnabled = false,
+  cardEnabled = true,
+  onSelect,
+  busy = false,
+}: PaymentSheetProps) {
+  /* ⚠️ QPay DEFAULT — нээгдэнгүүт задарсан байна */
+  const [selected, setSelected] = useState<PayMethod>('qpay');
+
+  /* ⚠️ Esc-ээр хаах — бүх модалд байх ёстой (төслийн UX дүрэм) */
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  /* Цонх хаагдахад сонголтыг QPay руу сэргээнэ (дараагийн удаад цэвэр) */
+  useEffect(() => {
+    if (!open) {
+      setSelected('qpay');
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const walletEnough = walletBalance >= amount;
+  const canWallet = kind !== 'topup' && walletBalance > 0;
+
+  const rows: {
+    id: PayMethod;
+    title: string;
+    hint?: string;
+    mark: React.ReactNode;
+    show: boolean;
+    disabled?: boolean;
+  }[] = [
+    {
+      id: 'qpay',
+      title: 'QPay',
+      hint: 'Бүх банкны апп · SocialPay',
+      mark: <QPayMark className="h-4 w-6" />,
+      show: true,
+    },
+    {
+      id: 'card',
+      title: 'Карт',
+      mark: (
+        <span className="flex items-center gap-1">
+          <VisaMark className="h-3 w-7" />
+        </span>
+      ),
+      show: cardEnabled,
+    },
+    {
+      id: 'applepay',
+      title: 'Apple Pay',
+      mark: <ApplePayMark className="h-4 w-9 text-white" />,
+      show: cardEnabled,
+    },
+    {
+      id: 'googlepay',
+      title: 'Google Pay',
+      mark: <GooglePayMark className="h-4 w-9" />,
+      show: cardEnabled,
+    },
+    {
+      id: 'wechat',
+      title: 'WeChat Pay',
+      hint: 'Гадаад зочдод',
+      mark: <WeChatPayMark className="h-5 w-6" />,
+      show: cardEnabled,
+    },
+    {
+      id: 'bank',
+      title: 'Дансаар шилжүүлэх',
+      hint: 'Баримт хавсаргана',
+      mark: <Building2 size={17} className="text-foreground/70" />,
+      show: bankEnabled && kind !== 'topup',
+    },
+    {
+      id: 'wallet',
+      title: 'Хэтэвч',
+      hint: walletEnough
+        ? `Үлдэгдэл: ${formatPrice(walletBalance)}`
+        : `Үлдэгдэл хүрэлцэхгүй (${formatPrice(walletBalance)})`,
+      mark: <Wallet size={17} className="text-foreground/70" />,
+      show: canWallet,
+      disabled: !walletEnough,
+    },
+  ];
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="pay-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-100 bg-black/70 backdrop-blur-sm"
+      />
+      {/*
+        ⚠️ MOBILE-FIRST: утсан дээр ДООРООС гарах bottom-sheet (эрхий
+        хуруунд ойр), десктопт голд. Хэрэглэгчийн дийлэнх нь утсаар.
+      */}
+      <motion.div
+        key="pay-sheet"
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Төлбөр төлөх"
+        className="fixed inset-x-0 bottom-0 z-100 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-2xl border border-foreground/10 bg-card sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-foreground/8 px-5 py-3.5">
+          <div>
+            <p className="text-sm font-bold leading-tight text-foreground">Төлбөр төлөх</p>
+            {subtitle && <p className="text-[11px] leading-tight text-foreground/45">{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Хаах"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/50 transition-colors hover:bg-foreground/10 hover:text-foreground"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+          <div className="mb-4 flex items-baseline justify-between rounded-xl border border-foreground/8 bg-foreground/4 px-4 py-3">
+            <span className="text-sm text-foreground/55">Төлөх дүн</span>
+            <span className="text-xl font-black text-foreground">{formatPrice(amount)}</span>
+          </div>
+
+          <div className="space-y-2">
+            {rows
+              .filter((r) => r.show)
+              .map((r) => {
+                const isSel = selected === r.id;
+                return (
+                  <div
+                    key={r.id}
+                    className={cn(
+                      'overflow-hidden rounded-xl border transition-colors',
+                      isSel
+                        ? 'border-primary/45 bg-primary/8'
+                        : 'border-foreground/12 hover:border-foreground/25',
+                      r.disabled && 'opacity-45',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      disabled={r.disabled}
+                      onClick={() => setSelected(r.id)}
+                      /* ⚠️ min-h-14 — хүрэх талбар (мобайл, WCAG) */
+                      className="flex min-h-14 w-full items-center gap-3 px-3.5 py-3 text-left disabled:cursor-not-allowed"
+                    >
+                      <span
+                        className={cn(
+                          'flex size-4.5 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                          isSel ? 'border-primary' : 'border-foreground/25',
+                        )}
+                      >
+                        {isSel && <span className="size-2 rounded-full bg-primary" />}
+                      </span>
+                      {/* Брэндийн лого — цагаан/хар chip дотор (өнгө уншигдана) */}
+                      <span
+                        className={cn(
+                          'flex h-8 w-11 shrink-0 items-center justify-center rounded-md',
+                          r.id === 'applepay'
+                            ? 'bg-black ring-1 ring-white/15'
+                            : r.id === 'bank' || r.id === 'wallet'
+                              ? 'bg-foreground/8'
+                              : 'bg-white ring-1 ring-black/10',
+                        )}
+                      >
+                        {r.mark}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-foreground">
+                          {r.title}
+                        </span>
+                        {r.hint && (
+                          <span className="block truncate text-[11px] text-foreground/45">
+                            {r.hint}
+                          </span>
+                        )}
+                      </span>
+                      {/* Картын брэндүүд — «Карт» мөрөнд бүгдийг харуулна */}
+                      {r.id === 'card' && (
+                        <span className="hidden shrink-0 items-center gap-1 xs:flex">
+                          <span className={CHIP}>
+                            <MastercardMark className="h-4 w-6" />
+                          </span>
+                          <span className={CHIP}>
+                            <UnionPayMark className="h-4 w-6" />
+                          </span>
+                          <span className={CHIP}>
+                            <AmexMark className="h-3.5 w-8" />
+                          </span>
+                        </span>
+                      )}
+                    </button>
+
+                    {/* ─── ЗАДАРСАН ХЭСЭГ ─── */}
+                    {isSel && (
+                      <div className="border-t border-dashed border-primary/25 px-3.5 pb-3.5 pt-3">
+                        {r.id === 'qpay' && (
+                          <p className="text-[11.5px] leading-relaxed text-foreground/55">
+                            «Төлөх» дарахад QR код гарна. Банкны аппаараа уншуулж төлнө.
+                          </p>
+                        )}
+                        {(r.id === 'card' || r.id === 'applepay' || r.id === 'googlepay') && (
+                          <p className="text-[11.5px] leading-relaxed text-foreground/55">
+                            Төлбөрийн аюулгүй хуудас руу шилжинэ. Төлсний дараа эрх тань
+                            автоматаар нээгдэнэ.
+                          </p>
+                        )}
+                        {r.id === 'wechat' && (
+                          <p className="text-[11.5px] leading-relaxed text-foreground/55">
+                            WeChat аппаараа төлөх хуудас руу шилжинэ.
+                          </p>
+                        )}
+                        {r.id === 'bank' && (
+                          <p className="text-[11.5px] leading-relaxed text-foreground/55">
+                            Дансны мэдээлэл харагдана. Шилжүүлээд баримтаа хавсаргана —
+                            ажлын цагаар 1–3 цагт баталгаажна.
+                          </p>
+                        )}
+                        {r.id === 'wallet' && (
+                          <p className="text-[11.5px] leading-relaxed text-foreground/55">
+                            Хэтэвчнээс {formatPrice(amount)} хасагдана.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-foreground/8 bg-card p-4 sm:p-5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onSelect(selected)}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+          >
+            {busy && <Loader2 size={17} className="animate-spin" />}
+            Төлөх
+          </button>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+/**
+ * Bonum (карт/Apple/Google/WeChat) боломжтой эсэхийг backend-ээс асууна.
+ * ⚠️ Тохируулаагүй бол тэдгээр мөр ГАРАХГҮЙ — хэрэглэгч дарж байгаад
+ * алдаа авахаас сэргийлнэ.
+ */
+export function useCardPaymentEnabled(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api<{ card: boolean }>('/payments/methods')
+      .then((r) => {
+        if (!cancelled) setEnabled(!!r.card);
+      })
+      .catch(() => {
+        /* ⚠️ Алдаа = боломжгүй гэж үзнэ (fail-closed UI) */
+        if (!cancelled) setEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return enabled;
+}

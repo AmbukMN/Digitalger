@@ -34,6 +34,11 @@ import { useBankAccounts } from '@/lib/queries';
 import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
 import { PhoneVerify } from '@/components/profile/phone-verify';
 import { QPayCheckout, type QPayInvoice } from '@/components/payment/qpay-checkout';
+import {
+  PaymentMethodSheet,
+  useCardPaymentEnabled,
+  type PayMethod as SheetMethod,
+} from '@/components/payment/payment-method-sheet';
 import { EmailVerifyCard } from '@/components/email-verify-card';
 import { DeviceSessionsCard } from '@/components/device-sessions-card';
 import { loginUrl } from '@/lib/auth-intent';
@@ -115,6 +120,9 @@ export default function ProfilePage() {
   const [bankTopup, setBankTopup] = useState<number | null>(null);
   const [topupLoading, setTopupLoading] = useState(false);
   const [topupQr, setTopupQr] = useState<QPayInvoice | null>(null);
+  /* ⚠️ Цэнэглэх аргын цонх — QPay/карт/Apple/Google/WeChat */
+  const [topupSheet, setTopupSheet] = useState(false);
+  const cardEnabled = useCardPaymentEnabled();
 
   // ⚠️ isLoading ЗААВАЛ — өмнө нь ачаалж байхад `undefined` болж
   // "Гүйлгээ хийгдээгүй байна" гэсэн ХУДАЛ мэдэгдэл гардаг байсан
@@ -234,18 +242,35 @@ export default function ProfilePage() {
     ]);
   };
 
-  const startTopup = async () => {
+  /**
+   * ⚠️ Хэтэвч бол ЭХ СУРВАЛЖ — түүнийг ЯГ ижил аргуудаар (QPay эсвэл
+   * карт/Apple/Google/WeChat) цэнэглэнэ. Тиймээс энд ч төлбөрийн аргын
+   * цонх нээгдэнэ (цонхонд «хэтэвч» мөр ГАРАХГҮЙ — давхардал үүсэхгүй).
+   */
+  const startTopup = async (method?: SheetMethod) => {
     const amount = Number(topupAmount);
     if (!amount || amount < 1000) {
       toast.error('Хамгийн бага дүн 1,000₮');
       return;
     }
+    setTopupSheet(false);
     setTopupLoading(true);
     try {
-      const res = await api<QPayInvoice & { devMode?: boolean }>('/payments/wallet/topup', {
-        method: 'POST',
-        body: JSON.stringify({ amount }),
-      });
+      const res = await api<QPayInvoice & { devMode?: boolean; redirectUrl?: string }>(
+        '/payments/wallet/topup',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            amount,
+            ...(method && method !== 'qpay' ? { method } : {}),
+          }),
+        },
+      );
+      /* карт/Apple/Google/WeChat — hosted хуудас руу шилжинэ */
+      if (res.redirectUrl) {
+        window.location.href = res.redirectUrl;
+        return;
+      }
       if (res.devMode) {
         toast.success('Хэтэвч цэнэглэгдлээ (dev mode)');
         setTopupAmount('');
@@ -655,7 +680,15 @@ export default function ProfilePage() {
                   className="flex-1 rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                 />
                 <button
-                  onClick={startTopup}
+                  /* ⚠️ Төлбөрийн аргын цонх нээнэ (QPay default) */
+                  onClick={() => {
+                    const amount = Number(topupAmount);
+                    if (!amount || amount < 1000) {
+                      toast.error('Хамгийн бага дүн 1,000₮');
+                      return;
+                    }
+                    setTopupSheet(true);
+                  }}
                   disabled={topupLoading || !topupAmount}
                   className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 disabled:opacity-50"
                 >
@@ -684,6 +717,24 @@ export default function ProfilePage() {
                   <Building2 size={13} />
                   Дансаар цэнэглэх
                 </button>
+              )}
+
+              {/*
+                ЦЭНЭГЛЭХ АРГЫН ЦОНХ.
+                ⚠️ Хэтэвч бол эх сурвалж тул цонхонд «хэтэвч» мөр
+                ГАРАХГҮЙ (`kind='topup'` — өөрийгөө цэнэглэх утгагүй).
+              */}
+              {topupSheet && (
+                <PaymentMethodSheet
+                  open
+                  onClose={() => setTopupSheet(false)}
+                  amount={Number(topupAmount) || 0}
+                  subtitle="Хэтэвч цэнэглэх"
+                  kind="topup"
+                  cardEnabled={cardEnabled}
+                  busy={topupLoading}
+                  onSelect={(m) => startTopup(m)}
+                />
               )}
 
               {/* QPay төлбөр — QR + мобайл дээр банкны аппын deeplink товчнууд */}

@@ -584,6 +584,16 @@ model Payment {
   qpayQrText    String?
   qpayQrImage   String? // base64 QR
   qpayUrls      Json? // deeplink жагсаалт (банкны app)
+
+  /**
+   * ─── BONUM GATEWAY (карт · Apple Pay · Google Pay · WeChat) ────
+   * ⚠️ DigitalGer merchant-аар боловсруулагдана — invoice-д брэнд нэр
+   * ОГТ явуулахгүй (QPay-тэй ижил зарчим). Webhook нь invoiceId-аар
+   * тааруулдаг тул @unique заавал (идемпотент).
+   */
+  bonumInvoiceId    String? @unique
+  /// Bonum hosted checkout хуудасны линк — idempotent дахин ашиглалтад
+  bonumFollowUpLink String?
   paidAt        DateTime?
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
