@@ -32,15 +32,27 @@ services:
 
   # ── n8n ──────────────────────────────────────────────────────────────────────
   n8n:
-    image: n8nio/n8n:2.21.7
+    build:
+      context: .
+      dockerfile: Dockerfile.n8n
+    image: n8n-python:2.21.7
     container_name: digitalger-n8n
     restart: always
     depends_on:
       n8n-postgres:
         condition: service_healthy
+    # ⚠️⚠️ ЗӨВХӨН ЛОКАЛ — интернэтэд ил гаргахгүй.
+    #
+    # Өмнө нь '5678:5678' байсан тул n8n-ий удирдлагын хуудас
+    # http://62.238.47.2:5678 хаягаар ИНТЕРНЭТЭЭС нээгддэг байв
+    # (Docker нь UFW firewall-ыг тойрдог). Чатбот, төлбөрийн
+    # мэдэгдэл, нийтлэлийн БҮХ workflow тэнд байна.
+    #
+    # ⚠️ nginx нь docker_internal сүлжээгээр 'digitalger-n8n:5678'
+    #    гэж хандах тул порт нээх ОГТ шаардлагагүй.
     ports:
-      - '5678:5678'
-    environment:
+      - '127.0.0.1:5678:5678'
+    environment: &n8n_env
       # ── Host & protocol ──────────────────────────────────────────────────────
       - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
@@ -64,7 +76,29 @@ services:
       # (comment reply бүрэн ажиллана). LOG=info үед runner тогтворгүй болж
       # execution waitingExecution-д гацдаг тул debug ЗААВАЛ. ⚠️ force-recreate
       # зайлсхий — restart л (force-recreate runner-ийг түр эвддэг).
-      - N8N_RUNNERS_MODE=internal
+      # ⚠️ Python 3 байхгүй тул internal runner crash loop (execution running-д гацна)
+      # → runner БҮРЭН унтраав. Code node үндсэн процесст ажиллана (найдвартай).
+      # ⚠️⚠️ Python 3 crash loop-оос болж internal runner execution-ыг running-д
+      # гацаадаг байсан ([[feedback_n8n_task_runner_crash]]). Runner-ыг БҮРЭН
+      # унтраав → Code node үндсэн процесст ажиллана (найдвартай, гацахгүй).
+      - N8N_RUNNERS_ENABLED=false
+
+      # ── QUEUE MODE (scale: 1000+ зэрэг чат) ────────────────────────────────
+      # ⚠️⚠️ main webhook хүлээн авч Redis queue-д тавина, n8n-worker
+      # боловсруулна. worker ЭНЭ anchor-аар ижил env авна (encryption key,
+      # DB, FB token ЗААВАЛ ижил).
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=n8n-redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_HEALTH_CHECK_ACTIVE=true
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
+      # ⚠️ Default нь 5 — 50 хэрэглэгч зэрэг бичихэд Code node гацдаг
+      # (production тест: 50-аас 20 нь Build Messages дээр running-д үлдсэн)
+      - N8N_RUNNERS_MAX_CONCURRENCY=10
+      # ⚠️ Зэрэг ажиллах EXECUTION-ы хязгаар (runner-ийнхээс ӨӨР).
+      # Default нь 30 — 50 хэрэглэгч зэрэг бичихэд 20 нь дараалалд
+      # орж, n8n тэднийг эхлүүлэхгүй гацаадаг (production тест).
+      - N8N_CONCURRENCY_PRODUCTION_LIMIT=200
 
       # ── Encryption key ───────────────────────────────────────────────────────
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
@@ -113,17 +147,8 @@ services:
       - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-debug}
       - N8N_LOG_OUTPUT=console
 
-      # ── Task runner (Code node) ──────────────────────────────────────────────
-      # ⚠️⚠️ Runner-ыг БҮРЭН унтраав. n8n 2.x-ийн internal runner нь Python 3-ыг
-      # эхлүүлэх гэж оролдоод (Docker Hardened Alpine image-д тогтворгүй) execution-ыг
-      # `running`-д мөнхөд гацаадаг байв → FB/IG чат чимээгүй хариулахгүй. ENABLED=false
-      # үед Code node n8n үндсэн процесст (main-thread) найдвартай ажиллана.
-      # (2026-08-23 production дээр батлагдсан. N8N_RUNNERS_MODE-ыг БҮҮ тавь.)
-      - N8N_RUNNERS_ENABLED=false
-
       # ── Limits ───────────────────────────────────────────────────────────────
       - N8N_PAYLOAD_SIZE_MAX=${N8N_PAYLOAD_SIZE_MAX:-64}
-      - N8N_CONCURRENCY_PRODUCTION_LIMIT=${N8N_CONCURRENCY_PRODUCTION_LIMIT:-200}
 
       # ── Custom nodes ─────────────────────────────────────────────────────────
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
@@ -159,6 +184,45 @@ services:
 
     networks:
       - n8n-internal
+      # ⚠️ DigitalGer-ийн backend (docker-backend-1) нь docker_internal
+      #    сүлжээнд байдаг. Энэ мөргүйгээр n8n нь түүн рүү ЗӨВХӨН гадаад
+      #    хаягаар (api.digitalger.mn) хүрдэг → Cloudflare rate limit.
+      #    Хэмжилт: гадуур 45/60 амжилттай, дотуур 60/60.
+      #    ⚠️ BestTV backend ЯГ ИЖИЛ зарчмаар 3 сүлжээнд холбогддог.
+      - dg-app
+
+  # ── Redis — n8n queue (BullMQ) — ТУСДАА (n8n-internal) ──────────────────────
+  n8n-redis:
+    image: redis:7-alpine
+    container_name: digitalger-n8n-redis
+    restart: always
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - n8n-internal
+
+  # ── n8n WORKER — queue-с ажил татаж боловсруулна (main-тай ижил env) ─────────
+  n8n-worker:
+    image: n8n-python:2.21.7
+    container_name: digitalger-n8n-worker
+    restart: always
+    command: worker --concurrency=10
+    depends_on:
+      n8n-postgres:
+        condition: service_healthy
+      n8n-redis:
+        condition: service_healthy
+    environment: *n8n_env
+    volumes:
+      - ./data:/home/node/.n8n
+      - ./custom-nodes:/home/node/.n8n/custom
+    networks:
+      - n8n-internal
+      - dg-app
 
 volumes:
   n8n-postgres-data:
@@ -168,3 +232,8 @@ networks:
   n8n-internal:
     name: digitalger-n8n-network
     driver: bridge
+  # ⚠️ ГАДНААС үүсгэсэн сүлжээ — DigitalGer-ийн үндсэн compose эзэмшинэ.
+  #    external: true тул энэ compose нь ҮҮСГЭХГҮЙ, зөвхөн ХОЛБОГДОНО.
+  dg-app:
+    name: docker_internal
+    external: true
