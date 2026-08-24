@@ -61,7 +61,7 @@ export interface PaymentSheetProps {
    * Арга сонгогдоод «Төлөх» дарахад. QPay бол дуудагч тал QR цонхоо
    * нээнэ; card/applepay/googlepay/wechat бол redirect хийнэ.
    */
-  onSelect: (method: PayMethod) => void | Promise<void>;
+  onSelect: (method: PayMethod, autoRenew?: boolean) => void | Promise<void>;
   /** Гадна талын ачаалал (invoice үүсгэж байх зуур) */
   busy?: boolean;
 }
@@ -84,6 +84,11 @@ export function PaymentMethodSheet({
   const router = useRouter();
   /* ⚠️ QPay DEFAULT — нээгдэнгүүт задарсан байна */
   const [selected, setSelected] = useState<PayMethod>('qpay');
+  /**
+   * ⚠️ АВТОМАТ СУНГАЛТ — DEFAULT ЧЕКТЭЙ (хэрэглэгчийн шийдвэр).
+   * Зөвхөн `card` + `plan` үед л UI-д харагдаж, backend руу явна.
+   */
+  const [autoRenew, setAutoRenew] = useState(true);
 
   /* ⚠️ Esc-ээр хаах — бүх модалд байх ёстой (төслийн UX дүрэм) */
   useEffect(() => {
@@ -99,6 +104,7 @@ export function PaymentMethodSheet({
   useEffect(() => {
     if (!open) {
       setSelected('qpay');
+      setAutoRenew(true);
     }
   }, [open]);
 
@@ -359,10 +365,38 @@ export function PaymentMethodSheet({
                           </p>
                         )}
                         {(r.id === 'card' || r.id === 'applepay' || r.id === 'googlepay') && (
-                          <p className="text-[11.5px] leading-relaxed text-foreground/55">
-                            Төлбөрийн аюулгүй хуудас руу шилжинэ. Төлсний дараа эрх тань
-                            автоматаар нээгдэнэ.
-                          </p>
+                          <div className="space-y-2.5">
+                            <p className="text-[11.5px] leading-relaxed text-foreground/55">
+                              Төлбөрийн аюулгүй хуудас руу шилжинэ. Төлсний дараа эрх тань
+                              автоматаар нээгдэнэ.
+                            </p>
+                            {/*
+                              ⚠️⚠️ АВТОМАТ СУНГАЛТ — ЗӨВХӨН карт + БАГЦ үед.
+                              Кино түрээс (`rental`) нэг удаагийн тул сунгах утгагүй;
+                              хэтэвч цэнэглэх (`topup`) ч мөн адил.
+                              ⚠️ Apple/Google Pay нь токенждоггүй тул зөвхөн `card`.
+                              ⚠️ Default ЧЕКТЭЙ (хэрэглэгчийн шийдвэр) — гэхдээ юу
+                                 болохыг ТОДОРХОЙ бичнэ, дараа нь профайлаас болино.
+                            */}
+                            {r.id === 'card' && kind === 'plan' && (
+                              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-foreground/5 p-2.5">
+                                <input
+                                  type="checkbox"
+                                  checked={autoRenew}
+                                  onChange={(e) => setAutoRenew(e.target.checked)}
+                                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                                />
+                                <span className="text-[11.5px] leading-relaxed text-foreground/70">
+                                  <b className="text-foreground/90">Автоматаар сунгах</b> — багц
+                                  дуусахад картаас {formatPrice(amount)} автоматаар төлж сунгана.
+                                  Картаа дахин бичих шаардлагагүй.
+                                  <span className="mt-0.5 block text-foreground/45">
+                                    Профайлаасаа хэдийд ч болиулж болно.
+                                  </span>
+                                </span>
+                              </label>
+                            )}
+                          </div>
                         )}
                         {r.id === 'wechat' && (
                           <p className="text-[11.5px] leading-relaxed text-foreground/55">
@@ -403,7 +437,8 @@ export function PaymentMethodSheet({
                 router.push('/profile?tab=wallet');
                 return;
               }
-              void onSelect(selected);
+              /* ⚠️ Зөвхөн карт+багц үед утгатай — бусад үед undefined */
+              void onSelect(selected, selected === 'card' && kind === 'plan' ? autoRenew : undefined);
             }}
             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
           >

@@ -6,6 +6,8 @@ import { api, clearTokens, getAccessToken, getRefreshToken, setTokens, takeRefre
 
 /** Хэрэглэгчийн идэвхтэй нэг багц (олон багц зэрэг байж болно) */
 export interface UserSubscription {
+  /** Захиалгын ID — автомат сунгалт унтраахад (planId ХАНГАЛТГҮЙ) */
+  id?: string;
   planId: string;
   planName: string;
   isVip: boolean;
@@ -13,6 +15,8 @@ export interface UserSubscription {
   genres: { id: string; name: string; slug: string }[];
   /** VIP авсан тул энэ багц илүүдэл болсон (хугацаа зогсохгүй) */
   supersededByVip?: boolean;
+  /** Автомат сунгалт асаалттай эсэх (зөвхөн карттай захиалгад) */
+  autoRenew?: boolean;
 }
 
 export interface AuthUser {

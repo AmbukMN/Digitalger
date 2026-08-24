@@ -40,6 +40,7 @@ import {
   type PayMethod as SheetMethod,
 } from '@/components/payment/payment-method-sheet';
 import { ProviderBadge } from '@/components/payment/provider-badge';
+import { SavedCardsCard } from '@/components/payment/saved-cards-card';
 import { EmailVerifyCard } from '@/components/email-verify-card';
 import { DeviceSessionsCard } from '@/components/device-sessions-card';
 import { loginUrl } from '@/lib/auth-intent';
@@ -97,6 +98,27 @@ export default function ProfilePage() {
   const setTab = (t: Tab) => {
     setTabState(t);
     window.history.replaceState(null, '', t === 'profile' ? '/profile' : `/profile?tab=${t}`);
+  };
+
+  /**
+   * ⚠️ АВТОМАТ СУНГАЛТ БОЛИУЛАХ — хэрэглэгч мөнгө татагдахыг зогсоох
+   * ЭРХТЭЙ. Амжилттай болмогц `refreshMe()`-ээр төлөв шинэчилнэ.
+   */
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const cancelAutoRenew = async (subId: string) => {
+    setCancelingId(subId);
+    try {
+      await api(`/payments/subscriptions/${subId}/auto-renew`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: false }),
+      });
+      await refreshMe();
+      toast.success('Автомат сунгалт болилоо');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Болиулж чадсангүй');
+    } finally {
+      setCancelingId(null);
+    }
   };
 
   const [editingName, setEditingName] = useState(false);
@@ -437,6 +459,29 @@ export default function ProfilePage() {
                           ))}
                         </div>
                       )}
+                      {/*
+                        ⚠️⚠️ АВТОМАТ СУНГАЛТ — ЗӨВХӨН асаалттай үед харуулна.
+                        Хэрэглэгч мөнгө автоматаар татагдахыг МЭДЭЖ, хүссэн
+                        үедээ болиулах ЁСТОЙ (хэрэглэгчийн эрхийн шаардлага).
+                        ⚠️ Асаалтгүй захиалганд харуулбал «асаах» гэсэн санал
+                           болж, зөвшөөрөлгүй татах эрсдэл үүсгэнэ — тиймээс
+                           асаах нь зөвхөн худалдан авах цонхонд.
+                      */}
+                      {s.autoRenew && s.id && (
+                        <div className="mt-2 flex items-center justify-between gap-2 rounded-md bg-success/10 px-2 py-1.5">
+                          <span className="text-[11px] leading-snug text-success">
+                            Автоматаар сунгагдана
+                          </span>
+                          <button
+                            type="button"
+                            disabled={cancelingId === s.id}
+                            onClick={() => void cancelAutoRenew(s.id!)}
+                            className="shrink-0 text-[11px] font-semibold text-foreground/55 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
+                          >
+                            {cancelingId === s.id ? 'Болиулж байна…' : 'Болиулах'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -467,6 +512,13 @@ export default function ProfilePage() {
               хоёуланг зэрэг хардаг байх ёстой.
             */}
             <DeviceSessionsCard />
+
+            {/*
+              ⚠️ ХАДГАЛСАН КАРТ — карт байхгүй бол компонент өөрөө юу ч
+              харуулахгүй (`return null`). Карт нь багц худалдан авахад
+              «Автоматаар сунгах» чеклэсэн үед л хадгалагдана.
+            */}
+            <SavedCardsCard />
 
             {/* Идэвхтэй түрээс — ширхэгээр авсан кинонууд */}
             {rentals && rentals.length > 0 && (

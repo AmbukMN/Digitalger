@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 /**
  * ⚠️ Bonum-аар явах төлбөрийн аргууд. `qpay` бол ХУУЧИН зам (default,
@@ -44,6 +44,7 @@ export class TopupDto {
   @IsOptional()
   @IsIn([...BONUM_METHODS], { message: 'Төлбөрийн арга буруу' })
   method?: BonumMethod;
+
 }
 
 /** Багц худалдан авах (QPay эсвэл хэтэвч) */
@@ -65,6 +66,16 @@ export class PurchasePlanDto {
   @IsOptional()
   @IsIn([...BONUM_METHODS], { message: 'Төлбөрийн арга буруу' })
   method?: BonumMethod;
+
+  /**
+   * КАРТААР авахад «Автомат сунгах» чеклэсэн эсэх.
+   * ⚠️ Зөвхөн `method='card'` үед утгатай — QPay/данс/хэтэвчид карт
+   *    үлддэггүй тул автоматаар татах эх сурвалж байхгүй.
+   * ⚠️ true бол карт ХАДГАЛАГДАНА (tokenize урсгал).
+   */
+  @IsOptional()
+  @IsBoolean()
+  autoRenew?: boolean;
 }
 
 /** Кино түрээслэх */
@@ -77,4 +88,10 @@ export class RentTitleDto {
   @IsOptional()
   @IsIn([...BONUM_METHODS], { message: 'Төлбөрийн арга буруу' })
   method?: BonumMethod;
+}
+
+/** Автомат сунгалт асаах/унтраах */
+export class AutoRenewDto {
+  @IsBoolean()
+  enabled: boolean;
 }

@@ -88,6 +88,200 @@ export class PaymentsService {
   }
 
   /**
+   * КАРТААР ТӨЛӨХ + КАРТАА ХАДГАЛАХ (эхний удаа).
+   *
+   * ⚠️ Bonum-ын tokenize нь `payment.amount` өгвөл токен үүсгэхийн
+   * ЗЭРЭГЦЭЭ тэр дүнг төлдөг — тиймээс хэрэглэгч НЭГ Л УДАА hosted
+   * хуудсанд орно, дараа нь картаа дахин бичихгүй.
+   *
+   * ⚠️ `bonumInvoiceId`-д `TOK:<transactionId>` гэж бичнэ — CARD-TOKEN
+   * webhook ирэхэд ЯМАР ХЭРЭГЛЭГЧИЙНХ болохыг үүгээр олно (webhook-д
+   * userId ирдэггүй, зөвхөн бидний өгсөн transactionId буцаж ирнэ).
+   */
+  private async createBonumTokenizePayment(amount: number) {
+    if (!this.bonum.isConfigured()) {
+      throw new BadRequestException('Энэ төлбөрийн арга түр боломжгүй байна');
+    }
+    const transactionId = randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
+    const inv = await this.bonum.tokenizeCard(amount, transactionId);
+    return {
+      bonumInvoiceId: `TOK:${transactionId}`,
+      bonumFollowUpLink: inv.followUpLink,
+    };
+  }
+
+  /**
+   * CARD-TOKEN webhook → картыг хадгална.
+   *
+   * ⚠️ Хэрэглэгчийг `transactionId`-аар олно (`TOK:<id>` гэж Payment-д
+   *    бичсэн). Олдохгүй бол ЧИМЭЭГҮЙ өнгөрнө — хэн нэгний картыг
+   *    буруу хүнд холбохоос сэргийлнэ.
+   * ⚠️ Токен ДАВХАРДВАЛ (ижил картыг дахин хадгалсан) шинэчилнэ.
+   */
+  private async saveCardFromWebhook(
+    body: Record<string, unknown>,
+    inner: Record<string, unknown>,
+  ) {
+    const ok = String(body.status ?? inner.status ?? '').toUpperCase() === 'SUCCESS';
+    const token = String(inner.token ?? '');
+    const transactionId = String(inner.transactionId ?? '');
+    if (!ok || !token || !transactionId) {
+      this.logger.warn(`Bonum CARD-TOKEN боловсруулах боломжгүй: ${JSON.stringify(inner).slice(0, 200)}`);
+      return { received: true, matched: false };
+    }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { bonumInvoiceId: `TOK:${transactionId}` },
+      select: { id: true, userId: true, amount: true, status: true, planId: true },
+    });
+    if (!payment?.userId) {
+      this.logger.warn(`Bonum CARD-TOKEN: payment олдсонгүй (${transactionId})`);
+      return { received: true, matched: false };
+    }
+
+    const bank = ((inner.bank ?? {}) as Record<string, unknown>).name;
+    const card = await this.prisma.savedCard.upsert({
+      where: { token },
+      create: {
+        userId: payment.userId,
+        token,
+        mask: String(inner.mask ?? ''),
+        bank: String(bank ?? ''),
+        expiry: String(inner.expiry ?? ''),
+        /* ⚠️ Эхний карт нь автоматаар анхдагч болно */
+        isDefault: (await this.prisma.savedCard.count({ where: { userId: payment.userId } })) === 0,
+      },
+      update: {
+        mask: String(inner.mask ?? ''),
+        bank: String(bank ?? ''),
+        expiry: String(inner.expiry ?? ''),
+      },
+    });
+    this.logger.log(`Карт хадгалагдлаа: user=${payment.userId} mask=${card.mask}`);
+
+    /**
+     * ⚠️ Токенжуулалтын ЗЭРЭГЦЭЭ төлбөр хийгдсэн бол эрхийг НЭЭНЭ.
+     * Bonum нь `amounts[]` талбарт төлсөн дүнг буцаадаг.
+     */
+    const amounts = Array.isArray(inner.amounts) ? (inner.amounts as { amount?: number }[]) : [];
+    const paid = Math.round(Number(amounts[0]?.amount ?? 0));
+    if (payment.status === PaymentStatus.PENDING && paid > 0) {
+      if (paid !== payment.amount) {
+        this.logger.error(
+          `CARD-TOKEN дүн зөрүү: payment=${payment.id} хүлээсэн=${payment.amount} ирсэн=${paid}`,
+        );
+        return { received: true, matched: true };
+      }
+      await this.completePayment(payment.id);
+      /* ⚠️ Автомат сунгалтыг ЭНЭ картад холбоно (хэрэглэгч чеклэсэн бол) */
+      await this.linkAutoRenew(payment.id, card.id);
+    }
+    return { received: true, matched: true };
+  }
+
+  /**
+   * Төлбөрөөр үүссэн захиалгад хадгалсан картыг холбож, автомат
+   * сунгалтыг асаана.
+   *
+   * ⚠️ ЗӨВХӨН хэрэглэгч чеклэсэн үед (`Payment.autoRenewRequested`).
+   *    Чекгүй бол карт хадгалагдана ч сунгалт АСААХГҮЙ — хэрэглэгчийн
+   *    зөвшөөрөлгүй мөнгө татахгүй.
+   */
+  private async linkAutoRenew(paymentId: string, cardId: string) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { paymentId },
+      select: { id: true },
+    });
+    if (!sub) return;
+    const p = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { autoRenewRequested: true },
+    });
+    if (!p?.autoRenewRequested) return;
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { autoRenew: true, cardId },
+    });
+  }
+
+  /** Хэрэглэгчийн хадгалсан картууд (токен ХАРУУЛАХГҮЙ) */
+  async listCards(userId: string) {
+    const rows = await this.prisma.savedCard.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      /* ⚠️ `token` ОГТ буцаахгүй — frontend-д хэрэггүй, задарвал
+         тухайн картаас төлбөр татах боломжтой болно */
+      select: { id: true, mask: true, bank: true, expiry: true, isDefault: true, createdAt: true },
+    });
+    return rows;
+  }
+
+  /**
+   * Карт устгах.
+   * ⚠️ Устгахад тухайн картаар явж байсан АВТОМАТ СУНГАЛТ зогсоно
+   *    (`cardId` нь SetNull) — хэрэглэгчид үүнийг хэлэх ёстой.
+   */
+  async deleteCard(userId: string, cardId: string) {
+    const card = await this.prisma.savedCard.findFirst({
+      where: { id: cardId, userId },
+      select: { id: true },
+    });
+    if (!card) throw new NotFoundException('Карт олдсонгүй');
+
+    /* ⚠️ Энэ картаар сунгагддаг захиалгуудыг эхлээд унтраана —
+       эс бөгөөс cardId=null болоод «сунгах гэж байгаад чадахгүй»
+       гэсэн төлөвт үлдэнэ. */
+    await this.prisma.subscription.updateMany({
+      where: { cardId, autoRenew: true },
+      data: { autoRenew: false, autoRenewCancelledAt: new Date() },
+    });
+    await this.prisma.savedCard.delete({ where: { id: cardId } });
+    return { ok: true };
+  }
+
+  /**
+   * Автомат сунгалтыг АСААХ/УНТРААХ (профайлаас).
+   * ⚠️ Асаахад заавал КАРТ хэрэгтэй — эс бөгөөс татах эх сурвалжгүй.
+   */
+  async setAutoRenew(userId: string, subscriptionId: string, enabled: boolean) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { id: subscriptionId, userId },
+      select: { id: true, cardId: true },
+    });
+    if (!sub) throw new NotFoundException('Захиалга олдсонгүй');
+
+    if (enabled) {
+      /* Карт заагаагүй бол анхдагч картыг холбоно */
+      let cardId = sub.cardId;
+      if (!cardId) {
+        const def = await this.prisma.savedCard.findFirst({
+          where: { userId },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+          select: { id: true },
+        });
+        if (!def) {
+          throw new BadRequestException(
+            'Автомат сунгалт асаахын тулд эхлээд картаа хадгална уу',
+          );
+        }
+        cardId = def.id;
+      }
+      await this.prisma.subscription.update({
+        where: { id: sub.id },
+        /* ⚠️ Дахин асаахад алдааны тоолуурыг тэглэнэ */
+        data: { autoRenew: true, cardId, renewFailCount: 0, autoRenewCancelledAt: null },
+      });
+      return { autoRenew: true };
+    }
+
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { autoRenew: false, autoRenewCancelledAt: new Date() },
+    });
+    return { autoRenew: false };
+  }
+
+  /**
    * Боломжтой төлбөрийн аргууд — frontend UI-д харуулахад.
    * ⚠️ `card` нь карт/Apple Pay/Google Pay/WeChat-ыг НЭГЭН зэрэг
    *    илэрхийлнэ (бүгд нэг зуучлагчаар).
@@ -115,7 +309,13 @@ export class PaymentsService {
    * ⚠️ `method` байхгүй = QPay (QR + банкны deeplink, ХУУЧИН зам огт
    *    өөрчлөгдөөгүй). card/applepay/googlepay/wechat = Bonum redirect.
    */
-  async initiate(planId: string, userId: string, couponCode?: string, method?: BonumMethod) {
+  async initiate(
+    planId: string,
+    userId: string,
+    couponCode?: string,
+    method?: BonumMethod,
+    autoRenew?: boolean,
+  ) {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) throw new NotFoundException('Багц олдсонгүй');
 
@@ -242,7 +442,20 @@ export class PaymentsService {
     /* ─── BONUM (карт · Apple Pay · Google Pay · WeChat) ───────────
        ⚠️ QPay-ийн доорх кодыг огт хөндөхгүй, энд салаалж гарна. */
     if (method) {
-      const bonumFields = await this.createBonumPayment(amount, method);
+      /**
+       * ⚠️⚠️ КАРТ + АВТОМАТ СУНГАЛТ → TOKENIZE урсгал.
+       *
+       * Хэрэглэгч «Автомат сунгах»-ыг чеклэсэн бол энгийн нэг удаагийн
+       * invoice БИШ, картаа ХАДГАЛАХ хүсэлт үүсгэнэ. Bonum нь токен
+       * үүсгэхийн зэрэгцээ тухайн дүнг төлдөг тул хэрэглэгч НЭГ Л УДАА
+       * hosted хуудсанд орно — дараагийн сунгалт автоматаар болно.
+       *
+       * ⚠️ ЗӨВХӨН `card` — Apple/Google/WeChat нь токенждоггүй.
+       */
+      const wantsCard = autoRenew === true && method === 'card';
+      const bonumFields = wantsCard
+        ? await this.createBonumTokenizePayment(amount)
+        : await this.createBonumPayment(amount, method);
       const payment = await this.prisma.payment.create({
         data: {
           userId,
@@ -252,6 +465,7 @@ export class PaymentsService {
           couponCode: normalizedCoupon,
           promotionId,
           originalAmount: normalizedCoupon || promotionId ? plan.price : undefined,
+          autoRenewRequested: wantsCard,
           ...bonumFields,
         },
       });
@@ -686,11 +900,33 @@ export class PaymentsService {
 
     const type = String(body.type ?? '').toUpperCase();
     const inner = (body.body ?? {}) as Record<string, unknown>;
+
+    /**
+     * ⚠️⚠️ КАРТЫН ТОКЕН ИРЛЭЭ — хадгална (дараагийн төлбөрт hosted
+     * хуудас гарахгүй болно).
+     *
+     * ⚠️ Энэ webhook-д `invoiceId` БАЙХГҮЙ тул доорх шалгалтаас ӨМНӨ
+     *    боловсруулна — эс бөгөөс 400 буцаж токен АЛДАГДАНА.
+     * ⚠️ Токен нь картын дугаар БИШ — Bonum-ын PCI орчинд PAN үлдэнэ.
+     */
+    if (type === 'CARD-TOKEN') {
+      return this.saveCardFromWebhook(body, inner);
+    }
+
+    /**
+     * ⚠️ АВТОМАТ СУНГАЛТЫН ТӨЛБӨР (Bonum-ын өөрийн subscription).
+     * Одоо бид сунгалтыг ӨӨРИЙН cron-оор хийдэг (Bonum дээр
+     * payment-plan үүсгээгүй) тул энэ нь ирэхгүй. Ирвэл алдаа
+     * гэж үзэхгүй, бүртгээд өнгөрнө.
+     */
+    if (type === 'SUBSCRIPTION-PAYMENT') {
+      this.logger.log(`Bonum subscription webhook: ${JSON.stringify(inner).slice(0, 200)}`);
+      return { received: true, matched: false };
+    }
+
     const invoiceId = String(inner.invoiceId ?? body.invoiceId ?? '');
     if (!invoiceId) throw new BadRequestException('Webhook payload буруу');
 
-    /* ⚠️ CARD-TOKEN / SUBSCRIPTION-PAYMENT төрлийг одоогоор хүлээж авах
-       боловч боловсруулахгүй (карт хадгалах дараагийн үе шатанд) */
     if (type && type !== 'PAYMENT') {
       this.logger.log(`Bonum webhook төрөл «${type}» — алгаслаа (${invoiceId})`);
       return { received: true, matched: false };

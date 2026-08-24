@@ -276,4 +276,132 @@ export class BonumService {
     if (a.length !== b.length) return false;
     return timingSafeEqual(a, b);
   }
+
+  /**
+   * КАРТ ХАДГАЛАХ хүсэлт → hosted tokenize линк.
+   *
+   * ⚠️⚠️ ЯАГААД HOSTED ЗААВАЛ ВЭ: картын дугаар/CVV-г манай сервер
+   * ХЭЗЭЭ Ч хүлээж авахгүй. Bonum-ын баримтад картын PAN илгээх
+   * endpoint ОГТ БАЙХГҮЙ — цорын ганц зам нь энэ `follow-up link`.
+   * Хэрэв бид өөрсдөө форм хийвэл PCI DSS сертификат шаардагдана.
+   *
+   * Урсгал: энэ дуудлага → хэрэглэгч Bonum-ын хуудсанд картаа бичнэ →
+   * `CARD-TOKEN` webhook-оор ТОКЕН ирнэ → бид хадгална → УДААХ
+   * төлбөрүүд `purchaseWithToken()`-оор МАНАЙ САЙТ ДЭЭР шууд болно.
+   *
+   * @param amount 0-ээс их бол картаа хадгалахын ЗЭРЭГЦЭЭ тэр дүнг
+   *               шууд төлнө (эхний худалдан авалт нэг алхмаар дуусна).
+   */
+  async tokenizeCard(amount: number, transactionId: string): Promise<BonumInvoiceResult> {
+    const c = this.config.get('bonum');
+    const body: Record<string, unknown> = {
+      /* ⚠️ Токенжуулалт дууссаны дараа хэрэглэгчийг БУЦААХ хаяг.
+         Webhook-оос ТУСДАА (webhook нь server-to-server). */
+      callback: c.cardCallbackUrl ?? c.callbackUrl,
+      transactionId,
+    };
+    /* ⚠️ `payment.amount` өгвөл токен үүсгэхийн зэрэгцээ ТӨЛНӨ */
+    if (amount > 0) body.payment = { amount };
+
+    const call = async (token: string) =>
+      fetch(`${this.base()}/mpay-service/merchant/cards/tokenize/request`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept-Language': 'mn',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+    let res = await call(await this.getToken());
+    if (res.status === 401 || res.status === 403) {
+      this.tokenCache = null;
+      res = await call(await this.getToken());
+    }
+    const raw = await res.text();
+    if (!res.ok) {
+      this.logger.error(`Bonum tokenize амжилтгүй: ${res.status} ${raw.slice(0, 300)}`);
+      throw new BadRequestException('Карт хадгалах хүсэлт үүсгэж чадсангүй');
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      this.logger.error(`Bonum tokenize хариу JSON биш: ${raw.slice(0, 200)}`);
+      throw new BadRequestException('Карт хадгалах хүсэлт үүсгэж чадсангүй');
+    }
+    const d = ((parsed.data as Record<string, unknown>) ?? parsed) as Record<string, string>;
+    const link = d.followUpLink ?? d.link ?? d.url;
+    if (!link) {
+      this.logger.error(`Bonum tokenize линк олдсонгүй: ${raw.slice(0, 300)}`);
+      throw new BadRequestException('Карт хадгалах хүсэлт үүсгэж чадсангүй');
+    }
+    return { invoiceId: String(d.invoiceId ?? transactionId), followUpLink: String(link) };
+  }
+
+  /**
+   * ХАДГАЛСАН КАРТААР ТӨЛӨХ — hosted хуудас ОГТ ГАРАХГҮЙ.
+   *
+   * ⚠️ Хариу 3 төлөвтэй (Bonum баримт):
+   *   200 SUCCESS · 400 FAILED · 201 QUEUED (ачаалал ихтэй үед)
+   * QUEUED бол эцсийн үр дүн ДАРАА нь webhook-оор ирнэ — тиймээс
+   * «амжилтгүй» гэж үзэж БОЛОХГҮЙ, хүлээх ёстой.
+   *
+   * ⚠️ `errorCode`-д БҮҮ ТҮШИГЛЭ — баримтад «зөвхөн дотоод хэрэглээ»
+   *    гэж тусгайлан анхааруулсан.
+   */
+  async purchaseWithToken(
+    cardToken: string,
+    amount: number,
+    transactionId: string,
+  ): Promise<'SUCCESS' | 'QUEUED' | 'FAILED'> {
+    const call = async (token: string) =>
+      fetch(`${this.base()}/mpay-service/merchant/transaction/purchase`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-CARD-TOKEN': cardToken,
+          'Content-Type': 'application/json',
+          'Accept-Language': 'mn',
+        },
+        body: JSON.stringify({ amount, currency: 'MNT', transactionId }),
+        signal: AbortSignal.timeout(20_000),
+      });
+
+    let res: Response;
+    try {
+      res = await call(await this.getToken());
+      if (res.status === 401 || res.status === 403) {
+        this.tokenCache = null;
+        res = await call(await this.getToken());
+      }
+    } catch (e) {
+      /* ⚠️ Сүлжээний алдаа — төлбөр ЯВСАН ЭСЭХ нь ТОДОРХОЙГҮЙ.
+         FAILED гэвэл давхар татах эрсдэлтэй тул QUEUED гэж үзээд
+         webhook/шалгалтад даатгана. */
+      this.logger.error(`Bonum purchase сүлжээний алдаа: ${String(e)}`);
+      return 'QUEUED';
+    }
+
+    const raw = await res.text();
+    if (res.status === 201) {
+      this.logger.log(`Bonum purchase дараалалд орлоо: ${transactionId}`);
+      return 'QUEUED';
+    }
+    if (!res.ok) {
+      this.logger.warn(`Bonum purchase амжилтгүй (${res.status}): ${raw.slice(0, 250)}`);
+      return 'FAILED';
+    }
+    try {
+      const b = JSON.parse(raw) as { data?: { status?: string } };
+      const st = String(b.data?.status ?? '').toUpperCase();
+      if (st === 'SUCCESS') return 'SUCCESS';
+      if (st === 'QUEUED') return 'QUEUED';
+      return 'FAILED';
+    } catch {
+      return 'FAILED';
+    }
+  }
 }

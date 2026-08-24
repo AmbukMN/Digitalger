@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
   Param,
+  Patch,
   Post,
   RawBodyRequest,
   Req,
@@ -16,7 +18,7 @@ import { Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
-import { PurchasePlanDto, RentTitleDto, TopupDto } from './dto/payments.dto';
+import { AutoRenewDto, PurchasePlanDto, RentTitleDto, TopupDto } from './dto/payments.dto';
 
 @Controller('payments')
 export class PaymentsController {
@@ -27,7 +29,13 @@ export class PaymentsController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   initiate(@CurrentUser() user: JwtPayload, @Body() dto: PurchasePlanDto) {
     /* ⚠️ `method` байхгүй = QPay (хуучин зам, огт өөрчлөгдөөгүй) */
-    return this.payments.initiate(dto.planId, user.sub, dto.couponCode, dto.method);
+    return this.payments.initiate(
+      dto.planId,
+      user.sub,
+      dto.couponCode,
+      dto.method,
+      dto.autoRenew,
+    );
   }
 
   /**
@@ -87,6 +95,37 @@ export class PaymentsController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   purchaseWithWallet(@CurrentUser() user: JwtPayload, @Body() dto: PurchasePlanDto) {
     return this.payments.purchaseWithWallet(user.sub, dto.planId, dto.couponCode);
+  }
+
+  /**
+   * ХАДГАЛСАН КАРТУУД — профайлд харуулна.
+   * ⚠️ Токен ОГТ буцаахгүй (зөвхөн маск/банк/хугацаа).
+   */
+  @Get('cards')
+  @UseGuards(JwtAuthGuard)
+  cards(@CurrentUser() user: JwtPayload) {
+    return this.payments.listCards(user.sub);
+  }
+
+  /**
+   * Карт устгах.
+   * ⚠️ Тухайн картаар явж байсан автомат сунгалт ч зогсоно.
+   */
+  @Delete('cards/:id')
+  @UseGuards(JwtAuthGuard)
+  removeCard(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.payments.deleteCard(user.sub, id);
+  }
+
+  /** Автомат сунгалт асаах/унтраах */
+  @Patch('subscriptions/:id/auto-renew')
+  @UseGuards(JwtAuthGuard)
+  autoRenew(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: AutoRenewDto,
+  ) {
+    return this.payments.setAutoRenew(user.sub, id, dto.enabled);
   }
 
   /** QPay callback — нээлттэй endpoint, дотор нь QPay API-аар баталгаажуулна */

@@ -273,10 +273,16 @@ export class AuthService {
        * (Хэрэглэгч хүсвэл бусад багцыг хэдийд ч авах боломжтой хэвээр.)
        */
       subscriptions: activeSubs.map((s) => ({
+        /* ⚠️ Захиалгын ID — профайлаас автомат сунгалт унтраахад хэрэгтэй
+           (`PATCH /payments/subscriptions/:id/auto-renew`). planId нь
+           ХАНГАЛТГҮЙ: нэг багцын хэд хэдэн мөр байж болно. */
+        id: s.id,
         planId: s.plan.id,
         planName: s.plan.name,
         isVip: s.plan.isVip,
         expiresAt: s.expiresAt,
+        /** Автомат сунгалт асаалттай эсэх (карттай үед л) */
+        autoRenew: s.autoRenew,
         genres: s.plan.genres.map((g) => g.genre),
         supersededByVip: !s.plan.isVip && activeSubs.some((x) => x.plan.isVip),
       })),

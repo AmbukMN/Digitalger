@@ -113,6 +113,13 @@ export default () => ({
     terminalId: process.env.BONUM_TERMINAL_ID,
     checksumKey: process.env.BONUM_CHECKSUM_KEY,
     callbackUrl: process.env.BONUM_CALLBACK_URL,
+    /**
+     * Карт хадгалсны дараа хэрэглэгчийг БУЦААХ хаяг.
+     * ⚠️ Webhook-оос ТУСДАА: webhook нь server-to-server (токен ирнэ),
+     *    энэ нь browser redirect. Тохируулаагүй бол `callbackUrl` руу
+     *    унах ба тэнд GET handler хэрэглэгчийг сайт руу буцаана.
+     */
+    cardCallbackUrl: process.env.BONUM_CARD_CALLBACK_URL,
   },
   tmdb: {
     apiKey: process.env.TMDB_API_KEY ?? null,

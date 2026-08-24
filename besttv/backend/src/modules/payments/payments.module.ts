@@ -7,6 +7,7 @@ import { EmailModule } from '../email/email.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { PaymentsReconcileService } from './payments-reconcile.service';
 import { BonumService } from './bonum.service';
+import { AutoRenewService } from './auto-renew.service';
 import { CouponsModule } from '../coupons/coupons.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { PromotionsModule } from '../promotions/promotions.module';
@@ -33,7 +34,15 @@ import { RentalsModule } from '../rentals/rentals.module';
     AnalyticsModule,
   ],
   controllers: [PaymentsController, PaymentsAdminController],
-  providers: [PaymentsService, BonumService, PaymentsReconcileService, PaymentCleanupService],
+    /* ⚠️ AutoRenewService — өдөр тутмын cron. Багц дуусахад хадгалсан
+     картаас автоматаар татдаг тул WORKER-т ч ажиллана (rebuild хэрэгтэй). */
+  providers: [
+    PaymentsService,
+    BonumService,
+    AutoRenewService,
+    PaymentsReconcileService,
+    PaymentCleanupService,
+  ],
   exports: [PaymentsService],
 })
 export class PaymentsModule {}

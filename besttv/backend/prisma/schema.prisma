@@ -139,6 +139,8 @@ model User {
 
   subscriptions Subscription[]
   payments      Payment[]
+  /// Хадгалсан картууд (Bonum токен — картын дугаар БИШ)
+  savedCards    SavedCard[]
   watchProgress WatchProgress[]
   myList        MyListItem[]
   reviews       Review[]
@@ -513,13 +515,65 @@ model Subscription {
   expiresAt DateTime
   paymentId String?  @unique
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan    Plan     @relation(fields: [planId], references: [id])
-  payment Payment? @relation(fields: [paymentId], references: [id])
+  /// АВТОМАТ СУНГАЛТ — хугацаа дуусахад хадгалсан картаас автоматаар төлнө.
+  /// ⚠️ Зөвхөн КАРТААР авсан үед true болно (QPay/данс/хэтэвчид карт үлддэггүй).
+  autoRenew Boolean @default(false)
+
+  /// Аль хадгалсан картаас татах вэ. Карт устгагдвал null → сунгалт зогсоно.
+  cardId String?
+
+  /// Хэрэглэгч автомат сунгалтыг болиулсан огноо (аудит; autoRenew=false болно).
+  autoRenewCancelledAt DateTime?
+
+  /// Сунгалт дараалан хэдэн удаа амжилтгүй болсон.
+  /// ⚠️ 3 хүрвэл autoRenew унтрааж, хэрэглэгчид имэйл илгээнэ — эс бөгөөс
+  /// хүчингүй картыг ӨДӨР БҮР татаж, банкны эсэргүүцэл (chargeback) дуудна.
+  renewFailCount Int @default(0)
+
+  /// Хамгийн сүүлд сунгалт оролдсон — өдөрт нэгээс олон оролдохоос сэргийлнэ.
+  lastRenewTriedAt DateTime?
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    Plan       @relation(fields: [planId], references: [id])
+  payment Payment?   @relation(fields: [paymentId], references: [id])
+  /// ⚠️ SetNull — карт устгахад захиалга УСТАХГҮЙ, зөвхөн сунгалт зогсоно.
+  card    SavedCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([userId, expiresAt])
+  /// Сунгалтын cron — «autoRenew=true БА удахгүй дуусах» хайлт
+  @@index([autoRenew, expiresAt])
+}
+
+/// ХАДГАЛСАН КАРТ (Bonum tokenize).
+///
+/// ⚠️⚠️ КАРТЫН ДУГААР ЭНД ХЭЗЭЭ Ч ХАДГАЛАГДАХГҮЙ. Зөвхөн Bonum-ын өгсөн
+/// ТОКЕН + харуулах зориулалттай маск (`5150 23** **** 4778`). Бодит PAN
+/// нь Bonum-ын PCI DSS орчинд үлддэг — бид картын өгөгдөл хүлээж авбал
+/// өөрсдөө PCI сертификаттай байх шаардлагатай болно.
+model SavedCard {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Bonum-ын картын токен — төлбөр татахад `X-CARD-TOKEN` толгойд явна.
+  token String @unique
+  /// Харуулах маск — «5150 23** **** 4778»
+  mask  String
+  /// Банкны нэр (Bonum webhook-оос) — «Golomt Bank»
+  bank  String @default("")
+  /// «2026/11» — хугацаа дуусахыг хэрэглэгчид сануулахад
+  expiry String @default("")
+
+  /// Шинэ төлбөрт анхдагчаар сонгогдох карт
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@index([userId, createdAt])
 }
 
 model Payment {
@@ -591,6 +645,11 @@ model Payment {
    * ОГТ явуулахгүй (QPay-тэй ижил зарчим). Webhook нь invoiceId-аар
    * тааруулдаг тул @unique заавал (идемпотент).
    */
+  /// Хэрэглэгч төлбөрийн цонхонд «Автомат сунгах»-ыг чеклэсэн эсэх.
+  /// ⚠️ Карт хадгалагдмагц ЭНЭ талбарыг хараад л сунгалтыг асаана —
+  /// зөвшөөрөлгүй мөнгө татахгүй.
+  autoRenewRequested Boolean @default(false)
+
   bonumInvoiceId    String? @unique
   /// Bonum hosted checkout хуудасны линк — idempotent дахин ашиглалтад
   bonumFollowUpLink String?

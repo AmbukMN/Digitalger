@@ -267,7 +267,7 @@ export default function PricingPage() {
   };
 
   /** Цонхон дээр арга сонгоод «Төлөх» дарахад */
-  const paySelected = async (method: SheetMethod) => {
+  const paySelected = async (method: SheetMethod, autoRenew?: boolean) => {
     const plan = sheetPlan;
     if (!plan) return;
 
@@ -304,7 +304,14 @@ export default function PricingPage() {
     try {
       const res = await api<{ redirectUrl?: string; devMode?: boolean }>('/payments/initiate', {
         method: 'POST',
-        body: JSON.stringify({ planId: plan.id, couponCode: appliedCoupon?.code, method }),
+        /* ⚠️ `autoRenew` нь зөвхөн карт+багц үед ирнэ — backend тэр үед
+           tokenize урсгал руу орж картыг ХАДГАЛНА */
+        body: JSON.stringify({
+          planId: plan.id,
+          couponCode: appliedCoupon?.code,
+          method,
+          ...(autoRenew !== undefined ? { autoRenew } : {}),
+        }),
       });
       if (res.devMode) {
         toast.success('Эрх нээгдлээ (dev mode)');
@@ -807,7 +814,13 @@ export default function PricingPage() {
       </div>
 
       <p className="mx-auto mt-10 max-w-md text-center text-xs text-foreground/35">
-        Олон багц зэрэг авч болно. Идэвхтэй багцаа дахин авбал хугацаа нь ДЭЭР НЬ нэмэгдэнэ. Автомат сунгалт байхгүй.
+        {/*
+          ⚠️ Өмнө нь «Автомат сунгалт БАЙХГҮЙ» гэж бичсэн байсныг ЗАСАВ —
+          картаар авахад автомат сунгалт нэвтэрсэн тул тэр текст ХУДАЛ
+          болсон. Хэрэглэгчид буруу мэдээлэл өгөх нь итгэл алдагдуулна.
+        */}
+        Олон багц зэрэг авч болно. Идэвхтэй багцаа дахин авбал хугацаа нь ДЭЭР НЬ нэмэгдэнэ.
+        Картаар авбал автомат сунгалт хийж болох ба профайлаасаа хэдийд ч болиулна.
       </p>
 
       {/*
