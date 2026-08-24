@@ -51,6 +51,11 @@ export function VideoPlayer({
   title,
   subtitles,
   backHref,
+  introStartSec,
+  introEndSec,
+  nextLabel,
+  onNext,
+  outroStartSec,
 }: {
   src: string; // '/api/stream/movie/{id}/playlist.m3u8' гэх мэт
   poster?: string;
@@ -67,6 +72,20 @@ export function VideoPlayer({
   subtitles?: { lang: string; label: string; src: string; isDefault: boolean }[];
   /** Буцах холбоос — player дотроос шууд гарах зам */
   backHref?: string;
+  /**
+   * ИНТРО АЛГАСАХ — секундээр. ХОЁУЛАА байвал л товч гарна.
+   * ⚠️ Нэг нь дутуу бол буруу газар үсрэх эрсдэлтэй тул ОГТ гаргахгүй.
+   */
+  introStartSec?: number | null;
+  introEndSec?: number | null;
+  /**
+   * ДАРААГИЙН АНГИ — өгвөл титрийн үед (эсвэл дуусахад) карт гарна.
+   * ⚠️ `onNext` байхгүй бол карт огт гарахгүй (сүүлийн анги).
+   */
+  nextLabel?: string;
+  onNext?: () => void;
+  /** Титр эхлэх секунд — эндээс «Дараагийн анги» карт гарч эхэлнэ */
+  outroStartSec?: number | null;
 }) {
   const router = useRouter();
   const playerRef = useRef<MediaPlayerInstance>(null);
@@ -464,15 +483,84 @@ export function VideoPlayer({
    * `seeked`/`pause`/хуудас хаах үед НЭМЭЛТЭЭР хадгална (доор) —
    * тэдгээргүй бол хэрэглэгч seek хийгээд шууд гарахад байрлал алдагдана.
    */
+  /**
+   * ─── ИНТРО АЛГАСАХ / ДАРААГИЙН АНГИ ────────────────────────────────
+   *
+   * ⚠️⚠️ Хоёулаа ХЭРЭГЛЭГЧИЙН СОНГОЛТ — автоматаар үсэрдэггүй.
+   *   • Интро: товч гарна, дарвал л алгасна (интро үзэх дуртай хүн бий)
+   *   • Дараагийн анги: тоолуур гүйнэ, «Болих» дарж зогсооно
+   *
+   * ⚠️ Өмнө нь анги дуусмагц ШУУД, анхааруулгагүй үсэрдэг байсан нь
+   *    титр үзэх гэсэн хүнийг тасалж, унтчихсан хүнд 10 ангийг
+   *    дараалан тоглуулах эрсдэлтэй байв.
+   */
+  const [showSkipIntro, setShowSkipIntro] = useState(false);
+  const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+  /** ⚠️ Хэрэглэгч «Болих» дарсан бол энэ ангид дахин санал болгохгүй */
+  const nextCancelled = useRef(false);
+  /** ⚠️ Дараагийн анги руу НЭГ Л УДАА шилжинэ (давхар дуудлагаас) */
+  const nextFired = useRef(false);
+
+  /* Анги солигдоход төлөвийг цэвэрлэнэ */
+  useEffect(() => {
+    setShowSkipIntro(false);
+    setNextCountdown(null);
+    nextCancelled.current = false;
+    nextFired.current = false;
+  }, [src]);
+
+  const goNext = useCallback(() => {
+    if (nextFired.current || !onNext) return;
+    nextFired.current = true;
+    onNext();
+  }, [onNext]);
+
+  /**
+   * Тоолуур — 1 секунд тутам буурна, 0 болмогц дараагийн анги.
+   * ⚠️ `nextCountdown` null бол таймер ОГТ ажиллахгүй.
+   */
+  useEffect(() => {
+    if (nextCountdown === null) return;
+    if (nextCountdown <= 0) { goNext(); return; }
+    const t = setTimeout(() => setNextCountdown((n) => (n === null ? null : n - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [nextCountdown, goNext]);
+
   const onTimeUpdate = useCallback(() => {
     const p = playerRef.current;
-    if (!p || !onProgress) return;
+    if (!p) return;
     const t = p.currentTime;
+
+    /* ─ Интро товч: заасан цонхонд байх үед л ─ */
+    if (introStartSec != null && introEndSec != null && introEndSec > introStartSec) {
+      setShowSkipIntro(t >= introStartSec && t < introEndSec);
+    }
+
+    /* ─ Титрийн үед дараагийн ангийг ЭРТ санал болгоно ─ */
+    if (
+      onNext &&
+      !nextCancelled.current &&
+      nextCountdown === null &&
+      outroStartSec != null &&
+      t >= outroStartSec
+    ) {
+      setNextCountdown(10);
+    }
+
+    if (!onProgress) return;
     if (t > 0 && Math.abs(t - lastSaved.current) >= 5) {
       lastSaved.current = t;
       onProgress(t, p.duration || 0);
     }
-  }, [onProgress]);
+  }, [onProgress, introStartSec, introEndSec, onNext, outroStartSec, nextCountdown]);
+
+  const skipIntro = useCallback(() => {
+    const p = playerRef.current;
+    if (p && introEndSec != null) {
+      p.currentTime = introEndSec;
+      setShowSkipIntro(false);
+    }
+  }, [introEndSec]);
 
   const saveNow = useCallback(() => {
     const p = playerRef.current;
@@ -594,6 +682,17 @@ export function VideoPlayer({
         onPause={saveNow}
         onEnded={() => {
           saveNow();
+          /**
+           * ⚠️⚠️ Дараагийн анги байвал ШУУД үсрэхгүй — 10 сек тоолуур
+           * гарч, хэрэглэгч «Болих» дарж зогсоож чадна.
+           * Титрээс аль хэдийн тоолуур эхэлсэн бол дахин эхлүүлэхгүй.
+           * Дараагийн анги БАЙХГҮЙ (эсвэл болиулсан) бол хуучин
+           * зан төлөв — `onEnded` дуудагдана.
+           */
+          if (onNext && !nextCancelled.current) {
+            setNextCountdown((n) => (n === null ? 10 : n));
+            return;
+          }
           onEnded?.();
         }}
         /**
@@ -694,6 +793,59 @@ export function VideoPlayer({
             )}
             <Loader2 className="size-9 animate-spin text-white/90" />
             <p className="text-sm font-medium text-white/80">Ачаалж байна…</p>
+          </div>
+        )}
+
+        {/*
+          ─── ИНТРО АЛГАСАХ ────────────────────────────────────────────
+          ⚠️ Баруун ДООД буланд — удирдлагын мөрнөөс ДЭЭГҮҮР (bottom-20)
+             тул seek bar-ыг халхлахгүй.
+          ⚠️ `z-20` — ачаалалын overlay (z-10)-аас дээгүүр.
+        */}
+        {showSkipIntro && (
+          <button
+            type="button"
+            onClick={skipIntro}
+            className="absolute bottom-20 right-4 z-20 rounded-lg border border-white/25 bg-black/70 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black/85"
+          >
+            Интро алгасах
+          </button>
+        )}
+
+        {/*
+          ─── ДАРААГИЙН АНГИ ───────────────────────────────────────────
+          ⚠️⚠️ «Болих» товч ЗААВАЛ — автоматаар үсрэх нь титр үзэх гэсэн
+             хүнийг тасалдаг, унтчихсан хүнд олон ангийг тоглуулдаг.
+          ⚠️ Тоолуур зогсоохдоо `nextCancelled` тэмдэглэнэ — эс бөгөөс
+             дараагийн `timeupdate` дахин эхлүүлнэ.
+        */}
+        {nextCountdown !== null && (
+          <div className="absolute bottom-20 right-4 z-20 w-64 rounded-xl border border-white/15 bg-black/85 p-3.5 backdrop-blur-sm">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">
+              Дараагийн анги
+            </p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-white">
+              {nextLabel ?? 'Дараагийн анги'}
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goNext}
+                className="flex-1 rounded-lg bg-white py-2 text-sm font-bold text-black transition-transform active:scale-[0.98]"
+              >
+                Одоо үзэх ({nextCountdown})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  nextCancelled.current = true;
+                  setNextCountdown(null);
+                }}
+                className="rounded-lg border border-white/25 px-3 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10"
+              >
+                Болих
+              </button>
+            </div>
           </div>
         )}
 

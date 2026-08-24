@@ -429,6 +429,16 @@ model Episode {
   /// Улирал нуусан бол доторх бүх анги ч мөн нуугдана.
   isVisible Boolean @default(true)
 
+  /// ИНТРО АЛГАСАХ — интро эхлэх/дуусах секунд.
+  /// ⚠️ ХОЁУЛАА заасан үед л «Интро алгасах» товч гарна. Нэг нь дутуу
+  /// бол товч ОГТ гарахгүй (буруу газар үсрэхээс сэргийлнэ).
+  introStartSec Int?
+  introEndSec   Int?
+
+  /// ТИТР эхлэх секунд — эндээс «Дараагийн анги» карт гарна.
+  /// ⚠️ Заагаагүй бол видео БҮРЭН дуусахад л гарна (`onEnded`).
+  outroStartSec Int?
+
   season        Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   watchProgress WatchProgress[]
 

@@ -280,8 +280,15 @@ export function WatchClient({ slug }: { slug: string }) {
         episodeId: episodeId ?? undefined,
       });
     }
-    if (nextEpisode?.playable) goToEpisode(nextEpisode.id);
-  }, [data, slug, episodeId, nextEpisode, goToEpisode]);
+    /**
+     * ⚠️⚠️ ЭНД ШУУД ҮСРЭХГҮЙ БОЛГОВ.
+     *
+     * Дараагийн анги руу шилжихийг ПЛЕЕР өөрөө «Дараагийн анги» тоолуур
+     * (`onNext`) -аар зохицуулна — хэрэглэгч «Болих» дарж чадна.
+     * Өмнө нь энд шууд `goToEpisode` дуудсанаар анги дуусмагц
+     * анхааруулгагүй үсэрч, титр үзэх гэсэн хүнийг тасалдаг байв.
+     */
+  }, [data, slug, episodeId]);
 
   /**
    * ⚠️⚠️ SPINNER БИШ SKELETON — төслийн дүрэм.
@@ -468,6 +475,23 @@ export function WatchClient({ slug }: { slug: string }) {
             onEnded={handleEnded}
             startAt={startAt}
             subtitles={subtitles}
+            /* Интро алгасах — админ заасан ангид л гарна */
+            introStartSec={flatEpisodes[currentIndex]?.introStartSec}
+            introEndSec={flatEpisodes[currentIndex]?.introEndSec}
+            /* Титрээс эрт санал болгоно (заагаагүй бол дуусахад) */
+            outroStartSec={flatEpisodes[currentIndex]?.outroStartSec}
+            /**
+             * ⚠️ Зөвхөн ТОГЛУУЛАХ БОЛОМЖТОЙ дараагийн анги байвал.
+             * Хөрвүүлж дуусаагүй ангид үсрэвэл хоосон дэлгэц гарна.
+             */
+            nextLabel={
+              nextEpisode?.playable
+                ? `${nextEpisode.number}-р анги${nextEpisode.name ? ` — ${nextEpisode.name}` : ''}`
+                : undefined
+            }
+            onNext={
+              nextEpisode?.playable ? () => goToEpisode(nextEpisode.id) : undefined
+            }
             /**
              * ⚠️ Гарчиг + буцах товчийг PLAYER ДОТОР харуулна.
              * Доорх холбоос нь дэлгэц дүүрэн (fullscreen) үед харагдахгүй

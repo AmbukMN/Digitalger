@@ -39,6 +39,14 @@ export interface Episode {
   streamStatus: string;
   isFreePreview: boolean;
   playable: boolean;
+  /**
+   * Интро эхлэх/дуусах секунд — ХОЁУЛАА байвал л «Интро алгасах»
+   * товч гарна (нэг нь дутуу бол буруу газар үсэрнэ).
+   */
+  introStartSec?: number | null;
+  introEndSec?: number | null;
+  /** Титр эхлэх секунд — эндээс «Дараагийн анги» карт гарна */
+  outroStartSec?: number | null;
 }
 
 export interface Season {

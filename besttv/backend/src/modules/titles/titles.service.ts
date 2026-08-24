@@ -922,6 +922,10 @@ export class TitlesService {
                 durationSec: true,
                 streamStatus: true,
                 isFreePreview: true,
+                /* Плеерийн «Интро алгасах» / «Дараагийн анги» товчид */
+                introStartSec: true,
+                introEndSec: true,
+                outroStartSec: true,
               },
             },
           },

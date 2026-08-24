@@ -101,6 +101,11 @@ export interface AdminEpisode {
   durationSec: number | null;
   posterUrl?: string | null;
   isFreePreview: boolean;
+  /** Интро эхлэх/дуусах секунд — ХОЁУЛАА байвал л плеерт товч гарна */
+  introStartSec?: number | null;
+  introEndSec?: number | null;
+  /** Титр эхлэх секунд — эндээс «Дараагийн анги» карт гарна */
+  outroStartSec?: number | null;
   /** false = хэрэглэгчид харагдахгүй (админ нуусан) */
   isVisible: boolean;
   /**

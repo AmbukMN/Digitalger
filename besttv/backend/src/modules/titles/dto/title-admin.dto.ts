@@ -266,6 +266,27 @@ export class CreateEpisodeDto {
   @IsOptional()
   @IsBoolean()
   watermark?: boolean | null;
+
+  /**
+   * ИНТРО АЛГАСАХ — интро эхлэх/дуусах секунд.
+   * ⚠️ ХОЁУЛАА заасан үед л плеерт товч гарна. `null` илгээвэл арилна.
+   * ⚠️ `@Min(0)` — сөрөг секунд утгагүй.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  introStartSec?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  introEndSec?: number | null;
+
+  /** Титр эхлэх секунд — эндээс «Дараагийн анги» карт гарна */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  outroStartSec?: number | null;
 }
 
 export class UpdateEpisodeDto extends CreateEpisodeDto {

@@ -39,6 +39,12 @@ const PART_RETRY = 4;
  * Тэнгэрлэг айдол = гол зорилго. Бусад нь дутуу үлдсэн ангийг гүйцээхэд.
  */
 const SERIES = [
+  /**
+   * ⚠️ `subPrefix` — МОНГОЛ ХАДМАЛ (.vtt) байвал видеотой хамт байршуулна.
+   *    Файлын нэр: `<subPrefix>NN.vtt`. Хадмалгүй цувралд энэ талбар БАЙХГҮЙ.
+   */
+  { folder: 'gaitai_besttv',        prefix: 'Gaitai_hair_E',          count: 12, titleSlug: 'gaitai-khair',
+    subPrefix: 'Gaitai_hair_E' },
   { folder: 'aluurchin_besttv',     prefix: 'Aluurchin_busgui_dub_E', count: 12, titleSlug: 'aluurchin-busguy' },
   { folder: 'tengerleg_besttv',     prefix: 'Tengerleg_aidol_dub_E', count: 12, titleSlug: 'tengerleg-aidol' },
   { folder: 'saryn_naiz_besttv',    prefix: 'Saryn_naiz_zaluu_E',    count: 10, titleSlug: 'sar-n-naiz-zaluu' },
@@ -141,6 +147,93 @@ function putPart(urlStr, chunk) {
   });
 }
 
+// ── Хадмал (.vtt) upload — multipart/form-data ──────────────────────────
+/**
+ * ⚠️ Хадмал нь ЖИЖИГ (макс 2MB) тул видеоны R2 multipart урсгалаас
+ *    ТУСДАА: backend `memoryStorage`-оор шууд хүлээж авдаг.
+ *
+ * ⚠️⚠️ `<v Default >` / `<v Default Сараа>` гэсэн VOICE TAG-ийг ЦЭВЭРЛЭНЭ.
+ *    Зарим плеер түүнийг ТЕКСТ гэж үзэж дэлгэц дээр «Default» гэж
+ *    гаргадаг — хадмал бохирдоно.
+ */
+function cleanVtt(buf) {
+  let t = buf.toString('utf8');
+  /* Ил гарч болзошгүй voice tag-уудыг хасна */
+  t = t.replace(/<v[^>]*>/g, '').replace(/<\/v>/g, '');
+  if (!t.startsWith('WEBVTT')) t = 'WEBVTT\n\n' + t;
+  return Buffer.from(t, 'utf8');
+}
+
+function postSubtitle(episodeId, filePath, lang, label) {
+  return new Promise((resolve, reject) => {
+    const body = cleanVtt(fs.readFileSync(filePath));
+    const boundary = '----besttvsub' + Date.now();
+    const CRLF = '\r\n';
+    const head = Buffer.from(
+      '--' + boundary + CRLF +
+        'Content-Disposition: form-data; name="lang"' + CRLF + CRLF + lang + CRLF +
+        '--' + boundary + CRLF +
+        'Content-Disposition: form-data; name="label"' + CRLF + CRLF + label + CRLF +
+        '--' + boundary + CRLF +
+        'Content-Disposition: form-data; name="isDefault"' + CRLF + CRLF + 'true' + CRLF +
+        '--' + boundary + CRLF +
+        'Content-Disposition: form-data; name="file"; filename="' +
+        path.basename(filePath) + '"' + CRLF +
+        'Content-Type: text/vtt' + CRLF + CRLF,
+      'utf8',
+    );
+    const tail = Buffer.from(CRLF + '--' + boundary + '--' + CRLF, 'utf8');
+    const payload = Buffer.concat([head, body, tail]);
+
+    const u = new URL(API + '/admin/subtitles/episode/' + episodeId);
+    const req = https.request(
+      u,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + TOKEN,
+          'Content-Type': 'multipart/form-data; boundary=' + boundary,
+          'Content-Length': payload.length,
+        },
+      },
+      (res) => {
+        let b = '';
+        res.on('data', (c) => (b += c));
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            try { resolve(b ? JSON.parse(b) : {}); } catch { resolve(b); }
+          } else {
+            const err = new Error('subtitle -> ' + res.statusCode + ': ' + b.slice(0, 250));
+            err.status = res.statusCode;
+            reject(err);
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+async function uploadSubtitle(episodeId, filePath) {
+  await ensureToken();
+  try {
+    return await postSubtitle(episodeId, filePath, 'mn', 'Монгол');
+  } catch (e) {
+    if (e.status === 401) {
+      await ensureToken(true);
+      return postSubtitle(episodeId, filePath, 'mn', 'Монгол');
+    }
+    /* ⚠️ Аль хэдийн байвал (unique зөрчил) алдаа БИШ — алгасна */
+    if (e.status === 400 || e.status === 409) {
+      log('    хадмал алгаслаа: ' + e.message.slice(0, 90));
+      return null;
+    }
+    throw e;
+  }
+}
+
 // ── State ───────────────────────────────────────────────────────────────
 function loadState() {
   try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch { return {}; }
@@ -206,6 +299,8 @@ async function main() {
   for (const S of SERIES) {
     const dir = path.join(DL_DIR, S.folder);
     if (!fs.existsSync(dir)) { log(`${S.folder}: folder алга, алгаслаа`); continue; }
+    /** ⚠️ Хадмалтай цуврал эсэх (`subPrefix` заасан бол) */
+    const subDir = !!S.subPrefix;
 
     // Title + Season олох/үүсгэх
     const admin = await apiJson('GET', `/admin/titles?search=${encodeURIComponent(S.titleSlug)}&take=50`).catch(() => null);
@@ -254,7 +349,17 @@ async function main() {
       // Аль хэдийн READY/PROCESSING бол алгасна (давхар хөрвүүлэхгүй)
       const status = ep.streamStatus;
       if (status === 'READY' || status === 'PROCESSING') {
-        log(`  E${nn}: streamStatus=${status} — алгаслаа (тэмдэглэв)`);
+        log(`  E${nn}: streamStatus=${status} — видео алгаслаа`);
+        /* ⚠️ Видео бэлэн ч ХАДМАЛ дутуу байж болно — тусад нь тавина */
+        if (subDir) {
+          const sp = path.join(dir, `${S.subPrefix}${nn}.vtt`);
+          if (fs.existsSync(sp)) {
+            try {
+              const r = await uploadSubtitle(ep.id, sp);
+              if (r) log(`    ✅ E${nn} хадмал (mn)`);
+            } catch (e) { log(`    ⚠️ E${nn} хадмал: ${e.message.slice(0, 90)}`); }
+          }
+        }
         state[stKey] = { done: true, episodeId: ep.id, skipped: status };
         saveState(state);
         continue;
@@ -270,6 +375,20 @@ async function main() {
         state[stKey] = { done: true, episodeId: ep.id, rawKey, at: new Date().toISOString() };
         saveState(state);
         log(`  ✅ E${nn} DONE → episode ${ep.id} PROCESSING (HLS queue)`);
+
+        /* ⚠️ ХАДМАЛ — видео амжилттай болсны ДАРАА. Хадмал унасан ч
+           видеог амжилтгүй гэж үзэхгүй (тусад нь дахин тавьж болно). */
+        if (subDir) {
+          const sp = path.join(dir, `${S.subPrefix}${nn}.vtt`);
+          if (fs.existsSync(sp)) {
+            try {
+              const r = await uploadSubtitle(ep.id, sp);
+              if (r) log(`    ✅ E${nn} хадмал (mn) байршлаа`);
+            } catch (e) { log(`    ⚠️ E${nn} хадмал: ${e.message.slice(0, 90)}`); }
+          } else {
+            log(`    E${nn}: хадмал файл алга (${path.basename(sp)})`);
+          }
+        }
       } catch (e) {
         log(`  ❌ E${nn} FAIL: ${e.message}`);
       }

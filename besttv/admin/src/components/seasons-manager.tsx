@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  SkipForward,
   Stamp,
   Trash2,
 } from 'lucide-react';
@@ -261,6 +262,41 @@ function SeasonBlock({
       });
       onChange();
       toast.success(value ? 'Анги үнэгүй боллоо' : 'Анги төлбөртэй боллоо');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
+  };
+
+  /**
+   * ИНТРО/ТИТРИЙН цагийг хадгална (секундээр).
+   *
+   * ⚠️ Хоосон талбар = `null` → тухайн боломж плеерт ОГТ гарахгүй.
+   *    (0 гэж илгээвэл «эхнээс нь» гэсэн утга болж буруу ажиллана.)
+   */
+  const saveTimings = async (
+    episodeId: string,
+    vals: { introStartSec: number | null; introEndSec: number | null; outroStartSec: number | null },
+  ) => {
+    /* ⚠️ Интро нь ХОЁУЛАА байх ёстой — нэг нь дутуу бол плеер товч
+       гаргахгүй тул админд шалтгааныг нь ХЭЛНЭ (чимээгүй ажиллахгүй
+       байх нь хамгийн эвгүй). */
+    const a = vals.introStartSec;
+    const b = vals.introEndSec;
+    if ((a === null) !== (b === null)) {
+      toast.error('Интрогийн эхлэл ба төгсгөл ХОЁУЛАА бөглөгдөх ёстой');
+      return;
+    }
+    if (a !== null && b !== null && b <= a) {
+      toast.error('Интрогийн төгсгөл нь эхлэлээс ИХ байх ёстой');
+      return;
+    }
+    try {
+      await api(`/admin/titles/episodes/${episodeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(vals),
+      });
+      onChange();
+      toast.success('Хугацаа хадгалагдлаа');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
     }
@@ -582,6 +618,62 @@ function SeasonBlock({
                       </span>
                     </span>
                   </label>
+
+                  {/*
+                    ⚠️⚠️ ИНТРО АЛГАСАХ / ДАРААГИЙН АНГИ — секундээр.
+
+                    ЯАГААД ХЭРЭГТЭЙ: солонгос/хятад цувралын эхний
+                    60-90 сек ижил дуутай. 12 анги үзэхэд 15+ минут
+                    дэмий өнгөрдөг. Титрийн секунд өгвөл дараагийн
+                    ангийг ЭРТ санал болгоно (титэр дуустал хүлээхгүй).
+
+                    ⚠️ Хоосон орхивол тухайн боломж ОГТ гарахгүй —
+                       буруу газар үсрэхээс хамгаалсан аюулгүй анхдагч.
+                  */}
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                      <SkipForward size={13} className="shrink-0 text-muted-foreground" />
+                      Интро алгасах / Дараагийн анги
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          ['introStartSec', 'Интро эхлэх'],
+                          ['introEndSec', 'Интро дуусах'],
+                          ['outroStartSec', 'Титр эхлэх'],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <label key={key} className="block">
+                          <span className="mb-1 block text-[11px] text-muted-foreground">
+                            {label}
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="сек"
+                            defaultValue={ep[key] ?? ''}
+                            onBlur={(e) => {
+                              const raw = e.target.value.trim();
+                              const val = raw === '' ? null : Math.max(0, Math.floor(Number(raw)));
+                              if (val !== null && !Number.isFinite(val)) return;
+                              /* ⚠️ Өөрчлөгдөөгүй бол сервер рүү дуудахгүй */
+                              if ((ep[key] ?? null) === val) return;
+                              void saveTimings(ep.id, {
+                                introStartSec: key === 'introStartSec' ? val : ep.introStartSec ?? null,
+                                introEndSec: key === 'introEndSec' ? val : ep.introEndSec ?? null,
+                                outroStartSec: key === 'outroStartSec' ? val : ep.outroStartSec ?? null,
+                              });
+                            }}
+                            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums text-foreground outline-none focus:border-primary"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                      Интрогийн эхлэл+төгсгөл ХОЁУЛАА бөглөвөл «Интро алгасах» товч
+                      гарна. Титрийн секунд өгвөл дараагийн ангийг эрт санал болгоно.
+                    </p>
+                  </div>
 
                   {/*
                     ⚠️⚠️ УСАН ТЭМДЭГ — АНГИ ТУС БҮРД (админы хүсэлт:
