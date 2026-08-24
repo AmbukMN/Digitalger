@@ -49,6 +49,8 @@ function CheckoutContent() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Bonum-аас буцаж ирэхэд төлбөр шалгах хөнгөн баннер (гол товч гацаадаггүй)
+  const [bonumChecking, setBonumChecking] = useState(false);
   const autoPayTriggered = useRef(false);
 
   // Карт/WeChat/Apple/Google (Bonum) боломжтой эсэх — checkout sheet-д мөр харуулна
@@ -180,8 +182,9 @@ function CheckoutContent() {
   }, [searchParams, session?.accessToken]);
 
   // ?bonum=return — Bonum hosted checkout-аас буцаж ирлээ. Эрх нь webhook-оор
-  // нээгддэг тул төлбөр баталгаажсан эсэхийг polling-оор шалгана (webhook саатвал
-  // reconcile cron ч барина). PAID болвол "Миний сан" руу.
+  // нээгддэг тул төлбөр баталгаажсан эсэхийг ХӨНГӨН шалгана.
+  // ⚠️ setPaying(true) ХИЙХГҮЙ — тусдаа bonumChecking баннер (гол товч гацахгүй).
+  // Хэрэглэгч ТӨЛӨЛГҮЙ буцсан бол эхний шалгалт paid=false → шууд зогсоно.
   const bonumReturnHandled = useRef(false);
   useEffect(() => {
     if (bonumReturnHandled.current) return;
@@ -196,8 +199,12 @@ function CheckoutContent() {
         orderId = null;
       }
     }
-    if (!orderId) return;
     bonumReturnHandled.current = true;
+    // ⚠️ URL-аас ?bonum=return-ыг ШУУД арилгана — refresh/back хийхэд дахин
+    // polling эхлэхгүй (spinner-д гацахгүй).
+    router.replace('/checkout');
+
+    if (!orderId) return;
     try {
       sessionStorage.removeItem('dg_bonum_order');
     } catch {
@@ -206,8 +213,10 @@ function CheckoutContent() {
 
     const token = session.accessToken;
     let tries = 0;
-    setPaying(true);
+    let cancelled = false;
+    setBonumChecking(true);
     const poll = async () => {
+      if (cancelled) return;
       tries++;
       try {
         const res = await paymentsApi.checkBonum(token, orderId);
@@ -215,6 +224,7 @@ function CheckoutContent() {
           items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
           clear();
           setPendingOrderId(null);
+          setBonumChecking(false);
           queryClient.invalidateQueries({ queryKey: ['library'] });
           toast.success('Төлбөр амжилттай!');
           router.push('/library');
@@ -223,15 +233,18 @@ function CheckoutContent() {
       } catch {
         // үргэлжлүүлэн оролдоно
       }
-      if (tries >= 20) {
-        // ~1 мин шалгасан — webhook хараахан ирээгүй байж болно (reconcile барина)
-        setPaying(false);
-        toast.info('Төлбөрийг шалгаж байна. Хэрэв төлсөн бол хэдхэн минутын дараа "Миний сан"-д гарч ирнэ.');
+      // ⚠️ Хэрэглэгч ТӨЛӨЛГҮЙ буцсан бол эрт зогсоно (5 удаа ≈ 12с).
+      // Webhook саатсан бодит төлбөрийг reconcile cron (5 мин) барина.
+      if (tries >= 5) {
+        setBonumChecking(false);
         return;
       }
-      setTimeout(poll, 3000);
+      setTimeout(poll, 2500);
     };
     poll();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, session?.accessToken, pendingOrderId]);
 
@@ -591,6 +604,16 @@ function CheckoutContent() {
                 <p className="text-xs text-muted-foreground text-center">
                   Захиалга баталгаажуулахын тулд нэвтрэх шаардлагатай
                 </p>
+              )}
+
+              {/* Bonum-аас буцаж ирэхэд төлбөр шалгах хөнгөн баннер (товч гацаадаггүй) */}
+              {bonumChecking && (
+                <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                  <span className="text-muted-foreground">
+                    Төлбөрийг шалгаж байна... Төлсөн бол автоматаар "Миний сан" руу шилжинэ.
+                  </span>
+                </div>
               )}
 
               {/* НЭГ «Худалдан авах» товч → төлбөрийн аргын цонх (QPay/Карт/
