@@ -4,15 +4,15 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
-import { useHome, useHomeBanners, usePromotionBanners } from '@/lib/queries';
+import { useHome, useHomeBanners, usePromotionBanners, type HomeData } from '@/lib/queries';
 import { HeroBanner } from '@/components/hero-banner';
 import { TitleRow } from '@/components/title-row';
 import { HomeBannerStrip } from '@/components/home-banner-strip';
 import { PromotionBannerStrip } from '@/components/promotion-banner';
 import { HomeSkeleton } from '@/components/home-skeleton';
 
-export function HomeClient() {
-  const { data, isLoading, isError, refetch } = useHome();
+export function HomeClient({ initial }: { initial?: HomeData }) {
+  const { data, isLoading, isError, refetch } = useHome(initial);
   /**
    * ⚠️ Баннер нь нүүрний датанаас ТУСДАА — ачаалагдаагүй ч хуудас
    * харагдана (`?? []`). Сурталчилгааны төлөө контентыг хүлээлгэхгүй.

@@ -153,12 +153,24 @@ export function useHomeBanners() {
   });
 }
 
-export function useHome() {
+export function useHome(initial?: HomeData) {
   const userId = useAuth((s) => s.user?.id);
   return useQuery({
     queryKey: ['home', userId ?? 'guest'],
     queryFn: () => api<HomeData>('/titles/home', { auth: true }),
     staleTime: 60_000,
+    /**
+     * ⚠️⚠️ SSR-ЭЭС ИРСЭН ЗОЧНЫ ДАТА — HTML-д бодит контент гаргана.
+     *
+     * Өмнө нь нүүр 100% client-fetch байсан тул `revalidate = 300` нь
+     * ЗӨВХӨН SKELETON-ыг кэшилдэг байв (файлын тайлбар өөрөө үүнийг
+     * хүлээн зөвшөөрсөн). Googlebot/Facebook бодит контент хардаггүй.
+     *
+     * ⚠️ Зөвхөн ЗОЧИН үед: нэвтэрсэн хэрэглэгчид `continueWatching`
+     * зэрэг ХУВИЙН талбар хоосон харагдана.
+     */
+    initialData: !userId && initial ? initial : undefined,
+    initialDataUpdatedAt: initial ? Date.now() : undefined,
     /**
      * ⚠️ Нэвтрэлт тодрох агшинд `queryKey` 'guest' → userId болж ШИНЭ
      * кэш үүсдэг тул нүүр хуудасны БҮХ кино гэнэт алга болоод skeleton

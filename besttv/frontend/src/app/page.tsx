@@ -1,4 +1,6 @@
 import { HomeClient } from './home-client';
+import { SERVER_API_URL } from '@/lib/server-api';
+import type { HomeData } from '@/lib/queries';
 
 /**
  * ⚠️⚠️ НҮҮР ХУУДАС — SERVER WRAPPER. `'use client'` БҮҮ нэм.
@@ -19,6 +21,23 @@ import { HomeClient } from './home-client';
  */
 export const revalidate = 300;
 
-export default function HomePage() {
-  return <HomeClient />;
+/**
+ * ⚠️ ЗОЧНЫ нүүрийг сервер талд татна (`revalidate` кэштэй тул нэмэлт
+ * зардал бага). Унавал `undefined` буцаана — client хуучнаараа татна.
+ */
+async function fetchHome(): Promise<HomeData | undefined> {
+  try {
+    const res = await fetch(`${SERVER_API_URL}/api/titles/home`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return undefined;
+    return (await res.json()) as HomeData;
+  } catch {
+    return undefined;
+  }
+}
+
+export default async function HomePage() {
+  const initial = await fetchHome();
+  return <HomeClient initial={initial} />;
 }
