@@ -3,9 +3,7 @@
 import { cn } from '@digitalger/shared';
 import {
   AmexMark,
-  ApplePayMark,
   BRAND_CHIP,
-  GooglePayMark,
   MastercardMark,
   QPayMark,
   TCardMark,
@@ -55,13 +53,8 @@ export function FooterPaymentMarks() {
       <span className={cn(CHIP, BRAND_CHIP.tcard)}>
         <TCardMark className="h-4 w-auto sm:h-5" />
       </span>
-      {/* Apple Pay — хар chip дотор (Apple брэнд заавар) */}
-      <span className={cn(CHIP, 'bg-black px-1.5')}>
-        <ApplePayMark className="h-4 w-auto sm:h-5" />
-      </span>
-      <span className={cn(CHIP, 'bg-white ring-1 ring-black/10')}>
-        <GooglePayMark className="h-4 w-auto sm:h-5" />
-      </span>
+      {/* ⚠️ Apple Pay / Google Pay — Bonum эрх авах хүртэл ТҮР НУУВ
+          (идэвхжихэд ApplePayMark/GooglePayMark-ыг энд буцааж нэмнэ) */}
       {/* ⚠️ WeChat лого ДӨРВӨЛЖИН — өндөр=өргөн, сунгахгүй */}
       <span className={cn(CHIP, BRAND_CHIP.wechat, 'px-0')}>
         <WeChatPayMark className="size-6 rounded object-contain sm:size-7" />

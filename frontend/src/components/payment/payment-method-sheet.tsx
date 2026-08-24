@@ -138,16 +138,18 @@ export function PaymentMethodSheet({
       show: cardEnabled,
     },
     {
+      /* ⚠️ Apple Pay / Google Pay — Bonum дээр эрх авах хүртэл ТҮР НУУВ
+         (show:false). Эрх идэвхжихэд show:cardEnabled болгоно. */
       id: 'applepay',
       title: 'Apple Pay',
       mark: <ApplePayMark className="h-4 w-auto" />,
-      show: cardEnabled,
+      show: false,
     },
     {
       id: 'googlepay',
       title: 'Google Pay',
       mark: <GooglePayMark className="h-4 w-auto" />,
-      show: cardEnabled,
+      show: false,
     },
     {
       id: 'wechat',
