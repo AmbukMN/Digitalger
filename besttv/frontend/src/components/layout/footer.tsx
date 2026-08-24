@@ -6,6 +6,7 @@ import { BrandLogo } from '@besttv/shared/ui';
 import { Facebook, Instagram, Mail, Phone, Youtube } from 'lucide-react';
 import { api } from '@/lib/api';
 import { NewsletterForm } from '@/components/newsletter-form';
+import { FooterPaymentMarks } from '@/components/payment/footer-payment-marks';
 import { useBrand } from '@/lib/queries';
 
 const FOOTER_LINKS = [
@@ -279,21 +280,32 @@ export function Footer() {
           <p>
             © {new Date().getFullYear()} {siteName}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
-          {!!pages?.length && (
-            <nav
-              aria-label="Хууль эрх зүй"
-              className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1.5 sm:justify-start"
-            >
-              {pages.map((p, i) => (
-                <span key={p.slug} className="flex items-center gap-1">
-                  {i > 0 && <span aria-hidden>·</span>}
-                  <Link href={`/p/${p.slug}`} className="transition-colors hover:text-foreground/70">
-                    {p.title}
-                  </Link>
-                </span>
-              ))}
-            </nav>
-          )}
+          {/*
+            ⚠️ Хууль эрх зүй + ТӨЛБӨРИЙН ЛОГО нэг баганад.
+            ДЕСКТОПТ: линкүүдийн ДООД талд (баруун тийш),
+            МОБАЙЛД: голд (доод талд) — тайлбарыг `PaymentMarks` дээр үз.
+          */}
+          <div className="flex flex-col items-center gap-3 sm:items-end">
+            {!!pages?.length && (
+              <nav
+                aria-label="Хууль эрх зүй"
+                className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1.5 sm:justify-start"
+              >
+                {pages.map((p, i) => (
+                  <span key={p.slug} className="flex items-center gap-1">
+                    {i > 0 && <span aria-hidden>·</span>}
+                    <Link
+                      href={`/p/${p.slug}`}
+                      className="transition-colors hover:text-foreground/70"
+                    >
+                      {p.title}
+                    </Link>
+                  </span>
+                ))}
+              </nav>
+            )}
+            <FooterPaymentMarks />
+          </div>
         </div>
       </div>
     </footer>

@@ -142,6 +142,61 @@ export function WeChatPayMark({ className = '' }: { className?: string }) {
   );
 }
 
+/**
+ * QPay-ээр төлж БОЛОХ банк/апп-уудын жижиг тэмдэг (Temu маягаар).
+ *
+ * ⚠️⚠️ ЯАГААД СТАТИК ВЭ: QPay-ийн жинхэнэ лого нь нэхэмжлэл ҮҮССЭНИЙ
+ * ДАРАА `urls[].logo`-оор ирдэг. Гэтэл төлбөрийн арга сонгох цонх нь
+ * нэхэмжлэл үүсгэхээс ӨМНӨ нээгддэг тул тэр үед лого БАЙХГҮЙ.
+ * Хэрэглэгчид «миний банк энд байна уу?» гэдгийг ЭХЛЭЭД харуулах нь
+ * чухал тул товч нэрийг өнгөт chip болгон харуулна (жинхэнэ лого нь
+ * QR цонхонд гарна).
+ *
+ * ⚠️ Өнгө нь банк бүрийн брэндийн үндсэн өнгө — таних тэмдэг болно.
+ */
+export const QPAY_BANKS: { short: string; name: string; bg: string }[] = [
+  { short: 'Х', name: 'Хаан банк', bg: '#0B7A3E' },
+  { short: 'Г', name: 'Голомт банк', bg: '#0B4DA2' },
+  { short: 'S', name: 'SocialPay', bg: '#E4002B' },
+  { short: 'T', name: 'TDB', bg: '#004B93' },
+  { short: 'Х', name: 'ХАС банк', bg: '#F58220' },
+  { short: 'Т', name: 'Төрийн банк', bg: '#005BAA' },
+  { short: 'M', name: 'M банк', bg: '#6A1B9A' },
+  { short: 'A', name: 'Ard App', bg: '#111827' },
+];
+
+export function QPayBankStrip({ className = '' }: { className?: string }) {
+  return (
+    <span className={`flex flex-wrap items-center gap-1 ${className}`} aria-hidden>
+      {QPAY_BANKS.map((b, i) => (
+        <span
+          key={`${b.name}-${i}`}
+          title={b.name}
+          style={{ backgroundColor: b.bg }}
+          className="flex size-4 items-center justify-center rounded-[3px] text-[8px] font-bold text-white ring-1 ring-white/15"
+        >
+          {b.short}
+        </span>
+      ))}
+      <span className="text-[10px] font-medium text-foreground/40">гэх мэт</span>
+    </span>
+  );
+}
+
+/**
+ * Ерөнхий КАРТ тэмдэг — тодорхой брэнд заахгүй үед (badge, жагсаалт).
+ * ⚠️ `currentColor` — эцэг элементийн өнгийг өвлөнө.
+ */
+export function CardGenericMark({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 16" className={className} role="img" aria-label="Карт">
+      <rect x="0.75" y="0.75" width="22.5" height="14.5" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="0.75" y="4" width="22.5" height="2.5" fill="currentColor" />
+      <rect x="3" y="9.5" width="6" height="1.6" rx="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** QPay — QR маркер маягийн улаан тэмдэг */
 export function QPayMark({ className = '' }: { className?: string }) {
   return (

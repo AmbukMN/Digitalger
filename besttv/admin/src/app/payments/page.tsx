@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { useAdminPaymentCounts, useAdminPayments, type PaymentFilters } from '@/lib/queries';
 import { NewBadge } from '@/components/new-badge';
+import { ProviderBadge, PROVIDER_OPTIONS } from '@/components/provider-badge';
 import { useNewSince } from '@/lib/use-new-since';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -36,6 +37,7 @@ const EMPTY: PaymentFilters = {
   minAmount: '',
   maxAmount: '',
   kind: 'ALL',
+  provider: 'ALL',
   sort: 'createdAt',
   dir: 'desc',
   page: 1,
@@ -138,6 +140,7 @@ export default function PaymentsPage() {
     if (f.from || f.to) n++;
     if (f.minAmount || f.maxAmount) n++;
     if (f.kind && f.kind !== 'ALL') n++;
+    if (f.provider && f.provider !== 'ALL') n++;
     return n;
   }, [f]);
 
@@ -229,6 +232,15 @@ export default function PaymentsPage() {
               ],
               onChange: (v) => set({ kind: v }),
             },
+            {
+              /* ⚠️ Төлбөрийн аргаар шүүх — «картаар хэдэн төлбөр орсон
+                 бэ» гэдгийг админ шууд харна */
+              id: 'provider',
+              label: 'Төлбөрийн арга',
+              value: f.provider ?? 'ALL',
+              options: [...PROVIDER_OPTIONS],
+              onChange: (v) => set({ provider: v }),
+            },
           ]}
           numberRange={{
             label: 'Дүнгийн муж (₮)',
@@ -309,6 +321,8 @@ export default function PaymentsPage() {
                     <p className="text-xs text-muted-foreground">{p.user.email}</p>
                   </td>
                   <td className="px-4 py-3">
+                    {/* ⚠️ Аль аргаар төлсөн — админ ялгаж харна */}
+                    <ProviderBadge provider={p.provider} className="mr-1.5 align-middle" />
                     {p.isWalletTopup ? (
                       <span className="inline-flex items-center gap-1.5 text-primary">
                         <Wallet size={13} /> Хэтэвч цэнэглэлт

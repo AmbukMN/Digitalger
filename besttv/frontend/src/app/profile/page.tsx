@@ -39,6 +39,7 @@ import {
   useCardPaymentEnabled,
   type PayMethod as SheetMethod,
 } from '@/components/payment/payment-method-sheet';
+import { ProviderBadge } from '@/components/payment/provider-badge';
 import { EmailVerifyCard } from '@/components/email-verify-card';
 import { DeviceSessionsCard } from '@/components/device-sessions-card';
 import { loginUrl } from '@/lib/auth-intent';
@@ -833,14 +834,20 @@ export default function ProfilePage() {
                       className="flex flex-col gap-1.5 rounded-lg bg-black/20 px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground/85">{p.plan?.name ?? 'Хэтэвч цэнэглэлт'}</p>
-                        <p className="text-[11px] leading-snug text-foreground/40 sm:text-xs">
-                          {new Date(p.createdAt).toLocaleDateString('mn-MN')}
-                          {p.couponCode && ` · Купон: ${p.couponCode}`}
+                        <p className="truncate font-medium text-foreground/85">
+                          {p.plan?.name ?? p.titleName ?? 'Хэтэвч цэнэглэлт'}
+                        </p>
+                        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px] leading-snug text-foreground/40 sm:text-xs">
+                          {/* ⚠️ Аль аргаар төлсөн — хэрэглэгч түүхээсээ ялгана */}
+                          <ProviderBadge provider={p.provider} withMark />
+                          <span>{new Date(p.createdAt).toLocaleDateString('mn-MN')}</span>
+                          {p.couponCode && <span>· Купон: {p.couponCode}</span>}
                           {/* ⚠️ Админаас гараар олгосон эрх — төлбөр байхгүй */}
-                          {p.grantedByAdmin && ' · Админаас олгосон'}
-                          {p.grantedByAdmin && p.expiresAt &&
-                            ` · ${new Date(p.expiresAt).toLocaleDateString('mn-MN')} хүртэл`}
+                          {p.grantedByAdmin && p.expiresAt && (
+                            <span>
+                              · {new Date(p.expiresAt).toLocaleDateString('mn-MN')} хүртэл
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">

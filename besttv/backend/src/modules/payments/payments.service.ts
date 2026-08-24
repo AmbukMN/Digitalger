@@ -495,6 +495,13 @@ export class PaymentsService {
           paidAt: true,
           createdAt: true,
           isWalletTopup: true,
+          /* ⚠️ Төлбөрийн АРГЫГ ялгахад — хэрэглэгч «би картаар төлсөн
+             юм билээ» гэдгээ түүхээсээ харах ёстой */
+          qpayInvoiceId: true,
+          bonumInvoiceId: true,
+          bankReference: true,
+          rentalTitleId: true,
+          rentalTitle: { select: { title: true } },
           plan: { select: { name: true, durationDays: true } },
         },
       }),
@@ -512,6 +519,26 @@ export class PaymentsService {
       }),
     ]);
 
+    /**
+     * ⚠️ ТӨЛБӨРИЙН АРГЫГ нэг л газар тодорхойлно (UI-д badge болно).
+     * Дараалал чухал: данс → QPay → карт → хэтэвч (бусад нь байхгүй бол
+     * хэтэвчнээс төлсөн гэсэн үг).
+     */
+    const rows = payments.map((p) => {
+      const { qpayInvoiceId, bonumInvoiceId, bankReference, rentalTitle, ...rest } = p;
+      return {
+        ...rest,
+        titleName: rentalTitle?.title ?? null,
+        provider: bankReference
+          ? ('BANK' as const)
+          : qpayInvoiceId
+            ? ('QPAY' as const)
+            : bonumInvoiceId
+              ? ('CARD' as const)
+              : ('WALLET' as const),
+      };
+    });
+
     const grantedRows = granted.map((g) => ({
       id: `grant-${g.id}`,
       amount: 0,
@@ -521,13 +548,16 @@ export class PaymentsService {
       paidAt: g.createdAt,
       createdAt: g.createdAt,
       isWalletTopup: false,
+      rentalTitleId: null,
+      titleName: null,
+      provider: 'GRANT' as const,
       plan: g.plan,
       /** Админаас гараар олгосон гэдгийг UI-д ялгаж харуулна */
       grantedByAdmin: true as const,
       expiresAt: g.expiresAt,
     }));
 
-    return [...payments, ...grantedRows].sort(
+    return [...rows, ...grantedRows].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }

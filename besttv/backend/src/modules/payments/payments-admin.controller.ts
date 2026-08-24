@@ -36,6 +36,8 @@ export class PaymentsAdminController {
     maxAmount?: number;
     kind?: string;
     planId?: string;
+    /** Төлбөрийн арга — QPAY | CARD | BANK | WALLET | ALL */
+    provider?: string;
   }): Prisma.PaymentWhereInput {
     const where: Prisma.PaymentWhereInput = {};
 
@@ -50,8 +52,26 @@ export class PaymentsAdminController {
         { user: { email: { contains: term, mode: 'insensitive' } } },
         { user: { name: { contains: term, mode: 'insensitive' } } },
         { qpayInvoiceId: { contains: term, mode: 'insensitive' } },
+        /* ⚠️ Картын гүйлгээг ч дугаараар нь хайж олох боломжтой байх */
+        { bonumInvoiceId: { contains: term, mode: 'insensitive' } },
+        { bankReference: { contains: term, mode: 'insensitive' } },
         { id: term },
       ];
+    }
+
+    /**
+     * ⚠️ ТӨЛБӨРИЙН АРГААР шүүх (QPAY | CARD | BANK | WALLET).
+     * Админ «картаар хэдэн төлбөр орсон бэ» гэдгийг шууд харна.
+     */
+    if (q.provider && q.provider !== 'ALL') {
+      if (q.provider === 'QPAY') where.qpayInvoiceId = { not: null };
+      else if (q.provider === 'CARD') where.bonumInvoiceId = { not: null };
+      else if (q.provider === 'BANK') where.bankReference = { not: null };
+      else if (q.provider === 'WALLET') {
+        where.qpayInvoiceId = null;
+        where.bonumInvoiceId = null;
+        where.bankReference = null;
+      }
     }
 
     // ⚠️ `to` нь тухайн ӨДРИЙГ БҮТНЭЭР хамруулна (23:59:59) — эс бөгөөс
@@ -93,6 +113,7 @@ export class PaymentsAdminController {
     @Query('maxAmount') maxAmount?: number,
     @Query('kind') kind?: string,
     @Query('planId') planId?: string,
+    @Query('provider') provider?: string,
     @Query('sort') sort?: SortField,
     @Query('dir') dir?: 'asc' | 'desc',
     @Query('page') page?: number,
@@ -100,7 +121,9 @@ export class PaymentsAdminController {
   ) {
     const p = Math.max(1, Number(page) || 1);
     const take = Math.min(200, Number(limit) || 20);
-    const where = this.buildWhere({ status, search, from, to, minAmount, maxAmount, kind, planId });
+    const where = this.buildWhere({
+      status, search, from, to, minAmount, maxAmount, kind, planId, provider,
+    });
 
     const orderBy = { [sort ?? 'createdAt']: dir ?? 'desc' } as Prisma.PaymentOrderByWithRelationInput;
 
@@ -118,6 +141,10 @@ export class PaymentsAdminController {
           couponCode: true,
           originalAmount: true,
           qpayInvoiceId: true,
+          /* ⚠️ Аль аргаар төлсөн — админ ялгаж харах ёстой
+             (тохируулга, буцаалт, тайлан бүгд үүнээс хамаарна) */
+          bonumInvoiceId: true,
+          bankReference: true,
           paidAt: true,
           createdAt: true,
           user: { select: { id: true, email: true, name: true } },
@@ -148,8 +175,27 @@ export class PaymentsAdminController {
       }),
     ]);
 
+    /**
+     * ⚠️ ТӨЛБӨРИЙН АРГЫГ нэг л газраас тодорхойлно (UI badge).
+     * Дараалал: данс → QPay → карт → хэтэвч.
+     */
+    const rows = items.map((it) => {
+      const { qpayInvoiceId, bonumInvoiceId, bankReference, ...rest } = it;
+      return {
+        ...rest,
+        qpayInvoiceId,
+        provider: bankReference
+          ? ('BANK' as const)
+          : qpayInvoiceId
+            ? ('QPAY' as const)
+            : bonumInvoiceId
+              ? ('CARD' as const)
+              : ('WALLET' as const),
+      };
+    });
+
     return {
-      items,
+      items: rows,
       total,
       page: p,
       limit: take,

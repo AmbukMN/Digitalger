@@ -301,6 +301,16 @@ export interface DashboardStats {
     revenue: number;
     expiredCount: number;
   }[];
+  /**
+   * Төлбөрийн аргаар задаргаа (сонгосон мужид, топап хассан).
+   * ⚠️ `CARD` = карт/Apple Pay/Google Pay/WeChat.
+   */
+  providerBreakdown?: {
+    provider: 'QPAY' | 'CARD' | 'BANK' | 'WALLET';
+    label: string;
+    amount: number;
+    count: number;
+  }[];
   // backward-compat
   newUsersMonth: number;
   revenueLast30Days: number;
@@ -676,6 +686,12 @@ export interface AdminPayment {
   /** Купон хэрэглэхээс өмнөх дүн (хямдрал харуулахад) */
   originalAmount: number | null;
   qpayInvoiceId: string | null;
+  /**
+   * Төлбөрийн арга — QPAY | CARD | BANK | WALLET.
+   * ⚠️ `CARD` нь карт/Apple Pay/Google Pay/WeChat (зуучлагчийн нэр
+   *    админд ч харуулахгүй — зөвхөн арга нь чухал).
+   */
+  provider?: 'QPAY' | 'CARD' | 'BANK' | 'WALLET';
   paidAt: string | null;
   createdAt: string;
   user: { id: string; email: string; name: string | null };
@@ -712,6 +728,8 @@ export interface PaymentFilters {
   maxAmount?: string;
   /** 'plan' | 'topup' — багц худалдан авалт эсвэл хэтэвч цэнэглэлт */
   kind?: string;
+  /** Төлбөрийн арга — QPAY | CARD | BANK | WALLET | ALL */
+  provider?: string;
   sort?: string;
   dir?: 'asc' | 'desc';
   page?: number;

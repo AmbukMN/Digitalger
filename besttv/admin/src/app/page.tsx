@@ -7,6 +7,7 @@ import { StorageUsageCard } from '@/components/storage-usage-card';
 import { ContentHealthCard } from '@/components/content-health-card';
 import { ServerInsightCard } from '@/components/server-insight-card';
 import { TodayCard } from '@/components/dashboard/today-card';
+import { ProviderBadge } from '@/components/provider-badge';
 import {
   ArrowRight,
   Clock,
@@ -279,6 +280,76 @@ export default function DashboardPage() {
                     }))}
                     ranked
                   />
+                  {/*
+                    ТӨЛБӨРИЙН АРГЫН ЗАДАРГАА.
+                    ⚠️ «Карт нэмсэн нь үр дүнгээ өгч байна уу», «QPay
+                    хэдэн хувь вэ» гэдгийг админ хардаг байх ёстой —
+                    зуучлагч бүрийн шимтгэл өөр тул зардлын тооцоонд ч
+                    хэрэгтэй. Хэтэвчээр төлсөн нь ШИНЭ мөнгө БИШ.
+                  */}
+                  {!!data.providerBreakdown?.length && (
+                    <section className="admin-card rounded-xl p-5">
+                      <h2 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                        <CreditCard size={16} className="text-primary" /> Төлбөрийн арга
+                      </h2>
+                      {(() => {
+                        const rows = data.providerBreakdown!.filter((x) => x.count > 0);
+                        const total = rows.reduce((s, x) => s + x.amount, 0);
+                        if (!rows.length) {
+                          return (
+                            <p className="text-sm text-muted-foreground">
+                              Энэ мужид төлбөр байхгүй
+                            </p>
+                          );
+                        }
+                        return (
+                          <div className="space-y-3">
+                            {rows
+                              .slice()
+                              .sort((a, b) => b.amount - a.amount)
+                              .map((x) => {
+                                const pct = total ? Math.round((x.amount / total) * 100) : 0;
+                                return (
+                                  <div key={x.provider}>
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                                      <span className="flex items-center gap-2">
+                                        <ProviderBadge provider={x.provider} />
+                                        <span className="text-xs text-muted-foreground">
+                                          {x.count.toLocaleString()} гүйлгээ
+                                        </span>
+                                      </span>
+                                      <span className="font-semibold text-foreground">
+                                        {formatPrice(x.amount)}
+                                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                          {pct}%
+                                        </span>
+                                      </span>
+                                    </div>
+                                    {/* ⚠️ Хувийн туузыг өнгөөр нь ялгана — нэг харцаар */}
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-foreground/8">
+                                      <div
+                                        className={cn(
+                                          'h-full rounded-full',
+                                          x.provider === 'QPAY' && 'bg-red-500/70',
+                                          x.provider === 'CARD' && 'bg-blue-500/70',
+                                          x.provider === 'BANK' && 'bg-amber-500/70',
+                                          x.provider === 'WALLET' && 'bg-emerald-500/70',
+                                        )}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            <p className="pt-1 text-xs text-muted-foreground">
+                              Хэтэвчээр төлсөн нь ШИНЭ мөнгө биш (өмнө нь цэнэглэсэн)
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </section>
+                  )}
+
                   <ListCard
                     title="Сүүлийн төлбөрүүд"
                     empty="Төлбөр байхгүй байна"

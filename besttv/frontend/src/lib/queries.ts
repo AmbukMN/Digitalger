@@ -499,6 +499,15 @@ export interface MyPayment {
   /** true = админ гараар олгосон эрх (төлбөргүй) */
   grantedByAdmin?: boolean;
   expiresAt?: string;
+  /**
+   * Төлбөрийн арга — QPAY | CARD | BANK | WALLET | GRANT.
+   * ⚠️ `CARD` нь карт/Apple Pay/Google Pay/WeChat-ыг хамарна
+   *    (зуучлагчийн нэр хэрэглэгчид харагдахгүй).
+   */
+  provider?: 'QPAY' | 'CARD' | 'BANK' | 'WALLET' | 'GRANT';
+  /** Ширхэгээр түрээслэсэн киноны нэр (байвал) */
+  titleName?: string | null;
+  rentalTitleId?: string | null;
 }
 
 export function useMyPayments() {

@@ -8,6 +8,8 @@ import { api } from '@/lib/api';
 import {
   AmexMark,
   ApplePayMark,
+  CardGenericMark,
+  QPayBankStrip,
   GooglePayMark,
   MastercardMark,
   QPayMark,
@@ -107,22 +109,40 @@ export function PaymentMethodSheet({
     title: string;
     hint?: string;
     mark: React.ReactNode;
+    /** Мөрний баруун талд гарах нэмэлт лого эгнээ (Temu маягаар) */
+    extra?: React.ReactNode;
     show: boolean;
     disabled?: boolean;
   }[] = [
     {
       id: 'qpay',
       title: 'QPay',
-      hint: 'Бүх банкны апп · SocialPay',
+      /* ⚠️ «SocialPay» гэсэн текст ХАСАВ — банкны logo эгнээ өөрөө
+         аль апп ажиллахыг харуулна (Temu маягаар, илүү ойлгомжтой) */
       mark: <QPayMark className="h-4 w-6" />,
+      extra: <QPayBankStrip />,
       show: true,
     },
     {
       id: 'card',
       title: 'Карт',
-      mark: (
-        <span className="flex items-center gap-1">
-          <VisaMark className="h-3 w-7" />
+      mark: <CardGenericMark className="h-4 w-6 text-foreground/70" />,
+      /* ⚠️ Хүлээж авах БҮХ картын брэнд харагдана — хэрэглэгч «миний
+         карт болох уу» гэдгээ шууд мэднэ (Temu-гийн зарчим) */
+      extra: (
+        <span className="flex flex-wrap items-center gap-1">
+          <span className={CHIP}>
+            <VisaMark className="h-2.5 w-7" />
+          </span>
+          <span className={CHIP}>
+            <MastercardMark className="h-3.5 w-5" />
+          </span>
+          <span className={CHIP}>
+            <UnionPayMark className="h-3.5 w-5" />
+          </span>
+          <span className={CHIP}>
+            <AmexMark className="h-3 w-7" />
+          </span>
         </span>
       ),
       show: cardEnabled,
@@ -265,21 +285,12 @@ export function PaymentMethodSheet({
                             {r.hint}
                           </span>
                         )}
+                        {/*
+                          ⚠️ Хүлээж авах брэндүүд НЭР ДООРОО (Temu маягаар).
+                          Мөрний баруун талд тавибал мобайлд шахагдана.
+                        */}
+                        {r.extra && <span className="mt-1 block">{r.extra}</span>}
                       </span>
-                      {/* Картын брэндүүд — «Карт» мөрөнд бүгдийг харуулна */}
-                      {r.id === 'card' && (
-                        <span className="hidden shrink-0 items-center gap-1 xs:flex">
-                          <span className={CHIP}>
-                            <MastercardMark className="h-4 w-6" />
-                          </span>
-                          <span className={CHIP}>
-                            <UnionPayMark className="h-4 w-6" />
-                          </span>
-                          <span className={CHIP}>
-                            <AmexMark className="h-3.5 w-8" />
-                          </span>
-                        </span>
-                      )}
                     </button>
 
                     {/* ─── ЗАДАРСАН ХЭСЭГ ─── */}
@@ -287,7 +298,8 @@ export function PaymentMethodSheet({
                       <div className="border-t border-dashed border-primary/25 px-3.5 pb-3.5 pt-3">
                         {r.id === 'qpay' && (
                           <p className="text-[11.5px] leading-relaxed text-foreground/55">
-                            «Төлөх» дарахад QR код гарна. Банкны аппаараа уншуулж төлнө.
+                            «Төлөх» дарахад QR код гарна. Банкны аппаараа уншуулна.
+                            Төлмөгц <b className="text-foreground/75">эрх автоматаар нээгдэнэ</b>.
                           </p>
                         )}
                         {(r.id === 'card' || r.id === 'applepay' || r.id === 'googlepay') && (

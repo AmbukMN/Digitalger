@@ -79,6 +79,7 @@ export class AnalyticsService {
       topTitles,
       series,
       planBreakdown,
+      providerBreakdown,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { createdAt: { gte: from } } }),
@@ -141,6 +142,7 @@ export class AnalyticsService {
       }),
       this.dailySeries(from, days),
       this.planBreakdown(now),
+      this.providerBreakdown(from),
     ]);
 
     const revenue = revenueRange._sum.amount ?? 0;
@@ -171,6 +173,8 @@ export class AnalyticsService {
       series,
       /** Багц бүрийн идэвхтэй захиалагчийн тоо */
       planBreakdown,
+      /** Төлбөрийн аргаар задаргаа (QPay/карт/данс/хэтэвч) */
+      providerBreakdown,
       // Хуучин UI-тай нийцтэй байх (backward-compat)
       newUsersMonth: newUsers,
       revenueLast30Days: revenue,
@@ -238,6 +242,62 @@ export class AnalyticsService {
    *   • expiredCount  — дууссан захиалга (сунгах боломжит хэрэглэгч)
    * ⚠️ Орлогод топап тоологдохгүй (planId-тэй PAID л).
    */
+  /**
+   * ТӨЛБӨРИЙН АРГААР задаргаа — сонгосон мужид (орлогод тоологдох
+   * төлбөрүүд: топап ХАСНА, эс бөгөөс давхар тоологдоно).
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: «карт нэмсэн нь үр дүнгээ өгч байна уу»,
+   * «QPay хэдэн хувь вэ» гэдгийг админ хардаг байх ёстой. Bonum-ын
+   * шимтгэл QPay-ээс өөр тул зардлын тооцоонд ч хэрэгтэй.
+   *
+   * ⚠️ Аргыг DB-д тусад нь хадгалдаггүй (нэхэмжлэлийн ID-аар дедукц
+   * хийдэг) тул SQL-ээр биш, groupBy-гүй энгийн count-аар тооцно.
+   */
+  private async providerBreakdown(from: Date) {
+    const base = {
+      status: PaymentStatus.PAID,
+      isWalletTopup: false,
+      paidAt: { gte: from },
+    } as const;
+
+    const [qpay, card, bank, wallet] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: { ...base, qpayInvoiceId: { not: null } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.payment.aggregate({
+        where: { ...base, bonumInvoiceId: { not: null } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.payment.aggregate({
+        where: { ...base, bankReference: { not: null } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      /* ⚠️ Хэтэвчээр төлсөн = гурвуулаа NULL. Энэ нь ШИНЭ мөнгө БИШ
+         (өмнө нь цэнэглэсэн) — админд ялгаж харуулах нь чухал. */
+      this.prisma.payment.aggregate({
+        where: { ...base, qpayInvoiceId: null, bonumInvoiceId: null, bankReference: null },
+        _sum: { amount: true },
+        _count: true,
+      }),
+    ]);
+
+    return [
+      { provider: 'QPAY' as const, label: 'QPay', amount: qpay._sum.amount ?? 0, count: qpay._count },
+      { provider: 'CARD' as const, label: 'Карт', amount: card._sum.amount ?? 0, count: card._count },
+      { provider: 'BANK' as const, label: 'Данс', amount: bank._sum.amount ?? 0, count: bank._count },
+      {
+        provider: 'WALLET' as const,
+        label: 'Хэтэвч',
+        amount: wallet._sum.amount ?? 0,
+        count: wallet._count,
+      },
+    ];
+  }
+
   private async planBreakdown(now: Date) {
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
