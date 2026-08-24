@@ -512,15 +512,31 @@ export function VideoPlayer({
   const goNext = useCallback(() => {
     if (nextFired.current || !onNext) return;
     nextFired.current = true;
+    /**
+     * ⚠️⚠️ ТООЛУУРЫГ ЭХЛЭЭД УНТРААНА — эс бөгөөс АНГИ АЛГАСНА.
+     *
+     * БОДИТ АЛДАА (хэрэглэгч мэдээлсэн: «1-ээс 3 руу үсэрч байна»):
+     * `goToEpisode` нь зөвхөн URL-ийг солино. React дараагийн ангийн
+     * дата ирэх хүртэл ХУУЧИН `src`-тэй хэсэг хугацаанд render хийнэ.
+     * Тэр зуур `nextCountdown` нь 0 хэвээр байвал доорх useEffect
+     * дахин ажиллаж `goNext()`-ийг ДАХИН дуудаж, хоёр дахь ангийг
+     * алгасаад ГУРАВ руу үсэрдэг байв.
+     *
+     * `nextFired` ганцаараа хамгаалж чадаагүй: `src` солигдоход
+     * цэвэрлэх useEffect түүнийг `false` болгосны ДАРАА хуучин
+     * тоолуурын effect дахин гүйж болзошгүй (render дараалал).
+     */
+    setNextCountdown(null);
     onNext();
   }, [onNext]);
 
   /**
    * Тоолуур — 1 секунд тутам буурна, 0 болмогц дараагийн анги.
    * ⚠️ `nextCountdown` null бол таймер ОГТ ажиллахгүй.
+   * ⚠️ Аль хэдийн шилжсэн (`nextFired`) бол дахин ажиллуулахгүй.
    */
   useEffect(() => {
-    if (nextCountdown === null) return;
+    if (nextCountdown === null || nextFired.current) return;
     if (nextCountdown <= 0) { goNext(); return; }
     const t = setTimeout(() => setNextCountdown((n) => (n === null ? null : n - 1)), 1000);
     return () => clearTimeout(t);
@@ -689,7 +705,10 @@ export function VideoPlayer({
            * Дараагийн анги БАЙХГҮЙ (эсвэл болиулсан) бол хуучин
            * зан төлөв — `onEnded` дуудагдана.
            */
-          if (onNext && !nextCancelled.current) {
+          /* ⚠️ Аль хэдийн шилжсэн бол дахин тоолуур эхлүүлэхгүй
+             (шинэ ангийн дата ирэх зуур хуучин player `ended`
+             эвентийг дахин илгээж болзошгүй). */
+          if (onNext && !nextCancelled.current && !nextFired.current) {
             setNextCountdown((n) => (n === null ? 10 : n));
             return;
           }
