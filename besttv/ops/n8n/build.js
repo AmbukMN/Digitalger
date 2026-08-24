@@ -340,12 +340,76 @@ if (userText === '__ATTACHMENT__') {
 
 // ⚠️ Холбоо барих/багцын асуултад AI зохиодог тул deterministic хариу
 // бэлдэнэ (Build Messages түүнийг AI-аас ДЭЭГҮҮР ашиглана).
-const lower = (userText || '').toLowerCase();
+const _rawLower = (userText || '').toLowerCase();
+
+/**
+ * ⚠️⚠️ ГАЛИГ (Латинаар бичсэн монгол) → Кирилл ойролцоо хөрвүүлэлт.
+ *
+ * ЯАГААД ЗААВАЛ: хэрэглэгчид утсаараа «yaj bvrtgvvlehiin», «tulbur»,
+ * «bagts» гэж ЛАТИНААР бичдэг. Бүх trigger жагсаалт КИРИЛЛ тул огт
+ * таарахгүй → асуулт «кино хайлт» болж «олдсонгүй 🙁» гэсэн утгагүй
+ * хариу очиж байсан (бодит гомдол, 2026-08-24).
+ *
+ * ⚠️ Энэ нь ЗӨВХӨН intent таних зорилготой ойролцоо хувиргалт —
+ * үсэг тус бүрийг төгс сэргээх шаардлагагүй, түлхүүр үг таарвал хангалттай.
+ * ⚠️ v/w = ү/ө (bvrtgvvleh = бүртгүүлэх) — энгийн галигийн заншил.
+ *    backend-ийн latinToCyrVariants үүнийг хамардаггүй тул энд тусад нь.
+ */
+/**
+ * ⚠️ ЯГ ТААРУУЛАХ БИШ — «АРАН ЯС» (skeleton) харьцуулна.
+ *
+ * Галигийн бичлэг нэг мөр биш: «tulbur/tulbor/tolbor», «burtguuleh/
+ * bvrtgvvleh» бүгд «төлбөр/бүртгүүлэх». Эгшгийн урт, ө/ү/у/о ялгааг
+ * ТААМАГЛАХ гэж оролдвол заавал алдана. Тиймээс хоёр талын үгийг
+ * ижил аргаар ГУЙВУУЛЖ (эгшгийг хаяж, давхар гийгүүлэгчийг нэгтгэж)
+ * харьцуулна — «tlbr» = «тлбр» → таарна.
+ */
+function _skel(s) {
+  if (!s) return '';
+  var lat = s.toLowerCase();
+  /* Кирилл → латин суурь (эгшгийг дараа нь хаяна тул ө/ү/у ялгаа хамаагүй) */
+  var cyr = [
+    ['ш','sh'],['щ','sh'],['ч','ch'],['ц','ts'],['я','ya'],['ё','yo'],['ю','yu'],
+    ['ж','j'],['х','h'],['ъ',''],['ь',''],['ы','i'],['э','e'],['ө','o'],['ү','u'],
+    ['а','a'],['б','b'],['в','v'],['г','g'],['д','d'],['е','e'],['з','z'],['и','i'],
+    ['й','i'],['к','k'],['л','l'],['м','m'],['н','n'],['о','o'],['п','p'],['р','r'],
+    ['с','s'],['т','t'],['у','u'],['ф','f'],
+  ];
+  for (var i = 0; i < cyr.length; i++) lat = lat.split(cyr[i][0]).join(cyr[i][1]);
+  /* Галигийн ижил утгатай бичлэгүүдийг нэг болгоно */
+  lat = lat.split('kh').join('h').split('ts').join('c').split('ch').join('c')
+           .split('sh').join('s').split('w').join('u').split('v').join('u')
+           .split('y').join('i').split('q').join('k').split('x').join('h');
+  /* ⚠️ ЭГШГИЙГ БҮРЭН ХАЯНА — «tulbur/tolbor/төлбөр» бүгд «tlbr» болно */
+  lat = lat.replace(/[aeiou]/g, '');
+  /* Давхар гийгүүлэгч → ганц (bvrtgvvleh → brtglh) */
+  lat = lat.replace(/([a-z])\\1+/g, '$1');
+  return lat;
+}
+/**
+ * Түлхүүр үгийн аль нэг нь бичвэрт (аран ясаар) байгаа эсэх.
+ * ⚠️ Эхлээд ЭНГИЙН substring (кирилл/англиар зөв бичсэн тохиолдол,
+ *    хамгийн найдвартай), дараа нь аран ясаар (галиг).
+ */
+function _hits(text, list) {
+  var raw = (text || '').toLowerCase();
+  for (var i = 0; i < list.length; i++) {
+    if (raw.indexOf(list[i]) !== -1) return true;
+  }
+  var sk = _skel(raw);
+  /* ⚠️ Богино аран яс (<3) санамсаргүй таарна — алгасна */
+  for (var j = 0; j < list.length; j++) {
+    var ks = _skel(list[j]);
+    if (ks.length >= 3 && sk.indexOf(ks) !== -1) return true;
+  }
+  return false;
+}
+const lower = _rawLower;
 const contactTriggers = ['утас','дугаар','хаяг','холбоо','холбогд','имэйл','мэйл',
   'байршил','ажлын цаг','социал','фэйсбүүк','facebook','instagram','инстаграм',
   'бидний тухай','танай тухай','хэн бэ','хаягтай','утастай','phone','contact'];
 const _hasEmailAddr = /[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i.test(userText || '');
-const needsContact = !_hasEmailAddr && contactTriggers.some((t) => lower.includes(t));
+const needsContact = !_hasEmailAddr && _hits(lower, contactTriggers);
 
 let directReply = '';
 if (needsContact) {
@@ -384,7 +448,7 @@ if (needsContact) {
 
 // ⚠️ БАГЦЫН ҮНЭ — AI үнэ зохиовол хэрэглэгч төөрөлдөнө. Бодит үнийг татна.
 const priceTriggers = ['багц','үнэ','төлбөр','хэд вэ','ханш','тариф','захиалга','subscribe','price'];
-const needsPricing = priceTriggers.some((t) => lower.includes(t));
+const needsPricing = _hits(lower, priceTriggers);
 let plansText = '';
 if (needsPricing) {
   try {
@@ -420,7 +484,7 @@ if (plansText) directReply = plansText;
  */
 const bankTriggers = ['данс','дансаар','шилжүүл','хаан банк','хаанбанк','голомт',
   'хас банк','төрийн банк','account','гүйлгээ','дансны дугаар'];
-const needsBank = bankTriggers.some((t) => lower.includes(t));
+const needsBank = _hits(lower, bankTriggers);
 if (needsBank) {
   try {
     /* ⚠️ Зам нь /bank/accounts — /settings/bank БАЙХГҮЙ (404).
@@ -452,6 +516,63 @@ if (needsBank) {
       'дугаар болон ТАНД зориулсан гүйлгээний утга гарч ирнэ.',
       '', 'Шилжүүлээд баримтын зургаа энд илгээгээрэй 📷',
       '', '👉 ${SITE}/pricing'].join(NL);
+  }
+}
+
+/**
+ * ⚠️⚠️ ЗААВАР (бүртгүүлэх / нэвтрэх / яаж төлөх / яаж үзэх).
+ *
+ * ЯАГААД ЗААВАЛ DETERMINISTIC: «yaj bvrtgvvlehiin» гэсэн асуултад бот
+ * «кино олдсонгүй 🙁» гэж хариулж байсан (бодит гомдол) — учир нь
+ * заавар гэсэн ойлголт ОГТ БАЙГААГҮЙ, бүх зүйл кино хайлт руу унадаг
+ * байв. AI-д даалгавал алхмуудыг зохиож, буруу зам заана.
+ *
+ * ⚠️ Дараалал ЧУХАЛ: энэ шалгалт үнэ/данс/холбоо барихаас ХОЙНО байна —
+ * «багц яаж авах» гэвэл үнийн жагсаалт нь илүү хэрэгтэй.
+ */
+if (!directReply) {
+  /* ⚠️ Товчилсон/ярианы хэлбэрийг ч барина («нэвтрэй», «бүртгүүлье») */
+  var howtoTriggers = ['бүртгүүлэх','бүртгүүл','бүртгэл','нэвтрэх','нэвтэрч',
+    'нэвтрэй','нэвтэр','хаяг нээх','бүртгүүлье','яаж эхлэх','sign up','signup',
+    'register','login'];
+  var payHowTriggers = ['яаж төлөх','төлбөр төлөх','хэрхэн төлөх','карт','картаар',
+    'visa','mastercard','apple pay','google pay','wechat','хэтэвч','цэнэглэх','pay'];
+  var watchTriggers = ['яаж үзэх','хэрхэн үзэх','яаж орох','заавар'];
+  var isHowto = _hits(lower, howtoTriggers);
+  var isPayHow = _hits(lower, payHowTriggers);
+  var isWatch = _hits(lower, watchTriggers);
+
+  if (isHowto || isPayHow || isWatch) {
+    var g = [];
+    if (isHowto) {
+      g.push('📝 Бүртгүүлж эхлэх (1 минут):', '',
+        '1️⃣ ${SITE} нээнэ',
+        '2️⃣ Баруун дээд булан дахь «Нэвтрэх» дарна',
+        '3️⃣ Имэйл хаягаа бичээд нууц үгээ үүсгэнэ',
+        '4️⃣ Имэйлд ирсэн кодоор баталгаажуулна',
+        '', '✅ Бүртгэл үнэгүй. Бүртгүүлээд багцаа сонгоно.');
+    }
+    if (isPayHow) {
+      if (g.length) g.push('');
+      g.push('💳 Төлбөр төлөх аргууд:', '',
+        '• QPay — QR кодыг банкны аппаараа уншина',
+        '  (Хаан, Голомт/SocialPay, TDB, Хас, Төрийн, М банк, MonPay, Ард г.м)',
+        '• Карт — VISA / Mastercard / UnionPay / Amex',
+        '• WeChat Pay — гадаад зочдод',
+        '• Дансаар шилжүүлэх — баримтаа хавсаргана',
+        '',
+        'Багцаа сонгоод «Худалдан авах» дарахад төлбөрийн цонх нээгдэнэ.',
+        'Төлмөгц эрх АВТОМАТААР нээгдэнэ ✅');
+    }
+    if (isWatch && !isHowto && !isPayHow) {
+      g.push('🎬 Яаж үзэх вэ:', '',
+        '1️⃣ ${SITE} дээр нэвтэрнэ',
+        '2️⃣ Багцаа сонгоод төлбөрөө төлнө',
+        '3️⃣ Хүссэн киногоо сонгоод «Үзэх» дарна',
+        '', '📱 Нэг эрхээр зэрэг 2 төхөөрөмжөөс үзэж болно.');
+    }
+    g.push('', '👉 ${SITE}');
+    directReply = g.join(NL);
   }
 }
 
@@ -709,7 +830,18 @@ if (titleType) {
  * мессежээс ӨӨРӨӨ гаргана. Хайлт хийвэл бодит кино л буцна —
  * зохиомол нэр карт болж гарах боломжгүй.
  */
-if (!keyword && !titleType) {
+/**
+ * ⚠️⚠️ ХАМГИЙН ЧУХАЛ ХАМГААЛАЛТ: Prep Context deterministic хариу
+ * (заавар/үнэ/данс/холбоо барих) бэлдсэн бол КИНО ОГТ ХАЙХГҮЙ.
+ *
+ * Учир нь тэр асуулт кинонийх БИШ нь аль хэдийн ТОГТООГДСОН. Хайвал
+ * заавал хоосон буцаж, «олдсонгүй 🙁» гэсэн зөрчилтэй хоёр дахь мессеж
+ * очно (яг ийм гомдол гарсан). Нэг л шалгалтаар бүх ижил тохиолдлыг барина.
+ */
+var _hasDirect = !!(prep.directReply && String(prep.directReply).trim());
+if (_hasDirect) { keyword = ''; titleType = ''; }
+
+if (!_hasDirect && !keyword && !titleType) {
   var uq = String(prep.userText || '').toLowerCase().replace(/\\s+/g, ' ').trim();
   /**
    * FAQ/мэндчилгээ бол хайхгүй — deterministic хариу аль хэдийн бий.

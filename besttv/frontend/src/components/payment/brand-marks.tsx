@@ -64,6 +64,7 @@ export const BRAND_CHIP: Record<string, string> = {
   qpay: 'bg-white ring-1 ring-black/10',
   /* Өөрийн дэвсгэртэй — chip ил тод, зөвхөн хүрээ */
   amex: 'bg-transparent ring-1 ring-white/15',
+  /* ⚠️ WeChat лого өөрөө ногоон дөрвөлжин — цагаан chip хэрэггүй */
   wechat: 'bg-transparent',
 };
 
@@ -76,19 +77,26 @@ export const BRAND_CHIP: Record<string, string> = {
 
 /**
  * WeChat Pay — Bonum-аар дэмжигдэнэ.
- * ⚠️ Албан ёсны лого файл ирвэл `public/cards/wechat.svg`-ээр солино.
- * Одоохондоо ногоон дугуй + текстээр (зохиомол брэнд дүрс БИШ).
+ * ⚠️⚠️ ЖИНХЭНЭ лого (`public/cards/wechat.png`) — Bonum-ын өөрийнх нь
+ * checkout CDN-ээс (`ecommerce.bonum.mn/icons/wechat.png`) татсан.
+ * Өмнө нь «WeChat» гэсэн текст бүхий ногоон бөмбөлөг ЗУРСАН байсныг
+ * жинхэнээр сольсон ([[feedback_no_fake_assets]]).
  */
 export function WeChatPayMark({ className = '' }: { className?: string }) {
-  return (
-    <span
-      className={`flex items-center justify-center rounded-full bg-[#07C160] text-[9px] font-bold text-white ${className}`}
-      aria-label="WeChat Pay"
-      title="WeChat Pay"
-    >
-      WeChat
-    </span>
-  );
+  return <BrandImg src="/cards/wechat.png" alt="WeChat Pay" className={className} />;
+}
+
+/**
+ * Apple Pay / Google Pay — Bonum-ын hosted checkout-ын АЛБАН ЁСНЫ mark.
+ * ⚠️ Bonum дээр идэвхжих хүртэл UI-д ХАРУУЛАХГҮЙ (`show:false`), гэхдээ
+ * файл бэлэн тул идэвхжмэгц шууд асаана.
+ */
+export function ApplePayMark({ className = '' }: { className?: string }) {
+  return <BrandImg src="/cards/applepay.png" alt="Apple Pay" className={className} />;
+}
+
+export function GooglePayMark({ className = '' }: { className?: string }) {
+  return <BrandImg src="/cards/googlepay.png" alt="Google Pay" className={className} />;
 }
 
 /**

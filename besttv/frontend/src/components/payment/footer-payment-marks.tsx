@@ -58,8 +58,9 @@ export function FooterPaymentMarks() {
         footer-т ч харуулахгүй (амлаад чадахгүй байх нь хамгийн муу).
         Идэвхжихэд албан ёсны mark файлтайгаар энд нэмнэ.
       */}
+      {/* ⚠️ WeChat лого ДӨРВӨЛЖИН — өндөр=өргөн, сунгахгүй */}
       <span className={cn(CHIP, BRAND_CHIP.wechat, 'px-0')}>
-        <WeChatPayMark className="h-5 w-11 rounded sm:h-6" />
+        <WeChatPayMark className="size-6 rounded object-contain sm:size-7" />
       </span>
     </div>
   );

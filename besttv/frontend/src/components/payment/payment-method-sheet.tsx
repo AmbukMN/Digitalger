@@ -126,7 +126,11 @@ export function PaymentMethodSheet({
     {
       id: 'card',
       title: 'Карт',
-      mark: <CardGenericMark className="h-4 w-6 text-foreground/70" />,
+      /* ⚠️⚠️ ӨНГӨ ТОГТМОЛ (`text-neutral-700`), `text-foreground` БИШ.
+         Энэ icon нь ЦАГААН chip дотор сууна — dark theme-д foreground нь
+         бараг цагаан болдог тул цагаан дээр цагаан зурагдаж АЛГА болно
+         (хэрэглэгч «картын icon цайраад байна» гэж мэдээлсэн). */
+      mark: <CardGenericMark className="h-4 w-6 text-neutral-700" />,
       /* ⚠️ Хүлээж авах БҮХ картын брэнд харагдана — хэрэглэгч «миний
          карт болох уу» гэдгээ шууд мэднэ (Temu-гийн зарчим).
          ⚠️ Лого бүр өөр харьцаатай тул өндрөөр нь жигдэлж, өргөнийг
@@ -174,7 +178,8 @@ export function PaymentMethodSheet({
       id: 'wechat',
       title: 'WeChat Pay',
       hint: 'Гадаад зочдод',
-      mark: <WeChatPayMark className="h-5 w-11 rounded-md" />,
+      /* ⚠️ Лого ДӨРВӨЛЖИН (240×240) — өмнөх `w-11` сунгасан харьцаа буруу */
+      mark: <WeChatPayMark className="size-7 rounded-md object-contain" />,
       show: cardEnabled,
     },
     {
@@ -282,7 +287,11 @@ export function PaymentMethodSheet({
                             ? 'bg-black ring-1 ring-white/15'
                             : r.id === 'bank' || r.id === 'wallet'
                               ? 'bg-foreground/8'
-                              : 'bg-white ring-1 ring-black/10',
+                              : /* ⚠️ WeChat лого өөрөө ногоон дэвсгэртэй —
+                                   цагаан chip дотор тавибал хүрээ мэт харагдана */
+                                r.id === 'wechat'
+                                ? 'bg-transparent'
+                                : 'bg-white ring-1 ring-black/10',
                         )}
                       >
                         {r.mark}

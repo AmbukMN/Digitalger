@@ -22,7 +22,9 @@ import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 
 interface BonumTokenResponse {
   accessToken: string;
-  expiresIn: number; // секунд (1800)
+  /** ⚠️ БҮҮ ИТГЭ — Bonum МИЛЛИСЕКУНД буцаадаг (1800000). Хугацааг JWT `exp`-ээс уншина. */
+  expiresIn?: number;
+  tokenType?: string;
   refreshToken?: string;
 }
 
@@ -44,11 +46,18 @@ export const BONUM_METHOD_PROVIDERS: Record<string, string[]> = {
 export class BonumService {
   private readonly logger = new Logger(BonumService.name);
   /**
-   * ⚠️ Token кэш — expiresIn нь СЕКУНД (Bonum баримтаар 1800с).
-   * QPay-ийн unix-timestamp гажигтай АНДУУРАХГҮЙ: энд жинхэнэ interval
-   * тул Date.now()+сек ашиглана, 60с аюулгүй зайтай.
+   * ⚠️⚠️ Token кэш. Хугацааг ТОКЕНЫ ӨӨРИЙНХ НЬ JWT `exp`-ЭЭС уншина.
+   *
+   * ЯАГААД: Bonum-ын хариу дахь `EXPIRY` нь МИЛЛИСЕКУНД (1800000), харин
+   * баримтад «1800 секунд» гэж бичсэн. Хэрэв тоог сохроор секунд гэж үзвэл
+   * кэш 20 хоног «хүчинтэй» гэж бодогдож, токен хүчингүй болсон хойно ч
+   * дахин авахгүй → бүх карт төлбөр 401-ээр унана
+   * (QPay-ийн `expires_in`=timestamp гажигтай ЯГ ИЖИЛ занга).
+   * JWT `exp` нь эргэлзээгүй Unix секунд тул түүнийг эх сурвалж болгов.
    */
   private tokenCache: { token: string; expiresAt: number } | null = null;
+  /** Нэг зэрэг олон хүсэлт ирэхэд ГАНЦ л token дуудлага явуулна (429 сэргийлнэ) */
+  private tokenInflight: Promise<string> | null = null;
   /** check API-г хэт олон дуудахаас сэргийлэх (payment тус бүрд 10с) */
   private lastCheckAt = new Map<string, number>();
 
@@ -63,35 +72,80 @@ export class BonumService {
     return (this.config.get<string>('bonum.baseUrl') ?? 'https://apis.bonum.mn').replace(/\/$/, '');
   }
 
+  /**
+   * JWT-ийн `exp` (Unix СЕКУНД) уншиж кэшийн дуусах хугацааг гаргана.
+   * Танихгүй бол 25 минут (1800с-ын аюулгүй дэд утга) буцаана.
+   */
+  private expiryFromJwt(token: string): number {
+    try {
+      const part = token.split('.')[1];
+      if (!part) return Date.now() + 25 * 60_000;
+      const claims = JSON.parse(Buffer.from(part, 'base64url').toString('utf8')) as {
+        exp?: number;
+      };
+      /* ⚠️ 60с урьдчилж дуусгана — сүлжээний саатал дунд токен үхэхээс сэргийлнэ */
+      if (Number(claims.exp) > 0) return Number(claims.exp) * 1000 - 60_000;
+    } catch {
+      /* танихгүй формат — доорх нөөц утга руу унана */
+    }
+    return Date.now() + 25 * 60_000;
+  }
+
   /** Access token — кэштэй, 401 үед дуудагч кэш цэвэрлэж дахина */
   private async getToken(): Promise<string> {
     if (this.tokenCache && Date.now() < this.tokenCache.expiresAt) {
       return this.tokenCache.token;
     }
+    /* ⚠️ Зэрэг олон төлбөр эхлэхэд ГАНЦ л дуудлага (доорх 429-аас сэргийлнэ) */
+    if (this.tokenInflight) return this.tokenInflight;
+    this.tokenInflight = this.fetchToken().finally(() => {
+      this.tokenInflight = null;
+    });
+    return this.tokenInflight;
+  }
+
+  private async fetchToken(): Promise<string> {
     const c = this.config.get('bonum');
+    /* ⚠️⚠️ ЗААВАЛ GET. POST явуулбал Bonum «Request method POST is not
+       supported» (400) буцаана — баримтад POST гэж бичсэн нь БУРУУ,
+       бодит API-гаар шалгаж тогтоосон (2026-08-24). */
     const res = await fetch(`${this.base()}/bonum-gateway/ecommerce/auth/create`, {
-      method: 'POST',
+      method: 'GET',
       headers: {
         Authorization: `AppSecret ${c.appSecret}`,
         'X-TERMINAL-ID': String(c.terminalId),
-        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
       signal: AbortSignal.timeout(15_000),
     });
+    const raw = await res.text();
     if (!res.ok) {
-      this.logger.error(`Bonum token авалт амжилтгүй: ${res.status} ${await res.text()}`);
+      /* ⚠️ 429 `ERROR_USE_EXISTING_TOKEN` — Bonum нь ХҮЧИНТЭЙ токен байхад
+         шинийг өгөхгүй. Кэш алдсан (сервер дахин ачаалсан) тохиолдолд
+         хуучин токен дуустал хүлээхээс өөр арга байхгүй тул тодорхой
+         алдаа бичиж, дуудагчид ойлгомжтой мессеж буцаана. */
+      if (res.status === 429) {
+        this.logger.error(`Bonum token rate-limit (хүчинтэй токен байна): ${raw.slice(0, 200)}`);
+      } else {
+        this.logger.error(`Bonum token авалт амжилтгүй: ${res.status} ${raw.slice(0, 300)}`);
+      }
       throw new BadRequestException('Төлбөрийн систем түр боломжгүй байна');
     }
-    const body = (await res.json()) as { data?: BonumTokenResponse } & BonumTokenResponse;
+    let body: { data?: BonumTokenResponse } & BonumTokenResponse;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      this.logger.error(`Bonum token хариу JSON биш: ${raw.slice(0, 200)}`);
+      throw new BadRequestException('Төлбөрийн систем түр боломжгүй байна');
+    }
     /* ⚠️ Standard response нь {traceId,status,data} боолттой байж болно —
        data доторхыг эхэлж, шууд талбарыг нөөц болгож уншина */
     const tok = body.data?.accessToken ? body.data : body;
-    if (!tok.accessToken) {
-      this.logger.error(`Bonum token хариу танигдсангүй: ${JSON.stringify(body).slice(0, 300)}`);
+    if (!tok?.accessToken) {
+      this.logger.error(`Bonum token хариу танигдсангүй: ${raw.slice(0, 300)}`);
       throw new BadRequestException('Төлбөрийн систем түр боломжгүй байна');
     }
-    const ttlSec = Number(tok.expiresIn) > 0 ? Number(tok.expiresIn) : 1800;
-    this.tokenCache = { token: tok.accessToken, expiresAt: Date.now() + (ttlSec - 60) * 1000 };
+    this.tokenCache = { token: tok.accessToken, expiresAt: this.expiryFromJwt(tok.accessToken) };
     return tok.accessToken;
   }
 
