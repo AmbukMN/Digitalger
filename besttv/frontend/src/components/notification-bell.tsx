@@ -146,8 +146,21 @@ export function NotificationBell() {
         )}
       </button>
 
+      {/*
+        ⚠️⚠️ МОБАЙЛД ДЭЛГЭЦЭНД БАГТААНА.
+
+        Хонхны товч нь толгойн ЗҮҮН талд байдаг. Өмнө нь `absolute
+        right-0 w-80` (320px) байсан тул цэс товчноос ЗҮҮН тийш 320px
+        сунаж, дэлгэцнээс ГАРААД зүүн ирмэг дээр таслагддаг байв
+        (бодит гомдол — «Баталгаажаагүй» гэсэн эхний үг тасарсан).
+
+        ⚠️ Эцэг элемент нь ЖИЖИГ товч (`relative`) тул `left-0` нь
+        дэлгэцийн ирмэг БИШ, товчны ирмэг рүү тавина — тиймээс
+        мобайлд `fixed` ашиглаж ДЭЛГЭЦЭД (viewport) шууд наана.
+        `sm:`-ээс дээш хуучин шигээ товчноос унжина (`absolute`).
+      */}
       {open && (
-        <div className="notif-in absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-foreground/12 bg-background shadow-2xl sm:w-96">
+        <div className="notif-in fixed left-2 right-2 top-16 z-50 max-h-[70vh] overflow-hidden rounded-xl border border-foreground/12 bg-background shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
           <div className="flex items-center justify-between border-b border-foreground/8 px-4 py-2.5">
             <span className="text-sm font-bold text-foreground">Мэдэгдэл</span>
             {unread > 0 && (
@@ -161,7 +174,10 @@ export function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          {/* ⚠️ Гадна хайрцгийн `max-h-[70vh]`-аас ХЭТРЭХГҮЙ байх ёстой —
+              эс бөгөөс жагсаалтын сүүл таслагдаж, гүйлгэж хүрэхгүй болно.
+              Толгойн мөрөнд ~44px үлдээв. */}
+          <div className="max-h-[calc(70vh-44px)] overflow-y-auto sm:max-h-96">
             {isLoading ? (
               <div className="space-y-2 p-3">
                 {[0, 1, 2].map((i) => (
