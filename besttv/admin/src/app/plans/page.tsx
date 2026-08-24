@@ -311,6 +311,10 @@ export default function PlansPage() {
                   <th className="px-4 py-3 text-left font-semibold">Үнэ</th>
                   <th className="px-4 py-3 text-left font-semibold">Хугацаа</th>
                   <th className="px-4 py-3 text-left font-semibold">Нээгдэх контент</th>
+                  {/* ⚠️ Борлуулалт — админд хамгийн хэрэгтэй тоо. Аль багц
+                      ажиллаж байгааг НЭГ харцаар мэдэхийн тулд жагсаалтад
+                      шууд гаргана (тайлан руу орох шаардлагагүй). */}
+                  <th className="px-4 py-3 text-right font-semibold">Борлуулалт</th>
                   <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -359,6 +363,21 @@ export default function PlansPage() {
                       ) : (
                         <span className="text-xs text-destructive">⚠️ Жанр сонгоогүй</span>
                       )}
+                    </td>
+                    {/*
+                      БОРЛУУЛАЛТ — дүн (том) + доор нь худалдан авалт/идэвхтэй.
+                      ⚠️ `tabular-nums` — багануудын орон зэрэгцэж уншигдана.
+                      ⚠️ «Идэвхтэй» нь ОДООГИЙН эрхтэй ХҮНИЙ тоо (давхардалгүй),
+                         «удаа» нь нийт худалдан авалт (сунгалт бүр тусад нь).
+                         Хоёр өөр утга тул тусад нь харуулна.
+                    */}
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <p className="font-semibold tabular-nums text-foreground">
+                        {formatPrice(p.revenue ?? 0)}
+                      </p>
+                      <p className="text-xs tabular-nums text-muted-foreground">
+                        {p.soldCount ?? 0} удаа · {p.subscriberCount ?? 0} идэвхтэй
+                      </p>
                     </td>
                     <td className="px-4 py-3">
                       <button

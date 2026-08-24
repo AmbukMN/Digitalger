@@ -179,6 +179,12 @@ export interface AdminPlan {
   badgeColor?: string;
   order: number;
   genres: { id: string; name: string; slug: string; isAdult: boolean }[];
+  /** Нийт худалдан авалтын тоо (PAID; сунгалт бүр тусад нь) */
+  soldCount?: number;
+  /** Нийт борлуулалт ₮ (хөнгөлөлт ХАССАН бодит төлсөн дүн) */
+  revenue?: number;
+  /** ОДОО идэвхтэй эрхтэй хүний тоо (давхардалгүй) */
+  subscriberCount?: number;
 }
 
 export function useAdminPlans() {

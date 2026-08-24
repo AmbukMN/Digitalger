@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsArray, IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { Prisma, Role } from '@prisma/client';
+import { PaymentStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -98,12 +98,50 @@ export class PlansService {
     return plans.map((p) => this.shape(p));
   }
 
+  /**
+   * АДМИН жагсаалт — багц бүрийн БОРЛУУЛАЛТЫН тоо/дүнтэй.
+   *
+   * ⚠️⚠️ ЗӨВХӨН `PAID` төлбөр тооцно. PENDING (QR гаргаад төлөөгүй) нь
+   * борлуулалт БИШ — түүнийг оруулбал орлого хиймлээр өснө.
+   *
+   * ⚠️ `soldCount` = ХУДАЛДАН АВАЛТЫН тоо (нэг хүн 2 удаа сунгавал 2).
+   *    `subscriberCount` = ОДОО идэвхтэй эрхтэй ХҮНИЙ тоо (давхардалгүй).
+   *    Хоёулаа хэрэгтэй: эхнийх нь нийт эрэлт, хоёр дахь нь идэвхтэй бааз.
+   *
+   * ⚠️ `revenue` нь ХӨНГӨЛӨЛТ ХАССАН бодит төлсөн дүн (`amount`) —
+   *    `originalAmount` БИШ (купон/урамшуулалтай бол зөрнө).
+   */
   async listAll() {
-    const plans = await this.prisma.plan.findMany({
-      orderBy: { order: 'asc' },
-      include: PLAN_INCLUDE,
-    });
-    return plans.map((p) => this.shape(p));
+    const now = new Date();
+    const [plans, sales, active] = await Promise.all([
+      this.prisma.plan.findMany({ orderBy: { order: 'asc' }, include: PLAN_INCLUDE }),
+      this.prisma.payment.groupBy({
+        by: ['planId'],
+        where: { status: PaymentStatus.PAID, planId: { not: null } },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      /* Идэвхтэй захиалагч — нэг хүн олон мөртэй байж болох тул
+         ХҮНЭЭР давхардлыг арилгана (доор Set-ээр) */
+      this.prisma.subscription.findMany({
+        where: { expiresAt: { gt: now } },
+        select: { planId: true, userId: true },
+      }),
+    ]);
+
+    const salesBy = new Map(sales.map((r) => [r.planId as string, r]));
+    const usersBy = new Map<string, Set<string>>();
+    for (const s of active) {
+      if (!usersBy.has(s.planId)) usersBy.set(s.planId, new Set());
+      usersBy.get(s.planId)!.add(s.userId);
+    }
+
+    return plans.map((p) => ({
+      ...this.shape(p),
+      soldCount: salesBy.get(p.id)?._count._all ?? 0,
+      revenue: salesBy.get(p.id)?._sum.amount ?? 0,
+      subscriberCount: usersBy.get(p.id)?.size ?? 0,
+    }));
   }
 
   async create(dto: PlanDto) {
