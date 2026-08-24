@@ -15,6 +15,7 @@ import {
 import { IsArray, IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaymentStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -83,19 +84,30 @@ const PLAN_INCLUDE = {
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    /* ⚠️ `@Global()` тул импорт шаардлагагүй */
+    private readonly cache: CacheService,
+  ) {}
 
   private shape<T extends { genres: { genre: unknown }[] }>(plan: T) {
     return { ...plan, genres: plan.genres.map((g) => g.genre) };
   }
 
+  /**
+   * ⚠️⚠️ КЭШТЭЙ — багц нь өдөрт хэдхэн удаа л өөрчлөгддөг өгөгдөл атлаа
+   * үнийн хуудас, төлбөрийн цонх, чатбот бүрээс дуудагддаг байв.
+   * Админ засахад `cache-invalidate` interceptor цэвэрлэнэ.
+   */
   async listActive() {
-    const plans = await this.prisma.plan.findMany({
-      where: { isActive: true },
-      orderBy: { order: 'asc' },
-      include: PLAN_INCLUDE,
+    return this.cache.wrap('plans:active:v1', 300, async () => {
+      const plans = await this.prisma.plan.findMany({
+        where: { isActive: true },
+        orderBy: { order: 'asc' },
+        include: PLAN_INCLUDE,
+      });
+      return plans.map((p) => this.shape(p));
     });
-    return plans.map((p) => this.shape(p));
   }
 
   /**

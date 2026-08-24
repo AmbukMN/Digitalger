@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { Navbar } from '@/components/layout/navbar';
+import { OfflineBanner } from '@/components/offline-banner';
 import { Footer } from '@/components/layout/footer';
 import { MobileBottomNav } from '@/components/mobile-bottom-nav';
 import { ChatWidgetLazy } from '@/components/chat/chat-widget-lazy';
@@ -26,6 +27,8 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/* ⚠️ Сүлжээ тасрахад «сайт эвдэрсэн» мэт харагдахаас сэргийлнэ */}
+      <OfflineBanner />
       <Navbar />
       <div id="main-content" className="pb-mobile-nav">
         {children}

@@ -354,7 +354,8 @@ export function PhoneVerify() {
                * дарахад ХООСОН талбар тул алдаа гарна.
                */
               placeholder="Утасны дугаараа оруулна уу"
-              className="input-dark mb-2 w-full"
+              autoComplete="tel"
+            className="input-dark mb-2 w-full"
             />
           </motion.div>
         )}

@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { EpisodeThumb } from '@/components/title/episode-thumb';
 import { cn, episodeLabel, formatPrice, formatRentDurationShort, formatRentLeft } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
-import { useTitleDetail } from '@/lib/queries';
+import { useTitleDetail, type TitleDetail } from '@/lib/queries';
 import { useAuth } from '@/lib/auth-store';
 import { useMyListStore } from '@/lib/my-list-store';
 import { trackTitle } from '@/lib/track';
@@ -31,8 +31,15 @@ import { consumeAuthIntent, savePostPurchaseReturn } from '@/lib/auth-intent';
  */
 const REVIEWS_ENABLED = false;
 
-export function TitleDetailClient({ slug }: { slug: string }) {
-  const { data, isLoading, isError, refetch } = useTitleDetail(slug);
+export function TitleDetailClient({
+  slug,
+  initial,
+}: {
+  slug: string;
+  /** ⚠️ SSR-ээс ирсэн ЗОЧНЫ дата — HTML-д бодит контент гаргахад */
+  initial?: TitleDetail;
+}) {
+  const { data, isLoading, isError, refetch } = useTitleDetail(slug, initial);
   const qc = useQueryClient();
   const router = useRouter();
   const { user } = useAuth();

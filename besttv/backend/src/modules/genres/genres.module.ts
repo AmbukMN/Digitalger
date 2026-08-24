@@ -18,6 +18,7 @@ import {
 import { IsArray, IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 import { CacheInvalidateInterceptor } from '../../common/cache/cache-invalidate.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -60,6 +61,8 @@ export class GenresService {
     private readonly prisma: PrismaService,
     /* ⚠️ Постер presign — R2 bucket ХААЛТТАЙ, key ганцаараа зураг гаргахгүй */
     private readonly media: TitleMediaHelper,
+    /* ⚠️ `@Global()` тул импорт шаардлагагүй */
+    private readonly cache: CacheService,
   ) {}
 
   /** Admin — бүх жанр (18+ хамт) */
@@ -74,11 +77,19 @@ export class GenresService {
    * Public жанрын жагсаалт — 18+ жанр ч ОРНО (нүүр/шүүлтүүрт харагдана).
    * ⚠️ Контент нь эрхтэй хүнд л тоглоно (subscriptions.canAccessTitle).
    */
+  /**
+   * ⚠️⚠️ КЭШТЭЙ — `_count` нь жанр БҮРД correlated subquery үүсгэдэг
+   * (30 жанр = 30 дэд асуулга). Гэтэл жанр нь бараг өөрчлөгддөггүй
+   * өгөгдөл атлаа header цэс, каталогийн шүүлтүүр, нүүр бүрээс
+   * дуудагддаг байв.
+   */
   listPublic() {
-    return this.prisma.genre.findMany({
-      orderBy: { order: 'asc' },
-      include: { _count: { select: { titles: true } } },
-    });
+    return this.cache.wrap('genres:public:v1', 300, () =>
+      this.prisma.genre.findMany({
+        orderBy: { order: 'asc' },
+        include: { _count: { select: { titles: true } } },
+      }),
+    );
   }
 
   async create(dto: GenreDto) {

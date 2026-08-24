@@ -31,6 +31,7 @@ import {
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { CardSkeleton } from '@/components/table-skeleton';
 import { Pagination } from '@/components/pagination';
 import { UserAvatar } from '@/components/user-avatar';
@@ -187,7 +188,13 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Жагсаалт — 15 сек тутам шинэчилнэ (шинэ чат ирэхийг барина)
-  const { data: list, isLoading } = useQuery({
+  /**
+   * ⚠️⚠️ `isError` ЗААВАЛ задлана. Өмнө нь зөвхөн `data`/`isLoading`
+   * авдаг байсан тул API УНАХАД `items` хоосон болж, доорх
+   * «Яриа байхгүй байна» гэсэн ХООСОН ТӨЛӨВ гарч ирдэг байв —
+   * админ бүх яриа УСТСАН гэж эндүүрнэ.
+   */
+  const { data: list, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-chat-list', onlyUnread, q, page, channel],
     queryFn: () =>
       api<{
@@ -474,8 +481,25 @@ export default function ChatPage() {
               <div className="p-2.5">
                 <CardSkeleton count={5} />
               </div>
+            ) : isError ? (
+              /* ⚠️ Алдааг ХООСОН төлөвөөс ЯЛГАНА — retry товчтой */
+              <div className="p-4">
+                <AdminErrorState error={error} onRetry={() => void refetch()} />
+              </div>
             ) : items.length === 0 ? (
-              <TableEmptyState icon={MessagesSquare} message="Яриа байхгүй байна" />
+              <TableEmptyState
+                icon={MessagesSquare}
+                message={
+                  q || onlyUnread || channel
+                    ? 'Шүүлтэд тохирох яриа алга'
+                    : 'Яриа байхгүй байна'
+                }
+                description={
+                  q || onlyUnread || channel
+                    ? 'Хайлт эсвэл шүүлтээ өөрчилж үзнэ үү.'
+                    : 'Хэрэглэгч чат бичихэд энд харагдана.'
+                }
+              />
             ) : (
               items.map((c) => {
                 const last = c.messages[0];

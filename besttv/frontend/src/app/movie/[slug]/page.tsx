@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { SERVER_API_URL } from '@/lib/server-api';
 import { TitleDetailClient } from './title-detail-client';
+import type { TitleDetail } from '@/lib/queries';
 import { SITE_URL, jsonLd, stripSiteName, getSiteSeo } from '@/lib/seo';
 import DetailSkeleton from './detail-skeleton';
 
@@ -287,7 +288,7 @@ export default async function TitleDetailPage({
         хэвээр, статус ч зөв.
       */}
       <Suspense fallback={<DetailSkeleton />}>
-        <TitleDetailClient slug={slug} />
+        <TitleDetailClient slug={slug} initial={(title as TitleDetail | null) ?? undefined} />
       </Suspense>
     </>
   );

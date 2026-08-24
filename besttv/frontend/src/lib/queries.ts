@@ -225,12 +225,27 @@ export function useCatalogInfinite(params: { genre?: string; sort?: string }) {
  * ⚠️ `queryKey`-д `userId` ЗААВАЛ — хэрэглэгч солигдоход (нэвтрэх/гарах)
  * кэш шинэчлэгдэнэ. Эс бөгөөс өмнөх хэрэглэгчийн эрх үлдэнэ.
  */
-export function useTitleDetail(slug: string) {
+export function useTitleDetail(slug: string, initial?: TitleDetail) {
   const userId = useAuth((s) => s.user?.id);
   const authLoading = useAuth((s) => s.loading);
   const q = useQuery({
     queryKey: ['title', slug, userId ?? 'guest'],
     queryFn: () => api<TitleDetail>(`/titles/${slug}`, { auth: true }),
+    /**
+     * ⚠️⚠️ SSR-ЭЭС ИРСЭН ЗОЧНЫ ДАТА — зөвхөн ЗОЧИН үед.
+     *
+     * Сервер `/titles/:slug`-ыг аль хэдийн татдаг байсан ч зөвхөн
+     * meta tag-д ашиглаад ХАЯДАГ байв. Улмаас browser ДАХИН татах
+     * хүртэл HTML-д зөвхөн skeleton — Googlebot/Facebook/Bing бодит
+     * контент ОГТ ХАРДАГГҮЙ, хэрэглэгч 4 нэмэлт алхам хүлээдэг байв.
+     *
+     * ⚠️ НЭВТЭРСЭН хэрэглэгчид ОГТ өгөхгүй: зочны хариунд
+     * `hasAccess:false` байдаг тул эрхтэй хүнд «Багц авах» товч
+     * агшин зуур гарч, төлбөр төлсөн атлаа түгжээтэй мэт харагдана.
+     */
+    initialData: !userId && initial ? initial : undefined,
+    /* ⚠️ SSR дата 60 сек ISR-тэй тул тэр хугацаанд дахин татахгүй */
+    initialDataUpdatedAt: initial ? Date.now() : undefined,
     enabled: !!slug && !authLoading,
     /**
      * ⚠️ Хэрэглэгч солигдоход (нэвтрэх/гарах) `queryKey` өөрчлөгдөж ШИНЭ

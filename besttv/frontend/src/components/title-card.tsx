@@ -110,8 +110,18 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
       )}
     >
       <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-muted">
+        {/* ⚠️ `sizes` нь GRID үед динамик байх ёстой: grid карт томроход
+            (1600px дэлгэц дээр ~250px) Next.js 180px хувилбар татаад
+            СУНГАДАГ тул постер бүдэг харагдана. Эгнээнд бол өргөн нь
+            тогтмол (w-37.5/w-45) тул 180px зөв. */}
         {title.posterUrl ? (
-          <Image src={title.posterUrl} alt={title.title} fill sizes="180px" className="object-cover" />
+          <Image
+            src={title.posterUrl}
+            alt={title.title}
+            fill
+            sizes={inGrid ? '(min-width:1024px) 17vw, (min-width:640px) 31vw, 46vw' : '180px'}
+            className="object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-white/25">
             <Play size={32} />
