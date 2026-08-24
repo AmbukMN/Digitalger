@@ -375,24 +375,23 @@ export function PaymentMethodSheet({
                               Кино түрээс (`rental`) нэг удаагийн тул сунгах утгагүй;
                               хэтэвч цэнэглэх (`topup`) ч мөн адил.
                               ⚠️ Apple/Google Pay нь токенждоггүй тул зөвхөн `card`.
-                              ⚠️ Default ЧЕКТЭЙ (хэрэглэгчийн шийдвэр) — гэхдээ юу
-                                 болохыг ТОДОРХОЙ бичнэ, дараа нь профайлаас болино.
+                              ⚠️ Default ЧЕКТЭЙ (хэрэглэгчийн шийдвэр). Тайлбарыг
+                                 ТОВЧ байлгана — урт текст цонхыг дүүргэдэг;
+                                 болиулах заавар профайл дээр бий.
                             */}
                             {r.id === 'card' && kind === 'plan' && (
-                              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-foreground/5 p-2.5">
+                              <label className="flex cursor-pointer items-center gap-2.5 rounded-lg bg-foreground/5 px-2.5 py-2">
                                 <input
                                   type="checkbox"
                                   checked={autoRenew}
                                   onChange={(e) => setAutoRenew(e.target.checked)}
-                                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                                  className="size-4 shrink-0 accent-primary"
                                 />
-                                <span className="text-[11.5px] leading-relaxed text-foreground/70">
-                                  <b className="text-foreground/90">Автоматаар сунгах</b> — багц
-                                  дуусахад картаас {formatPrice(amount)} автоматаар төлж сунгана.
-                                  Картаа дахин бичих шаардлагагүй.
-                                  <span className="mt-0.5 block text-foreground/45">
-                                    Профайлаасаа хэдийд ч болиулж болно.
-                                  </span>
+                                {/* ⚠️ ТОВЧ байх — урт тайлбар цонхыг дүүргэж,
+                                    хэрэглэгч уншихаа больдог. Дэлгэрэнгүйг
+                                    профайлаас харна. */}
+                                <span className="text-[12px] font-medium text-foreground/85">
+                                  Авто сунгалт
                                 </span>
                               </label>
                             )}
