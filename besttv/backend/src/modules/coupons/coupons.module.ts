@@ -11,8 +11,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import { DiscountType, Role } from '@prisma/client';
@@ -76,16 +78,79 @@ export class CouponsService {
    * зуу зуун ойлгомжгүй код хуримтлагдаж, аль нь хэнийх, яагаад
    * үүссэн нь мэдэгдэхгүй болно.
    */
-  adminList() {
-    return this.prisma.coupon.findMany({
-      orderBy: { createdAt: 'desc' },
-      /* ⚠️ Хязгаар — хувийн купон автоматаар үүсдэг тул хугацаа
-         өнгөрөх тусам мянгаар нэмэгдэнэ */
-      take: 500,
-      include: {
-        user: { select: { id: true, email: true, name: true } },
-      },
-    });
+  /**
+   * Server талын хуудаслалт + хайлт + төлөв шүүлт.
+   *
+   * ⚠️ Хувийн купон автоматаар үүсдэг тул хэдэн мянга болно — client-д
+   * бүгдийг татаж шүүх нь боломжгүй. Хуудаслалт, хайлт, шүүлтийг ЭНД хийнэ.
+   */
+  async adminList(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: 'live' | 'expired' | 'used-up' | 'off';
+  } = {}) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const search = (params.search ?? '').trim();
+    const now = new Date();
+
+    const where: Prisma.CouponWhereInput = {};
+
+    if (search) {
+      /* ⚠️ Код, эзний имэйл/нэр, кампанит ажлаар хайна */
+      where.OR = [
+        { code: { contains: search, mode: 'insensitive' } },
+        { campaign: { contains: search, mode: 'insensitive' } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    /* ⚠️ Төлөв нь тооцоолсон утга — isActive + expiresAt + usedCount/maxUses.
+       Frontend statusOf-той ЯГ ижил логик (нэг suvag зөв, нөгөө буруу
+       болохоос сэргийлнэ). */
+    if (params.status === 'off') {
+      where.isActive = false;
+    } else if (params.status === 'expired') {
+      where.isActive = true;
+      where.expiresAt = { not: null, lt: now };
+    } else if (params.status === 'used-up') {
+      /* ⚠️ maxUses != null БА usedCount >= maxUses — Prisma талбар
+         харьцуулалт дэмждэггүй тул raw filter ашиглана */
+      where.isActive = true;
+      where.maxUses = { not: null };
+      where.usedCount = { gte: this.prisma.coupon.fields.maxUses };
+    } else if (params.status === 'live') {
+      where.isActive = true;
+      where.OR = where.OR
+        ? undefined // search-тэй давхцахаас сэргийлж доор AND-д хийнэ
+        : undefined;
+      where.AND = [
+        { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
+        {
+          OR: [
+            { maxUses: null },
+            { usedCount: { lt: this.prisma.coupon.fields.maxUses } },
+          ],
+        },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.coupon.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          user: { select: { id: true, email: true, name: true } },
+        },
+      }),
+      this.prisma.coupon.count({ where }),
+    ]);
+
+    return { items, total, page, totalPages: Math.ceil(total / limit) };
   }
 
   /**
@@ -275,8 +340,18 @@ export class CouponsAdminController {
   constructor(private readonly svc: CouponsService) {}
 
   @Get()
-  list() {
-    return this.svc.adminList();
+  list(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: 'live' | 'expired' | 'used-up' | 'off',
+  ) {
+    return this.svc.adminList({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      status,
+    });
   }
 
   @Post()

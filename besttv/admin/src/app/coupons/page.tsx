@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Pencil, Plus, Search, Ticket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
+import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import { useAdminCoupons, type AdminCoupon } from '@/lib/queries';
@@ -59,36 +60,42 @@ const STATUS_LABEL: Record<Status, string> = {
 };
 
 export default function CouponsPage() {
-  const { data, isLoading, isError, error, refetch } = useAdminCoupons();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AdminCoupon | 'new' | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'' | Status>('');
+  const [page, setPage] = useState(1);
   const confirm = useConfirm();
 
   /**
-   * ⚠️ Шүүлт CLIENT талд — купон ихэвчлэн хэдэн арваар тоологддог тул
-   * сервер рүү дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
+   * ⚠️⚠️ SERVER талын хуудаслалт + хайлт + шүүлт.
+   *
+   * Өмнө нь бүх купоныг client-д татаж шүүдэг байсан — хувийн купон
+   * автоматаар үүсдэг тул хэдэн мянга болж, жагсаалт таслагдаж өмнөхийг
+   * харах боломжгүй болдог байв. Одоо хайлт/шүүлт/хуудаслалт бүгд серверт.
    */
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return (data ?? []).filter((c) => {
-      if (status && statusOf(c) !== status) return false;
-      if (!needle) return true;
-      const label = c.discountType === 'PERCENT' ? `${c.amount}%` : `${c.amount}₮`;
-      /* ⚠️ Эзний имэйл/нэр, кампанит ажлаар ЧУ хайна — админ «энэ
-         хэрэглэгчид ямар код өгсөн бэ?» гэж хайх нь түгээмэл */
-      return (
-        c.code.toLowerCase().includes(needle) ||
-        label.toLowerCase().includes(needle) ||
-        (c.user?.email ?? '').toLowerCase().includes(needle) ||
-        (c.user?.name ?? '').toLowerCase().includes(needle) ||
-        (c.campaign ?? '').toLowerCase().includes(needle)
-      );
-    });
-  }, [data, q, status]);
+  const LIMIT = 20;
+  /* ⚠️ Хайлтыг debounce — үсэг бүрд сервер рүү очихгүй */
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  /* ⚠️ Хайлт/шүүлт солиход эхний хуудас руу буцах (хоосон хуудсанд гацахгүй) */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, status]);
+
+  const { data, isLoading, isError, error, refetch } = useAdminCoupons({
+    page,
+    limit: LIMIT,
+    search: debouncedQ || undefined,
+    status: status || undefined,
+  });
+  const rows = data?.items ?? [];
 
   const openEdit = (coupon: AdminCoupon | 'new') => {
     setEditing(coupon);
@@ -181,7 +188,7 @@ export default function CouponsPage() {
 
   return (
     <AdminShell>
-      <AdminTopbar title="Хямдралын купон" subtitle={data ? `Нийт ${data.length} купон` : undefined} />
+      <AdminTopbar title="Хямдралын купон" subtitle={data ? `Нийт ${data.total} купон` : undefined} />
 
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
         {/* ⚠️ Хайлт + төлөвийн шүүлт — өмнө нь ЗӨВХӨН доош гүйлгэж хайх
@@ -224,7 +231,7 @@ export default function CouponsPage() {
             гэж ойлгогдохгүй байх зорилготой */}
         {(q || status) && (
           <p className="mt-2 text-xs text-muted-foreground">
-            {rows.length} / {data?.length ?? 0} купон
+            Нийт {data?.total ?? 0} купон олдлоо
           </p>
         )}
 
@@ -377,6 +384,14 @@ export default function CouponsPage() {
             />
           )}
         </div>
+
+        <Pagination
+          page={data?.page ?? 1}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total}
+          limit={LIMIT}
+          onPage={(p) => setPage(p)}
+        />
       </main>
 
       {editing && (

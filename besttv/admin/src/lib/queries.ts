@@ -820,10 +820,26 @@ export interface AdminCoupon {
   campaign: string | null;
 }
 
-export function useAdminCoupons() {
+export function useAdminCoupons(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: 'live' | 'expired' | 'used-up' | 'off' | '';
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.search) qs.set('search', params.search);
+  if (params.status) qs.set('status', params.status);
+
   return useQuery({
-    queryKey: ['admin-coupons'],
-    queryFn: () => api<AdminCoupon[]>('/admin/coupons'),
+    queryKey: ['admin-coupons', params],
+    queryFn: () =>
+      api<{ items: AdminCoupon[]; total: number; page: number; totalPages: number }>(
+        `/admin/coupons?${qs.toString()}`,
+      ),
+    /* ⚠️ Хуудас/шүүлт солиход хуучин дата харуулж skeleton гацахгүй */
+    placeholderData: (prev) => prev,
   });
 }
 
