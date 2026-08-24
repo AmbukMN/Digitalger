@@ -1500,13 +1500,38 @@ export class EmailAdminController {
     });
   }
 
-  /** Suppression жагсаалт (bounce/complaint) */
+  /**
+   * Suppression жагсаалт (bounce/complaint) — server талын хуудаслалт + хайлт.
+   *
+   * ⚠️ Bounce/complaint удаан хугацаанд хуримтлагдаж хэдэн зуу, мянга болно.
+   * Client-д бүгдийг татах боломжгүй тул хуудаслалт/хайлтыг ЭНД хийнэ
+   * (coupons/logs таб-тай ижил pattern).
+   */
   @Get('suppressions')
-  suppressions(@Query('limit') limit?: number) {
-    return this.prisma.emailSuppression.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(200, Number(limit) || 50),
-    });
+  async suppressions(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const p = Math.max(1, Number(page) || 1);
+    const take = Math.min(100, Math.max(1, Number(limit) || 20));
+    const q = (search ?? '').trim();
+
+    const where: Prisma.EmailSuppressionWhereInput = q
+      ? { email: { contains: q, mode: 'insensitive' } }
+      : {};
+
+    const [items, total] = await Promise.all([
+      this.prisma.emailSuppression.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * take,
+        take,
+      }),
+      this.prisma.emailSuppression.count({ where }),
+    ]);
+
+    return { items, total, page: p, totalPages: Math.ceil(total / take) };
   }
 
   /**

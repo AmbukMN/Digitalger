@@ -22,6 +22,7 @@ import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { ImportProgress, type ImportRow } from '@/components/crosspost/import-progress';
 import { AdminTopbar } from '@/components/admin-topbar';
+import { Pagination } from '@/components/pagination';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { TableEmptyState } from '@/components/table-empty-state';
@@ -73,10 +74,16 @@ export default function CrosspostPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
   const [historyStatus, setHistoryStatus] = useState('ALL');
+  const [historyPage, setHistoryPage] = useState(1);
 
   const { data: status } = useCrosspostStatus();
   const { data, isLoading, isError, error, refetch, isFetching } = useFbPosts(25);
-  const history = useCrosspostHistory({ status: historyStatus, page: 1, limit: 50 });
+  const HISTORY_LIMIT = 20;
+  const history = useCrosspostHistory({
+    status: historyStatus,
+    page: historyPage,
+    limit: HISTORY_LIMIT,
+  });
 
   const items = useMemo(() => data?.items ?? [], [data]);
 
@@ -416,8 +423,13 @@ export default function CrosspostPage() {
             data={history.data}
             isLoading={history.isLoading}
             status={historyStatus}
-            onStatus={setHistoryStatus}
+            onStatus={(s) => {
+              setHistoryStatus(s);
+              setHistoryPage(1); // шүүлт солиход эхний хуудас руу
+            }}
             onRetry={retry}
+            limit={HISTORY_LIMIT}
+            onPage={setHistoryPage}
           />
         )}
       </main>
@@ -614,6 +626,8 @@ function HistoryTab({
   status,
   onStatus,
   onRetry,
+  limit,
+  onPage,
 }: {
   data?: {
     items: {
@@ -629,11 +643,16 @@ function HistoryTab({
       createdAt: string;
     }[];
     stats: Record<string, number>;
+    total?: number;
+    page?: number;
+    totalPages?: number;
   };
   isLoading: boolean;
   status: string;
   onStatus: (s: string) => void;
   onRetry: (id: string) => void;
+  limit: number;
+  onPage: (p: number) => void;
 }) {
   const stats = data?.stats ?? {};
 
@@ -722,6 +741,14 @@ function HistoryTab({
           ))}
         </div>
       )}
+
+      <Pagination
+        page={data?.page ?? 1}
+        totalPages={data?.totalPages ?? 1}
+        total={data?.total}
+        limit={limit}
+        onPage={onPage}
+      />
     </>
   );
 }

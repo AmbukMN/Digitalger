@@ -10,6 +10,7 @@ import {
   Mail,
   MailOpen,
   MousePointerClick,
+  Search,
   Send,
   ShieldOff,
   UserPlus,
@@ -894,14 +895,45 @@ function BroadcastTab() {
 function SuppressionsTab() {
   // Шинээр нэмэгдсэн bounce/complaint — SES нэр хүндэд аюултай, шуурхай харах
   const isNew = useNewSince('email-issues');
+  /**
+   * ⚠️ SERVER талын хуудаслалт + хайлт — bounce/complaint удаан хугацаанд
+   * хэдэн зуу, мянга болдог тул client-д бүгдийг татах боломжгүй
+   * (coupons/logs таб-тай ижил pattern).
+   */
+  const LIMIT = 20;
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+
+  /* ⚠️ Хайлтыг debounce — үсэг бүрд сервер рүү очихгүй */
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  /* ⚠️ Хайлт солиход эхний хуудас руу буцах (хоосон хуудсанд гацахгүй) */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ]);
+
   const { data, isFetching } = useQuery({
-    queryKey: ['admin-suppressions'],
-    queryFn: () =>
-      api<{ id: string; email: string; reason: string; subType: string | null; createdAt: string }[]>(
-        '/admin/email/suppressions',
-      ),
+    queryKey: ['admin-suppressions', { page, search: debouncedQ }],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      qs.set('page', String(page));
+      qs.set('limit', String(LIMIT));
+      if (debouncedQ) qs.set('search', debouncedQ);
+      return api<{
+        items: { id: string; email: string; reason: string; subType: string | null; createdAt: string }[];
+        total: number;
+        page: number;
+        totalPages: number;
+      }>(`/admin/email/suppressions?${qs}`);
+    },
+    placeholderData: (prev) => prev,
     staleTime: 0,
   });
+  const rows = data?.items ?? [];
 
   return (
     <div className="admin-card overflow-hidden rounded-xl">
@@ -909,37 +941,66 @@ function SuppressionsTab() {
         Bounce/complaint ирсэн хаягууд — эдгээр рүү дахин илгээхгүй. Ингэснээр SES-ийн нэр хүнд
         (reputation) хамгаалагдаж, бусад имэйл спам болохоос сэргийлнэ.
       </p>
-      <table className={cn('w-full text-sm transition-opacity', isFetching && 'opacity-60')}>
-        <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="px-4 py-3 text-left font-semibold">Имэйл</th>
-            <th className="px-4 py-3 text-left font-semibold">Шалтгаан</th>
-            <th className="px-4 py-3 text-left font-semibold">Огноо</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {data?.map((s) => (
-            <tr key={s.id} className="transition-colors hover:bg-accent/40">
-              <td className="px-4 py-3 text-foreground">
-                <span className="flex items-center gap-1.5">
-                  {s.email}
-                  {isNew(s.createdAt) && <NewBadge />}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {s.reason}
-                {s.subType && ` · ${s.subType}`}
-              </td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">
-                {formatDate(s.createdAt)}
-              </td>
+      <div className="border-b border-border p-3">
+        <div className="relative">
+          <Search
+            size={15}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Имэйл хаягаар хайх…"
+            aria-label="Хориглосон хаяг хайх"
+            className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
+          />
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className={cn('w-full text-sm transition-opacity', isFetching && 'opacity-60')}>
+          <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 text-left font-semibold">Имэйл</th>
+              <th className="px-4 py-3 text-left font-semibold">Шалтгаан</th>
+              <th className="px-4 py-3 text-left font-semibold">Огноо</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {!data?.length && !isFetching && (
-        <TableEmptyState icon={ShieldOff} message="Хориглосон хаяг байхгүй — сайн байна 👍" />
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((s) => (
+              <tr key={s.id} className="transition-colors hover:bg-accent/40">
+                <td className="px-4 py-3 text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    {s.email}
+                    {isNew(s.createdAt) && <NewBadge />}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {s.reason}
+                  {s.subType && ` · ${s.subType}`}
+                </td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {formatDate(s.createdAt)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!rows.length && !isFetching && (
+        /* ⚠️ Хайлтын хоосон үр дүн БА огт хориглосон хаяггүй хоёрыг ЯЛГАНА */
+        <TableEmptyState
+          icon={ShieldOff}
+          message={debouncedQ ? 'Хайлтад тохирох хаяг олдсонгүй' : 'Хориглосон хаяг байхгүй — сайн байна 👍'}
+        />
       )}
+
+      <Pagination
+        page={data?.page ?? 1}
+        totalPages={data?.totalPages ?? 1}
+        total={data?.total}
+        limit={LIMIT}
+        onPage={(p) => setPage(p)}
+      />
     </div>
   );
 }

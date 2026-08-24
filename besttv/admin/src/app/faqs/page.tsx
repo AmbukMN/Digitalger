@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { HelpCircle, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,43 +11,54 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
+import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
-import { useAdminFaqs, type AdminFaq } from '@/lib/queries';
+import { useAdminFaqs, useAdminFaqCategories, type AdminFaq } from '@/lib/queries';
 
 const EMPTY: Omit<AdminFaq, 'id'> = { question: '', answer: '', category: 'Ерөнхий', order: 0, isActive: true };
 
 export default function FaqsPage() {
-  const { data, isLoading, isError, error, refetch } = useAdminFaqs();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AdminFaq | 'new' | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [page, setPage] = useState(1);
   const confirm = useConfirm();
 
-  /* ⚠️ Ангиллын жагсаалтыг ДАТАНААС үүсгэнэ — hardcode хийвэл админ
-     шинэ ангилал нэмэхэд шүүлтэд гарахгүй */
-  const categories = useMemo(
-    () => [...new Set((data ?? []).map((f) => f.category).filter(Boolean))].sort(),
-    [data],
-  );
-
   /**
-   * ⚠️ Шүүлт CLIENT талд — FAQ нь ихэвчлэн 50-аас цөөн тул сервер рүү
-   * дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
+   * ⚠️⚠️ SERVER талын хуудаслалт + хайлт + ангиллын шүүлт.
+   *
+   * Өмнө нь бүх FAQ-г client-д татаж шүүдэг байсан — асуулт олноор
+   * нэмэгдэхэд жагсаалт таслагдаж, хуудаслалтгүй болдог байв. Одоо
+   * хайлт/шүүлт/хуудаслалт бүгд серверт (coupons-той ижил pattern).
    */
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return (data ?? []).filter(
-      (f) =>
-        (!cat || f.category === cat) &&
-        (!needle ||
-          f.question.toLowerCase().includes(needle) ||
-          f.answer.toLowerCase().includes(needle)),
-    );
-  }, [data, q, cat]);
+  const LIMIT = 20;
+  /* ⚠️ Хайлтыг debounce — үсэг бүрд сервер рүү очихгүй */
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  /* ⚠️ Хайлт/шүүлт солиход эхний хуудас руу буцах (хоосон хуудсанд гацахгүй) */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, cat]);
+
+  const { data, isLoading, isError, error, refetch } = useAdminFaqs({
+    page,
+    limit: LIMIT,
+    search: debouncedQ || undefined,
+    category: cat || undefined,
+  });
+  const rows = data?.items ?? [];
+
+  /* ⚠️ Ангиллын жагсаалтыг СЕРВЕРЭЭС үүсгэнэ — хуудаслалт идэвхжсэн тул
+     тухайн хуудсан дахь мөрөөс цуглуулбал бүх ангилал шүүлтэд гарахгүй */
+  const { data: categories = [] } = useAdminFaqCategories();
 
   const openEdit = (faq: AdminFaq | 'new') => {
     setEditing(faq);
@@ -69,6 +80,8 @@ export default function FaqsPage() {
         toast.success('Хадгалагдлаа');
       }
       qc.invalidateQueries({ queryKey: ['admin-faqs'] });
+      /* ⚠️ Шинэ ангилал орж ирж болзошгүй — шүүлтийн dropdown-г шинэчилнэ */
+      qc.invalidateQueries({ queryKey: ['admin-faq-categories'] });
       setEditing(null);
     } catch {
       toast.error('Алдаа гарлаа');
@@ -110,7 +123,7 @@ export default function FaqsPage() {
 
   return (
     <AdminShell>
-      <AdminTopbar title="Түгээмэл асуулт" subtitle={data ? `Нийт ${data.length} асуулт` : undefined} />
+      <AdminTopbar title="Түгээмэл асуулт" subtitle={data ? `Нийт ${data.total} асуулт` : undefined} />
 
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
         {/* ⚠️ Хайлт + ангиллын шүүлт — өмнө нь ЗӨВХӨН доош гүйлгэж
@@ -154,7 +167,7 @@ export default function FaqsPage() {
             шууд харна (хоосон үр дүн нь эвдэрсэн гэж ойлгогдохгүй) */}
         {(q || cat) && (
           <p className="mt-2 text-xs text-muted-foreground">
-            {rows.length} / {data?.length ?? 0} асуулт
+            Нийт {data?.total ?? 0} асуулт олдлоо
           </p>
         )}
 
@@ -256,6 +269,14 @@ export default function FaqsPage() {
             />
           )}
         </div>
+
+        <Pagination
+          page={data?.page ?? 1}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total}
+          limit={LIMIT}
+          onPage={(p) => setPage(p)}
+        />
       </main>
 
       {editing && (

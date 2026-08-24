@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ImageIcon, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
+import { Pagination } from '@/components/pagination';
 import { ImageUpload } from '@/components/image-upload';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
@@ -55,7 +56,6 @@ function statusOf(b: AdminBanner) {
 }
 
 export default function BannersPage() {
-  const { data, isLoading, isError, error, refetch } = useAdminBanners();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [editing, setEditing] = useState<AdminBanner | 'new' | null>(null);
@@ -71,20 +71,38 @@ export default function BannersPage() {
    * тогтворгүй байдлыг ч арилгав.)
    */
   const [status, setStatus] = useState<'ALL' | 'on' | 'wait' | 'off'>('ALL');
+  const [page, setPage] = useState(1);
 
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return (data ?? []).filter((b) => {
-      if (status !== 'ALL' && statusOf(b).tone !== status) return false;
-      if (!needle) return true;
-      return (
-        b.title.toLowerCase().includes(needle) ||
-        b.subtitle.toLowerCase().includes(needle) ||
-        b.ctaHref.toLowerCase().includes(needle)
-      );
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, q, status]);
+  /**
+   * ⚠️⚠️ SERVER талын хуудаслалт + хайлт + шүүлт (`coupons` хуудастай ижил).
+   *
+   * Өмнө нь бүх баннерыг client-д татаж useMemo-оор шүүдэг байсан —
+   * баннер хуримтлагдвал жагсаалт таслагдаж, өмнөхийг харах боломжгүй
+   * болно. Одоо хайлт/шүүлт/хуудаслалт бүгд серверт.
+   *
+   * ⚠️ Эрэмбэ нь backend талд [position, order] хэвээр — нүүрэнд харагдах
+   * дараалал ХАДГАЛАГДАНА (баннер олон бол хуудаслана).
+   */
+  const LIMIT = 20;
+  /* ⚠️ Хайлтыг debounce — үсэг бүрд сервер рүү очихгүй */
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  /* ⚠️ Хайлт/шүүлт солиход эхний хуудас руу буцах (хоосон хуудсанд гацахгүй) */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, status]);
+
+  const { data, isLoading, isError, error, refetch } = useAdminBanners({
+    page,
+    limit: LIMIT,
+    search: debouncedQ || undefined,
+    status: status === 'ALL' ? undefined : status,
+  });
+  const rows = data?.items ?? [];
 
   const openEdit = (b: AdminBanner | 'new') => {
     setEditing(b);
@@ -179,7 +197,7 @@ export default function BannersPage() {
     <AdminShell>
       <AdminTopbar
         title="Нүүрний баннер"
-        subtitle={data ? `${data.length} баннер` : undefined}
+        subtitle={data ? `Нийт ${data.total} баннер` : undefined}
       />
 
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
@@ -220,9 +238,11 @@ export default function BannersPage() {
           </button>
         </div>
 
-        {q && (
+        {/* ⚠️ Шүүлтийн үр дүнгийн тоо — хоосон үр дүн нь "дата устсан"
+            гэж ойлгогдохгүй байх зорилготой */}
+        {(q || status !== 'ALL') && (
           <p className="mt-2 text-xs text-muted-foreground">
-            {rows.length} / {data?.length ?? 0} баннер
+            Нийт {data?.total ?? 0} баннер олдлоо
           </p>
         )}
 
@@ -356,21 +376,28 @@ export default function BannersPage() {
             </div>
           )}
           {!isLoading && !isError && !rows.length && (
+            /* ⚠️ Хайлт/шүүлтийн үр дүн хоосон БА баннер огт байхгүй хоёрыг
+               ЯЛГАНА — эс бөгөөс админ "бүх баннер устсан" гэж сандарна */
             <TableEmptyState
               icon={ImageIcon}
-              message={q ? 'Хайлтад тохирох баннер олдсонгүй' : 'Баннер байхгүй байна'}
+              message={
+                q || status !== 'ALL' ? 'Хайлтад тохирох баннер олдсонгүй' : 'Баннер байхгүй байна'
+              }
               description={
-                q
-                  ? 'Өөр түлхүүр үгээр хайж үзнэ үү.'
+                q || status !== 'ALL'
+                  ? 'Өөр түлхүүр үг эсвэл төлөв сонгож үзнэ үү.'
                   : 'Нүүр хуудасны жанрын эгнээнүүдийн дунд сурталчилгааны зурвас нэмнэ.'
               }
               action={
-                q ? (
+                q || status !== 'ALL' ? (
                   <button
-                    onClick={() => setQ('')}
+                    onClick={() => {
+                      setQ('');
+                      setStatus('ALL');
+                    }}
                     className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent"
                   >
-                    Хайлт цэвэрлэх
+                    Шүүлт цэвэрлэх
                   </button>
                 ) : (
                   <button
@@ -384,6 +411,14 @@ export default function BannersPage() {
             />
           )}
         </div>
+
+        <Pagination
+          page={data?.page ?? 1}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total}
+          limit={LIMIT}
+          onPage={(p) => setPage(p)}
+        />
       </main>
 
       {editing && (

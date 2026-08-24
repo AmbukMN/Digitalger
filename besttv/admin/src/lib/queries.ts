@@ -221,10 +221,26 @@ export interface AdminBanner {
   mobileImageUrl: string | null;
 }
 
-export function useAdminBanners() {
+export function useAdminBanners(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: 'on' | 'wait' | 'off' | '';
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.search) qs.set('search', params.search);
+  if (params.status) qs.set('status', params.status);
+
   return useQuery({
-    queryKey: ['admin-banners'],
-    queryFn: () => api<AdminBanner[]>('/admin/banners'),
+    queryKey: ['admin-banners', params],
+    queryFn: () =>
+      api<{ items: AdminBanner[]; total: number; page: number; totalPages: number }>(
+        `/admin/banners?${qs.toString()}`,
+      ),
+    /* ⚠️ Хуудас/шүүлт солиход хуучин дата харуулж skeleton гацахгүй */
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -792,10 +808,35 @@ export interface AdminFaq {
   isActive: boolean;
 }
 
-export function useAdminFaqs() {
+export function useAdminFaqs(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.search) qs.set('search', params.search);
+  if (params.category) qs.set('category', params.category);
+
   return useQuery({
-    queryKey: ['admin-faqs'],
-    queryFn: () => api<AdminFaq[]>('/admin/faqs'),
+    queryKey: ['admin-faqs', params],
+    queryFn: () =>
+      api<{ items: AdminFaq[]; total: number; page: number; totalPages: number }>(
+        `/admin/faqs?${qs.toString()}`,
+      ),
+    /* ⚠️ Хуудас/шүүлт солиход хуучин дата харуулж skeleton гацахгүй */
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Шүүлтийн ангиллын жагсаалт — server талаас (хуудаслалт идэвхжсэн тул
+ *  client дахь бүх мөрөөс цуглуулах боломжгүй болсон) */
+export function useAdminFaqCategories() {
+  return useQuery({
+    queryKey: ['admin-faq-categories'],
+    queryFn: () => api<string[]>('/admin/faqs/categories'),
   });
 }
 
@@ -951,13 +992,27 @@ export interface AdminPromotion {
   _count: { redemptions: number };
 }
 
-export function useAdminPromotions() {
+export function useAdminPromotions(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.search) qs.set('search', params.search);
+
   return useQuery({
-    queryKey: ['admin-promotions'],
-    queryFn: () => api<AdminPromotion[]>('/admin/promotions'),
+    queryKey: ['admin-promotions', params],
+    queryFn: () =>
+      api<{ items: AdminPromotion[]; total: number; page: number; totalPages: number }>(
+        `/admin/promotions?${qs.toString()}`,
+      ),
     /* ⚠️ Урамшуулал нь хугацаанаас хамаардаг тул шинэ мэдээлэл чухал */
     staleTime: 0,
     refetchOnWindowFocus: true,
+    /* ⚠️ Хуудас/шүүлт солиход хуучин дата харуулж skeleton гацахгүй */
+    placeholderData: (prev) => prev,
   });
 }
 

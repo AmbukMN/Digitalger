@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -21,7 +22,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CacheInvalidateInterceptor } from '../../common/cache/cache-invalidate.interceptor';
@@ -141,12 +142,76 @@ export class BannersService {
     );
   }
 
-  /** Админ — идэвхгүй/хугацаа дууссаныг ч харуулна */
-  async listAdmin() {
-    const rows = await this.prisma.homeBanner.findMany({
-      orderBy: [{ position: 'asc' }, { order: 'asc' }],
-    });
-    return Promise.all(
+  /**
+   * Админ — идэвхгүй/хугацаа дууссаныг ч харуулна.
+   *
+   * ⚠️ SERVER талын хуудаслалт + хайлт + төлөв шүүлт (`coupons.adminList`
+   * загвартай ижил). Баннер олноороо хуримтлагдвал client-д бүгдийг татаж
+   * шүүх нь боломжгүй болох тул шүүлт/хуудаслалтыг ЭНД хийнэ.
+   *
+   * ⚠️ Эрэмбэ нь [position, order] хэвээр — баннер нүүрэнд харагдах
+   * ДАРААЛАЛ энэ мөн (reorder/drag үүн дээр тулгуурладаг). Хуудаслахдаа
+   * ч энэ эрэмбийг ХАДГАЛНА.
+   */
+  async adminList(
+    params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: 'on' | 'wait' | 'off';
+    } = {},
+  ) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const search = (params.search ?? '').trim();
+    const now = new Date();
+
+    const where: Prisma.HomeBannerWhereInput = {};
+
+    if (search) {
+      /* ⚠️ Гарчиг, дэд гарчиг, холбоосоор хайна (frontend-ийн useMemo
+         шүүлттэй ЯГ ижил талбарууд) */
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { subtitle: { contains: search, mode: 'insensitive' } },
+        { ctaHref: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    /* ⚠️ Төлөв нь тооцоолсон утга — isActive + startsAt + endsAt.
+       Frontend `statusOf`-той ЯГ ижил логик (нэг суваг зөв, нөгөө буруу
+       болохоос сэргийлнэ):
+         off  = идэвхгүй ЭСВЭЛ дуусах хугацаа өнгөрсөн
+         wait = идэвхтэй ба эхлэх хугацаа хараахан болоогүй
+         on   = идэвхтэй ба хугацаандаа байгаа */
+    if (params.status === 'off') {
+      where.AND = [
+        {
+          OR: [{ isActive: false }, { endsAt: { not: null, lt: now } }],
+        },
+      ];
+    } else if (params.status === 'wait') {
+      where.isActive = true;
+      where.startsAt = { not: null, gt: now };
+    } else if (params.status === 'on') {
+      where.isActive = true;
+      where.AND = [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.homeBanner.findMany({
+        where,
+        orderBy: [{ position: 'asc' }, { order: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.homeBanner.count({ where }),
+    ]);
+
+    const items = await Promise.all(
       rows.map(async (b) => ({
         ...b,
         imageUrl: await this.storage.publicAssetUrl(b.imageKey, 7200),
@@ -155,6 +220,8 @@ export class BannersService {
           : null,
       })),
     );
+
+    return { items, total, page, totalPages: Math.ceil(total / limit) };
   }
 
   async create(dto: BannerDto) {
@@ -256,8 +323,18 @@ export class BannersAdminController {
   constructor(private readonly svc: BannersService) {}
 
   @Get()
-  list() {
-    return this.svc.listAdmin();
+  list(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: 'on' | 'wait' | 'off',
+  ) {
+    return this.svc.adminList({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      status,
+    });
   }
 
   @Post()

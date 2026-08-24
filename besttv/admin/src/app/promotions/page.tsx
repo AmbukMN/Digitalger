@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   CalendarClock,
@@ -24,6 +24,7 @@ import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
+import { Pagination } from '@/components/pagination';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import {
@@ -169,8 +170,6 @@ function valueText(p: AdminPromotion): string {
 }
 
 export default function PromotionsPage() {
-  const { data, isLoading, isError, error, refetch } = useAdminPromotions();
-  const { data: plans } = useAdminPlans();
   const qc = useQueryClient();
   const confirm = useConfirm();
 
@@ -180,29 +179,55 @@ export default function PromotionsPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'' | Status>('');
   const [type, setType] = useState<'' | PromotionType>('');
+  const [page, setPage] = useState(1);
 
+  /**
+   * ⚠️⚠️ SERVER талын хуудаслалт + хайлт.
+   *
+   * Өмнө нь бүх урамшууллыг client-д татаж шүүдэг байсан — олноороо
+   * хуримтлагдвал жагсаалт хүндэрдэг. Одоо хайлт/хуудаслалт серверт.
+   * Төлөв/төрлийн шүүлт нь тухайн хуудсан дээр client талд үлдэнэ.
+   */
+  const LIMIT = 20;
+  /* ⚠️ Хайлтыг debounce — үсэг бүрд сервер рүү очихгүй */
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  /* ⚠️ Хайлт/шүүлт солиход эхний хуудас руу буцах (хоосон хуудсанд гацахгүй) */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, status, type]);
+
+  const { data, isLoading, isError, error, refetch } = useAdminPromotions({
+    page,
+    limit: LIMIT,
+    search: debouncedQ || undefined,
+  });
+  const { data: plans } = useAdminPlans();
+
+  const items = useMemo(() => data?.items ?? [], [data]);
+
+  /* ⚠️ Төлөв/төрлийн шүүлт нь тухайн хуудасны мөрүүдэд client талд үйлчилнэ */
   const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return (data ?? []).filter((p) => {
+    return items.filter((p) => {
       if (status && statusOf(p) !== status) return false;
       if (type && p.type !== type) return false;
-      if (!needle) return true;
-      return (
-        p.name.toLowerCase().includes(needle) || p.shortText.toLowerCase().includes(needle)
-      );
+      return true;
     });
-  }, [data, q, status, type]);
+  }, [items, status, type]);
 
-  /* ⚠️ Статистик — админ нэг харцаар байдлыг мэдэх ёстой */
+  /* ⚠️ Статистик — тухайн хуудсан дээрх мөрүүдээр тооцно */
   const stats = useMemo(() => {
-    const all = data ?? [];
     return {
-      live: all.filter((p) => statusOf(p) === 'live').length,
-      scheduled: all.filter((p) => statusOf(p) === 'scheduled').length,
-      totalUsed: all.reduce((s, p) => s + p.usedCount, 0),
-      totalPeople: all.reduce((s, p) => s + p._count.redemptions, 0),
+      live: items.filter((p) => statusOf(p) === 'live').length,
+      scheduled: items.filter((p) => statusOf(p) === 'scheduled').length,
+      totalUsed: items.reduce((s, p) => s + p.usedCount, 0),
+      totalPeople: items.reduce((s, p) => s + p._count.redemptions, 0),
     };
-  }, [data]);
+  }, [items]);
 
   const openEdit = (p: AdminPromotion | 'new') => {
     setEditing(p);
@@ -354,7 +379,7 @@ export default function PromotionsPage() {
     <AdminShell>
       <AdminTopbar
         title="Урамшуулал"
-        subtitle={data ? `Нийт ${data.length} урамшуулал` : undefined}
+        subtitle={data ? `Нийт ${data.total} урамшуулал` : undefined}
       />
 
       <main className="p-4 pt-5 sm:p-8 sm:pt-6">
@@ -566,6 +591,14 @@ export default function PromotionsPage() {
           </div>
         )}
       </div>
+
+      <Pagination
+        page={data?.page ?? 1}
+        totalPages={data?.totalPages ?? 1}
+        total={data?.total}
+        limit={LIMIT}
+        onPage={(p) => setPage(p)}
+      />
 
       {/* ─── Засварын цонх ─── */}
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>

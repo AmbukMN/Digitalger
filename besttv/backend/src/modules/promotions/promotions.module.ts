@@ -182,19 +182,46 @@ class PromotionsAdminService {
   /**
    * ⚠️ `bannerUrl` ЗААВАЛ буцаана — админ зургаа PREVIEW харах ёстой.
    * Зөвхөн R2 key буцаавал админ юу оруулснаа мэдэхгүй (муу UX).
+   *
+   * Server талын хуудаслалт + хайлт (нэр / товч тайлбар).
+   *
+   * ⚠️ Урамшуулал олноороо хуримтлагдвал client-д бүгдийг татаж шүүх нь
+   * хүнд болно — хуудаслалт, хайлтыг ЭНД хийнэ. `order` эрэмбэ ХЭВЭЭР
+   * (isActive desc → order asc → createdAt desc), pagination нь эрэмбийг
+   * дагаад хуудаслана.
    */
-  async list() {
-    const rows = await this.prisma.promotion.findMany({
-      orderBy: [{ isActive: 'desc' }, { order: 'asc' }, { createdAt: 'desc' }],
-      include: {
-        plans: { select: { planId: true } },
-        giftPlan: { select: { id: true, name: true } },
-        /* ⚠️ Үр дүн харуулах — хэдэн хүн ашигласан */
-        _count: { select: { redemptions: true } },
-      },
-    });
+  async list(params: { page?: number; limit?: number; search?: string } = {}) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const search = (params.search ?? '').trim();
 
-    return Promise.all(
+    const where: Prisma.PromotionWhereInput = {};
+    if (search) {
+      /* ⚠️ Нэр болон товч тайлбараар хайна */
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { shortText: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.promotion.findMany({
+        where,
+        orderBy: [{ isActive: 'desc' }, { order: 'asc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          plans: { select: { planId: true } },
+          giftPlan: { select: { id: true, name: true } },
+          /* ⚠️ Үр дүн харуулах — хэдэн хүн ашигласан */
+          _count: { select: { redemptions: true } },
+        },
+      }),
+      this.prisma.promotion.count({ where }),
+    ]);
+
+    /* ⚠️ bannerUrl / bannerMobileUrl preview enrich ХЭВЭЭР — items дотор */
+    const items = await Promise.all(
       rows.map(async (r) => ({
         ...r,
         bannerUrl: r.bannerKey ? await this.storage.publicAssetUrl(r.bannerKey, 7200) : null,
@@ -203,6 +230,8 @@ class PromotionsAdminService {
           : null,
       })),
     );
+
+    return { items, total, page, totalPages: Math.ceil(total / limit) };
   }
 
   async create(dto: PromotionDto) {
@@ -421,8 +450,16 @@ export class PromotionsAdminController {
   constructor(private readonly svc: PromotionsAdminService) {}
 
   @Get()
-  list() {
-    return this.svc.list();
+  list(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.svc.list({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+    });
   }
 
   @Get(':id/stats')
