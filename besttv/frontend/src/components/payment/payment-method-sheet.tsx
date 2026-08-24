@@ -12,6 +12,7 @@ import {
   MastercardMark,
   QPayBankStrip,
   QPayMark,
+  TCardMark,
   UnionPayMark,
   VisaMark,
   WeChatPayMark,
@@ -147,9 +148,15 @@ export function PaymentMethodSheet({
             <UnionPayMark className="h-4 w-auto" />
           </span>
           {/* ⚠️ AMEX өөрөө цэнхэр плашкатай — цагаан chip тавибал
-              цагаан текст нь уусна. Тиймээс chip-гүй, шууд. */}
+              цагаан текст нь уусна. Тиймээс chip-гүй, шууд.
+              ⚠️ Бүтэн «AMERICAN EXPRESS» wordmark тул бусадтай ижил
+              өндөр (h-7) өгвөл өргөн нь автоматаар таарна. */}
           <span className={cn(CHIP, BRAND_CHIP.amex, 'px-0')}>
-            <AmexMark className="h-5 w-auto rounded-[3px]" />
+            <AmexMark className="h-7 w-auto rounded-[3px]" />
+          </span>
+          {/* Т карт — дотоодын карт эзэмшигчид зориулав */}
+          <span className={cn(CHIP, BRAND_CHIP.tcard)}>
+            <TCardMark className="h-4 w-auto" />
           </span>
         </span>
       ),

@@ -6,6 +6,7 @@ import {
   BRAND_CHIP,
   MastercardMark,
   QPayMark,
+  TCardMark,
   UnionPayMark,
   VisaMark,
   WeChatPayMark,
@@ -50,8 +51,12 @@ export function FooterPaymentMarks() {
       <span className={cn(CHIP, BRAND_CHIP.unionpay)}>
         <UnionPayMark className="h-4 w-auto" />
       </span>
+      {/* ⚠️ Бүтэн «AMERICAN EXPRESS» wordmark — бусадтай ижил өндөр */}
       <span className={cn(CHIP, BRAND_CHIP.amex, 'px-0')}>
         <AmexMark className="h-6 w-auto rounded-[3px] sm:h-7" />
+      </span>
+      <span className={cn(CHIP, BRAND_CHIP.tcard)}>
+        <TCardMark className="h-4 w-auto sm:h-5" />
       </span>
       {/*
         ⚠️ Apple Pay / Google Pay — Bonum дээр ХАРААХАН идэвхжээгүй тул

@@ -164,8 +164,16 @@ export class BonumService {
       amount,
       callback: c.callbackUrl,
       transactionId,
-      /* 24 цаг — QPay PENDING_EXPIRE_HOURS-тай нийцүүлэв */
-      expiresIn: 24 * 3600,
+      /**
+       * ⚠️⚠️ ДЭЭД ХЯЗГААР 6 ЦАГ (21600с) — Bonum-ын хатуу шаардлага.
+       * Илүү өгвөл `{"expiresIn":"jakarta.validation.constraints.Max.message"},
+       * errorCode:"INVALID_ARGS"` 400 буцааж, нэхэмжлэл ОГТ үүсэхгүй →
+       * хэрэглэгч картаа оруулах ч завдалгүй «Төлбөрийн нэхэмжлэл
+       * үүсгэж чадсангүй» гэсэн алдаа авна (бодит гомдол 2026-08-24).
+       * QPay-ийн 24 цагтай нийцүүлэх гэж 86400 өгсөн нь алдаа байв.
+       * Бодит API-гаар шалгасан: 21600 ✅ / 28800 ❌.
+       */
+      expiresIn: 6 * 3600,
       providers,
       /* ⚠️ items/extras ИЛГЭЭХГҮЙ — брэнд нэр, бүтээгдэхүүний мэдээлэл
          DigitalGer merchant-ын бүртгэлд орох ёсгүй */

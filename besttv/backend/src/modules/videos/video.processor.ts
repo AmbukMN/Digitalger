@@ -47,7 +47,19 @@ export class VideoProcessor {
    *
    * ⚠️ Энэ файлыг өөрчилбөл worker-ийг ЗААВАЛ rebuild!
    */
-  @Process({ name: 'convert', concurrency: 4 })
+  /**
+   * ⚠️⚠️ CONCURRENCY 2 (өмнө нь 4 байсан).
+   *
+   * VPS нь 4 ЦӨМТЭЙ. Зэрэг 4 хөрвүүлэлт явахад ffmpeg-үүд 4 цөмийг
+   * БҮРЭН эзэлж (ps: 97%×2 + 56% + 48%), load average 21-25 хүрч,
+   * backend/postgres CPU авч чадахгүй болно → админ хяналтын самбарын
+   * график МӨНХ skeleton дээр гацаж, сайт бүхэлдээ удааширна
+   * (бодит гомдол 2026-08-24, дэлгэцэн дээр «Процессор 100%»).
+   *
+   * 2 бол хөрвүүлэлт үргэлжилсээр байх ба 2 цөм вэб/DB-д үлдэнэ.
+   * `HLS_CONCURRENCY` env-ээр тохируулж болно (сул зуур түр өсгөх г.м).
+   */
+  @Process({ name: 'convert', concurrency: Number(process.env.HLS_CONCURRENCY ?? 2) })
   async handle(job: Job<VideoHlsJob>) {
     const { target, targetId, rawKey } = job.data;
 

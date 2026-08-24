@@ -282,8 +282,18 @@ export default function PricingPage() {
       return;
     }
     if (method === 'qpay') {
-      setSheetPlan(null);
-      await buyWithQpay(plan.id);
+      /**
+       * ⚠️⚠️ ЦОНХЫГ ЭХЛЭЭД ХААХГҮЙ. Өмнө нь `setSheetPlan(null)`-ыг
+       * дуудаад дараа нь invoice үүсгэдэг байсан тул QPay нэхэмжлэл
+       * ирэх хүртэл (~2 сек) ХООСОН ДЭЛГЭЦ харагдаж, хэрэглэгч
+       * «гацсан уу?» гэж эргэлздэг байв (бодит гомдол).
+       *
+       * Одоо: цонх нээлттэй хэвээр, «Төлөх» товч spinner болно
+       * (`busy={!!loadingPlan}`) → QR бэлэн болмогц цонхыг сольж
+       * нээнэ. Хэрэглэгч ямагт ямар нэг хариу үйлдэл харна.
+       */
+      const ok = await buyWithQpay(plan.id);
+      if (ok) setSheetPlan(null);
       return;
     }
 
@@ -313,9 +323,14 @@ export default function PricingPage() {
   };
 
   /** QPay-ээр шууд төлөх */
-  const buyWithQpay = async (planId: string) => {
+  /**
+   * ⚠️ Амжилттай эсэхийг БУЦААНА (`true` = QR бэлэн). Дуудагч тал
+   *    үүнийг хараад л төлбөрийн аргын цонхыг хаана — алдаа гарвал
+   *    цонх НЭЭЛТТЭЙ үлдэж, хэрэглэгч өөр арга сонгож чадна.
+   */
+  const buyWithQpay = async (planId: string): Promise<boolean> => {
     if (!user) {
-      return router.push(
+      router.push(
         loginUrlWithIntent({
           type: 'buy-plan',
           planId,
@@ -323,6 +338,7 @@ export default function PricingPage() {
           couponCode: appliedCoupon?.code,
         }),
       );
+      return false;
     }
     setLoadingPlan(planId);
     try {
@@ -334,7 +350,7 @@ export default function PricingPage() {
         toast.success('Эрх нээгдлээ (dev mode)');
         await refreshAll();
         router.push('/');
-        return;
+        return true;
       }
       // ⚠️ urls/qrText ЗААВАЛ дамжина — мобайл дээр банкны апп-ын deeplink
       // үүсгэхэд хэрэгтэй (QR ганцаараа утсан дээр ашиггүй)
@@ -345,8 +361,10 @@ export default function PricingPage() {
         urls: res.urls,
         amount: res.amount,
       });
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа, дахин оролдоно уу');
+      return false;
     } finally {
       setLoadingPlan(null);
     }

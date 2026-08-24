@@ -42,13 +42,25 @@ export function UnionPayMark({ className = '' }: { className?: string }) {
 }
 
 /**
- * ⚠️ AMEX-ийн албан ёсны лого нь ЦЭНХЭР ДЭВСГЭР + цагаан текст —
- * өөрөө бүтэн «плашка». Цагаан chip дотор тавибал цагаан текст нь
- * уусаж АЛГА болно. Тиймээс энэ логог chip-ГҮЙ, шууд харуулна
- * (`CARD_CHIP_BG` дотор `amex` онцгой тохиолдол).
+ * AMEX — БҮТЭН «AMERICAN EXPRESS» wordmark (өргөн хувилбар).
+ *
+ * ⚠️ Өмнөх `amex.svg` нь ЖИЖИГ квадрат тэмдэг байсан тул бусад
+ * логоны хажууд танигдахгүй байв. Bonum-ын өөрийн checkout-ын
+ * `ic_card_amex.png` нь VISA/Master/UnionPay-тэй ЯГ ИЖИЛ 1.54
+ * харьцаатай тул эгнээнд жигд харагдана.
+ * ⚠️ Өөрөө цэнхэр дэвсгэртэй — цагаан chip хэрэггүй (`BRAND_CHIP.amex`).
  */
 export function AmexMark({ className = '' }: { className?: string }) {
-  return <BrandImg src="/cards/amex.svg" alt="American Express" className={className} />;
+  return <BrandImg src="/cards/amex-wide.png" alt="American Express" className={className} />;
+}
+
+/**
+ * Т КАРТ — Монголын дотоодын карт. Bonum-ын E_COMMERCE-д дэмжигдэнэ
+ * (`ic_card_tugrug.png`). Дотоодын хэрэглэгчид энэ логог хараад
+ * «миний карт болно» гэдгээ шууд мэднэ.
+ */
+export function TCardMark({ className = '' }: { className?: string }) {
+  return <BrandImg src="/cards/tcard.png" alt="Т карт" className={className} />;
 }
 
 /**
@@ -62,7 +74,8 @@ export const BRAND_CHIP: Record<string, string> = {
   mastercard: 'bg-white ring-1 ring-black/10',
   unionpay: 'bg-white ring-1 ring-black/10',
   qpay: 'bg-white ring-1 ring-black/10',
-  /* Өөрийн дэвсгэртэй — chip ил тод, зөвхөн хүрээ */
+  tcard: 'bg-white ring-1 ring-black/10',
+  /* ⚠️ AMEX өөрөө цэнхэр плашкатай — цагаан chip дотор цагаан текст уусна */
   amex: 'bg-transparent ring-1 ring-white/15',
   /* ⚠️ WeChat лого өөрөө ногоон дөрвөлжин — цагаан chip хэрэггүй */
   wechat: 'bg-transparent',

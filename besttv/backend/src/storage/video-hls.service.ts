@@ -471,7 +471,23 @@ export class VideoHlsService {
       const args = watermarkPath
         ? ['-y', '-i', inputPath, '-i', watermarkPath, ...opts, path.join(dir, 'v%v.m3u8')]
         : ['-y', '-i', inputPath, ...opts, path.join(dir, 'v%v.m3u8')];
-      const proc = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      /**
+       * ⚠️⚠️ `nice` — хөрвүүлэлт нь ВЭБ СЕРВЕРЭЭС ДООГУУР эрэмбэтэй.
+       *
+       * Хөрвүүлэлт бол ард ажилладаг ажил, хэрэглэгч хүлээхгүй. Харин
+       * backend/postgres удаашрах нь ШУУД мэдрэгддэг (админ самбар
+       * гацсан, сайт удаан). `nice -n 10` өгснөөр CPU дүүрэх үед
+       * ffmpeg эхэлж буулт хийж, вэб хүсэлт эрэмбээ авна.
+       * ⚠️ Хөрвүүлэлт өөрөө удаашрахгүй — сул зуур бүх цөмийг ашиглана.
+       */
+      /* ⚠️ Alpine/Debian дээр зам өөр (`/bin/nice` vs `/usr/bin/nice`) —
+         олдсоныг нь ашиглана, олдохгүй бол шууд ffmpeg дуудна. */
+      const nicePath = ['/bin/nice', '/usr/bin/nice'].find((p) => existsSync(p));
+      const proc = nicePath
+        ? spawn(nicePath, ['-n', '10', FFMPEG_BIN, ...args], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+          })
+        : spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 
       /**
        * ⚠️⚠️ ЯВЦ ЗОГССОНЫГ хэмжинэ — нийт хугацааг БИШ.
