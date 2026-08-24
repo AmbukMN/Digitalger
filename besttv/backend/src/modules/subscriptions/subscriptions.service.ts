@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /** Идэвхтэй эрхтэй эсэх — ямар нэг багцтай эсэхийн энгийн шалгалт */
   async hasActive(userId: string | null | undefined): Promise<boolean> {
@@ -26,25 +30,55 @@ export class SubscriptionsService {
   ): Promise<{ vip: boolean; genreIds: Set<string> }> {
     if (!userId) return { vip: false, genreIds: new Set() };
 
-    const subs = await this.prisma.subscription.findMany({
-      where: { userId, expiresAt: { gt: new Date() } },
-      select: {
-        plan: {
+    /**
+     * ⚠️⚠️ КЭШ (30 сек) — SCALE-ийн гол засвар.
+     *
+     * Энэ метод нь видео playlist/variant дуудалт бүрд (canAccessTitle,
+     * presignTtl-ээр) дуудагддаг тул кино үзэж буй хэрэглэгч бүрд секунд
+     * тутам DB findMany цохидог байв. 1000+ хүн зэрэг үзэхэд postgres
+     * connection дүүрэх гол шалтгаан.
+     *
+     * Эрх (багц/түрээс) секунд тутам өөрчлөгддөггүй тул 30 сек кэш
+     * аюулгүй. Багц худалдаж авах/дуусахад хамгийн ихдээ 30 сек хоцролт —
+     * хэрэглэгч мэдэгдэхүйц биш, DB дарамт хэдэн зуу дахин буурна.
+     *
+     * ⚠️ Redis-д Set хадгалагдахгүй тул genreIds-ыг массив болгож
+     * serialize хийнэ. Redis унасан ч `wrap` нь fn-ийг шууд дуудна.
+     */
+    const cached = await this.cache.wrap<{ vip: boolean; genreIds: string[] }>(
+      `access-scope:${userId}`,
+      30,
+      async () => {
+        const subs = await this.prisma.subscription.findMany({
+          where: { userId, expiresAt: { gt: new Date() } },
           select: {
-            isVip: true,
-            genres: { select: { genreId: true } },
+            plan: {
+              select: {
+                isVip: true,
+                genres: { select: { genreId: true } },
+              },
+            },
           },
-        },
+        });
+        const ids = new Set<string>();
+        let vip = false;
+        for (const s of subs) {
+          if (s.plan.isVip) vip = true;
+          for (const g of s.plan.genres) ids.add(g.genreId);
+        }
+        return { vip, genreIds: [...ids] };
       },
-    });
+    );
+    return { vip: cached.vip, genreIds: new Set(cached.genreIds) };
+  }
 
-    const genreIds = new Set<string>();
-    let vip = false;
-    for (const s of subs) {
-      if (s.plan.isVip) vip = true;
-      for (const g of s.plan.genres) genreIds.add(g.genreId);
-    }
-    return { vip, genreIds };
+  /**
+   * Эрхийн кэшийг цэвэрлэнэ — багц идэвхжих/дуусах, түрээс хийгдэх үед
+   * дуудаж болно (шинэ эрх шууд хэрэгжинэ). Одоогоор 30 сек TTL тул
+   * заавал биш, гэхдээ шуурхай хэрэгтэй бол ашиглана.
+   */
+  async invalidateAccessScope(userId: string): Promise<void> {
+    await this.cache.invalidate(`access-scope:${userId}`);
   }
 
   /**

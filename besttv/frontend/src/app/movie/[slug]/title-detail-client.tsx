@@ -56,6 +56,25 @@ export function TitleDetailClient({ slug }: { slug: string }) {
     if (data.rental?.available && !data.hasAccess) setRentOpen(true);
   }, [user, data]);
 
+  /**
+   * ⚠️ hls.js PREFETCH — «Үзэх» дарахад бэлэн байлгана.
+   *
+   * Видео player нь hls.js-ийг зөвхөн mount болоход dynamic import хийдэг
+   * (тусдаа ~150-400KB chunk). Кино хуудсанд байхад idle үед урьдчилан
+   * татаж кэшлэвэл Play дарахад chunk аль хэдийн бэлэн — эхлэх хугацаа
+   * богиносно (ялангуяа 4G дээр).
+   */
+  useEffect(() => {
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void) => number };
+    const run = () => { void import('hls.js').catch(() => {}); };
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(run);
+    } else {
+      const t = setTimeout(run, 1500);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   // Analytics: тухайн киног ҮЗЭХЭЭР нээсэн — нэг хуудсанд нэг удаа
   const viewTracked = useRef<string | null>(null);
   useEffect(() => {

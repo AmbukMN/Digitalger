@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 import {
   MediaPlayer,
   MediaProvider,
@@ -367,11 +367,33 @@ export function VideoPlayer({
 
       provider.config = {
         /**
-         * ⚠️ Эхлэхэд ХАМГИЙН БАГА чанараар — ингэснээр эхний segment
-         * хурдан ирж, видео 1-2 секундэд эхэлнэ. hls.js дараа нь ABR-ээр
-         * сүлжээнд тохируулж өөрөө өсгөнө.
+         * ⚠️⚠️ ЭХЛЭХ ХУРД — ХАМГИЙН БАГА ЧАНАРААР ЭХЭЛНЭ.
+         *
+         * БОДИТ ГОМДОЛ (iPhone, 4G): Play дарахад 6+ секунд хар дэлгэц.
+         * Шалтгаан: LADDER нь [1080p, 720p, 480p] тул master playlist-д
+         * 1080p = level 0. Өмнө `startLevel: -1` байсан нь hls.js-т эхний
+         * түвшнийг СОНГУУЛДАГ бөгөөд bandwidth таавар байхгүй үед өндөр
+         * чанар (1080p ~3.75MB/6сек) сонгож, 4G дээр эхний segment татахад
+         * 4-8 секунд зарцуулагдаж байв.
+         *
+         * `startLevel: 0` + `abrEwmaDefaultEstimate` бага (600kbps) →
+         * hls.js эхний удаа ХАМГИЙН БАГА bitrate variant (480p ~350KB)
+         * сонгоно. Видео 1-2 секундэд эхэлж, дараа нь ABR сүлжээнд
+         * тохируулж чанараа өөрөө өсгөнө.
+         *
+         * ⚠️ `startLevel`-ыг manifest parse дараа хамгийн доод (bitrate
+         * багатай) level рүү доор `MANIFEST_PARSED`-д тааруулна — LADDER
+         * дараалал өөрчлөгдсөн ч зөв ажиллана.
          */
         startLevel: -1,
+        /**
+         * ⚠️ Анхны bandwidth таавар — hls.js эхний segment сонгоход
+         * ашиглана. Бага (600kbps) тул эхэндээ 480p сонгоно. Дараа нь
+         * бодит хэмжилтээр өсгөнө. 4G-ийн бодит доод хурдтай нийцүүлэв.
+         */
+        abrEwmaDefaultEstimate: 600_000,
+        /* ⚠️ Эхлэхэд нэмэлт bandwidth тест хийж цаг алдахгүй */
+        testBandwidth: false,
         /**
          * ⚠️⚠️ БУФЕР — АЛСЫН үзэгчид зориулав.
          *
@@ -649,6 +671,31 @@ export function VideoPlayer({
             />
           ))}
         </MediaProvider>
+
+        {/*
+          ⚠️⚠️ ЭХНИЙ АЧААЛАЛЫН OVERLAY — «хар дэлгэц» мэдрэмжийг арилгана.
+          БОДИТ ГОМДОЛ: iPhone 4G дээр Play дарахад 6 секунд ХООСОН хар
+          дэлгэц + spinner. Постерыг autoPlay нь шууд нуудаг тул хэрэглэгч
+          юу ч харахгүй хүлээдэг байв.
+          ⚠️ `ready` (onCanPlay) болтол постер + бүдэг давхарга + тод
+          «Ачаалж байна» spinner харуулна. Эхний segment ирмэгц (1-2 сек,
+          480p-аас эхэлдэг болсон) алга болно. pointer-events-none тул
+          доорх player удирдлагад саад болохгүй.
+        */}
+        {!ready && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/55">
+            {poster && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={poster}
+                alt=""
+                className="absolute inset-0 -z-10 h-full w-full object-cover opacity-40"
+              />
+            )}
+            <Loader2 className="size-9 animate-spin text-white/90" />
+            <p className="text-sm font-medium text-white/80">Ачаалж байна…</p>
+          </div>
+        )}
 
         {/*
           ⚠️ БЭЛЭН LAYOUT — YouTube маягийн бүрэн удирдлага:
