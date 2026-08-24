@@ -60,7 +60,7 @@ const NAV_GROUPS = [
       /* ⚠️ Урамшуулал нь купоноос ТУСДАА — купон нь код бичдэг,
          урамшуулал нь автоматаар үйлчилдэг маркетингийн хэрэгсэл */
       { href: '/promotions', label: 'Урамшуулал', icon: Gift },
-      { href: '/bank', label: 'Дансны төлбөр', icon: Building2 },
+      { href: '/bank', label: 'Дансны төлбөр', icon: Building2, section: 'bank' },
       { href: '/users', label: 'Хэрэглэгчид', icon: Users, section: 'users' },
       { href: '/payments', label: 'Төлбөр', icon: CreditCard, section: 'payments' },
     ],

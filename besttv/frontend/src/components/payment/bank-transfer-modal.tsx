@@ -125,17 +125,10 @@ export function BankTransferModal({
 
   /* ─── Баримт ─── */
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  /** Хавсаргасан баримт видео эсэх (preview-г video/img болгон харуулна) */
+  const [receiptIsVideo, setReceiptIsVideo] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  /**
-   * ⚠️⚠️ БАРИМТГҮЙ БОЛ БАТАЛГААЖУУЛАЛТ ЗААВАЛ.
-   *
-   * Зарим хэрэглэгч банкны апп-аас screenshot авч чаддаггүй (ATM,
-   * теллэр, өөр хүнээр гүйлгүүлсэн). Тэднийг хаахгүйн тулд
-   * «Би шилжүүлсэн» гэсэн ЗӨВШӨӨРӨЛ өгнө — гэхдээ санамсаргүй
-   * дарахаас сэргийлж ЯГ энэ нүдийг тэмдэглэх шаардлагатай.
-   */
-  const [confirmed, setConfirmed] = useState(false);
 
   /**
    * ⚠️ Модал НЭЭГДЭХЭД л захиалга үүсгэнэ — компонент mount болмогц
@@ -209,6 +202,31 @@ export function BankTransferModal({
 
   const pickReceipt = async (file: File) => {
     if (!order) return;
+
+    /**
+     * ⚠️⚠️ ХЭМЖЭЭНИЙ ХЯЗГААР — баримт нь банкны хуулга эсвэл дэлгэцийн
+     * зураг тул зураг ~15MB, видео ~50MB хангалттай. Хязгааргүй бол
+     * хэрэглэгч санамсаргүй маш том видео (гар утасны 4K бичлэг) хавсаргаж
+     * upload удаан/унаж, R2 төлбөр нэмэгддэг.
+     */
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+    if (!isVideo && !isImage) {
+      toast.error('Зөвхөн зураг эсвэл видео хавсаргана уу');
+      return;
+    }
+    const MAX_IMAGE = 15 * 1024 * 1024; // 15MB
+    const MAX_VIDEO = 50 * 1024 * 1024; // 50MB
+    const max = isVideo ? MAX_VIDEO : MAX_IMAGE;
+    if (file.size > max) {
+      toast.error(
+        isVideo
+          ? 'Видео 50MB-аас бага байх ёстой. Дэлгэцийн богино бичлэг хавсаргана уу.'
+          : 'Зураг 15MB-аас бага байх ёстой.',
+      );
+      return;
+    }
+
     setUploading(true);
     try {
       /**
@@ -229,9 +247,10 @@ export function BankTransferModal({
       }
       const data = (await res.json()) as { url: string };
       setReceiptUrl(data.url);
+      setReceiptIsVideo(isVideo);
       toast.success('Баримт хавсаргалаа');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Зураг хуулж чадсангүй');
+      toast.error(e instanceof Error ? e.message : 'Баримт хуулж чадсангүй');
     } finally {
       setUploading(false);
     }
@@ -240,22 +259,14 @@ export function BankTransferModal({
   const claim = async () => {
     if (!order) return;
     /**
-     * ⚠️⚠️ БАРИМТ ЭСВЭЛ БАТАЛГААЖУУЛАЛТ — аль нэг нь ЗААВАЛ.
+     * ⚠️⚠️ ТӨЛБӨРИЙН БАРИМТ ЗААВАЛ ХАВСАРГАНА.
      *
-     * Өмнө нь товч шууд ажилладаг тул хэрэглэгч санамсаргүй дараад
-     * «мэдэгдсэн» төлөвт орж, дараа нь өөрчлөх боломжгүй болдог байв.
+     * Баримтгүйгээр «шилжүүлсэн» гэж мэдэгдэх боломжийг хаасан —
+     * админ гар аргаар шалгахад баримт (банкны хуулга/дэлгэцийн зураг)
+     * заавал хэрэгтэй, эс бөгөөс хуурамч мэдэгдэл ялгаж чадахгүй.
      */
-    if (!receiptUrl && !confirmed) {
-      toast.error(
-        info.requireReceipt
-          ? 'Төлбөрийн баримтын зургаа хавсаргана уу'
-          : 'Баримтаа хавсаргах эсвэл «Би шилжүүлсэн» гэдгийг тэмдэглэнэ үү',
-      );
-      return;
-    }
-    /* ⚠️ Админ «баримт заавал» гэж тохируулсан бол checkbox хангалтгүй */
-    if (info.requireReceipt && !receiptUrl) {
-      toast.error('Төлбөрийн баримтын зургаа хавсаргана уу');
+    if (!receiptUrl) {
+      toast.error('Төлбөр шилжүүлсэн баримтаа заавал хавсаргана уу');
       return;
     }
 
@@ -352,8 +363,8 @@ export function BankTransferModal({
             <div className="mt-5 rounded-xl border-2 border-primary/40 bg-primary/8 p-3.5">
               <CopyRow label="Гүйлгээний утга" value={order.reference} mono emphasis />
               <p className="mt-2 text-[11px] font-semibold leading-relaxed text-primary">
-                Энэ 6 оронтой тоог ЗААВАЛ гүйлгээний утгад бичнэ үү. Үгүй бол төлбөр тань
-                танигдахгүй.
+                Шилжүүлэг хийхдээ гүйлгээний утгад энэ 6 оронтой тоог ЗААВАЛ бичнэ үү.
+                Үгүй бол төлбөр тань танигдахгүй.
               </p>
             </div>
 
@@ -446,30 +457,30 @@ export function BankTransferModal({
               <CopyRow label="Шилжүүлэх дүн" value={String(order.amount)} mono emphasis />
             </div>
 
-            {/* ─── Төлбөрийн баримт ─── */}
-            <div className="mt-3 rounded-xl border border-dashed border-foreground/20 p-3">
+            {/* ─── Төлбөрийн баримт (ЗААВАЛ) ─── */}
+            <div className="mt-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
               <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs font-semibold text-foreground/80">
-                    Төлбөрийн баримт
-                    {info.requireReceipt && <span className="ml-1 text-primary">*</span>}
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground/90">
+                    Төлбөрийн баримт <span className="text-primary">*</span>
                   </p>
-                  <p className="mt-0.5 text-[11px] text-foreground/45">
-                    Банкны аппын зургаа хавсаргавал хурдан баталгаажна
+                  <p className="mt-0.5 text-[11px] leading-snug text-foreground/55">
+                    Төлбөр шилжүүлсэн баримтаа заавал хавсаргана! (Баримтын зураг эсвэл
+                    богино дэлгэцийн бичлэгээ энд сонго)
                   </p>
                 </div>
                 {!receiptUrl && (
                   <button
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-foreground/8 px-3 py-2 text-xs font-semibold text-foreground/75 transition-colors hover:bg-foreground/15 disabled:opacity-50"
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary/15 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/25 disabled:opacity-50"
                   >
                     {uploading ? (
                       <Loader2 size={13} className="animate-spin" />
                     ) : (
                       <ImagePlus size={13} />
                     )}
-                    Зураг сонгох
+                    Баримт сонгох
                   </button>
                 )}
               </div>
@@ -477,7 +488,7 @@ export function BankTransferModal({
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
@@ -486,19 +497,30 @@ export function BankTransferModal({
                 }}
               />
 
-              {/* ⚠️ PREVIEW — хэрэглэгч зөв зураг оруулсан эсэхээ харна */}
+              {/* ⚠️ PREVIEW — хэрэглэгч зөв баримт оруулсан эсэхээ харна (зураг/видео) */}
               {receiptUrl && (
                 <div className="relative mt-2.5 overflow-hidden rounded-lg border border-foreground/10">
-                  <Image
-                    src={receiptUrl}
-                    alt="Төлбөрийн баримт"
-                    width={400}
-                    height={260}
-                    className="max-h-40 w-full object-contain bg-black/20"
-                  />
+                  {receiptIsVideo ? (
+                    <video
+                      src={receiptUrl}
+                      controls
+                      className="max-h-40 w-full bg-black/20 object-contain"
+                    />
+                  ) : (
+                    <Image
+                      src={receiptUrl}
+                      alt="Төлбөрийн баримт"
+                      width={400}
+                      height={260}
+                      className="max-h-40 w-full bg-black/20 object-contain"
+                    />
+                  )}
                   <button
-                    onClick={() => setReceiptUrl(null)}
-                    aria-label="Зураг хасах"
+                    onClick={() => {
+                      setReceiptUrl(null);
+                      setReceiptIsVideo(false);
+                    }}
+                    aria-label="Баримт хасах"
                     className="absolute right-1.5 top-1.5 rounded-lg bg-black/70 p-1.5 text-white/80 transition-colors hover:bg-destructive hover:text-white"
                   >
                     <Trash2 size={13} />
@@ -507,43 +529,16 @@ export function BankTransferModal({
               )}
             </div>
 
-            {/*
-              ⚠️⚠️ БАРИМТГҮЙ ХЭРЭГЛЭГЧИД ЗОРИУЛСАН ЗАМ.
-              ATM, теллэр, өөр хүнээр гүйлгүүлсэн бол screenshot
-              байхгүй. Тэднийг хаахгүй, гэхдээ санамсаргүй дарахаас
-              сэргийлж ЯГ энэ нүдийг тэмдэглүүлнэ.
-              ⚠️ Баримт хавсаргасан бол ХЭРЭГГҮЙ (давхар алхам).
-            */}
-            {!receiptUrl && !info.requireReceipt && (
-              <button
-                onClick={() => setConfirmed((c) => !c)}
-                className="mt-3 flex w-full items-start gap-2.5 rounded-xl border border-foreground/12 p-3 text-left transition-colors hover:border-foreground/25"
-              >
-                <span
-                  className={cn(
-                    'mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded border-2 transition-colors',
-                    confirmed
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-foreground/25',
-                  )}
-                >
-                  {confirmed && <Check size={11} strokeWidth={3} />}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-xs font-semibold text-foreground/85">
-                    Би төлбөрөө шилжүүлсэн
-                  </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-foreground/45">
-                    Баримт байхгүй бол энийг тэмдэглэнэ үү. Шаардлагатай бол админ
-                    чатаар холбогдоно.
-                  </span>
-                </span>
-              </button>
-            )}
-
             {info.note && (
               <p className="mt-3 text-xs leading-relaxed text-foreground/45">{info.note}</p>
             )}
+
+            {/* ⚠️ Хугацааны хүлээлт — хэрэглэгч «яагаад шууд нээгдэхгүй байна» гэж
+                бухимдахаас сэргийлж баталгаажих хугацааг тодорхой хэлнэ. */}
+            <p className="mt-3 text-[11px] leading-relaxed text-foreground/45">
+              Шилжүүлэг хийсний дараа админ гар аргаар шалгаж баталгаажуулна. Ажлын
+              цагаар ихэвчлэн 1–3 цагийн дотор эрх нээгдэнэ.
+            </p>
 
             <div className="mt-4 rounded-xl bg-foreground/5 px-4 py-3 text-center">
               <p className="text-xs text-foreground/50">Шилжүүлэх дүн</p>
@@ -553,28 +548,27 @@ export function BankTransferModal({
             </div>
 
             {/*
-              ⚠️ Баримт ЭСВЭЛ баталгаажуулалтгүй бол товч ИДЭВХГҮЙ —
-              дарж болохгүй гэдгийг ХАРАГДАЦААР хэлнэ (дарсны дараа
-              алдаа гаргахаас дээр).
+              ⚠️ Баримт хавсаргаагүй бол товч ИДЭВХГҮЙ — дарж болохгүй
+              гэдгийг ХАРАГДАЦААР хэлнэ (дарсны дараа алдаа гаргахаас дээр).
             */}
             <button
               onClick={() => void claim()}
-              disabled={claiming || uploading || (!receiptUrl && !confirmed)}
+              disabled={claiming || uploading || !receiptUrl}
               className={cn(
                 'mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-bold transition-all',
-                !receiptUrl && !confirmed
+                !receiptUrl
                   ? 'cursor-not-allowed bg-foreground/10 text-foreground/35'
                   : 'bg-primary text-primary-foreground hover:brightness-110',
                 (claiming || uploading) && 'opacity-60',
               )}
             >
               {claiming ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} />}
-              Шилжүүлсэн
+              Төлбөр шилжүүлсэн
             </button>
             <p className="mt-2 text-center text-[11px] text-foreground/35">
-              {!receiptUrl && !confirmed
-                ? 'Баримтаа хавсаргах эсвэл дээрх нүдийг тэмдэглэнэ үү'
-                : 'Шилжүүлсний ДАРАА энэ товчийг дарна уу'}
+              {!receiptUrl
+                ? 'Эхлээд төлбөр шилжүүлсэн баримтаа хавсаргана уу'
+                : 'Шилжүүлэг хийсний ДАРАА энэ товчийг дарна уу'}
             </p>
           </>
         )}

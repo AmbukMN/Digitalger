@@ -562,9 +562,26 @@ export class BankService {
     paymentId: string,
     file: { buffer: Buffer; mimetype: string },
   ) {
-    const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
-    if (!ALLOWED.has(file.mimetype)) {
-      throw new BadRequestException('Зөвхөн зураг хавсаргана уу (JPG, PNG, WebP)');
+    /**
+     * ⚠️ Баримт нь ЗУРАГ эсвэл богино ВИДЕО (дэлгэцийн бичлэг) байж болно.
+     * Зарим хэрэглэгч банкны аппын гүйлгээ амжилттай болсныг бичлэгээр
+     * баталгаажуулах нь илүү найдвартай. Зургийг sharp-аар WebP болгож
+     * шахна, видеог шууд R2 руу (шахах боломжгүй).
+     */
+    const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+    const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska']);
+    const isImage = IMAGE_TYPES.has(file.mimetype);
+    const isVideo = VIDEO_TYPES.has(file.mimetype);
+    if (!isImage && !isVideo) {
+      throw new BadRequestException('Зөвхөн зураг (JPG, PNG, WebP) эсвэл видео (MP4, MOV, WebM) хавсаргана уу');
+    }
+    /* ⚠️ Хэмжээний хязгаар — R2 зай/төлбөр хамгаална. Controller-ийн
+       multer limit (50MB) дээр нэмэлт баталгаа: видео 50MB, зураг 15MB. */
+    if (isVideo && file.buffer.length > 50 * 1024 * 1024) {
+      throw new BadRequestException('Видео 50MB-аас бага байх ёстой');
+    }
+    if (isImage && file.buffer.length > 15 * 1024 * 1024) {
+      throw new BadRequestException('Зураг 15MB-аас бага байх ёстой');
     }
 
     const p = await this.prisma.payment.findFirst({
@@ -578,14 +595,22 @@ export class BankService {
     });
     if (!p) throw new NotFoundException('Төлбөр олдсонгүй');
 
-    const sharp = (await import('sharp')).default;
-    const buf = await sharp(file.buffer)
-      .resize({ width: 1200, withoutEnlargement: true })
-      .webp({ quality: 82, effort: 4 })
-      .toBuffer();
-
-    const key = `images/receipt/${randomBytes(16).toString('hex')}.webp`;
-    await this.storage.upload(key, buf, 'image/webp');
+    let key: string;
+    if (isVideo) {
+      const ext = file.mimetype === 'video/quicktime' ? 'mov'
+        : file.mimetype === 'video/webm' ? 'webm'
+        : file.mimetype === 'video/x-matroska' ? 'mkv' : 'mp4';
+      key = `images/receipt/${randomBytes(16).toString('hex')}.${ext}`;
+      await this.storage.upload(key, file.buffer, file.mimetype);
+    } else {
+      const sharp = (await import('sharp')).default;
+      const buf = await sharp(file.buffer)
+        .resize({ width: 1200, withoutEnlargement: true })
+        .webp({ quality: 82, effort: 4 })
+        .toBuffer();
+      key = `images/receipt/${randomBytes(16).toString('hex')}.webp`;
+      await this.storage.upload(key, buf, 'image/webp');
+    }
 
     await this.prisma.payment.update({
       where: { id: p.id },
@@ -984,10 +1009,11 @@ export class BankController {
   }
 
   /**
-   * Төлбөрийн баримт хавсаргах.
+   * Төлбөрийн баримт хавсаргах (зураг эсвэл богино видео).
    *
-   * ⚠️ 15 MB хязгаар — утасны screenshot 2-4 MB, зарим шинэ утас
-   * 8 MB хүртэл. 15 нь аюулгүй зай.
+   * ⚠️ 50 MB хязгаар — зураг 2-8 MB, дэлгэцийн богино бичлэг ~20-40 MB.
+   * Нарийвчилсан төрөл/хэмжээ шалгалтыг svc.uploadReceipt хийнэ
+   * (зураг 15MB, видео 50MB).
    */
   @Post(':id/receipt')
   @UseGuards(JwtAuthGuard)
@@ -995,7 +1021,7 @@ export class BankController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 15 * 1024 * 1024 },
+      limits: { fileSize: 50 * 1024 * 1024 },
     }),
   )
   uploadReceipt(
