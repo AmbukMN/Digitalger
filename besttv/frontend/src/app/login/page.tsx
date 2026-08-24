@@ -332,32 +332,6 @@ export default function LoginPage() {
         </motion.div>
       </div>
 
-      <style jsx global>{`
-        /* THEME ДАГАНА — нэр нь input-dark ч гэсэн.
-           Өмнө нь цагаан хүрээ/дэвсгэр/текст ХАТУУ байсан тул гэрэл
-           горимд талбар ОГТ ХАРАГДАХГҮЙ, бичсэн текст ч алга болдог
-           байв (нэвтрэх боломжгүй). Одоо theme хувьсагч ашиглана. */
-        .input-dark {
-          width: 100%;
-          border-radius: 0.5rem;
-          border: 1px solid var(--border);
-          background: color-mix(in srgb, var(--foreground) 5%, transparent);
-          padding: 0.72rem 1rem;
-          color: var(--foreground);
-          outline: none;
-          transition: border-color 0.15s ease, background 0.15s ease;
-        }
-        .input-dark::placeholder {
-          color: color-mix(in srgb, var(--foreground) 45%, transparent);
-        }
-        .input-dark:focus {
-          border-color: var(--primary);
-          background: color-mix(in srgb, var(--foreground) 8%, transparent);
-        }
-        .input-dark-error {
-          border-color: var(--destructive);
-        }
-      `}</style>
     </main>
   );
 }

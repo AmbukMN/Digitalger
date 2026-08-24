@@ -86,6 +86,10 @@
     --success-rgb: 0 165 68;
     --warning-rgb: 237 178 0;
     --premium-rgb: 166 120 0;
+    /* ⚠️ `--premium-solid` нь fallback скриптийн газрын зурагт БАЙГААГҮЙ тул
+       хуучин browser-т «Багц нэмэх» товчны дэвсгэр АЛГА болдог байв. */
+    --premium-solid-rgb: 240 180 0;
+    --muted-foreground-rgb: 63 70 83;
     --border-rgb: 227 228 231;
     --black-rgb: 0 0 0;
     --white-rgb: 255 255 255;
@@ -139,6 +143,8 @@
     --success-rgb: 0 199 88;
     --warning-rgb: 255 195 0;
     --premium-rgb: 237 178 0;
+    --premium-solid-rgb: 237 178 0;
+    --muted-foreground-rgb: 163 168 178;
     --border-rgb: 255 255 255;
     --black-rgb: 0 0 0;
     --white-rgb: 255 255 255;
@@ -342,4 +348,33 @@
 }
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ─── ХӨДӨЛГӨӨН БАГАСГАХ ──────────────────────────────────────────────
+   ⚠️⚠️ Sheet/Dialog нь ХАМГИЙН ОЛОН хэрэглэгддэг анимац атлаа энэ
+   хамгаалалт SHARED давхаргад МАРТАГДСАН байв (frontend/admin-ийн
+   өөрсдийн globals.css-д зөв бичигдсэн байхад).
+
+   Вестибуляр эмгэгтэй хүнд слайд/зум нь толгой эргэх, дотор муухайрах
+   шалтгаан болдог — OS-ийн тохиргоог хүндэтгэх нь a11y-ийн шаардлага.
+
+   ⚠️ `opacity: 1` ЗААВАЛ: анимац `both` fill-mode-той тул `animation:none`
+   ганцаараа бол эхлэлийн `opacity:0` дээр гацаж модал ҮЛ ҮЗЭГДЭНЭ. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet-right[data-state='open'],
+  .sheet-right[data-state='closed'],
+  .sheet-left[data-state='open'],
+  .sheet-left[data-state='closed'],
+  .sheet-top[data-state='open'],
+  .sheet-top[data-state='closed'],
+  .sheet-bottom[data-state='open'],
+  .sheet-bottom[data-state='closed'],
+  .dialog-content[data-state='open'],
+  .dialog-content[data-state='closed'],
+  .animate-search-slide-down,
+  .animate-hero-fade-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }

@@ -32,6 +32,26 @@ const nextConfig: NextConfig = {
       { protocol: 'http', hostname: 'localhost', port: '4100', pathname: '/media/**' },
       { protocol: 'https', hostname: '**', pathname: '/media/**' },
     ],
+    /**
+     * ⚠️ AVIF — WebP-ээс 20-30% ЖИЖИГ. Постер бол сайтын хамгийн их
+     * жинтэй зүйл (нүүрэнд 100+ зураг) тул шууд ачааллын хугацаа буурна.
+     * ⚠️ Дараалал ЧУХАЛ: browser эхнийхийг дэмжвэл түүнийг авна.
+     */
+    formats: ['image/avif', 'image/webp'],
+    /**
+     * ⚠️ 31 хоног. Анхдагч нь 60 СЕКУНД — постер минут тутам ДАХИН
+     * optimize хийгдэж CPU шатааж, хэрэглэгч дахин татдаг байв.
+     * Постерын агуулга өөрчлөгддөггүй (солибол key нь өөрчлөгдөнө).
+     */
+    minimumCacheTTL: 2_678_400,
+  },
+  /**
+   * ⚠️ Icon/animation сангуудыг МОДУЛЬ ТУС БҮРЭЭР татна.
+   * Үгүй бол `lucide-react`-аас 3 icon импортлоход БҮХ багц (1000+ icon)
+   * bundle-д ордог.
+   */
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
   async rewrites() {
     const api = process.env.API_URL ?? 'http://localhost:4100';

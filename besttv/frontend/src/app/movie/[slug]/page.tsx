@@ -145,6 +145,15 @@ export default async function TitleDetailPage({
    * найруулагч, жүжигчид зэргийг rich result болгож харуулна.
    * Мөн Breadcrumb — хайлтын үр дүнд зам харагдана.
    */
+  /**
+   * ⚠️ 18+ эсэхийг ЖАНРААС тооцно — `Title` дээр `isAdult` талбар
+   * БАЙХГҮЙ (`generateMetadata` дотор ч ижил аргаар бодсон, мөр 89).
+   */
+  const ldIsAdult =
+    !!title &&
+    Array.isArray(title.genres) &&
+    title.genres.some((g: { isAdult?: boolean }) => g?.isAdult);
+
   const ld = title
     ? [
         {
@@ -208,6 +217,35 @@ export default async function TitleDetailPage({
               }
             : {}),
         },
+        /**
+         * ⚠️⚠️ VideoObject — Google-ийн ВИДЕО таб / video rich result-д
+         * орох ЗААВАЛ шаардлага. `Movie`/`TVSeries` schema ДАНГААРАА
+         * хангалтгүй (тэр нь зөвхөн бүтээлийн мэдээлэл, видео БИШ).
+         *
+         * Стриминг платформын хувьд хамгийн өндөр өгөөжтэй schema —
+         * хайлтын үр дүнд thumbnail + үргэлжлэх хугацаа харагдана.
+         *
+         * ⚠️ `thumbnailUrl` ба `uploadDate` нь Google-ийн ЗААВАЛ талбар;
+         *    аль нэг нь дутвал schema бүхэлдээ үл тоомсорлогдоно.
+         */
+        ...(title.posterUrl || title.backdropUrl
+          ? [
+              {
+                '@context': 'https://schema.org',
+                '@type': 'VideoObject',
+                name: title.title,
+                description:
+                  title.description || `${title.title} — BestTV дээр онлайнаар үзэх`,
+                thumbnailUrl: [title.posterUrl, title.backdropUrl].filter(Boolean),
+                uploadDate: title.createdAt ?? new Date().toISOString(),
+                ...(title.duration ? { duration: `PT${title.duration}M` } : {}),
+                embedUrl: `${SITE_URL}/watch/${slug}`,
+                contentUrl: `${SITE_URL}/watch/${slug}`,
+                inLanguage: 'mn',
+                isFamilyFriendly: !ldIsAdult,
+              },
+            ]
+          : []),
         {
           '@context': 'https://schema.org',
           '@type': 'BreadcrumbList',

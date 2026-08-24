@@ -8,6 +8,8 @@ import { BullModule } from '@nestjs/bull';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppCacheModule } from './common/cache/cache.module';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
 import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TitlesModule } from './modules/titles/titles.module';
@@ -65,7 +67,25 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
      *   long   — удаан үргэлжлэх scraping/spam
      * Аль нэгийг давбал 429 буцна.
      */
-    ThrottlerModule.forRoot([
+    /**
+     * ⚠️⚠️ STORAGE = REDIS (санах ой БИШ).
+     *
+     * БОДИТ ЭРСДЭЛ: `main.ts` нь cluster горимд ажилладаг
+     * (production дээр `CLUSTER_WORKERS=2`). Анхдагч санах ойн storage нь
+     * ПРОЦЕСС ТУС БҮРД тусдаа тоолуур барьдаг тул нэвтрэлтийн
+     * «5 оролдлого/мин» нь БОДИТООР 10 болж, brute-force хамгаалалт
+     * worker тоогоор сулардаг байв. Мөн worker дахин асахад тоолуур
+     * ТЭГЛЭГДЭЖ, халдагч хүлээгээд үргэлжлүүлэх боломжтой байсан.
+     *
+     * ⚠️ ТУСДАА ioredis instance — `CacheService`-ийнхийг ДАХИН ашиглаж
+     * БОЛОХГҮЙ: тэр нь `enableOfflineQueue:false` тул Redis унахад
+     * throttler алдаа шидэж БҮХ хүсэлтийг 500 болгоно. Энд offline
+     * queue асаалттай — Redis түр унахад хүсэлт хүлээгдэнэ, сайт унахгүй.
+     */
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
       /**
        * ⚠️⚠️ `default` нэр ЗААВАЛ ЭХЭНД байна.
        *
@@ -81,7 +101,18 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       { name: 'short', ttl: 1_000, limit: 20 },
       { name: 'medium', ttl: 60_000, limit: 300 },
       { name: 'long', ttl: 3_600_000, limit: 3_000 },
-    ]),
+        ],
+        storage: new ThrottlerStorageRedisService(
+          new Redis(config.get<string>('redisUrl') ?? 'redis://localhost:6379', {
+            keyPrefix: 'besttv:thr:',
+            maxRetriesPerRequest: 2,
+            enableOfflineQueue: true,
+            /* ⚠️ Дахин холболтын завсар өсөн нэмэгдэнэ (Redis-ийг дарахгүй) */
+            retryStrategy: (times: number) => Math.min(times * 200, 3000),
+          }),
+        ),
+      }),
+    }),
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

@@ -39,6 +39,10 @@ const VAR_TO_RGB = {
   '--success': '--success-rgb',
   '--warning': '--warning-rgb',
   '--premium': '--premium-rgb',
+  /* ⚠️ Эдгээр 2 нь ДУТУУ байсан — harding browser-т premium товч,
+     бүдэг текст өнгөгүй болдог байв. */
+  '--premium-solid': '--premium-solid-rgb',
+  '--muted-foreground': '--muted-foreground-rgb',
   '--border': '--border-rgb',
   '--color-black': '--black-rgb',
   '--color-white': '--white-rgb',
@@ -60,7 +64,14 @@ function buildFallbacks(css) {
     const selector = m[1].trim();
     const body = m[2];
     if (!selector || selector.startsWith('@')) continue;
-    if (!body.includes('color-mix(in oklab,var(')) continue;
+    /* ⚠️ `in srgb`-ийг Ч барина — `globals.css`-ийн ГЭРЭЛ ГОРИМЫН
+       контраст засварууд тэр хэлбэрээр бичигдсэн тул өмнө нь
+       бүгд алгасагдаж, хуучин browser-т бүдэг текст буцаж ирдэг байв. */
+    if (
+      !body.includes('color-mix(in oklab,var(') &&
+      !body.includes('color-mix(in srgb,var(')
+    )
+      continue;
 
     const outProps = [];
     // property:value; тус бүрийг үзнэ
@@ -71,7 +82,7 @@ function buildFallbacks(css) {
       const value = decl.slice(idx + 1).trim();
       // color-mix(in oklab, var(--X) N%, transparent) — эсвэл % бутархайтай
       const cm = value.match(
-        /^color-mix\(in oklab,var\((--[a-z-]+)\)\s*([\d.]+)%?,\s*transparent\)$/,
+        /^color-mix\(in (?:oklab|srgb),var\((--[a-z-]+)\)\s*([\d.]+)%?,\s*transparent\)$/,
       );
       if (!cm) continue;
       const rgbVar = VAR_TO_RGB[cm[1]];

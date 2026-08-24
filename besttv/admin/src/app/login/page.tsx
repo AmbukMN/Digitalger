@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(91,124,250,0.14),transparent_60%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(229,9,20,0.14),transparent_60%)]"
       />
       <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-2xl">
         <div className="flex items-center gap-2.5">

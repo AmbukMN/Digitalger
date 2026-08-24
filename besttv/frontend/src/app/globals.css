@@ -667,3 +667,34 @@ video {
 }
 
 
+
+/* ─── ФОРМЫН ТАЛБАР (.input-dark) ────────────────────────────────────
+   ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ. Өмнө нь энэ класс `login`, `forgot-password`,
+   `reset-password` гурван хуудасны `<style jsx global>` дотор
+   ДАВХАРДАЖ бичигдсэн байв. Улмаас `phone-verify.tsx` (профайл дээр
+   рендерлэгддэг) түүнийг ашигладаг атлаа ТЭР ХУУДАСТ тодорхойлолт
+   БАЙХГҮЙ тул утасны талбар СТИЛЬГҮЙ, browser-ийн default харагддаг
+   байв (хүрээгүй, дэвсгэргүй).
+
+   ⚠️ Нэр нь `-dark` ч гэсэн ХОЁР ТӨРЛИЙН theme дагана — хатуу цагаан
+   өнгө бичвэл гэрэл горимд талбар үл үзэгдэнэ (өмнө нь тохиолдсон). */
+.input-dark {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  padding: 0.72rem 1rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.input-dark::placeholder {
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+.input-dark:focus {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.input-dark-error {
+  border-color: var(--destructive);
+}
