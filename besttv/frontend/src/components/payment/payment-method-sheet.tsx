@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Building2, Loader2, Wallet, X } from 'lucide-react';
 import { cn, formatPrice } from '@besttv/shared';
@@ -80,6 +81,7 @@ export function PaymentMethodSheet({
   onSelect,
   busy = false,
 }: PaymentSheetProps) {
+  const router = useRouter();
   /* ⚠️ QPay DEFAULT — нээгдэнгүүт задарсан байна */
   const [selected, setSelected] = useState<PayMethod>('qpay');
 
@@ -103,7 +105,25 @@ export function PaymentMethodSheet({
   if (!open) return null;
 
   const walletEnough = walletBalance >= amount;
-  const canWallet = kind !== 'topup' && walletBalance > 0;
+  /**
+   * ⚠️ ХЭТЭВЧ сонгосон БӨГӨӨД үлдэгдэл нэхэмжлэлээс БАГА
+   * (0 ч бай, дутуу ч бай) → «Төлөх» биш «Цэнэглэх».
+   * Их/тэнцүү бол хэвийн «Төлөх».
+   */
+  const walletNeedsTopup = selected === 'wallet' && !walletEnough;
+  /**
+   * ⚠️⚠️ ХЭТЭВЧ ҮРГЭЛЖ ХАРАГДАНА (үлдэгдэл 0 байсан ч).
+   *
+   * Өмнө нь `walletBalance > 0` нөхцөлтэй байсан тул үлдэгдэлгүй
+   * хэрэглэгчид хэтэвчийн мөр ОГТ харагдахгүй → «яагаад хэтэвчээр
+   * авах алга вэ?» гэсэн эргэлзээ төрүүлдэг байв (бодит гомдол).
+   * Хэрэглэгч хэтэвч гэдэг боломж БАЙГААГ мэдэх ёстой, зөвхөн
+   * түүнийг цэнэглэх шаардлагатайг харуулна.
+   *
+   * ⚠️ `kind === 'topup'` үед л нуугдана — хэтэвчээр хэтэвч
+   * цэнэглэх нь утгагүй давхардал.
+   */
+  const canWallet = kind !== 'topup';
 
   const rows: {
     id: PayMethod;
@@ -199,12 +219,21 @@ export function PaymentMethodSheet({
     {
       id: 'wallet',
       title: 'Хэтэвч',
+      /* ⚠️ 0 үед «хүрэлцэхгүй» гэхээс «цэнэглэнэ үү» гэвэл ойлгомжтой */
       hint: walletEnough
         ? `Үлдэгдэл: ${formatPrice(walletBalance)}`
-        : `Үлдэгдэл хүрэлцэхгүй (${formatPrice(walletBalance)})`,
+        : walletBalance > 0
+          ? `Үлдэгдэл хүрэлцэхгүй (${formatPrice(walletBalance)})`
+          : 'Үлдэгдэл 0₮ — эхлээд цэнэглэнэ үү',
       mark: <Wallet size={17} className="text-foreground/70" />,
       show: canWallet,
-      disabled: !walletEnough,
+      /**
+       * ⚠️⚠️ ҮЛДЭГДЭЛ ХҮРЭХГҮЙ ч мөр ИДЭВХТЭЙ.
+       * Дарахад «Төлөх» товч нь ЦЭНЭГЛЭХ рүү аваачна (доорх
+       * `walletNeedsTopup`) — хэрэглэгч цэнэглээд шууд үргэлжлүүлнэ.
+       * Өмнө нь `disabled` байсан тул мухардаж, юу хийхээ мэдэхгүй байв.
+       */
+      disabled: false,
     },
   ];
 
@@ -360,14 +389,26 @@ export function PaymentMethodSheet({
         </div>
 
         <div className="shrink-0 border-t border-foreground/8 bg-card p-4 sm:p-5">
+          {/*
+            ⚠️ Хэтэвч сонгосон БӨГӨӨД үлдэгдэл хүрэхгүй бол товч нь
+            «Цэнэглэх» болно — дарахад цэнэглэх хуудас руу аваачна.
+            Ингэснээр хэрэглэгч мухардахгүй, цэнэглээд үргэлжлүүлнэ.
+          */}
           <button
             type="button"
             disabled={busy}
-            onClick={() => void onSelect(selected)}
+            onClick={() => {
+              if (walletNeedsTopup) {
+                onClose();
+                router.push('/profile?tab=wallet');
+                return;
+              }
+              void onSelect(selected);
+            }}
             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
           >
             {busy && <Loader2 size={17} className="animate-spin" />}
-            Төлөх
+            {walletNeedsTopup ? 'Хэтэвч цэнэглэх' : 'Төлөх'}
           </button>
         </div>
       </motion.div>

@@ -8,9 +8,10 @@ import {
   Post,
   RawBodyRequest,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -116,5 +117,28 @@ export class PaymentsController {
   ) {
     const rawBody = req.rawBody?.toString('utf-8') ?? JSON.stringify(body);
     return this.payments.handleBonumWebhook(body, rawBody, checksum);
+  }
+
+  /**
+   * ⚠️⚠️ ХЭРЭГЛЭГЧ БУЦАХ ЗАМ (GET) — webhook-той ИЖИЛ хаяг.
+   *
+   * ЯАГААД: Bonum-ын hosted checkout дээрх «Back to "..."» товч болон
+   * төлбөр дууссаны дараах шилжилт нь invoice-ийн `callback` талбарыг
+   * ашигладаг (`window.open(invoice.payment.callback, '_self')`).
+   * Тэр талбар нь ЗЭРЭГ webhook-ийн хаяг тул хэрэглэгч буцах товч
+   * дарахад API endpoint дээр гацаж, BestTV рүү БУЦАХГҮЙ байв
+   * (бодит гомдол 2026-08-24).
+   *
+   * Шийдэл: ЯГ ижил хаягт GET нэмж, browser-оор ирсэн хэрэглэгчийг
+   * сайт руу буцаана. Bonum нь webhook-ыг POST-оор илгээдэг тул
+   * хоёр урсгал хоорондоо огт саад болохгүй.
+   */
+  @Get('bonum/callback')
+  bonumReturn(@Res() res: Response) {
+    const site = (process.env.SITE_URL ?? 'https://besttv.us').replace(/\/$/, '');
+    /* ⚠️ Эрх нь webhook-оор нээгддэг — энд зөвхөн БУЦААНА.
+       `?pay=return` нь frontend-д «төлбөрөө шалгаж байна» гэж
+       харуулж, polling-оо эхлүүлэх дохио. */
+    return res.redirect(302, `${site}/profile?pay=return`);
   }
 }

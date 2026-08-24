@@ -86,6 +86,29 @@ export function Footer() {
     staleTime: 300_000,
   });
 
+  /**
+   * ⚠️⚠️ ХУУЛЬ ЭРХ ЗҮЙН ЛИНК НЬ API-ААС ХАМААРАХГҮЙ.
+   *
+   * БОДИТ АЛДАА: `{!!pages?.length && ...}` гэсэн болзол нь API удаан
+   * хариулах / SSR-ийн үед / query унасан тохиолдолд линкийг БҮРМӨСӨН
+   * АЛГА болгодог байв (хэрэглэгч «privacy, term алга» гэж 2 удаа
+   * мэдээлсэн). Энэ 3 хуудас нь ҮРГЭЛЖ байдаг ба Meta/Apple зэрэг
+   * платформын ЗААВАЛ ШААРДЛАГА тул хэзээ ч алга болж болохгүй.
+   *
+   * Тиймээс: API ирвэл түүнийг (админ гарчгийг өөрчилж болно),
+   * ирээгүй бол доорх тогтмол жагсаалтыг харуулна.
+   * ⚠️ slug-ууд backend-ийн seed-тэй ТААРНА (/p/terms, /p/privacy,
+   *    /p/data-deletion) — өөрчилвөл хоёуланг нь зэрэг зас.
+   */
+  const legalPages =
+    pages?.length
+      ? pages
+      : [
+          { slug: 'terms', title: 'Үйлчилгээний нөхцөл' },
+          { slug: 'privacy', title: 'Нууцлалын бодлого' },
+          { slug: 'data-deletion', title: 'Мэдээлэл устгах хүсэлт' },
+        ];
+
   // ⚠️ Зөвхөн ТОХИРУУЛСАН сүлжээ харагдана — хоосон нь огт гарахгүй
   const socialLinks = [
     { href: socials?.facebook, label: 'Facebook', Icon: Facebook },
@@ -292,12 +315,12 @@ export function Footer() {
             логог ДООР нь тавьж, `shrink-0` өгч дарагдахаас хамгаална.
           */}
           <div className="flex shrink-0 flex-col items-center gap-2.5 sm:items-end">
-            {!!pages?.length && (
+            {!!legalPages.length && (
               <nav
                 aria-label="Хууль эрх зүй"
                 className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 sm:justify-end"
               >
-                {pages.map((p, i) => (
+                {legalPages.map((p, i) => (
                   <span key={p.slug} className="flex items-center gap-1.5">
                     {i > 0 && <span aria-hidden className="text-foreground/20">·</span>}
                     <Link
