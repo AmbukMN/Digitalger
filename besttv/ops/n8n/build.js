@@ -558,8 +558,12 @@ if (!directReply) {
   var howtoTriggers = ['бүртгүүлэх','бүртгүүл','бүртгэл','нэвтрэх','нэвтэрч',
     'нэвтрэй','нэвтэр','хаяг нээх','бүртгүүлье','яаж эхлэх','sign up','signup',
     'register','login'];
+  /* ⚠️ Галиг хувилбарыг ШУУД нэм — «herhen tuluh ve», «yaj tuluh»
+     гэж бичихэд AI өөрөө хуучин мэдээллээр хариулж байв (бодит гомдол). */
   var payHowTriggers = ['яаж төлөх','төлбөр төлөх','хэрхэн төлөх','карт','картаар',
-    'visa','mastercard','apple pay','google pay','wechat','хэтэвч','цэнэглэх','pay'];
+    'visa','mastercard','apple pay','google pay','wechat','хэтэвч','цэнэглэх','pay',
+    'herhen tuluh','yaj tuluh','yaj tulboroo','tulburiin arga','tulbur yaj',
+    'kartaar','kart','hetevch','tsenegleh','unionpay','amex'];
   var watchTriggers = ['яаж үзэх','хэрхэн үзэх','яаж орох','заавар'];
   var isHowto = _hits(lower, howtoTriggers);
   var isPayHow = _hits(lower, payHowTriggers);
@@ -904,8 +908,42 @@ if (!_hasDirect && !keyword && !titleType) {
   }
 }
 
+/**
+ * ⚠️⚠️ БАГЦЫН НЭР ТАНИХ — «Шилдэг кино багц юу байдаг вэ?»
+ *
+ * БОДИТ ГОМДОЛ: багцын нэр асуухад бот ерөнхий тайлбар илгээдэг байв.
+ * Хэрэглэгч ТУХАЙН БАГЦАД ЯМАР КИНО байгааг харахыг хүсдэг.
+ * planName дамжвал backend /titles/search?plan= нь тэр багцын
+ * жанрын киног буцаана.
+ *
+ * ⚠️ «багц» гэсэн үг ЗААВАЛ байх ёстой — эс бөгөөс «монгол кино»
+ *    гэсэн энгийн хайлт ч багц гэж андуурагдана.
+ */
+var planName = '';
+(function () {
+  var src = String(prep.userText || '').toLowerCase();
+  if (src.indexOf('багц') === -1 && src.indexOf('bagts') === -1 && src.indexOf('bagc') === -1) return;
+  var PLAN_WORDS = [
+    { k: ['шилдэг', 'shildeg'], n: 'Шилдэг кино' },
+    { k: ['монгол', 'mongol'], n: 'Монгол кино багц' },
+    { k: ['хятад', 'hyatad', 'hitad', 'ай кино', 'ai kino'], n: 'Хятад болон Ай кино' },
+    { k: ['насанд', 'nasand', '18+', 'adult'], n: 'Насанд хүрэгчдийн багц (18+)' },
+    { k: ['vip', 'вип'], n: 'VIP багц' },
+  ];
+  for (var i = 0; i < PLAN_WORDS.length; i++) {
+    for (var j = 0; j < PLAN_WORDS[i].k.length; j++) {
+      if (src.indexOf(PLAN_WORDS[i].k[j]) !== -1) {
+        planName = PLAN_WORDS[i].n;
+        return;
+      }
+    }
+  }
+})();
+/* ⚠️ Багц таарвал ерөнхий түлхүүр үг хэрэггүй — багцаараа хайна */
+if (planName) { keyword = ''; titleType = ''; }
+
 /* ⚠️ Төрөл мэдэгдэж байвал түлхүүр үг хоосон ч ХАЙНА */
-const doSearch = keyword.length >= 2 || titleType !== '';
+const doSearch = keyword.length >= 2 || titleType !== '' || planName !== '';
 
 // ⚠️⚠️ AI УНАСАН ТОХИОЛДОЛ (OpenAI 3 удаа алдсан).
 //
@@ -918,7 +956,7 @@ if (!replyText) {
     ? 'Хайж байна...'
     : 'Уучлаарай, түр саатал гарлаа 🙏 Хэдхэн секундын дараа дахин бичээрэй.';
 }
-return [{ json: { psid, keyword, titleType, doSearch, replyText, platform } }];`,
+return [{ json: { psid, keyword, titleType, planName, doSearch, replyText, platform } }];`,
   },
   id: 'btv_extract',
   name: 'Extract Keyword',
@@ -937,7 +975,9 @@ add({
      * (`Хайх уу?`) орсон тул `$json` найдваргүй — AI Agent дээр яг
      * ийм шалтгаанаар «No prompt specified» алдаа гарсан.
      */
-    url: `=${API}/titles/search?q={{ encodeURIComponent($('Extract Keyword').first().json.keyword || '') }}&type={{ $('Extract Keyword').first().json.titleType || '' }}&limit=10`,
+    /* ⚠️ `plan` дамжвал backend нь ТУХАЙН БАГЦЫН киног буцаана
+       («Шилдэг кино багц юу байдаг вэ?» → жагсаалт, ерөнхий үг биш) */
+    url: `=${API}/titles/search?q={{ encodeURIComponent($('Extract Keyword').first().json.keyword || '') }}&type={{ $('Extract Keyword').first().json.titleType || '' }}&plan={{ encodeURIComponent($('Extract Keyword').first().json.planName || '') }}&limit=10`,
     sendHeaders: true,
     headerParameters: { parameters: [{ name: 'x-bot-secret', value: BOT_SECRET }] },
     options: { response: { response: { neverError: true } }, timeout: 10000 },

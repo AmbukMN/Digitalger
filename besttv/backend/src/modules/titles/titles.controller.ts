@@ -39,9 +39,19 @@ export class TitlesController {
     /* ⚠️ Чатботод — «цуврал» гэвэл SERIES, «кино» гэвэл MOVIE */
     @Query('type') type?: 'MOVIE' | 'SERIES',
     @Query('limit') limit?: string,
+    /**
+     * ⚠️⚠️ БАГЦЫН НЭРЭЭР ХАЙХ — чатботод зориулав.
+     *
+     * «Шилдэг кино багц юу байдаг вэ?» гэж асуухад ерөнхий мэдээлэл
+     * биш ТУХАЙН БАГЦАД БАГТАХ КИНОГ харуулах ёстой (бодит гомдол).
+     * Багц нь жанраар холбогддог тул багцын нэрийг өгвөл түүний
+     * жанрын киног буцаана.
+     */
+    @Query('plan') plan?: string,
   ) {
     const t = type === 'MOVIE' || type === 'SERIES' ? type : undefined;
     const n = Math.min(40, Math.max(1, Number(limit) || 20));
+    if (plan && plan.trim()) return this.titles.searchByPlan(plan.trim(), n);
     return this.titles.search(q ?? '', n, t);
   }
 

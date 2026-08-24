@@ -487,6 +487,58 @@ export class TitlesService {
    * `parsed.usable=false` болж хоосон буцаадаг тул чатбот «олдсонгүй»
    * гэж ХУДЛАА хариулж байв.
    */
+  /**
+   * БАГЦЫН НЭРЭЭР тухайн багцад багтах киног буцаана (чатботод).
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ: «Шилдэг кино багц» гэж асуухад бот ерөнхий
+   * тайлбар илгээдэг байв. Хэрэглэгч ЯМАР КИНО БАЙГААГ харахыг хүсдэг
+   * (бодит гомдол). Багц нь `PlanGenre`-ээр жанртай холбогддог тул
+   * багцын жанрын киног буцаана.
+   *
+   * ⚠️ VIP багц нь жанрын холбоосгүй (`isVip` = БҮХ контент) тул
+   *    хамгийн шинэ кинонуудыг буцаана.
+   * ⚠️ Багцын нэрийг ойролцоо тааруулна («шилдэг», «Шилдэг кино багц»
+   *    хоёулаа ажиллана) — хэрэглэгч бүтэн нэр бичихгүй.
+   */
+  async searchByPlan(planName: string, limit = 20) {
+    const needle = planName.toLowerCase().trim();
+    const plans = await this.prisma.plan.findMany({
+      where: { isActive: true },
+      select: { name: true, isVip: true, genres: { select: { genre: { select: { id: true } } } } },
+    });
+
+    /* Нэр нь асуултад агуулагдаж байгаа (эсвэл эсрэгээр) багцыг олно */
+    const hit =
+      plans.find((p) => {
+        const n = p.name.toLowerCase();
+        return needle.includes(n) || n.includes(needle);
+      }) ??
+      /* Үг тус бүрээр — «шилдэг» гэхэд «Шилдэг кино» таарна */
+      plans.find((p) =>
+        p.name
+          .toLowerCase()
+          .split(/\s+/)
+          .some((w) => w.length >= 4 && needle.includes(w)),
+      );
+
+    if (!hit) return [];
+
+    const genreIds = hit.genres.map((g) => g.genre.id);
+    /* ⚠️ VIP эсвэл жанргүй багц — бүх контентоос шинийг нь */
+    const where: Prisma.TitleWhereInput =
+      hit.isVip || !genreIds.length
+        ? { isActive: true, comingSoon: false }
+        : { isActive: true, comingSoon: false, genres: { some: { genreId: { in: genreIds } } } };
+
+    const rows = await this.prisma.title.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+      select: { ...CARD_SELECT, description: true },
+    });
+    return this.media.decorateMany(rows);
+  }
+
   async search(q: string, limit = 20, type?: 'MOVIE' | 'SERIES') {
     // 1) Stop word хасаж гол үгсийг ялгана ("сайхан кино байна уу" → ∅)
     const parsed = parseQuery(q);
