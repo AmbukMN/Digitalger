@@ -606,7 +606,10 @@ export function VideoPlayer({
   }, [saveNow]);
 
   return (
-    <div className="relative w-full bg-black">
+    /* ⚠️ `data-first-load` — эхний ачаалалт дуустал Vidstack-ийн
+       ӨӨРИЙН буфер spinner-ыг нуухад (globals.css). Эс бөгөөс манай
+       постертой overlay дээр давхарлаж ХОЁР дугуй эргэлддэг байв. */
+    <div className="relative w-full bg-black" data-first-load={!ready ? '' : undefined}>
       <MediaPlayer
         ref={playerRef}
         src={{ src, type: 'application/x-mpegurl' }}
