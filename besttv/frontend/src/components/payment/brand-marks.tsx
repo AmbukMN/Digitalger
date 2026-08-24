@@ -41,9 +41,31 @@ export function UnionPayMark({ className = '' }: { className?: string }) {
   return <BrandImg src="/cards/unionpay.svg" alt="UnionPay" className={className} />;
 }
 
+/**
+ * ⚠️ AMEX-ийн албан ёсны лого нь ЦЭНХЭР ДЭВСГЭР + цагаан текст —
+ * өөрөө бүтэн «плашка». Цагаан chip дотор тавибал цагаан текст нь
+ * уусаж АЛГА болно. Тиймээс энэ логог chip-ГҮЙ, шууд харуулна
+ * (`CARD_CHIP_BG` дотор `amex` онцгой тохиолдол).
+ */
 export function AmexMark({ className = '' }: { className?: string }) {
   return <BrandImg src="/cards/amex.svg" alt="American Express" className={className} />;
 }
+
+/**
+ * Лого бүрийн chip-ийн дэвсгэр.
+ * ⚠️ Зарим лого өөрийн дэвсгэртэй (AMEX цэнхэр, UnionPay цагаан суурьтай
+ * гурван баар) тул нэг ижил цагаан chip бүгдэд ТААРАХГҮЙ.
+ */
+export const BRAND_CHIP: Record<string, string> = {
+  /* Цагаан суурь шаардлагатай (хар/өнгөт лого) */
+  visa: 'bg-white ring-1 ring-black/10',
+  mastercard: 'bg-white ring-1 ring-black/10',
+  unionpay: 'bg-white ring-1 ring-black/10',
+  qpay: 'bg-white ring-1 ring-black/10',
+  /* Өөрийн дэвсгэртэй — chip ил тод, зөвхөн хүрээ */
+  amex: 'bg-transparent ring-1 ring-white/15',
+  wechat: 'bg-transparent',
+};
 
 /**
  * ⚠️ Apple Pay / Google Pay — Bonum дээр ХАРААХАН ИДЭВХЖЭЭГҮЙ тул UI-д

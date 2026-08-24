@@ -1,7 +1,9 @@
 'use client';
 
+import { cn } from '@besttv/shared';
 import {
   AmexMark,
+  BRAND_CHIP,
   MastercardMark,
   QPayMark,
   UnionPayMark,
@@ -26,8 +28,8 @@ import {
  * тийш, МОБАЙЛД голд (footer.tsx дотор `items-center sm:items-end`).
  */
 
-const CHIP =
-  'flex h-6 items-center justify-center rounded bg-white px-1.5 ring-1 ring-black/10 sm:h-7';
+/** ⚠️ Дэвсгэр нь `BRAND_CHIP`-ээс (AMEX өөрөө цэнхэр плашкатай г.м) */
+const CHIP = 'flex h-6 items-center justify-center rounded px-1.5 sm:h-7';
 
 export function FooterPaymentMarks() {
   return (
@@ -36,28 +38,28 @@ export function FooterPaymentMarks() {
       aria-label="Хүлээн авах төлбөрийн хэрэгслүүд"
     >
       {/* ⚠️ Лого бүр өөр харьцаатай — өндрөөр жигдэлж өргөнийг auto */}
-      <span className={CHIP}>
+      <span className={cn(CHIP, BRAND_CHIP.qpay)}>
         <QPayMark className="h-5 w-auto" />
       </span>
-      <span className={CHIP}>
+      <span className={cn(CHIP, BRAND_CHIP.visa)}>
         <VisaMark className="h-3 w-auto" />
       </span>
-      <span className={CHIP}>
+      <span className={cn(CHIP, BRAND_CHIP.mastercard)}>
         <MastercardMark className="h-4 w-auto" />
       </span>
-      <span className={CHIP}>
+      <span className={cn(CHIP, BRAND_CHIP.unionpay)}>
         <UnionPayMark className="h-4 w-auto" />
       </span>
-      <span className={CHIP}>
-        <AmexMark className="h-4 w-auto" />
+      <span className={cn(CHIP, BRAND_CHIP.amex, 'px-0')}>
+        <AmexMark className="h-6 w-auto rounded-[3px] sm:h-7" />
       </span>
       {/*
         ⚠️ Apple Pay / Google Pay — Bonum дээр ХАРААХАН идэвхжээгүй тул
         footer-т ч харуулахгүй (амлаад чадахгүй байх нь хамгийн муу).
         Идэвхжихэд албан ёсны mark файлтайгаар энд нэмнэ.
       */}
-      <span className={CHIP}>
-        <WeChatPayMark className="h-4 w-9" />
+      <span className={cn(CHIP, BRAND_CHIP.wechat, 'px-0')}>
+        <WeChatPayMark className="h-5 w-11 rounded sm:h-6" />
       </span>
     </div>
   );

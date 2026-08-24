@@ -7,6 +7,7 @@ import { cn, formatPrice } from '@besttv/shared';
 import { api } from '@/lib/api';
 import {
   AmexMark,
+  BRAND_CHIP,
   CardGenericMark,
   MastercardMark,
   QPayBankStrip,
@@ -63,7 +64,8 @@ export interface PaymentSheetProps {
   busy?: boolean;
 }
 
-const CHIP = 'flex h-7 items-center justify-center rounded bg-white px-1.5 ring-1 ring-black/10';
+/** ⚠️ Дэвсгэр/хүрээ нь `BRAND_CHIP`-ээс ирнэ (лого бүр өөр шаардлагатай) */
+const CHIP = 'flex h-7 items-center justify-center rounded px-1.5';
 
 export function PaymentMethodSheet({
   open,
@@ -131,17 +133,19 @@ export function PaymentMethodSheet({
          auto (`w-auto`) орхино — сунгаж гажуудуулахгүй. */
       extra: (
         <span className="flex flex-wrap items-center gap-1">
-          <span className={CHIP}>
+          <span className={cn(CHIP, BRAND_CHIP.visa)}>
             <VisaMark className="h-3 w-auto" />
           </span>
-          <span className={CHIP}>
+          <span className={cn(CHIP, BRAND_CHIP.mastercard)}>
             <MastercardMark className="h-4 w-auto" />
           </span>
-          <span className={CHIP}>
+          <span className={cn(CHIP, BRAND_CHIP.unionpay)}>
             <UnionPayMark className="h-4 w-auto" />
           </span>
-          <span className={CHIP}>
-            <AmexMark className="h-4 w-auto" />
+          {/* ⚠️ AMEX өөрөө цэнхэр плашкатай — цагаан chip тавибал
+              цагаан текст нь уусна. Тиймээс chip-гүй, шууд. */}
+          <span className={cn(CHIP, BRAND_CHIP.amex, 'px-0')}>
+            <AmexMark className="h-5 w-auto rounded-[3px]" />
           </span>
         </span>
       ),
