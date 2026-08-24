@@ -69,6 +69,20 @@ export interface PaymentSheetProps {
 /** ⚠️ Дэвсгэр/хүрээ нь `BRAND_CHIP`-ээс ирнэ (лого бүр өөр шаардлагатай) */
 const CHIP = 'flex h-7 items-center justify-center rounded px-1.5';
 
+/**
+ * ⚠️⚠️ ТҮР ИДЭВХГҮЙ ТӨЛБӨРИЙН АРГУУД.
+ *
+ * Эрх нь хараахан аваагүй тул сонгуулахгүй. ГЭХДЭЭ НУУХГҮЙ — хэрэглэгч
+ * ирээдүйд ямар арга нэмэгдэхийг харж, «энэ сайт картаар ажилладаг юм
+ * байна» гэдгийг мэдэж байх нь итгэл төрүүлнэ.
+ *
+ * ⚠️ ИДЭВХЖҮҮЛЭХ: энэ жагсаалтаас түлхүүрийг нь ХАСахад л хангалттай —
+ *    бусад код (урсгал, backend) БҮРЭН бэлэн, өөрчлөх шаардлагагүй.
+ *    Жишээ: карт нээгдвэл `'card'`-ыг ав.
+ */
+const TEMP_DISABLED: PayMethod[] = ['card', 'wechat'];
+const DISABLED_HINT = 'Энэ төлбөрийн хэрэгсэл түр идэвхгүй байна';
+
 export function PaymentMethodSheet({
   open,
   onClose,
@@ -187,6 +201,7 @@ export function PaymentMethodSheet({
         </span>
       ),
       show: cardEnabled,
+      disabled: TEMP_DISABLED.includes('card'),
     },
     /**
      * ⚠️⚠️ Apple Pay / Google Pay — Bonum дээр ХАРААХАН ИДЭВХЖЭЭГҮЙ
@@ -214,6 +229,7 @@ export function PaymentMethodSheet({
       /* ⚠️ Лого ДӨРВӨЛЖИН (240×240) — өмнөх `w-11` сунгасан харьцаа буруу */
       mark: <WeChatPayMark className="size-7 rounded-md object-contain" />,
       show: cardEnabled,
+      disabled: TEMP_DISABLED.includes('wechat'),
     },
     {
       id: 'bank',
@@ -309,6 +325,9 @@ export function PaymentMethodSheet({
                     <button
                       type="button"
                       disabled={r.disabled}
+                      /* ⚠️ Яагаад дарагдахгүй байгааг ХЭЛНЭ — эс бөгөөс
+                         хэрэглэгч «эвдэрсэн юм болов уу» гэж бодно */
+                      title={r.disabled ? DISABLED_HINT : undefined}
                       onClick={() => setSelected(r.id)}
                       /* ⚠️ min-h-14 — хүрэх талбар (мобайл, WCAG) */
                       className="flex min-h-14 w-full items-center gap-3 px-3.5 py-3 text-left disabled:cursor-not-allowed"
@@ -342,10 +361,21 @@ export function PaymentMethodSheet({
                         <span className="block text-sm font-semibold text-foreground">
                           {r.title}
                         </span>
-                        {r.hint && (
+                        {/*
+                          ⚠️ Идэвхгүй бол ШАЛТГААНЫГ мөрөн дээр нь бичнэ.
+                          `title` (hover) нь МОБАЙЛД огт ажилладаггүй тул
+                          ганцаараа хангалтгүй — 90% хэрэглэгч утсаар ордог.
+                        */}
+                        {r.disabled ? (
                           <span className="block truncate text-[11px] text-foreground/45">
-                            {r.hint}
+                            Түр идэвхгүй
                           </span>
+                        ) : (
+                          r.hint && (
+                            <span className="block truncate text-[11px] text-foreground/45">
+                              {r.hint}
+                            </span>
+                          )
                         )}
                         {/*
                           ⚠️ Хүлээж авах брэндүүд НЭР ДООРОО (Temu маягаар).
