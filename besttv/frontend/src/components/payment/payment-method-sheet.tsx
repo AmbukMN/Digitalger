@@ -7,11 +7,9 @@ import { cn, formatPrice } from '@besttv/shared';
 import { api } from '@/lib/api';
 import {
   AmexMark,
-  ApplePayMark,
   CardGenericMark,
-  QPayBankStrip,
-  GooglePayMark,
   MastercardMark,
+  QPayBankStrip,
   QPayMark,
   UnionPayMark,
   VisaMark,
@@ -119,7 +117,7 @@ export function PaymentMethodSheet({
       title: 'QPay',
       /* ⚠️ «SocialPay» гэсэн текст ХАСАВ — банкны logo эгнээ өөрөө
          аль апп ажиллахыг харуулна (Temu маягаар, илүү ойлгомжтой) */
-      mark: <QPayMark className="h-4 w-6" />,
+      mark: <QPayMark className="size-7 rounded-md object-contain" />,
       extra: <QPayBankStrip />,
       show: true,
     },
@@ -128,42 +126,51 @@ export function PaymentMethodSheet({
       title: 'Карт',
       mark: <CardGenericMark className="h-4 w-6 text-foreground/70" />,
       /* ⚠️ Хүлээж авах БҮХ картын брэнд харагдана — хэрэглэгч «миний
-         карт болох уу» гэдгээ шууд мэднэ (Temu-гийн зарчим) */
+         карт болох уу» гэдгээ шууд мэднэ (Temu-гийн зарчим).
+         ⚠️ Лого бүр өөр харьцаатай тул өндрөөр нь жигдэлж, өргөнийг
+         auto (`w-auto`) орхино — сунгаж гажуудуулахгүй. */
       extra: (
         <span className="flex flex-wrap items-center gap-1">
           <span className={CHIP}>
-            <VisaMark className="h-2.5 w-7" />
+            <VisaMark className="h-3 w-auto" />
           </span>
           <span className={CHIP}>
-            <MastercardMark className="h-3.5 w-5" />
+            <MastercardMark className="h-4 w-auto" />
           </span>
           <span className={CHIP}>
-            <UnionPayMark className="h-3.5 w-5" />
+            <UnionPayMark className="h-4 w-auto" />
           </span>
           <span className={CHIP}>
-            <AmexMark className="h-3 w-7" />
+            <AmexMark className="h-4 w-auto" />
           </span>
         </span>
       ),
       show: cardEnabled,
     },
+    /**
+     * ⚠️⚠️ Apple Pay / Google Pay — Bonum дээр ХАРААХАН ИДЭВХЖЭЭГҮЙ
+     * (домэйн баталгаажуулалт, App Review хүлээгдэж байна). Идэвхжээгүй
+     * аргыг харуулбал хэрэглэгч дараад алдаа авна тул ТҮР НУУВ.
+     * ⚠️ Идэвхжихэд: `show: cardEnabled` болгож, Apple/Google-ийн АЛБАН
+     * ЁСНЫ mark файлыг `public/cards/` дор тавина (өөрөө зурахгүй).
+     */
     {
       id: 'applepay',
       title: 'Apple Pay',
-      mark: <ApplePayMark className="h-4 w-9 text-white" />,
-      show: cardEnabled,
+      mark: null,
+      show: false,
     },
     {
       id: 'googlepay',
       title: 'Google Pay',
-      mark: <GooglePayMark className="h-4 w-9" />,
-      show: cardEnabled,
+      mark: null,
+      show: false,
     },
     {
       id: 'wechat',
       title: 'WeChat Pay',
       hint: 'Гадаад зочдод',
-      mark: <WeChatPayMark className="h-5 w-6" />,
+      mark: <WeChatPayMark className="h-5 w-11 rounded-md" />,
       show: cardEnabled,
     },
     {
