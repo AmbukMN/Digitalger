@@ -507,11 +507,17 @@ export const adminApi = {
       }),
     removePayment: (id: string) =>
       adminFetch<{ success: boolean }>(`/admin/payments/${id}`, { method: 'DELETE' }),
-    listPayments: (params?: { page?: number; pageSize?: number; status?: string }) => {
+    listPayments: (params?: {
+      page?: number;
+      pageSize?: number;
+      status?: string;
+      provider?: string;
+    }) => {
       const q = new URLSearchParams();
       if (params?.page) q.set('page', String(params.page));
       if (params?.pageSize) q.set('pageSize', String(params.pageSize));
       if (params?.status && params.status !== 'ALL') q.set('status', params.status);
+      if (params?.provider && params.provider !== 'ALL') q.set('provider', params.provider);
       const qs = q.toString();
       return adminFetch<{ items: AdminPaymentRow[]; total: number; page: number; pageSize: number }>(
         `/admin/payments${qs ? `?${qs}` : ''}`,

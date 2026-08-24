@@ -415,6 +415,17 @@ export const transferApi = {
 };
 
 // —— Payments ——
+// Bonum-аар төлөх аргууд (карт/WeChat/Apple/Google — QPay/Данс энд БИШ)
+export type BonumMethod = 'card' | 'applepay' | 'googlepay' | 'wechat';
+
+export interface BonumInitiateResult {
+  devMode: boolean;
+  orderId: string;
+  paymentId: string;
+  redirectUrl: string;
+  amount: number;
+}
+
 export const paymentsApi = {
   initiateQPay: (token: string, orderId: string) =>
     request<PaymentInitiateResult>('/payments/qpay/initiate', {
@@ -429,6 +440,25 @@ export const paymentsApi = {
       token,
       body: JSON.stringify({ orderId }),
     }),
+
+  // Bonum — карт/WeChat hosted checkout. redirectUrl руу шилжинэ.
+  initiateBonum: (token: string, orderId: string, method: BonumMethod) =>
+    request<BonumInitiateResult>('/payments/qpay/initiate', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ orderId, method }),
+    }),
+
+  // Bonum redirect-ээс буцаж ирсэн хэрэглэгчийн polling
+  checkBonum: (token: string, orderId: string) =>
+    request<{ paid: boolean; orderId: string }>('/payments/bonum/check', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ orderId }),
+    }),
+
+  // Боломжтой аргууд — checkout sheet-д карт мөр харуулах эсэх (public, token хэрэггүй)
+  getMethods: () => request<{ qpay: boolean; card: boolean }>('/payments/methods'),
 };
 
 // —— Users ——

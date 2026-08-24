@@ -508,7 +508,13 @@ model Payment {
   order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   amount        Decimal       @db.Decimal(12, 2)
   status        PaymentStatus @default(PENDING)
+  // Төлбөрийн зуучлагч: "qpay" (default, одоогийн) | "bonum" (карт/WeChat) | "bank"
+  provider      String        @default("qpay")
   qpayPaymentId String?
+  // Bonum — карт/WeChat hosted checkout (QPay-тэй зэрэгцээ, тусдаа зам)
+  // ⚠️ @unique = идемпотент (webhook-ыг invoiceId-аар тааруулна)
+  bonumInvoiceId    String?   @unique
+  bonumFollowUpLink String?
   rawPayload    Json?
   createdAt     DateTime      @default(now())
 }

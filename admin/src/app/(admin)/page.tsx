@@ -41,6 +41,7 @@ import { adminApi } from '@/lib/api';
 import type { AdminOrder, EmailStats } from '@/types/admin';
 import { AnalyticsSection } from '@/components/analytics-section';
 import { EmailMarketingPanel } from '@/components/email-marketing-panel';
+import { ProviderBadge } from '@/components/provider-badge';
 import { OrderStatusBadge } from '@/components/order-status-badge';
 
 // ── Захиалагчийн эх сурвалжийн нэрийг Монголоор харуулах ──
@@ -422,6 +423,53 @@ function EmailMarketingSummary() {
   );
 }
 
+// Төлбөрийн арга задаргаа — QPay/Карт/Данс тус бүрийн гүйлгээ + дүн + хувь
+function ProviderBreakdownPanel({
+  data,
+}: {
+  data: { provider: string; count: number; total: number }[];
+}) {
+  const grandTotal = data.reduce((s, d) => s + d.total, 0) || 1;
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-muted p-1.5">
+            <DollarSign className="h-4 w-4 text-primary" />
+          </div>
+          <p className="text-sm font-semibold">Төлбөрийн арга</p>
+        </div>
+        <p className="text-xs text-muted-foreground">Амжилттай төлбөрийн эх сурвалж</p>
+      </div>
+      <div className="divide-y divide-border">
+        {data.map((d) => {
+          const pct = Math.round((d.total / grandTotal) * 100);
+          return (
+            <div key={d.provider} className="flex items-center gap-3 px-4 py-3">
+              <ProviderBadge provider={d.provider} className="shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{d.count} гүйлгээ</span>
+                  <span className="text-sm font-bold tabular-nums">{formatMoney(d.total)}</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+              <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+                {pct}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MonthlyRevenuePanel({ data }: { data: { month: string; revenue: number }[] }) {
   // Сар бүрийг "N-р сар" болгож, revenue-г мянгад хөрвүүлэн график өгөгдөл бэлдэнэ
   const chartData = data.map((d) => {
@@ -507,7 +555,7 @@ export default function DashboardPage() {
   if (isError || !data)
     return <ErrorState title="Мэдээлэл ачаалахад алдаа" onRetry={() => refetch()} />;
 
-  const { stats, trends, recentOrders, monthlyRevenue, emailStats, topDownloaded, subscribersBySource } = data;
+  const { stats, trends, recentOrders, monthlyRevenue, emailStats, topDownloaded, subscribersBySource, providerBreakdown } = data;
   // ⚠️ ADMIN (non-superadmin)-д site-level хэсэг (Subscriber + Имэйл маркетинг + SES)
   // харагдахгүй — backend isSuperadmin flag-аар шийднэ.
   const isSuperadmin = (data as { isSuperadmin?: boolean }).isSuperadmin === true;
@@ -644,6 +692,11 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Төлбөрийн арга задаргаа — QPay/Карт/Данс тус бүрийн гүйлгээ + дүн */}
+      {providerBreakdown && providerBreakdown.length > 0 && (
+        <ProviderBreakdownPanel data={providerBreakdown} />
+      )}
 
       {/* 2 баганат: Сарын орлого (recharts) + Бодит таталт зэрэгцээ */}
       <div className="grid gap-4 lg:grid-cols-2">

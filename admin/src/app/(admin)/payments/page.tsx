@@ -25,7 +25,10 @@ import { CheckCircle2, Clock, Pencil, Trash2, XCircle, CreditCard } from 'lucide
 import { adminApi } from '@/lib/api';
 import { Pagination } from '@/components/ui/pagination';
 import { OrderStatusBadge } from '@/components/order-status-badge';
+import { ProviderBadge, PROVIDER_OPTIONS } from '@/components/provider-badge';
 import type { AdminPaymentRow } from '@/types/admin';
+
+type ProviderFilter = (typeof PROVIDER_OPTIONS)[number]['value'];
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -182,12 +185,14 @@ function PaymentActions({ payment }: { payment: AdminPaymentRow }) {
 
 export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [providerFilter, setProviderFilter] = useState<ProviderFilter>('ALL');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'payments', statusFilter, page, pageSize],
-    queryFn: () => adminApi.orders.listPayments({ page, pageSize, status: statusFilter }),
+    queryKey: ['admin', 'payments', statusFilter, providerFilter, page, pageSize],
+    queryFn: () =>
+      adminApi.orders.listPayments({ page, pageSize, status: statusFilter, provider: providerFilter }),
     staleTime: 0,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
@@ -235,6 +240,11 @@ export default function PaymentsPage() {
       ),
     },
     {
+      id: 'provider',
+      header: 'Арга',
+      cell: ({ row }) => <ProviderBadge provider={row.original.providerBadge} />,
+    },
+    {
       accessorKey: 'status',
       header: 'Төлбөрийн төлөв',
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
@@ -277,6 +287,25 @@ export default function PaymentsPage() {
               key={f.value}
               type="button"
               onClick={() => { setStatusFilter(f.value); setPage(1); }}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+              }`}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Төлбөрийн арга шүүлт (QPay/Карт/Данс) */}
+      <div className="flex flex-wrap gap-2">
+        {PROVIDER_OPTIONS.map((f) => {
+          const active = providerFilter === f.value;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => { setProviderFilter(f.value); setPage(1); }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
               }`}

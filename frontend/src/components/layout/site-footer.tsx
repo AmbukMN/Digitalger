@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { SITE_NAME } from '@/lib/constants';
 import { partnersApi } from '@/lib/api';
 import { PartnersSwiper } from '@/components/layout/partners-swiper';
+import { FooterPaymentMarks } from '@/components/payment/footer-payment-marks';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -99,6 +100,8 @@ export async function SiteFooter() {
 
         {/* Mobile layout */}
         <div className="flex flex-col items-center gap-2 sm:hidden">
+          {/* Төлбөрийн лого — итгэлийн дохио (QPay/Карт/Apple/Google/WeChat) */}
+          <FooterPaymentMarks />
           <p className="text-xs text-muted-foreground text-center">
             Күүл Системс ХХК © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
           </p>
@@ -142,6 +145,11 @@ export async function SiteFooter() {
               </>
             )}
           </div>
+        </div>
+
+        {/* Desktop — төлбөрийн лого эгнээ (итгэлийн дохио, баруун талд) */}
+        <div className="mt-3 hidden border-t border-border/60 pt-3 sm:block">
+          <FooterPaymentMarks />
         </div>
 
       </div>

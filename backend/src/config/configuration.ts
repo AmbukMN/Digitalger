@@ -19,6 +19,8 @@ if (process.env.NODE_ENV === 'production') {
 export default () => ({
   port: parseInt(process.env.PORT ?? '4000', 10),
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  // Frontend сайтын хаяг (Bonum hosted checkout "Буцах" товч энд буцаана)
+  siteUrl: process.env.SITE_URL ?? 'https://digitalger.mn',
   corsOrigin:
     process.env.CORS_ORIGIN?.split(',')
       .map((s) => s.trim())
@@ -59,6 +61,16 @@ export default () => ({
     invoiceCode: process.env.QPAY_INVOICE_CODE,
     callbackUrl: process.env.QPAY_CALLBACK_URL,
     webhookSecret: process.env.QPAY_WEBHOOK_SECRET,
+  },
+  // Bonum Gateway — карт (VISA/Mastercard/UnionPay/Amex) + WeChat Pay hosted checkout.
+  // QPay-д ОГТ хамаагүй (зэрэгцээ шинэ зам). Credential нь DigitalGer merchant дээр
+  // бүртгэлтэй (Terminal 17173069). Хэрэглэгчид «Bonum» нэр харагдахгүй.
+  bonum: {
+    baseUrl: process.env.BONUM_BASE_URL ?? 'https://apis.bonum.mn',
+    appSecret: process.env.BONUM_APP_SECRET,
+    terminalId: process.env.BONUM_TERMINAL_ID,
+    checksumKey: process.env.BONUM_CHECKSUM_KEY,
+    callbackUrl: process.env.BONUM_CALLBACK_URL,
   },
   n8n: {
     webhookUrl: process.env.N8N_WEBHOOK_URL ?? null,

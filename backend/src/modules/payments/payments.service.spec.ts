@@ -46,7 +46,15 @@ describe('PaymentsService', () => {
       emitPaymentFailed: jest.fn().mockResolvedValue(undefined),
     };
     const notifications = { create: jest.fn().mockResolvedValue(undefined) };
-    service = new PaymentsService(prisma as any, config as any, n8n as any, notifications as any);
+    // Bonum тохируулаагүй (карт/WeChat off) — QPay тестийг өөрчлөхгүй.
+    const bonum = { isConfigured: jest.fn().mockReturnValue(false) };
+    service = new PaymentsService(
+      prisma as any,
+      config as any,
+      n8n as any,
+      notifications as any,
+      bonum as any,
+    );
 
     prisma.order.findUnique.mockResolvedValue({ userId: 'user-1' });
     prisma.user.update.mockResolvedValue({});

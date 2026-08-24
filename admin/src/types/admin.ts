@@ -117,6 +117,8 @@ export interface DashboardStats {
   resendStats?: ResendStats;
   topDownloaded: TopDownloadedProduct[];
   subscribersBySource: { source: string; count: number }[];
+  // Төлбөрийн арга задаргаа (QPAY/CARD/BANK) — dashboard "Төлбөрийн арга" карт
+  providerBreakdown?: { provider: string; count: number; total: number }[];
 }
 
 export interface AdminUser {
@@ -502,6 +504,9 @@ export interface AdminPaymentRow {
   amount: number | string;
   status: string;
   qpayPaymentId?: string | null;
+  provider?: string | null;
+  // Backend-ээс UI badge түлхүүр (QPAY/CARD/BANK/GRANT)
+  providerBadge?: string;
   createdAt: string;
   order: {
     id: string;

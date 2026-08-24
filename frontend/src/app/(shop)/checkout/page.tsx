@@ -17,6 +17,11 @@ import { SiteNavbar } from '@/components/layout/site-navbar';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { QPayCheckout } from '@/components/payment/qpay-checkout';
 import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
+import {
+  PaymentMethodSheet,
+  useCardPaymentEnabled,
+  type PayMethod,
+} from '@/components/payment/payment-method-sheet';
 import { ProductRowItem } from '@/components/ui/product-row-item';
 import { TrustBadges } from '@/components/products/trust-badges';
 import type { PaymentInitiateResult } from '@/types/api';
@@ -43,7 +48,11 @@ function CheckoutContent() {
   const [qpayResult, setQpayResult] = useState<PaymentInitiateResult | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const autoPayTriggered = useRef(false);
+
+  // Карт/WeChat/Apple/Google (Bonum) боломжтой эсэх — checkout sheet-д мөр харуулна
+  const cardEnabled = useCardPaymentEnabled();
 
   // Дансаар шилжүүлэх тохиргоо (public settings) — checkout-д "Дансаар төлөх"
   // товч харуулах эсэх + popup-д харагдах данс мэдээллийг динамикаар татна.
@@ -170,6 +179,62 @@ function CheckoutContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, session?.accessToken]);
 
+  // ?bonum=return — Bonum hosted checkout-аас буцаж ирлээ. Эрх нь webhook-оор
+  // нээгддэг тул төлбөр баталгаажсан эсэхийг polling-оор шалгана (webhook саатвал
+  // reconcile cron ч барина). PAID болвол "Миний сан" руу.
+  const bonumReturnHandled = useRef(false);
+  useEffect(() => {
+    if (bonumReturnHandled.current) return;
+    if (searchParams.get('bonum') !== 'return') return;
+    if (!session?.accessToken) return;
+    // Redirect-ийн дараа pendingOrderId алдагдсан тул sessionStorage-аас сэргээнэ.
+    let orderId = pendingOrderId;
+    if (!orderId) {
+      try {
+        orderId = sessionStorage.getItem('dg_bonum_order');
+      } catch {
+        orderId = null;
+      }
+    }
+    if (!orderId) return;
+    bonumReturnHandled.current = true;
+    try {
+      sessionStorage.removeItem('dg_bonum_order');
+    } catch {
+      /* үл хэрэгс */
+    }
+
+    const token = session.accessToken;
+    let tries = 0;
+    setPaying(true);
+    const poll = async () => {
+      tries++;
+      try {
+        const res = await paymentsApi.checkBonum(token, orderId);
+        if (res.paid) {
+          items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
+          clear();
+          setPendingOrderId(null);
+          queryClient.invalidateQueries({ queryKey: ['library'] });
+          toast.success('Төлбөр амжилттай!');
+          router.push('/library');
+          return;
+        }
+      } catch {
+        // үргэлжлүүлэн оролдоно
+      }
+      if (tries >= 20) {
+        // ~1 мин шалгасан — webhook хараахан ирээгүй байж болно (reconcile барина)
+        setPaying(false);
+        toast.info('Төлбөрийг шалгаж байна. Хэрэв төлсөн бол хэдхэн минутын дараа "Миний сан"-д гарч ирнэ.');
+        return;
+      }
+      setTimeout(poll, 3000);
+    };
+    poll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session?.accessToken, pendingOrderId]);
+
   // ?autopay=1 param байвал нэвтэрсний дараа шууд QPay эхлүүлнэ
   useEffect(() => {
     if (
@@ -190,7 +255,7 @@ function CheckoutContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.accessToken, searchParams, items.length]);
 
-  const handlePay = async () => {
+  const handlePay = async (method: PayMethod = 'qpay') => {
     // FB/IG доторх браузарт ч QPay ШУУД эхэлнэ — QR (base64 зураг) харагдана,
     // банкны deeplink (khanbank:// г.м.) банкны апп руу үсэрнэ. Тиймээс системийн
     // браузар руу шилжүүлэх шаардлагагүй (conversion алдахгүй).
@@ -250,6 +315,37 @@ function CheckoutContent() {
         setPendingOrderId(order.id);
       }
 
+      // ── Дансаар шилжүүлэх — data modal (order PENDING үлдэнэ, админ гараар нээнэ) ──
+      if (method === 'bank') {
+        setSheetOpen(false);
+        setBankModalOpen(true);
+        return;
+      }
+
+      // ── Карт/Apple/Google/WeChat (Bonum) — hosted checkout руу redirect ──
+      if (method === 'card' || method === 'applepay' || method === 'googlepay' || method === 'wechat') {
+        const res = await paymentsApi.initiateBonum(session.accessToken, orderId, method);
+        if (res.devMode) {
+          items.forEach((i) => trackPurchase(i.productId, i.slug, i.price));
+          toast.success('Төлбөр амжилттай (dev)');
+          clear();
+          router.push('/library');
+          return;
+        }
+        // ⚠️ Bonum hosted checkout — эмбед боломжгүй тул тухайн хуудас руу шилжинэ.
+        // Эрх нь webhook-оор нээгдэнэ; буцаж ирэхэд ?bonum=return-оор polling.
+        // ⚠️ Redirect-ийн дараа React state цэвэрлэгдэнэ тул orderId-ыг хадгална
+        // (буцаж ирэхэд сэргээж polling хийнэ).
+        try {
+          sessionStorage.setItem('dg_bonum_order', orderId);
+        } catch {
+          /* sessionStorage боломжгүй — reconcile cron баталгаа болно */
+        }
+        window.location.href = res.redirectUrl;
+        return;
+      }
+
+      // ── QPay (default) — одоогийн QR modal урсгал (хэвээр) ──
       const payment = await paymentsApi.initiateQPay(session.accessToken, orderId);
 
       if (payment.devMode) {
@@ -259,6 +355,7 @@ function CheckoutContent() {
         return;
       }
 
+      setSheetOpen(false);
       setQpayResult(payment);
     } catch (err: any) {
       const msg = err?.message || '';
@@ -496,39 +593,35 @@ function CheckoutContent() {
                 </p>
               )}
 
-              {/* Төлбөрийн товчнууд: QPay 8/10 + Дансаар 2/10 (mobile-д ч ижил
-                  харьцаа). Дансаар зөвхөн тохиргоо enabled БА үнэгүй биш үед. */}
-              <div className="flex gap-2">
-                <Button
-                  className="flex-8 font-bold"
-                  size="lg"
-                  disabled={paying}
-                  onClick={handlePay}
-                >
-                  {paying ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Боловсруулж байна...</>
-                  ) : !session ? (
-                    'Нэвтэрч, Захиалгаа баталгаажуулах'
-                  ) : isFree ? (
-                    <><CheckCircle2 className="mr-2 h-4 w-4" />Үнэгүй авах</>
-                  ) : (
-                    'QPay-ээр төлөх'
-                  )}
-                </Button>
-                {bankEnabled && !isFree && (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="flex-2 flex-col gap-0.5 px-1 font-semibold leading-none"
-                    disabled={paying}
-                    onClick={() => setBankModalOpen(true)}
-                    title="Дансаар шилжүүлэх"
-                  >
-                    <Building2 className="h-4 w-4" />
-                    <span className="text-[10px]">Дансаар</span>
-                  </Button>
+              {/* НЭГ «Худалдан авах» товч → төлбөрийн аргын цонх (QPay/Карт/
+                  Apple/Google/WeChat/Данс). Нэвтрээгүй эсвэл үнэгүй бол шууд
+                  үргэлжилнэ (цонх хэрэггүй). */}
+              <Button
+                className="w-full font-bold"
+                size="lg"
+                disabled={paying}
+                onClick={() => {
+                  if (!session) {
+                    handlePay();
+                    return;
+                  }
+                  if (isFree) {
+                    handlePay();
+                    return;
+                  }
+                  setSheetOpen(true);
+                }}
+              >
+                {paying ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Боловсруулж байна...</>
+                ) : !session ? (
+                  'Нэвтэрч, Захиалгаа баталгаажуулах'
+                ) : isFree ? (
+                  <><CheckCircle2 className="mr-2 h-4 w-4" />Үнэгүй авах</>
+                ) : (
+                  'Худалдан авах'
                 )}
-              </div>
+              </Button>
 
               {/* Trust badges — итгэлийн тэмдгүүд (eco/teal зөөлөн background). */}
               <div className="mt-1 rounded-xl border border-teal-500/20 bg-teal-500/6 dark:bg-teal-400/6 p-3">
@@ -562,6 +655,18 @@ function CheckoutContent() {
           onClose={() => setBankModalOpen(false)}
         />
       )}
+
+      {/* Төлбөрийн аргын цонх — QPay/Карт/Apple/Google/WeChat/Данс */}
+      <PaymentMethodSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        amount={total}
+        subtitle={`${payableItems.length} бүтээгдэхүүн`}
+        bankEnabled={bankEnabled}
+        cardEnabled={cardEnabled}
+        busy={paying}
+        onSelect={(method) => handlePay(method)}
+      />
     </>
   );
 }

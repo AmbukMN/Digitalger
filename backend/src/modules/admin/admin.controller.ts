@@ -513,6 +513,10 @@ export class AdminController {
       imageUrl: p.images?.[0]?.fileKey ? this.storage.getAssetUrl(p.images[0].fileKey) : null,
     }));
 
+    // ── Төлбөрийн арга задаргаа (SUCCESS payment-ыг provider-аар) ──
+    // Owner scope: non-superadmin зөвхөн өөрийн product-ын төлбөр.
+    const providerBreakdown = await this.buildProviderBreakdown(sa ? undefined : me.sub);
+
     return {
       isSuperadmin: sa,
       stats: {
@@ -541,7 +545,36 @@ export class AdminController {
       resendStats,
       reputationStats,
       topDownloaded,
+      providerBreakdown,
     };
+  }
+
+  /**
+   * Төлбөрийн арга задаргаа — SUCCESS payment-ыг provider-аар бүлэглэж
+   * тоо + нийт дүн гаргана (dashboard "Төлбөрийн арга" карт).
+   * @param ownerUserId non-superadmin бол зөвхөн энэ хэрэглэгчийн product-ын төлбөр.
+   */
+  private async buildProviderBreakdown(ownerUserId?: string) {
+    const ownerWhere: Prisma.PaymentWhereInput = ownerUserId
+      ? { order: { items: { some: { product: { createdByUserId: ownerUserId } } } } }
+      : {};
+    const grouped = await this.prisma.payment.groupBy({
+      by: ['provider'],
+      where: { status: 'SUCCESS', ...ownerWhere },
+      _count: { _all: true },
+      _sum: { amount: true },
+    });
+    // DB provider → UI badge түлхүүр (bank grant-ыг provider талбараас ялгахгүй)
+    const badgeOf = (p: string) =>
+      p === 'bonum' ? 'CARD' : p === 'bank' ? 'BANK' : 'QPAY';
+    const acc: Record<string, { provider: string; count: number; total: number }> = {};
+    for (const g of grouped) {
+      const key = badgeOf(g.provider);
+      if (!acc[key]) acc[key] = { provider: key, count: 0, total: 0 };
+      acc[key].count += g._count._all;
+      acc[key].total += Number(g._sum.amount ?? 0);
+    }
+    return Object.values(acc).sort((a, b) => b.total - a.total);
   }
 
   // ─── SES reputation (bounce/complaint rate) — dashboard карт + polling ─────────
@@ -1129,6 +1162,7 @@ export class AdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
+    @Query('provider') provider?: string,
   ) {
     // ⚠️ payments resource permission.ts-д байхгүй тул 'orders'-оор хамгаална.
     await assertPermission(this.prisma, me, 'orders', 'view');
@@ -1140,13 +1174,26 @@ export class AdminController {
       ? { status: status as 'PENDING' | 'SUCCESS' | 'FAILED' }
       : {};
 
+    // ── Provider шүүлт ── UI badge (QPAY/CARD/BANK/GRANT) → DB provider утга.
+    // Bonum=карт/WeChat (card), bank transfer=bank, admin grant=order.source.
+    let providerFilter: Prisma.PaymentWhereInput = {};
+    if (provider && provider !== 'ALL') {
+      if (provider === 'QPAY') providerFilter = { provider: 'qpay' };
+      else if (provider === 'CARD') providerFilter = { provider: 'bonum' };
+      else if (provider === 'BANK') providerFilter = { provider: 'bank' };
+    }
+
     // ── Ownership ── SUPERADMIN биш бол зөвхөн өөрийн product-ыг агуулсан
     //  захиалгын төлбөр (Payment → order → items → product.createdByUserId).
     const ownerWhere: Prisma.PaymentWhereInput = isSuperadmin(me)
       ? {}
       : { order: { items: { some: { product: { createdByUserId: me.sub } } } } };
 
-    const where: Prisma.PaymentWhereInput = { ...statusFilter, ...ownerWhere };
+    const where: Prisma.PaymentWhereInput = {
+      ...statusFilter,
+      ...providerFilter,
+      ...ownerWhere,
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.payment.findMany({
@@ -1165,7 +1212,21 @@ export class AdminController {
       this.prisma.payment.count({ where }),
     ]);
 
-    return { items, total, page: p, pageSize: ps };
+    // ── provider-ыг UI badge формат руу буулгах (QPAY/CARD/BANK/GRANT) ──
+    const mapped = items.map((it) => ({
+      ...it,
+      providerBadge: this.toProviderBadge(it.provider, it.order.source),
+    }));
+
+    return { items: mapped, total, page: p, pageSize: ps };
+  }
+
+  /** DB provider ("qpay"/"bonum"/"bank") + order.source → UI badge түлхүүр */
+  private toProviderBadge(provider: string, source?: string | null): string {
+    if (source === 'ADMIN_GRANT') return 'GRANT';
+    if (provider === 'bonum') return 'CARD';
+    if (provider === 'bank') return 'BANK';
+    return 'QPAY';
   }
 
   /** Payment owner шалгах — SUPERADMIN биш бол энэ payment-ийн захиалга
