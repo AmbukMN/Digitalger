@@ -42,6 +42,12 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
   const [invoice, setInvoice] = useState<QPayInvoice | null>(null);
   /* ⚠️ Төлбөрийн аргын цонх — «төлж түрээслэх» дарахад */
   const [sheetOpen, setSheetOpen] = useState(false);
+  /**
+   * ⚠️ ХЭТЭВЧ ЦЭНЭГЛЭХ-ийн аргын цонх — түрээсийнхээс ТУСДАА.
+   * Дүн нь өөр (дутуу дүн), гарчиг нь өөр тул нэг state-ээр
+   * дундалж болохгүй.
+   */
+  const [topupSheet, setTopupSheet] = useState(false);
   const cardEnabled = useCardPaymentEnabled();
 
   /**
@@ -158,16 +164,36 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
     }
   };
 
-  /** Дутуу дүнг QPay-ээр цэнэглэх → батлагдмагц автомат түрээслэнэ */
-  const startTopup = async () => {
+  /**
+   * Дутуу дүнг цэнэглэх → батлагдмагц автомат түрээслэнэ.
+   *
+   * ⚠️⚠️ ТӨЛБӨРИЙН АРГА ЗААВАЛ ДАМЖУУЛНА. Өмнө нь энэ функц ШУУД
+   * QPay нэхэмжлэл үүсгэдэг байсан тул хэтэвч цэнэглэх дархад
+   * төлбөрийн аргын цонх ГАРАЛГҮЙ шууд QR гарч ирдэг байв —
+   * картаар цэнэглэх боломжгүй, урсгал бусад газартай ЗӨРСӨН
+   * (бодит гомдол: «хэтэвч цэнэглэх гэхээр шууд QPay гарах»).
+   */
+  const startTopup = async (method?: SheetMethod) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     try {
-      const res = await api<QPayInvoice & { devMode?: boolean }>('/payments/wallet/topup', {
-        method: 'POST',
-        body: JSON.stringify({ amount: topupAmount }),
-      });
+      const res = await api<QPayInvoice & { devMode?: boolean; redirectUrl?: string }>(
+        '/payments/wallet/topup',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: topupAmount,
+            /* ⚠️ `qpay` бол talbar ОГТ явуулахгүй — хуучин зам хэвээр */
+            ...(method && method !== 'qpay' && method !== 'wallet' ? { method } : {}),
+          }),
+        },
+      );
+      /* Карт/Apple/Google/WeChat — hosted хуудас руу шилжинэ */
+      if (res.redirectUrl) {
+        window.location.href = res.redirectUrl;
+        return;
+      }
       if (res.devMode) {
         await refreshMe();
         /* ⚠️ ЗААВАЛ суллана — `rent()` нь `inFlight`-ыг өөрөө шалгадаг
@@ -225,6 +251,32 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
         cardEnabled={cardEnabled}
         busy={busy}
         onSelect={paySelected}
+      />
+    );
+  }
+
+  /*
+    ХЭТЭВЧ ЦЭНЭГЛЭХ-ийн аргын цонх — түрээсийнхтэй ЯГ ИЖИЛ бүтэц.
+    ⚠️ Өмнө нь энэ алхам ОГТ БАЙХГҮЙ, шууд QPay QR гардаг байсан тул
+    урсгал бусад газартай зөрж, картаар цэнэглэх боломжгүй байв.
+    ⚠️ `kind='topup'` — хэтэвчээр хэтэвч цэнэглэх мөр гарахгүй.
+  */
+  if (topupSheet) {
+    return (
+      <PaymentMethodSheet
+        open
+        onClose={() => setTopupSheet(false)}
+        amount={topupAmount}
+        subtitle="Хэтэвч цэнэглэх"
+        kind="topup"
+        walletBalance={balance}
+        bankEnabled={false}
+        cardEnabled={cardEnabled}
+        busy={busy}
+        onSelect={(m) => {
+          setTopupSheet(false);
+          void startTopup(m);
+        }}
       />
     );
   }
@@ -374,7 +426,8 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                   */}
                   {shortfall > 0 && (
                     <button
-                      onClick={startTopup}
+                      /* ⚠️ Аргын цонх нээнэ — шууд QPay БИШ (дээрх тайлбар) */
+                      onClick={() => setTopupSheet(true)}
                       disabled={busy}
                       className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-foreground/12 py-2.5 text-sm font-medium text-foreground/70 transition-colors hover:bg-foreground/5 disabled:opacity-50"
                     >
@@ -385,8 +438,23 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
                 </>
               )}
 
+              {/*
+                ⚠️ «Багц авах» нь ДАРЖ БОЛОХ линк — өмнө нь зүгээр
+                мэдээлэл байсан тул хэрэглэгч багц руу очих замгүй,
+                цонхоо хааж дахин хайх шаардлагатай байв.
+              */}
               <p className="mt-3 text-center text-xs text-foreground/35">
-                Багц авбал энэ болон бусад киног хязгааргүй үзнэ
+                Багц авбал энэ болон бусад киног хязгааргүй үзнэ —{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push('/pricing');
+                  }}
+                  className="font-semibold text-primary underline underline-offset-2 transition-colors hover:text-primary/80"
+                >
+                  Багц авах
+                </button>
               </p>
             </div>
           )}
