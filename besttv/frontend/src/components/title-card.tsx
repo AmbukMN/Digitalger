@@ -235,6 +235,27 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
           </span>
         )}
 
+        {/**
+          * ⚠️⚠️ АНГИЙН ТОО — картын БАРУУН ДООД булан.
+          *
+          * Хэрэглэгч цуврал хэдэн ангитайг ДАРАХААС ӨМНӨ мэдэх ёстой:
+          * 3 ангитай юу, 60 ангитай юу гэдэг нь үзэх шийдвэрт шууд
+          * нөлөөлнө (богино C-drama vs урт солонгос цуврал).
+          *
+          * ⚠️ Нэг ангит кинонд ОГТ ГАРАХГҮЙ — backend `episodeCount`-ыг
+          *    зөвхөн 2+ ангид буцаана («1 анги» нь утгагүй).
+          *
+          * ⚠️⚠️ БАЙРЛАЛ: мобайлд баруун доод буланд ♥ товч (36px) сууна.
+          *    Тиймээс `right-11` (2.75rem) — түүний ЗҮҮН талд. Десктопт
+          *    ♥ нь hover overlay дотор тул зай хоосон боловч ижил
+          *    байрлалд үлдээв (хоёр төрөлд НЭГ л харагдац).
+          */}
+        {typeof title.episodeCount === 'number' && title.episodeCount > 1 && (
+          <span className="absolute bottom-1.5 right-11 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm">
+            {title.episodeCount} анги
+          </span>
+        )}
+
         {/*
           ⚠️⚠️ МОБАЙЛД БАЙНГА ХАРАГДАХ "ДУРТАЙ" ТОВЧ.
 

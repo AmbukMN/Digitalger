@@ -72,10 +72,29 @@ export class TitleMediaHelper {
        (шаардлагагүй өгөгдөл, JSON-ыг дэмий хөөнө) */
     const { seasons: _drop, ...rest } = item as T & { seasons?: unknown };
 
+    /**
+     * ⚠️⚠️ ХАРАГДАХ АНГИЙН ТОО — картад «27 анги» гэж гарна.
+     *
+     * Хэрэглэгч цуврал хэдэн ангитайг ДАРАХААС ӨМНӨ мэдэх ёстой —
+     * 3 ангитай юу, 60 ангитай юу гэдэг нь үзэх шийдвэрт шууд нөлөөлнө.
+     *
+     * ⚠️ НЭМЭЛТ QUERY ХИЙХГҮЙ: `eps` нь дээр `streamStatus` тооцоход
+     *    аль хэдийн татагдсан (`CARD_SELECT.seasons`). Тоолохоос
+     *    өөр зардал алга.
+     *
+     * ⚠️ Нуусан анги/улирал ТООЛОГДОХГҮЙ — `where: { isVisible: true }`
+     *    шүүлт query дээр хийгдсэн тул `eps` дотор орж ирэхгүй.
+     *
+     * ⚠️ 0 бол буцаахгүй (`undefined`) — нэг ангит кино эсвэл анги
+     *    ороогүй цувралд «0 анги» гэж харуулах нь утгагүй.
+     */
+    const episodeCount = eps && eps.length > 0 ? eps.length : undefined;
+
     return {
       ...(rest as T),
       ...(genres ? { genres } : {}),
       ...(streamStatus !== undefined ? { streamStatus } : {}),
+      ...(episodeCount !== undefined ? { episodeCount } : {}),
       posterUrl,
       backdropUrl,
     };
