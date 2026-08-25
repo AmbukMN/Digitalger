@@ -101,6 +101,13 @@ const NAV_GROUPS = [
   },
 ];
 
+/**
+ * Badge «үзсэн» гэж тэмдэглэхээс өмнөх саатал.
+ *
+ * ⚠️ Доорх `useEffect`-ийн тайлбарыг үз — 0 болгож БОЛОХГҮЙ.
+ */
+const BADGE_SEEN_DELAY_MS = 2000;
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAdminAuth();
   const pathname = usePathname();
@@ -138,8 +145,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
    * бичигдсэн атал сүүлийн хэрэглэгч 09:49-д бүртгүүлсэн байсан нь
    * яг үүнээс.
    *
-   * ЗАСВАР: 6 секунд ХАРУУЛААД дараа нь тэмдэглэнэ. Админ тоог
-   * хараад, юу шинэ болохыг мэдэж амжина.
+   * ЗАСВАР: `BADGE_SEEN_DELAY_MS` хугацаа ХАРУУЛААД дараа нь
+   * тэмдэглэнэ. Админ тоог хараад, юу шинэ болохыг мэдэж амжина.
+   *
+   * ⚠️ 6 сек байсныг 2 БОЛГОВ (хэрэглэгчийн санал): «badge удаж
+   *    алга болоод байна, би аль хэдийн хараад байхад 4 сек
+   *    үлддэг». Хуудас ачаалах хугацааг бодоход 2 сек нь харах
+   *    зав өгөхөд хангалттай.
+   * ⚠️ 1 сек хүртэл БУУРУУЛАХГҮЙ — тэр үед дээрх бодит алдаа
+   *    (тоо гарч ирээд тэр дороо арилах) дахин гарна.
    *
    * ⚠️ Таб background бол таймер ажиллуулахгүй — хараагүй зүйлийг
    * «уншсан» гэж тооцох нь буруу.
@@ -168,7 +182,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       api(`/admin/notifications/seen/${section}`, { method: 'POST' })
         .then(() => qc.invalidateQueries({ queryKey: ['admin-badges'] }))
         .catch(() => null);
-    }, 6000);
+    }, BADGE_SEEN_DELAY_MS);
 
     return () => {
       if (seenTimer.current) {
