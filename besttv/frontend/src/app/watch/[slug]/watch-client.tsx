@@ -493,6 +493,19 @@ export function WatchClient({ slug }: { slug: string }) {
               nextEpisode?.playable ? () => goToEpisode(nextEpisode.id) : undefined
             }
             /**
+             * ⚠️⚠️ Дараагийн ангийг УРЬДЧИЛАН татахад (`prefetchNext`).
+             *
+             * БОДИТ ГОМДОЛ: «дараагийн анги тоглогдох гэхээр буферлэх
+             * хооронд постер зураг гараад буферлээд тоглодог».
+             * Плеер энэ замыг анги дуусахаас өмнө татаж browser
+             * кэшэд оруулна — шилжихэд сүлжээ хүлээхгүй.
+             */
+            nextSrc={
+              nextEpisode?.playable
+                ? `/api/stream/episode/${nextEpisode.id}/playlist.m3u8`
+                : undefined
+            }
+            /**
              * ⚠️ Гарчиг + буцах товчийг PLAYER ДОТОР харуулна.
              * Доорх холбоос нь дэлгэц дүүрэн (fullscreen) үед харагдахгүй
              * тул хэрэглэгч гарах замгүй болдог байв.

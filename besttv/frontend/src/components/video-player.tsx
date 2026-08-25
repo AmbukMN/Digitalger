@@ -56,6 +56,7 @@ export function VideoPlayer({
   introEndSec,
   nextLabel,
   onNext,
+  nextSrc,
   outroStartSec,
 }: {
   src: string; // '/api/stream/movie/{id}/playlist.m3u8' гэх мэт
@@ -85,6 +86,13 @@ export function VideoPlayer({
    */
   nextLabel?: string;
   onNext?: () => void;
+  /**
+   * Дараагийн ангийн playlist зам — УРЬДЧИЛАН татаж кэшлэнэ.
+   *
+   * ⚠️ Байхгүй бол prefetch хийхгүй (сүүлийн анги, эсвэл дуудагч
+   *    тал дамжуулаагүй) — зан төлөв хэвийн.
+   */
+  nextSrc?: string;
   /** Титр эхлэх секунд — эндээс «Дараагийн анги» карт гарч эхэлнэ */
   outroStartSec?: number | null;
 }) {
@@ -548,6 +556,60 @@ export function VideoPlayer({
    *    үзэлтийн туршлагыг чухалчилсан.
    */
   const SHORT_EPISODE_SEC = 20 * 60;
+
+  /**
+   * ⚠️⚠️ ДАРААГИЙН АНГИЙГ УРЬДЧИЛАН БЭЛТГЭНЭ (prefetch).
+   *
+   * БОДИТ ГОМДОЛ: «дараагийн анги тоглогдох гэхээр буферлэх хооронд
+   * постер зураг гараад буферлээд тоглодог».
+   *
+   * Шалтгаан: шилжих агшинд hls.js нь ЭХНЭЭС нь эхэлдэг —
+   *   master playlist → variant playlist → эхний segment.
+   * Монгол↔Герман хооронд дуудалт тутам ~0.4-0.8 сек тул нийт
+   * 2-3 секундын хүлээлт үүснэ.
+   *
+   * Шийдэл: анги ДУУСАХААС ӨМНӨ тэдгээрийг татаж BROWSER КЭШЭД
+   * оруулна. Шилжихэд hls.js ижил URL дуудахад кэшээс шууд авна
+   * (`Cache-Control: private, max-age=120` — `stream.controller.ts`).
+   *
+   * ⚠️ ЗӨВХӨН НЭГ УДАА — `useRef` хамгаалалт. Эс бөгөөс `timeupdate`
+   *    секундэд 4 удаа ажиллаж, R2 руу дэмий хүсэлт үерлэнэ.
+   * ⚠️ ТОКЕНТОЙ — `/api/` зам нь эрх шаарддаг (токенгүй бол 403).
+   * ⚠️ Алдааг ЗАЛГИНА — prefetch нь ЗӨВХӨН хурдасгагч, унасан ч
+   *    үндсэн урсгал хэвийн ажиллана.
+   */
+  const prefetchedRef = useRef<string | null>(null);
+
+  const prefetchNext = useCallback(async () => {
+    if (!nextSrc || prefetchedRef.current === nextSrc) return;
+    prefetchedRef.current = nextSrc;
+    try {
+      const token = getAccessToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(nextSrc, { headers });
+      if (!res.ok) return;
+      const master = await res.text();
+
+      /**
+       * ⚠️ Master playlist доторх ЭХНИЙ variant-ыг ч татна — hls.js
+       *    түүнийг заавал дуудна. Зөвхөн master татвал хагас л
+       *    хурдасна.
+       * ⚠️ Мөр нь `#`-ээр эхлээгүй ЭХНИЙ мөр = variant зам.
+       */
+      const variant = master
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .find((l) => l && !l.startsWith('#'));
+      if (!variant) return;
+
+      const url = variant.startsWith('http')
+        ? variant
+        : new URL(variant, new URL(nextSrc, location.origin)).toString();
+      await fetch(url, { headers: url.includes('/api/') ? headers : undefined });
+    } catch {
+      /* ⚠️ Prefetch унасан нь АЛДАА БИШ — үндсэн урсгал хэвийн */
+    }
+  }, [nextSrc]);
   /** Тухайн ангийн үргэлжлэх хугацаа — `onEnded` үед шийдвэрлэхэд */
   const durationRef = useRef(0);
   /** ⚠️ Хэрэглэгч «Болих» дарсан бол энэ ангид дахин санал болгохгүй */
@@ -614,6 +676,22 @@ export function VideoPlayer({
      *    «10, 9, 8…» гэж хараад гэнэт үсэрнэ.
      */
     const isShort = durationRef.current > 0 && durationRef.current < SHORT_EPISODE_SEC;
+
+    /**
+     * ⚠️⚠️ ДАРААГИЙН АНГИЙГ УРЬДЧИЛАН ТАТНА (`prefetchNext` тайлбар).
+     *
+     * ⚠️ ХЭЗЭЭ: анги дуусахад 20 сек үлдэхэд. Хэт эрт татвал
+     *    хэрэглэгч дунд нь гарахад дэмий трафик; хэт орой бол
+     *    амжихгүй.
+     * ⚠️ БОГИНО ангид 20 сек нь бүтэн ангийн 10%+ тул тэнд
+     *    ХАГАСААС нь эхэлнэ (3 мин ангид 1.5 мин зай хангалттай).
+     */
+    const dur = durationRef.current;
+    if (onNext && dur > 0) {
+      const lead = isShort ? dur / 2 : dur - 20;
+      if (t >= lead) void prefetchNext();
+    }
+
     if (
       onNext &&
       !isShort &&
