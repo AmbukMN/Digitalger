@@ -225,6 +225,20 @@ export class StorageUsageService implements OnModuleInit {
    *    migration зэрэг чухал ажил түрүүлж дуусах ёстой.
    */
   onModuleInit() {
+    /**
+     * ⚠️⚠️ ЗӨВХӨН НЭГ WORKER скан хийнэ.
+     *
+     * `main.ts` нь cluster горимд ажилладаг (production `CLUSTER_WORKERS=2`)
+     * тул өмнө нь БҮХ worker зэрэг скан эхлүүлж, R2 дуудлага ХОЁР ДАХИН
+     * (1722) явдаг байв — логд «Storage кэш хоосон» 2 удаа гарсан.
+     *
+     * ⚠️ `CRON_ENABLED` — `main.ts:142` нь fork хийхдээ ЗӨВХӨН эхний
+     * worker-т `'true'` өгдөг (`fork(i === 0)`). Cron-той ижил worker
+     * дээр warm-up хийх нь зөв: тэр процесс аль хэдийн өдрийн сканыг
+     * эзэмшдэг. Тохируулаагүй (нэг процесс, dev) бол ажиллана.
+     */
+    if (process.env.CRON_ENABLED === 'false') return;
+
     setTimeout(() => {
       void (async () => {
         try {

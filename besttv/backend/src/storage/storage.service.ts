@@ -433,6 +433,22 @@ export class StorageService {
 
     const out: { key: string; lastModified?: Date; size?: number }[] = [];
     let token: string | undefined = undefined;
+    let pages = 0;
+
+    /**
+     * ⚠️⚠️ ХУУДАС БҮРД TIMEOUT + ДЭЭД ХЯЗГААР.
+     *
+     * БОДИТ АЛДАА (2026-08-25): 860,910 объект = 861 ДАРААЛСАН хүсэлт.
+     * Timeout байхгүй тул нэг хүсэлт өлгөгдөхөд БҮХЭЛДЭЭ МӨНХӨД гацдаг
+     * байв — лог дээр «скан эхэллээ» гарч, дуусах ч, унах ч мэдэгдэлгүй
+     * 20+ минут өнгөрсөн. Улмаас `inflight` цэвэрлэгдэхгүй тул дараагийн
+     * оролдлого ч блоклогдоно.
+     *
+     * ⚠️ `MAX_PAGES` — bucket гэнэт олон сая объекттой болвол скан
+     *    хэдэн цаг үргэлжлэхээс сэргийлнэ (тоо бага зэрэг дутуу
+     *    харагдах нь ГАЦСАН админ хуудаснаас дээр).
+     */
+    const MAX_PAGES = 5_000;
     do {
       const res: import('@aws-sdk/client-s3').ListObjectsV2CommandOutput =
         await this.client.send(
@@ -442,11 +458,21 @@ export class StorageService {
             ContinuationToken: token,
             MaxKeys: 1000,
           }),
+          { requestTimeout: 20_000 },
         );
       for (const o of res.Contents ?? []) {
         if (o.Key) out.push({ key: o.Key, lastModified: o.LastModified, size: o.Size });
       }
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
+      pages++;
+      /* ⚠️ Дэвшил — гацсан эсэхийг лог дээрээс ЯЛГАХ боломжтой болгоно */
+      if (pages % 100 === 0) {
+        this.logger.log(`R2 скан: ${pages} хуудас, ${out.length} объект…`);
+      }
+      if (pages >= MAX_PAGES) {
+        this.logger.warn(`R2 скан ${MAX_PAGES} хуудсаар тасаллаа (${out.length} объект)`);
+        break;
+      }
     } while (token);
     return out;
   }
