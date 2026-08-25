@@ -401,9 +401,18 @@ export default function MoviesPage() {
                           <Clapperboard className="m-auto mt-3 text-muted-foreground" size={18} />
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground hover:text-primary">{t.title}</p>
-                        <p className="text-xs text-muted-foreground">
+                      {/**
+                        * ⚠️ `truncate` ЗААВАЛ — урт нэр/slug нь 2-3 мөр болж
+                        * мөрийн өндрийг өсгөөд зогсохгүй, «Гарчиг» баганыг
+                        * тэлж БАРУУН талын «Үйлдэл» баганыг дэлгэцээс
+                        * ГАРГАДАГ байв (1500px дээр батлагдсан).
+                        * ⚠️ `max-w-[15rem]` — багана хэт өргөсөхөөс сэргийлнэ.
+                        */}
+                      <div className="min-w-0 max-w-[15rem]">
+                        <p className="truncate font-medium text-foreground hover:text-primary" title={t.title}>
+                          {t.title}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground" title={t.slug}>
                           {t.year ?? '—'} · {t.slug}
                         </p>
                       </div>
