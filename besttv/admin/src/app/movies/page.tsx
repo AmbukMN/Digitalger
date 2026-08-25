@@ -480,7 +480,9 @@ export default function MoviesPage() {
                       })}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  {/* ⚠️ `whitespace-nowrap` — «Бэлэн 12/12 анги» нь 2 мөр болж
+                      баганыг тэлж, «Үйлдэл» баганыг дэлгэцээс гаргадаг байв */}
+                  <td className="whitespace-nowrap px-4 py-3">
                     <span
                       className={cn(
                         'rounded-md px-2 py-0.5 text-xs font-medium',
@@ -503,7 +505,7 @@ export default function MoviesPage() {
                     )}
                   </td>
                   {/* ⚠️ R2 дээрх бодит хэмжээ — HLS segment+постер+трейлер бүгд */}
-                  <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-muted-foreground">
                     {sizeById.has(t.id) ? formatBytes(sizeById.get(t.id)!) : '—'}
                   </td>
                   <td className="px-4 py-3">
