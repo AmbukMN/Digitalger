@@ -51,6 +51,7 @@ export class StreamService {
     titleId: string,
     userId?: string | null,
     tokenSent?: boolean,
+    rangeProbe?: boolean,
   ): Promise<string> {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
@@ -80,6 +81,7 @@ export class StreamService {
        */
       titleId,
       tokenSent,
+      rangeProbe,
     );
     // ⚠️ ABR master бол дэд playlist-ыг манай API руу чиглүүлнэ (эрх дахин шалгагдана)
     /* ⚠️ Түрээстэй бол presign нь ҮЛДЭГДЭЛ ХУГАЦААГААР богиносно */
@@ -564,6 +566,7 @@ export class StreamService {
     episodeId: string,
     userId?: string | null,
     tokenSent?: boolean,
+    rangeProbe?: boolean,
   ): Promise<string> {
     const episode = await this.prisma.episode.findUnique({
       where: { id: episodeId },
@@ -611,6 +614,7 @@ export class StreamService {
       /* ⚠️ Түрээс нь ЦУВРАЛ дээр ч боломжтой — эцэг титулын id-аар шалгана */
       episode.season.title.id,
       tokenSent,
+      rangeProbe,
     );
     /**
      * ⚠️⚠️ `ttl` ЗААВАЛ — өмнө нь дамжуулаагүй тул ХОЁР цоорхой байв:
@@ -790,6 +794,8 @@ export class StreamService {
     titleId?: string,
     /** ⚠️ Оношлогоо — `logDenied` руу дамжина (тэндхийн тайлбар үз) */
     tokenSent?: boolean,
+    /** ⚠️ `<video>`-ийн хөндөлт — бүртгэхгүй (`logDenied` тайлбар) */
+    rangeProbe?: boolean,
   ) {
     if (!isPremium) return; // үнэгүй контент
     // ⚠️ titleId дамжуулснаар ТҮРЭЭС ч шалгагдана (багцгүй ч үзэж болно)
@@ -809,7 +815,7 @@ export class StreamService {
        *   · userId бий + эрх 0    → багц аваагүй, ЗӨВ татгалзал
        *   · userId бий + эрх > 0  → ⚠️ АЛДАА, шалгах ёстой
        */
-      void this.logDenied(userId, titleId, titleGenreIds, tokenSent);
+      void this.logDenied(userId, titleId, titleGenreIds, tokenSent, rangeProbe);
 
       throw new ForbiddenException({
         code: 'SUBSCRIPTION_REQUIRED',
@@ -833,8 +839,25 @@ export class StreamService {
      *    ЯЛГАХ цорын ганц арга. Хоёулаа `userId=null` болдог.
      */
     tokenSent?: boolean,
+    /**
+     * ⚠️⚠️ `<video>` ЭЛЕМЕНТИЙН ХӨНДӨЛТ — БҮРТГЭХГҮЙ.
+     *
+     * БОДИТ ХЭМЖИЛТ (Playwright + nginx лог): Vidstack нь hls.js
+     * ачаалахаас өмнө `<video src>`-ыг тавьдаг ба browser тэр даруй
+     * `Range: bytes=0-` -тэй татаж эхэлдэг. Тэр хүсэлт нь `xhrSetup`-
+     * ААР ДАМЖДАГГҮЙ тул токенгүй → 403.
+     *
+     * Хэдэн секундын дараа hls.js токентой татаад кино ХЭВИЙН
+     * тоглодог: nginx логонд 403 бүрийн хажууд ЯГ ТЭНЦҮҮ тооны 200
+     * байсан (5/5, 4/4, 3/3…) — нэг ч бүтэлгүйтэл алга.
+     *
+     * ⚠️ Тиймээс энэ нь АЛДАА БИШ, зүгээр л дуу чимээ. Бүртгэвэл
+     *    өдөрт ~500 хуурамч бичлэг үүсч, ЖИНХЭНЭ алдааг булна.
+     */
+    rangeProbe?: boolean,
   ): Promise<void> {
     if (!this.errors) return;
+    if (rangeProbe) return;
     try {
       /* ⚠️ Зочинд DB асуулга хийхгүй — татгалзал нь ойлгомжтой */
       let subs = 0;

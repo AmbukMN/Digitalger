@@ -176,8 +176,24 @@ export class StreamController {
      * Хоёр дахь тохиолдол нь «үзэж болохгүй байна» гомдол болно.
      */
     @Headers('authorization') auth?: string,
+    /**
+     * ⚠️⚠️ `<video>` ЭЛЕМЕНТИЙН ХӨНДӨЛТИЙГ ТАНИНА.
+     *
+     * Vidstack нь hls.js ачаалахаас өмнө `<video src>` тавьдаг ба
+     * browser тэр даруй `Range: bytes=0-` -тэй татна. Тэр хүсэлт
+     * `xhrSetup`-аар ДАМЖДАГГҮЙ тул токенгүй → 403.
+     *
+     * Хэдэн секундын дараа hls.js токентой татаж кино ХЭВИЙН
+     * тоглодог (nginx лог: 403 бүрийн хажууд ТЭНЦҮҮ тооны 200).
+     * Тиймээс энэ нь алдаа БИШ — бүртгэвэл өдөрт ~500 хуурамч
+     * бичлэг үүсч ЖИНХЭНЭ алдааг булна.
+     *
+     * ⚠️ hls.js нь playlist татахдаа Range ХЭРЭГЛЭДЭГГҮЙ тул
+     *    энэ шинж тэмдэг найдвартай.
+     */
+    @Headers('range') range?: string,
   ) {
-    return this.stream.moviePlaylist(titleId, user?.sub, Boolean(auth));
+    return this.stream.moviePlaylist(titleId, user?.sub, Boolean(auth), Boolean(range));
   }
 
   /**
@@ -200,8 +216,10 @@ export class StreamController {
     @CurrentUser() user: JwtPayload | null,
     /* ⚠️ Оношлогоо — дээрх `movie`-ийн тайлбар үз */
     @Headers('authorization') auth?: string,
+    /* ⚠️ `<video>`-ийн хөндөлт — дээрх `movie`-ийн тайлбар үз */
+    @Headers('range') range?: string,
   ) {
-    return this.stream.episodePlaylist(episodeId, user?.sub, Boolean(auth));
+    return this.stream.episodePlaylist(episodeId, user?.sub, Boolean(auth), Boolean(range));
   }
 
   /**
