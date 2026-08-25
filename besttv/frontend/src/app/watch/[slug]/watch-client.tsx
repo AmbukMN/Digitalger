@@ -377,6 +377,19 @@ export function WatchClient({ slug }: { slug: string }) {
    * түгжээ харуулах нь буруу.
    */
   const gated = data.isPremium && accessKnown && !data.hasAccess;
+
+  /**
+   * ⚠️⚠️ ДАРААГИЙН АНГИ ТҮГЖЭЭТЭЙ ЭСЭХ.
+   *
+   * БОДИТ АЛДАА: `playable` нь ЗӨВХӨН `streamStatus === 'READY'`-г
+   * шалгадаг — ЭРХ ОГТ ХАМААРАХГҮЙ. Тиймээс эрхгүй хэрэглэгч
+   * үнэгүй 3-р анги дуусахад 4-р анги руу АВТОМАТААР шилжиж,
+   * playlist 403 авч ХАР ДЭЛГЭЦ хардаг байв.
+   *
+   * Одоо: автомат шилжилт ЗОГСООД, багц авах санал гаргана
+   * (орлого болох агшин — хэрэглэгч сонирхол дээд цэгтээ байна).
+   */
+  const nextLocked = Boolean(gated && nextEpisode && !nextEpisode.isFreePreview);
   if (locked) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-5 bg-black px-4 text-center">
@@ -489,8 +502,23 @@ export function WatchClient({ slug }: { slug: string }) {
                 ? `${nextEpisode.number}-р анги${nextEpisode.name ? ` — ${nextEpisode.name}` : ''}`
                 : undefined
             }
+            /* ⚠️ Түгжээтэй бол ОГТ өгөхгүй — плеер өөрөө тоолуур
+               эхлүүлэхгүй, доорх «багц авах» карт гарна */
             onNext={
-              nextEpisode?.playable ? () => goToEpisode(nextEpisode.id) : undefined
+              nextEpisode?.playable && !nextLocked
+                ? () => goToEpisode(nextEpisode.id)
+                : undefined
+            }
+            /**
+             * ⚠️⚠️ ТҮГЖЭЭТЭЙ ДАРААГИЙН АНГИ — плеер «Багц авах»
+             * картыг харуулна (`onNextLocked`). Эс бөгөөс анги
+             * дуусаад ЮУ Ч болохгүй, хэрэглэгч гацсан мэт мэдэрнэ.
+             */
+            onNextLocked={nextLocked ? () => router.push('/pricing') : undefined}
+            lockedRemaining={
+              nextLocked
+                ? flatEpisodes.filter((e) => !e.isFreePreview).length
+                : undefined
             }
             /**
              * ⚠️⚠️ Дараагийн ангийг УРЬДЧИЛАН татахад (`prefetchNext`).
@@ -501,7 +529,8 @@ export function WatchClient({ slug }: { slug: string }) {
              * кэшэд оруулна — шилжихэд сүлжээ хүлээхгүй.
              */
             nextSrc={
-              nextEpisode?.playable
+              /* ⚠️ Түгжээтэй ангид prefetch хийвэл 403 — дэмий хүсэлт */
+              nextEpisode?.playable && !nextLocked
                 ? `/api/stream/episode/${nextEpisode.id}/playlist.m3u8`
                 : undefined
             }

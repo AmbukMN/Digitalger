@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Lock } from 'lucide-react';
 import {
   MediaPlayer,
   MediaProvider,
@@ -57,6 +57,8 @@ export function VideoPlayer({
   nextLabel,
   onNext,
   nextSrc,
+  onNextLocked,
+  lockedRemaining,
   outroStartSec,
 }: {
   src: string; // '/api/stream/movie/{id}/playlist.m3u8' гэх мэт
@@ -93,6 +95,19 @@ export function VideoPlayer({
    *    тал дамжуулаагүй) — зан төлөв хэвийн.
    */
   nextSrc?: string;
+  /**
+   * ⚠️⚠️ ДАРААГИЙН АНГИ ТҮГЖЭЭТЭЙ — эрх дууссан.
+   *
+   * Эрхгүй хэрэглэгч ҮНЭГҮЙ ангиудыг үзээд дуусахад дараагийнх
+   * руу шилжих боломжгүй. Энэ байвал анги дуусмагц «Багц авах»
+   * карт гарна — дарвал энэ callback ажиллана.
+   *
+   * ⚠️ `onNext`-тэй ХАМТ өгөхгүй: дуудагч тал түгжээтэй үед
+   *    `onNext`-ыг `undefined` болгоно.
+   */
+  onNextLocked?: () => void;
+  /** Түгжээтэй үлдсэн ангийн тоо — «Үлдсэн 24 анги» гэж харуулна */
+  lockedRemaining?: number;
   /** Титр эхлэх секунд — эндээс «Дараагийн анги» карт гарч эхэлнэ */
   outroStartSec?: number | null;
 }) {
@@ -579,6 +594,8 @@ export function VideoPlayer({
    *    үндсэн урсгал хэвийн ажиллана.
    */
   const prefetchedRef = useRef<string | null>(null);
+  /** ⚠️ Түгжээтэй анги дуусахад «Багц авах» карт харуулна */
+  const [showLocked, setShowLocked] = useState(false);
 
   const prefetchNext = useCallback(async () => {
     if (!nextSrc || prefetchedRef.current === nextSrc) return;
@@ -623,6 +640,7 @@ export function VideoPlayer({
     setNextCountdown(null);
     nextCancelled.current = false;
     nextFired.current = false;
+    setShowLocked(false);
   }, [src]);
 
   const goNext = useCallback(() => {
@@ -859,6 +877,20 @@ export function VideoPlayer({
           /* ⚠️ Аль хэдийн шилжсэн бол дахин тоолуур эхлүүлэхгүй
              (шинэ ангийн дата ирэх зуур хуучин player `ended`
              эвентийг дахин илгээж болзошгүй). */
+          /**
+           * ⚠️⚠️ ТҮГЖЭЭТЭЙ ДАРААГИЙН АНГИ — «Багц авах» карт.
+           *
+           * Эрхгүй хэрэглэгч үнэгүй ангиудыг үзээд дуусахад:
+           * өмнө нь `playable` нь эрхийг шалгадаггүй тул автоматаар
+           * шилжиж, playlist 403 авч ХАР ДЭЛГЭЦ гардаг байв.
+           *
+           * ⚠️ `onNext`-ээс ӨМНӨ шалгана — дуудагч тал түгжээтэй үед
+           *    `onNext`-ыг өгдөггүй ч дараалал тодорхой байх ёстой.
+           */
+          if (onNextLocked) {
+            setShowLocked(true);
+            return;
+          }
           if (onNext && !nextCancelled.current && !nextFired.current) {
             /**
              * ⚠️ БОГИНО АНГИ (<20 мин) — тоолуургүй ШУУД шилжинэ
@@ -1025,6 +1057,50 @@ export function VideoPlayer({
                 className="rounded-lg border border-white/25 px-3 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10"
               >
                 Болих
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/**
+          * ⚠️⚠️ ТҮГЖЭЭТЭЙ — «Багц авах» санал (эрхгүй хэрэглэгч).
+          *
+          * Үнэгүй ангиуд дуусахад гарна. ⚠️ БҮТЭН ДЭЛГЭЦЭЭР —
+          * жижиг карт байвал хэрэглэгч анзааралгүй гараад явна.
+          * Энэ бол ОРЛОГЫН гол агшин: сонирхол дээд цэгтээ байна.
+          *
+          * ⚠️ Автомат үсрэлт ОГТ хийхгүй — эрхгүй ангид шилжвэл
+          *    playlist 403 авч хар дэлгэц гарна (бодит алдаа байсан).
+          */}
+        {showLocked && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/90 px-6 text-center backdrop-blur-sm">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-premium-solid/15 text-premium">
+              <Lock size={26} />
+            </span>
+            <div>
+              <p className="text-lg font-bold text-white">Үнэгүй ангиуд дууслаа</p>
+              <p className="mt-1.5 max-w-xs text-sm text-white/60">
+                {lockedRemaining
+                  ? `Үлдсэн ${lockedRemaining} ангийг үзэхийн тулд багц авна уу.`
+                  : 'Үргэлжлүүлэхийн тулд багц авна уу.'}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={onNextLocked}
+                className="rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98]"
+              >
+                Багц авах
+              </button>
+              {/* ⚠️ Хаах боломж ЗААВАЛ — хэрэглэгчийг гацаахгүй
+                  (титр үзэх, буцах товч дарах эрх нь үлдэнэ) */}
+              <button
+                type="button"
+                onClick={() => setShowLocked(false)}
+                className="rounded-lg border border-white/25 px-6 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10"
+              >
+                Хаах
               </button>
             </div>
           </div>
