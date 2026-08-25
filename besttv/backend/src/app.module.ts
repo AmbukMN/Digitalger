@@ -19,6 +19,7 @@ import { StreamModule } from './modules/stream/stream.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ErrorsModule } from './modules/errors/errors.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TmdbModule } from './modules/tmdb/tmdb.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
@@ -133,6 +134,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     UploadsModule,
     PlansModule,
     PaymentsModule,
+    /* ⚠️ Алдааны бүртгэл — production дээр юу эвдэрснийг хайхад */
+    ErrorsModule,
     TmdbModule,
     ReviewsModule,
     UsersModule,

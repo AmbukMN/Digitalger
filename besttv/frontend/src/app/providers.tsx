@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { installErrorReporter } from '@/lib/report-error';
 import { SessionProvider, signOut as nextAuthSignOut } from 'next-auth/react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ThemeProvider, useTheme } from 'next-themes';
@@ -207,6 +208,15 @@ export function Providers({
   children: React.ReactNode;
   initialBrand?: BrandSettings | null;
 }) {
+  /**
+   * ⚠️ Баригдаагүй алдаа + promise rejection-ыг СЕРВЕРТ мэдээлнэ.
+   * Эс бөгөөс browser талын алдаа хаана ч үлдэхгүй, «зарим
+   * хэрэглэгч үзэж чадахгүй» гомдлыг хайх арга байхгүй.
+   */
+  useEffect(() => {
+    installErrorReporter();
+  }, []);
+
   const [client] = useState(() => {
     const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 60_000 } } });
     /* ⚠️ `useBrand`-ийн queryKey-тэй ЯГ ТААРАХ ёстой — эс бөгөөс

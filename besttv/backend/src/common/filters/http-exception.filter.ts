@@ -5,13 +5,25 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
+import { ErrorsService } from '../../modules/errors/errors.module';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
+
+  /**
+   * ⚠️⚠️ `@Optional()` ЗААВАЛ. Энэ шүүлтүүр нь `main.ts`-д ГАРААР
+   * үүсгэгддэг (`new HttpExceptionFilter()`) бөгөөс тэнд DI байхгүй.
+   * Заавал шаардвал сервер ОГТ АСАХГҮЙ болно.
+   *
+   * Байвал 500 алдааг DB-д ч хадгална → админ `/errors` хуудсанд
+   * browser болон серверийн алдаа НЭГ дор харагдана.
+   */
+  constructor(@Optional() private readonly errors?: ErrorsService) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -61,6 +73,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }),
         stackHead,
       );
+
+      /**
+       * ⚠️ DB-д ч хадгална — docker лог нь эргэлддэг (rotate) бөгөөс
+       * хайхад бэрх. ⚠️ `void` + `catch` — лог бичих үйлдэл ХЭЗЭЭ Ч
+       * хариу буцаахад саад болох ёсгүй.
+       */
+      void this.errors
+        ?.record({
+          source: 'server',
+          message: Array.isArray(message) ? message.join('; ') : String(message),
+          stack: errStack ?? null,
+          path: request.url,
+          userAgent: request.headers['user-agent'] ?? null,
+          meta: { status, requestId, method: request.method, ip: request.ip },
+        })
+        .catch(() => {
+          /* аль хэдийн дотроо барьдаг — энэ нь нэмэлт хамгаалалт */
+        });
     }
 
     response.status(status).json({

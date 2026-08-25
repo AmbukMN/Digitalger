@@ -10,6 +10,7 @@ import express from 'express';
 import path from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ErrorsService } from './modules/errors/errors.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -92,7 +93,19 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  /**
+   * ⚠️ `app.get(...)`-аар ErrorsService-ыг ДАМЖУУЛНА — тэгснээр 500
+   * алдаа DB-д ч хадгалагдаж, админ `/errors` хуудсанд харагдана.
+   * ⚠️ `{ strict: false }` + try/catch: модуль байхгүй ч сервер асна
+   *    (алдаа бүртгэл нь НЭМЭЛТ, зайлшгүй биш).
+   */
+  let errorsSvc: ErrorsService | undefined;
+  try {
+    errorsSvc = app.get(ErrorsService, { strict: false });
+  } catch {
+    /* ErrorsModule ачаалагдаагүй — лог зөвхөн stdout руу явна */
+  }
+  app.useGlobalFilters(new HttpExceptionFilter(errorsSvc));
 
   await app.listen(port);
   const role = cluster.isWorker

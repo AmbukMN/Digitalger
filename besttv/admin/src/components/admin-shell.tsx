@@ -4,8 +4,32 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  AlertTriangle,
+  Building2,
+  CalendarClock,
+  Clapperboard,
+  CreditCard,
+  FileText,
+  GalleryHorizontalEnd,
   Gift,
-  Building2, CalendarClock, Clapperboard, CreditCard, FileText, GalleryHorizontalEnd, HelpCircle, Instagram, LayoutDashboard, LineChart, LogOut, Mail, Menu, MessageSquare, MessagesSquare, Palette, ScrollText, Search, Tags, Ticket, Users, Wallet, X } from 'lucide-react';
+  HelpCircle,
+  Instagram,
+  LayoutDashboard,
+  LineChart,
+  LogOut,
+  Mail,
+  Menu,
+  MessageSquare,
+  MessagesSquare,
+  Palette,
+  ScrollText,
+  Search,
+  Tags,
+  Ticket,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
@@ -70,6 +94,9 @@ const NAV_GROUPS = [
     items: [
       { href: '/brand', label: 'Тохиргоо', icon: Palette },
       { href: '/seo', label: 'SEO', icon: Search },
+      /* ⚠️ Алдааны бүртгэл — «зарим хэрэглэгч үзэж чадахгүй» гэх
+         гомдлыг ХАЙЖ олох цорын ганц хэрэгсэл */
+      { href: '/errors', label: 'Алдаа', icon: AlertTriangle },
     ],
   },
 ];

@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { RotateCcw } from 'lucide-react';
+import { reportError } from '@/lib/report-error';
 
 export default function GlobalError({
   error,
@@ -13,6 +14,12 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
+    /* ⚠️ Серверт МЭДЭЭЛНЭ — эс бөгөөс энэ алдаа хаана ч үлдэхгүй,
+       «зарим хэрэглэгч үзэж чадахгүй» гомдлыг хайх арга байхгүй */
+    reportError(error.message || 'React render error', {
+      stack: error.stack,
+      meta: { kind: 'react-error-boundary', digest: error.digest },
+    });
   }, [error]);
 
   return (

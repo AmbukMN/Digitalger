@@ -141,6 +141,8 @@ model User {
   payments      Payment[]
   /// Хадгалсан картууд (Bonum токен — картын дугаар БИШ)
   savedCards    SavedCard[]
+  /// Алдааны бүртгэл (техникийн контекст)
+  errorLogs     ErrorLog[]
   watchProgress WatchProgress[]
   myList        MyListItem[]
   reviews       Review[]
@@ -2009,4 +2011,46 @@ model Subtitle {
   @@unique([episodeId, lang])
   @@index([titleId])
   @@index([episodeId])
+}
+
+/// АЛДААНЫ БҮРТГЭЛ — production дээр юу эвдэрснийг ХАЙЖ олоход.
+///
+/// ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: өмнө нь алдаа зөвхөн docker лог руу бичигдэж,
+/// хэрэглэгчийн browser-т гарсан алдаа ОГТ баригддаггүй байв. Улмаас
+/// «зарим хэрэглэгч үзэж чадахгүй байна» гэсэн гомдол ирэхэд ЯМАР
+/// алдаа, ХЭДЭН хүнд, ЯМАР төхөөрөмж дээр гарсныг мэдэх арга байгаагүй.
+///
+/// ⚠️ Хувийн мэдээлэл ХАДГАЛАХГҮЙ — зөвхөн техникийн контекст.
+model ErrorLog {
+  id String @id @default(cuid())
+
+  /// 'client' (browser) | 'server' (backend)
+  source String
+
+  /// Алдааны товч нэр — ижил алдааг бүлэглэхэд
+  message String
+
+  /// Дэлгэрэнгүй (stack, дээд 4000 тэмдэгт)
+  stack String?
+
+  /// Хаана гарсан — зам эсвэл endpoint
+  path String?
+
+  /// Хэн (нэвтэрсэн бол). ⚠️ SetNull — хэрэглэгч устгахад лог үлдэнэ
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Browser/төхөөрөмж — «зөвхөн iPhone дээр» гэх зүй тогтол олоход
+  userAgent String?
+
+  /// Нэмэлт контекст (JSON) — status, requestId г.м
+  meta Json?
+
+  createdAt DateTime @default(now())
+
+  /// Админ жагсаалт: шинэ нь эхэнд
+  @@index([createdAt])
+  /// «Ямар алдаа хамгийн олон удаа гарсан» бүлэглэлт
+  @@index([source, createdAt])
+  @@index([userId])
 }

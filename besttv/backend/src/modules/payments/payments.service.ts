@@ -530,6 +530,46 @@ export class PaymentsService {
    * анонимчлол, алдаа боловсруулалт ХУУЛБАРЛАГДАХ байсан. Нэг газарт
    * байвал QPay-ийн дүрэм өөрчлөгдөхөд нэг л газар засна.
    */
+  /**
+   * QPay руу хүсэлт илгээх — СҮЛЖЭЭНИЙ алдаанд дахин оролдоно.
+   *
+   * ⚠️⚠️ БОДИТ ОСОЛ (2026-08-25): iPhone хэрэглэгч багц авах гэж 2 удаа
+   * дарахад хоёуланд нь `fetch failed` (undici) гарч 500 буцсан — QPay
+   * сервер рүү холбогдож чадаагүй. Өмнө нь ЗӨВХӨН 401/403 дээр дахин
+   * оролддог байсан тул сүлжээ хормын төдий саатахад хэрэглэгч шууд
+   * «нэхэмжлэл үүсгэж чадсангүй» гэж хардаг байв.
+   *
+   * ⚠️ ЗӨВХӨН СҮЛЖЭЭНИЙ алдаанд дахина. HTTP хариу ирсэн бол (4xx/5xx)
+   *    дахин оролдохгүй — QPay тал санаатай татгалзсан байж болно.
+   * ⚠️ 3 оролдлого хангалттай: илүү бол хэрэглэгч хэт удаан хүлээнэ
+   *    (timeout 15с тул хамгийн муудаа ~46с).
+   */
+  private async qpayFetchWithRetry(
+    call: (token: string) => Promise<Response>,
+    what: string,
+  ): Promise<Response> {
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await call(await this.getQPayToken());
+      } catch (e) {
+        lastErr = e;
+        this.logger.warn(`QPay ${what} сүлжээний алдаа (${attempt}/3): ${String(e)}`);
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, attempt * 600));
+          /* Токен ч хүчингүй байж болзошгүй — цэвэрлэж дахин авна */
+          this.tokenCache = null;
+        }
+      }
+    }
+    this.logger.error(`QPay ${what} 3 удаа амжилтгүй: ${String(lastErr)}`);
+    /* ⚠️ 500 БИШ 400 — манай алдаа биш, QPay-ийн түр боломжгүй байдал.
+       Хэрэглэгчид юу хийхийг нь хэлсэн ойлгомжтой мессеж. */
+    throw new BadRequestException(
+      'Төлбөрийн систем түр холбогдохгүй байна. Хэсэг хүлээгээд дахин оролдоно уу.',
+    );
+  }
+
   private async createQPayInvoice(userId: string, amount: number): Promise<QPayInvoiceResponse> {
     const qpay = this.config.get('qpay');
     /**
@@ -570,7 +610,7 @@ export class PaymentsService {
         signal: AbortSignal.timeout(15_000),
       });
 
-    let response = await callInvoice(await this.getQPayToken());
+    let response = await this.qpayFetchWithRetry(callInvoice, 'invoice');
     if (response.status === 401 || response.status === 403) {
       this.tokenCache = null;
       response = await callInvoice(await this.getQPayToken());
@@ -1666,7 +1706,7 @@ export class PaymentsService {
         signal: AbortSignal.timeout(15_000),
       });
 
-    let response = await callInvoice(await this.getQPayToken());
+    let response = await this.qpayFetchWithRetry(callInvoice, 'invoice');
     if (response.status === 401 || response.status === 403) {
       this.tokenCache = null;
       response = await callInvoice(await this.getQPayToken());
