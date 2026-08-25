@@ -25,7 +25,7 @@ import {
   useAdminTitles,
   type TitleFilters,
 } from '@/lib/queries';
-import { genreName } from '@/lib/genre';
+import { genreId, genreName, genreStyle } from '@/lib/genre';
 
 const STATUS_LABEL: Record<string, string> = {
   NONE: 'Видео ороогүй',
@@ -177,16 +177,9 @@ export default function MoviesPage() {
           activeTab={f.type}
           onTab={(id) => set({ type: id })}
           selects={[
-            {
-              id: 'genre',
-              label: 'Жанр',
-              value: f.genre ?? 'ALL',
-              options: [
-                { value: 'ALL', label: 'Бүх жанр' },
-                ...(genres ?? []).map((g) => ({ value: g.id, label: g.name })),
-              ],
-              onChange: (v) => set({ genre: v }),
-            },
+            /* ⚠️ Жанрын шүүлт нь ЦЭСЭЭС ХАСАГДСАН — доор ИЛ товчоор
+               гарна (админ нуугдсан шүүлтийг олдоггүй байв). Давхар
+               байрлуулбал хоёр газраас өөр утга харуулах эрсдэлтэй. */
             {
               id: 'status',
               label: 'Видеоны төлөв',
@@ -238,6 +231,56 @@ export default function MoviesPage() {
             </button>
           }
         />
+
+        {/**
+          * ⚠️⚠️ ЖАНРЫН ИЛ ШҮҮЛТ — цэс дотор НУУГДАХГҮЙ.
+          *
+          * БОДИТ ГОМДОЛ: «жанруудыг ил гарга, тэгэхгүй бол бүгд
+          * холилдоод байна». Жанрын шүүлт нь «Шүүлт» товч дотор
+          * нуугдсан байсан тул админ БАЙГААГ нь ч мэдэхгүй байв.
+          *
+          * ⚠️ Ердөө 4 жанр тул dropdown илүүц — товчоор шууд харуулна.
+          *    Жанр 10+ болвол scroll хийгдэнэ (`overflow-x-auto`).
+          * ⚠️ Тоолол нь тухайн жанрын НИЙТ кино (шүүлтээс хамаарахгүй)
+          *    — админ «энэ жанрт хэдэн кино байна» гэдгийг шууд мэднэ.
+          */}
+        {!!genres?.length && (
+          <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+            <span className="shrink-0 text-xs font-medium text-muted-foreground">Жанр:</span>
+            <button
+              type="button"
+              onClick={() => set({ genre: 'ALL' })}
+              className={cn(
+                'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                (f.genre ?? 'ALL') === 'ALL'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10',
+              )}
+            >
+              Бүх жанр
+            </button>
+            {genres.map((g) => {
+              const on = f.genre === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => set({ genre: on ? 'ALL' : g.id })}
+                  className={cn(
+                    'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                    /* ⚠️ Сонгогдсон үед ТОД — жанрынхаа өнгөөр */
+                    on ? genreStyle(g.name) + ' ring-1 ring-current' : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10',
+                  )}
+                >
+                  {g.name}
+                  {g._count?.titles != null && (
+                    <span className="ml-1.5 opacity-60">{g._count.titles}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ⚠️ Сонголттой үед л гарна — бөөн үйлдэл (нийтлэх/нуух/устгах г.м.) */}
         <BulkBar
@@ -385,8 +428,41 @@ export default function MoviesPage() {
                       {t.language === 'SUB' ? 'Хадмал' : 'Монгол хэл'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {t.genres.map(genreName).filter(Boolean).join(', ') || '—'}
+                  <td className="px-4 py-3">
+                    {/**
+                      * ⚠️⚠️ ЖАНР — BADGE, таслалтай текст БИШ.
+                      *
+                      * БОДИТ ГОМДОЛ: «бүгд холилдоод байна» — саарал
+                      * текст нь олон жанртай киног ялгах боломжгүй
+                      * болгодог байв. Өнгө нь нэг харцаар ялгана.
+                      *
+                      * ⚠️ Дарахад ТЭР ЖАНРААР шүүнэ — админ хүснэгт
+                      *    дотроос шууд нарийсгана (шүүлт цэс нээхгүй).
+                      */}
+                    <span className="flex flex-wrap gap-1">
+                      {t.genres.map(genreName).filter(Boolean).length === 0 && (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                      {t.genres.map((g) => {
+                        const name = genreName(g);
+                        const id = genreId(g);
+                        if (!name) return null;
+                        return (
+                          <button
+                            key={id || name}
+                            type="button"
+                            onClick={() => set({ genre: id })}
+                            title={`«${name}» жанраар шүүх`}
+                            className={cn(
+                              'rounded px-1.5 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-75',
+                              genreStyle(name),
+                            )}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span
