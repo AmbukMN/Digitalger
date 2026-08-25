@@ -80,7 +80,7 @@ const CHIP = 'flex h-7 items-center justify-center rounded px-1.5';
  *    бусад код (урсгал, backend, лого, авто сунгалт) БҮРЭН бэлэн.
  *    Жишээ: карт нээгдвэл `'card'`-ыг ав.
  */
-const TEMP_DISABLED: PayMethod[] = ['card', 'wechat'];
+export const TEMP_DISABLED: PayMethod[] = ['card', 'wechat'];
 const DISABLED_HINT = 'Энэ төлбөрийн хэрэгсэл түр идэвхгүй байна';
 
 export function PaymentMethodSheet({
