@@ -70,14 +70,14 @@ export interface PaymentSheetProps {
 const CHIP = 'flex h-7 items-center justify-center rounded px-1.5';
 
 /**
- * ⚠️⚠️ ТҮР ИДЭВХГҮЙ ТӨЛБӨРИЙН АРГУУД.
+ * ⚠️⚠️ ТҮР ИДЭВХГҮЙ ТӨЛБӨРИЙН АРГУУД — ОГТ ХАРУУЛАХГҮЙ.
  *
- * Эрх нь хараахан аваагүй тул сонгуулахгүй. ГЭХДЭЭ НУУХГҮЙ — хэрэглэгч
- * ирээдүйд ямар арга нэмэгдэхийг харж, «энэ сайт картаар ажилладаг юм
- * байна» гэдгийг мэдэж байх нь итгэл төрүүлнэ.
+ * Bonum-ын эрх хараахан аваагүй. Эхэндээ «харагдана, гэхдээ дарж
+ * болохгүй» байдлаар үлдээсэн боловч хэрэглэгч тэр аргыг дарж үзээд
+ * «яагаад ажиллахгүй байна» гэж эргэлзэх тул БҮРМӨСӨН НУУВ.
  *
  * ⚠️ ИДЭВХЖҮҮЛЭХ: энэ жагсаалтаас түлхүүрийг нь ХАСахад л хангалттай —
- *    бусад код (урсгал, backend) БҮРЭН бэлэн, өөрчлөх шаардлагагүй.
+ *    бусад код (урсгал, backend, лого, авто сунгалт) БҮРЭН бэлэн.
  *    Жишээ: карт нээгдвэл `'card'`-ыг ав.
  */
 const TEMP_DISABLED: PayMethod[] = ['card', 'wechat'];
@@ -200,8 +200,8 @@ export function PaymentMethodSheet({
           </span>
         </span>
       ),
-      show: cardEnabled,
-      disabled: TEMP_DISABLED.includes('card'),
+      /* ⚠️ ТҮР ИДЭВХГҮЙ бол ОГТ ХАРУУЛАХГҮЙ (доорх тайлбар үз) */
+      show: cardEnabled && !TEMP_DISABLED.includes('card'),
     },
     /**
      * ⚠️⚠️ Apple Pay / Google Pay — Bonum дээр ХАРААХАН ИДЭВХЖЭЭГҮЙ
@@ -228,14 +228,15 @@ export function PaymentMethodSheet({
       hint: 'Гадаад зочдод',
       /* ⚠️ Лого ДӨРВӨЛЖИН (240×240) — өмнөх `w-11` сунгасан харьцаа буруу */
       mark: <WeChatPayMark className="size-7 rounded-md object-contain" />,
-      show: cardEnabled,
-      disabled: TEMP_DISABLED.includes('wechat'),
+      /* ⚠️ ТҮР ИДЭВХГҮЙ бол ОГТ ХАРУУЛАХГҮЙ (доорх тайлбар үз) */
+      show: cardEnabled && !TEMP_DISABLED.includes('wechat'),
     },
     {
       id: 'bank',
       title: 'Дансаар шилжүүлэх',
       hint: 'Баримт хавсаргана',
-      mark: <Building2 size={17} className="text-foreground/70" />,
+      /* ⚠️ Өнгөт — dark/light хоёуланд уншигдах хос өнгө (дэвсгэр нь доор) */
+      mark: <Building2 size={18} className="text-sky-600 dark:text-sky-300" />,
       show: bankEnabled && kind !== 'topup',
     },
     {
@@ -247,7 +248,8 @@ export function PaymentMethodSheet({
         : walletBalance > 0
           ? `Үлдэгдэл хүрэлцэхгүй (${formatPrice(walletBalance)})`
           : 'Үлдэгдэл 0₮ — эхлээд цэнэглэнэ үү',
-      mark: <Wallet size={17} className="text-foreground/70" />,
+      /* ⚠️ Өнгөт — dark/light хоёуланд уншигдах хос өнгө (дэвсгэр нь доор) */
+      mark: <Wallet size={18} className="text-amber-600 dark:text-amber-300" />,
       show: canWallet,
       /**
        * ⚠️⚠️ ҮЛДЭГДЭЛ ХҮРЭХГҮЙ ч мөр ИДЭВХТЭЙ.
@@ -346,13 +348,26 @@ export function PaymentMethodSheet({
                           'flex h-8 w-11 shrink-0 items-center justify-center rounded-md',
                           r.id === 'applepay'
                             ? 'bg-black ring-1 ring-white/15'
-                            : r.id === 'bank' || r.id === 'wallet'
-                              ? 'bg-foreground/8'
-                              : /* ⚠️ WeChat лого өөрөө ногоон дэвсгэртэй —
-                                   цагаан chip дотор тавибал хүрээ мэт харагдана */
-                                r.id === 'wechat'
-                                ? 'bg-transparent'
-                                : 'bg-white ring-1 ring-black/10',
+                            : /**
+                               * ⚠️ Данс/Хэтэвч — ӨНГӨТЭЙ дэвсгэр.
+                               * Саарал (`bg-foreground/8`) байсан нь QPay/картын
+                               * өнгөт логонуудын дэргэд «идэвхгүй» мэт харагддаг
+                               * байв. Одоо утга санааны өнгө: банк=цэнхэр,
+                               * хэтэвч=алтан (брэндийн secondary).
+                               *
+                               * ⚠️ DARK/LIGHT: тунгалаг байдлаар (`/12`, `/18`)
+                               *    өгсөн тул хоёр сэдэвт ч дэвсгэртэйгээ зохицоно
+                               *    — хатуу HEX бол нэг сэдэвт уусна.
+                               */
+                              r.id === 'bank'
+                              ? 'bg-sky-500/12 ring-1 ring-sky-500/25 dark:bg-sky-400/18 dark:ring-sky-400/30'
+                              : r.id === 'wallet'
+                                ? 'bg-amber-500/12 ring-1 ring-amber-500/25 dark:bg-amber-400/18 dark:ring-amber-400/30'
+                                : /* ⚠️ WeChat лого өөрөө ногоон дэвсгэртэй —
+                                     цагаан chip дотор тавибал хүрээ мэт харагдана */
+                                  r.id === 'wechat'
+                                  ? 'bg-transparent'
+                                  : 'bg-white ring-1 ring-black/10',
                         )}
                       >
                         {r.mark}
