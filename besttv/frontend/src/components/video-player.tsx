@@ -532,6 +532,24 @@ export function VideoPlayer({
    */
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+
+  /**
+   * ⚠️⚠️ БОГИНО АНГИ — ТООЛУУРГҮЙ, ШУУД ДАРААГИЙНХ.
+   *
+   * Богино драм (C-drama) нь 2-5 минутын ангитай, 27+ ангитай байдаг.
+   * Анги бүрийн төгсгөлд 10 секунд хүлээх нь нийт 4.5 МИНУТ дэмий
+   * хүлээлт үүсгэж, үзэлтийн урсгалыг тасалдаг.
+   *
+   * ⚠️ 20 МИНУТ гэсэн босго — энгийн 40-60 мин цуврал нь ХЭВЭЭР
+   *    тоолууртай (титр үзэх зав, унтчихсан хүн зогсоох боломж).
+   *
+   * ⚠️ ЭРСДЭЛ: унтсан хэрэглэгч 27 ангийг дараалан үзэж болно
+   *    (~1.5 цаг). Энэ нь ЗОРИУДЫН шийдвэр — богино драмын
+   *    үзэлтийн туршлагыг чухалчилсан.
+   */
+  const SHORT_EPISODE_SEC = 20 * 60;
+  /** Тухайн ангийн үргэлжлэх хугацаа — `onEnded` үед шийдвэрлэхэд */
+  const durationRef = useRef(0);
   /** ⚠️ Хэрэглэгч «Болих» дарсан бол энэ ангид дахин санал болгохгүй */
   const nextCancelled = useRef(false);
   /** ⚠️ Дараагийн анги руу НЭГ Л УДАА шилжинэ (давхар дуудлагаас) */
@@ -588,9 +606,17 @@ export function VideoPlayer({
       setShowSkipIntro(t >= introStartSec && t < introEndSec);
     }
 
-    /* ─ Титрийн үед дараагийн ангийг ЭРТ санал болгоно ─ */
+    /**
+     * ─ Титрийн үед дараагийн ангийг ЭРТ санал болгоно ─
+     *
+     * ⚠️ БОГИНО АНГИД ОРУУЛАХГҮЙ (<20 мин): тэнд `onEnded` дээр
+     *    ШУУД шилждэг тул тоолуур гарвал зөрчилдөнө — хэрэглэгч
+     *    «10, 9, 8…» гэж хараад гэнэт үсэрнэ.
+     */
+    const isShort = durationRef.current > 0 && durationRef.current < SHORT_EPISODE_SEC;
     if (
       onNext &&
+      !isShort &&
       !nextCancelled.current &&
       nextCountdown === null &&
       outroStartSec != null &&
@@ -602,6 +628,8 @@ export function VideoPlayer({
     if (!onProgress) return;
     if (t > 0 && Math.abs(t - lastSaved.current) >= 5) {
       lastSaved.current = t;
+      /* ⚠️ Богино анги эсэхийг `onEnded`-д мэдэхэд хэрэгтэй */
+      durationRef.current = p.duration || 0;
       onProgress(t, p.duration || 0);
     }
   }, [onProgress, introStartSec, introEndSec, onNext, outroStartSec, nextCountdown]);
@@ -754,6 +782,17 @@ export function VideoPlayer({
              (шинэ ангийн дата ирэх зуур хуучин player `ended`
              эвентийг дахин илгээж болзошгүй). */
           if (onNext && !nextCancelled.current && !nextFired.current) {
+            /**
+             * ⚠️ БОГИНО АНГИ (<20 мин) — тоолуургүй ШУУД шилжинэ
+             *    (`SHORT_EPISODE_SEC` тайлбар үз).
+             * ⚠️ `duration` мэдэгдээгүй (0) бол ХУУЧИН зан төлөв —
+             *    таамаглаж шууд үсрэхгүй.
+             */
+            const dur = durationRef.current || playerRef.current?.duration || 0;
+            if (dur > 0 && dur < SHORT_EPISODE_SEC) {
+              goNext();
+              return;
+            }
             setNextCountdown((n) => (n === null ? 10 : n));
             return;
           }
