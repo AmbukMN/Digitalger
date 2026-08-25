@@ -18,6 +18,7 @@ import {
   defaultLayoutIcons,
 } from '@vidstack/react/player/layouts/default';
 import { getAccessToken } from '@/lib/api';
+import { useAuth } from '@/lib/auth-store';
 import { PlayerMenu } from '@/components/player/player-menu';
 
 import '@vidstack/react/player/styles/default/theme.css';
@@ -92,6 +93,37 @@ export function VideoPlayer({
   /** Хамгийн сүүлд хадгалсан байрлал — давхардсан бичилтээс сэргийлнэ */
   const lastSaved = useRef(0);
   const [ready, setReady] = useState(false);
+
+  /**
+   * ⚠️⚠️ ТОКЕН БЭЛЭН БОЛТОЛ ПЛЕЕР ЭХЛҮҮЛЭХГҮЙ — 403-ЫН ЗАСВАР.
+   *
+   * БОДИТ АЛДАА (2026-08-25, nginx логоор батлагдсан): `playlist.m3u8`
+   * дээр 403 ба 200 нь ЯГ ТЭНЦҮҮ тоогоор (11/11) бүртгэгдсэн бөгөөд
+   * цагаар нь харахад ХОСООРОО гардаг байв:
+   *     07:21:32 403  ← токенгүй хүсэлт
+   *     07:21:32 200  ← 1 секундын дараа дахин оролдоод амжсан
+   * Ес удаа дараалан давтагдсан.
+   *
+   * ШАЛТГААН: `xhrSetup` нь `getAccessToken()`-ыг ТУХАЙН АГШИНД уншина.
+   * Плеер `authLoading` дуусахаас өмнө эхэлбэл токен `null` тул
+   * `Authorization` header ЯВАХГҮЙ → backend 403. `hls.js` нь
+   * `playlistLoadPolicy.errorRetry`-ээр 1 сек дараа дахин оролдож
+   * амжилттай болдог тул ИХЭНХДЭЭ ажилладаг мэт харагдана.
+   *
+   * ⚠️ ГЭХДЭЭ: сүлжээ удаан / retry барагдвал хэрэглэгч «үзэж
+   *    болохгүй байна» гэж гомдоллоно (бодит гомдол ирсэн). Мөн
+   *    эхлэх хугацаа дэмий 1 секунд уртасна.
+   *
+   * ⚠️ ЗОЧИНД ХҮЛЭЭЛГЭХГҮЙ: `loading` дуусмагц (нэвтрээгүй нь
+   *    тодорхой болмогц) шууд эхэлнэ — үнэгүй кино/трейлер саатахгүй.
+   */
+  const authLoading = useAuth((s) => s.loading);
+  /**
+   * ⚠️ `/api/`-гүй эх сурвалж (гадаад URL, blob) нь эрх шаарддаггүй
+   *    тул auth хүлээх шаардлагагүй.
+   */
+  const needsAuth = src.includes('/api/');
+  const srcReady = !needsAuth || !authLoading;
   /**
    * ⚠️⚠️ УДИРДЛАГА ХАРАГДАЖ БАЙГАА ЭСЭХ — буцах товчийг дагуулна.
    *
@@ -166,6 +198,8 @@ export function VideoPlayer({
      * үүсгэдэггүй (`video-hls.service.ts` тайлбар).
      */
     if (!src.includes('/movie/') && !src.includes('/episode/')) return;
+    /* ⚠️ Токен ачаалагдтал хүлээнэ — эс бөгөөс 403 (дээрх тайлбар) */
+    if (!srcReady) return;
     const url = src.replace('/playlist.m3u8', '/thumbnails.vtt');
     let cancelled = false;
 
@@ -221,7 +255,7 @@ export function VideoPlayer({
     return () => {
       cancelled = true;
     };
-  }, [src]);
+  }, [src, srcReady]);
 
   /**
    * ХАДМАЛ — ТОКЕНТОЙ ТАТАЖ blob болгоно.
@@ -245,6 +279,8 @@ export function VideoPlayer({
       setSubtitleTracks([]);
       return;
     }
+    /* ⚠️ Токен ачаалагдтал хүлээнэ — эс бөгөөс хадмал ЧИМЭЭГҮЙ гарахгүй */
+    if (!srcReady) return;
     let cancelled = false;
     const created: string[] = [];
 
@@ -277,7 +313,7 @@ export function VideoPlayer({
       /* ⚠️ blob-ыг ЗААВАЛ чөлөөлнө — эс бөгөөс санах ой алдагдана */
       created.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [subtitles]);
+  }, [subtitles, srcReady]);
 
   /**
    * ⚠️⚠️ ЧАНАР + ХУРД — өөрсдийн цэс хянадаг тул төлвийг энд барина.
@@ -612,7 +648,13 @@ export function VideoPlayer({
     <div className="relative w-full bg-black" data-first-load={!ready ? '' : undefined}>
       <MediaPlayer
         ref={playerRef}
-        src={{ src, type: 'application/x-mpegurl' }}
+        /**
+         * ⚠️⚠️ Токен бэлэн болтол ЭХ СУРВАЛЖ ӨГӨХГҮЙ (дээрх тайлбар).
+         * Хоосон массив = «эх сурвалж хараахан алга» — Vidstack хүлээнэ,
+         * постер харагдсаар байна. `authLoading` дуусмагц (ихэвчлэн
+         * 100мс дотор) жинхэнэ src орж, ЭХНИЙ хүсэлт токентой явна.
+         */
+        src={srcReady ? { src, type: 'application/x-mpegurl' } : []}
         /* ⚠️ `viewType="video"` — Vidstack эх сурвалжийг таних гэж хүлээхгүй,
            video удирдлагыг ШУУД харуулна (эхний агшинд аудио скин гарахгүй) */
         viewType="video"
