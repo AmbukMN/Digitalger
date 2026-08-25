@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { fillSeo } from './title-seo.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { slugify } from '../../common/slugify';
@@ -390,9 +391,22 @@ export class TitlesAdminService {
     const { genreIds, cast, slug: rawSlug, ...data } = dto;
     const slug = await this.makeUniqueSlug(rawSlug?.trim() || dto.title);
 
+    /**
+     * ⚠️⚠️ SEO-г ХООСОН орхихгүй — `title-seo.helper.ts` тайлбар үз.
+     *
+     * Өмнө нь энэ логик ЗӨВХӨН админ панелийн client талд байсан тул
+     * API-аар үүсгэсэн кино SEO-ГҮЙ үлддэг байв (бодит алдаа).
+     */
+    const seo = fillSeo(data, {
+      title: dto.title,
+      year: dto.year,
+      description: dto.description,
+    });
+
     return this.prisma.title.create({
       data: {
         ...data,
+        ...seo,
         slug,
         ...(cast ? { cast: cast as unknown as Prisma.InputJsonValue } : {}),
         ...(genreIds?.length
@@ -423,6 +437,26 @@ export class TitlesAdminService {
         ? { slug: await this.makeUniqueSlug(rawSlug, id) }
         : {};
 
+    /**
+     * ⚠️⚠️ SEO ХООСОН бол нөхнө — `title-seo.helper.ts` тайлбар үз.
+     *
+     * ⚠️ Утгатай байвал ХЭЗЭЭ Ч дарж бичихгүй: админ гараар
+     *    тохируулсан SEO нь автоматаас илүү үнэ цэнэтэй.
+     * ⚠️ Эх сурвалж нь ШИНЭЧЛЭГДСЭН утга — гарчиг/он/тайлбар
+     *    өөрчлөгдөж байвал шинээр нь ашиглана (`?? existing`).
+     */
+    const seo = fillSeo(
+      {
+        metaTitle: data.metaTitle ?? existing.metaTitle,
+        metaDescription: data.metaDescription ?? existing.metaDescription,
+      },
+      {
+        title: data.title ?? existing.title,
+        year: data.year ?? existing.year,
+        description: data.description ?? existing.description,
+      },
+    );
+
     return this.prisma.$transaction(async (tx) => {
       if (genreIds) {
         await tx.titleGenre.deleteMany({ where: { titleId: id } });
@@ -430,7 +464,10 @@ export class TitlesAdminService {
           data: genreIds.map((genreId, i) => ({ titleId: id, genreId, order: i })),
         });
       }
-      return tx.title.update({ where: { id }, data: { ...data, ...castData, ...slugData } });
+      return tx.title.update({
+        where: { id },
+        data: { ...data, ...seo, ...castData, ...slugData },
+      });
     });
   }
 
