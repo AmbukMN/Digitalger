@@ -37,6 +37,12 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
   const qc = useQueryClient();
   const { user } = useAuth();
   const inList = useMyListStore((s) => s.has(title.id));
+  /**
+   * ⚠️ Цуврал мөн үү — «N анги» badge гарах эсэхийг ЭНД нэг л удаа
+   *    шийднэ. Badge ба ♥ товчны байрлал ХОЁУЛАА үүнээс хамаарна
+   *    (тус тусад нь бичвэл нэгийг засахад нөгөө нь зөрж давхцана).
+   */
+  const hasEpisodes = typeof title.episodeCount === 'number' && title.episodeCount > 1;
   const toggleMyList = useMyListStore((s) => s.toggle);
 
   const addToList = async (e: React.MouseEvent) => {
@@ -245,13 +251,15 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
           * ⚠️ Нэг ангит кинонд ОГТ ГАРАХГҮЙ — backend `episodeCount`-ыг
           *    зөвхөн 2+ ангид буцаана («1 анги» нь утгагүй).
           *
-          * ⚠️⚠️ БАЙРЛАЛ: мобайлд баруун доод буланд ♥ товч (36px) сууна.
-          *    Тиймээс `right-11` (2.75rem) — түүний ЗҮҮН талд. Десктопт
-          *    ♥ нь hover overlay дотор тул зай хоосон боловч ижил
-          *    байрлалд үлдээв (хоёр төрөлд НЭГ л харагдац).
+          * ⚠️⚠️ БАЙРЛАЛ — БАРУУН ДООД БУЛАН, «Хэл» badge шиг ирмэгт.
+          *
+          *    Десктопт булан сул (♥ нь hover overlay дотор).
+          *    Мобайлд ♥ товч тэнд сууна — тиймээс ЦУВРАЛ дээр ♥-ийг
+          *    ДЭЭШ (`bottom-10`) зөөнө. Нэг ангит кинонд энэ badge
+          *    гарахгүй тул ♥ хэвээрээ буланд үлдэнэ (доорх нөхцөл).
           */}
-        {typeof title.episodeCount === 'number' && title.episodeCount > 1 && (
-          <span className="absolute bottom-1.5 right-11 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm">
+        {hasEpisodes && (
+          <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm">
             {title.episodeCount} анги
           </span>
         )}
@@ -291,7 +299,14 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
                  биш HOVER боломжтой эсэхээр нуугдана (globals.css).
                  Эс бөгөөс жижиг цонхтой десктопт overlay-гийн ♥-тэй
                  ЗЭРЭГ гарч давхардана. */
-              'fav-touch-only absolute bottom-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors',
+              'fav-touch-only absolute right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors',
+              /**
+               * ⚠️ ЦУВРАЛ дээр «N анги» badge нь буланг эзэлнэ —
+               *    ♥-ийг түүний ДЭЭШ зөөнө (`bottom-10` = 2.5rem).
+               * ⚠️ Нэг ангит кинонд badge ГАРАХГҮЙ тул ♥ буланд
+               *    хэвээрээ (`bottom-1.5`) — сул зайг дэмий орхихгүй.
+               */
+              hasEpisodes ? 'bottom-10' : 'bottom-1.5',
               inList ? 'bg-primary text-white' : 'bg-black/45 text-white',
             )}
           >
