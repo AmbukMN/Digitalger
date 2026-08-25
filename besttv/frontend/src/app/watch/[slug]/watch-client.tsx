@@ -578,18 +578,37 @@ export function WatchClient({ slug }: { slug: string }) {
               )}
             </div>
 
-            {nextEpisode?.playable && (
-              /* ⚠️ `shrink-0` — урт гарчиг товчийг шахахгүй.
-                 ⚠️ `bg-primary` — энэ бол хуудасны ГОЛ үйлдэл, саарал
-                 товч нь хэрэглэгчийн нүдэнд өртөхгүй байв. */
-              <button
-                onClick={() => goToEpisode(nextEpisode.id)}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
-              >
-                Дараагийн анги
-                <ChevronRight size={16} />
-              </button>
-            )}
+            {nextEpisode?.playable &&
+              /**
+               * ⚠️⚠️ ТҮГЖЭЭТЭЙ бол «Дараагийн анги» БИШ «Багц авах».
+               *
+               * БОДИТ АЛДАА: эрхгүй хэрэглэгчид энэ товч хэвээр
+               * харагдаж, дарвал 403 авч хар дэлгэц гардаг байв
+               * (плеер дотор түгжээний карт гарсан ч ЭНЭ товч үлдсэн).
+               *
+               * ⚠️ Нуухаас илүү СОЛИХ нь зөв — хэрэглэгчийн сонирхол
+               *    дээд цэгтээ байх агшинд орлогын зам үлдээнэ.
+               */
+              (nextLocked ? (
+                <button
+                  onClick={() => router.push('/pricing')}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-premium-solid px-4 py-2.5 text-sm font-semibold text-premium-foreground transition-all hover:brightness-105"
+                >
+                  <Lock size={15} />
+                  Багц авах
+                </button>
+              ) : (
+                /* ⚠️ `shrink-0` — урт гарчиг товчийг шахахгүй.
+                   ⚠️ `bg-primary` — энэ бол хуудасны ГОЛ үйлдэл, саарал
+                   товч нь хэрэглэгчийн нүдэнд өртөхгүй байв. */
+                <button
+                  onClick={() => goToEpisode(nextEpisode.id)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
+                >
+                  Дараагийн анги
+                  <ChevronRight size={16} />
+                </button>
+              ))}
           </div>
         </div>
 
