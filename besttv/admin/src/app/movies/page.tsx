@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Check, Clapperboard, Film, Lock, Megaphone, Pencil, Plus, Settings2, Tv, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { cn, formatBytes } from '@besttv/shared';
+import { cn, formatBytes, formatDateTime } from '@besttv/shared';
 import { api } from '@/lib/api';
 import { BulkBar, type BulkImpact } from '@/components/bulk-bar';
 import { AdminShell } from '@/components/admin-shell';
@@ -371,6 +371,7 @@ export default function MoviesPage() {
                   onSort={toggleSort}
                   align="right"
                 />
+                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Үүссэн</th>
                 <th className="px-4 py-3 text-left font-semibold">Идэвх</th>
                 <th className="px-4 py-3 text-right font-semibold">Үйлдэл</th>
               </tr>
@@ -531,6 +532,10 @@ export default function MoviesPage() {
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground">
                     {(t.views ?? 0).toLocaleString()}
+                  </td>
+                  {/* ⚠️ Үүссэн огноо — «хэзээ ирсэн нь мэдэгдэхгүй» гомдлын засвар */}
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                    {t.createdAt ? formatDateTime(t.createdAt) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     {t.isActive ? (

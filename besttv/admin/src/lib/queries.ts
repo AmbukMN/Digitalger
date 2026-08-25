@@ -29,6 +29,8 @@ export interface AdminTitle {
   streamProgress?: number;
   streamError?: string | null;
   isActive: boolean;
+  /** ⚠️ Үүссэн огноо — админ ХЭЗЭЭ нэмэгдсэнийг мэдэх ёстой */
+  createdAt: string;
   isBanner: boolean;
   comingSoon: boolean;
   year: number | null;
@@ -178,6 +180,8 @@ export interface AdminPlan {
   durationDays: number;
   features: string[];
   isActive: boolean;
+  /** ⚠️ Үүссэн огноо — админ ХЭЗЭЭ нэмэгдсэнийг мэдэх ёстой */
+  createdAt: string;
   isVip: boolean;
   isBestValue: boolean;
   badgeText?: string;
@@ -226,6 +230,8 @@ export interface AdminBanner {
   position: number;
   order: number;
   isActive: boolean;
+  /** ⚠️ Үүссэн огноо — админ ХЭЗЭЭ нэмэгдсэнийг мэдэх ёстой */
+  createdAt: string;
   startsAt: string | null;
   endsAt: string | null;
   imageUrl: string | null;
@@ -843,6 +849,8 @@ export interface AdminFaq {
   category: string;
   order: number;
   isActive: boolean;
+  /** ⚠️ Үүссэн огноо — админ ХЭЗЭЭ нэмэгдсэнийг мэдэх ёстой */
+  createdAt: string;
 }
 
 export function useAdminFaqs(params: {

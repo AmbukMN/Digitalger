@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Crown, Loader2, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatPrice, cn } from '@besttv/shared';
+import { formatPrice, cn, formatDateTime } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -315,6 +315,7 @@ export default function PlansPage() {
                       ажиллаж байгааг НЭГ харцаар мэдэхийн тулд жагсаалтад
                       шууд гаргана (тайлан руу орох шаардлагагүй). */}
                   <th className="px-4 py-3 text-right font-semibold">Борлуулалт</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Үүссэн</th>
                   <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -341,6 +342,7 @@ export default function PlansPage() {
                     </td>
                     <td className="px-4 py-3 font-semibold text-foreground">{formatPrice(p.price)}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.durationDays} хоног</td>
+
                     <td className="max-w-xs px-4 py-3">
                       {p.isVip ? (
                         <span className="rounded-md bg-premium/15 px-2 py-0.5 text-xs font-medium text-premium">
@@ -378,6 +380,10 @@ export default function PlansPage() {
                       <p className="text-xs tabular-nums text-muted-foreground">
                         {p.soldCount ?? 0} удаа · {p.subscriberCount ?? 0} идэвхтэй
                       </p>
+                    </td>
+                    {/* ⚠️ Үүссэн огноо — «хэзээ ирсэн нь мэдэгдэхгүй» гомдлын засвар */}
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                      {p.createdAt ? formatDateTime(p.createdAt) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <button

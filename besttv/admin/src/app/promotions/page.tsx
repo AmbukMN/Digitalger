@@ -16,7 +16,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDate, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { ImageUpload } from '@/components/image-upload';
@@ -482,6 +482,7 @@ export default function PromotionsPage() {
                   <th className="px-4 py-2.5 font-semibold">Утга</th>
                   <th className="px-4 py-2.5 font-semibold">Хугацаа</th>
                   <th className="px-4 py-2.5 font-semibold">Ашиглалт</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Үүссэн</th>
                   <th className="px-4 py-2.5 font-semibold">Төлөв</th>
                   <th className="px-4 py-2.5" />
                 </tr>
@@ -550,6 +551,11 @@ export default function PromotionsPage() {
                         {p.maxUses != null && (
                           <span className="text-muted-foreground"> / {p.maxUses}</span>
                         )}
+                      </td>
+
+                      {/* ⚠️ Үүссэн огноо — «хэзээ ирсэн нь мэдэгдэхгүй» гомдлын засвар */}
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                        {p.createdAt ? formatDateTime(p.createdAt) : '—'}
                       </td>
 
                       <td className="px-4 py-3">

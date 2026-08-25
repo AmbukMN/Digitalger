@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDate, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
 import {
   Dialog,
   DialogContent,
@@ -624,6 +624,9 @@ export default function BankPage() {
                       <th className="px-4 py-2.5 font-semibold">Хэрэглэгч</th>
                       <th className="px-4 py-2.5 font-semibold">Юуны төлөө</th>
                       <th className="px-4 py-2.5 font-semibold">Дүн</th>
+                      {/* ⚠️ ОГНОО — админ ХЭЗЭЭ ирснийг мэдэх ёстой
+                          (банкны хуулгатай тулгах, хоцорсныг олох) */}
+                      <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Огноо</th>
                       <th className="px-4 py-2.5 font-semibold">Төлөв</th>
                       <th className="px-4 py-2.5" />
                     </tr>
@@ -724,6 +727,34 @@ export default function BankPage() {
                               <span className="ml-1.5 text-xs text-muted-foreground line-through">
                                 {formatPrice(p.originalAmount)}
                               </span>
+                            )}
+                          </td>
+
+                          {/**
+                            * ⚠️⚠️ ОГНОО — админ ХЭЗЭЭ ирснийг мэдэх ёстой.
+                            *
+                            * БОДИТ ГОМДОЛ: «хэзээ ирсэн, яасан нь мэдэгдэхгүй
+                            * байна». Огноогүй бол ажлын дараалал тогтоох,
+                            * хоцорсон хүсэлт олох, банкны хуулгатай тулгах
+                            * бүгд БОЛОМЖГҮЙ.
+                            *
+                            * ⚠️ `bankClaimedAt` (хэрэглэгч «шилжүүлсэн» гэж
+                            *    дарсан) нь ГОЛ огноо. Байхгүй бол `createdAt`
+                            *    (нэхэмжлэл үүссэн) руу унана.
+                            * ⚠️ Шийдвэрлэсэн огноог ч харуулна — хэдэн цагийн
+                            *    дараа боловсруулснаа хэмжинэ.
+                            */}
+                          <td className="whitespace-nowrap px-4 py-3">
+                            <p className="text-xs text-foreground">
+                              {formatDateTime(p.bankClaimedAt ?? p.createdAt)}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              {p.bankClaimedAt ? 'мэдэгдсэн' : 'нэхэмжилсэн'}
+                            </p>
+                            {p.bankReviewedAt && (
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                ✓ {formatDateTime(p.bankReviewedAt)}
+                              </p>
                             )}
                           </td>
 

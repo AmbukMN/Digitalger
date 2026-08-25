@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Pencil, Plus, Search, Ticket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDate, formatPrice } from '@besttv/shared';
+import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -253,6 +253,11 @@ export default function CouponsPage() {
                   <th className="px-4 py-3 text-left font-semibold">Хямдрал</th>
                   <th className="px-4 py-3 text-left font-semibold">Ашигласан</th>
                   <th className="px-4 py-3 text-left font-semibold">Дуусах</th>
+                  {/* ⚠️ Үүссэн огноо — купон хэзээ нэмэгдсэнийг
+                      мэдэхгүй бол хуучирсныг цэгцлэх боломжгүй */}
+                  <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">
+                    Үүссэн
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -310,6 +315,10 @@ export default function CouponsPage() {
                     </td>
                     <td className={cn('px-4 py-3', st === 'expired' ? 'font-medium text-destructive' : 'text-muted-foreground')}>
                       {c.expiresAt ? formatDate(c.expiresAt) : 'Хугацаагүй'}
+                    </td>
+                    {/* ⚠️ Үүссэн огноо — дээрх тайлбар үз */}
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                      {c.createdAt ? formatDateTime(c.createdAt) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <button

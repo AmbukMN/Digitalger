@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ImageIcon, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, formatDate } from '@besttv/shared';
+import { cn, formatDate, formatDateTime } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -272,6 +272,7 @@ export default function BannersPage() {
                     <th className="px-4 py-3 text-left font-semibold">Холбоос</th>
                     <th className="px-4 py-3 text-left font-semibold">Байрлал</th>
                     <th className="px-4 py-3 text-left font-semibold">Хугацаа</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Үүссэн</th>
                     <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -332,6 +333,10 @@ export default function BannersPage() {
                           ) : (
                             'Хязгааргүй'
                           )}
+                        </td>
+                        {/* ⚠️ Үүссэн огноо — «хэзээ ирсэн нь мэдэгдэхгүй» гомдлын засвар */}
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                          {b.createdAt ? formatDateTime(b.createdAt) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <button

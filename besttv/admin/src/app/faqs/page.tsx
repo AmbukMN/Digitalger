@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { HelpCircle, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@besttv/shared';
+import { cn, formatDateTime } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
@@ -16,7 +16,16 @@ import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import { useAdminFaqs, useAdminFaqCategories, type AdminFaq } from '@/lib/queries';
 
-const EMPTY: Omit<AdminFaq, 'id'> = { question: '', answer: '', category: 'Ерөнхий', order: 0, isActive: true };
+/**
+ * Формын талбарууд.
+ *
+ * ⚠️ `Omit<AdminFaq,'id'>` БИШ — тэр нь `createdAt` зэрэг ЗӨВХӨН
+ *    сервер үүсгэдэг талбарыг ч шаардана. Форм нь хэрэглэгчийн
+ *    БӨГЛӨДӨГ талбаруудыг л агуулна.
+ */
+type FaqForm = Pick<AdminFaq, 'question' | 'answer' | 'category' | 'order' | 'isActive'>;
+
+const EMPTY: FaqForm = { question: '', answer: '', category: 'Ерөнхий', order: 0, isActive: true };
 
 export default function FaqsPage() {
   const qc = useQueryClient();
@@ -188,6 +197,7 @@ export default function FaqsPage() {
                   <th className="px-4 py-3 text-left font-semibold">Асуулт</th>
                   <th className="px-4 py-3 text-left font-semibold">Ангилал</th>
                   <th className="px-4 py-3 text-left font-semibold">Дараалал</th>
+<th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Үүссэн</th>
                   <th className="px-4 py-3 text-left font-semibold">Төлөв</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -201,6 +211,10 @@ export default function FaqsPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{f.category}</td>
                     <td className="px-4 py-3 text-muted-foreground">{f.order}</td>
+                    {/* ⚠️ Үүссэн огноо — «хэзээ ирсэн нь мэдэгдэхгүй» гомдлын засвар */}
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                      {f.createdAt ? formatDateTime(f.createdAt) : '—'}
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => toggleActive(f)}

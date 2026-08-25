@@ -26,6 +26,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { DataToolbar } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { NewBadge } from '@/components/new-badge';
@@ -194,7 +195,7 @@ function LogsTab() {
     staleTime: 30_000,
   });
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-email-logs', f],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -346,7 +347,11 @@ function LogsTab() {
         }
       />
 
-      <div
+      {/* ⚠️ АЛДААНЫ ТӨЛӨВ — API унахад «имэйл байхгүй» гэж ХУДАЛ
+          мэдээлдэг байсан. Админ бодит шалтгааныг харах ёстой. */}
+      {isError && <AdminErrorState error={error} onRetry={() => void refetch()} />}
+
+<div
         className={cn(
           'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
           isFetching && 'opacity-60',
@@ -449,7 +454,7 @@ function LogsTab() {
             ))}
           </tbody>
         </table>
-        {!data?.items.length && !isFetching && (
+        {!data?.items.length && !isFetching && !isError && (
           <TableEmptyState icon={Mail} message="Имэйл илгээгээгүй байна" />
         )}
       </div>
@@ -488,7 +493,7 @@ function SubscribersTab() {
     label: 'бүртгүүлэгч',
   });
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-subscribers', f],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -628,7 +633,11 @@ function SubscribersTab() {
         />
       )}
 
-      <div
+      {/* ⚠️ АЛДААНЫ ТӨЛӨВ — API унахад «имэйл байхгүй» гэж ХУДАЛ
+          мэдээлдэг байсан. Админ бодит шалтгааныг харах ёстой. */}
+      {isError && <AdminErrorState error={error} onRetry={() => void refetch()} />}
+
+<div
         className={cn(
           'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
           isFetching && 'opacity-60',
@@ -693,7 +702,7 @@ function SubscribersTab() {
             ))}
           </tbody>
         </table>
-        {!data?.items.length && !isFetching && (
+        {!data?.items.length && !isFetching && !isError && (
           <TableEmptyState icon={Users} message="Бүртгүүлэгч байхгүй байна" />
         )}
       </div>
@@ -916,7 +925,7 @@ function SuppressionsTab() {
     setPage(1);
   }, [debouncedQ]);
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-suppressions', { page, search: debouncedQ }],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -956,7 +965,11 @@ function SuppressionsTab() {
           />
         </div>
       </div>
-      <div className="overflow-x-auto">
+      {/* ⚠️ АЛДААНЫ ТӨЛӨВ — API унахад «имэйл байхгүй» гэж ХУДАЛ
+          мэдээлдэг байсан. Админ бодит шалтгааныг харах ёстой. */}
+      {isError && <AdminErrorState error={error} onRetry={() => void refetch()} />}
+
+<div className="overflow-x-auto">
         <table className={cn('w-full text-sm transition-opacity', isFetching && 'opacity-60')}>
           <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -986,7 +999,7 @@ function SuppressionsTab() {
           </tbody>
         </table>
       </div>
-      {!rows.length && !isFetching && (
+      {!rows.length && !isFetching && !isError && (
         /* ⚠️ Хайлтын хоосон үр дүн БА огт хориглосон хаяггүй хоёрыг ЯЛГАНА */
         <TableEmptyState
           icon={ShieldOff}
