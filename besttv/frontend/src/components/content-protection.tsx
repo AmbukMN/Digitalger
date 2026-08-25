@@ -83,6 +83,21 @@ export function ContentProtection() {
 
     // ── Товчлуурын хослолууд ──
     const onKeyDown = (e: KeyboardEvent) => {
+      /**
+       * ⚠️⚠️ `e.key` БАЙХГҮЙ БАЙЖ БОЛНО — заавал шалгана.
+       *
+       * БОДИТ АЛДАА (2026-08-25, /login хуудсанд Android ба iPhone
+       * хоёуланд): нууц үг менежер, автобөглөх, гар удирдлагын
+       * өргөтгөл нь `key` талбаргүй хиймэл `KeyboardEvent`-ыг
+       * `dispatchEvent`-ээр илгээдэг. Тэр үед `e.key.toLowerCase()`
+       * шидэгдэж, ЭНЭ HANDLER БҮХЭЛДЭЭ тасарна.
+       *
+       * Stack: `s@layout-*.js` ← `dispatchEvent` ← `user-script`
+       * (өргөтгөлийн скрипт) — хэрэглэгч нэвтэрч чадахгүй болох
+       * эрсдэлтэй.
+       */
+      if (typeof e.key !== 'string') return;
+
       const k = e.key.toLowerCase();
       const ctrl = e.ctrlKey || e.metaKey;
 

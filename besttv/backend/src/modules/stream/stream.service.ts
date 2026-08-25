@@ -3,10 +3,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { VideoHlsService } from '../../storage/video-hls.service';
+import { ErrorsService } from '../errors/errors.module';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /**
@@ -34,6 +36,11 @@ export class StreamService {
     private readonly subs: SubscriptionsService,
     /** ⚠️ Thumbnail backfill-д — sprite/VTT үүсгэнэ */
     private readonly hls: VideoHlsService,
+    /**
+     * ⚠️ «Үзэж болохгүй байна» гомдлыг ОНОШЛОХОД — 403 бүртгэнэ.
+     * `@Optional()` — Errors модул ачаалагдаагүй ч stream ажиллана.
+     */
+    @Optional() private readonly errors?: ErrorsService,
   ) {}
 
   /** Киноны үндсэн видео */
@@ -770,10 +777,71 @@ export class StreamService {
     // ⚠️ titleId дамжуулснаар ТҮРЭЭС ч шалгагдана (багцгүй ч үзэж болно)
     const ok = await this.subs.canAccessTitle(userId, titleGenreIds, titleId);
     if (!ok) {
+      /**
+       * ⚠️⚠️ 403-ыг ЗААВАЛ БҮРТГЭНЭ — «үзэж болохгүй байна» гомдлыг
+       * оношлох ЦОРЫН ГАНЦ арга.
+       *
+       * БОДИТ АСУУДАЛ (2026-08-25): хэрэглэгч «үзэж болохгүй байна»
+       * гэж гомдоллоход nginx лог дээр 6 удаагийн 403 харагдсан ч
+       * тэр нь ЗӨВ татгалзал (багцгүй зочин) эсэх, ЭСВЭЛ багцтай
+       * атлаа алдаатай татгалзсан эсэхийг ЯЛГАХ БОЛОМЖГҮЙ байв.
+       *
+       * Одоо `userId` болон эрхийн тоог хамт бичнэ:
+       *   · userId=null           → зочин, ЗӨВ татгалзал
+       *   · userId бий + эрх 0    → багц аваагүй, ЗӨВ татгалзал
+       *   · userId бий + эрх > 0  → ⚠️ АЛДАА, шалгах ёстой
+       */
+      void this.logDenied(userId, titleId, titleGenreIds);
+
       throw new ForbiddenException({
         code: 'SUBSCRIPTION_REQUIRED',
         message: 'Энэ контентыг үзэхэд багц эсвэл түрээс шаардлагатай',
       });
+    }
+  }
+
+  /**
+   * Татгалзсан хандалтыг оношлох мэдээлэлтэйгээр бүртгэнэ.
+   *
+   * ⚠️ ХЭЗЭЭ Ч шидэхгүй — бүртгэл унасан ч хэрэглэгчийн урсгал
+   *    тасрах ёсгүй (403 нь аль хэдийн шидэгдэж байгаа).
+   */
+  private async logDenied(
+    userId: string | null | undefined,
+    titleId: string | undefined,
+    genreIds: string[],
+  ): Promise<void> {
+    if (!this.errors) return;
+    try {
+      /* ⚠️ Зочинд DB асуулга хийхгүй — татгалзал нь ойлгомжтой */
+      let subs = 0;
+      let rentals = 0;
+      if (userId) {
+        const now = new Date();
+        [subs, rentals] = await Promise.all([
+          this.prisma.subscription.count({
+            where: { userId, expiresAt: { gt: now } },
+          }),
+          this.prisma.rental.count({
+            where: { userId, expiresAt: { gt: now } },
+          }),
+        ]);
+      }
+
+      /* ⚠️ Эрхтэй атлаа татгалзсан бол ЭНЭ НЬ ЖИНХЭНЭ АЛДАА */
+      const suspicious = Boolean(userId) && subs + rentals > 0;
+
+      await this.errors.record({
+        source: 'server',
+        message: suspicious
+          ? `⚠️ ЭРХТЭЙ хэрэглэгч татгалзсан (багц=${subs}, түрээс=${rentals})`
+          : `Эрхгүй хандалт (${userId ? 'нэвтэрсэн, эрхгүй' : 'зочин'})`,
+        path: `/stream/${titleId ?? '?'}`,
+        userId: userId ?? undefined,
+        meta: { titleId, genreIds, subs, rentals, suspicious },
+      });
+    } catch {
+      /* ⚠️ Бүртгэл нь хэрэглэгчийн урсгалыг ХЭЗЭЭ Ч тасалж болохгүй */
     }
   }
 

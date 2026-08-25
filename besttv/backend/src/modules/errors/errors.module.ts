@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Global,
   Headers,
   Injectable,
   Logger,
@@ -215,6 +216,14 @@ export class ErrorsAdminController {
   }
 }
 
+/**
+ * ⚠️ `@Global()` — алдаа бүртгэл нь БҮХ модульд хэрэгтэй хөндлөн
+ * хэрэгсэл (`PrismaModule`-тай ижил зарчим). Модуль бүрд
+ * `imports: [ErrorsModule]` бичих нь мартагдвал бүртгэл ЧИМЭЭГҮЙ
+ * унтарна — `@Optional()` тул алдаа ч гарахгүй, зүгээр л лог
+ * бичигдэхгүй болно (оношлоход хамгийн муу тохиолдол).
+ */
+@Global()
 @Module({
   controllers: [ErrorsController, ErrorsAdminController],
   providers: [ErrorsService],
