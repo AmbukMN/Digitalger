@@ -336,7 +336,54 @@ export class StorageUsageService implements OnModuleInit {
     };
   }
 
+  /**
+   * ⚠️⚠️ CLUSTER ХАМГААЛАЛТТАЙ БҮРХҮҮЛ — `compute()`-ыг ШУУД БҮҮ дууд.
+   *
+   * БОДИТ АЛДАА (2026-08-25): backend cluster горимд олон процесстой
+   * ажилладаг. Санах ой доторх `inflight` нь ЗӨВХӨН нэг процессыг
+   * хамгаалдаг тул PID 84 ба 85 хоёулаа зэрэг скан хийж, R2
+   * `ListObjectsV2` дуудлага 861 → **1722** болсон.
+   *
+   * Хоёр дахь процесс скан хийхийн оронд:
+   *   1. Redis түгжээ авч чадахгүй → эхний процессыг ХҮЛЭЭНЭ
+   *   2. Тэр дуусмагц кэшээс УНШИНА (дахин скан ХИЙХГҮЙ)
+   *
+   * ⚠️ TTL 30 минут — 861 хуудасны скан ~11 минут болдог тул
+   *    хангалттай зайтай. Процесс уначихвал ч 30 минутын дараа
+   *    түгжээ өөрөө сулрана (мөн `finally`-д шууд суллана).
+   */
   private async compute(): Promise<UsageResult> {
+    const LOCK = 'storage:usage:scan';
+    const got = await this.appCache.lock(LOCK, 30 * 60);
+
+    if (!got) {
+      this.logger.log('Өөр процесс скан хийж байна — хүлээж байна');
+      /**
+       * ⚠️ 20 секунд тутам кэш шалгана (макс 15 минут). Скан дуусмагц
+       *    кэш бичигдэх тул хоёр дахь процесс ҮНЭГҮЙ үр дүн авна.
+       */
+      for (let i = 0; i < 45; i++) {
+        await new Promise((r) => setTimeout(r, 20_000));
+        const hit = await this.appCache.get<UsageResult>(CACHE_KEY);
+        if (hit) {
+          this.cache = { at: Date.now(), data: hit };
+          this.logger.log('Өөр процессын скан дууслаа — кэшээс авлаа');
+          return hit;
+        }
+      }
+      /* ⚠️ Хэт удлаа — түгжээ орхигдсон байж магадгүй тул чөлөөлнө */
+      await this.appCache.unlock(LOCK);
+      throw new Error('Storage скан хүлээх хугацаа хэтэрлээ');
+    }
+
+    try {
+      return await this.computeInner();
+    } finally {
+      await this.appCache.unlock(LOCK);
+    }
+  }
+
+  private async computeInner(): Promise<UsageResult> {
     const started = Date.now();
 
     const [objects, titles, episodes] = await Promise.all([
