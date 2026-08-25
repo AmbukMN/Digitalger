@@ -6,6 +6,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  DeleteObjectsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -339,7 +340,42 @@ export class StorageService {
       return files.length;
     }
     const keys = await this.listAllKeys(prefix);
-    await Promise.all(keys.map((k) => this.delete(k.key)));
+    if (!keys.length) return 0;
+
+    /**
+     * ⚠️⚠️ БАГЦААР УСТГАНА (`DeleteObjects`, 1000/дуудлага).
+     *
+     * Өмнө нь объект БҮРД тусдаа `DeleteObjectCommand` явуулдаг байв.
+     * HLS кино нь 3 ABR түвшин × ~1200 сегмент = ~3600 объект тул нэг
+     * кино устгах/дахин хөрвүүлэхэд **3600 Class A** үйлдэл зарцуулдаг
+     * байсан (R2-ийн хамгийн үнэтэй ангилал, $4.50/сая).
+     *
+     * Багцлаад: 3600 → **4 дуудлага** (900 дахин бага). Мөн 3600
+     * зэрэг HTTP хүсэлт үүсэхгүй тул сүлжээ/санах ой ч хэмнэнэ.
+     *
+     * ⚠️ Багц бүр 1000-аас ХЭТРЭХГҮЙ — S3/R2-ийн хатуу хязгаар.
+     * ⚠️ `Quiet: true` — амжилттай түлхүүр бүрийг буцаахгүй (хариу жижиг).
+     */
+    const BATCH = 1000;
+    for (let i = 0; i < keys.length; i += BATCH) {
+      const chunk = keys.slice(i, i + BATCH);
+      try {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: chunk.map((k) => ({ Key: k.key })), Quiet: true },
+          }),
+        );
+      } catch (e) {
+        /**
+         * ⚠️ Багц уначихвал НЭГ БҮРЧЛЭН оролдоно — хэсэгчилсэн
+         * амжилтгүй байдал бүх устгалыг зогсоох ёсгүй (үлдсэн файл
+         * R2-д хог болж үлдэнэ).
+         */
+        this.logger.warn(`Багц устгал амжилтгүй, нэг бүрчлэн оролдож байна: ${String(e)}`);
+        await Promise.all(chunk.map((k) => this.delete(k.key).catch(() => null)));
+      }
+    }
     return keys.length;
   }
 

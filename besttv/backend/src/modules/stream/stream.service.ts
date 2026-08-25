@@ -112,14 +112,9 @@ export class StreamService {
     );
 
     const prefix = title.videoKey.slice(0, title.videoKey.lastIndexOf('/') + 1);
-    let vtt: string;
-    try {
-      vtt = await this.storage.downloadText(`${prefix}thumbs.vtt`);
-    } catch {
-      /* ⚠️ Хуучин видеонд thumbnail байхгүй — ХООСОН VTT буцаана.
-         Player нь preview-гүй л ажиллана (алдаа гаргахгүй). */
-      return 'WEBVTT\n';
-    }
+    /* ⚠️ Кэштэй — байхгүй тохиолдлыг ч кэшлэнэ (дээрх `thumbsVtt`) */
+    const vtt = await this.thumbsVtt(prefix);
+    if (vtt === 'WEBVTT\n') return vtt;
 
     const spriteUrl = await this.storage.presignGet(`${prefix}thumbs.jpg`, this.SEGMENT_EXPIRES);
     return vtt.replace(/^thumbs\.jpg(#[^\s]*)?$/gm, (_m, frag) => `${spriteUrl}${frag ?? ''}`);
@@ -185,14 +180,9 @@ export class StreamService {
     );
 
     const prefix = episode.videoKey.slice(0, episode.videoKey.lastIndexOf('/') + 1);
-    let vtt: string;
-    try {
-      vtt = await this.storage.downloadText(`${prefix}thumbs.vtt`);
-    } catch {
-      /* ⚠️ Хуучин ангид sprite байхгүй — ХООСОН VTT (алдаа биш).
-         Player нь preview-гүй хэвийн ажиллана. */
-      return 'WEBVTT\n';
-    }
+    /* ⚠️ Кэштэй — байхгүй тохиолдлыг ч кэшлэнэ (`thumbsVtt`) */
+    const vtt = await this.thumbsVtt(prefix);
+    if (vtt === 'WEBVTT\n') return vtt;
 
     /**
      * ⚠️ Presign-ийн хугацааг ТҮРЭЭСИЙН ҮЛДЭГДЛЭЭР хязгаарлана —
@@ -859,6 +849,48 @@ export class StreamService {
    */
   private readonly playlistCache = new Map<string, { at: number; text: string }>();
   private static readonly PLAYLIST_TTL_MS = 30 * 60 * 1000;
+
+  /**
+   * ⚠️⚠️ THUMBNAIL VTT КЭШ — playlist-ээс ТУСДАА.
+   *
+   * `thumbs.vtt` нь presigned URL агуулдаггүй (зөвхөн sprite-ийн
+   * координат) тул түрээстэй хэрэглэгчид Ч аюулгүй кэшлэгдэнэ.
+   *
+   * ⚠️ ХАМГИЙН ЧУХАЛ: файл БАЙХГҮЙ тохиолдлыг Ч кэшлэнэ. Хуучин
+   * видеонд thumbnail байдаггүй бөгөөс өмнө нь player нээх БҮРД
+   * R2 руу дэмий Get явж 404 авдаг байв — үүрд давтагдана.
+   */
+  private readonly vttCache = new Map<string, { at: number; text: string }>();
+  private static readonly VTT_TTL_MS = 60 * 60 * 1000;
+
+  /**
+   * `thumbs.vtt`-ыг кэштэйгээр уншина. Байхгүй бол хоосон VTT.
+   * ⚠️ Player нь preview-гүй л ажиллана (алдаа гаргахгүй).
+   */
+  private async thumbsVtt(prefix: string): Promise<string> {
+    const key = `${prefix}thumbs.vtt`;
+    const hit = this.vttCache.get(key);
+    if (hit && Date.now() - hit.at < StreamService.VTT_TTL_MS) return hit.text;
+
+    let text: string;
+    try {
+      text = await this.storage.downloadText(key);
+    } catch {
+      /* ⚠️ Сөрөг үр дүнг Ч кэшлэнэ — дэмий Get давтагдахгүй */
+      text = 'WEBVTT\n';
+    }
+
+    /* ⚠️ Санах ой хязгааргүй өсөхөөс сэргийлнэ */
+    if (this.vttCache.size > 300) {
+      const now = Date.now();
+      for (const [k, v] of this.vttCache) {
+        if (now - v.at >= StreamService.VTT_TTL_MS) this.vttCache.delete(k);
+      }
+      if (this.vttCache.size > 300) this.vttCache.clear();
+    }
+    this.vttCache.set(key, { at: Date.now(), text });
+    return text;
+  }
 
   /**
    * @param ttl segment presign-ийн хугацаа (секунд). Түрээстэй
