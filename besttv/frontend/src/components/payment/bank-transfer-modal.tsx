@@ -165,6 +165,7 @@ export function BankTransferModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
+      if (typeof e.key !== 'string') return;
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);

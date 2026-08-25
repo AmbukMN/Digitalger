@@ -251,7 +251,9 @@ export function QPayCheckout({ invoice, subtitle, onPaid, onClose, successText }
 
   // Esc-ээр хаана (төлөгдсөн үед хаахгүй — амжилтын дэлгэц харагдана)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !paid && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (typeof e.key === 'string' && e.key === 'Escape' && !paid) onClose();
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [paid, onClose]);

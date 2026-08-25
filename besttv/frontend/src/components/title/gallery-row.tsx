@@ -24,6 +24,7 @@ export function GalleryRow({ images }: { images: (string | null)[] }) {
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
+      if (typeof e.key !== 'string') return;
       if (e.key === 'Escape') setActive(null);
     };
     document.addEventListener('keydown', onKey);

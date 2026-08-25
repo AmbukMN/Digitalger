@@ -18,7 +18,11 @@ export function TrailerModal({
   onClose: () => void;
 }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    /* ⚠️ `e.key` БАЙХГҮЙ БАЙЖ БОЛНО — өргөтгөл/автобөглөх нь `key`-гүй
+       хиймэл KeyboardEvent илгээдэг (`content-protection.tsx` тайлбар) */
+    const onKey = (e: KeyboardEvent) => {
+      if (typeof e.key === 'string' && e.key === 'Escape') onClose();
+    };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {

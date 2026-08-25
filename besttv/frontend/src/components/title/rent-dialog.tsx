@@ -78,7 +78,9 @@ export function RentDialog({ open, onClose, titleId, titleName, price, hours, on
 
   useEffect(() => {
     if (!open || invoice) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (typeof e.key === 'string' && e.key === 'Escape') onClose();
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, invoice, onClose]);
