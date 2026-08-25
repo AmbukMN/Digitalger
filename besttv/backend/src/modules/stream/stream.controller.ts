@@ -1,4 +1,13 @@
-import { Controller, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  Headers,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { StreamService } from './stream.service';
@@ -155,8 +164,20 @@ export class StreamController {
   @Get('movie/:titleId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
   @Header('Cache-Control', 'private, max-age=120')
-  movie(@Param('titleId') titleId: string, @CurrentUser() user: JwtPayload | null) {
-    return this.stream.moviePlaylist(titleId, user?.sub);
+  movie(
+    @Param('titleId') titleId: string,
+    @CurrentUser() user: JwtPayload | null,
+    /**
+     * ⚠️⚠️ ОНОШЛОГОО — токен ИРСЭН эсэхийг мэдэх ЦОРЫН ГАНЦ арга.
+     *
+     * `OptionalJwtAuthGuard` нь хугацаа дууссан токеныг ЧИМЭЭГҮЙ зочин
+     * болгодог тул «зочин» ба «токен нь хүчингүй болсон нэвтэрсэн
+     * хэрэглэгч» хоёр backend талд ЯГ ИЖИЛ харагдана (`user = null`).
+     * Хоёр дахь тохиолдол нь «үзэж болохгүй байна» гомдол болно.
+     */
+    @Headers('authorization') auth?: string,
+  ) {
+    return this.stream.moviePlaylist(titleId, user?.sub, Boolean(auth));
   }
 
   /**
@@ -174,8 +195,13 @@ export class StreamController {
   @Get('episode/:episodeId/playlist.m3u8')
   @Header('Content-Type', 'application/vnd.apple.mpegurl')
   @Header('Cache-Control', 'private, max-age=120')
-  episode(@Param('episodeId') episodeId: string, @CurrentUser() user: JwtPayload | null) {
-    return this.stream.episodePlaylist(episodeId, user?.sub);
+  episode(
+    @Param('episodeId') episodeId: string,
+    @CurrentUser() user: JwtPayload | null,
+    /* ⚠️ Оношлогоо — дээрх `movie`-ийн тайлбар үз */
+    @Headers('authorization') auth?: string,
+  ) {
+    return this.stream.episodePlaylist(episodeId, user?.sub, Boolean(auth));
   }
 
   /**

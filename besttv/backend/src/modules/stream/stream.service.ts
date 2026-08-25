@@ -43,8 +43,15 @@ export class StreamService {
     @Optional() private readonly errors?: ErrorsService,
   ) {}
 
-  /** Киноны үндсэн видео */
-  async moviePlaylist(titleId: string, userId?: string | null): Promise<string> {
+  /**
+   * Киноны үндсэн видео
+   * @param tokenSent — оношлогоо: Authorization header ирсэн эсэх
+   */
+  async moviePlaylist(
+    titleId: string,
+    userId?: string | null,
+    tokenSent?: boolean,
+  ): Promise<string> {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
       select: {
@@ -72,6 +79,7 @@ export class StreamService {
        * байв (багцтай хүн л үзэж чаддаг байсан).
        */
       titleId,
+      tokenSent,
     );
     // ⚠️ ABR master бол дэд playlist-ыг манай API руу чиглүүлнэ (эрх дахин шалгагдана)
     /* ⚠️ Түрээстэй бол presign нь ҮЛДЭГДЭЛ ХУГАЦААГААР богиносно */
@@ -548,8 +556,15 @@ export class StreamService {
     );
   }
 
-  /** Цувралын анги */
-  async episodePlaylist(episodeId: string, userId?: string | null): Promise<string> {
+  /**
+   * Цувралын анги
+   * @param tokenSent — оношлогоо: Authorization header ирсэн эсэх
+   */
+  async episodePlaylist(
+    episodeId: string,
+    userId?: string | null,
+    tokenSent?: boolean,
+  ): Promise<string> {
     const episode = await this.prisma.episode.findUnique({
       where: { id: episodeId },
       select: {
@@ -595,6 +610,7 @@ export class StreamService {
       userId,
       /* ⚠️ Түрээс нь ЦУВРАЛ дээр ч боломжтой — эцэг титулын id-аар шалгана */
       episode.season.title.id,
+      tokenSent,
     );
     /**
      * ⚠️⚠️ `ttl` ЗААВАЛ — өмнө нь дамжуулаагүй тул ХОЁР цоорхой байв:
@@ -772,6 +788,8 @@ export class StreamService {
     titleGenreIds: string[],
     userId?: string | null,
     titleId?: string,
+    /** ⚠️ Оношлогоо — `logDenied` руу дамжина (тэндхийн тайлбар үз) */
+    tokenSent?: boolean,
   ) {
     if (!isPremium) return; // үнэгүй контент
     // ⚠️ titleId дамжуулснаар ТҮРЭЭС ч шалгагдана (багцгүй ч үзэж болно)
@@ -791,7 +809,7 @@ export class StreamService {
        *   · userId бий + эрх 0    → багц аваагүй, ЗӨВ татгалзал
        *   · userId бий + эрх > 0  → ⚠️ АЛДАА, шалгах ёстой
        */
-      void this.logDenied(userId, titleId, titleGenreIds);
+      void this.logDenied(userId, titleId, titleGenreIds, tokenSent);
 
       throw new ForbiddenException({
         code: 'SUBSCRIPTION_REQUIRED',
@@ -810,6 +828,11 @@ export class StreamService {
     userId: string | null | undefined,
     titleId: string | undefined,
     genreIds: string[],
+    /**
+     * ⚠️ Токен ИРСЭН эсэх — «зочин» ба «хугацаа дууссан токен» хоёрыг
+     *    ЯЛГАХ цорын ганц арга. Хоёулаа `userId=null` болдог.
+     */
+    tokenSent?: boolean,
   ): Promise<void> {
     if (!this.errors) return;
     try {
@@ -831,14 +854,30 @@ export class StreamService {
       /* ⚠️ Эрхтэй атлаа татгалзсан бол ЭНЭ НЬ ЖИНХЭНЭ АЛДАА */
       const suspicious = Boolean(userId) && subs + rentals > 0;
 
+      /**
+       * ⚠️⚠️ ХУГАЦАА ДУУССАН ТОКЕН — ЖИНХЭНЭ АЛДАА.
+       *
+       * Токен ИЛГЭЭСЭН атлаа `userId` гарч ирээгүй = токен хүчингүй
+       * (`OptionalJwtAuthGuard` нь түүнийг чимээгүй зочин болгодог).
+       * Энэ нь НЭВТЭРСЭН хэрэглэгч видео үзэж чадахгүй болно гэсэн үг
+       * — «үзэж болохгүй байна» гомдлын гол сэжигтэн.
+       */
+      const staleToken = Boolean(tokenSent) && !userId;
+
+      const kind = staleToken
+        ? '⚠️ ХУГАЦАА ДУУССАН ТОКЕН (нэвтэрсэн атал таниагүй)'
+        : userId
+          ? 'нэвтэрсэн, эрхгүй'
+          : 'зочин';
+
       await this.errors.record({
         source: 'server',
         message: suspicious
           ? `⚠️ ЭРХТЭЙ хэрэглэгч татгалзсан (багц=${subs}, түрээс=${rentals})`
-          : `Эрхгүй хандалт (${userId ? 'нэвтэрсэн, эрхгүй' : 'зочин'})`,
+          : `Эрхгүй хандалт (${kind})`,
         path: `/stream/${titleId ?? '?'}`,
         userId: userId ?? undefined,
-        meta: { titleId, genreIds, subs, rentals, suspicious },
+        meta: { titleId, genreIds, subs, rentals, suspicious, tokenSent, staleToken },
       });
     } catch {
       /* ⚠️ Бүртгэл нь хэрэглэгчийн урсгалыг ХЭЗЭЭ Ч тасалж болохгүй */
