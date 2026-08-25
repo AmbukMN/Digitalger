@@ -383,10 +383,14 @@ export default function MoviesPage() {
                       className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
                     />
                   </td>
-                  <td className="px-4 py-3">
+                  {/* ⚠️ `max-w-[19rem]` нь `<td>` дээр ЗААВАЛ — дотоод
+                      элементийн `max-w` нь ганцаараа үйлчлэхгүй
+                      (`table-layout: auto` нь нүдийг агуулгаараа тэлнэ),
+                      улмаас баруун талын «Үйлдэл» багана дэлгэцээс гарна */}
+                  <td className="max-w-[19rem] px-4 py-3">
                     <button
                       onClick={() => setEditing(t.id)}
-                      className="flex items-center gap-3 text-left"
+                      className="flex w-full items-center gap-3 text-left"
                     >
                       <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
                         {t.posterUrl ? (
@@ -408,7 +412,7 @@ export default function MoviesPage() {
                         * ГАРГАДАГ байв (1500px дээр батлагдсан).
                         * ⚠️ `max-w-[15rem]` — багана хэт өргөсөхөөс сэргийлнэ.
                         */}
-                      <div className="min-w-0 max-w-[15rem]">
+                      <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-foreground hover:text-primary" title={t.title}>
                           {t.title}
                         </p>
