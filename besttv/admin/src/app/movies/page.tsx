@@ -409,14 +409,14 @@ export default function MoviesPage() {
                       </div>
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">
                       {t.type === 'MOVIE' ? <Film size={13} /> : <Tv size={13} />}
                       {t.type === 'MOVIE' ? 'Нэг ангит' : `${t._count.seasons} улирал`}
                     </span>
                   </td>
                   {/* ⚠️ ХЭЛ — админ жагсаалтаас шууд харна */}
-                  <td className="px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-3">
                     <span
                       className={cn(
                         'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold',
@@ -454,7 +454,10 @@ export default function MoviesPage() {
                             onClick={() => set({ genre: id })}
                             title={`«${name}» жанраар шүүх`}
                             className={cn(
-                              'rounded px-1.5 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-75',
+                              /* ⚠️ `whitespace-nowrap` — «Насанд хүрэгчдийн»
+                                 гэх урт нэр 2 мөр болж мөрийн өндрийг
+                                 хоёр дахин өсгөдөг байв */
+                              'whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-75',
                               genreStyle(name),
                             )}
                           >
