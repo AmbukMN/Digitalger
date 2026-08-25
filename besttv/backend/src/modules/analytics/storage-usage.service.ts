@@ -101,6 +101,12 @@ export interface UsageResult {
   /** Кэш хэзээ шинэчлэгдсэн (ISO) */
   computedAt: string;
   cached: boolean;
+  /**
+   * ⚠️ Скан ДЭВСГЭРТ явж байна — тоо хараахан бэлэн БИШ.
+   * Frontend үүнийг хараад «тооцоолж байна» гэж харуулна
+   * (гацсан skeleton-оос хамаагүй дээр).
+   */
+  computing?: boolean;
 }
 
 @Injectable()
@@ -230,8 +236,42 @@ export class StorageUsageService {
       return { ...stale, cached: true };
     }
 
+    /**
+     * ⚠️⚠️ КЭШ ОГТ БАЙХГҮЙ ҮЕД Ч ХҮЛЭЭЛГЭХГҮЙ.
+     *
+     * БОДИТ АЛДАА (2026-08-25, хэрэглэгч мэдээлсэн): backend restart
+     * хийсний дараа админ дашбоардын доод карт МӨНХ skeleton дээр
+     * гацдаг байв. Хэмжилт: 30 секунд хүлээгээд **500** (Cloudflare-ийн
+     * хязгаар цохисон) — скан өөрөө 98 секунд үргэлжилдэг тул
+     * ХЭЗЭЭ Ч амжихгүй.
+     *
+     * Одоо: скан ДЭВСГЭРТ эхэлж, хариу нь ШУУД буцна (`computing: true`).
+     * Frontend үүнийг хараад «тооцоолж байна» гэж харуулаад дараа нь
+     * автоматаар шинэчилнэ — гацсан хуудаснаас ХАМААГҮЙ дээр.
+     */
     this.inflight ??= this.compute().finally(() => (this.inflight = null));
-    return this.inflight;
+    void this.inflight.catch(() => null);
+
+    return {
+      totalBytes: 0,
+      totalObjects: 0,
+      unassignedBytes: 0,
+      byCategory: { video: 0, trailer: 0, images: 0, raw: 0, other: 0 },
+      titles: [],
+      freeTierGb: FREE_TIER_GB,
+      usedPercentOfFreeTier: 0,
+      cost: {
+        billableGb: 0,
+        usdPerGb: 0,
+        monthlyUsd: 0,
+        monthlyMnt: 0,
+        usdMnt: 0,
+      },
+      computedAt: new Date().toISOString(),
+      cached: false,
+      /* ⚠️ Frontend энэ талбараар «тооцоолж байна» гэдгийг мэднэ */
+      computing: true,
+    };
   }
 
   private async compute(): Promise<UsageResult> {

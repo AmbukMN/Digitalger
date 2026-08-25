@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatBytes, formatDateTime } from '@besttv/shared';
 import { useQuery } from '@tanstack/react-query';
-import { HardDrive, RefreshCw, Film, Image as ImageIcon, Clapperboard, FileVideo } from 'lucide-react';
+import { Clapperboard, FileVideo, Film, HardDrive, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@besttv/shared';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -20,6 +20,8 @@ interface TitleUsage {
 }
 
 interface StorageUsage {
+  /** ⚠️ Скан дэвсгэрт явж байна — тоо бэлэн БИШ */
+  computing?: boolean;
   totalBytes: number;
   totalObjects: number;
   unassignedBytes: number;
@@ -70,6 +72,16 @@ export function StorageUsageCard() {
     queryFn: () => api<StorageUsage>('/admin/analytics/storage'),
     // ⚠️ Backend 10 мин кэштэй — давтан дуудах утгагүй
     staleTime: 10 * 60_000,
+    /**
+     * ⚠️⚠️ `computing: true` үед 10 секунд тутам ДАХИН асууна.
+     *
+     * Backend restart хийсний дараа R2 скан (~98 сек) дэвсгэрт явдаг.
+     * Өмнө нь хариу ирэх хүртэл ХҮЛЭЭДЭГ байсан тул карт мөнх skeleton
+     * дээр гацаж, 30 секундэд Cloudflare 500 өгдөг байв (хэмжсэн).
+     * Одоо шууд хариу ирээд, бэлэн болмогц автоматаар шинэчилнэ.
+     */
+    refetchInterval: (query) =>
+      (query.state.data as StorageUsage | undefined)?.computing ? 10_000 : false,
   });
 
   const forceRefresh = async () => {
@@ -118,6 +130,25 @@ export function StorageUsageCard() {
             <div key={i} className="h-9 animate-pulse rounded-lg bg-accent/60" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  /**
+   * ⚠️ Скан дэвсгэрт явж байгааг ХЭЛНЭ — хоосон/гацсан карт харуулахгүй.
+   * Ихэвчлэн backend restart-ын дараа 1-2 минут үргэлжилнэ.
+   */
+  if (data?.computing) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Loader2 size={14} className="animate-spin text-muted-foreground" />
+          Хадгалалтын хэмжээг тооцоолж байна…
+        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          R2 дээрх 860,000+ файлыг сканддаг тул 1-2 минут үргэлжилнэ.
+          Дуусмагц энд автоматаар харагдана.
+        </p>
       </div>
     );
   }
