@@ -245,7 +245,17 @@ export default function MoviesPage() {
           *    — админ «энэ жанрт хэдэн кино байна» гэдгийг шууд мэднэ.
           */}
         {!!genres?.length && (
-          <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+          /**
+           * ⚠️ ДЭЭД ТАЛЫН ЗАЙ + ХҮРЭЭ ЗААВАЛ.
+           *
+           * БОДИТ ГОМДОЛ: «дээд мөртэйгээ давхцаад бараг нийлсэн
+           * байна» — таб мөр («Бүгд / Нэг ангит / Олон ангит»)-той
+           * ялгарахгүй, хоёр эгнээ нэг блок мэт харагддаг байв.
+           *
+           * ⚠️ `border-t` — зай ганцаараа хангалтгүй, ХАРАГДАХ
+           *    тусгаарлагч хэрэгтэй (хоёулаа товчны эгнээ тул).
+           */
+          <div className="mb-4 mt-4 flex items-center gap-2 overflow-x-auto border-t border-border pb-1 pt-4">
             <span className="shrink-0 text-xs font-medium text-muted-foreground">Жанр:</span>
             <button
               type="button"
