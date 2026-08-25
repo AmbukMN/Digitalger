@@ -43,6 +43,16 @@ export interface ChatTitleCard {
 
 export interface SaveMessageInput {
   channel?: string;
+  /**
+   * ⚠️ FB/IG page id — олон page-тэй үед аль нь болохыг ялгана.
+   *
+   * БОДИТ ХЭРЭГЦЭЭ: BestTV нь ХОЁР Facebook page-тэй. Админ чат
+   * самбарт хоёулаа «FB» гэж нийлж харагдвал аль хуудсанд
+   * хариулж байгаагаа мэдэхгүй, буруу нэрийн өмнөөс хариулна.
+   *
+   * ⚠️ Вэб чатад байхгүй (undefined).
+   */
+  pageId?: string;
   sessionId: string;
   role: string;
   text: string;
@@ -92,6 +102,8 @@ export class ChatService {
     const text = (input.text ?? '').trim().slice(0, MAX_TEXT_LENGTH);
     const role = ALLOWED_ROLES.has(input.role) ? input.role : 'user';
     const channel = ALLOWED_CHANNELS.has(input.channel ?? '') ? input.channel! : 'web';
+    /* ⚠️ ЗӨВХӨН тоон id — дурын мөр DB рүү орохоос сэргийлнэ */
+    const pageId = /^[0-9]{5,25}$/.test(input.pageId ?? '') ? input.pageId! : undefined;
 
     if (!sessionId || !text) return { ok: true, skipped: true };
 
@@ -132,6 +144,7 @@ export class ChatService {
         where: { sessionId },
         create: {
           channel,
+          ...(pageId ? { pageId } : {}),
           sessionId,
           lastMessageAt: now,
           adminUnread: markAdminUnread,
@@ -142,6 +155,9 @@ export class ChatService {
         },
         update: {
           lastMessageAt: now,
+          /* ⚠️ ХУУЧИН яриаг ч нөхнө — засвараас өмнөх бичлэгүүд
+             `pageId`-гүй үлдсэн тул дараагийн мессежээр бөглөгдөнө */
+          ...(pageId ? { pageId } : {}),
           ...(markAdminUnread ? { adminUnread: true } : {}),
           ...(input.userName ? { userName: input.userName.slice(0, 120) } : {}),
           /* ⚠️ Зураг бүрд дахин бичнэ — FB URL хугацаатай тул шинэчилж байж амьд үлдэнэ */
@@ -364,6 +380,8 @@ export class ChatService {
     onlyUnread?: boolean;
     q?: string;
     channel?: string;
+    /* ⚠️ FB page-ээр шүүх — олон page-тэй үед (Best TV / Best Tv 2) */
+    pageId?: string;
   }) {
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
@@ -394,6 +412,8 @@ export class ChatService {
     const where: Prisma.ChatConversationWhereInput = {
       ...(opts.onlyUnread ? { adminUnread: true } : {}),
       ...(channel ? { channel } : {}),
+      /* ⚠️ Зөвхөн тоон id — дурын мөр DB асуулгад орохгүй */
+      ...(/^[0-9]{5,25}$/.test(opts.pageId ?? '') ? { pageId: opts.pageId } : {}),
       ...(needle
         ? {
             OR: [
@@ -405,7 +425,7 @@ export class ChatService {
         : {}),
     };
 
-    const [items, total, unreadTotal, byChannel] = await Promise.all([
+    const [items, total, unreadTotal, byChannel, byPage] = await Promise.all([
       this.prisma.chatConversation.findMany({
         where,
         orderBy: { lastMessageAt: 'desc' },
@@ -428,10 +448,28 @@ export class ChatService {
         by: ['channel'],
         _count: { _all: true },
       }),
+      /**
+       * ⚠️⚠️ PAGE ТУС БҮРИЙН ТОО — ХОЁР Facebook page-тэй.
+       *
+       * Админ «Best Tv 2 руу хэдэн зурвас ирсэн» гэдгийг мэдэхгүй бол
+       * шүүлтийн товч дарж шалгах хэрэгтэй болно. Тоо нь шууд харагдвал
+       * ажлын урсгал хурдасна (сувгийн тоололтой ижил зарчим).
+       *
+       * ⚠️  NULL-ыг алгасна — вэб чат болон хуучин яриа.
+       */
+      this.prisma.chatConversation.groupBy({
+        by: ['pageId'],
+        where: { pageId: { not: null } },
+        _count: { _all: true },
+      }),
     ]);
 
     const channelCounts: Record<string, number> = {};
     for (const row of byChannel) channelCounts[row.channel] = row._count._all;
+
+    /* ⚠️ Page тус бүрийн тоо — админ шүүлтийн товчинд харуулна */
+    const pageCounts: Record<string, number> = {};
+    for (const row of byPage) if (row.pageId) pageCounts[row.pageId] = row._count._all;
 
     /**
      * ⚠️⚠️ БҮРТГЭЛТЭЙ ХЭРЭГЛЭГЧИЙН АВАТАР — `avatarKey` нь R2-ийн KEY,
@@ -467,6 +505,7 @@ export class ChatService {
       total,
       unreadTotal,
       channelCounts,
+      pageCounts,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),

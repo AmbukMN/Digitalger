@@ -1273,8 +1273,17 @@ model UserAuditLog {
 
 model ChatConversation {
   id        String  @id @default(cuid())
-  /// web (одоогоор зөвхөн вэб; ирээдүйд facebook/instagram)
+  /// web | facebook | instagram
   channel   String  @default("web")
+  /// ⚠️ FB/IG PAGE ID — олон page-тэй үед аль нь болохыг ялгана.
+  ///
+  /// БОДИТ ХЭРЭГЦЭЭ: BestTV нь ХОЁР Facebook page-тэй (Best TV,
+  /// Best Tv 2). Админ чат самбарт хоёулаа «FB» гэж НИЙЛЖ
+  /// харагдвал аль хуудсанд хариулж байгаагаа мэдэхгүй, буруу
+  /// нэрийн өмнөөс хариулах эрсдэлтэй.
+  ///
+  /// ⚠️ Вэб чатад NULL — page гэж байхгүй.
+  pageId    String?
   /// frontend localStorage-оос ирнэ (web_xxx) — upsert-ийн түлхүүр
   sessionId String  @unique
   /// Нэвтэрсэн хэрэглэгчтэй холбогдвол (нэвтрэх үед backfill)

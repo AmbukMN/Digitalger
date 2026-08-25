@@ -105,6 +105,8 @@ export class ChatController {
     @Body()
     body: {
       channel?: string;
+      /* ⚠️ FB/IG page id — олон page ялгахад (chat.service.ts) */
+      pageId?: string;
       sessionId?: string;
       userText?: string;
       assistantText?: string;
@@ -123,6 +125,7 @@ export class ChatController {
     if (body.userText?.trim()) {
       await this.chat.saveMessage({
         channel,
+        pageId: body.pageId,
         sessionId,
         role: 'user',
         text: body.userText,
@@ -148,6 +151,7 @@ export class ChatController {
     if (body.assistantText?.trim()) {
       const saved = await this.chat.saveMessage({
         channel,
+        pageId: body.pageId,
         sessionId,
         role: 'assistant',
         text: body.assistantText,
@@ -256,6 +260,8 @@ export class ChatAdminController {
     @Query('q') q?: string,
     /* ⚠️ Суваг — web | facebook | instagram (чатбот FB/IG-ээс дамжуулна) */
     @Query('channel') channel?: string,
+    /* ⚠️ FB page — олон page-тэй үед (Best TV / Best Tv 2) ялгаж харна */
+    @Query('pageId') pageId?: string,
   ) {
     return this.chat.listConversations({
       page: page ? Number(page) : 1,
@@ -263,6 +269,7 @@ export class ChatAdminController {
       onlyUnread: onlyUnread === '1' || onlyUnread === 'true',
       q,
       channel,
+      pageId,
     });
   }
 

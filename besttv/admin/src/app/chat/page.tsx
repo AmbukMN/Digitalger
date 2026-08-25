@@ -79,6 +79,48 @@ const CHANNEL_META: Record<
   },
 };
 
+/**
+ * ⚠️⚠️ FACEBOOK PAGE-ИЙН ЯЛГАА.
+ *
+ * BestTV нь ХОЁР Facebook page-тэй (Best TV, Best Tv 2 — Богино драм).
+ * Хоёулаа «FB» гэж нийлж харагдвал админ аль хуудсанд хариулж
+ * байгаагаа мэдэхгүй, БУРУУ нэрийн өмнөөс хариулах эрсдэлтэй.
+ *
+ * ⚠️ Шинэ page нэмэгдвэл ЭНД бүртгэнэ — эс бөгөөс id нь түүхий
+ *    тоогоор харагдана (эвдрэхгүй, зүгээр л ойлгомжгүй).
+ */
+const PAGE_META: Record<string, { label: string; cls: string }> = {
+  '108103720808038': {
+    label: 'Best TV',
+    cls: 'bg-primary/15 text-primary',
+  },
+  '1709865179261697': {
+    label: 'Best Tv 2',
+    /* ⚠️ Тод ялгаатай өнгө — нэг харцаар салгах гол зорилго */
+    cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300',
+  },
+};
+
+/** FB page badge — `pageId` байвал л гарна (вэб чатад утгагүй) */
+function PageBadge({ pageId }: { pageId?: string | null }) {
+  if (!pageId) return null;
+  const meta = PAGE_META[pageId] ?? {
+    label: pageId.slice(-6),
+    cls: 'bg-muted text-muted-foreground',
+  };
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold',
+        meta.cls,
+      )}
+      title={`Facebook page: ${meta.label}`}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 function ChannelBadge({ channel, size = 'sm' }: { channel: string; size?: 'sm' | 'md' }) {
   /* ⚠️ Танихгүй суваг ирвэл (ирээдүйн WhatsApp гэх мэт) нэрийг нь
      хэвээр харуулна — `null` буцаавал ЧИМЭЭГҮЙ алга болно */
@@ -118,6 +160,11 @@ function ChannelBadge({ channel, size = 'sm' }: { channel: string; size?: 'sm' |
 interface ConvListItem {
   id: string;
   channel: string;
+  /**
+   * ⚠️ FB/IG page id — ХОЁР page-тэй тул аль нь болохыг ялгана.
+   * Вэб чатад null. Хуучин ярианд ч null (засвараас өмнөх).
+   */
+  pageId: string | null;
   sessionId: string;
   userName: string | null;
   userEmail: string | null;
@@ -174,6 +221,11 @@ export default function ChatPage() {
   /* ⚠️ Сувгийн шүүлт — '' = бүгд. FB/IG чатбот ажилласнаар вэбийн
      яриатай холилдоно, ялгаж харах шаардлагатай. */
   const [channel, setChannel] = useState('');
+  /**
+   * ⚠️ FB PAGE шүүлт — BestTV нь ХОЁР page-тэй (Best TV, Best Tv 2).
+   * Хоосон = бүх page. Зөвхөн `channel === 'facebook'` үед утгатай.
+   */
+  const [pageId, setPageId] = useState('');
   const [page, setPage] = useState(1);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
@@ -195,18 +247,22 @@ export default function ChatPage() {
    * админ бүх яриа УСТСАН гэж эндүүрнэ.
    */
   const { data: list, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['admin-chat-list', onlyUnread, q, page, channel],
+    queryKey: ['admin-chat-list', onlyUnread, q, page, channel, pageId],
     queryFn: () =>
       api<{
         items: ConvListItem[];
         total: number;
         unreadTotal: number;
         channelCounts?: Record<string, number>;
+        /** ⚠️ Page тус бүрийн яриа — шүүлтийн товчинд тоо харуулна */
+        pageCounts?: Record<string, number>;
         totalPages?: number;
       }>(
         `/admin/chat/conversations?pageSize=30&page=${page}` +
           (onlyUnread ? '&onlyUnread=1' : '') +
           (channel ? `&channel=${channel}` : '') +
+          /* ⚠️ FB page шүүлт — хоёр page-тэй тул (Best TV / Best Tv 2) */
+          (pageId ? `&pageId=${pageId}` : '') +
           (q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''),
       ),
     refetchInterval: 15_000,
@@ -420,6 +476,69 @@ export default function ChatPage() {
             </button>
           )}
 
+          {/**
+            * ⚠️⚠️ FACEBOOK PAGE-ИЙН ШҮҮЛТ.
+            *
+            * BestTV нь ХОЁР Facebook page-тэй (Best TV, Best Tv 2 —
+            * Богино драм). Аль page-ийн зурвасыг харж байгаагаа
+            * мэдэхгүй бол админ БУРУУ нэрийн өмнөөс хариулна.
+            *
+            * ⚠️ ЗӨВХӨН `facebook` таб сонгосон үед гарна — вэб/IG-д
+            *    утгагүй, дэлгэц дэмий дүүрнэ.
+            * ⚠️ Нэг л page-тэй бол ч гарахгүй (ялгах зүйл алга).
+            */}
+          {(() => {
+            if (channel !== 'facebook') return null;
+            const pc = list?.pageCounts ?? {};
+            const ids = Object.keys(pc).filter((k) => (pc[k] ?? 0) > 0);
+            if (ids.length < 2) return null;
+            return (
+              <div className="flex items-center gap-1.5 border-b border-border px-2.5 pb-2.5">
+                <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+                  Page:
+                </span>
+                <button
+                  onClick={() => {
+                    setPageId('');
+                    setPage(1);
+                  }}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                    !pageId
+                      ? 'bg-foreground/10 text-foreground'
+                      : 'text-muted-foreground hover:bg-foreground/5',
+                  )}
+                >
+                  Бүгд
+                </button>
+                {ids.map((id) => {
+                  const meta = PAGE_META[id] ?? {
+                    label: id.slice(-6),
+                    cls: 'bg-muted text-muted-foreground',
+                  };
+                  const on = pageId === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setPageId(on ? '' : id);
+                        setPage(1);
+                      }}
+                      className={cn(
+                        'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                        /* ⚠️ Сонгогдсон үед page-ийнхээ ӨНГӨӨР — badge-тэй таарна */
+                        on ? meta.cls : 'text-muted-foreground hover:bg-foreground/5',
+                      )}
+                    >
+                      {meta.label}
+                      <span className="opacity-60">{pc[id]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {/*
             ⚠️ СУВГИЙН ШҮҮЛТ — зөвхөн FB/IG-ээс яриа ИРСЭН үед л
             харагдана. Чатбот асаагаагүй байхад хоосон таб харуулбал
@@ -541,6 +660,8 @@ export default function ChatPage() {
                         хэлбэр суваг бүрд өөр).
                       */}
                       <ChannelBadge channel={c.channel} />
+                      {/* ⚠️ Аль FB page — хоёр page-тэй тул ЗААВАЛ ялгана */}
+                      <PageBadge pageId={c.pageId} />
                       {c.adminUnread && (
                         <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" />
                       )}
@@ -634,6 +755,10 @@ export default function ChatPage() {
                         ⚠️ `md` — жагсаалтынхаас ТОМ: хариу бичихийн өмнөх
                         сүүлчийн шалгах цэг тул тодорхой харагдана. */}
                     <ChannelBadge channel={detail.channel} size="md" />
+                    {/* ⚠️ Админ ЯМАР page-ийн нэрийн өмнөөс хариулж
+                        байгаагаа мэдэх ёстой (буруу нэрээр хариулах
+                        эрсдэл) */}
+                    <PageBadge pageId={detail.pageId} />
                   </div>
                   {/*
                     ⚠️ Имэйл БА PSID ХОЁУЛАА. Өмнө нь `??` гинжээр имэйл
