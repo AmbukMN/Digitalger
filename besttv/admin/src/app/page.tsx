@@ -34,6 +34,8 @@ import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { api } from '@/lib/api';
 import { useDashboard, useContentInsights } from '@/lib/queries';
+/* ⚠️ Төрлийн badge — /payments, /bank хуудастай НЭГ эх сурвалж */
+import { PayKindCell } from '@/components/pay-kind-badge';
 
 /**
  * НЭГДСЭН ХЯНАХ САМБАР.
@@ -361,13 +363,8 @@ export default function DashboardPage() {
                       valueTone: 'success' as const,
                       extra: (
                         <span className="text-xs text-muted-foreground">
-                          {p.isWalletTopup ? (
-                            <span className="inline-flex items-center gap-1 text-primary">
-                              <Wallet size={11} /> Хэтэвч
-                            </span>
-                          ) : (
-                            (p.plan?.name ?? '—')
-                          )}
+                          {/* ⚠️ Түрээс бол КИНОНЫ нэр — /payments-тэй НЭГ логик */}
+                          <PayKindCell p={{ ...p, isWalletTopup: !!p.isWalletTopup }} />
                         </span>
                       ),
                     }))}
@@ -503,13 +500,8 @@ export default function DashboardPage() {
                       valueTone: 'success' as const,
                       extra: (
                         <span className="text-xs text-muted-foreground">
-                          {p.isWalletTopup ? (
-                            <span className="inline-flex items-center gap-1 text-primary">
-                              <Wallet size={11} /> Хэтэвч
-                            </span>
-                          ) : (
-                            (p.plan?.name ?? '—')
-                          )}
+                          {/* ⚠️ Түрээс бол КИНОНЫ нэр — /payments-тэй НЭГ логик */}
+                          <PayKindCell p={{ ...p, isWalletTopup: !!p.isWalletTopup }} />
                         </span>
                       ),
                     }))}

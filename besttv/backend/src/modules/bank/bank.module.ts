@@ -502,6 +502,8 @@ export class BankService {
       },
       include: {
         plan: { select: { name: true } },
+        /* ⚠️ Ширхэгээр түрээслэсэн киноны нэр — админ ЯМАР кино
+           түрээслүүлснийг мэдэх ёстой («—» гэж хоосон гарддаг байв) */
         rentalTitle: { select: { title: true } },
         user: { select: { name: true, email: true } },
       },
@@ -648,6 +650,9 @@ export class BankService {
         createdAt: true,
         isWalletTopup: true,
         plan: { select: { name: true } },
+        /* ⚠️ Ширхэгээр түрээслэсэн киноны нэр — админ ЯМАР кино
+           түрээслүүлснийг мэдэх ёстой («—» гэж хоосон гарддаг байв) */
+        rentalTitle: { select: { title: true } },
         bankAccount: { select: { bankName: true } },
       },
     });
@@ -785,6 +790,9 @@ export class BankService {
         createdAt: true,
         user: { select: { email: true, name: true } },
         plan: { select: { name: true } },
+        /* ⚠️ Ширхэгээр түрээслэсэн киноны нэр — админ ЯМАР кино
+           түрээслүүлснийг мэдэх ёстой («—» гэж хоосон гарддаг байв) */
+        rentalTitle: { select: { title: true } },
         bankAccount: { select: { bankName: true } },
       },
     });
@@ -817,7 +825,10 @@ export class BankService {
           r.createdAt.toISOString(),
           r.user?.name ?? '',
           r.user?.email ?? '',
-          r.isWalletTopup ? 'Хэтэвч цэнэглэлт' : (r.plan?.name ?? ''),
+          /* ⚠️ Түрээс бол КИНОНЫ нэр — өмнө нь хоосон гардаг байв */
+          r.isWalletTopup
+            ? 'Хэтэвч цэнэглэлт'
+            : (r.rentalTitle?.title ?? r.plan?.name ?? ''),
           r.bankAccount?.bankName ?? '',
           r.amount,
           r.originalAmount ?? '',
@@ -915,6 +926,9 @@ export class BankService {
         amount: true,
         isWalletTopup: true,
         plan: { select: { name: true } },
+        /* ⚠️ Ширхэгээр түрээслэсэн киноны нэр — админ ЯМАР кино
+           түрээслүүлснийг мэдэх ёстой («—» гэж хоосон гарддаг байв) */
+        rentalTitle: { select: { title: true } },
       },
     });
     if (!p) throw new NotFoundException('Төлбөр олдсонгүй');

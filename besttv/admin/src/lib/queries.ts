@@ -297,6 +297,8 @@ export interface DashboardStats {
     isWalletTopup?: boolean;
     user: { email: string; name: string | null };
     plan: { name: string } | null;
+    /* ⚠️ Ширхэгээр түрээслэсэн кино — `plan` NULL үед л утгатай */
+    rentalTitle?: { title: string } | null;
   }[];
   topTitles: { id: string; title: string; type: string; views: number; rating: number | null }[];
   /** Өдөр/долоо хоногийн цуваа — график */
@@ -707,6 +709,12 @@ export interface AdminPayment {
   createdAt: string;
   user: { id: string; email: string; name: string | null };
   plan: { id: string; name: string } | null;
+  /**
+   * ⚠️ ШИРХЭГЭЭР ТҮРЭЭСЛЭСЭН кино — `plan` NULL үед л утгатай.
+   * Өмнө нь татагддаггүй байсан тул админ жагсаалтад «—» гэж
+   * хоосон гардаг, ЯМАР кино түрээслүүлснийг мэдэх аргагүй байв.
+   */
+  rentalTitle: { id: string; title: string; slug: string } | null;
 }
 
 export interface SeoSettings {
@@ -1092,6 +1100,11 @@ export interface AdminBankPayment {
   createdAt: string;
   isWalletTopup: boolean;
   plan: { id: string; name: string } | null;
+  /**
+   * ⚠️ Ширхэгээр түрээслэсэн кино — `plan` NULL үед л утгатай.
+   * Админ гараар баталгаажуулахдаа ЯМАР кино болохыг мэдэх ёстой.
+   */
+  rentalTitle: { title: string } | null;
   user: { id: string; name: string | null; email: string } | null;
   bankAccount: { id: string; bankName: string } | null;
 }

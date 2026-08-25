@@ -94,9 +94,23 @@ export class PaymentsAdminController {
       where.amount = range;
     }
 
-    // Төрөл — багц худалдан авалт эсвэл хэтэвч цэнэглэлт
+    /**
+     * ⚠️⚠️ ТӨРЛИЙН ШҮҮЛТ — ГУРВАН БИЕ ДААСАН ТӨРӨЛ.
+     *
+     * Өмнө нь `plan` нь `isWalletTopup = false` л шалгадаг байсан тул
+     * ШИРХЭГЭЭР ТҮРЭЭСЛЭСЭН гүйлгээ ч «Багц» шүүлтэд ОРДОГ байв —
+     * админ багцын борлуулалтыг тусад нь харах боломжгүй.
+     *
+     * · topup  — хэтэвч цэнэглэлт
+     * · rental — ширхэгээр түрээс (`rentalTitleId` байна)
+     * · plan   — багц (топап ч биш, түрээс ч биш)
+     */
     if (q.kind === 'topup') where.isWalletTopup = true;
-    else if (q.kind === 'plan') where.isWalletTopup = false;
+    else if (q.kind === 'rental') where.rentalTitleId = { not: null };
+    else if (q.kind === 'plan') {
+      where.isWalletTopup = false;
+      where.rentalTitleId = null;
+    }
 
     if (q.planId) where.planId = q.planId;
 
@@ -149,6 +163,17 @@ export class PaymentsAdminController {
           createdAt: true,
           user: { select: { id: true, email: true, name: true } },
           plan: { select: { id: true, name: true } },
+          /**
+           * ⚠️⚠️ ШИРХЭГЭЭР ТҮРЭЭСЛЭСЭН КИНОНЫ НЭР.
+           *
+           * Түрээсийн төлбөрт `planId` NULL тул админ жагсаалтад
+           * «—» гэж хоосон гардаг байв — ЯМАР кино түрээслүүлснийг
+           * админ огт мэдэхгүй (гомдол шийдэх, тайлан гаргахад
+           * зайлшгүй).
+           *
+           * ⚠️ `slug` ч авна — админ шууд киноруу шилжиж чадна.
+           */
+          rentalTitle: { select: { id: true, title: true, slug: true } },
         },
       }),
       this.prisma.payment.count({ where }),
@@ -264,6 +289,8 @@ export class PaymentsAdminController {
         createdAt: true,
         user: { select: { email: true, name: true } },
         plan: { select: { name: true } },
+        /* ⚠️ Түрээсийн киноны нэр — жагсаалттай ижил (дээрх тайлбар) */
+        rentalTitle: { select: { title: true } },
       },
     });
 
@@ -292,8 +319,14 @@ export class PaymentsAdminController {
           r.createdAt.toISOString(),
           r.user?.name ?? '',
           r.user?.email ?? '',
-          r.isWalletTopup ? 'Хэтэвч цэнэглэлт' : 'Багц',
-          r.plan?.name ?? '',
+          /**
+           * ⚠️ ГУРВАН ТӨРӨЛ ЯЛГАНА — өмнө нь бүгд «Багц» гэж
+           *    бичигддэг байсан тул тайланд түрээс ба цэнэглэлт
+           *    ялгагдахгүй байв.
+           */
+          r.isWalletTopup ? 'Хэтэвч цэнэглэлт' : r.rentalTitle ? 'Түрээс' : 'Багц',
+          /* ⚠️ Түрээс бол КИНОНЫ нэр, багц бол багцын нэр */
+          r.rentalTitle?.title ?? r.plan?.name ?? '',
           r.amount,
           r.couponCode ?? '',
           r.status,

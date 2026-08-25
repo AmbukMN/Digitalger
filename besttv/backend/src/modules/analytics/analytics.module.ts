@@ -133,6 +133,9 @@ export class AnalyticsService {
           isWalletTopup: true,
           user: { select: { email: true, name: true } },
           plan: { select: { name: true } },
+          /* ⚠️ Ширхэгээр түрээслэсэн киноны нэр — эс бөгөөс дашбоардын
+             сүүлийн төлбөрт «—» гэж хоосон гарна */
+          rentalTitle: { select: { title: true } },
         },
       }),
       this.prisma.title.findMany({

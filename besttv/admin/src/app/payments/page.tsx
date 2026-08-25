@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { TableSkeleton } from '@/components/table-skeleton';
-import { Ban, Check, CreditCard, Loader2, Ticket, TrendingUp, Wallet } from 'lucide-react';
+import { Ban, Check, CreditCard, Film, Loader2, Ticket, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDateTime, formatPrice } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
@@ -17,6 +17,8 @@ import { api } from '@/lib/api';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { useAdminPaymentCounts, useAdminPayments, type PaymentFilters } from '@/lib/queries';
 import { NewBadge } from '@/components/new-badge';
+/* ⚠️ Төрлийн badge — /bank хуудастай НЭГ эх сурвалж */
+import { PayKindCell, payKindName } from '@/components/pay-kind-badge';
 import { ProviderBadge, PROVIDER_OPTIONS } from '@/components/provider-badge';
 import { useNewSince } from '@/lib/use-new-since';
 import { useQueryClient } from '@tanstack/react-query';
@@ -228,6 +230,9 @@ export default function PaymentsPage() {
               options: [
                 { value: 'ALL', label: 'Бүгд' },
                 { value: 'plan', label: 'Багц худалдан авалт' },
+                /* ⚠️ Түрээс нь өмнө нь «Багц»-д хамаарч байсан —
+                   тусад нь шүүх боломжгүй байв (backend тайлбар үз) */
+                { value: 'rental', label: 'Ширхэгээр түрээс' },
                 { value: 'topup', label: 'Хэтэвч цэнэглэлт' },
               ],
               onChange: (v) => set({ kind: v }),
@@ -323,13 +328,8 @@ export default function PaymentsPage() {
                   <td className="px-4 py-3">
                     {/* ⚠️ Аль аргаар төлсөн — админ ялгаж харна */}
                     <ProviderBadge provider={p.provider} className="mr-1.5 align-middle" />
-                    {p.isWalletTopup ? (
-                      <span className="inline-flex items-center gap-1.5 text-primary">
-                        <Wallet size={13} /> Хэтэвч цэнэглэлт
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">{p.plan?.name ?? '—'}</span>
-                    )}
+                    {/* ⚠️ Төрөл + нэр — /bank хуудастай НЭГ компонент */}
+                    <PayKindCell p={p} />
                     {p.couponCode && (
                       <span className="ml-2 inline-flex items-center gap-1 rounded bg-premium/15 px-1.5 py-0.5 text-[10px] font-semibold text-premium">
                         <Ticket size={10} /> {p.couponCode}
@@ -375,7 +375,8 @@ export default function PaymentsPage() {
                               onClick={() =>
                                 markPaid(
                                   p.id,
-                                  p.isWalletTopup ? 'Хэтэвч цэнэглэлт' : (p.plan?.name ?? 'Багц'),
+                                  /* ⚠️ Түрээс бол КИНОНЫ нэр (`pay-kind-badge` тайлбар) */
+                                  payKindName(p),
                                   p.amount,
                                 )
                               }

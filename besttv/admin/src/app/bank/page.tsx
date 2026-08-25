@@ -47,6 +47,8 @@ import {
   type AdminBankPayment,
 } from '@/lib/queries';
 import { downloadCsv } from '@/lib/export-csv';
+/* ⚠️ Төрлийн badge — /payments хуудастай НЭГ эх сурвалж */
+import { PayKindCell, payKindName } from '@/components/pay-kind-badge';
 
 /**
  * ДАНСНЫ ТӨЛБӨР — ГАРААР БАТАЛГААЖУУЛАХ.
@@ -133,7 +135,8 @@ export default function BankPage() {
       title: `${formatPrice(p.amount)} баталгаажуулах уу?`,
       description: `«${p.bankReference}» гүйлгээ банкны хуулгад ОРСОН эсэхийг шалгасан уу?`,
       bullets: [
-        `${p.user?.email ?? '—'} — ${p.plan?.name ?? (p.isWalletTopup ? 'Хэтэвч цэнэглэх' : '—')}`,
+        /* ⚠️ Түрээс бол КИНОНЫ нэр (`pay-kind-badge` тайлбар) */
+        `${p.user?.email ?? '—'} — ${payKindName(p)}`,
         'Баталгаажмагц эрх нь ШУУД нээгдэнэ (буцаах боломжгүй)',
       ],
       confirmLabel: 'Баталгаажуулах',
@@ -702,7 +705,10 @@ export default function BankPage() {
                           </td>
 
                           <td className="px-4 py-3 text-foreground/75">
-                            {p.isWalletTopup ? 'Хэтэвч цэнэглэх' : (p.plan?.name ?? '—')}
+                            {/* ⚠️ Төрөл + нэр — /payments хуудастай НЭГ компонент.
+                                Түрээс бол КИНОНЫ нэр (өмнө нь «—» гэж хоосон
+                                гардаг тул админ ямар кино болохыг мэдэхгүй байв) */}
+                            <PayKindCell p={p} />
                             {p.couponCode && (
                               <span className="ml-1.5 rounded bg-foreground/8 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                 {p.couponCode}
