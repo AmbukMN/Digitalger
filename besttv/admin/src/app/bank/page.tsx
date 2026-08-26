@@ -119,6 +119,12 @@ export default function BankPage() {
   const prompt = usePrompt();
 
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * ⚠️ БӨӨН сонголт — ЗӨВХӨН `PENDING` мөрийг агуулна. Баталгаажсан
+   *    /цуцлагдсаныг дахин боловсруулах боломжгүй тул сонгуулахгүй.
+   */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editAccount, setEditAccount] = useState<AdminBankAccount | 'new' | null>(null);
   /** ⚠️ Баримтын зургийг ТОМООР харах — жижиг зурагнаас дүн уншигдахгүй */
@@ -126,9 +132,49 @@ export default function BankPage() {
 
   const rows = data?.items ?? [];
 
+  /* ⚠️ Зөвхөн үйлдэл хийж БОЛОХ мөр (PENDING) сонгогдоно */
+  const actionableIds = useMemo(
+    () => rows.filter((r) => r.status === 'PENDING').map((r) => r.id),
+    [rows],
+  );
+  /**
+   * ⚠️⚠️ Сонголтыг ОДООГИЙН хуудсаар ХЯЗГААРЛАНА. Хуудас/шүүлт
+   * солиход өмнөх сонголт үлдвэл админ хардаггүй мөрөө батлах
+   * эрсдэлтэй — мөнгөний үйлдэлд зөвшөөрөгдөхгүй.
+   */
+  const selectedIds = useMemo(
+    () => actionableIds.filter((id) => selected.has(id)),
+    [actionableIds, selected],
+  );
+  const allSelected =
+    actionableIds.length > 0 && actionableIds.every((id) => selected.has(id));
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) actionableIds.forEach((id) => next.delete(id));
+      else actionableIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+  const clearSelection = () => setSelected(new Set());
+
   /* ⚠️ Шүүлт/хайлт солиход 1-р хуудас руу — эс бөгөөс 5-р хуудсан
      дээр байхад шүүвэл ХООСОН харагдана */
-  const resetPage = () => setPage(1);
+  const resetPage = () => {
+    setPage(1);
+    /* ⚠️ Шүүлт солиход сонголт ЗААВАЛ цэвэрлэнэ — харагдахгүй мөр
+       сонгогдсон хэвээр үлдэх нь мөнгөний үйлдэлд аюултай */
+    clearSelection();
+  };
 
   const approve = async (p: AdminBankPayment) => {
     const ok = await confirm({
@@ -199,6 +245,116 @@ export default function BankPage() {
         },
       },
     );
+  };
+
+  /**
+   * Бөөн үйлдлийн ДАРААХ тайлан.
+   *
+   * ⚠️⚠️ Мөнгөний үйлдэлд «болсон» гэсэн ганц toast ХАНГАЛТГҮЙ.
+   * Аль нь амжилттай, аль нь унасныг админ ТОДОРХОЙ мэдэх ёстой —
+   * эс бөгөөс унасан гүйлгээ чимээгүй үлдэж, хэрэглэгч хүлээсээр
+   * байна. Тиймээс алдаатайг тусад нь улаан toast-оор харуулна.
+   */
+  const reportBulk = (
+    r: { total: number; failed: { id: string; reason: string }[] },
+    okCount: number,
+    verb: string,
+  ) => {
+    if (okCount > 0) toast.success(`${okCount} төлбөр ${verb}`);
+    if (r.failed.length > 0) {
+      /* ⚠️ Эхний шалтгааныг харуулна — ихэвчлэн бүгд ижил шалтгаантай */
+      toast.error(
+        `${r.failed.length} төлбөр боловсруулагдсангүй: ${r.failed[0].reason}`,
+        { duration: 8000 },
+      );
+    }
+    if (okCount === 0 && r.failed.length === 0) {
+      toast.info('Өөрчлөгдсөн төлбөр байхгүй');
+    }
+  };
+
+  const afterBulk = () => {
+    /* ⚠️ Статистик ЗААВАЛ — `approve`-ын тайлбарыг үз */
+    qc.invalidateQueries({ queryKey: ['admin-bank-payments'] });
+    qc.invalidateQueries({ queryKey: ['admin-bank-stats'] });
+    clearSelection();
+    setBulkBusy(false);
+  };
+
+  const bulkApprove = async () => {
+    const ids = selectedIds;
+    if (!ids.length) return;
+    const sum = rows
+      .filter((r) => ids.includes(r.id))
+      .reduce((acc, r) => acc + r.amount, 0);
+
+    const ok = await confirm({
+      title: `${ids.length} төлбөр баталгаажуулах уу?`,
+      description: `Нийт ${formatPrice(sum)}. Гүйлгээ бүр банкны хуулгад ОРСОН эсэхийг шалгасан уу?`,
+      bullets: [
+        'Эрх нь ШУУД нээгдэнэ — буцаах боломжгүй',
+        'Хэрэглэгч бүрд мэдэгдэл очно',
+      ],
+      confirmLabel: `${ids.length} төлбөр баталгаажуулах`,
+      tone: 'warning',
+    });
+    if (!ok) return;
+
+    setBulkBusy(true);
+    try {
+      const r = await api<{
+        total: number;
+        approved: number;
+        alreadyPaid: number;
+        failed: { id: string; reason: string }[];
+      }>('/admin/bank/payments/bulk/approve', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      });
+      reportBulk(r, r.approved, 'баталгаажлаа');
+      if (r.alreadyPaid > 0) {
+        toast.info(`${r.alreadyPaid} төлбөр өмнө нь төлөгдсөн байсан`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Үйлдэл амжилтгүй боллоо');
+    } finally {
+      afterBulk();
+    }
+  };
+
+  const bulkReject = async () => {
+    const ids = selectedIds;
+    if (!ids.length) return;
+
+    /* ⚠️ Шалтгаан нь хэрэглэгч БҮРД мэдэгдэл + имэйлээр очно */
+    const reason = await prompt({
+      title: `${ids.length} төлбөр татгалзах`,
+      label: 'Шалтгаан',
+      description:
+        `Энэ текст сонгосон ${ids.length} хэрэглэгч БҮРД мэдэгдэл болон ` +
+        'имэйлээр очно. Тиймээс ерөнхий байх ёстой.',
+      defaultValue: 'Гүйлгээ банкны хуулгад олдсонгүй',
+      placeholder: 'Яагаад татгалзаж байгаагаа бичнэ үү',
+      confirmLabel: `${ids.length} төлбөр татгалзах`,
+    });
+    if (!reason?.trim()) return;
+
+    setBulkBusy(true);
+    try {
+      const r = await api<{
+        total: number;
+        rejected: number;
+        failed: { id: string; reason: string }[];
+      }>('/admin/bank/payments/bulk/reject', {
+        method: 'POST',
+        body: JSON.stringify({ ids, reason: reason.trim() }),
+      });
+      reportBulk(r, r.rejected, 'татгалзлаа');
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Үйлдэл амжилтгүй боллоо');
+    } finally {
+      afterBulk();
+    }
   };
 
   const removeAccount = async (a: AdminBankAccount) => {
@@ -615,10 +771,88 @@ export default function BankPage() {
                 }
               />
             ) : (
+              <>
+                {/*
+                  ⚠️⚠️ БӨӨН ҮЙЛДЛИЙН МӨР — 22 татгалзсан гүйлгээг нэг
+                  бүрчлэн дарах нь ашиглах боломжгүй UX байсан.
+
+                  ⚠️ Сонгосон ДҮНГ харуулна — админ хэдэн төгрөгийн
+                     эрх нээж байгаагаа МЭДЭХ ёстой (мөнгөний үйлдэл).
+                  ⚠️ «Баталгаажуулах» нь ногоон, «Татгалзах» улаан —
+                     санамсаргүй дарахаас өнгөөр хамгаална.
+                */}
+                {selectedIds.length > 0 && (
+                  <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/8 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">
+                        {selectedIds.length} төлбөр сонгосон
+                      </p>
+                      <p className="text-[11px] tabular-nums text-muted-foreground">
+                        Нийт{' '}
+                        {formatPrice(
+                          rows
+                            .filter((r) => selectedIds.includes(r.id))
+                            .reduce((acc, r) => acc + r.amount, 0),
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void bulkApprove()}
+                        disabled={bulkBusy}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                      >
+                        {bulkBusy ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Check size={14} />
+                        )}
+                        Бүгдийг батлах
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void bulkReject()}
+                        disabled={bulkBusy}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                      >
+                        {bulkBusy ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <X size={14} />
+                        )}
+                        Бүгдийг татгалзах
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearSelection}
+                        disabled={bulkBusy}
+                        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                        aria-label="Сонголт цуцлах"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-200 text-sm">
                   <thead>
                     <tr className="border-b border-foreground/10 bg-foreground/4 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      {/* ⚠️ БӨӨН сонголт — зөвхөн PENDING мөр сонгогдоно.
+                          Хуудсанд нэг ч PENDING байхгүй бол товч идэвхгүй. */}
+                      <th className="w-10 px-3 py-2.5">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          disabled={actionableIds.length === 0}
+                          onChange={toggleAll}
+                          aria-label="Хүлээгдэж буй бүгдийг сонгох"
+                          className="size-4 cursor-pointer rounded border-input accent-primary disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                      </th>
                       <th className="px-4 py-2.5 font-semibold">Утга</th>
                       <th className="px-4 py-2.5 font-semibold">Баримт</th>
                       <th className="px-4 py-2.5 font-semibold">Хэрэглэгч</th>
@@ -638,8 +872,28 @@ export default function BankPage() {
                       return (
                         <tr
                           key={p.id}
-                          className="border-b border-foreground/6 transition-colors last:border-0 hover:bg-foreground/3"
+                          className={cn(
+                            'border-b border-foreground/6 transition-colors last:border-0 hover:bg-foreground/3',
+                            /* ⚠️ Сонгогдсон мөр ЯЛГАРНА — 50 мөрийн дунд
+                               юуг сонгосноо харахгүй бол алдаа гарна */
+                            selected.has(p.id) && 'bg-primary/6',
+                          )}
                         >
+                          <td className="px-3 py-3">
+                            {canAct ? (
+                              <input
+                                type="checkbox"
+                                checked={selected.has(p.id)}
+                                onChange={() => toggleOne(p.id)}
+                                aria-label={`${p.bankReference} сонгох`}
+                                className="size-4 cursor-pointer rounded border-input accent-primary"
+                              />
+                            ) : (
+                              /* ⚠️ Баталгаажсан/цуцлагдсаныг ДАХИН боловсруулах
+                                 боломжгүй тул checkbox огт харуулахгүй */
+                              <span className="sr-only">Үйлдэл хийх боломжгүй</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-base font-bold tabular-nums text-foreground">
@@ -809,6 +1063,7 @@ export default function BankPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
 
             {/*

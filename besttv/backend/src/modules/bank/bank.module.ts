@@ -19,7 +19,17 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Throttle } from '@nestjs/throttler';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { NotificationType, PaymentStatus, Role } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -144,6 +154,27 @@ class ClaimDto {
 }
 
 class RejectDto {
+  @IsString()
+  @MaxLength(200)
+  reason: string;
+}
+
+/**
+ * БӨӨН үйлдлийн ID-ууд.
+ *
+ * ⚠️⚠️ `ArrayMaxSize(200)` ЗААВАЛ — хязгааргүй бол админ санамсаргүй
+ * олон мянган ID илгээж, гүйлгээ бүрд эрх нээх + мэдэгдэл + имэйл
+ * явдаг тул сервер удаан гацна. 200 нь нэг хуудсын (50) 4 дахин.
+ */
+class BulkIdsDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  ids: string[];
+}
+
+class BulkRejectDto extends BulkIdsDto {
   @IsString()
   @MaxLength(200)
   reason: string;
@@ -1007,6 +1038,75 @@ export class BankService {
     this.logger.log(`Дансны төлбөр татгалзлаа: ${p.bankReference} admin=${adminId} — ${reason}`);
     return { ok: true };
   }
+
+  /**
+   * БӨӨН баталгаажуулах.
+   *
+   * ⚠️⚠️ ДАРААЛАН боловсруулна (`Promise.all` БИШ). Шалтгаан:
+   *   · `completePayment` нь эрх нээх + subscription үүсгэх +
+   *     хэтэвч цэнэглэх зэрэг ОЛОН бичилт хийнэ. Зэрэг ажиллуулбал
+   *     нэг хэрэглэгчийн 2 төлбөр давхар subscription үүсгэж болзошгүй.
+   *   · Мэдэгдэл/имэйл нь гадаад үйлчилгээ — зэрэг 200 дуудалт
+   *     rate-limit-д унана.
+   *
+   * ⚠️⚠️ Нэг нь унавал БҮГД ЗОГСОХГҮЙ. Мөнгөний үйлдэл тул аль нь
+   * болсон, аль нь болоогүйг админ ТОДОРХОЙ мэдэх ёстой — тиймээс
+   * алдаа бүрийг цуглуулж буцаана.
+   */
+  async bulkApprove(ids: string[], adminId: string) {
+    const uniq = [...new Set(ids)];
+    let approved = 0;
+    let alreadyPaid = 0;
+    const failed: { id: string; reason: string }[] = [];
+
+    for (const id of uniq) {
+      try {
+        const r = await this.approve(id, adminId);
+        if (r.alreadyPaid) alreadyPaid += 1;
+        else approved += 1;
+      } catch (e) {
+        failed.push({
+          id,
+          reason: e instanceof Error ? e.message : 'Тодорхойгүй алдаа',
+        });
+      }
+    }
+
+    this.logger.log(
+      `БӨӨН баталгаажуулалт: ${approved} амжилттай, ${alreadyPaid} өмнө нь төлөгдсөн, ` +
+        `${failed.length} алдаа — admin=${adminId}`,
+    );
+    return { ok: true, total: uniq.length, approved, alreadyPaid, failed };
+  }
+
+  /**
+   * БӨӨН татгалзах — шалтгаан БҮГДЭД нь адил очно.
+   *
+   * ⚠️ Шалтгаан нь хэрэглэгч бүрд мэдэгдэл + имэйлээр очих тул
+   *    ерөнхий байх ёстой («Гүйлгээ банкны хуулгад олдсонгүй» гэх мэт).
+   */
+  async bulkReject(ids: string[], reason: string, adminId: string) {
+    const uniq = [...new Set(ids)];
+    let rejected = 0;
+    const failed: { id: string; reason: string }[] = [];
+
+    for (const id of uniq) {
+      try {
+        await this.reject(id, reason, adminId);
+        rejected += 1;
+      } catch (e) {
+        failed.push({
+          id,
+          reason: e instanceof Error ? e.message : 'Тодорхойгүй алдаа',
+        });
+      }
+    }
+
+    this.logger.log(
+      `БӨӨН татгалзал: ${rejected} амжилттай, ${failed.length} алдаа — admin=${adminId}`,
+    );
+    return { ok: true, total: uniq.length, rejected, failed };
+  }
 }
 
 @Controller('bank')
@@ -1144,6 +1244,21 @@ export class BankAdminController {
     @Query('q') q?: string,
   ) {
     return this.svc.adminExport({ status, from, to, q });
+  }
+
+  /**
+   * ⚠️⚠️ `payments/bulk/...` нь `payments/:id/...`-ЫН ӨМНӨ байрлана.
+   * Nest замыг зарлагдсан ДАРААЛЛААР тааруулдаг тул доор нь бичвэл
+   * "bulk" гэдэг үг `:id`-д баригдаж, ID олдсонгүй гэж унана.
+   */
+  @Post('payments/bulk/approve')
+  bulkApprove(@Body() dto: BulkIdsDto, @CurrentUser() user: JwtPayload) {
+    return this.svc.bulkApprove(dto.ids, user.sub);
+  }
+
+  @Post('payments/bulk/reject')
+  bulkReject(@Body() dto: BulkRejectDto, @CurrentUser() user: JwtPayload) {
+    return this.svc.bulkReject(dto.ids, dto.reason, user.sub);
   }
 
   @Post('payments/:id/approve')
