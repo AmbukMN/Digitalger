@@ -2,7 +2,8 @@
 
 import { create } from 'zustand';
 import { signOut as nextAuthSignOut } from 'next-auth/react';
-import { api, clearTokens, getAccessToken, getRefreshToken, setTokens, takeRefreshError } from './api';
+import { api, clearTokens, getAccessToken, getRefreshToken, isStorageBlocked, setTokens, takeRefreshError } from './api';
+import { toast } from 'sonner';
 
 /** Хэрэглэгчийн идэвхтэй нэг багц (олон багц зэрэг байж болно) */
 export interface UserSubscription {
@@ -118,6 +119,32 @@ function writeUserCache(user: AuthUser | null) {
   }
 }
 
+/**
+ * ⚠️⚠️ STORAGE ХААЛТТАЙ ҮЕД ХЭРЭГЛЭГЧИД ХЭЛНЭ.
+ *
+ * БОДИТ ГОМДОЛ: 6 хэрэглэгч багц авсан атлаа нэг ч кино эхлүүлээгүй
+ * (5/6 нь iPhone). Тэдэнд ЮУ Ч мэдэгддэггүй байсан — зүгээр л «кино
+ * гарахгүй байна» гэж гомдоллоно.
+ *
+ * `memStore` нөөц нь тухайн хуудсан дээр ажиллана, гэвч хуудас
+ * ШИНЭЧЛЭХЭД токен алдагдана. Тиймээс шалтгааныг хэлэх ЁСТОЙ.
+ *
+ * ⚠️ Нэг session-д НЭГ л удаа — дахин дахин харуулбал ядаргаатай
+ *    (хэрэглэгч засах гэж байгаа юм).
+ */
+let storageWarned = false;
+
+function warnIfStorageBlocked() {
+  if (storageWarned || !isStorageBlocked()) return;
+  storageWarned = true;
+  toast.warning('Хадгалалт хаалттай байна', {
+    description:
+      'Хуудсыг шинэчлэхэд дахин нэвтрэх шаардлагатай болно. ' +
+      'Нууц горимоос гарах эсвэл Тохиргоо → Safari → Cookie зөвшөөрнө үү.',
+    duration: 12_000,
+  });
+}
+
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
@@ -190,6 +217,8 @@ export const useAuth = create<AuthState>((set, get) => ({
       { method: 'POST', body: JSON.stringify({ email, password }), auth: false },
     );
     setTokens(data.accessToken, data.refreshToken);
+    /* ⚠️ Storage хаалттай эсэхийг ЭНД шалгана — `setTokens`-ийн ДАРАА */
+    warnIfStorageBlocked();
     await get().refreshMe();
   },
 
@@ -199,11 +228,15 @@ export const useAuth = create<AuthState>((set, get) => ({
       { method: 'POST', body: JSON.stringify({ email, password, name, phone }), auth: false },
     );
     setTokens(data.accessToken, data.refreshToken);
+    /* ⚠️ Storage хаалттай эсэхийг ЭНД шалгана — `setTokens`-ийн ДАРАА */
+    warnIfStorageBlocked();
     await get().refreshMe();
   },
 
   syncFromOAuth: async (accessToken, refreshToken) => {
     setTokens(accessToken, refreshToken);
+    /* ⚠️ Storage хаалттай эсэхийг ЭНД шалгана — `setTokens`-ийн ДАРАА */
+    warnIfStorageBlocked();
     await get().refreshMe();
   },
 

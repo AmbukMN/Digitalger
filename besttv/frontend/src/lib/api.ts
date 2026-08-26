@@ -48,13 +48,29 @@ function lsGet(key: string): string | null {
   }
 }
 
+/**
+ * ⚠️ Storage хаалттай эсэх — нэвтрэх урсгал МЭДЭХ ёстой.
+ *
+ * `memStore` нөөц нь тухайн хуудсан дээр ажиллана, гэвч хуудас
+ * ШИНЭЧЛЭХЭД токен алдагдана. Хэрэглэгчид шалтгааныг хэлэхгүй бол
+ * «кино гарахгүй байна» гэж гомдоллоно (бодит тохиолдол: 6 хүн).
+ */
+let storageBlocked = false;
+
+export function isStorageBlocked(): boolean {
+  return storageBlocked;
+}
+
 function lsSet(key: string, value: string) {
   /* ⚠️ Санах ойд ЭХЛЭЭД — localStorage унасан ч токен амьд үлдэнэ */
   memStore.set(key, value);
   try {
     localStorage.setItem(key, value);
+    /* ⚠️ Бичээд УНШИЖ баталгаажуулна — зарим browser (iOS Safari
+       Private) алдаа шидэлгүй ЧИМЭЭГҮЙ алгасдаг */
+    if (localStorage.getItem(key) !== value) storageBlocked = true;
   } catch {
-    /* storage хаалттай — санах ойн нөөц ажиллана (дээрх тайлбар) */
+    storageBlocked = true;
   }
 }
 

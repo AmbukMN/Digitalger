@@ -17,7 +17,7 @@ import {
   DefaultVideoLayout,
   defaultLayoutIcons,
 } from '@vidstack/react/player/layouts/default';
-import { getAccessToken } from '@/lib/api';
+import { getAccessToken, isStorageBlocked } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { PlayerMenu } from '@/components/player/player-menu';
 
@@ -176,12 +176,100 @@ export function VideoPlayer({
    *    тодорхой болмогц) шууд эхэлнэ — үнэгүй кино/трейлер саатахгүй.
    */
   const authLoading = useAuth((s) => s.loading);
+
+
   /**
    * ⚠️ `/api/`-гүй эх сурвалж (гадаад URL, blob) нь эрх шаарддаггүй
    *    тул auth хүлээх шаардлагагүй.
    */
   const needsAuth = src.includes('/api/');
   const srcReady = !needsAuth || !authLoading;
+
+  /**
+   * ⚠️⚠️ iOS NATIVE HLS — playlist-ыг ӨӨРСДӨӨ татна.
+   *
+   * БОДИТ ГОМДОЛ (6 хэрэглэгч, бүгд iPhone): багц авсан атлаа кино
+   * «Ачаалж байна…» дээр мөнхөд гацна. nginx лог:
+   *     200  auth/me            ← токен ажиллаж байна
+   *     200  thumbnails.vtt     ← ИЖИЛ токеноор 200
+   *     403  playlist.m3u8      ← ИЖИЛ секундэд 403
+   *
+   * ШАЛТГААН: `onProviderChange` нь `isHLSProvider` биш бол шууд
+   * `return` хийдэг. iOS Safari дээр Vidstack нь `VideoProvider`
+   * (NATIVE HLS) сонгодог тул `xhrSetup` ОГТ тохируулагдахгүй —
+   * `<video src>` шууд татагдаж `Authorization` header яваагүй.
+   *
+   * ⚠️ Тиймээс master playlist-ыг `fetch`-ээр (токентой) татаж,
+   *    blob URL болгож өгнө. Дотоод мөрүүд нь `variant.m3u8` рүү
+   *    заадаг бөгөөд тэдгээрийн segment нь PRESIGN-тэй тул нэмэлт
+   *    эрх шаардахгүй.
+   *
+   * ⚠️ `variant.m3u8` нь мөн токен шаардана — тиймээс тэдгээрийг ч
+   *    blob болгоно (доорх `inlineVariants`).
+   */
+  const [nativeSrc, setNativeSrc] = useState<string | null>(null);
+  const blobUrls = useRef<string[]>([]);
+
+  useEffect(() => {
+    /* ⚠️ Зөвхөн эрх шаардах эх сурвалж дээр */
+    if (!needsAuth || authLoading) return;
+    /* ⚠️ hls.js дэмждэг browser дээр хэрэггүй — `xhrSetup` ажиллана */
+    if (typeof window === 'undefined') return;
+    const video = document.createElement('video');
+    const nativeOnly =
+      video.canPlayType('application/vnd.apple.mpegurl') !== '' &&
+      /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (!nativeOnly) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getAccessToken();
+        const res = await fetch(src, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok || cancelled) return;
+        let text = await res.text();
+
+        /**
+         * ⚠️ Дотоод `variant.m3u8` мөрүүдийг ч blob болгоно —
+         * тэдгээр нь мөн токен шаардана.
+         */
+        const lines = text.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i++) {
+          const ln = lines[i].trim();
+          if (!ln || ln.startsWith('#')) continue;
+          const abs = new URL(ln, window.location.origin).toString();
+          const vr = await fetch(abs, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (!vr.ok || cancelled) return;
+          const vtext = await vr.text();
+          const vblob = URL.createObjectURL(
+            new Blob([vtext], { type: 'application/vnd.apple.mpegurl' }),
+          );
+          blobUrls.current.push(vblob);
+          lines[i] = vblob;
+        }
+        text = lines.join('\n');
+
+        const blob = URL.createObjectURL(
+          new Blob([text], { type: 'application/vnd.apple.mpegurl' }),
+        );
+        blobUrls.current.push(blob);
+        if (!cancelled) setNativeSrc(blob);
+      } catch {
+        /* ⚠️ Унавал хэвийн урсгал руу унана (src шууд өгөгдөнө) */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      /* ⚠️ blob-уудыг ЗААВАЛ чөлөөлнө — эс бөгөөс санах ой алдагдана */
+      for (const u of blobUrls.current) URL.revokeObjectURL(u);
+      blobUrls.current = [];
+    };
+  }, [src, needsAuth, authLoading]);
   /**
    * ⚠️⚠️ УДИРДЛАГА ХАРАГДАЖ БАЙГАА ЭСЭХ — буцах товчийг дагуулна.
    *
@@ -813,7 +901,11 @@ export function VideoPlayer({
          * постер харагдсаар байна. `authLoading` дуусмагц (ихэвчлэн
          * 100мс дотор) жинхэнэ src орж, ЭХНИЙ хүсэлт токентой явна.
          */
-        src={srcReady ? { src, type: 'application/x-mpegurl' } : []}
+        src={
+          srcReady
+            ? { src: nativeSrc ?? src, type: 'application/x-mpegurl' }
+            : []
+        }
         /* ⚠️ `viewType="video"` — Vidstack эх сурвалжийг таних гэж хүлээхгүй,
            video удирдлагыг ШУУД харуулна (эхний агшинд аудио скин гарахгүй) */
         viewType="video"
@@ -871,8 +963,20 @@ export function VideoPlayer({
            * хугацаанд player сэргэвэл (`onPlaying`) таймер цуцлагдана.
            */
           if (code === 4) {
+            /**
+             * ⚠️⚠️ STORAGE ХААЛТТАЙ бол ӨӨР шалтгаан.
+             *
+             * БОДИТ ГОМДОЛ: 6 хэрэглэгч (5 нь iPhone) багц авсан
+             * атлаа кино эхлээгүй. Тэдний ЭРХ БҮРЭН байсан — зөвхөн
+             * localStorage хаалттай тул токен явахгүй байв.
+             *
+             * «Эрх дууссан» гэж хэлбэл ТӨӨРӨГДҮҮЛНЭ — хэрэглэгч
+             * «мөнгө төлсөн атлаа» гэж гомдоллоно.
+             */
             setPlayError(
-              'Видео тоглуулах боломжгүй байна. Түрээсийн хугацаа дууссан эсвэл эрх дууссан байж магадгүй.',
+              isStorageBlocked()
+                ? 'Таны browser-ийн хадгалалт хаалттай тул нэвтрэлт хадгалагдахгүй байна. Нууц горимоос гарах эсвэл Тохиргоо → Safari → Cookie зөвшөөрөөд дахин нэвтэрнэ үү.'
+                : 'Видео тоглуулах боломжгүй байна. Түрээсийн хугацаа дууссан эсвэл эрх дууссан байж магадгүй.',
             );
             return;
           }
