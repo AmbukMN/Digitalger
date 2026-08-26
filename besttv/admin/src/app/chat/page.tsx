@@ -7,6 +7,7 @@ import {
   Bot,
   CheckCheck,
   Star,
+  UserRoundSearch,
   Film,
   Headphones,
   Loader2,
@@ -401,6 +402,45 @@ export default function ChatPage() {
    *    дэлгэрэнгүй (товчны төлөв). Зөвхөн нэгийг нь шинэчилбэл
    *    админ дарсан ч өөрчлөгдөөгүй мэт харагдаж, дахин дарна.
    */
+  /**
+   * FB/IG профайлыг Meta-гаас НӨХӨЖ татна.
+   *
+   * ⚠️⚠️ ЯАГААД ТОВЧ ХЭРЭГТЭЙ ВЭ: чатбот нь мессеж ирэх агшинд
+   * профайл татдаг. Тэр агшинд Meta татгалзвал (эрх дутуу, түр
+   * саатал) яриа НЭРГҮЙ үлдэж, ДАХИН оролддоггүй — хэрэглэгч
+   * дахин бичихгүй бол мөнхөд «Messenger #4380» хэвээр.
+   *
+   * Meta-гийн эрх нээгдсэний дараа энэ товчийг дарвал хуучин
+   * яриануудын нэр, аватар бодитоор бөглөгдөнө.
+   */
+  const [backfilling, setBackfilling] = useState(false);
+  const backfillProfiles = async () => {
+    setBackfilling(true);
+    try {
+      const r = await api<{ scanned: number; filled: number }>(
+        '/admin/chat/backfill-profiles',
+        { method: 'POST', body: JSON.stringify({ limit: 100 }) },
+      );
+      if (r.filled > 0) {
+        toast.success(`${r.filled} ярианы нэр, зураг татагдлаа`);
+        qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
+        qc.invalidateQueries({ queryKey: ['admin-chat-detail'] });
+      } else {
+        /* ⚠️ 0 нь АЛДАА БИШ — Meta эрх хараахан нээгээгүй байж
+           болно. Админд шалтгааныг ойлгуулна. */
+        toast.info(
+          r.scanned === 0
+            ? 'Профайлгүй яриа алга'
+            : `${r.scanned} яриа шалгав — Meta профайл өгсөнгүй (эрх хүлээгдэж байна)`,
+        );
+      }
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Татаж чадсангүй');
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const toggleStar = async (id: string, next: boolean) => {
     try {
       await api(`/admin/chat/conversations/${id}/star`, {
@@ -716,6 +756,28 @@ export default function ChatPage() {
               Бүгдийг уншсан болгох ({list?.unreadTotal})
             </button>
           )}
+
+          {/*
+            ⚠️⚠️ ПРОФАЙЛ НӨХӨХ — «Messenger #4380» гэсэн нөөц нэрийг
+            бодит нэр, аватараар солино.
+
+            Чатбот нь мессеж ирэх агшинд профайл татдаг. Meta тэр үед
+            татгалзвал яриа нэргүй үлдэж ДАХИН оролддоггүй. Эрх
+            нээгдсэний дараа энд дарвал бүгд нөхөгдөнө.
+          */}
+          <button
+            onClick={() => void backfillProfiles()}
+            disabled={backfilling}
+            title="FB/IG хэрэглэгчийн нэр, аватарыг Meta-гаас дахин татна"
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            {backfilling ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <UserRoundSearch size={13} />
+            )}
+            Профайл нөхөх
+          </button>
 
           {/**
             * ⚠️⚠️ FACEBOOK PAGE-ИЙН ШҮҮЛТ.

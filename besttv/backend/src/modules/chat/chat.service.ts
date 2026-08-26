@@ -105,6 +105,83 @@ export class ChatService {
     private readonly preview: LinkPreviewService,
   ) {}
 
+  /**
+   * FB/IG профайлыг Meta-гаас НӨХӨЖ татна.
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ: чатбот нь мессеж ирэх агшинд профайл
+   * татдаг. Тэр агшинд Meta татгалзвал (эрх дутуу, түр саатал)
+   * яриа НЭРГҮЙ үлдэж, дараа нь ДАХИН оролддоггүй. Хэрэглэгч
+   * дахин бичихгүй бол мөнхөд «Messenger #4380» хэвээр.
+   *
+   * БОДИТ ТОХИОЛДОЛ: `instagram_manage_messages` эрх нээгдсэн ч
+   * өмнөх 242 яриа хоосон хэвээр байв.
+   *
+   * ⚠️ Placeholder нь ЗӨВХӨН жинхэнэ дата авч ЧАДААГҮЙ үед —
+   *    `displayName()` нь `userName` хоосон байвал л нөөц нэр
+   *    үүсгэдэг тул энэ метод амжилттай болмогц бодит нэр гарна.
+   *
+   * ⚠️ Алдаа гарвал ЧИМЭЭГҮЙ алгасна — энэ нь нэмэлт сайжруулалт,
+   *    хэрэглэгчийн урсгалыг ХЭЗЭЭ Ч тасалж болохгүй.
+   */
+  async backfillProfiles(limit = 50): Promise<{ scanned: number; filled: number }> {
+    const token = process.env.FB_PAGE_ACCESS_TOKEN;
+    if (!token) return { scanned: 0, filled: 0 };
+
+    const rows = await this.prisma.chatConversation.findMany({
+      where: {
+        channel: { in: ['facebook', 'instagram'] },
+        OR: [{ userName: null }, { userName: '' }],
+      },
+      /* ⚠️ Хамгийн сүүлд идэвхтэй байсныг ЭХЭЛЖ — админ тэднийг
+         хардаг, хуучирсан яриа хойно ч болно */
+      orderBy: { lastMessageAt: 'desc' },
+      take: Math.min(200, Math.max(1, limit)),
+      select: { id: true, sessionId: true, channel: true },
+    });
+
+    let filled = 0;
+    for (const c of rows) {
+      /* ⚠️ IG нь `username`-тэй, FB нь `first_name` — талбар ӨӨР */
+      const fields =
+        c.channel === 'instagram'
+          ? 'name,username,profile_pic'
+          : 'name,first_name,profile_pic';
+      try {
+        const res = await fetch(
+          `https://graph.facebook.com/v21.0/${encodeURIComponent(c.sessionId)}` +
+            `?fields=${fields}&access_token=${token}`,
+          { signal: AbortSignal.timeout(8000) },
+        );
+        if (!res.ok) continue;
+        const j = (await res.json()) as {
+          name?: string;
+          first_name?: string;
+          username?: string;
+          profile_pic?: string;
+        };
+        const name = (j.name || j.first_name || j.username || '').trim();
+        const pic = (j.profile_pic || '').trim();
+        if (!name && !pic) continue;
+
+        await this.prisma.chatConversation.update({
+          where: { id: c.id },
+          data: {
+            ...(name ? { userName: name.slice(0, 300) } : {}),
+            ...(pic ? { userImage: pic.slice(0, 2048) } : {}),
+          },
+        });
+        filled += 1;
+      } catch {
+        /* ⚠️ Сүлжээ/timeout — дараагийн ажиллалтад дахин оролдоно */
+      }
+    }
+
+    if (filled > 0) {
+      this.logger.log(`Чат профайл нөхөв: ${filled}/${rows.length}`);
+    }
+    return { scanned: rows.length, filled };
+  }
+
   /** userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ */
   private async safeUserId(userId?: string): Promise<string | undefined> {
     if (!userId) return undefined;
@@ -165,8 +242,8 @@ export class ChatService {
           sessionId,
           lastMessageAt: now,
           adminUnread: markAdminUnread,
-          ...(input.userName ? { userName: input.userName.slice(0, 120) } : {}),
-          ...(input.userImage ? { userImage: input.userImage.slice(0, 500) } : {}),
+          ...(input.userName ? { userName: input.userName.slice(0, 300) } : {}),
+          ...(input.userImage ? { userImage: input.userImage.slice(0, 2048) } : {}),
           ...(capturedEmail ? { userEmail: capturedEmail } : {}),
           ...(safeUserId ? { userId: safeUserId } : {}),
         },
@@ -176,9 +253,23 @@ export class ChatService {
              `pageId`-гүй үлдсэн тул дараагийн мессежээр бөглөгдөнө */
           ...(pageId ? { pageId } : {}),
           ...(markAdminUnread ? { adminUnread: true } : {}),
-          ...(input.userName ? { userName: input.userName.slice(0, 120) } : {}),
-          /* ⚠️ Зураг бүрд дахин бичнэ — FB URL хугацаатай тул шинэчилж байж амьд үлдэнэ */
-          ...(input.userImage ? { userImage: input.userImage.slice(0, 500) } : {}),
+          ...(input.userName ? { userName: input.userName.slice(0, 300) } : {}),
+          /**
+           * ⚠️ Зураг бүрд дахин бичнэ — FB URL хугацаатай тул
+           * шинэчилж байж амьд үлдэнэ.
+           *
+           * ⚠️⚠️ ХЯЗГААР нь ЗӨВХӨН хамгаалалт — DB талбар `text`
+           * тул Postgres талд хязгаар БАЙХГҮЙ. Гэвч `/chat/ingest`
+           * нь нээлттэй endpoint тул хортой хүсэлт 10 MB мөр
+           * илгээж DB дүүргэхээс сэргийлнэ.
+           *
+           * ⚠️ 2048 — бодит датанаас 4 дахин өндөр. 500 байсан нь
+           * ХЭТ БАГА: Instagram-ийн `profile_pic` signed URL нь
+           * 525 тэмдэгт хүрдэг тул таслагдаж, гарын үсэг эвдэрч
+           * 403 Forbidden болно. Админ панелд аватарын оронд
+           * эхний үсэг гардаг байсан шалтгаан нь ЭНЭ.
+           */
+          ...(input.userImage ? { userImage: input.userImage.slice(0, 2048) } : {}),
           ...(capturedEmail ? { userEmail: capturedEmail } : {}),
           ...(safeUserId ? { userId: safeUserId } : {}),
         },

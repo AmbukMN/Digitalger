@@ -283,6 +283,22 @@ export class ChatAdminController {
     });
   }
 
+  /**
+   * FB/IG профайлыг Meta-гаас НӨХӨЖ татна (админ гараар).
+   *
+   * ⚠️⚠️ ХЭРЭГЦЭЭ: чатбот нь мессеж ирэх агшинд профайл татдаг.
+   * Тэр агшинд Meta татгалзвал (эрх дутуу, түр саатал) яриа
+   * НЭРГҮЙ үлдэж, дараа нь ДАХИН оролддоггүй.
+   *
+   * Эрх нээгдсэний дараа энэ товчийг дарвал хуучин бүх яриа
+   * бодит нэр, аватартай болно — placeholder зөвхөн ҮНЭХЭЭР
+   * татаж чадаагүй үед л үлдэнэ.
+   */
+  @Post('backfill-profiles')
+  backfillProfiles(@Body() body: { limit?: number }) {
+    return this.chat.backfillProfiles(Number(body?.limit) || 50);
+  }
+
   @Get('unread-count')
   unreadCount() {
     return this.chat.unreadCount();
