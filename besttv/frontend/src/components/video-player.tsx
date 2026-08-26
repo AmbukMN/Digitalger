@@ -118,6 +118,41 @@ export function VideoPlayer({
   const [ready, setReady] = useState(false);
 
   /**
+   * ⚠️⚠️ UNMOUNT-ЫН ЭМХ ЦЭГЦТЭЙ ЗОГСОЛТ.
+   *
+   * БОДИТ АЛДАА (ErrorLog, 58 удаа): «TypeError: t is not a function»
+   * ЗӨВХӨН iPhone Safari дээр, ЗӨВХӨН `/movie/*` (трейлерийн модал).
+   *
+   * Vidstack-ийн `mJ()` нь `this.$props.disabled` дуудахад props
+   * устсан байдаг:
+   *     function mJ(){ let {disabled:t}=this.$props; return t()||!e() }
+   *
+   * Модал хаагдахад React плеерийг ШУУД устгадаг ч WebKit нь
+   * `pointercancel`/`touchend`-ийг ТҮҮНИЙ ДАРАА илгээж, slider нь
+   * устсан props руу хандана. Desktop дээр event эрт дуусдаг тул
+   * огт илэрдэггүй.
+   *
+   * ⚠️ Тиймээс unmount-ЫН ӨМНӨ видеог зогсоож, эх сурвалжийг
+   *    салгана — slider идэвхгүй болж, хоцорсон event хоосон
+   *    боловч АЮУЛГҮЙ төлөв дээр буудаг.
+   */
+  useEffect(() => {
+    return () => {
+      const p = playerRef.current;
+      if (!p) return;
+      try {
+        /* ⚠️ `pause()` — WebKit-ийн хоцорсон event ирэхэд slider нь
+           АЛЬ ХЭДИЙН идэвхгүй төлөвт байна. React unmount нь DOM-ийг
+           дагаж цэвэрлэдэг тул нэмэлт `destroy` шаардлагагүй. */
+        p.pause();
+      } catch {
+        /* ⚠️ Плеер аль хэдийн устсан байж болно — энэ бол ХЭВИЙН,
+           чимээгүй өнгөрөөнө (энэ цэвэрлэгээ өөрөө алдаа өгөх ёсгүй) */
+      }
+    };
+  }, []);
+
+  /**
    * ⚠️⚠️ ТОКЕН БЭЛЭН БОЛТОЛ ПЛЕЕР ЭХЛҮҮЛЭХГҮЙ — 403-ЫН ЗАСВАР.
    *
    * БОДИТ АЛДАА (2026-08-25, nginx логоор батлагдсан): `playlist.m3u8`
