@@ -857,7 +857,13 @@ export class StreamService {
     rangeProbe?: boolean,
   ): Promise<void> {
     if (!this.errors) return;
-    if (rangeProbe) return;
+    /**
+     * ⚠️ ОНОШЛОГОО (түр): `rangeProbe`-ыг ч бүртгэнэ — тусгай
+     * мессежтэй тул жинхэнэ алдаанаас ялгагдана. «Кино эхлэхгүй»
+     * гомдол давтагдаж байгаа тул `rangeProbe` таслалт БУРУУ
+     * ажиллаж байгаа эсэхийг батлах шаардлагатай.
+     */
+    const probeTag = rangeProbe ? '[range-probe] ' : '';
     try {
       /* ⚠️ Зочинд DB асуулга хийхгүй — татгалзал нь ойлгомжтой */
       let subs = 0;
@@ -907,13 +913,14 @@ export class StreamService {
        * ⚠️ Бусад ГУРВАН тохиолдол ХЭВЭЭР бүртгэгдэнэ — тэдгээр нь
        *    бодитоор эвдэрсэн, эсвэл эвдэрч болзошгүйг илтгэдэг.
        */
-      if (!suspicious && !staleToken && !userId) return;
+      /* ⚠️ ОНОШЛОГООНЫ хугацаанд `rangeProbe`-ыг ч үлдээнэ */
+      if (!suspicious && !staleToken && !userId && !rangeProbe) return;
 
       await this.errors.record({
         source: 'server',
         message: suspicious
-          ? `⚠️ ЭРХТЭЙ хэрэглэгч татгалзсан (багц=${subs}, түрээс=${rentals})`
-          : `Эрхгүй хандалт (${kind})`,
+          ? `${probeTag}⚠️ ЭРХТЭЙ хэрэглэгч татгалзсан (багц=${subs}, түрээс=${rentals})`
+          : `${probeTag}Эрхгүй хандалт (${kind})`,
         path: `/stream/${titleId ?? '?'}`,
         userId: userId ?? undefined,
         meta: { titleId, genreIds, subs, rentals, suspicious, tokenSent, staleToken },

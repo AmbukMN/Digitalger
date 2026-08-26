@@ -16,24 +16,50 @@ let refreshPromise: Promise<'ok' | 'invalid' | 'network'> | null = null;
  * Тиймээс уншихад `null`, бичихэд чимээгүй алгасна — хэрэглэгч тухайн
  * session-д ажиллаж чадна (зөвхөн дараагийн ачаалалтад дахин нэвтэрнэ).
  */
+/**
+ * ⚠️⚠️ САНАХ ОЙН НӨӨЦ — localStorage хаалттай үед ЗААВАЛ.
+ *
+ * БОДИТ АЛДАА (2026-08-26): хэрэглэгч iPhone дээр нэвтэрсэн ч кино
+ * эхлэхгүй байв. nginx лог:
+ *     18:54:53  201  auth/login     ← нэвтэрсэн
+ *     18:54:53  200  auth/me        ← токен ажиллаж байна
+ *     18:55:13  403  playlist.m3u8  ← 20 секундын дараа ТАТГАЛЗСАН
+ * 33 удаа 403, нэг ч 200 алга.
+ *
+ * `lsSet` нь алдаа гарвал чимээгүй алгасдаг байсан ба тайлбарт
+ * «токен зөвхөн санах ойд үлдэнэ» гэж бичсэн атал САНАХ ОЙН НӨӨЦ
+ * ОГТ БАЙГААГҮЙ. Плеерийн `xhrSetup` нь `getAccessToken()` дуудаж
+ * `null` авдаг тул `Authorization` header огт явахгүй → 403.
+ *
+ * ⚠️ Энэ нь iOS Safari Private Browsing, FB/IG webview, санах ой
+ *    дүүрсэн үед үүснэ — бодит хэрэглэгчид тохиолдсон.
+ */
+const memStore = new Map<string, string>();
+
 function lsGet(key: string): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem(key);
+    const v = localStorage.getItem(key);
+    /* ⚠️ localStorage-д байхгүй ч санах ойд байж болно (бичилт
+       унасан тохиолдол) — тиймээс нөөцийг ЗААВАЛ шалгана */
+    return v ?? memStore.get(key) ?? null;
   } catch {
-    return null;
+    return memStore.get(key) ?? null;
   }
 }
 
 function lsSet(key: string, value: string) {
+  /* ⚠️ Санах ойд ЭХЛЭЭД — localStorage унасан ч токен амьд үлдэнэ */
+  memStore.set(key, value);
   try {
     localStorage.setItem(key, value);
   } catch {
-    /* storage хаалттай — токен зөвхөн санах ойд үлдэнэ */
+    /* storage хаалттай — санах ойн нөөц ажиллана (дээрх тайлбар) */
   }
 }
 
 function lsDel(key: string) {
+  memStore.delete(key);
   try {
     localStorage.removeItem(key);
   } catch {
