@@ -130,7 +130,20 @@ export class ChatService {
     const rows = await this.prisma.chatConversation.findMany({
       where: {
         channel: { in: ['facebook', 'instagram'] },
-        OR: [{ userName: null }, { userName: '' }],
+        /**
+         * ⚠️ Нэр БАЙГАА ч ЗУРАГГҮЙ мөрийг ч хамруулна.
+         *
+         * FB/IG-ийн зургийн URL нь ХУГАЦААТАЙ (signed) тул хэдэн
+         * долоо хоногт үхдэг — идэвхгүй яриа бүр эцэстээ
+         * аватаргүй үлдэнэ. Мөн нэр татагдаад зураг нь таслагдсан
+         * тохиолдол бий.
+         */
+        OR: [
+          { userName: null },
+          { userName: '' },
+          { userImage: null },
+          { userImage: '' },
+        ],
       },
       /* ⚠️ Хамгийн сүүлд идэвхтэй байсныг ЭХЭЛЖ — админ тэднийг
          хардаг, хуучирсан яриа хойно ч болно */
