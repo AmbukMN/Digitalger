@@ -229,6 +229,36 @@ export class SessionService {
   ): Promise<void> {
     try {
       await this.prisma.userSession.deleteMany({ where: { tokenHash: this.hash(oldToken) } });
+
+      /**
+       * ⚠️⚠️ ХЯЗГААРЫГ ЭНД Ч ШАЛГАНА.
+       *
+       * БОДИТ АЛДАА: дээрх `deleteMany` нь хуучин токен ОЛДОХГҮЙ
+       * үед (сүлжээ тасарч давхар refresh, эсвэл өөр төхөөрөмж аль
+       * хэдийн гаргасан) юу ч устгахгүй атал доорх `create` шинийг
+       * нэмнэ → session тоо ХЯЗГААРААС ХЭТЭРНЭ.
+       *
+       * `Eegii` хэрэглэгч 3 session-тай байв (хязгаар 2) — хоёр нь
+       * ижил Chrome iOS, 52 минутын зөрүүтэй.
+       *
+       * ⚠️ `create()`-тэй ИЖИЛ зан үйл: хамгийн удаан идэвхгүй
+       *    байсныг гаргана.
+       */
+      const active = await this.prisma.userSession.findMany({
+        where: { userId, expiresAt: { gt: new Date() } },
+        orderBy: { lastUsedAt: 'desc' },
+        select: { id: true },
+      });
+      if (active.length >= MAX_DEVICES) {
+        await this.prisma.userSession.deleteMany({
+          where: { id: { in: active.slice(MAX_DEVICES - 1).map((d) => d.id) } },
+        });
+        this.logger.log(
+          `Session сэлгэхэд хязгаар: user=${userId} — ` +
+            `${active.length - MAX_DEVICES + 1} гаргав`,
+        );
+      }
+
       await this.prisma.userSession.create({
         data: {
           userId,
