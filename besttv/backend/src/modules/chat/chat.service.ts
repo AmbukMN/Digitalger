@@ -124,8 +124,7 @@ export class ChatService {
    *    хэрэглэгчийн урсгалыг ХЭЗЭЭ Ч тасалж болохгүй.
    */
   async backfillProfiles(limit = 50): Promise<{ scanned: number; filled: number }> {
-    const token = process.env.FB_PAGE_ACCESS_TOKEN;
-    if (!token) return { scanned: 0, filled: 0 };
+    if (!process.env.FB_PAGE_ACCESS_TOKEN) return { scanned: 0, filled: 0 };
 
     const rows = await this.prisma.chatConversation.findMany({
       where: {
@@ -149,7 +148,8 @@ export class ChatService {
          хардаг, хуучирсан яриа хойно ч болно */
       orderBy: { lastMessageAt: 'desc' },
       take: Math.min(200, Math.max(1, limit)),
-      select: { id: true, sessionId: true, channel: true },
+      /* ⚠️ `pageId` ЗААВАЛ — хоёр page-тэй тул токен сонгоно */
+      select: { id: true, sessionId: true, channel: true, pageId: true },
     });
 
     let filled = 0;
@@ -159,6 +159,9 @@ export class ChatService {
         c.channel === 'instagram'
           ? 'name,username,profile_pic'
           : 'name,first_name,profile_pic';
+      /* ⚠️ Тухайн page-ийн токен — Best Tv 2-ынх өөр */
+      const token = this.pageToken(c.pageId);
+      if (!token) continue;
       try {
         const res = await fetch(
           `https://graph.facebook.com/v21.0/${encodeURIComponent(c.sessionId)}` +
@@ -193,6 +196,25 @@ export class ChatService {
       this.logger.log(`Чат профайл нөхөв: ${filled}/${rows.length}`);
     }
     return { scanned: rows.length, filled };
+  }
+
+  /**
+   * Тухайн PAGE-ийн токеныг олно.
+   *
+   * ⚠️⚠️ BestTV нь ХОЁР Facebook page-тэй (Best TV, Best Tv 2).
+   * Meta нь page тус бүрийн токеныг шаарддаг — өөр page-ийн
+   * хэрэглэгч рүү илгээвэл `(#100) No matching user found`
+   * буцаана. Зурвас ОГТ ХҮРЭХГҮЙ, админ мэдэхгүй үлдэнэ.
+   *
+   * ⚠️ `FB_PAGE_ACCESS_TOKEN_2` тохируулаагүй бол анхдагч руу
+   *    унана — хуучин зан үйл хэвээр, шинэ алдаа үүсгэхгүй.
+   */
+  private pageToken(pageId?: string | null): string | undefined {
+    const main = process.env.FB_PAGE_ACCESS_TOKEN;
+    const second = process.env.FB_PAGE_ACCESS_TOKEN_2;
+    const secondId = process.env.FB_PAGE_ID_2;
+    if (pageId && secondId && pageId === secondId && second) return second;
+    return main;
   }
 
   /** userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ */
@@ -767,7 +789,9 @@ export class ChatService {
 
     const conv = await this.prisma.chatConversation.findUnique({
       where: { id },
-      select: { id: true, userId: true, sessionId: true, channel: true },
+      /* ⚠️ `pageId` ЗААВАЛ — хоёр FB page-тэй тул админы хариу
+         ЯГ ТЭР page-ийн токеноор явах ёстой */
+      select: { id: true, userId: true, sessionId: true, channel: true, pageId: true },
     });
     if (!conv) return { ok: false as const };
 
@@ -799,7 +823,8 @@ export class ChatService {
      */
     let delivered: boolean | undefined;
     if (conv.channel === 'facebook' || conv.channel === 'instagram') {
-      delivered = await this.sendToMessenger(conv.sessionId, t);
+      /* ⚠️ `pageId` ЗААВАЛ — Best Tv 2-д өөр токен хэрэгтэй */
+      delivered = await this.sendToMessenger(conv.sessionId, t, conv.pageId);
     }
 
     return { ok: true as const, message, userId: conv.userId, delivered };
@@ -812,8 +837,14 @@ export class ChatService {
    * ⚠️ Token байхгүй бол чимээгүй унтрахгүй — ЛОГ бичнэ, эс бөгөөс
    *    админ хариу явахгүй байгааг мэдэхгүй.
    */
-  private async sendToMessenger(psid: string, text: string): Promise<boolean> {
-    const token = process.env.FB_PAGE_ACCESS_TOKEN;
+  private async sendToMessenger(
+    psid: string,
+    text: string,
+    pageId?: string | null,
+  ): Promise<boolean> {
+    /* ⚠️ Тухайн page-ийн токен — өөр page-ийнхээр илгээвэл Meta
+       `(#100) No matching user found` буцааж, зурвас ХҮРЭХГҮЙ */
+    const token = this.pageToken(pageId);
     if (!token) {
       this.logger.error(
         'FB_PAGE_ACCESS_TOKEN тохируулаагүй — админы хариу Messenger рүү ИЛГЭЭГДСЭНГҮЙ',
