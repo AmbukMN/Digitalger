@@ -12,6 +12,8 @@ export interface ChatTitleCard {
   posterUrl?: string | null;
   /** ⚠️ Постергүй кинонд орлуулна — үз `chat.service.ts` */
   backdropUrl?: string | null;
+  /** ⚠️ Messenger картын хоёр дахь мөр — админ панел LIVE-тай тулгана */
+  subtitle?: string | null;
   url?: string | null;
   year?: number | null;
   rating?: number | null;

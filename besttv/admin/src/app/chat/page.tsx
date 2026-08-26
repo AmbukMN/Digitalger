@@ -147,6 +147,149 @@ function ChannelBadge({ channel, size = 'sm' }: { channel: string; size?: 'sm' |
 }
 
 /**
+ * Санал болгосон киноны карт — LIVE дээр ЯГ ХАРАГДДАГ хэлбэрээр.
+ *
+ * ⚠️⚠️ БОДИТ ГОМДОЛ: «би админаас FB/IG/вэб дээр хүнд яаж харагдаж
+ * байгааг л харах гэж байгаа. Админ панел өөрөө өөр хэлбэрээр
+ * зураад байна, энэ маш муу UX».
+ *
+ * Тиймээс энэ компонент нь ГОЁ харагдахыг зорихгүй — сувгийн жинхэнэ
+ * дүрсийг ХУУЛНА. Хоёр өөр хэлбэр:
+ *
+ *   FB / IG → Messenger generic template carousel
+ *             `image_aspect_ratio:'square'` (Send Cards node) тул
+ *             ДӨРВӨЛЖИН зураг, доор нь гарчиг, subtitle, дараа нь
+ *             бүрэн өргөн «Дэлгэрэнгүй үзэх» ТОВЧ.
+ *
+ *   вэб     → чат виджетийн карт (`chat-widget.tsx`)
+ *             БОСОО постер (2:3), доор нь нэр + он. Товчгүй.
+ *
+ * ⚠️ `subtitle`/`imageUrl` нь n8n-ээс ЯГ ТЭР УТГААРАА ирнэ. Хуучин
+ *    яриа эдгээргүй байж болзошгүй тул он/үнэлгээнээс сэргээнэ —
+ *    гэхдээ ЗӨВХӨН тэр үед (шинэ яриа LIVE-тай яг таарна).
+ */
+function ChatCards({
+  titles,
+  channel,
+}: {
+  titles: NonNullable<ConvDetail['messages'][number]['titles']>;
+  channel: string;
+}) {
+  const isMessenger = channel === 'facebook' || channel === 'instagram';
+
+  if (isMessenger) {
+    return (
+      <div className="mt-1.5 flex max-w-full gap-2 overflow-x-auto pb-1">
+        {titles.map((t, ti) => {
+          /* ⚠️ Карт БОДИТООР илгээсэн зураг. Хуучин яриа `imageUrl`-гүй
+             бол `Build Messages`-ийн ЯГ ТЭР дараалал (постер→backdrop) */
+          const img = t.imageUrl || t.posterUrl || t.backdropUrl || '';
+          /* ⚠️ Хуучин яриаг сэргээх — шинэ яриа `subtitle`-тай ирнэ */
+          const sub =
+            t.subtitle ||
+            [t.year, t.rating ? `⭐ ${t.rating}` : null].filter(Boolean).join('  ·  ');
+          return (
+            <div
+              key={t.slug ?? ti}
+              className="w-44 shrink-0 overflow-hidden rounded-xl border border-border bg-card"
+            >
+              {/* ⚠️ ДӨРВӨЛЖИН — Send Cards дээр image_aspect_ratio:'square' */}
+              <div className="relative aspect-square w-full overflow-hidden bg-accent">
+                {img ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={img}
+                    alt={t.title}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    <Film size={18} />
+                  </div>
+                )}
+              </div>
+              <div className="px-2.5 pb-2 pt-2">
+                <p className="line-clamp-1 text-xs font-semibold leading-tight text-foreground">
+                  {t.title}
+                </p>
+                {sub && (
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">
+                    {sub}
+                  </p>
+                )}
+              </div>
+              {/* ⚠️ Messenger дээр товч нь картын БҮРЭН ӨРГӨН, дээд
+                  талдаа зураастай — тэр дүрсийг хуулна */}
+              <a
+                href={t.url ?? `https://besttv.us/movie/${t.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block border-t border-border px-2.5 py-2 text-center text-xs font-medium text-primary transition-colors hover:bg-accent"
+              >
+                Дэлгэрэнгүй үзэх
+              </a>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /* ── ВЭБ — чат виджетийн БОСОО карт ── */
+  return (
+    <div className="mt-1.5 flex max-w-full gap-2.5 overflow-x-auto pb-1">
+      {titles.map((t, ti) => {
+        /* ⚠️ Вэб виджет постерийг эхэнд авдаг (`chat-widget.tsx`) */
+        const img = t.posterUrl || t.backdropUrl || '';
+        return (
+          <a
+            key={t.slug ?? ti}
+            href={t.url ?? `https://besttv.us/movie/${t.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={t.title}
+            className="flex w-[124px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/50"
+          >
+            {/* ⚠️ БОСОО 2:3 — вэб виджетийн `aspect-2/3` */}
+            <div className="relative aspect-2/3 w-full overflow-hidden bg-accent">
+              {img ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={img}
+                  alt={t.title}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <Film size={16} />
+                </div>
+              )}
+              {t.rating != null && t.rating > 0 && (
+                <span className="absolute left-1.5 top-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-bold text-premium">
+                  ⭐ {t.rating}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-0.5 p-2">
+              <p className="line-clamp-2 min-h-8 text-[11px] font-semibold leading-tight text-foreground">
+                {t.title}
+              </p>
+              {t.year != null && (
+                <p className="mt-auto text-[10px] text-muted-foreground">{t.year}</p>
+              )}
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * ⚠️ Ярианы аватар нь `UserAvatar`-ыг ашиглана (тусдаа хуулбар БАЙХГҮЙ).
  *
  * Өмнө нь энд `ChatAvatar` гэсэн БАРАГ ИЖИЛ компонент байсан — `onError`
@@ -187,6 +330,15 @@ interface ConvDetail extends ConvListItem {
       title: string;
       slug: string;
       posterUrl?: string;
+      /** ⚠️ Постергүй кинонд орлуулна */
+      backdropUrl?: string;
+      /**
+       * ⚠️⚠️ Messenger картан дээр ЯГ ХАРАГДСАН хоёр дахь мөр.
+       * Админ панел өөрөө эвлүүлбэл LIVE-аас ЗӨРНӨ.
+       */
+      subtitle?: string;
+      /** ⚠️ Карт БОДИТООР илгээсэн зураг (FB=постер, DM=backdrop) */
+      imageUrl?: string;
       url?: string;
       year?: number;
       rating?: number;
@@ -930,46 +1082,7 @@ export default function ChatPage() {
                           <LinkPreviewCard data={m.linkPreview} className="max-w-xs" />
                         )}
                         {Array.isArray(m.titles) && m.titles.length > 0 && (
-                          <div className="mt-1.5 flex max-w-full gap-2 overflow-x-auto pb-1">
-                            {m.titles.map((t, ti) => (
-                              <a
-                                key={t.slug ?? ti}
-                                href={t.url ?? `https://besttv.us/movie/${t.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={t.title}
-                                className="flex w-24 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50"
-                              >
-                                <div className="relative aspect-2/3 w-full overflow-hidden bg-accent">
-                                  {t.posterUrl ? (
-                                    /* ⚠️ next/image БИШ — R2 CDN зам динамик,
-                                       мөн админд оптимизаци шаардлагагүй */
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={t.posterUrl}
-                                      alt={t.title}
-                                      loading="lazy"
-                                      referrerPolicy="no-referrer"
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                                      <Film size={16} />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="p-1.5">
-                                  <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-foreground">
-                                    {t.title}
-                                  </p>
-                                  <p className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
-                                    {t.year ? <span>{t.year}</span> : null}
-                                    {t.rating ? <span>⭐ {t.rating}</span> : null}
-                                  </p>
-                                </div>
-                              </a>
-                            ))}
-                          </div>
+                          <ChatCards titles={m.titles} channel={detail.channel} />
                         )}
                       </div>
                     </div>
