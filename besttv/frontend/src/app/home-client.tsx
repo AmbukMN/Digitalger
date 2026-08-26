@@ -1,6 +1,8 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
@@ -10,6 +12,7 @@ import { TitleRow } from '@/components/title-row';
 import { HomeBannerStrip } from '@/components/home-banner-strip';
 import { PromotionBannerStrip } from '@/components/promotion-banner';
 import { HomeSkeleton } from '@/components/home-skeleton';
+import { api } from '@/lib/api';
 
 export function HomeClient({ initial }: { initial?: HomeData }) {
   const { data, isLoading, isError, refetch } = useHome(initial);
@@ -21,6 +24,39 @@ export function HomeClient({ initial }: { initial?: HomeData }) {
   /* ⚠️ Урамшууллын баннер — админы гараар оруулсан баннераас ТУСДАА
      (энэ нь урамшуулалтай холбоотой, үлдсэн хугацааг тоолно) */
   const { data: promoBanners = [] } = usePromotionBanners();
+  const qc = useQueryClient();
+
+  /**
+   * ⚠️⚠️ HOOK-УУД EARLY RETURN-ЫН ӨМНӨ — доорх `if (isLoading)`-оос
+   * хойш зарлавал ачаалж дуусахад hook-ийн ТОО өөрчлөгдөж React
+   * унана («Rendered more hooks than during the previous render»).
+   */
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  /**
+   * «Үргэлжлүүлэн үзэх»-ээс киног хасна.
+   *
+   * ⚠️ ХЭРЭГЛЭГЧИЙН ХЯНАЛТ: санамсаргүй нээсэн, сонирхолгүй болсон,
+   * бусдад харуулахыг хүсэхгүй кино эгнээнд гацдаг байв.
+   *
+   * ⚠️ Давхар дарахаас хамгаална (`removing`) — эс бөгөөс хурдан
+   *    хоёр дарахад хоёр хүсэлт явна.
+   */
+  const removeFromContinue = async (titleId: string) => {
+    if (removing) return;
+    setRemoving(titleId);
+    try {
+      await api(`/progress/${titleId}`, { method: 'DELETE' });
+      /* ⚠️ Нүүрний кэшийг шинэчилнэ — эс бөгөөс карт хэвээр үлдэж,
+         хэрэглэгч дахин дарна */
+      await qc.invalidateQueries({ queryKey: ['home'] });
+      toast.success('Үргэлжлүүлэн үзэхээс хаслаа');
+    } catch {
+      toast.error('Хасаж чадсангүй. Дахин оролдоно уу.');
+    } finally {
+      setRemoving(null);
+    }
+  };
 
   if (isLoading) return <HomeSkeleton />;
 
@@ -93,6 +129,8 @@ export function HomeClient({ initial }: { initial?: HomeData }) {
             title="Үргэлжлүүлэн үзэх"
             items={data.continueWatching}
             progressById={progressById}
+            /* ⚠️ Хасах товч — ЗӨВХӨН энэ эгнээнд (жанрынханд утгагүй) */
+            onRemove={(id) => void removeFromContinue(id)}
             /* ⚠️ ҮРГЭЛЖ нэг мөр — цөөн кинотой ч 2 эгнээ болгож
                дэлгэцийн зай эзлэхгүй (бусад жанр 2 мөр хэвээр) */
             singleRow

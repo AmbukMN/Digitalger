@@ -39,6 +39,11 @@ interface TitleRowProps {
    * watching зэрэгт хэрэггүй).
    */
   genreSlug?: string;
+  /**
+   * ⚠️ «Үргэлжлүүлэн үзэх»-ээс хасах. Заагаагүй бол карт дээр товч
+   *    ОГТ гарахгүй (жанрын эгнээнд утгагүй).
+   */
+  onRemove?: (titleId: string) => void;
 }
 
 /** Жанрын карусель мөр — hide-scrollbar + чиглэл товч + edge fade (Netflix загвар) */
@@ -50,6 +55,7 @@ export function TitleRow({
   progressById,
   singleRow,
   genreSlug,
+  onRemove,
 }: TitleRowProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -368,7 +374,12 @@ export function TitleRow({
           {variant === 'top10'
             ? allItems.slice(0, 10).map((t, i) => <Top10Card key={t.id} title={t} rank={i + 1} />)
             : allItems.map((t) => (
-                <TitleCard key={t.id} title={t} progressPercent={progressById?.[t.id]} />
+                <TitleCard
+                  key={t.id}
+                  title={t}
+                  progressPercent={progressById?.[t.id]}
+                  onRemove={onRemove}
+                />
               ))}
         </div>
 

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Clock, Heart, Info, Play, Star, Lock, Ticket } from 'lucide-react';
+import { Check, Clock, Heart, Info, Play, Star, Lock, Ticket, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TitleCard as TitleCardType } from '@besttv/shared';
 import { cn } from '@besttv/shared';
@@ -25,6 +25,13 @@ export interface TitleCardProps {
    * эс бөгөөс mobile-д 2 багана багтахгүй, зай завсар үлдэнэ.
    */
   inGrid?: boolean;
+  /**
+   * ⚠️ «Үргэлжлүүлэн үзэх»-ээс ХАСАХ (X товч).
+   *
+   * Заагаагүй бол товч ОГТ гарахгүй — бусад эгнээнд (жанр, top10)
+   * хасах гэсэн ойлголт байхгүй.
+   */
+  onRemove?: (titleId: string) => void;
 }
 
 /**
@@ -32,7 +39,7 @@ export interface TitleCardProps {
  *  - hover-д зөөлөн томорч quick action (Үзэх / Жагсаалт / Мэдээлэл) гарна
  *  - continue-watching үед доод талд улаан progress bar
  */
-export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
+export function TitleCard({ title, progressPercent, inGrid, onRemove }: TitleCardProps) {
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -116,6 +123,34 @@ export function TitleCard({ title, progressPercent, inGrid }: TitleCardProps) {
       )}
     >
       <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-muted">
+        {/*
+          ⚠️⚠️ ХАСАХ ТОВЧ — «Үргэлжлүүлэн үзэх»-д л гарна.
+
+          ХЭРЭГЛЭГЧИЙН ХЯНАЛТ: санамсаргүй нээсэн, сонирхолгүй болсон,
+          эсвэл бусдад харуулахыг хүсэхгүй кино эгнээнд гацдаг байв.
+
+          ⚠️ `preventDefault` + `stopPropagation` ХОЁУЛАА — энэ нь
+             `<Link>` ДОТОР байгаа тул эс бөгөөс киног НЭЭНЭ.
+          ⚠️ Mobile-д hover БАЙХГҮЙ тул `opacity` нь `sm:` breakpoint
+             дээр л нуугдана — утсан дээр ҮРГЭЛЖ харагдана, эс бөгөөс
+             хасах ямар ч арга байхгүй болно.
+          ⚠️ Товчны хэмжээ 28px — хуруугаар оносон дарахад хангалттай.
+        */}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRemove(title.id);
+            }}
+            aria-label={`${title.title} — үргэлжлүүлэн үзэхээс хасах`}
+            title="Үргэлжлүүлэн үзэхээс хасах"
+            className="absolute right-1.5 top-1.5 z-20 flex size-7 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur-sm transition-opacity hover:bg-black/85 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          >
+            <X size={15} />
+          </button>
+        )}
         {/* ⚠️ `sizes` нь GRID үед динамик байх ёстой: grid карт томроход
             (1600px дэлгэц дээр ~250px) Next.js 180px хувилбар татаад
             СУНГАДАГ тул постер бүдэг харагдана. Эгнээнд бол өргөн нь

@@ -79,6 +79,25 @@ export class LibraryService {
     });
   }
 
+  /**
+   * «Үргэлжлүүлэн үзэх»-ээс НЭГ киног хасна.
+   *
+   * ⚠️⚠️ ХЭРЭГЛЭГЧИЙН ХЯНАЛТ: санамсаргүй нээсэн, сонирхолгүй
+   * болсон, эсвэл бусдад харуулахыг хүсэхгүй кино эгнээнд гацдаг
+   * байв — хасах ямар ч арга байхгүй.
+   *
+   * ⚠️ `deleteMany` — `delete` нь мөр байхгүй үед ШИДНЭ. Хэрэглэгч
+   *    хоёр таб нээгээд хоёуланд нь дарвал хоёр дахь нь алдаа өгнө.
+   *
+   * ⚠️ `userId` шүүлтэд ЗААВАЛ — эс бөгөөс өөр хүний явцыг устгана.
+   */
+  async removeProgress(userId: string, titleId: string) {
+    const res = await this.prisma.watchProgress.deleteMany({
+      where: { userId, titleId },
+    });
+    return { ok: true, removed: res.count };
+  }
+
   async myList(userId: string) {
     const rows = await this.prisma.myListItem.findMany({
       where: { userId },
@@ -143,6 +162,12 @@ export class LibraryController {
   @Post('progress')
   saveProgress(@CurrentUser() user: JwtPayload, @Body() dto: ProgressDto) {
     return this.svc.saveProgress(user.sub, dto);
+  }
+
+  /** ⚠️ «Үргэлжлүүлэн үзэх»-ээс хасах — хэрэглэгчийн хяналт */
+  @Delete('progress/:titleId')
+  removeProgress(@CurrentUser() user: JwtPayload, @Param('titleId') titleId: string) {
+    return this.svc.removeProgress(user.sub, titleId);
   }
 
   @Get('my-list')
