@@ -116,10 +116,20 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
             className="group flex w-[124px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/10 bg-foreground/5 transition-colors hover:border-primary"
           >
             <div className="relative aspect-2/3 w-full overflow-hidden bg-foreground/5">
-              {t.posterUrl ? (
+              {/*
+                ⚠️ Постергүй бол ХЭВТЭЭ дэвсгэрийг орлуулна.
+                164 киноны 91 нь зөвхөн постертой, 73 нь backdrop-той
+                тул аль нэг нь дутуу байх нь энгийн зүйл — Bot icon
+                харуулахын оронд байгаа зургаа ашиглана.
+
+                ⚠️ Энэ КАРТ нь босоо (2:3) тул постер ЭХЭНД. FB/IG-ийн
+                   generic template нь 1.91:1 хэвтээ тул тэнд ЭСРЭГЭЭР
+                   (backdrop эхэнд) — хүрээний харьцаа өөр.
+              */}
+              {t.posterUrl || t.backdropUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={t.posterUrl}
+                  src={t.posterUrl || t.backdropUrl || ''}
                   alt={t.title}
                   loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

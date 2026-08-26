@@ -10,6 +10,8 @@ export interface ChatTitleCard {
   title: string;
   slug: string;
   posterUrl?: string | null;
+  /** ⚠️ Постергүй кинонд орлуулна — үз `chat.service.ts` */
+  backdropUrl?: string | null;
   url?: string | null;
   year?: number | null;
   rating?: number | null;

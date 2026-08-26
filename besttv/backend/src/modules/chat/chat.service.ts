@@ -36,6 +36,14 @@ export interface ChatTitleCard {
   title: string;
   slug: string;
   posterUrl?: string;
+  /**
+   * ⚠️ Хэвтээ дэвсгэр — постергүй кинонд ОРЛУУЛНА.
+   *
+   * 164 идэвхтэй киноны 91 нь зөвхөн постертой, 73 нь backdrop-той
+   * тул аль нэг нь дутуу байх нь ЭНГИЙН ЗҮЙЛ. Хоёуланг нь дамжуулж
+   * байж карт үргэлж зурагтай гарна.
+   */
+  backdropUrl?: string;
   url?: string;
   year?: number;
   rating?: number;
