@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -133,12 +133,18 @@ export function BulkBar({
   onDelete,
   busy,
   label = 'бичлэг',
+  extra,
 }: {
   count: number;
   onClear: () => void;
   onDelete: () => void;
   busy: boolean;
   label?: string;
+  /**
+   * ⚠️ Устгахаас ӨӨР нэмэлт үйлдэл (ж: чатад «Тэмдэглэх»).
+   * ЗААВАЛ optional — энэ мөрийг 8+ админ хуудас хуваалцдаг.
+   */
+  extra?: ReactNode;
 }) {
   if (count === 0) return null;
   return (
@@ -153,6 +159,9 @@ export function BulkBar({
         >
           <X size={13} /> Болих
         </button>
+        {/* ⚠️ Нэмэлт үйлдэл нь УСТГАХЫН ӨМНӨ — устгах нь эргэж
+            буцахгүй тул хамгийн баруун захад, тусдаа байх ёстой */}
+        {extra}
         <button
           onClick={onDelete}
           disabled={busy}

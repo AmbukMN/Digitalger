@@ -1305,12 +1305,29 @@ model ChatConversation {
   /// Админ бичсэн, хэрэглэгч хараагүй
   userUnreadCount Int      @default(0)
 
+  /**
+   * ⚠️⚠️ АДМИНЫ ТЭМДЭГЛЭСЭН ЯРИА (одтой).
+   *
+   * БОДИТ ХЭРЭГЦЭЭ: 316 яриа дунд чухал нь (гомдол, төлбөрийн
+   * маргаан, дараа эргэж хариулах ёстой) алга болдог. Хайлтаар
+   * дахин олох гэхээр хэн юу бичсэнийг санахгүй.
+   *
+   * ⚠️ `adminUnread`-ААС ТУСДАА: «уншаагүй» нь автоматаар арилдаг
+   *    (нээмэгц), «тэмдэглэсэн» нь админ өөрөө тайлтал үлдэнэ.
+   */
+  starred Boolean @default(false)
+
+  /// Тэмдэглэсэн огноо — тэмдэглэсэн ярианы эрэмбэд ашиглана
+  starredAt DateTime?
+
   createdAt DateTime      @default(now())
   messages  ChatMessage[]
 
   @@index([userId, lastMessageAt])
   @@index([adminUnread, lastMessageAt])
   @@index([channel, lastMessageAt])
+  /* ⚠️ Тэмдэглэсэн ярианы шүүлт — индексгүй бол бүтэн хүснэгт уншина */
+  @@index([starred, lastMessageAt])
 }
 
 model ChatMessage {

@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { ArrayMaxSize, IsArray, IsString } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -244,6 +244,13 @@ class BulkDeleteDto {
   ids: string[];
 }
 
+class BulkStarDto extends BulkDeleteDto {
+  /** ⚠️ Заагаагүй бол ТЭМДЭГЛЭНЭ (тайлахад заавал `false` дамжуулна) */
+  @IsOptional()
+  @IsBoolean()
+  starred?: boolean;
+}
+
 @Controller('admin/chat')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -255,6 +262,8 @@ export class ChatAdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('onlyUnread') onlyUnread?: string,
+    /* ⚠️ Зөвхөн ТЭМДЭГЛЭСЭН — «дараа хариулах» ажлын жагсаалт */
+    @Query('onlyStarred') onlyStarred?: string,
     /* ⚠️ Хайлт — имэйл/нэр/мессежийн агуулгаар (51+ дэх яриа руу
        хүрэх цорын ганц зам байсан) */
     @Query('q') q?: string,
@@ -267,6 +276,7 @@ export class ChatAdminController {
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       onlyUnread: onlyUnread === '1' || onlyUnread === 'true',
+      onlyStarred: onlyStarred === '1' || onlyStarred === 'true',
       q,
       channel,
       pageId,
@@ -292,6 +302,22 @@ export class ChatAdminController {
   @Post('conversations/bulk-delete')
   bulkDelete(@Body() dto: BulkDeleteDto) {
     return this.chat.bulkDelete(dto.ids);
+  }
+
+  /**
+   * ⚠️⚠️ `conversations/bulk-star` нь `conversations/:id/...`-ЫН
+   * ӨМНӨ байрлана. Nest замыг зарлагдсан ДАРААЛЛААР тааруулдаг —
+   * доор нь бичвэл "bulk-star" гэдэг үг `:id`-д баригдана.
+   */
+  @Post('conversations/bulk-star')
+  bulkStar(@Body() dto: BulkStarDto) {
+    return this.chat.bulkStar(dto.ids, dto.starred !== false);
+  }
+
+  /** Нэг яриаг тэмдэглэх/тайлах (одны товч) */
+  @Post('conversations/:id/star')
+  star(@Param('id') id: string, @Body() body: { starred?: boolean }) {
+    return this.chat.setStarred(id, body.starred !== false);
   }
 
   @Post('conversations/:id/handoff')

@@ -395,6 +395,8 @@ export class ChatService {
     page?: number;
     pageSize?: number;
     onlyUnread?: boolean;
+    /** ⚠️ Зөвхөн ТЭМДЭГЛЭСЭН яриа — админы «дараа хариулах» жагсаалт */
+    onlyStarred?: boolean;
     q?: string;
     channel?: string;
     /* ⚠️ FB page-ээр шүүх — олон page-тэй үед (Best TV / Best Tv 2) */
@@ -428,6 +430,7 @@ export class ChatService {
       opts.channel && ALLOWED_CHANNELS.has(opts.channel) ? opts.channel : undefined;
     const where: Prisma.ChatConversationWhereInput = {
       ...(opts.onlyUnread ? { adminUnread: true } : {}),
+      ...(opts.onlyStarred ? { starred: true } : {}),
       ...(channel ? { channel } : {}),
       /* ⚠️ Зөвхөн тоон id — дурын мөр DB асуулгад орохгүй */
       ...(/^[0-9]{5,25}$/.test(opts.pageId ?? '') ? { pageId: opts.pageId } : {}),
@@ -442,7 +445,7 @@ export class ChatService {
         : {}),
     };
 
-    const [items, total, unreadTotal, byChannel, byPage] = await Promise.all([
+    const [items, total, unreadTotal, starredTotal, byChannel, byPage] = await Promise.all([
       this.prisma.chatConversation.findMany({
         where,
         orderBy: { lastMessageAt: 'desc' },
@@ -456,6 +459,15 @@ export class ChatService {
       }),
       this.prisma.chatConversation.count({ where }),
       this.prisma.chatConversation.count({ where: { adminUnread: true } }),
+      /**
+       * ⚠️ ТЭМДЭГЛЭСЭН ярианы тоо — шүүлтийн товч дээр харуулна.
+       *
+       * `where`-ЭЭС ХАМААРАХГҮЙ (бүх тэмдэглэсний бодит тоо) —
+       * сувгийн тоололтой ижил зарчим. Эс бөгөөс FB таб дээр
+       * байхад «Тэмдэглэсэн 0» гэж харагдаж, админ бүх тэмдэглэлээ
+       * алдсан гэж эндүүрнэ.
+       */
+      this.prisma.chatConversation.count({ where: { starred: true } }),
       /**
        * ⚠️ Суваг тус бүрийн тоо — шүүлтийн товч дээр «FB 12» гэж
        * харуулна. Тоогүй бол админ хоосон табыг дарж шалгах хэрэгтэй
@@ -521,6 +533,7 @@ export class ChatService {
       items: withAvatars,
       total,
       unreadTotal,
+      starredTotal,
       channelCounts,
       pageCounts,
       page,
@@ -815,9 +828,43 @@ export class ChatService {
   }
 
   /**
+   * Яриаг ТЭМДЭГЛЭХ / тайлах (одтой болгох).
+   *
+   * ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ: 316 яриа дунд чухал нь (гомдол, төлбөрийн
+   * маргаан, дараа эргэж хариулах ёстой) алга болдог. Хайлтаар дахин
+   * олох гэхээр админ хэн юу бичсэнийг санахгүй.
+   *
+   * ⚠️ `adminUnread`-ААС ТУСДАА: «уншаагүй» нь нээмэгц АВТОМАТААР
+   *    арилдаг, «тэмдэглэсэн» нь админ өөрөө тайлтал үлдэнэ.
+   *
+   * ⚠️ `starredAt` — тайлахад NULL болгоно. Эс бөгөөс дахин
+   *    тэмдэглэхэд хуучин огноогоор эрэмбэлэгдэж, шинэ тэмдэглэл
+   *    жагсаалтын доод талд алга болно.
+   */
+  async setStarred(id: string, starred: boolean) {
+    await this.prisma.chatConversation
+      .update({
+        where: { id },
+        data: { starred, starredAt: starred ? new Date() : null },
+      })
+      .catch(() => null);
+    return { ok: true, starred };
+  }
+
+  /** Олон яриаг нэг дор тэмдэглэх/тайлах (жагсаалтын bulk сонголт) */
+  async bulkStar(ids: string[], starred: boolean) {
+    if (!ids.length) return { updated: 0 };
+    const res = await this.prisma.chatConversation.updateMany({
+      where: { id: { in: ids } },
+      data: { starred, starredAt: starred ? new Date() : null },
+    });
+    return { updated: res.count, starred };
+  }
+
+  /**
    * Олон яриаг нэг дор устгана (админ — тест яриа цэвэрлэх).
    *
-   * ⚠️  нь  тул мессежүүд нь ДАГАЖ
+   * ⚠️ `ChatMessage` нь `onDelete: Cascade` тул мессежүүд нь ДАГАЖ
    * устана — тусад нь устгах шаардлагагүй.
    */
   /**

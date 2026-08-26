@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Bot,
   CheckCheck,
+  Star,
   Film,
   Headphones,
   Loader2,
@@ -308,6 +309,8 @@ interface ConvListItem {
    * Вэб чатад null. Хуучин ярианд ч null (засвараас өмнөх).
    */
   pageId: string | null;
+  /** ⚠️ Админы тэмдэглэсэн — «дараа эргэж хариулах» */
+  starred?: boolean;
   sessionId: string;
   userName: string | null;
   userEmail: string | null;
@@ -367,7 +370,15 @@ function timeAgo(iso: string): string {
 
 export default function ChatPage() {
   const [selected, setSelected] = useState<string | null>(null);
-  const [onlyUnread, setOnlyUnread] = useState(false);
+  /**
+   * ⚠️ ГУРВАН УТГАТАЙ — хоёр тусдаа boolean байвал «Шинэ +
+   *    Тэмдэглэсэн» гэсэн УТГАГҮЙ хослол үүсч, аль нь идэвхтэйг
+   *    админ ойлгохгүй болно.
+   */
+  const [view, setView] = useState<'all' | 'unread' | 'starred'>('all');
+  const onlyUnread = view === 'unread';
+  const onlyStarred = view === 'starred';
+
   /* ⚠️ Хайлт — 51+ дэх яриа руу хүрэх цорын ганц зам байсан */
   const [q, setQ] = useState('');
   /* ⚠️ Сувгийн шүүлт — '' = бүгд. FB/IG чатбот ажилласнаар вэбийн
@@ -382,6 +393,57 @@ export default function ChatPage() {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const qc = useQueryClient();
+
+  /**
+   * Яриаг тэмдэглэх / тайлах.
+   *
+   * ⚠️⚠️ ХОЁР query-г ЗААВАЛ шинэчилнэ: жагсаалт (од харагдана) БА
+   *    дэлгэрэнгүй (товчны төлөв). Зөвхөн нэгийг нь шинэчилбэл
+   *    админ дарсан ч өөрчлөгдөөгүй мэт харагдаж, дахин дарна.
+   */
+  const toggleStar = async (id: string, next: boolean) => {
+    try {
+      await api(`/admin/chat/conversations/${id}/star`, {
+        method: 'POST',
+        body: JSON.stringify({ starred: next }),
+      });
+      qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
+      qc.invalidateQueries({ queryKey: ['admin-chat-detail', id] });
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Тэмдэглэж чадсангүй');
+    }
+  };
+
+  /**
+   * Олон яриаг нэг дор тэмдэглэх / тайлах.
+   *
+   * ⚠️ ТЭМДЭГЛЭСЭН таб дээр байвал ТАЙЛНА, бусад үед ТЭМДЭГЛЭНЭ —
+   *    админ юу хүсэж байгаа нь контекстээс тодорхой. Хоёр товч
+   *    тавибал доод мөр дүүрнэ.
+   */
+  const [bulkStarring, setBulkStarring] = useState(false);
+  const bulkStar = async () => {
+    const ids = sel.ids;
+    if (!ids.length) return;
+    const next = !onlyStarred;
+    setBulkStarring(true);
+    try {
+      const r = await api<{ updated: number }>('/admin/chat/conversations/bulk-star', {
+        method: 'POST',
+        body: JSON.stringify({ ids, starred: next }),
+      });
+      toast.success(
+        `${r.updated} яриа ${next ? 'тэмдэглэгдлээ' : 'тэмдэглэлээс хасагдлаа'}`,
+      );
+      qc.invalidateQueries({ queryKey: ['admin-chat-list'] });
+      sel.clear();
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Үйлдэл амжилтгүй боллоо');
+    } finally {
+      setBulkStarring(false);
+    }
+  };
+
   /* Олноор устгах — тест яриа их хуримтлагддаг */
   const sel = useBulkSelect({
     endpoint: '/admin/chat/conversations/bulk-delete',
@@ -399,12 +461,14 @@ export default function ChatPage() {
    * админ бүх яриа УСТСАН гэж эндүүрнэ.
    */
   const { data: list, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['admin-chat-list', onlyUnread, q, page, channel, pageId],
+    queryKey: ['admin-chat-list', view, q, page, channel, pageId],
     queryFn: () =>
       api<{
         items: ConvListItem[];
         total: number;
         unreadTotal: number;
+        /** ⚠️ Тэмдэглэсэн ярианы БҮХ тоо (шүүлтээс хамаарахгүй) */
+        starredTotal?: number;
         channelCounts?: Record<string, number>;
         /** ⚠️ Page тус бүрийн яриа — шүүлтийн товчинд тоо харуулна */
         pageCounts?: Record<string, number>;
@@ -412,6 +476,7 @@ export default function ChatPage() {
       }>(
         `/admin/chat/conversations?pageSize=30&page=${page}` +
           (onlyUnread ? '&onlyUnread=1' : '') +
+          (onlyStarred ? '&onlyStarred=1' : '') +
           (channel ? `&channel=${channel}` : '') +
           /* ⚠️ FB page шүүлт — хоёр page-тэй тул (Best TV / Best Tv 2) */
           (pageId ? `&pageId=${pageId}` : '') +
@@ -587,24 +652,48 @@ export default function ChatPage() {
               />
             </div>
           </div>
-          <div className="flex items-center gap-2 border-b border-border p-2.5">
+          <div className="flex items-center gap-1.5 border-b border-border p-2.5">
             <button
-              onClick={() => { setOnlyUnread(false); setPage(1); }}
+              onClick={() => { setView('all'); setPage(1); }}
               className={cn(
                 'flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors',
-                !onlyUnread ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
+                view === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
               )}
             >
               Бүгд
             </button>
             <button
-              onClick={() => { setOnlyUnread(true); setPage(1); }}
+              onClick={() => { setView('unread'); setPage(1); }}
               className={cn(
                 'flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors',
-                onlyUnread ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
+                view === 'unread' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent',
               )}
             >
               Шинэ {list?.unreadTotal ? `(${list.unreadTotal})` : ''}
+            </button>
+            {/*
+              ⚠️⚠️ ТЭМДЭГЛЭСЭН — «дараа эргэж хариулах» ажлын жагсаалт.
+              316 яриа дунд чухал нь алга болдог тул админ өөрөө
+              тэмдэглээд, энэ табаас шууд үргэлжлүүлнэ.
+
+              ⚠️ Одны ӨНГӨ (premium/алт) — «Шинэ»-гийн primary-аас
+                 ЯЛГАРНА. Ижил өнгөтэй бол хоёр өөр ойлголт нийлнэ.
+            */}
+            <button
+              onClick={() => { setView('starred'); setPage(1); }}
+              title="Тэмдэглэсэн яриа"
+              className={cn(
+                'flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-xs font-semibold transition-colors',
+                view === 'starred'
+                  ? 'bg-premium text-black'
+                  : 'text-muted-foreground hover:bg-accent',
+              )}
+            >
+              <Star
+                size={12}
+                className={cn(view === 'starred' && 'fill-black')}
+              />
+              {list?.starredTotal ? list.starredTotal : ''}
             </button>
           </div>
 
@@ -758,17 +847,23 @@ export default function ChatPage() {
                 <AdminErrorState error={error} onRetry={() => void refetch()} />
               </div>
             ) : items.length === 0 ? (
+              /* ⚠️ ТЭМДЭГЛЭСЭН таб хоосон бол «шүүлтээ өөрчил» гэж
+                 хэлэх нь утгагүй — админ юу хийхээ мэдэх ёстой */
               <TableEmptyState
-                icon={MessagesSquare}
+                icon={onlyStarred ? Star : MessagesSquare}
                 message={
-                  q || onlyUnread || channel
-                    ? 'Шүүлтэд тохирох яриа алга'
-                    : 'Яриа байхгүй байна'
+                  onlyStarred
+                    ? 'Тэмдэглэсэн яриа алга'
+                    : q || onlyUnread || channel
+                      ? 'Шүүлтэд тохирох яриа алга'
+                      : 'Яриа байхгүй байна'
                 }
                 description={
-                  q || onlyUnread || channel
-                    ? 'Хайлт эсвэл шүүлтээ өөрчилж үзнэ үү.'
-                    : 'Хэрэглэгч чат бичихэд энд харагдана.'
+                  onlyStarred
+                    ? 'Яриа бүрийн ★ товчийг дарж тэмдэглэвэл энд цугларна — дараа эргэж хариулах ёстой чатаа алдахгүй.'
+                    : q || onlyUnread || channel
+                      ? 'Хайлт эсвэл шүүлтээ өөрчилж үзнэ үү.'
+                      : 'Хэрэглэгч чат бичихэд энд харагдана.'
                 }
               />
             ) : (
@@ -834,6 +929,32 @@ export default function ChatPage() {
                         </Badge>
                       )}
                     </div>
+                    </button>
+                    {/*
+                      ⚠️⚠️ ОДНЫ ТОВЧ — `<button>`-ЫН ГАДНА байрлана.
+                      Дотор нь үүрлэвэл HTML буруу болж, дарахад яриа
+                      нээгдээд ЗЭРЭГ тэмдэглэгдэнэ.
+
+                      ⚠️ `stopPropagation` — эцэг элемент дээрх дарахыг
+                         зогсооно (мөр сонгогдохгүй).
+                      ⚠️ Тэмдэглээгүй үед ч ҮЗЭГДЭНЭ (сул өнгөөр) —
+                         hover дээр л гарвал админ товч байгааг мэдэхгүй.
+                    */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void toggleStar(c.id, !c.starred);
+                      }}
+                      title={c.starred ? 'Тэмдэглэлээс хасах' : 'Тэмдэглэх'}
+                      aria-pressed={!!c.starred}
+                      className={cn(
+                        'mt-1 shrink-0 rounded p-1 transition-colors',
+                        c.starred
+                          ? 'text-premium hover:text-premium/70'
+                          : 'text-muted-foreground/35 hover:text-premium',
+                      )}
+                    >
+                      <Star size={15} className={cn(c.starred && 'fill-premium')} />
                     </button>
                   </div>
                 );
@@ -965,6 +1086,27 @@ export default function ChatPage() {
                       </span>
                     ))}
                 </div>
+                {/*
+                  ⚠️⚠️ ТЭМДЭГЛЭХ ТОВЧ — яриаг НЭЭЖ уншиж байхдаа шууд
+                  тэмдэглэх боломж. Зөвхөн жагсаалтад л байвал админ
+                  уншиж дуусаад буцаж очиж хайх хэрэгтэй болно.
+
+                  ⚠️ Текст ЗААВАЛ — зөвхөн icon бол «энэ юу вэ» гэсэн
+                     эргэлзээ төрүүлнэ (handoff товч ч текстэй).
+                */}
+                <button
+                  onClick={() => void toggleStar(detail.id, !detail.starred)}
+                  aria-pressed={!!detail.starred}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors',
+                    detail.starred
+                      ? 'bg-premium/15 text-premium hover:bg-premium/25'
+                      : 'bg-accent text-muted-foreground hover:bg-accent/70 hover:text-foreground',
+                  )}
+                >
+                  <Star size={13} className={cn(detail.starred && 'fill-premium')} />
+                  {detail.starred ? 'Тэмдэглэсэн' : 'Тэмдэглэх'}
+                </button>
                 <button
                   onClick={toggleHandoff}
                   className={cn(
@@ -1127,7 +1269,24 @@ export default function ChatPage() {
           ) : null}
         </div>
       </main>
-      <BulkBar {...sel.bar} />
+      <BulkBar
+        {...sel.bar}
+        extra={
+          /* ⚠️ Тэмдэглэсэн таб дээр «хасах», бусад үед «тэмдэглэх» */
+          <button
+            onClick={() => void bulkStar()}
+            disabled={bulkStarring}
+            className="flex items-center gap-1.5 rounded-lg bg-premium px-3.5 py-1.5 text-xs font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {bulkStarring ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Star size={13} className={cn(!onlyStarred && 'fill-black')} />
+            )}
+            {onlyStarred ? 'Тэмдэглэлээс хасах' : 'Тэмдэглэх'}
+          </button>
+        }
+      />
     </AdminShell>
   );
 }
