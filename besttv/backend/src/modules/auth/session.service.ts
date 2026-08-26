@@ -61,21 +61,46 @@ export class SessionService {
                 ? 'Linux'
                 : null;
 
-    /* ⚠️ Дараалал ЧУХАЛ — Edge нь Chrome-ыг, Chrome нь Safari-г
-       өөрийн UA-д агуулдаг тул онцгойгоос нь эхэлнэ */
-    const browser = s.includes('edg/')
-      ? 'Edge'
-      : s.includes('opr/') || s.includes('opera')
-        ? 'Opera'
-        : s.includes('samsungbrowser')
-          ? 'Samsung Internet'
-          : s.includes('firefox')
-            ? 'Firefox'
-            : s.includes('chrome')
-              ? 'Chrome'
-              : s.includes('safari')
-                ? 'Safari'
-                : null;
+    /**
+     * ⚠️ Дараалал ЧУХАЛ — Edge нь Chrome-ыг, Chrome нь Safari-г
+     * өөрийн UA-д агуулдаг тул онцгойгоос нь эхэлнэ.
+     *
+     * ⚠️⚠️ iOS-ийн ТУСГАЙ ТЭМДГҮҮД ХАМГИЙН ТҮРҮҮНД.
+     *
+     * БОДИТ АЛДАА (2026-08-26): iPhone дээрх Chrome нь `CriOS/137`
+     * гэж бичигддэг — `chrome` гэсэн үг ОГТ БАЙХГҮЙ. Харин UA-ийн
+     * төгсгөлд `Safari/604.1` байдаг тул «Safari» гэж БУРУУ
+     * танигдана.
+     *
+     * Үр дагавар: хэрэглэгч НЭГ утсан дээрээ Chrome + Safari-аар
+     * нэвтэрвэл хоёулаа «Safari · iPhone» болж, 2 төхөөрөмжийн
+     * хязгаарыг дүүргэнэ — кино үзэж чадахгүй болно. Админ панелд
+     * ялгагдахгүй тул оношлох ч боломжгүй.
+     *
+     * ⚠️ iOS дээр БҮХ browser нь WebKit тул `Safari/xxx`-ийг
+     *    агуулна. Тиймээс эдгээрийг ӨМНӨ нь шалгах ЁСТОЙ.
+     */
+    const browser = s.includes('crios/')
+      ? 'Chrome'
+      : s.includes('fxios/')
+        ? 'Firefox'
+        : s.includes('edgios/')
+          ? 'Edge'
+          : s.includes('opt/')
+            ? 'Opera'
+            : s.includes('edg/')
+              ? 'Edge'
+              : s.includes('opr/') || s.includes('opera')
+                ? 'Opera'
+                : s.includes('samsungbrowser')
+                  ? 'Samsung Internet'
+                  : s.includes('firefox')
+                    ? 'Firefox'
+                    : s.includes('chrome')
+                      ? 'Chrome'
+                      : s.includes('safari')
+                        ? 'Safari'
+                        : null;
 
     if (os && browser) return `${browser} · ${os}`;
     return browser ?? os ?? 'Тодорхойгүй төхөөрөмж';
