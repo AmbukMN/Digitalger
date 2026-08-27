@@ -108,18 +108,30 @@ export class CreateTitleDto {
   @Type(() => CastMemberDto)
   cast?: CastMemberDto[];
 
+  /* ⚠️ `null` = УСТГА (админ талбарыг хоослов). `undefined` = бүү өөрчил.
+     Эс бөгөөс хоосолсон утга ХЭЗЭЭ Ч устдаггүй — `trailerYoutubeKey`
+     дээр гарсан бодит алдаа. */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  director?: string;
+  director?: string | null;
 
   /** Гарал үүслийн улс — «Солонгос», «Хятад» г.м. Хайлтад чухал. */
+  /* ⚠️ `null` = УСТГА (админ талбарыг хоослов). `undefined` = бүү өөрчил.
+     Эс бөгөөс хоосолсон утга ХЭЗЭЭ Ч устдаггүй — `trailerYoutubeKey`
+     дээр гарсан бодит алдаа. */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  country?: string;
+  country?: string | null;
 
+  /* ⚠️ `null` = УСТГА (админ талбарыг хоослов). `undefined` = бүү өөрчил.
+     Эс бөгөөс хоосолсон утга ХЭЗЭЭ Ч устдаггүй — `trailerYoutubeKey`
+     дээр гарсан бодит алдаа. */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  ageRating?: string;
+  ageRating?: string | null;
 
   /**
    * ⚠️ Киноны ХЭЛНИЙ хувилбар — админ сонгоно, картан дээр шошго болно.
@@ -138,17 +150,32 @@ export class CreateTitleDto {
    * ⚠️ Англи ЭХ тайлбар — TMDB-ээс ирнэ, AI орчуулгын ЭХ ҮҮСВЭР.
    * `description` нь МОНГОЛ (орчуулсан), энэ нь англи хэвээр.
    */
+  /* ⚠️ `null` = УСТГА (админ талбарыг хоослов). `undefined` = бүү өөрчил.
+     Эс бөгөөс хоосолсон утга ХЭЗЭЭ Ч устдаггүй — `trailerYoutubeKey`
+     дээр гарсан бодит алдаа. */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  descriptionEn?: string;
+  descriptionEn?: string | null;
 
   /**
    * ⚠️ YouTube трейлерийн key — манай R2 HLS трейлер (`trailerKey`)-ЭЭС
    * ТУСДАА. HLS байхгүй үед л энийг тоглуулна.
+   *
+   * ⚠️⚠️ `null` ЗӨВШӨӨРНӨ — УСТГАХ цорын ганц зам.
+   *
+   * БОДИТ АЛДАА: админ талбарыг хоослоод хадгалахад frontend нь
+   * `'' || undefined` = `undefined` илгээдэг байв. `@IsOptional()`
+   * тул талбар БҮРМӨСӨН алга болж, Prisma `update` нь түүнийг огт
+   * хөндөхгүй → линк ХЭЗЭЭ Ч УСТДАГГҮЙ (хэрэглэгчийн гомдол).
+   *
+   * `undefined` = «бүү өөрчил», `null` = «УСТГА» гэсэн ялгааг
+   * тодорхой болгов.
    */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsString()
-  trailerYoutubeKey?: string;
+  trailerYoutubeKey?: string | null;
 
   @IsOptional()
   @IsString()

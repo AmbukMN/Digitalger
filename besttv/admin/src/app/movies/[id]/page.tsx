@@ -231,13 +231,24 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         type: form.type,
         title: form.title,
         description: form.description,
-        descriptionEn: form.descriptionEn || undefined,
+        descriptionEn: form.descriptionEn.trim() || null,
         year: form.year ? Number(form.year) : undefined,
         rating: form.rating ? Number(form.rating) : undefined,
-        director: form.director || undefined,
-        country: form.country || undefined,
-        ageRating: form.ageRating || undefined,
-        trailerYoutubeKey: form.trailerYoutubeKey || undefined,
+        director: form.director.trim() || null,
+        country: form.country.trim() || null,
+        ageRating: form.ageRating.trim() || null,
+        /**
+         * ⚠️⚠️ ХООСОН бол `null` — `undefined` БИШ.
+         *
+         * БОДИТ АЛДАА: `|| undefined` нь хоосон мөрийг `undefined`
+         * болгодог тул JSON-д талбар ОГТ ОРОХГҮЙ → backend нь
+         * «энэ талбарыг бүү өөрчил» гэж ойлгож, YouTube линк
+         * ХЭЗЭЭ Ч УСТДАГГҮЙ байв (админ хоослоод хадгалахад буцаад
+         * гарч ирнэ).
+         *
+         * `null` = «УСТГА» гэсэн ТОДОРХОЙ заавар.
+         */
+        trailerYoutubeKey: form.trailerYoutubeKey.trim() || null,
         /**
          * ⚠️ SEO хоосон орхивол гарчиг/тайлбараас үүсгэнэ — кино бүр
          * SEO-той байх ёстой. Гараар бичсэн бол ХҮНДЭТГЭНЭ.
