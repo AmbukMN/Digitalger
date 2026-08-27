@@ -103,6 +103,27 @@ export class TitlesController {
     return this.titles.list({ type, genre, year, sort, page, limit });
   }
 
+  /**
+   * ⚠️⚠️ «Ижил төстэй контент» — ДАРААГИЙН хуудас.
+   *
+   * Дэлгэрэнгүй хуудсанд эхлээд 12 кино л ирдэг. Эгнээг баруун тийш
+   * гүйлгэхэд frontend нь эндээс үлдсэнийг татаж, ДУУСТАЛ үргэлжлүүлнэ.
+   *
+   * ⚠️ Замыг `:slug`-ийн ӨМНӨ бичив — эс бөгөөс `:slug` нь `related`
+   * гэдгийг киноны slug гэж ойлгоод 404 буцаана.
+   *
+   * ⚠️ `:id` нь slug БИШ, Title.id — дэлгэрэнгүйн хариунд аль хэдийн
+   * ирсэн байдаг тул нэмэлт хайлт шаардахгүй.
+   */
+  @Get(':id/related')
+  related(
+    @Param('id') id: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.titles.relatedPage(id, Number(page) || 1, Number(limit) || 12);
+  }
+
   @Get(':slug')
   @UseGuards(OptionalJwtAuthGuard)
   detail(@Param('slug') slug: string, @CurrentUser() user: JwtPayload | null) {

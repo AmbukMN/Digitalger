@@ -1133,6 +1133,30 @@ export class TitlesService {
   }
 
   private async related(titleId: string, limit = 12) {
+    const { items } = await this.relatedPage(titleId, 1, limit);
+    return items;
+  }
+
+  /**
+   * ⚠️⚠️ «Ижил төстэй контент» — ХУУДАСЛАСАН хувилбар.
+   *
+   * Дэлгэрэнгүй хуудас нь эхлээд 12 кино л авдаг (анхны ачаалалт
+   * хурдан байх ёстой). Хэрэглэгч эгнээг баруун тийш гүйлгэхэд
+   * frontend нь энэ endpoint-оор ДАРААГИЙН хуудсыг татаж, тухайн
+   * жанрын БҮХ кино дуустал үргэлжлүүлнэ.
+   *
+   * ⚠️ Эрэмбэ (`views desc`) болон шүүлт нь эхний 12-той ЯГ ИЖИЛ байх
+   * ёстой — эс бөгөөс 2 дахь хуудсанд эхнийхтэй ДАВХАРДСАН кино ирж,
+   * зарим нь ОГТ харагдахгүй өнгөрнө.
+   *
+   * ⚠️ `id` хоёрдогч түлхүүр: олон кино ижил `views`-тэй (ялангуяа
+   * шинэ кино бүгд 0) үед Postgres тогтворгүй дараалал буцаадаг тул
+   * `skip/take` хуудаслалт кино алгасах/давхардуулах эрсдэлтэй.
+   */
+  async relatedPage(titleId: string, page = 1, limit = 12) {
+    const p = Math.max(1, page);
+    const take = Math.min(60, Math.max(1, limit));
+
     // Ижил жанрын бусад контент
     const genreIds = (
       await this.prisma.titleGenre.findMany({
@@ -1141,20 +1165,31 @@ export class TitlesService {
       })
     ).map((g) => g.genreId);
 
-    const items = await this.prisma.title.findMany({
-      where: {
-        isActive: true,
-        id: { not: titleId },
-        ...(genreIds.length
-          ? { genres: { some: { genreId: { in: genreIds } } } }
-          : {}),
-      },
-      orderBy: { views: 'desc' },
-      take: limit,
-      select: CARD_SELECT,
-    });
+    const where: Prisma.TitleWhereInput = {
+      isActive: true,
+      id: { not: titleId },
+      ...(genreIds.length
+        ? { genres: { some: { genreId: { in: genreIds } } } }
+        : {}),
+    };
 
-    return this.media.decorateMany(items);
+    const [items, total] = await Promise.all([
+      this.prisma.title.findMany({
+        where,
+        orderBy: [{ views: 'desc' }, { id: 'asc' }],
+        skip: (p - 1) * take,
+        take,
+        select: CARD_SELECT,
+      }),
+      this.prisma.title.count({ where }),
+    ]);
+
+    return {
+      items: await this.media.decorateMany(items),
+      total,
+      page: p,
+      totalPages: Math.ceil(total / take),
+    };
   }
 }
 

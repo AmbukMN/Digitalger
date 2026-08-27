@@ -679,7 +679,24 @@ export function TitleDetailClient({
             <ReviewsSection titleId={data.id} reviewStats={data.reviewStats} />
           )}
 
-          {data.related?.length > 0 && <TitleRow title="Ижил төстэй контент" items={data.related} />}
+          {/*
+            ⚠️⚠️ ДУУСТАЛ АЧААЛНА — backend эхлээд 12 л өгдөг.
+
+            Хэрэглэгч эгнээг баруун тийш гүйлгэхэд `/titles/:id/related`
+            -ээс дараагийн хуудсыг татна (жанрын бүх кино дуустал).
+            Эхний ачаалалт хурдан хэвээр, гэхдээ санал болголт нь 12-оор
+            ХЯЗГААРЛАГДАХГҮЙ.
+
+            ⚠️ `limit=12` — эхний хуудастай ИЖИЛ хэмжээ. Өөр байвал
+            2 дахь хуудсын эхлэл (`skip`) зөрж, кино давхардана/алгасана.
+          */}
+          {data.related?.length > 0 && (
+            <TitleRow
+              title="Ижил төстэй контент"
+              items={data.related}
+              loadMoreUrl={`/titles/${data.id}/related?limit=12`}
+            />
+          )}
         </div>
       </div>
 

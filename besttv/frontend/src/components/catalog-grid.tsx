@@ -189,6 +189,11 @@ export function CatalogGrid({
                   title={row.name}
                   items={row.titles}
                   href={`/movies?genre=${row.slug}`}
+                  /* ⚠️ Нүүр хуудастай ИЖИЛ — гүйлгэхэд тухайн жанрын
+                     үлдсэн киног дуустал нэмж татна. Энэ мөрүүд нь
+                     `/home`-оос ирдэг тул эгнээ бүрд 24 л кинотой
+                     байсан бөгөөд цааш нь харах ямар ч зам байгаагүй. */
+                  genreSlug={row.slug}
                 />
               ))
             : Array.from({ length: 3 }).map((_, i) => (

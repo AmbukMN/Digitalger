@@ -40,6 +40,22 @@ interface TitleRowProps {
    */
   genreSlug?: string;
   /**
+   * ⚠️⚠️ ДУУСТАЛ АЧААЛАХ — дурын endpoint (жанраас ГАДНА).
+   *
+   * `genreSlug` нь зөвхөн жанрын эгнээнд тохирно. «Ижил төстэй
+   * контент» зэрэг эгнээ нь ӨӨР дүрмээр (тухайн киноны жанрууд,
+   * өөрийг нь хассан, үзэлтээр эрэмбэлсэн) татагддаг тул жанрын
+   * URL-аар орлуулах БОЛОМЖГҮЙ — эс бөгөөс өөр эрэмбэтэй, өөрийг нь
+   * ч агуулсан жагсаалт ирнэ.
+   *
+   * Хуудсын дугаарыг `page=N` гэж НЭМЖ өгнө (эхний хуудас = 1,
+   * `items` нь аль хэдийн ирсэн тул 2-оос эхэлнэ).
+   *
+   * ⚠️ `genreSlug` заасан бол ТҮҮНИЙГ давуу гэж үзнэ (хуучин
+   * дуудлагууд өөрчлөлтгүй ажиллана).
+   */
+  loadMoreUrl?: string;
+  /**
    * ⚠️ «Үргэлжлүүлэн үзэх»-ээс хасах. Заагаагүй бол карт дээр товч
    *    ОГТ гарахгүй (жанрын эгнээнд утгагүй).
    */
@@ -55,6 +71,7 @@ export function TitleRow({
   progressById,
   singleRow,
   genreSlug,
+  loadMoreUrl,
   onRemove,
 }: TitleRowProps) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -68,7 +85,9 @@ export function TitleRow({
    */
   const [extra, setExtra] = useState<TitleCardType[]>([]);
   const [page, setPage] = useState(1);
-  const [exhausted, setExhausted] = useState(!genreSlug);
+  /* ⚠️ Аль ч эх сурвалж заагаагүй бол lazy-load ОГТ ажиллахгүй
+     (top10, «Үргэлжлүүлэн үзэх» зэрэгт хэрэггүй). */
+  const [exhausted, setExhausted] = useState(!genreSlug && !loadMoreUrl);
   const loadingRef = useRef(false);
 
   /* ⚠️ Эх жагсаалт + нэмж татсан. Давхардлыг ID-аар шүүнэ —
@@ -80,13 +99,17 @@ export function TitleRow({
   }, [items, extra]);
 
   const loadMore = useCallback(async () => {
-    if (!genreSlug || exhausted || loadingRef.current) return;
+    if ((!genreSlug && !loadMoreUrl) || exhausted || loadingRef.current) return;
     loadingRef.current = true;
     try {
       const next = page + 1;
-      const r = await api<{ items: TitleCardType[]; totalPages: number }>(
-        `/titles?genre=${encodeURIComponent(genreSlug)}&page=${next}&limit=24`,
-      );
+      /* ⚠️ `loadMoreUrl` дээр query аль хэдийн байж болно (ж:
+         `/titles/xxx/related?limit=12`) — тусгаарлагчийг зөв сонгоно,
+         эс бөгөөс `?page=` хоёр удаа орж 400 буцна. */
+      const url = genreSlug
+        ? `/titles?genre=${encodeURIComponent(genreSlug)}&page=${next}&limit=24`
+        : `${loadMoreUrl}${loadMoreUrl!.includes('?') ? '&' : '?'}page=${next}`;
+      const r = await api<{ items: TitleCardType[]; totalPages: number }>(url);
       const rows = r.items ?? [];
       setExtra((cur) => [...cur, ...rows]);
       setPage(next);
@@ -100,7 +123,7 @@ export function TitleRow({
     } finally {
       loadingRef.current = false;
     }
-  }, [genreSlug, exhausted, page]);
+  }, [genreSlug, loadMoreUrl, exhausted, page]);
 
   /**
    * ⚠️⚠️ ХОЁР ЭГНЭЭ — ЗӨВХӨН нэг мөр ДҮҮРСНИЙ ДАРАА.
@@ -255,6 +278,35 @@ export function TitleRow({
   useEffect(() => {
     loadMoreRef.current = loadMore;
   }, [loadMore]);
+
+  /**
+   * ⚠️⚠️ ЭХ СУРВАЛЖ СОЛИГДВОЛ НЭМЖ ТАТСАНЫГ ЦЭВЭРЛЭНЭ.
+   *
+   * БОДИТ АЛДАА: «Ижил төстэй»-гээс өөр кино руу орвол Next.js нь
+   * ИЖИЛ route (`/movie/[slug]`) тул компонентыг ДАХИН УГСАРДАГГҮЙ —
+   * зөвхөн `items` prop солигдоно. Тэгвэл өмнөх киноны `extra`
+   * (нэмж татсан жагсаалт), `page`, `exhausted` нь ХЭВЭЭР үлдэж:
+   *   · шинэ киноны эгнээнд ӨМНӨХ киноны санал болголт наалдана
+   *   · `page` нь 3-аас цааш үргэлжилж, шинэ жагсаалтын 2-р хуудас
+   *     БҮРМӨСӨН алгасагдана
+   *   · `exhausted=true` байсан бол шинэ эгнээ ОГТ нэмж татахгүй
+   *
+   * Тиймээс эх сурвалж (URL/жанр) өөрчлөгдмөгц бүгдийг тэглэнэ.
+   */
+  const sourceKey = genreSlug ?? loadMoreUrl ?? '';
+  const firstSource = useRef(sourceKey);
+  useEffect(() => {
+    /* ⚠️ Анхны render дээр ажиллуулахгүй — SSR-ээс ирсэн `items`-ийг
+       дэмий тэглэж, нэмэлт хүсэлт үүсгэнэ. */
+    if (firstSource.current === sourceKey) return;
+    firstSource.current = sourceKey;
+    setExtra([]);
+    setPage(1);
+    setExhausted(!sourceKey);
+    /* ⚠️ Гүйлтийг эхэнд нь буцаана — эс бөгөөс шинэ (богино)
+       жагсаалт дээр хуучин `scrollLeft` үлдэж хоосон харагдана. */
+    trackRef.current?.scrollTo({ left: 0 });
+  }, [sourceKey]);
 
   useEffect(() => {
     updateScrollState();
