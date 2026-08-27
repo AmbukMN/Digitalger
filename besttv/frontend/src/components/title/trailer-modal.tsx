@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { VideoPlayer } from '@/components/video-player';
 
@@ -17,11 +17,33 @@ export function TrailerModal({
   youtubeKey?: string | null;
   onClose: () => void;
 }) {
+  /**
+   * ⚠️⚠️ iOS: ХААХААС ӨМНӨ POINTER EVENT-ИЙГ ТАСЛАНА.
+   *
+   * БОДИТ АЛДАА (ErrorLog, 93 удаа, 100% iPhone): модал хаагдахад
+   * React плеерийг ШУУД устгадаг ч WebKit нь `pointercancel`/
+   * `touchend`-ийг ТҮҮНИЙ ДАРАА илгээж, Vidstack-ийн slider устсан
+   * props руу хандан `t is not a function` гэж унадаг.
+   *
+   * `video-player.tsx`-ийн unmount дахь `pause()` нь давтамжийг
+   * бууруулсан ч арилгаагүй — тэр нь Rеact устгаж ЭХЭЛСЭН хойно
+   * ажилладаг тул хэт ОРОЙТДОГ.
+   *
+   * Энд харин хаах ШИЙДВЭР гармагц (React мэдэхээс ӨМНӨ) савны
+   * pointer event-ийг таслана — хоцорсон touch дотогш ОРОХГҮЙ.
+   */
+  const boxRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => {
+    const el = boxRef.current;
+    if (el) el.style.pointerEvents = 'none';
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     /* ⚠️ `e.key` БАЙХГҮЙ БАЙЖ БОЛНО — өргөтгөл/автобөглөх нь `key`-гүй
        хиймэл KeyboardEvent илгээдэг (`content-protection.tsx` тайлбар) */
     const onKey = (e: KeyboardEvent) => {
-      if (typeof e.key === 'string' && e.key === 'Escape') onClose();
+      if (typeof e.key === 'string' && e.key === 'Escape') close();
     };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -29,7 +51,7 @@ export function TrailerModal({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, [close]);
 
   return (
     <div
@@ -37,16 +59,16 @@ export function TrailerModal({
       aria-modal="true"
       aria-label="Трейлер"
       className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4"
-      onClick={onClose}
+      onClick={close}
     >
       <button
-        onClick={onClose}
+        onClick={close}
         aria-label="Хаах"
         className="absolute right-4 top-4 rounded-full bg-foreground/10 p-2 text-foreground hover:bg-foreground/20"
       >
         <X size={22} />
       </button>
-      <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+      <div ref={boxRef} className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
         {youtubeKey ? (
           /*
             ⚠️ YOUTUBE НӨӨЦ ХУВИЛБАР — манай HLS трейлер байхгүй үед.
