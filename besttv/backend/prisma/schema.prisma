@@ -98,6 +98,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -260,6 +261,18 @@ model Title {
   /// энэ нь гадаад YouTube. Хоёуланг нэг талбарт хийвэл player эвдэрнэ.
   /// Манай HLS трейлер БАЙХГҮЙ үед л энийг тоглуулна (нөөц хувилбар).
   trailerYoutubeKey String?
+  /// ⚠️⚠️ ТРЕЙЛЕРИЙН ХӨРВҮҮЛЭЛТИЙН ТӨЛӨВ — `streamStatus`-ЭЭС ТУСДАА.
+  /// `streamStatus` нь КИНОНЫ видеонд зориулагдсан тул трейлерт
+  /// ашиглавал хоёр өөр видеоны төлөв мөргөлдөнө.
+  /// Үүнгүй үед админ трейлер байршуулаад «хөрвүүлж байна уу, унасан
+  /// уу» гэдгийг ОГТ мэдэх боломжгүй байв (хэрэглэгчийн гомдол).
+  trailerStatus     StreamStatus @default(NONE)
+  /// Хөрвүүлэлтийн явц 0-100 (админд progress bar)
+  trailerProgress   Int          @default(0)
+  /// Хөрвүүлэлт унасан шалтгаан (админд харуулна)
+  trailerError      String?
+  /// Байршуулсан эх файлын нэр — админд «ямар файл орсон» гэдгийг харуулна
+  trailerFileName   String?
   videoRawKey       String? // upload хийсэн оригинал (HLS болмогц устгана)
   videoKey          String? // HLS m3u8 key (зөвхөн MOVIE)
 
@@ -569,11 +582,11 @@ model SavedCard {
   userId String
 
   /// Bonum-ын картын токен — төлбөр татахад `X-CARD-TOKEN` толгойд явна.
-  token String @unique
+  token  String @unique
   /// Харуулах маск — «5150 23** **** 4778»
-  mask  String
+  mask   String
   /// Банкны нэр (Bonum webhook-оос) — «Golomt Bank»
-  bank  String @default("")
+  bank   String @default("")
   /// «2026/11» — хугацаа дуусахыг хэрэглэгчид сануулахад
   expiry String @default("")
 
@@ -646,7 +659,7 @@ model Payment {
   couponCode     String? // хэрэглэсэн купон код (лог зорилгоор, snapshot)
   originalAmount Int? // купон хэрэглэхээс өмнөх дvн (хямдрал харуулахад)
 
-  qpayInvoiceId String?   @unique
+  qpayInvoiceId String? @unique
   qpayQrText    String?
   qpayQrImage   String? // base64 QR
   qpayUrls      Json? // deeplink жагсаалт (банкны app)
@@ -662,10 +675,10 @@ model Payment {
   /// зөвшөөрөлгүй мөнгө татахгүй.
   autoRenewRequested Boolean @default(false)
 
-  bonumInvoiceId    String? @unique
+  bonumInvoiceId    String?   @unique
   /// Bonum hosted checkout хуудасны линк — idempotent дахин ашиглалтад
   bonumFollowUpLink String?
-  paidAt        DateTime?
+  paidAt            DateTime?
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan         Plan?         @relation(fields: [planId], references: [id])
@@ -1307,13 +1320,11 @@ model ChatConversation {
 
   /**
    * ⚠️⚠️ АДМИНЫ ТЭМДЭГЛЭСЭН ЯРИА (одтой).
-   *
    * БОДИТ ХЭРЭГЦЭЭ: 316 яриа дунд чухал нь (гомдол, төлбөрийн
    * маргаан, дараа эргэж хариулах ёстой) алга болдог. Хайлтаар
    * дахин олох гэхээр хэн юу бичсэнийг санахгүй.
-   *
    * ⚠️ `adminUnread`-ААС ТУСДАА: «уншаагүй» нь автоматаар арилдаг
-   *    (нээмэгц), «тэмдэглэсэн» нь админ өөрөө тайлтал үлдэнэ.
+   * (нээмэгц), «тэмдэглэсэн» нь админ өөрөө тайлтал үлдэнэ.
    */
   starred Boolean @default(false)
 
@@ -1326,7 +1337,9 @@ model ChatConversation {
   @@index([userId, lastMessageAt])
   @@index([adminUnread, lastMessageAt])
   @@index([channel, lastMessageAt])
-  /* ⚠️ Тэмдэглэсэн ярианы шүүлт — индексгүй бол бүтэн хүснэгт уншина */
+  /**
+   * ⚠️ Тэмдэглэсэн ярианы шүүлт — индексгүй бол бүтэн хүснэгт уншина
+   */
   @@index([starred, lastMessageAt])
 }
 
@@ -1496,16 +1509,16 @@ model EmailOpen {
 }
 
 model EmailLog {
-  id        String   @id @default(cuid())
-  to        String
-  subject   String
+  id       String  @id @default(cuid())
+  to       String
+  subject  String
   /// welcome | verify | payment | subscription | rental | expiring |
   /// rental-expiring | password-reset | password-changed | marketing
-  template  String
+  template String
   /// sent | failed | suppressed
-  status    String   @default("sent")
-  error     String?
-  userId    String?
+  status   String  @default("sent")
+  error    String?
+  userId   String?
 
   /// ⚠️ BULK / КАМПАНИТ ИЛГЭЭЛТИЙН БҮЛЭГ.
   /// Нэг bulk илгээлт (кино реклам, broadcast) доторх БҮХ имэйл ижил
@@ -1517,19 +1530,18 @@ model EmailLog {
   batchLabel String?
   /**
    * ⚠️⚠️ ЯГ ИЛГЭЭСЭН HTML — админ бодит имэйлийг ХАРНА.
-   *
    * Өмнө нь зөвхөн `to/subject/template` хадгалагддаг байсан тул
    * админ хэрэглэгчид ЯГ ЮУ очсоныг харах боломжгүй, гомдол
    * шалгахад «магадгүй ийм байсан» гэж таамаглах шаардлагатай байв.
-   *
    * ⚠️ Нээлтийн pixel НЭМЭГДСЭН хувилбарыг хадгална — хэрэглэгчийн
    * хүлээн авсантай ЯГ ИЖИЛ.
    */
-  html      String?  @db.Text
-  createdAt DateTime @default(now())
+  html       String?  @db.Text
+  createdAt  DateTime @default(now())
 
   // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**
@@ -1711,12 +1723,10 @@ enum SocialChannel {
 
 /**
  * Хуваарийн ТӨРӨЛ — Buffer-ийн гол механик.
- *
  * ⚠️⚠️ ЯАГААД ЯЛГАХ ШААРДЛАГАТАЙ ВЭ: slot бол «мөр» биш, ДАВТАГДАХ
  * ЦАГИЙН ХУВААРЬ. Админ хуваариа өөрчлөхөд (жишээ: 19:00-ыг 20:00
  * болгох) `NEXT_AVAILABLE` постууд ШИНЭ цаг руу автоматаар шилжинэ,
  * харин `CUSTOM` постууд ХӨДӨЛДӨГГҮЙ.
- *
  * Хоёуланг нэг талбарт хадгалбал энэ зан төлөвийг гаргах боломжгүй.
  */
 enum SocialScheduleKind {
@@ -1836,13 +1846,11 @@ model SocialPostTarget {
 
   /**
    * ⚠️⚠️ IG CONTAINER ID — retry-ийн ГОЛ ХАМГААЛАЛТ.
-   *
    * Instagram-д нийтлэх нь 2 алхам: container үүсгэх → publish.
    * Publish алхам сүлжээний алдаагаар унавал ДАХИН CONTAINER
    * ҮҮСГЭХ ЁСГҮЙ — нэг container хоёр удаа publish хийгддэггүй тул
    * хуучныг дахин ашиглах нь давхардлаас хамгаална (Meta-гийн
    * зөвлөмж: idempotency key байхгүй тул `creation_id` нь орлоно).
-   *
    * ⚠️ Container 24 цаг хүчинтэй. Хэтэрвэл `EXPIRED` болох тул
    * шинээр үүсгэнэ — `igContainerAt`-аар шалгана.
    */
@@ -1851,11 +1859,9 @@ model SocialPostTarget {
 
   /**
    * ⚠️ FB ӨӨРӨӨ ТОВЛОСОН эсэх.
-   *
    * Facebook нь `published=false` + `scheduled_publish_time`-аар
    * ӨӨРИЙН ТАЛД товлодог (10 мин – 30 хоног). Тэр үед бидний cron
    * нийтлэх ШААРДЛАГАГҮЙ — Meta автоматаар хийнэ.
-   *
    * ⚠️ IG-д ийм боломж БАЙХГҮЙ тул хоёр суваг ӨӨР замаар явна.
    */
   fbNativeScheduled Boolean @default(false)
@@ -1890,11 +1896,9 @@ model SocialSlot {
 
 /**
  * Сувгийн тохиргоо — түр зогсоох (pause).
- *
  * ⚠️ Buffer-т pause нь СУВАГ ТУС БҮРЭЭР хийгддэг (бөөнөөр биш).
  * Зогсоосон үед товлосон постууд ЯВАХГҮЙ, дараалалдаа хэвээр
  * үлдэнэ — сэргээхэд анхны дарааллаараа үргэлжилнэ.
- *
  * ⚠️ Buffer дээр pause нь календарь дээр ХАРАГДДАГГҮЙ (тэдний сул
  * тал). Бид админд ТОДООР харуулна — эс бөгөөс «яагаад пост
  * явахгүй байна» гэж удаан хайна.

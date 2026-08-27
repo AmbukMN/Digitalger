@@ -888,6 +888,10 @@ export function TitleEditDialog({
                   <TrailerField
                     titleId={savedId ?? undefined}
                     trailerUrl={(existing as any)?.trailerUrl}
+                    trailerStatus={(existing as any)?.trailerStatus}
+                    trailerProgress={(existing as any)?.trailerProgress}
+                    trailerError={(existing as any)?.trailerError}
+                    trailerFileName={(existing as any)?.trailerFileName}
                     youtubeKey={form.trailerYoutubeKey}
                     onYoutubeChange={(v) =>
                       setForm((f) => ({ ...f, trailerYoutubeKey: v }))

@@ -225,9 +225,16 @@ export class UploadsController {
   /** Upload дууссаны дараа — HLS хөрвүүлэлтийн queue-д нэмнэ */
   @Post('video/complete')
   async completeVideo(
-    @Body() body: { target: VideoTarget; targetId: string; rawKey: string },
+    @Body()
+    body: {
+      target: VideoTarget;
+      targetId: string;
+      rawKey: string;
+      /** ⚠️ Эх файлын нэр — админд «ямар файл орсон» гэдгийг харуулна */
+      fileName?: string;
+    },
   ) {
-    const { target, targetId, rawKey } = body;
+    const { target, targetId, rawKey, fileName } = body;
     if (!target || !targetId || !rawKey) {
       throw new BadRequestException('target, targetId, rawKey шаардлагатай');
     }
@@ -242,8 +249,26 @@ export class UploadsController {
           data: { videoRawKey: rawKey, streamStatus: 'PROCESSING' },
         });
       }
-      // trailer: streamStatus нь movie-д зориулагдсан тул хөндөхгүй, HLS
-      // хөрвүүлэлт дуусахад worker шууд trailerKey-г бичнэ.
+      /**
+       * ⚠️⚠️ ТРЕЙЛЕР — ӨӨРИЙН `trailerStatus`.
+       *
+       * `streamStatus` нь КИНОНЫ видеонд зориулагдсан тул хөндөхгүй
+       * (хөндвөл кино «хөрвүүлж байна» болж, үзэгч тоглуулж чадахгүй
+       * болно). Трейлер тусдаа талбартай.
+       *
+       * ⚠️ Үүнгүй үед админ upload дуусахад юу ч харагдахгүй, «ажиллаж
+       * байна уу, унасан уу» гэдгийг мэдэх ямар ч зам байгаагүй.
+       */
+      if (target === 'trailer') {
+        await this.prisma.title.update({
+          where: { id: targetId },
+          data: {
+            trailerStatus: 'PROCESSING',
+            trailerError: null,
+            ...(fileName ? { trailerFileName: fileName } : {}),
+          },
+        });
+      }
     } else {
       const ep = await this.prisma.episode.findUnique({ where: { id: targetId } });
       if (!ep) throw new NotFoundException('Анги олдсонгүй');

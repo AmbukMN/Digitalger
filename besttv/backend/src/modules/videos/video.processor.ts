@@ -149,7 +149,14 @@ export class VideoProcessor {
       if (target === 'trailer') {
         await this.prisma.title.update({
           where: { id: targetId },
-          data: { trailerKey: result.playlistKey },
+          data: {
+            trailerKey: result.playlistKey,
+            /* ⚠️ Төлөвийг ЗААВАЛ БЭЛЭН болгоно — эс бөгөөс админд
+               мөнхөд «хөрвүүлж байна» гэж харагдана */
+            trailerStatus: 'READY',
+            trailerProgress: 100,
+            trailerError: null,
+          },
         });
       } else {
         /**
@@ -473,12 +480,51 @@ export class VideoProcessor {
     return e?.videoKey ?? null;
   }
 
+  /**
+   * ⚠️⚠️ ТРЕЙЛЕРИЙН ТАЛБАРЫН ЗУРАГЛАЛ.
+   *
+   * Трейлер нь `Title` дээр КИНОТОЙ ХАМТ сууна. `streamStatus`/
+   * `streamProgress` нь КИНОНЫ видеонд харьяалагдах тул трейлерээр
+   * дарж бичвэл бэлэн кино «хөрвүүлж байна» болж, үзэгч тоглуулж
+   * чадахгүй болно. Тиймээс трейлер өөрийн талбарууд руу буулгана.
+   */
+  private static readonly TRAILER_FIELD_MAP: Record<string, string> = {
+    streamStatus: 'trailerStatus',
+    streamProgress: 'trailerProgress',
+    streamError: 'trailerError',
+  };
+
   private async setState(
     target: VideoHlsJob['target'],
     targetId: string,
     data: Record<string, unknown>,
   ) {
-    if (target === 'trailer') return;
+    /**
+     * ⚠️⚠️ ӨМНӨ НЬ `return` БАЙВ — трейлерийн төлөв ОГТ бичигддэггүй.
+     *
+     * Үр дүнд админ трейлер байршуулаад «хөрвүүлж байна уу, унасан уу,
+     * хэдэн хувьтай явж байна уу» гэдгийг мэдэх ЯМАР Ч зам байхгүй,
+     * дэлгэц хоосон харагддаг байв (хэрэглэгчийн гомдол).
+     *
+     * Одоо трейлерийн ӨӨРИЙН талбарууд руу зурагласнаар кино/ангитай
+     * ЯГ ИЖИЛ явцын мэдээлэл харагдана.
+     */
+    if (target === 'trailer') {
+      const mapped: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(data)) {
+        const field = VideoProcessor.TRAILER_FIELD_MAP[k];
+        /* ⚠️ Зураглалд байхгүй түлхүүрийг АЛГАСНА — `videoKey`,
+           `durationSec`, `streamStartedAt` зэрэг нь КИНОНЫХ, трейлерээр
+           дарж бичвэл бэлэн киног эвдэнэ. */
+        if (field) mapped[field] = v;
+      }
+      if (Object.keys(mapped).length) {
+        await this.prisma.title
+          .update({ where: { id: targetId }, data: mapped })
+          .catch(() => null);
+      }
+      return;
+    }
     if (target === 'movie') {
       await this.prisma.title.update({ where: { id: targetId }, data }).catch(() => null);
     } else {

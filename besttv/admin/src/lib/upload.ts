@@ -409,7 +409,9 @@ export function uploadVideo(
 
       await api('/admin/uploads/video/complete', {
         method: 'POST',
-        body: JSON.stringify({ ...target, rawKey }),
+        /* ⚠️ `fileName` — админд «ямар файл орсон» гэдгийг харуулна.
+           Хуудсаа хааж дахин нээхэд ч нэр үлдэнэ (DB-д хадгална). */
+        body: JSON.stringify({ ...target, rawKey, fileName: file.name }),
       });
 
       t.success('Видео орлоо — HLS хөрвүүлж байна');

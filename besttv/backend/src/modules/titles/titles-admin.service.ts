@@ -364,6 +364,12 @@ export class TitlesAdminService {
     return {
       ...decorated,
       trailerUrl: await this.media.url(title.trailerKey),
+      /* ⚠️ Трейлерийн хөрвүүлэлтийн явц — кино/ангитай ИЖИЛ мэдээлэл
+         (админд progress bar, алдааны шалтгаан, файлын нэр) */
+      trailerStatus: title.trailerStatus,
+      trailerProgress: title.trailerProgress,
+      trailerError: title.trailerError,
+      trailerFileName: title.trailerFileName,
       cast: castRaw.map((c, i) => ({ ...c, photoUrl: castPhotoUrls[i] })),
       galleryUrls,
       /**

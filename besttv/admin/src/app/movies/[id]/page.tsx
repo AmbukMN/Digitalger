@@ -433,6 +433,10 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
           <TrailerField
             titleId={savedId ?? undefined}
             trailerUrl={(existing as any)?.trailerUrl}
+            trailerStatus={(existing as any)?.trailerStatus}
+            trailerProgress={(existing as any)?.trailerProgress}
+            trailerError={(existing as any)?.trailerError}
+            trailerFileName={(existing as any)?.trailerFileName}
             youtubeKey={form.trailerYoutubeKey}
             onYoutubeChange={(v) => setForm((f) => ({ ...f, trailerYoutubeKey: v }))}
             onChanged={() => qc.invalidateQueries({ queryKey: ['admin-title', savedId] })}
