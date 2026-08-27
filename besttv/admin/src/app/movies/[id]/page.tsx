@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Sparkles, Trash2, Youtube } from 'lucide-react';
+import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
@@ -17,6 +17,7 @@ import { ImageUpload } from '@/components/image-upload';
 import { VideoUpload } from '@/components/video-upload';
 import { SubtitleManager } from '@/components/subtitle-manager';
 import { BackdropMediaUpload } from '@/components/backdrop-media-upload';
+import { TrailerField } from '@/components/trailer-field';
 import { TmdbImportDialog, type TmdbImportResult } from '@/components/tmdb-import-dialog';
 import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
@@ -407,51 +408,24 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         </div>
 
         <div className="admin-card mt-5 rounded-xl p-6">
-          <label className="mb-1 block text-sm font-semibold text-foreground">Backdrop &amp; Трейлер</label>
+          <label className="mb-1 block text-sm font-semibold text-foreground">Дэвсгэр зураг (Backdrop)</label>
           <p className="mb-3 text-xs text-muted-foreground">
-            16:9 hero зураг эсвэл трейлер видео сонгоно уу. Зураг WebP болгож автоматаар optimize хийнэ, видео HLS-рүv хөрвүүлэгдэнэ (1-3 мин).
+            16:9 hero зураг. WebP болгож автоматаар optimize хийнэ.
           </p>
           <BackdropMediaUpload
-            titleId={savedId ?? undefined}
             backdropUrl={backdropUrl}
             onBackdropChange={(k, u) => { setBackdropKey(k); setBackdropUrl(u); }}
-            trailerAvailable={(existing as any)?.trailerUrl != null}
-            onTrailerDone={() => qc.invalidateQueries({ queryKey: ['admin-title', savedId] })}
           />
 
-          {/*
-            ⚠️ YOUTUBE ТРЕЙЛЕР — TMDB-ээс автоматаар ирнэ.
-            Дээрх R2 HLS трейлерээс ТУСДАА: HLS байхгүй үед л энийг тоглуулна.
-          */}
-          <div className="mt-4 border-t border-border pt-4">
-            <label className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-              <Youtube size={15} /> YouTube трейлер
-            </label>
-            <p className="mb-2 text-xs text-muted-foreground">
-              Манай трейлер байхгүй үед энийг тоглуулна. TMDB импортоор автоматаар бөглөгдөнө.
-            </p>
-            <input
-              value={form.trailerYoutubeKey}
-              onChange={(e) => {
-                /* ⚠️ Бүтэн линк буулгасан ч key-г салгаж авна */
-                const v = e.target.value.trim();
-                const m = v.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
-                setForm((f) => ({ ...f, trailerYoutubeKey: m?.[1] ?? v }));
-              }}
-              placeholder="dQw4w9WgXcQ эсвэл бүтэн линк"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
-            />
-            {form.trailerYoutubeKey && (
-              <a
-                href={`https://youtu.be/${form.trailerYoutubeKey}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-block text-xs text-primary hover:underline"
-              >
-                youtu.be/{form.trailerYoutubeKey} — шалгах
-              </a>
-            )}
-          </div>
+          {/* ⚠️ Трейлер нь ТУСДАА хэсэг — `title-edit-dialog`-той ИЖИЛ
+              компонент (нэг эх сурвалж, зан төлөв зөрөхгүй). */}
+          <TrailerField
+            titleId={savedId ?? undefined}
+            trailerUrl={(existing as any)?.trailerUrl}
+            youtubeKey={form.trailerYoutubeKey}
+            onYoutubeChange={(v) => setForm((f) => ({ ...f, trailerYoutubeKey: v }))}
+            onChanged={() => qc.invalidateQueries({ queryKey: ['admin-title', savedId] })}
+          />
         </div>
 
         <div className="admin-card mt-5 rounded-xl p-6">

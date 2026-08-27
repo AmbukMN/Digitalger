@@ -571,6 +571,43 @@ export class TitlesAdminService {
     return { ok: true };
   }
 
+  /**
+   * ⚠️⚠️ БАЙРШУУЛСАН ТРЕЙЛЕРИЙГ УСТГАНА (R2 + DB).
+   *
+   * Админ буруу видео оруулсан эсвэл YouTube хувилбар руу буцахыг
+   * хүсвэл ЗАМ БАЙХ ЁСТОЙ. Өмнө нь трейлер нэг л удаа орж, дараа нь
+   * СОЛИХ/УСТГАХ БОЛОМЖГҮЙ байв — зөвхөн шинийг дээр нь бичих
+   * (хуучин HLS хавтас R2-д үүрд үлдэж, хадгалалтын төлбөр өснө).
+   *
+   * ⚠️ HLS нь ОЛОН файлын хавтас (master + variant + segment) тул
+   * ганц key биш, БҮХ prefix-ийг цэвэрлэнэ.
+   *
+   * ⚠️ `trailerYoutubeKey`-д ГАР ХҮРЭХГҮЙ — тэр нь ТУСДАА талбар.
+   * HLS устмагц YouTube хувилбар (байвал) автоматаар идэвхжинэ.
+   */
+  async removeTrailer(id: string) {
+    const title = await this.prisma.title.findUnique({
+      where: { id },
+      select: { trailerKey: true, trailerYoutubeKey: true },
+    });
+    if (!title) throw new NotFoundException('Контент олдсонгүй');
+    if (!title.trailerKey) {
+      throw new BadRequestException('Байршуулсан трейлер алга');
+    }
+
+    const prefix = this.hlsPrefix(title.trailerKey);
+    await this.prisma.title.update({
+      where: { id },
+      data: { trailerKey: null },
+    });
+
+    /* ⚠️ DB амжилттай болсны ДАРАА — R2 унасан ч трейлер нь админд
+       "устсан" харагдана (дахин байршуулах боломжтой). */
+    this.cleanupR2([], [prefix]);
+
+    return { ok: true, youtubeFallback: title.trailerYoutubeKey ?? null };
+  }
+
   // ── Bulk үйлдлүүд ───────────────────────────────────────────────────────────
 
   /** Нэг хүсэлтэд боловсруулах дээд тоо — санамсаргүй бүх каталогийг хамгаална */

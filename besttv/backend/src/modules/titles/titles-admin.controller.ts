@@ -111,6 +111,17 @@ export class TitlesAdminController {
     return this.svc.remove(id, force === '1' || force === 'true');
   }
 
+  /**
+   * Байршуулсан (HLS) трейлерийг устгана — R2 хавтас + `trailerKey`.
+   *
+   * ⚠️ YouTube талбарт хамаагүй: HLS устмагц YouTube хувилбар (байвал)
+   * автоматаар идэвхжинэ.
+   */
+  @Delete(':id/trailer')
+  removeTrailer(@Param('id') id: string) {
+    return this.svc.removeTrailer(id);
+  }
+
   // ── Bulk үйлдлүүд ───────────────────────────────────────────────────────────
   // ⚠️ `:id` route-уудаас ДООШ байрлуулбал `bulk/...` нь `:id`-д баригдана.
   //    Тиймээс тусдаа `bulk/` угтвартай — Nest давхцлыг зам уртаар нь шийднэ.

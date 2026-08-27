@@ -131,6 +131,9 @@ export class TitlesService {
             ...CARD_SELECT,
             description: true,
             trailerKey: true,
+            /* ⚠️ YouTube нөөц — HLS байхгүй үед hero дээр трейлер
+               харуулах боломжтой эсэхийг шийднэ */
+            trailerYoutubeKey: true,
             /**
              * ⚠️⚠️ `id` ЗААВАЛ — frontend-ийн `accessState()` нь хэрэглэгчийн
              * `accessGenreIds`-ыг жанрын ID-аар тулгадаг. `id` байхгүй бол
@@ -208,7 +211,19 @@ export class TitlesService {
     const decoratedBanners = await Promise.all(
       banners.map(async (b) => ({
         ...(await this.media.decorate(b)),
-        trailerAvailable: !!b.trailerKey,
+        /**
+         * ⚠️⚠️ HLS ЭСВЭЛ YouTube — аль нэг байвал трейлер БИЙ.
+         *
+         * Өмнө нь зөвхөн `trailerKey` (HLS)-ыг тоолдог байсан тул
+         * YouTube трейлертэй 21 кино «трейлергүй» гэж тооцогдож,
+         * hero дээр трейлер үзэх ямар ч зам байгаагүй.
+         */
+        trailerAvailable: !!b.trailerKey || !!b.trailerYoutubeKey,
+        /**
+         * ⚠️ HLS давуу — байвал YouTube-г `null` болгоно (өөрийн CDN,
+         * зар сурталчилгаагүй). Дэлгэрэнгүй хуудасны дүрэмтэй ЯГ ИЖИЛ.
+         */
+        trailerYoutubeKey: b.trailerKey ? null : b.trailerYoutubeKey,
         trailerKey: undefined, // key задлахгүй — stream gate-ээр л
         genres: b.genres.map((g) => g.genre),
       })),

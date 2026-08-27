@@ -14,6 +14,11 @@ export interface HomeData {
   banners: (TitleCard & {
     description: string;
     trailerAvailable: boolean;
+    /**
+     * ⚠️ YouTube нөөц — манай HLS трейлер БАЙХГҮЙ үед л backend илгээнэ
+     * (хоёулаа байвал HLS давуу: өөрийн CDN, зар сурталчилгаагүй).
+     */
+    trailerYoutubeKey?: string | null;
     genres: { id: string; name: string; slug: string }[];
   })[];
   newReleases: TitleCard[];

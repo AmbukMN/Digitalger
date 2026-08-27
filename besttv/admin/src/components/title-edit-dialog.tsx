@@ -15,7 +15,6 @@ import {
   UploadCloud,
   Users as UsersIcon,
   X,
-  Youtube,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
@@ -35,6 +34,7 @@ import { useAdminGenres, useAdminTitle } from '@/lib/queries';
 import { ImageUpload } from '@/components/image-upload';
 import { VideoUpload } from '@/components/video-upload';
 import { BackdropMediaUpload } from '@/components/backdrop-media-upload';
+import { TrailerField } from '@/components/trailer-field';
 import { TmdbImportDialog, type TmdbImportResult } from '@/components/tmdb-import-dialog';
 import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
@@ -860,51 +860,31 @@ export function TitleEditDialog({
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Дэвсгэр зураг / Трейлер (16:9)
                   </p>
+                  {/*
+                    ⚠️ Энэ slot нь ЗӨВХӨН дэвсгэр зураг. Трейлер нь ДООРОО
+                    тусдаа хэсэгтэй — өмнө нь энд нуугдаж, админ трейлер
+                    оруулж болохыг мэдэхгүй байв (зөвхөн «видео сонгох»
+                    гэсэн бүдэг бичиг).
+                  */}
                   <BackdropMediaUpload
-                    titleId={savedId ?? undefined}
                     backdropUrl={backdropUrl}
                     onBackdropChange={(k, u) => {
                       setBackdropKey(k);
                       setBackdropUrl(u);
                     }}
-                    trailerAvailable={(existing as any)?.trailerUrl != null}
-                    onTrailerDone={() =>
+                  />
+
+                  <TrailerField
+                    titleId={savedId ?? undefined}
+                    trailerUrl={(existing as any)?.trailerUrl}
+                    youtubeKey={form.trailerYoutubeKey}
+                    onYoutubeChange={(v) =>
+                      setForm((f) => ({ ...f, trailerYoutubeKey: v }))
+                    }
+                    onChanged={() =>
                       qc.invalidateQueries({ queryKey: ['admin-title', savedId] })
                     }
                   />
-
-                  {/*
-                    ⚠️ YOUTUBE ТРЕЙЛЕР — TMDB-ээс автоматаар ирнэ.
-                    Манай R2 HLS трейлер (дээрх upload)-ААС ТУСДАА талбар:
-                    HLS байхгүй үед л энийг тоглуулна (нөөц хувилбар).
-                  */}
-                  <div className="mt-3">
-                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Youtube size={13} /> YouTube трейлер
-                    </label>
-                    <input
-                      value={form.trailerYoutubeKey}
-                      onChange={(e) => {
-                        /* ⚠️ Бүтэн линк буулгасан ч key-г нь салгаж авна —
-                           админ youtube.com/watch?v=... хуулах нь ЭНГИЙН */
-                        const v = e.target.value.trim();
-                        const m = v.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
-                        setForm((f) => ({ ...f, trailerYoutubeKey: m?.[1] ?? v }));
-                      }}
-                      placeholder="dQw4w9WgXcQ эсвэл бүтэн линк"
-                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
-                    />
-                    {form.trailerYoutubeKey && (
-                      <a
-                        href={`https://youtu.be/${form.trailerYoutubeKey}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-block text-xs text-primary hover:underline"
-                      >
-                        youtu.be/{form.trailerYoutubeKey} — шалгах
-                      </a>
-                    )}
-                  </div>
                 </div>
               </div>
 

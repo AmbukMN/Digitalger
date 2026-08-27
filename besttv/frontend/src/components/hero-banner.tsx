@@ -5,7 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Info, Lock, Play, Star } from 'lucide-react';
+import { Check, Film, Info, Lock, Play, Star } from 'lucide-react';
+import { TrailerModal } from '@/components/title/trailer-modal';
 import { usePlayGuard } from '@/lib/use-play-guard';
 import { useAuth } from '@/lib/auth-store';
 import { accessState } from '@/lib/access';
@@ -29,6 +30,14 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
   const { user } = useAuth();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
+  /**
+   * ⚠️⚠️ ТРЕЙЛЕР МОДАЛ — ЗӨВХОН ИДЭВХТЭЙ слайдынх.
+   *
+   * `null` = хаалттай. Слайд солигдоход автоматаар хаагдана (доорх
+   * `useEffect`) — эс бөгөөс карусель цааш гүйж, модал дотор ӨӨР
+   * киноны трейлер тоглосоор үлдэнэ.
+   */
+  const [trailerFor, setTrailerFor] = useState<Banner | null>(null);
 
   const next = useCallback(
     () => setActive((i) => (i + 1) % banners.length),
@@ -36,10 +45,18 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
   );
 
   useEffect(() => {
-    if (banners.length < 2 || paused) return;
+    /* ⚠️ Трейлер нээлттэй үед карусель ЗОГСОНО — эс бөгөөс дэвсгэр нь
+       цааш гүйж, модал хаамагц ӨӨР кино гарч ирнэ (чиг баримжаа алдана) */
+    if (banners.length < 2 || paused || trailerFor) return;
     const t = setTimeout(next, SLIDE_MS);
     return () => clearTimeout(t);
-  }, [active, paused, banners.length, next]);
+  }, [active, paused, banners.length, next, trailerFor]);
+
+  /* ⚠️ Слайд гараар солигдвол (сум/цэг) нээлттэй трейлерийг хаана —
+     өөр киноны трейлер тоглосоор үлдэхээс сэргийлнэ */
+  useEffect(() => {
+    setTrailerFor(null);
+  }, [active]);
 
   if (banners.length === 0) return null;
   const banner = banners[active];
@@ -248,6 +265,24 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
                   </button>
                 );
               })()}
+              {/*
+                ⚠️⚠️ ТРЕЙЛЕР — ЗӨВХӨН трейлертэй кинонд.
+
+                Backend нь `trailerAvailable`-ыг HLS ЭСВЭЛ YouTube аль
+                нэг байвал `true` болгоно. Трейлергүй кинонд товч ОГТ
+                харагдахгүй (хоосон модал нээх нь эвдэрсэн мэт).
+
+                ⚠️ Трейлерийн playlist НЭЭЛТТЭЙ — нэвтрээгүй зочин ч
+                үзнэ, эрх/багц шаардахгүй.
+              */}
+              {banner.trailerAvailable && (
+                <button
+                  onClick={() => setTrailerFor(banner)}
+                  className="flex items-center gap-1.5 rounded-lg bg-black/45 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:scale-[1.03] hover:bg-black/65 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                >
+                  <Film size={18} /> Трейлер
+                </button>
+              )}
               <Link
                 href={`/movie/${banner.slug}`}
                 className="flex items-center gap-1.5 rounded-lg bg-black/45 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:scale-[1.03] hover:bg-black/65 active:scale-[0.98] sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
@@ -319,6 +354,20 @@ export function HeroBanner({ banners }: { banners: Banner[] }) {
             </span>
           ))}
         </div>
+      )}
+
+      {/*
+        ⚠️ ТРЕЙЛЕР МОДАЛ — дэлгэрэнгүй хуудастай ИЖИЛ компонент.
+        Нэг эх сурвалж: HLS/YouTube сонголт, Esc-ээр хаах, биеийн
+        гүйлт түгжих бүгд тэндээ шийдэгдсэн.
+      */}
+      {trailerFor && (
+        <TrailerModal
+          titleId={trailerFor.id}
+          /* ⚠️ Манай HLS байхгүй үед л backend утга илгээнэ (эс бөгөөс null) */
+          youtubeKey={trailerFor.trailerYoutubeKey}
+          onClose={() => setTrailerFor(null)}
+        />
       )}
     </section>
   );
