@@ -70,11 +70,36 @@ export default function MoviesPage() {
    */
   const { data: storage } = useQuery({
     queryKey: ['admin-storage-usage'],
-    queryFn: () => api<{ titles: { id: string; bytes: number }[] }>('/admin/analytics/storage'),
+    queryFn: () =>
+      api<{ titles: { id: string; bytes: number }[]; computedAt?: string }>(
+        '/admin/analytics/storage',
+      ),
     staleTime: 10 * 60_000,
     gcTime: 30 * 60_000,
   });
   const sizeById = new Map<string, number>((storage?.titles ?? []).map((t) => [t.id, t.bytes]));
+
+  /**
+   * ⚠️⚠️ ХЭМЖЭЭГ ХЭЗЭЭ ТООЦООЛСОН БЭ.
+   *
+   * БОДИТ ГОМДОЛ: шинээр байршуулсан кино «—» хэмжээтэй харагдахад
+   * админ ЭВДЭРСЭН гэж ойлгодог байв.
+   *
+   * ЖИНХЭНЭ ШАЛТГААН: R2 скан 98 СЕКУНД болдог (93,491 объект) тул
+   * дуудалт бүрд тооцоолох БОЛОМЖГҮЙ — өдөрт нэг удаа (03:00 cron)
+   * тооцоолж кэшилдэг. Тэр цагаас ХОЙШ нэмэгдсэн кино кэшэд БАЙХГҮЙ.
+   *
+   * Тиймээс «алдаа» биш «хараахан тооцоолоогүй» гэдгийг ТОДОРХОЙ
+   * харуулна (доорх `title` тайлбар + тэмдэглэгээ).
+   */
+  const sizeComputedAt = storage?.computedAt
+    ? new Date(storage.computedAt).toLocaleString('mn-MN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
 
   /** Bulk үйлдэлд сонгосон мөрүүд */
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -517,7 +542,25 @@ export default function MoviesPage() {
                   </td>
                   {/* ⚠️ R2 дээрх бодит хэмжээ — HLS segment+постер+трейлер бүгд */}
                   <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-muted-foreground">
-                    {sizeById.has(t.id) ? formatBytes(sizeById.get(t.id)!) : '—'}
+                    {sizeById.has(t.id) ? (
+                      formatBytes(sizeById.get(t.id)!)
+                    ) : (
+                      /* ⚠️ Кэш тооцоолсны ДАРАА нэмэгдсэн кино — «алдаа»
+                         БИШ гэдгийг hover тайлбараар хэлнэ. Дараагийн
+                         шөнийн 03:00 cron-оор бодогдоно. */
+                      <span
+                        className="cursor-help text-muted-foreground/60"
+                        title={
+                          sizeComputedAt
+                            ? `Хэмжээг ${sizeComputedAt}-д тооцоолсон. Энэ контент түүнээс хойш нэмэгдсэн тул хараахан ороогүй.
+
+Шөнийн 03:00-д автоматаар бодогдоно. Яаралтай бол Хянах самбар → Хадгалалт картын «Шинэчлэх» товчийг дарна уу (~1.5 минут).`
+                            : 'Хэмжээ хараахан тооцоологдоогүй байна.'
+                        }
+                      >
+                        хүлээгдэж буй
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {t.isPremium ? (
