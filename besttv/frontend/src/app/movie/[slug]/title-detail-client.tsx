@@ -297,6 +297,21 @@ export function TitleDetailClient({
                       {freePreviewEpisode.number}-р анги үнэгүй үзэх
                     </Link>
                   )}
+                  {/*
+                    ⚠️⚠️ ТРЕЙЛЕР — «үнэгүй үзэх»-ийн ЯГ ДООР (мобайл).
+                    Хоёулаа «мөнгө төлөхгүйгээр яг одоо үзэж болно»
+                    гэсэн үйлдэл тул зэрэгцэнэ. Төлбөрийн товчнууд
+                    (түрээс/багц) доор нь орно.
+                    ⚠️ Хоёрдогч өнгө — үндсэн товчтой өрсөлдөхгүй.
+                  */}
+                  {data.trailerAvailable && (
+                    <button
+                      onClick={() => setTrailerOpen(true)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground/10 px-3 py-2.5 text-xs font-semibold text-foreground active:scale-[0.98]"
+                    >
+                      <Film size={15} /> Трейлер
+                    </button>
+                  )}
                   {data.rental?.available && (
                     <button
                       onClick={() => setRentOpen(true)}
@@ -324,13 +339,15 @@ export function TitleDetailClient({
               ) : null}
 
               {/*
-                ⚠️ ТРЕЙЛЕР — МОБАЙЛД "Үзэх" товчны ЯГ ДООР.
-                Өмнө нь тайлбарын доод талд байсан тул үндсэн товчноос
-                САЛЖ, хооронд нь мета/тайлбар орж, хэрэглэгч доош гүйлгэж
-                байж л олдог байв. Десктопт хуучнаар үйлдлийн мөрөнд.
-                ⚠️ Хоёрдогч үйлдэл тул СУЛ өнгөөр — "Үзэх"-тэй өрсөлдөхгүй.
+                ⚠️⚠️ ТРЕЙЛЕР — ЭРХТЭЙ хэрэглэгч / «Удахгүй гарна» кинонд.
+
+                `locked` үед трейлер нь «үнэгүй үзэх»-ийн ЯГ ДООР аль
+                хэдийн гарсан (дээрээс харна уу) тул энд ЗӨВХӨН үлдсэн
+                тохиолдлуудыг хамарна — эс бөгөөс багцтай хэрэглэгч болон
+                удахгүй гарах кинонд трейлер ОГТ харагдахгүй болно.
+                ⚠️ Давхардуулж болохгүй — тиймээс `!locked`.
               */}
-              {data.trailerAvailable && (
+              {!locked && data.trailerAvailable && (
                 <button
                   onClick={() => setTrailerOpen(true)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground/10 px-3 py-2.5 text-xs font-semibold text-foreground active:scale-[0.98]"
@@ -451,6 +468,28 @@ export function TitleDetailClient({
                         {freePreviewEpisode.number}-р анги үнэгүй үзэх
                       </Link>
                     )}
+                    {/*
+                      ⚠️⚠️ ТРЕЙЛЕР — «үнэгүй үзэх»-ийн ЯГ ДАРАА (десктоп).
+
+                      Хоёулаа «эрх шаардахгүй, яг одоо үзэж болно» гэсэн
+                      үйлдэл тул зэрэгцэж байх нь логиктой. Өмнө нь
+                      «Дуртай/Хуваалцах» icon-уудтай хамт хамгийн ард
+                      байсан — хэрэглэгч «Багц авах»-ыг өнгөрч байж л
+                      олдог, ихэнх нь трейлер байгааг ч мэдэхгүй байв.
+
+                      ⚠️ ХОЁРДОГЧ өнгө (`bg-foreground/10`) — үндсэн
+                      «үзэх» товчтой өрсөлдөхгүй.
+                      ⚠️ `hidden md:flex` — мобайлд «Үзэх»-ийн доор аль
+                      хэдийн гарсан (давхардуулахгүй).
+                    */}
+                    {data.trailerAvailable && (
+                      <button
+                        onClick={() => setTrailerOpen(true)}
+                        className="hidden items-center justify-center gap-2 rounded-lg bg-foreground/10 px-6 py-3 font-semibold text-foreground transition-all hover:bg-foreground/20 active:scale-[0.98] sm:py-2.5 md:flex"
+                      >
+                        <Film size={17} /> Трейлер
+                      </button>
+                    )}
                     {/* Ширхэгээр түрээслэх — багц авахгүйгээр яг энэ киног үзнэ */}
                     {data.rental?.available && (
                       <button
@@ -490,6 +529,26 @@ export function TitleDetailClient({
                     Удахгүй гарна
                   </span>
                 )}
+
+                {/*
+                  ⚠️⚠️ ТРЕЙЛЕР — ЭРХТЭЙ хэрэглэгч болон «Удахгүй гарна»
+                  кинонд ч ЗААВАЛ хэрэгтэй.
+
+                  Дээрх трейлер товч нь `locked` салбарт байгаа тул
+                  ЗӨВХӨН эрхгүй хэрэглэгчид харагдана. Энэ нь үлдсэн
+                  хоёр тохиолдлыг хамарна:
+                    · багцтай хэрэглэгч — үзэхийн өмнө шалгах
+                    · «Удахгүй гарна» — трейлер нь ЦОР ГАНЦ үзэх зүйл
+                      (өмнө нь эдгээр кинонд трейлер огт олдохгүй байв)
+                */}
+                {!locked && data.trailerAvailable && (
+                  <button
+                    onClick={() => setTrailerOpen(true)}
+                    className="hidden items-center justify-center gap-2 rounded-lg bg-foreground/10 px-6 py-3 font-semibold text-foreground transition-all hover:bg-foreground/20 active:scale-[0.98] sm:py-2.5 md:flex"
+                  >
+                    <Film size={17} /> Трейлер
+                  </button>
+                )}
               </div>
 
               {/*
@@ -498,21 +557,11 @@ export function TitleDetailClient({
                 мобайлд сав ХООСОН үлдэж, эцгийн `gap-3` дэмий зай эзэлнэ.
               */}
               <div className="hidden items-center gap-2.5 md:flex">
-                {/* ⚠️ Трейлер нь баннерын буланд НУУГДМАЛ байсан — үйлдлийн
-                    мөрөнд гаргаж ил болгов.
-                    ⚠️ ЗӨВХӨН ДЕСКТОПТ (`hidden md:flex`) — мобайлд "Үзэх"
-                    товчны яг доор аль хэдийн гарсан (дээрээс харна уу).
-                    Хоёр газар харуулбал ДАВХАРДАНА. */}
-                {data.trailerAvailable && (
-                  <button
-                    onClick={() => setTrailerOpen(true)}
-                    title="Трейлер үзэх"
-                    aria-label="Трейлер үзэх"
-                    className="hidden h-11 items-center justify-center gap-1.5 rounded-full bg-foreground/10 px-4 text-sm font-medium text-foreground transition-all hover:bg-foreground/20 active:scale-95 md:flex"
-                  >
-                    <Film size={16} /> Трейлер
-                  </button>
-                )}
+                {/* ⚠️⚠️ ТРЕЙЛЕР ЭНДЭЭС ЗӨӨГДСӨН — үндсэн товчны мөрөнд
+                    («1-р анги үнэгүй үзэх»-ийн ЯГ ДАРАА). Энэ icon бүлэг
+                    нь «Дуртай / Хуваалцах» гэсэн ХОЁРДОГЧ үйлдлүүд тул
+                    трейлер тэдний хажууд байхад үндсэн үйлдлээс САЛЖ,
+                    хэрэглэгчийн нүд «Багц авах»-аас цааш явдаг байв. */}
 
                 {/* ⚠️ Мобайлд эдгээр нь ГАРЧИГИЙН хажууд зөөгдсөн (дээрээс
                     харна уу) тул энд зөвхөн десктоп дээр харагдана. */}
