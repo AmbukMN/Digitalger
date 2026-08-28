@@ -34,7 +34,15 @@ const FOOTER_LINKS = [
   },
 ];
 
+interface SocialLink {
+  platform: 'facebook' | 'instagram' | 'youtube' | 'twitter' | 'tiktok';
+  url: string;
+  /** Ялгах нэр — нэг сүлжээнд олон хуудастай үед (ж: «Кино мэдээ») */
+  label?: string;
+}
+
 interface Socials {
+  /** ⚠️ ХУУЧИН талбарууд — backend буцаад нийцтэй байлгахаар илгээсээр байна */
   facebook: string;
   instagram: string;
   youtube: string;
@@ -42,6 +50,8 @@ interface Socials {
   tiktok: string;
   email: string;
   phone: string;
+  /** ⚠️ ШИНЭ — нэг сүлжээнд ОЛОН хаяг (ж: 2 Facebook хуудас) */
+  links?: SocialLink[];
 }
 
 /** TikTok/X нь lucide-д байхгүй тул inline SVG */
@@ -109,14 +119,50 @@ export function Footer() {
           { slug: 'data-deletion', title: 'Мэдээлэл устгах хүсэлт' },
         ];
 
-  // ⚠️ Зөвхөн ТОХИРУУЛСАН сүлжээ харагдана — хоосон нь огт гарахгүй
-  const socialLinks = [
-    { href: socials?.facebook, label: 'Facebook', Icon: Facebook },
-    { href: socials?.instagram, label: 'Instagram', Icon: Instagram },
-    { href: socials?.youtube, label: 'YouTube', Icon: Youtube },
-    { href: socials?.twitter, label: 'X', Icon: XIcon },
-    { href: socials?.tiktok, label: 'TikTok', Icon: TikTokIcon },
-  ].filter((s): s is { href: string; label: string; Icon: typeof Facebook } => !!s.href);
+  /**
+   * ⚠️⚠️ ОЛОН ХОЛБООС — нэг сүлжээнд хэдэн ч хаяг (ж: 2 Facebook хуудас).
+   *
+   * `links` нь ҮНДСЭН эх сурвалж. Хуучин ганц-мөр талбарууд нь ЗӨВХӨН
+   * нөөц: backend хуучин өгөгдлийг `links` рүү автоматаар хөрвүүлдэг
+   * тул энэ нөөц нь практикт зөвхөн кэшлэгдсэн хуучин хариунд л ажиллана.
+   *
+   * ⚠️ Хоёуланг зэрэг НЭМЭХГҮЙ — эс бөгөөс эхний холбоос ДАВХАРДАНА
+   *    (backend нь `links[0]`-ыг хуучин талбарт давхар бичдэг).
+   */
+  const ICONS = {
+    facebook: Facebook,
+    instagram: Instagram,
+    youtube: Youtube,
+    twitter: XIcon,
+    tiktok: TikTokIcon,
+  } as const;
+
+  const NAMES = {
+    facebook: 'Facebook',
+    instagram: 'Instagram',
+    youtube: 'YouTube',
+    twitter: 'X',
+    tiktok: 'TikTok',
+  } as const;
+
+  const socialLinks = socials?.links?.length
+    ? socials.links
+        .filter((l) => !!l?.url && !!ICONS[l.platform])
+        .map((l) => ({
+          href: l.url,
+          /* ⚠️ Ялгах нэртэй бол «Facebook · Кино мэдээ» — олон ижил icon
+             зэрэгцэхэд аль нь юу болохыг дүрсээр ялгах боломжгүй тул
+             tooltip/aria-д ЗААВАЛ орно (хандалтын шаардлага). */
+          label: l.label?.trim() ? `${NAMES[l.platform]} · ${l.label.trim()}` : NAMES[l.platform],
+          Icon: ICONS[l.platform],
+        }))
+    : ([
+        { href: socials?.facebook, label: 'Facebook', Icon: Facebook },
+        { href: socials?.instagram, label: 'Instagram', Icon: Instagram },
+        { href: socials?.youtube, label: 'YouTube', Icon: Youtube },
+        { href: socials?.twitter, label: 'X', Icon: XIcon },
+        { href: socials?.tiktok, label: 'TikTok', Icon: TikTokIcon },
+      ].filter((s): s is { href: string; label: string; Icon: typeof Facebook } => !!s.href));
 
   return (
     <footer /* ⚠️ THEME ДАГАНА — `bg-[#0a0a0a]` хатуу байсан тул гэрэл горимд
@@ -272,7 +318,11 @@ export function Footer() {
                     */}
                     {socialLinks.map(({ href, label, Icon }) => (
                       <a
-                        key={label}
+                        /* ⚠️ `key` нь URL — `label` БИШ. Хоёр Facebook хуудсанд
+                           ялгах нэр өгөөгүй бол хоёулаа «Facebook» болж React
+                           key МӨРГӨЛДӨНӨ (нэг нь алга болно). URL нь давтагдах
+                           боломжгүй тул найдвартай. */
+                        key={href}
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"

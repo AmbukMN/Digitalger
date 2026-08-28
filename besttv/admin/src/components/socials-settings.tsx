@@ -2,9 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Facebook, Instagram, Loader2, Mail, Phone, Youtube } from 'lucide-react';
+import { Facebook, Instagram, Loader2, Mail, Phone, Plus, Trash2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+
+/** ⚠️ `platform` нь backend-ийн `SOCIAL_PLATFORMS`-тэй ЯГ ТААРНА */
+type Platform = 'facebook' | 'instagram' | 'youtube' | 'twitter' | 'tiktok';
+
+interface SocialLink {
+  platform: Platform;
+  url: string;
+  label?: string;
+}
 
 interface Socials {
   facebook: string;
@@ -14,43 +23,32 @@ interface Socials {
   tiktok: string;
   email: string;
   phone: string;
+  links: SocialLink[];
 }
 
-const EMPTY: Socials = {
-  facebook: '',
-  instagram: '',
-  youtube: '',
-  twitter: '',
-  tiktok: '',
-  email: '',
-  phone: '',
-};
-
-/** Сүлжээ бүрийн талбарын тодорхойлолт */
-const FIELDS: {
-  key: keyof Socials;
+const PLATFORMS: {
+  key: Platform;
   label: string;
   placeholder: string;
   icon: React.ReactNode;
-  type?: string;
 }[] = [
   {
     key: 'facebook',
     label: 'Facebook',
     placeholder: 'https://facebook.com/besttv',
-    icon: <Facebook size={16} />,
+    icon: <Facebook size={15} />,
   },
   {
     key: 'instagram',
     label: 'Instagram',
     placeholder: 'https://instagram.com/besttv',
-    icon: <Instagram size={16} />,
+    icon: <Instagram size={15} />,
   },
   {
     key: 'youtube',
     label: 'YouTube',
     placeholder: 'https://youtube.com/@besttv',
-    icon: <Youtube size={16} />,
+    icon: <Youtube size={15} />,
   },
   {
     key: 'twitter',
@@ -64,26 +62,18 @@ const FIELDS: {
     placeholder: 'https://tiktok.com/@besttv',
     icon: <span className="text-xs font-bold">TT</span>,
   },
-  {
-    key: 'email',
-    label: 'Холбоо барих имэйл',
-    placeholder: 'info@besttv.us',
-    icon: <Mail size={16} />,
-    type: 'email',
-  },
-  {
-    key: 'phone',
-    label: 'Утас',
-    placeholder: '+976 9911 2233',
-    icon: <Phone size={16} />,
-  },
 ];
+
+const platformOf = (p: Platform) => PLATFORMS.find((x) => x.key === p)!;
 
 /**
  * Сошиал сүлжээ / холбоо барих — footer-т харагдана.
  *
- * ⚠️ ХООСОН талбар = тухайн icon огт харагдахгүй. Хэрэглэхгүй сүлжээгээ
- * хоосон орхиход л хангалттай (устгах товч хэрэггүй).
+ * ⚠️⚠️ ОЛОН ХОЛБООС: нэг сүлжээнд ХЭДЭН Ч хаяг нэмнэ (ж: 2 Facebook
+ * хуудас). Өмнө нь сүлжээ бүр ГАНЦ мөр байсан тул хоёр дахь хуудсаа
+ * нэмэх ямар ч зам байгаагүй.
+ *
+ * ⚠️ Хоосон URL-тай мөрийг backend ХАЯНА — устгах товч дарахтай ижил.
  */
 export function SocialsSettings() {
   const qc = useQueryClient();
@@ -94,32 +84,58 @@ export function SocialsSettings() {
     refetchOnWindowFocus: true,
   });
 
-  const [form, setForm] = useState<Socials>(EMPTY);
+  const [links, setLinks] = useState<SocialLink[]>([]);
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (data) setForm({ ...EMPTY, ...data });
+    if (!data) return;
+    setLinks(data.links ?? []);
+    setEmail(data.email ?? '');
+    setPhone(data.phone ?? '');
   }, [data]);
 
-  const dirty = !!data && FIELDS.some((f) => (data[f.key] ?? '') !== form[f.key]);
+  /* ⚠️ Хадгалах товчийг зөвхөн ӨӨРЧЛӨЛТТЭЙ үед идэвхжүүлнэ */
+  const dirty =
+    !!data &&
+    (JSON.stringify(data.links ?? []) !== JSON.stringify(links) ||
+      (data.email ?? '') !== email ||
+      (data.phone ?? '') !== phone);
+
+  const addLink = (platform: Platform) =>
+    setLinks((s) => [...s, { platform, url: '' }]);
+
+  const setLink = (i: number, patch: Partial<SocialLink>) =>
+    setLinks((s) => s.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+
+  const removeLink = (i: number) => setLinks((s) => s.filter((_, idx) => idx !== i));
 
   const save = async () => {
+    /* ⚠️ Хоосон мөр = устгах гэсэн үг (backend ч хаяна) */
+    const clean = links.filter((l) => l.url.trim());
+
     // URL талбарууд http(s):// эхлэх ёстой (backend @IsUrl require_protocol)
-    const urlKeys: (keyof Socials)[] = ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok'];
-    for (const k of urlKeys) {
-      const v = form[k].trim();
-      if (v && !/^https?:\/\//i.test(v)) {
-        toast.error(`${FIELDS.find((f) => f.key === k)?.label}: https:// -ээр эхлэх ёстой`);
+    for (const l of clean) {
+      if (!/^https?:\/\//i.test(l.url.trim())) {
+        toast.error(`${platformOf(l.platform).label}: https:// -ээр эхлэх ёстой`);
         return;
       }
     }
+
     setSaving(true);
     try {
       await api('/admin/settings/socials', {
         method: 'PUT',
-        body: JSON.stringify(
-          Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim()])),
-        ),
+        body: JSON.stringify({
+          links: clean.map((l) => ({
+            platform: l.platform,
+            url: l.url.trim(),
+            ...(l.label?.trim() ? { label: l.label.trim() } : {}),
+          })),
+          email: email.trim(),
+          phone: phone.trim(),
+        }),
       });
       qc.invalidateQueries({ queryKey: ['admin-socials'] });
       toast.success('Сошиал холбоос хадгалагдлаа');
@@ -130,13 +146,17 @@ export function SocialsSettings() {
     }
   };
 
+  /** Тухайн сүлжээнд хэдэн холбоос байгаа — ялгах нэрийн сануулга өгөхөд */
+  const countOf = (p: Platform) => links.filter((l) => l.platform === p).length;
+
   return (
     <div className="admin-card rounded-xl p-6">
       <div>
         <h2 className="font-bold text-foreground">Сошиал сүлжээ / Холбоо барих</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Footer-т харагдана. <strong className="text-foreground">Хоосон талбар харагдахгүй</strong> —
-          хэрэглэхгүй сүлжээгээ хоосон орхино уу.
+          Footer-т харагдана. Нэг сүлжээнд{' '}
+          <strong className="text-foreground">хэдэн ч холбоос</strong> нэмж болно (ж: 2 Facebook
+          хуудас).
         </p>
       </div>
 
@@ -148,21 +168,107 @@ export function SocialsSettings() {
         </div>
       ) : (
         <>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {FIELDS.map((f) => (
-              <label key={f.key} className="block">
-                <span className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="text-primary">{f.icon}</span> {f.label}
-                </span>
-                <input
-                  type={f.type ?? 'text'}
-                  value={form[f.key]}
-                  onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className="admin-input"
-                />
-              </label>
+          {/* ── Холбоосын жагсаалт ── */}
+          <div className="mt-5 space-y-2.5">
+            {links.length === 0 && (
+              <p className="rounded-lg border border-dashed border-input px-3 py-6 text-center text-xs text-muted-foreground">
+                Холбоос алга — доорх товчоор нэмнэ үү.
+              </p>
+            )}
+
+            {links.map((l, i) => {
+              const p = platformOf(l.platform);
+              /* ⚠️ Ижил сүлжээ ОЛОН байвал ялгах нэр ХЭРЭГТЭЙ — эс бөгөөс
+                 footer дээр хоёр ижил icon зэрэгцэж, аль нь юу болох нь
+                 ойлгомжгүй болно. */
+              const needsLabel = countOf(l.platform) > 1;
+              return (
+                <div
+                  key={i}
+                  className="flex flex-col gap-2 rounded-lg border border-input bg-muted/20 p-2.5 sm:flex-row sm:items-center"
+                >
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-foreground sm:w-28">
+                    <span className="text-primary">{p.icon}</span>
+                    {p.label}
+                  </span>
+
+                  <input
+                    value={l.url}
+                    onChange={(e) => setLink(i, { url: e.target.value })}
+                    placeholder={p.placeholder}
+                    className="admin-input flex-1"
+                  />
+
+                  <input
+                    value={l.label ?? ''}
+                    onChange={(e) => setLink(i, { label: e.target.value })}
+                    placeholder={needsLabel ? 'Ялгах нэр (ж: Үндсэн)' : 'Нэр (заавал биш)'}
+                    className={`admin-input sm:w-44 ${
+                      needsLabel && !l.label?.trim() ? 'border-warning' : ''
+                    }`}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => removeLink(i)}
+                    title="Устгах"
+                    aria-label={`${p.label} холбоос устгах`}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-destructive/40 text-destructive transition-colors hover:bg-destructive/10"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Нэмэх товчнууд ── */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PLATFORMS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => addLink(p.key)}
+                className="flex items-center gap-1.5 rounded-lg border border-input px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+              >
+                <Plus size={13} />
+                <span className="text-primary">{p.icon}</span>
+                {p.label}
+              </button>
             ))}
+          </div>
+
+          {/* ── Холбоо барих ── */}
+          <div className="mt-6 grid gap-3 border-t border-border pt-5 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="text-primary">
+                  <Mail size={15} />
+                </span>{' '}
+                Холбоо барих имэйл
+              </span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="info@besttv.us"
+                className="admin-input"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="text-primary">
+                  <Phone size={15} />
+                </span>{' '}
+                Утас
+              </span>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+976 9911 2233"
+                className="admin-input"
+              />
+            </label>
           </div>
 
           <div className="mt-5 flex justify-end">
