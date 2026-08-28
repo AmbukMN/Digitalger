@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Injectable,
   Logger,
@@ -69,6 +70,30 @@ class GrantSubscriptionDto {
   @IsInt()
   @Min(1)
   days?: number;
+}
+
+/**
+ * ⚠️⚠️ ШИРХГЭЭР КОНТЕНТ ОЛГОХ — багц олгохоос ТУСДАА.
+ *
+ * Багц нь ЖАНРААР нээдэг тул «зөвхөн энэ 3 киног үзүүл» гэж
+ * болдоггүй байв. Админ гомдол шийдэхэд (буруу дансанд төлсөн,
+ * нөхөн олговор) яг тухайн киног нээх шаардлагатай.
+ */
+class GrantTitlesDto {
+  /** Нээх киноны ID-ууд */
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(100)
+  titleIds: string[];
+
+  /**
+   * Хэдэн ЦАГ хүчинтэй. Заагаагүй бол киноны өөрийн `rentHours`
+   * (эсвэл 48 цаг) — админ бодох шаардлагагүй.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  hours?: number;
 }
 
 class BulkDeleteDto {
@@ -795,6 +820,105 @@ export class UsersService {
   }
 
   /**
+   * ⚠️⚠️ ШИРХГЭЭР КОНТЕНТ ОЛГОХ (админаас).
+   *
+   * Багц нь ЖАНРААР нээдэг тул «зөвхөн энэ 3 киног» гэж болдоггүй байв.
+   * Энэ нь `Rental` мөр үүсгэнэ — үзэх эрхийн шалгалт аль хэдийн
+   * түрээсийг хүлээн зөвшөөрдөг тул НЭМЭЛТ логик шаардлагагүй.
+   *
+   * ⚠️ `paymentId: null` + `amount: 0` — төлбөргүй, админ гараар олгосон.
+   *    `Payment` мөр ҮҮСГЭХГҮЙ: эс бөгөөс орлого хийсвэрээр өснө.
+   *
+   * ⚠️ ИДЭВХТЭЙ түрээс байвал ТҮҮН ДЭЭР залгана (шинээр үүсгэхгүй) —
+   *    хоёр мөр зэрэг идэвхтэй бол аль нь хүчинтэйг тодорхойлоход
+   *    ойлгомжгүй болно.
+   */
+  async grantTitles(id: string, dto: GrantTitlesDto) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+
+    const ids = [...new Set(dto.titleIds)].filter(Boolean);
+    if (!ids.length) throw new BadRequestException('Кино сонгоогүй байна');
+
+    const titles = await this.prisma.title.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, title: true, rentHours: true },
+    });
+    if (!titles.length) throw new BadRequestException('Кино олдсонгүй');
+
+    const now = new Date();
+    const out: { titleId: string; title: string; expiresAt: Date; extended: boolean }[] = [];
+
+    for (const t of titles) {
+      /* ⚠️ Дараалал: админы заасан → киноны өөрийн → 48 цаг */
+      const hours = dto.hours ?? t.rentHours ?? 48;
+
+      const active = await this.prisma.rental.findFirst({
+        where: { userId: id, titleId: t.id, expiresAt: { gt: now } },
+        orderBy: { expiresAt: 'desc' },
+      });
+
+      if (active) {
+        /* ⚠️ Байгаа эрхийг СУНГАНА — шинэ мөр үүсгэвэл хоёр идэвхтэй
+           түрээс зэрэг оршиж, аль нь жинхэнэ болох нь ойлгомжгүй */
+        const expiresAt = new Date(active.expiresAt.getTime() + hours * 3600_000);
+        await this.prisma.rental.update({ where: { id: active.id }, data: { expiresAt } });
+        out.push({ titleId: t.id, title: t.title, expiresAt, extended: true });
+      } else {
+        const expiresAt = new Date(now.getTime() + hours * 3600_000);
+        await this.prisma.rental.create({
+          data: { userId: id, titleId: t.id, amount: 0, expiresAt },
+        });
+        out.push({ titleId: t.id, title: t.title, expiresAt, extended: false });
+      }
+    }
+
+    this.logger.log(
+      `Админ ${out.length} кино олгов: ${user.email} — ` +
+        out.map((o) => o.title).join(', ').slice(0, 160),
+    );
+    return { ok: true, granted: out };
+  }
+
+  /** Хэрэглэгчийн ширхгээр олгосон/түрээсэлсэн контент */
+  async listRentals(id: string) {
+    const rows = await this.prisma.rental.findMany({
+      where: { userId: id },
+      orderBy: { expiresAt: 'desc' },
+      include: { title: { select: { id: true, title: true } } },
+    });
+    const now = new Date();
+    return rows.map((r) => ({
+      id: r.id,
+      titleId: r.titleId,
+      title: r.title.title,
+      amount: r.amount,
+      /* ⚠️ `amount: 0` + төлбөргүй = админ гараар олгосон */
+      grantedByAdmin: r.amount === 0 && !r.paymentId,
+      expiresAt: r.expiresAt,
+      active: r.expiresAt > now,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  /**
+   * Олгосон эрхийг ХҮЧИНГҮЙ болгох.
+   *
+   * ⚠️ Мөрийг УСТГАХГҮЙ — `expiresAt`-ыг одоо болгоно. Устгавал
+   *    санхүүгийн түүх алдагдана (төлбөртэй түрээс байж болно).
+   */
+  async revokeRental(userId: string, rentalId: string) {
+    const r = await this.prisma.rental.findFirst({ where: { id: rentalId, userId } });
+    if (!r) throw new NotFoundException('Түрээс олдсонгүй');
+    await this.prisma.rental.update({
+      where: { id: rentalId },
+      data: { expiresAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+
+  /**
    * ⚠️⚠️ БӨӨНӨӨР УСТГАХ — тест хэрэглэгч цэвэрлэхэд.
    *
    * УСТГАЛТ БУЦААГДАХГҮЙ тул 3 ХАМГААЛАЛТ:
@@ -905,6 +1029,27 @@ export class UsersController {
   @Post(':id/grant-subscription')
   grantSubscription(@Param('id') id: string, @Body() dto: GrantSubscriptionDto) {
     return this.svc.grantSubscription(id, dto);
+  }
+
+  /**
+   * ⚠️ ШИРХГЭЭР контент олгох — багц (жанраар) БИШ, яг тухайн кино.
+   * Гомдол шийдэх, нөхөн олговорт хэрэгтэй.
+   */
+  @Post(':id/grant-titles')
+  grantTitles(@Param('id') id: string, @Body() dto: GrantTitlesDto) {
+    return this.svc.grantTitles(id, dto);
+  }
+
+  /** Хэрэглэгчийн ширхгийн эрхүүд (олгосон + төлсөн) */
+  @Get(':id/rentals')
+  listRentals(@Param('id') id: string) {
+    return this.svc.listRentals(id);
+  }
+
+  /** Олгосон эрхийг хүчингүй болгох (мөрийг устгахгүй) */
+  @Delete(':id/rentals/:rentalId')
+  revokeRental(@Param('id') id: string, @Param('rentalId') rentalId: string) {
+    return this.svc.revokeRental(id, rentalId);
   }
 
   /**

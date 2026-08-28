@@ -19,6 +19,7 @@ import {
   useConfirm,
 } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
+import { GrantTitlesPanel } from '@/components/grant-titles-panel';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserInsightTab } from '@/components/user-insight-tab';
 import { UserHistoryTab } from '@/components/user-history-tab';
@@ -1128,6 +1129,18 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                     {granting ? <Loader2 size={15} className="animate-spin" /> : 'Олгох'}
                   </button>
                 </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Багц нь ЖАНРААР нээнэ. Тодорхой кино нээхийг доороос сонгоно уу.
+                </p>
+              </div>
+
+              {/*
+                ⚠️⚠️ ШИРХГЭЭР КОНТЕНТ ОЛГОХ — багцаас ТУСДАА.
+                Гомдол шийдэх (буруу дансанд төлсөн, нөхөн олговор) үед
+                яг тухайн киног нээх шаардлагатай.
+              */}
+              <div className="border-t border-border pt-4">
+                <GrantTitlesPanel userId={user.id} />
               </div>
             </TabsContent>
           </Tabs>
