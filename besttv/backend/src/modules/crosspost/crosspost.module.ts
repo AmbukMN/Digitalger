@@ -21,6 +21,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CrosspostService } from './crosspost.service';
 import { MetaGraphService } from './meta-graph.service';
+import { SocialAccountsService } from './social-accounts.service';
+import { RelayService } from './relay.service';
 import { CROSSPOST_QUEUE, type CrosspostJob } from './crosspost-queue.types';
 import { CurrentUser, type JwtPayload } from '../../common/decorators/current-user.decorator';
 import { SocialService } from '../social/social.service';
@@ -35,6 +37,43 @@ class EnqueueDto {
   @IsOptional()
   @IsObject()
   captions?: Record<string, string>;
+}
+
+/**
+ * ⚠️⚠️ PAGE ХООРОНД ДАМЖУУЛАХ — эх page-ээс сонгосон постуудыг
+ * зорилтот акаунтууд руу ШИНЭЭР нийтэлнэ.
+ *
+ * ⚠️ Meta-д «хуваалцах» (share) API БАЙХГҮЙ — постыг ШИНЭЭР үүсгэнэ.
+ *    Эх постын текст + зургийг хуулж, шинэ пост болгоно.
+ */
+class RelayDto {
+  /** Эх page ID */
+  @IsString()
+  fromId: string;
+
+  /** Дамжуулах постуудын ID */
+  @IsArray()
+  @IsString({ each: true })
+  postIds: string[];
+
+  /** Зорилтот акаунтууд (page эсвэл IG) */
+  @IsArray()
+  @IsString({ each: true })
+  toIds: string[];
+
+  /** Постын ID → өөрчилсөн текст (заавал биш) */
+  @IsOptional()
+  @IsObject()
+  captions?: Record<string, string>;
+
+  /**
+   * ⚠️ Хэзээ нийтлэх (ISO). Хоосон бол ШУУД.
+   * FB нь ӨӨРӨӨ товлодог (`scheduled_publish_time`), IG-д тийм
+   * боломж БАЙХГҮЙ тул сервис талд ялгаатай зохицуулна.
+   */
+  @IsOptional()
+  @IsString()
+  scheduledAt?: string;
 }
 
 /**
@@ -61,6 +100,8 @@ export class CrosspostAdminController {
     @Inject(forwardRef(() => SocialService))
     private readonly social: SocialService,
     @InjectQueue(CROSSPOST_QUEUE) private readonly queue: Queue<CrosspostJob>,
+    private readonly accounts: SocialAccountsService,
+    private readonly relaySvc: RelayService,
   ) {}
 
   /** Холболтын төлөв — админд юу дутуугаа шууд харуулна */
@@ -79,6 +120,45 @@ export class CrosspostAdminController {
   @Get('posts')
   posts(@Query('limit') limit?: string, @Query('after') after?: string) {
     return this.svc.listPosts(Number(limit) || 25, after);
+  }
+
+  /**
+   * ⚠️⚠️ ХОЛБОГДСОН БҮХ PAGE / IG — токенуудаас АВТОМАТААР илрүүлнэ.
+   *
+   * Админ гараар ID бичих шаардлагагүй. `?refresh=1` бол кэшийг
+   * тойрч дахин татна (токен сольсны дараа).
+   */
+  @Get('accounts')
+  accounts_(@Query('refresh') refresh?: string) {
+    return this.accounts.listPublic(refresh === '1');
+  }
+
+  /** ДУРЫН page-ийн постууд (дамжуулалтын төлөвтэй нь хамт) */
+  @Get('accounts/:id/posts')
+  accountPosts(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('after') after?: string,
+  ) {
+    return this.relaySvc.listPosts(id, Number(limit) || 25, after);
+  }
+
+  /** Page → Page / Page → IG дамжуулалт */
+  @Post('relay')
+  relay(@Body() dto: RelayDto) {
+    return this.relaySvc.relay({
+      fromId: dto.fromId,
+      postIds: dto.postIds,
+      toIds: dto.toIds,
+      captions: dto.captions,
+      scheduledAt: dto.scheduledAt,
+    });
+  }
+
+  /** Дамжуулалтын түүх */
+  @Get('relay/history')
+  relayHistory(@Query('limit') limit?: string) {
+    return this.relaySvc.history(Number(limit) || 50);
   }
 
   /** Сонгосон постуудыг дараалалд оруулна */
@@ -189,7 +269,7 @@ export class CrosspostAdminController {
   ],
   controllers: [CrosspostAdminController],
   /* ⚠️ StorageService нэмэхгүй — StorageModule нь @Global */
-  providers: [CrosspostService, MetaGraphService],
+  providers: [CrosspostService, MetaGraphService, SocialAccountsService, RelayService],
   exports: [CrosspostService, MetaGraphService],
 })
 export class CrosspostModule {}

@@ -21,6 +21,7 @@ import { cn, formatDateTime } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { ImportProgress, type ImportRow } from '@/components/crosspost/import-progress';
+import { RelayPanel } from '@/components/crosspost/relay-panel';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { Pagination } from '@/components/pagination';
 import { TableSkeleton } from '@/components/table-skeleton';
@@ -70,7 +71,7 @@ const STATUS_TONE: Record<CrosspostStatus, string> = {
 export default function CrosspostPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const [tab, setTab] = useState<'posts' | 'history'>('posts');
+  const [tab, setTab] = useState<'posts' | 'relay' | 'history'>('posts');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
   const [historyStatus, setHistoryStatus] = useState('ALL');
@@ -329,7 +330,9 @@ export default function CrosspostPage() {
         <div className="mb-4 flex gap-1 rounded-lg border border-border bg-card p-1">
           {(
             [
-              ['posts', 'Facebook постууд'],
+              ['posts', 'Facebook → Instagram'],
+              /* ⚠️ ШИНЭ — дурын page → дурын page/IG (олон сонголт) */
+              ['relay', 'Хуудас хооронд'],
               ['history', 'Шилжүүлсэн түүх'],
             ] as const
           ).map(([id, label]) => (
@@ -348,7 +351,9 @@ export default function CrosspostPage() {
           ))}
         </div>
 
-        {tab === 'posts' ? (
+        {tab === 'relay' ? (
+          <RelayPanel />
+        ) : tab === 'posts' ? (
           <>
             {/* ─── Үйлдлийн мөр ─── */}
             <div className="mb-3 flex flex-wrap items-center gap-2">

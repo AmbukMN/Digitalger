@@ -99,6 +99,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -1549,6 +1550,7 @@ model EmailLog {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
    * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
    * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
@@ -1707,6 +1709,57 @@ model SocialCrosspost {
 
   @@index([status, createdAt])
   @@index([fbPostedAt])
+}
+
+/**
+ * PAGE → PAGE / PAGE → IG ДАМЖУУЛАЛТЫН БҮРТГЭЛ.
+ * ⚠️⚠️ `SocialCrosspost`-ООС ТУСДАА. Тэр нь «үндсэн FB page → үндсэн
+ * IG» гэсэн НЭГ чиглэлийг барьдаг бөгөөд `fbPostId @unique` тул нэг
+ * постыг ЗӨВХӨН НЭГ зорилтот руу л явуулж чадна. Энэ нь нэг постыг
+ * ОЛОН зорилтот руу (2 page + 2 IG) явуулах шаардлагатай.
+ * ⚠️ Ажиллаж байгаа crosspost-ыг эвдэхгүйн тулд ТУСДАА хүснэгт.
+ */
+model SocialRelay {
+  id String @id @default(cuid())
+
+  /// Эх постын ID («108103720808038_169...»)
+  sourcePostId String
+  /// Эх page ID
+  sourceId     String
+
+  /// Зорилтот акаунтын ID (FB page эсвэл IG business)
+  targetId   String
+  /// Нэрийг ХАДГАЛНА — акаунт салгагдсан ч түүх уншигдана
+  targetName String
+  /// FACEBOOK | INSTAGRAM
+  targetKind String
+
+  /// Нийтэлсэн текст (админ засварласан байж болно)
+  caption String @default("")
+
+  /// QUEUED | PROCESSING | PUBLISHED | FAILED | SKIPPED
+  status String @default("QUEUED")
+
+  /// Зорилтот дээрх постын ID (амжилттай бол)
+  externalId String?
+  /// Алдааны шалтгаан — МОНГОЛООР
+  error      String?
+
+  attempts    Int       @default(0)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * ⚠️⚠️ ДАВХАРДЛЫН ХАМГААЛАЛТ — нэг постыг нэг зорилтот руу ХОЁР
+   * УДАА нийтлэхээс DB түвшинд сэргийлнэ. Админ хоёр таб нээгээд
+   * зэрэг дарвал хоёр дахь оролдлого мөрийг ШИНЭЧИЛНЭ (шинээр
+   * үүсгэхгүй) — зорилтот дээр давхардсан пост ГАРАХГҮЙ.
+   */
+  @@unique([sourcePostId, targetId])
+  @@index([status, createdAt])
+  @@index([sourceId])
 }
 
 // ─── НИЙТЛЭЛ ТОВЛОГЧ (FB + IG) ──────────────────────────────────────────────

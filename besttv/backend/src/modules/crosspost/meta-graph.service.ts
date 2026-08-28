@@ -91,14 +91,25 @@ export class MetaGraphService {
    */
   private async call<T>(
     path: string,
-    init?: RequestInit & { params?: Record<string, string> },
+    init?: RequestInit & {
+      params?: Record<string, string>;
+      /**
+       * ⚠️⚠️ ӨӨР PAGE-ИЙН ТОКЕН — page хооронд пост дамжуулахад.
+       *
+       * Бүх дуудлага `me/...` хэлбэртэй тул токеныг сольсноор ӨӨР
+       * page дээр ажиллана. Заагаагүй бол үндсэн токен (хуучин зан
+       * үйл хэвээр — одоо байгаа дуудагчид эвдрэхгүй).
+       */
+      token?: string;
+    },
   ): Promise<T> {
-    if (!this.token) {
+    const token = init?.token || this.token;
+    if (!token) {
       throw new Error('Facebook токен тохируулаагүй байна (FB_PAGE_ACCESS_TOKEN)');
     }
 
     const params = new URLSearchParams(init?.params ?? {});
-    params.set('access_token', this.token);
+    params.set('access_token', token);
     const url = `${GRAPH}/${path}${path.includes('?') ? '&' : '?'}${params}`;
 
     let res: Response;
@@ -196,6 +207,140 @@ export class MetaGraphService {
          эсэхээр шалгавал төгсгөлд хоосон хуудас гуйна */
       next: data.paging?.next ? (data.paging.cursors?.after ?? null) : null,
     };
+  }
+
+  /**
+   * ⚠️⚠️ ДУРЫН PAGE-ийн постуудыг татна (page хооронд дамжуулахад).
+   *
+   * `fetchPosts()` нь ЗӨВХӨН үндсэн токены page-ийг уншдаг. Хэрэглэгч
+   * 2+ page-тэй бол нөгөөгийнхөө постыг харах ямар ч зам байхгүй байв.
+   *
+   * ⚠️ `me/posts` БИШ, `{pageId}/posts` — токен нь өөр page-ийнх
+   *    байж болно (System User токен олон page-д хүрдэг).
+   */
+  async fetchPostsFor(
+    pageId: string,
+    token: string,
+    limit = 25,
+    after?: string,
+  ): Promise<{ posts: FbPost[]; next: string | null }> {
+    const fields = [
+      'id',
+      'message',
+      'created_time',
+      'permalink_url',
+      'full_picture',
+      'attachments{media_type,type,media,url,subattachments{media_type,type,media,url}}',
+    ].join(',');
+
+    const params: Record<string, string> = { fields, limit: String(Math.min(100, limit)) };
+    if (after) params.after = after;
+
+    const data = await this.call<{
+      data: RawFbPost[];
+      paging?: { cursors?: { after?: string }; next?: string };
+    }>(`${pageId}/posts`, { params, token });
+
+    return {
+      posts: (data.data ?? []).map((p) => this.normalizePost(p)),
+      next: data.paging?.next ? (data.paging.cursors?.after ?? null) : null,
+    };
+  }
+
+  /**
+   * ⚠️ ДУРЫН PAGE дээр нийтлэх — page хооронд дамжуулах ЗОРИЛГООР.
+   *
+   * `createPagePost` нь үндсэн токеныг л мэддэг. Энэ нь токеныг
+   * гаднаас авна.
+   *
+   * ⚠️ Зурагтай эсэхээс хамааран ӨӨР edge: `/photos` (нэг зураг) ба
+   *    `/feed` (текст/линк). Meta-д нэгдсэн API байхгүй.
+   */
+  async createPostOn(params: {
+    pageId: string;
+    token: string;
+    message: string;
+    link?: string;
+    imageUrl?: string;
+    scheduledUnix?: number | null;
+  }): Promise<string> {
+    /* ⚠️ `Record<string,string>` гэж ТОДОРХОЙ заана — эс бөгөөс TS нь
+       нэгдлийн (union) төрөл гаргаж, `published?: undefined` нь index
+       signature-тэй зөрчилдөнө. */
+    const sched: Record<string, string> = params.scheduledUnix
+      ? { published: 'false', scheduled_publish_time: String(params.scheduledUnix) }
+      : {};
+
+    if (params.imageUrl) {
+      const res = await this.call<{ id: string; post_id?: string }>(
+        `${params.pageId}/photos`,
+        {
+          method: 'POST',
+          token: params.token,
+          params: {
+            url: params.imageUrl,
+            ...(params.message ? { caption: params.message } : {}),
+            ...sched,
+          },
+        },
+      );
+      /* ⚠️ `post_id` нь ФИД дэх ID — админд линк үүсгэхэд хэрэгтэй */
+      return res.post_id ?? res.id;
+    }
+
+    const body: Record<string, string> = { message: params.message, ...sched };
+    if (params.link) body.link = params.link;
+    const res = await this.call<{ id: string }>(`${params.pageId}/feed`, {
+      method: 'POST',
+      token: params.token,
+      params: body,
+    });
+    return res.id;
+  }
+
+  /**
+   * ⚠️ ДУРЫН IG акаунт дээр контейнер үүсгэх + нийтлэх.
+   *
+   * IG нь ЭЦЭГ page-ийн токеноор ажилладаг тул дуудагч тал зөв
+   * токеныг (`SocialAccount.token`) дамжуулах ёстой.
+   */
+  async createContainerOn(params: {
+    igUserId: string;
+    token: string;
+    imageUrl?: string;
+    videoUrl?: string;
+    caption?: string;
+  }): Promise<string> {
+    const body: Record<string, string> = {};
+    if (params.videoUrl) {
+      body.media_type = 'REELS';
+      body.video_url = params.videoUrl;
+    } else if (params.imageUrl) {
+      body.image_url = params.imageUrl;
+    } else {
+      throw new Error('Instagram-д зураг эсвэл видео ЗААВАЛ шаардлагатай');
+    }
+    if (params.caption) body.caption = params.caption;
+
+    const res = await this.call<{ id: string }>(`${params.igUserId}/media`, {
+      method: 'POST',
+      token: params.token,
+      params: body,
+    });
+    return res.id;
+  }
+
+  async publishContainerOn(params: {
+    igUserId: string;
+    token: string;
+    containerId: string;
+  }): Promise<string> {
+    const res = await this.call<{ id: string }>(`${params.igUserId}/media_publish`, {
+      method: 'POST',
+      token: params.token,
+      params: { creation_id: params.containerId },
+    });
+    return res.id;
   }
 
   /** Нэг постыг ID-гаар татна (дахин оролдох үед) */
@@ -412,13 +557,23 @@ export class MetaGraphService {
    * дуусаагүй байхад `media_publish` дуудвал алдаа өгнө. Зурагт
    * ихэвчлэн шууд `FINISHED` боловч ялгаж боловсруулах шаардлагагүй.
    */
-  async waitForContainer(containerId: string, maxWaitMs = 300_000): Promise<void> {
+  /**
+   * @param token ⚠️ ӨӨР IG акаунтын контейнер шалгахад ЗААВАЛ — үндсэн
+   *   токеноор өөр акаунтын контейнерт хандвал `(#100) Object does not
+   *   exist` буцаана. Заагаагүй бол үндсэн (хуучин зан үйл хэвээр).
+   */
+  async waitForContainer(
+    containerId: string,
+    maxWaitMs = 300_000,
+    token?: string,
+  ): Promise<void> {
     const started = Date.now();
     let delay = 3_000;
 
     while (Date.now() - started < maxWaitMs) {
       const res = await this.call<{ status_code?: string; status?: string }>(containerId, {
         params: { fields: 'status_code,status' },
+        token,
       });
       const code = res.status_code;
 
