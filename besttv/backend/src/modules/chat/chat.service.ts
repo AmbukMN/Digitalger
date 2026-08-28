@@ -153,6 +153,8 @@ export class ChatService {
     });
 
     let filled = 0;
+    /* ⚠️ Алдааг НЭГ л удаа логлоно (доорх тайлбар) */
+    let loggedError = false;
     for (const c of rows) {
       /* ⚠️ IG нь `username`-тэй, FB нь `first_name` — талбар ӨӨР */
       const fields =
@@ -168,7 +170,30 @@ export class ChatService {
             `?fields=${fields}&access_token=${token}`,
           { signal: AbortSignal.timeout(8000) },
         );
-        if (!res.ok) continue;
+        if (!res.ok) {
+          /**
+           * ⚠️⚠️ ЯАГААД АЖИЛЛААГҮЙГ ЛОГЛОНО — өмнө нь ЧИМЭЭГҮЙ
+           * алгасдаг байсан тул админ «яагаад нэр/аватар ирэхгүй
+           * байна вэ» гэдгийг мэдэх ямар ч зам байгаагүй.
+           *
+           * Гарч болох алдаанууд (бодитоор шалгасан):
+           *   · code 190 — токен ХҮЧИНГҮЙ (дахин үүсгэнэ)
+           *   · code 3   — App-д «Business Asset User Profile Access»
+           *                Advanced Access БАЙХГҮЙ (App Review)
+           *   · code 230 — IG: хэрэглэгч зөвхөн КОММЕНТ бичсэн, DM
+           *                илгээгээгүй тул зөвшөөрөл алга (ХЭВИЙН)
+           *
+           * ⚠️ Нэг л удаа бичнэ — 291 яриа бүрд лог бичвэл дүүрнэ.
+           */
+          if (!loggedError) {
+            loggedError = true;
+            const body = await res.text().catch(() => '');
+            this.logger.warn(
+              `Чат профайл татаж чадсангүй (${c.channel}): ${body.slice(0, 200)}`,
+            );
+          }
+          continue;
+        }
         const j = (await res.json()) as {
           name?: string;
           first_name?: string;
