@@ -224,21 +224,47 @@ export class ChatService {
   }
 
   /**
-   * Тухайн PAGE-ийн токеныг олно.
+   * ⚠️⚠️ PAGE → ТОКЕН зураглал (ХЭДЭН Ч ХУУДАС).
    *
-   * ⚠️⚠️ BestTV нь ХОЁР Facebook page-тэй (Best TV, Best Tv 2).
-   * Meta нь page тус бүрийн токеныг шаарддаг — өөр page-ийн
-   * хэрэглэгч рүү илгээвэл `(#100) No matching user found`
-   * буцаана. Зурвас ОГТ ХҮРЭХГҮЙ, админ мэдэхгүй үлдэнэ.
+   * BestTV нь ОЛОН Facebook page-тэй (Best TV, Best Tv 2, BestTV Шилдэг…).
+   * Meta нь page тус бүрийн ӨӨРИЙН токеныг шаарддаг — өөр page-ийн
+   * хэрэглэгч рүү илгээвэл `(#100) No matching user found` буцаана.
+   * Зурвас ОГТ ХҮРЭХГҮЙ, админ мэдэхгүй үлдэнэ.
    *
-   * ⚠️ `FB_PAGE_ACCESS_TOKEN_2` тохируулаагүй бол анхдагч руу
-   *    унана — хуучин зан үйл хэвээр, шинэ алдаа үүсгэхгүй.
+   * ⚠️ Өмнө нь ЗӨВХӨН 2 хуудас дэмждэг байсан (`if pageId === secondId`).
+   *    Гурав дахь хуудас нэмэгдвэл ЧИМЭЭГҮЙ анхдагч токен руу унаж,
+   *    бүх зурвас амжилтгүй болно. Одоо env-ээс ДИНАМИКААР уншина.
+   *
+   * ФОРМАТ (дугаарлалт 2-оос эхэлнэ, үндсэн нь дугааргүй):
+   *   FB_PAGE_ACCESS_TOKEN    + FB_PAGE_ID      ← үндсэн
+   *   FB_PAGE_ACCESS_TOKEN_2  + FB_PAGE_ID_2
+   *   FB_PAGE_ACCESS_TOKEN_3  + FB_PAGE_ID_3    ← шинэ хуудас ингэж нэмнэ
+   *   … (хязгааргүй)
+   *
+   * ⚠️ Instagram нь ЭЦЭГ Facebook page-ийн токеноор ажилладаг тул
+   *    `IG_USER_ID`-г ч зураглалд оруулна (IG чат буруу токен авахгүй).
+   *
+   * ⚠️ Тохирох хуудас олдоогүй бол үндсэн токен руу унана — хуучин
+   *    зан үйл хэвээр, шинэ алдаа үүсгэхгүй.
    */
   private pageToken(pageId?: string | null): string | undefined {
     const main = process.env.FB_PAGE_ACCESS_TOKEN;
-    const second = process.env.FB_PAGE_ACCESS_TOKEN_2;
-    const secondId = process.env.FB_PAGE_ID_2;
-    if (pageId && secondId && pageId === secondId && second) return second;
+    if (!pageId) return main;
+
+    /* ⚠️ Үндсэн хуудас — `FB_PAGE_ID` заагаагүй байж болно (хуучин
+       суулгацад байхгүй) тул зөвхөн утгатай үед л тулгана. */
+    if (process.env.FB_PAGE_ID && pageId === process.env.FB_PAGE_ID) return main;
+
+    /* ⚠️ IG нь эцэг page-ийн токеноор — `IG_USER_ID` тааралдвал үндсэн.
+       Хэрэв IG нь өөр хуудсанд харьяалагдвал `FB_PAGE_ID_N`-ээр дарж
+       бичигдэнэ (доорх давталт ЭХЭЛЖ шалгагдана). */
+    for (let i = 2; i <= 20; i += 1) {
+      const id = process.env[`FB_PAGE_ID_${i}`];
+      const token = process.env[`FB_PAGE_ACCESS_TOKEN_${i}`];
+      if (id && token && pageId === id) return token;
+    }
+
+    if (process.env.IG_USER_ID && pageId === process.env.IG_USER_ID) return main;
     return main;
   }
 
