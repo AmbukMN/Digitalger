@@ -70,11 +70,23 @@ export function BackdropMediaUpload({
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
         className={cn(
-          'relative aspect-video w-full overflow-hidden rounded-lg border border-dashed border-input bg-muted/30 transition-colors hover:border-primary',
+          'group relative aspect-video w-full overflow-hidden rounded-lg border border-dashed border-input bg-muted/30 transition-colors hover:border-primary',
         )}
       >
         {backdropUrl && !uploading ? (
-          <Image src={backdropUrl} alt="" fill sizes="600px" className="object-cover" />
+          <>
+            <Image src={backdropUrl} alt="" fill sizes="600px" className="object-cover" />
+            {/*
+              ⚠️ «СОЛИХ» ДАВХАРГА — `image-upload.tsx`-тэй ИЖИЛ шалтгаан:
+              `<Image fill>` нь товчийг бүрэн бүрхэж, админ дарж болохыг
+              МЭДЭХГҮЙ байв (постер дээр гарсан бодит гомдол).
+              ⚠️ `pointer-events-none` — дарагдалт эцэг товч руу дамжина.
+            */}
+            <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100">
+              <UploadCloud size={20} />
+              <span className="text-xs font-medium">Зураг солих</span>
+            </span>
+          </>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 text-muted-foreground">
             {uploading ? (

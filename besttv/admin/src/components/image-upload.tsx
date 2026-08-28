@@ -56,12 +56,42 @@ export function ImageUpload({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className={`relative w-full overflow-hidden rounded-md border border-dashed border-input bg-muted/30 hover:border-primary ${
+        className={`group relative w-full overflow-hidden rounded-md border border-dashed border-input bg-muted/30 hover:border-primary ${
           aspect === 'poster' ? 'aspect-2/3' : 'aspect-video'
         }`}
       >
         {value ? (
-          <Image src={value} alt="" fill sizes="300px" className="object-cover" />
+          <>
+            <Image src={value} alt="" fill sizes="300px" className="object-cover" />
+            {/*
+              ⚠️⚠️ «СОЛИХ» ДАВХАРГА — зураг БАЙГАА үед ч солих боломжтой
+              гэдгийг ХАРУУЛНА.
+
+              БОДИТ ГОМДОЛ: постертой кинон дээр «зураг upload хийхээр
+              орохгүй» — учир нь `<Image fill>` нь товчийг БҮРЭН бүрхэж,
+              ямар ч тэмдэг үлдээдэггүй байв. Админ дарж болохыг мэдэхгүй,
+              дарсан ч хариу өгсөн эсэх нь харагдахгүй.
+
+              ⚠️ `pointer-events-none` — давхарга нь дарагдалтыг ЗАЛГИХГҮЙ,
+                 эцэг `<button>` руу дамжуулна.
+              ⚠️ Ачаалж байх үед ҮРГЭЛЖ харагдана (hover шаардахгүй) —
+                 эс бөгөөс явц огт мэдэгдэхгүй.
+            */}
+            <span
+              className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/55 text-white transition-opacity ${
+                uploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              }`}
+            >
+              {uploading ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <UploadCloud size={20} />
+              )}
+              <span className="text-xs font-medium">
+                {uploading ? `Ачаалж байна... ${progress}%` : 'Зураг солих'}
+              </span>
+            </span>
+          </>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 text-muted-foreground">
             {uploading ? <Loader2 size={20} className="animate-spin" /> : <UploadCloud size={20} />}
