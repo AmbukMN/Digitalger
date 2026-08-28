@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Injectable,
   Put,
   UseGuards,
@@ -346,13 +347,33 @@ export class SettingsService {
 export class SettingsController {
   constructor(private readonly svc: SettingsService) {}
 
+  /**
+   * ⚠️⚠️ КЭШ — ЭДГЭЭР НЬ ХУУДАС БҮРД дуудагддаг.
+   *
+   * БОДИТ АСУУДАЛ: `Cache-Control` огт байгаагүй тул Cloudflare CDN
+   * кэшлэхгүй, хэрэглэгч БҮРИЙН хүсэлт Монголоос VPS хүртэл яваад
+   * DB-рүү очиж байв (~0.19с × хуудас бүр). Footer/лого нь БҮХ
+   * хуудсанд байдаг тул энэ нь хамгийн их давтагддаг дуудлага.
+   *
+   * ⚠️ Эдгээр нь ХОВОР өөрчлөгддөг (админ гар аргаар засах үед л) тул
+   *    кэшлэх нь бүрэн аюулгүй.
+   * ⚠️ `s-maxage` — CDN 5 мин барина. `stale-while-revalidate` нь
+   *    хугацаа дуусмагц ХУУЧИН хариуг ШУУД өгөөд, ард нь шинэчилнэ:
+   *    хэрэглэгч ХЭЗЭЭ Ч хүлээхгүй.
+   * ⚠️ `public` ЗААВАЛ — эс бөгөөс CDN хуваалцсан кэшэд хадгалахгүй.
+   * ⚠️ Админ хадгалахад `PUT` нь ӨӨР зам (`/admin/settings/...`) тул
+   *    кэш нь 5 минутын дотор шинэчлэгдэнэ — лого/холбоос солиход
+   *    шууд харагдахгүй байж болзошгүй ч энэ нь хүлээн зөвшөөрөгдөнө.
+   */
   @Get('brand')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600')
   brand() {
     return this.svc.publicBrand();
   }
 
   /** Сошиал холбоос — footer-т хэрэгтэй (нэвтрэлт шаардахгүй) */
   @Get('socials')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600')
   socials() {
     return this.svc.socials();
   }

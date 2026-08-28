@@ -123,6 +123,26 @@ export function SocialsSettings() {
       }
     }
 
+    /**
+     * ⚠️⚠️ НЭРИЙН ТАЛБАРТ URL БИЧСЭНИЙГ БАРИНА.
+     *
+     * БОДИТ АЛДАА: талбарын өргөн эвдэрсэн үед хэрэглэгч URL-ээ «ялгах
+     * нэр» нүдэнд бичиж хадгалсан. Backend нь `label`-ыг чөлөөт текст
+     * гэж үздэг тул ЧИМЭЭГҮЙ хадгалагдаж, footer дээр «Facebook ·
+     * https://...» гэж эвгүй харагдана.
+     *
+     * Байрлалыг зассан ч давхар хамгаалалт үлдээв — нэг талбар эвдрэхэд
+     * өгөгдөл бохирдох ёсгүй.
+     */
+    for (const l of clean) {
+      if (l.label?.trim() && /^https?:\/\//i.test(l.label.trim())) {
+        toast.error(
+          `${platformOf(l.platform).label}: «Ялгах нэр» талбарт URL биш, нэр бичнэ үү (ж: Үндсэн)`,
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       await api('/admin/settings/socials', {
@@ -192,21 +212,39 @@ export function SocialsSettings() {
                     {p.label}
                   </span>
 
-                  <input
-                    value={l.url}
-                    onChange={(e) => setLink(i, { url: e.target.value })}
-                    placeholder={p.placeholder}
-                    className="admin-input flex-1"
-                  />
+                  {/*
+                    ⚠️⚠️ САВААР ӨРГӨНИЙГ ЗАХИРНА — `admin-input` ДЭЭР БИШ.
 
-                  <input
-                    value={l.label ?? ''}
-                    onChange={(e) => setLink(i, { label: e.target.value })}
-                    placeholder={needsLabel ? 'Ялгах нэр (ж: Үндсэн)' : 'Нэр (заавал биш)'}
-                    className={`admin-input sm:w-44 ${
-                      needsLabel && !l.label?.trim() ? 'border-warning' : ''
-                    }`}
-                  />
+                    БОДИТ АЛДАА: `.admin-input` нь globals.css-д `width:100%`
+                    гэж тодорхойлогдсон тул Tailwind-ийн `flex-1` / `sm:w-44`
+                    -ыг ДАРДАГ. Үр дүнд URL талбар жижиг, нэрийн талбар том
+                    болж БАЙРЛАЛ ЭВДЭРЧ, хэрэглэгч URL-ээ буруу нүдэнд бичив
+                    (label дотор URL хадгалагдсан — бодит гомдол).
+
+                    Тиймээс өргөнийг ГАДНА талын `<div>`-ээр өгнө: input нь
+                    савныхаа 100%-ийг эзэлнэ, сав нь flex-ийн дүрмийг дагана.
+                  */}
+                  <div className="min-w-0 flex-1">
+                    <input
+                      value={l.url}
+                      onChange={(e) => setLink(i, { url: e.target.value })}
+                      placeholder={p.placeholder}
+                      className="admin-input"
+                      aria-label={`${p.label} холбоосын хаяг`}
+                    />
+                  </div>
+
+                  <div className="shrink-0 sm:w-44">
+                    <input
+                      value={l.label ?? ''}
+                      onChange={(e) => setLink(i, { label: e.target.value })}
+                      placeholder={needsLabel ? 'Ялгах нэр (ж: Үндсэн)' : 'Нэр (заавал биш)'}
+                      className={`admin-input ${
+                        needsLabel && !l.label?.trim() ? 'border-warning' : ''
+                      }`}
+                      aria-label={`${p.label} ялгах нэр`}
+                    />
+                  </div>
 
                   <button
                     type="button"

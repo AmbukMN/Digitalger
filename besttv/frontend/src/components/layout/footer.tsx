@@ -87,7 +87,14 @@ export function Footer() {
   const { data: socials } = useQuery({
     queryKey: ['socials'],
     queryFn: () => api<Socials>('/settings/socials'),
-    staleTime: 300_000,
+    /**
+     * ⚠️ Сошиал холбоос нь ХОВОР өөрчлөгддөг (админ гараар засах үед л).
+     * `useBrand`-тай ИЖИЛ хугацаа — footer-т хоёулаа хамт хэрэгтэй тул
+     * өөр хугацаа өгвөл нэг нь дахин татагдаж, footer «үсэрнэ».
+     * ⚠️ `gcTime` — хуудас солиход кэш хаягдаж дахин татахаас сэргийлнэ.
+     */
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
   });
 
   const { data: pages } = useQuery({
