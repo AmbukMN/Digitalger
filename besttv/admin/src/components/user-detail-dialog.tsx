@@ -20,6 +20,7 @@ import {
 } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
 import { GrantTitlesPanel } from '@/components/grant-titles-panel';
+import { SubscriptionActions } from '@/components/subscription-actions';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserInsightTab } from '@/components/user-insight-tab';
 import { UserHistoryTab } from '@/components/user-history-tab';
@@ -574,6 +575,27 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                                   </span>
                                 )}
                               </div>
+
+                              {/*
+                                ⚠️⚠️ БАГЦЫГ УДИРДАХ — хүчингүй болгох / солих.
+                                Өмнө нь буруу олгосон багцыг буцаах, эсвэл
+                                хэрэглэгчийн хүсэлтээр өөр багц руу
+                                шилжүүлэх ямар ч зам байгаагүй.
+                              */}
+                              <SubscriptionActions
+                                userId={user.id}
+                                subId={s.id}
+                                planId={s.plan.id}
+                                planName={s.plan.name}
+                                expiresAt={s.expiresAt}
+                                plans={plans}
+                                onDone={() =>
+                                  Promise.all([
+                                    refetch(),
+                                    qc.invalidateQueries({ queryKey: ['admin-users'] }),
+                                  ])
+                                }
+                              />
                             </div>
                           );
                         })}

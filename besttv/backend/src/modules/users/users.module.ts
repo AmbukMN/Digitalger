@@ -73,6 +73,30 @@ class GrantSubscriptionDto {
 }
 
 /**
+ * ⚠️⚠️ БАГЦ СОЛИХ — идэвхтэй эрхийг ӨӨР багц руу шилжүүлнэ.
+ *
+ * БОДИТ ХЭРЭГЦЭЭ: хэрэглэгч «Монгол кино» багц авчихаад «Насанд
+ * хүрэгчдийн» багц авах гэж байсан гэж хэлнэ. Өмнө нь админ:
+ *   1. хуучныг хүчингүй болгож (аргагүй байсан)
+ *   2. шинийг ОЛГОХ — гэвэл ҮЛДСЭН ХОНОГ УСТАНА
+ * Тиймээс солих нь тусдаа үйлдэл: ҮЛДСЭН ХУГАЦААГ ХАДГАЛНА.
+ */
+class ChangeSubscriptionPlanDto {
+  @IsString()
+  planId: string;
+
+  /**
+   * Хугацааг ДАХИН тоолох эсэх.
+   *   false (анхдагч) — үлдсэн хоногийг ХЭВЭЭР шилжүүлнэ (шударга:
+   *                     хэрэглэгч төлсөн хоногоо алдахгүй)
+   *   true            — шинэ багцын бүтэн хугацаагаар эхлүүлнэ
+   */
+  @IsOptional()
+  @IsBoolean()
+  resetDuration?: boolean;
+}
+
+/**
  * ⚠️⚠️ ШИРХГЭЭР КОНТЕНТ ОЛГОХ — багц олгохоос ТУСДАА.
  *
  * Багц нь ЖАНРААР нээдэг тул «зөвхөн энэ 3 киног үзүүл» гэж
@@ -917,6 +941,150 @@ export class UsersService {
     return { ok: true };
   }
 
+  /**
+   * БАГЦЫГ ХҮЧИНГҮЙ БОЛГОХ (админаас).
+   *
+   * ⚠️⚠️ Мөрийг УСТГАХГҮЙ — `revokeRental`-тай ЯГ ИЖИЛ зарчим.
+   * `Subscription.paymentId` нь `Payment`-тай холбоотой тул устгавал
+   * САНХҮҮГИЙН ТҮҮХ тасарна: «энэ төлбөр юуны төлөө байсан» гэдэг
+   * мөнхөд алдагдаж, буцаалт/маргаан шийдэх боломжгүй болно.
+   *
+   * Оронд нь `expiresAt = одоо` — эрх ТЭР ДОР нь зогсоно (үзэх эрхийн
+   * шалгалт `expiresAt > now` гэж үздэг), түүх бүрэн үлдэнэ.
+   *
+   * ⚠️ Автомат сунгалтыг ЗААВАЛ унтраана — эс бөгөөс хүчингүй болгосон
+   * багц маргааш картаас дахин төлөгдөж, хэрэглэгч мөнгөө алдана.
+   */
+  async revokeSubscription(userId: string, subId: string) {
+    const s = await this.prisma.subscription.findFirst({
+      where: { id: subId, userId },
+      include: { plan: { select: { name: true } } },
+    });
+    if (!s) throw new NotFoundException('Багц олдсонгүй');
+
+    const now = new Date();
+    /* ⚠️ Аль хэдийн дууссан багцыг дахин «хүчингүй» болговол дуусах
+       огноо УРАГШ үсэрч, түүх гажина */
+    if (s.expiresAt <= now) {
+      throw new BadRequestException('Энэ багц аль хэдийн дууссан байна');
+    }
+
+    await this.prisma.subscription.update({
+      where: { id: subId },
+      data: {
+        expiresAt: now,
+        /* ⚠️ Картнаас дахин татахаас СЭРГИЙЛНЭ */
+        autoRenew: false,
+        autoRenewCancelledAt: now,
+      },
+    });
+
+    this.logger.log(`Админ багц хүчингүй болгов: ${s.plan.name} (user ${userId})`);
+    return { ok: true };
+  }
+
+  /**
+   * ⚠️⚠️ БАГЦ СОЛИХ — идэвхтэй эрхийг ӨӨР багц руу шилжүүлнэ.
+   *
+   * БОДИТ ХЭРЭГЦЭЭ: хэрэглэгч буруу багц авсан («Монгол кино» авчихаад
+   * «Насанд хүрэгчдийн» хүссэн). Өмнө нь админ шинийг ОЛГОХ-оос өөр
+   * аргагүй байсан ба тэр нь хуучин багцын ҮЛДСЭН ХОНОГИЙГ устгадаг —
+   * хэрэглэгч төлсөн хугацаагаа алдана.
+   *
+   * ⚠️ ҮЛДСЭН ХУГАЦААГ ХАДГАЛНА (анхдагч): 22 хоног үлдсэн бол шинэ
+   * багц ч 22 хоногтой. `resetDuration: true` үед л шинээр тоолно.
+   *
+   * ⚠️ ШИНЭ МӨР ҮҮСГЭХГҮЙ, байгаа мөрийн `planId`-г солино. Яагаад:
+   * шинэ мөр үүсгээд хуучныг хаавал `paymentId` нь хуучин мөрөнд
+   * үлдэж, «төлбөртэй эрх» нь төлбөргүй мэт харагдана.
+   *
+   * ⚠️ VIP-ийн харилцан хүчингүй болгох дүрэм ЭНД Ч үйлчилнэ —
+   * `grantSubscription`-тай ижил, эс бөгөөс VIP + энгийн багц зэрэг
+   * идэвхтэй үлдэж бүх кино үнэгүй болно.
+   */
+  async changeSubscriptionPlan(userId: string, subId: string, dto: ChangeSubscriptionPlanDto) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { id: subId, userId },
+      include: { plan: { select: { name: true, isVip: true } } },
+    });
+    if (!sub) throw new NotFoundException('Багц олдсонгүй');
+
+    const now = new Date();
+    if (sub.expiresAt <= now) {
+      throw new BadRequestException('Дууссан багцыг солих боломжгүй — шинээр олгоно уу');
+    }
+
+    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
+    if (!plan) throw new BadRequestException('Багц олдсонгүй');
+    if (plan.id === sub.planId) {
+      throw new BadRequestException('Одоо байгаа багцтай ижил байна');
+    }
+
+    /**
+     * ⚠️ ҮЛДСЭН ХУГАЦАА — миллисекундээр хадгална.
+     * Хоногоор дугуйруулбал өдрийн дунд солиход хэрэглэгч
+     * хагас хоног хожно/алдана.
+     */
+    const expiresAt = dto.resetDuration
+      ? new Date(now.getTime() + plan.durationDays * 86400_000)
+      : sub.expiresAt;
+
+    return this.prisma.$transaction(async (tx) => {
+      /* ── VIP ↔ энгийн багцын харилцан хүчингүй дүрэм ──
+         ⚠️ `grantSubscription`-тай ИЖИЛ логик. ӨӨРИЙГӨӨ хасна
+            (`id: { not: subId }`) — эс бөгөөс дөнгөж солих гэж буй
+            мөрөө хаачихна. */
+      if (plan.isVip) {
+        await tx.subscription.updateMany({
+          where: {
+            userId,
+            id: { not: subId },
+            expiresAt: { gt: now },
+            plan: { isVip: false },
+          },
+          data: { expiresAt: now },
+        });
+      } else {
+        await tx.subscription.updateMany({
+          where: {
+            userId,
+            id: { not: subId },
+            expiresAt: { gt: now },
+            plan: { isVip: true },
+          },
+          data: { expiresAt: now },
+        });
+      }
+
+      /**
+       * ⚠️⚠️ ИЖИЛ БАГЦЫН ДАВХАРДАЛ — хэрэглэгчид зорилтот багц АЛЬ
+       * ХЭДИЙН идэвхтэй байвал солисноор ХОЁР ижил багц зэрэг үүснэ.
+       * Тэр тохиолдолд хуучныг нь хаана — үлдсэн хугацаа урт нь үлдэнэ.
+       */
+      const dup = await tx.subscription.findFirst({
+        where: { userId, planId: dto.planId, id: { not: subId }, expiresAt: { gt: now } },
+        orderBy: { expiresAt: 'desc' },
+      });
+      let finalExpires = expiresAt;
+      if (dup) {
+        if (dup.expiresAt > finalExpires) finalExpires = dup.expiresAt;
+        await tx.subscription.update({ where: { id: dup.id }, data: { expiresAt: now } });
+      }
+
+      const updated = await tx.subscription.update({
+        where: { id: subId },
+        data: { planId: dto.planId, expiresAt: finalExpires },
+        include: { plan: { select: { name: true } } },
+      });
+
+      this.logger.log(
+        `Админ багц солив: ${sub.plan.name} → ${updated.plan.name} (user ${userId}), ` +
+          `дуусах ${finalExpires.toISOString()}`,
+      );
+      return { ok: true, from: sub.plan.name, to: updated.plan.name, expiresAt: finalExpires };
+    });
+  }
+
 
   /**
    * ⚠️⚠️ БӨӨНӨӨР УСТГАХ — тест хэрэглэгч цэвэрлэхэд.
@@ -1050,6 +1218,29 @@ export class UsersController {
   @Delete(':id/rentals/:rentalId')
   revokeRental(@Param('id') id: string, @Param('rentalId') rentalId: string) {
     return this.svc.revokeRental(id, rentalId);
+  }
+
+  /**
+   * Идэвхтэй БАГЦЫГ хүчингүй болгох.
+   * ⚠️ Мөрийг УСТГАХГҮЙ — `expiresAt = одоо`. Устгавал `Payment`-тай
+   *    холбоо тасарч санхүүгийн түүх алдагдана.
+   */
+  @Delete(':id/subscriptions/:subId')
+  revokeSubscription(@Param('id') id: string, @Param('subId') subId: string) {
+    return this.svc.revokeSubscription(id, subId);
+  }
+
+  /**
+   * Идэвхтэй багцыг ӨӨР багц руу СОЛИХ.
+   * ⚠️ Үлдсэн хугацааг ХАДГАЛНА — хэрэглэгч төлсөн хоногоо алдахгүй.
+   */
+  @Patch(':id/subscriptions/:subId/plan')
+  changeSubscriptionPlan(
+    @Param('id') id: string,
+    @Param('subId') subId: string,
+    @Body() dto: ChangeSubscriptionPlanDto,
+  ) {
+    return this.svc.changeSubscriptionPlan(id, subId, dto);
   }
 
   /**
