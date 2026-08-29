@@ -804,6 +804,28 @@ export class UsersService {
    * ⚠️ Мөн хугацаа: ЗӨВХӨН ижил багцын үлдэгдэл дээр залгана (өмнө нь өөр
    * багцын дуусах огнооноос эхлүүлж, хугацаа буруу уртасдаг байсан).
    */
+  /**
+   * ⚠️⚠️ VIP / энгийн багцын ID-г ЖАГСААЛТААР авна.
+   *
+   * БОДИТ АЛДАА: `updateMany({ where: { plan: { isVip: false } } })` нь
+   * Prisma-д relation filter ашигладаг ба `updateMany` ТҮҮНИЙГ ДЭМЖДЭГГҮЙ
+   * — алдаа шидэхгүй, зүгээр л НЭГ Ч МӨР шинэчлэхгүй ЧИМЭЭГҮЙ өнгөрнө.
+   *
+   * Үр дүнд «VIP олгоход бусад багц хүчингүй болно» гэсэн дүрэм
+   * production дээр ХЭЗЭЭ Ч ажиллаагүй: хэрэглэгч VIP + энгийн багцтай
+   * зэрэг үлдэж байсан (тестээр батлагдсан).
+   *
+   * Засвар: эхлээд planId-г уншаад `planId: { in: [...] }` гэж шууд
+   * баганаар шүүнэ — `updateMany` үүнийг ЗӨВ дэмжинэ.
+   */
+  private async planIdsByVip(isVip: boolean): Promise<string[]> {
+    const rows = await this.prisma.plan.findMany({
+      where: { isVip },
+      select: { id: true },
+    });
+    return rows.map((p) => p.id);
+  }
+
   async grantSubscription(id: string, dto: GrantSubscriptionDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
@@ -821,18 +843,22 @@ export class UsersService {
     const startsAt = sameActive ? sameActive.expiresAt : now;
     const expiresAt = new Date(startsAt.getTime() + days * 86400_000);
 
+    /* ⚠️ Relation filter БИШ, planId жагсаалт — доорх `planIdsByVip`-ийн
+       тайлбарыг үзнэ үү (updateMany нь relation filter-ыг ЧИМЭЭГҮЙ
+       алгасдаг тул энэ дүрэм өмнө нь огт ажиллаагүй). */
+    const supersededPlanIds = await this.planIdsByVip(!plan.isVip);
+
     return this.prisma.$transaction(async (tx) => {
       // ── VIP ↔ энгийн багцыг харилцан ХҮЧИНГҮЙ болгоно ──
-      if (plan.isVip) {
-        // VIP олгож байна → бусад бүх багц илүүдэл
+      //   VIP олгож байна    → бусад бүх энгийн багц илүүдэл
+      //   энгийн олгож байна → VIP хүчингүй (админ зориуд бууруулж байна)
+      if (supersededPlanIds.length) {
         await tx.subscription.updateMany({
-          where: { userId: id, expiresAt: { gt: now }, plan: { isVip: false } },
-          data: { expiresAt: now },
-        });
-      } else {
-        // Энгийн багц олгож байна → VIP хүчингүй (админ зориуд бууруулж байна)
-        await tx.subscription.updateMany({
-          where: { userId: id, expiresAt: { gt: now }, plan: { isVip: true } },
+          where: {
+            userId: id,
+            expiresAt: { gt: now },
+            planId: { in: supersededPlanIds },
+          },
           data: { expiresAt: now },
         });
       }
@@ -1029,28 +1055,21 @@ export class UsersService {
       ? new Date(now.getTime() + plan.durationDays * 86400_000)
       : sub.expiresAt;
 
+    /* ⚠️⚠️ Relation filter (`plan: { isVip }`) БИШ — `updateMany` түүнийг
+       ЧИМЭЭГҮЙ алгасдаг (`planIdsByVip`-ийн тайлбарыг үзнэ үү). */
+    const supersededPlanIds = await this.planIdsByVip(!plan.isVip);
+
     return this.prisma.$transaction(async (tx) => {
       /* ── VIP ↔ энгийн багцын харилцан хүчингүй дүрэм ──
-         ⚠️ `grantSubscription`-тай ИЖИЛ логик. ӨӨРИЙГӨӨ хасна
-            (`id: { not: subId }`) — эс бөгөөс дөнгөж солих гэж буй
-            мөрөө хаачихна. */
-      if (plan.isVip) {
+         ⚠️ ӨӨРИЙГӨӨ хасна (`id: { not: subId }`) — эс бөгөөс дөнгөж
+            солих гэж буй мөрөө хаачихна. */
+      if (supersededPlanIds.length) {
         await tx.subscription.updateMany({
           where: {
             userId,
             id: { not: subId },
             expiresAt: { gt: now },
-            plan: { isVip: false },
-          },
-          data: { expiresAt: now },
-        });
-      } else {
-        await tx.subscription.updateMany({
-          where: {
-            userId,
-            id: { not: subId },
-            expiresAt: { gt: now },
-            plan: { isVip: true },
+            planId: { in: supersededPlanIds },
           },
           data: { expiresAt: now },
         });

@@ -169,6 +169,27 @@ export class SubscriptionsService {
     const startsAt = sameActive ? sameActive.expiresAt : now;
     const expiresAt = new Date(startsAt.getTime() + durationDays * 86400_000);
 
+    /**
+     * ⚠️⚠️ RELATION FILTER БИШ — `planId: { in: [...] }`.
+     *
+     * БОДИТ АЛДАА: өмнө нь `where: { plan: { isVip: false } }` байсан.
+     * Prisma-гийн `updateMany` нь relation filter-ыг ДЭМЖДЭГГҮЙ бөгөөд
+     * алдаа шидэхгүй, зүгээр л НЭГ Ч МӨР шинэчлэхгүй ЧИМЭЭГҮЙ өнгөрдөг.
+     *
+     * Тиймээс доорх «VIP-ийн онцгой дүрэм» production дээр ХЭЗЭЭ Ч
+     * ажиллаагүй: хэрэглэгч VIP + энгийн багцтай зэрэг үлдэж байсан
+     * (тестээр батлагдсан). Эрх нь давхарласнаас гажиг гардаггүй ч
+     * тайлан/шалгалт ойлгомжгүй болно.
+     *
+     * ⚠️ `users.module.ts`-ийн `planIdsByVip`-тэй ИЖИЛ засвар.
+     */
+    const supersededPlanIds = (
+      await this.prisma.plan.findMany({
+        where: { isVip: !plan?.isVip },
+        select: { id: true },
+      })
+    ).map((p) => p.id);
+
     return this.prisma.$transaction(async (tx) => {
       /**
        * ⚠️ VIP-ийн ОНЦГОЙ ДҮРЭМ (админ олголттой ижил):
@@ -176,14 +197,9 @@ export class SubscriptionsService {
        *   VIP байхад энгийн багц авбал → VIP хүчингүй
        * Ингэснээр хэрэглэгчийн эрх ҮРГЭЛЖ тодорхой байна.
        */
-      if (plan?.isVip) {
+      if (supersededPlanIds.length) {
         await tx.subscription.updateMany({
-          where: { userId, expiresAt: { gt: now }, plan: { isVip: false } },
-          data: { expiresAt: now },
-        });
-      } else {
-        await tx.subscription.updateMany({
-          where: { userId, expiresAt: { gt: now }, plan: { isVip: true } },
+          where: { userId, expiresAt: { gt: now }, planId: { in: supersededPlanIds } },
           data: { expiresAt: now },
         });
       }
