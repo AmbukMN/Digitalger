@@ -84,9 +84,9 @@ const CHANNEL_META: Record<
 /**
  * ⚠️⚠️ FACEBOOK PAGE-ИЙН ЯЛГАА.
  *
- * BestTV нь ХОЁР Facebook page-тэй (Best TV, Best Tv 2 — Богино драм).
- * Хоёулаа «FB» гэж нийлж харагдвал админ аль хуудсанд хариулж
- * байгаагаа мэдэхгүй, БУРУУ нэрийн өмнөөс хариулах эрсдэлтэй.
+ * BestTV нь ОЛОН Facebook page-тэй (Best TV, Best Tv 2 — Богино драм,
+ * Шилдэг кинонууд). Бүгд «FB» гэж нийлж харагдвал админ аль хуудсанд
+ * хариулж байгаагаа мэдэхгүй, БУРУУ нэрийн өмнөөс хариулах эрсдэлтэй.
  *
  * ⚠️ Шинэ page нэмэгдвэл ЭНД бүртгэнэ — эс бөгөөс id нь түүхий
  *    тоогоор харагдана (эвдрэхгүй, зүгээр л ойлгомжгүй).
@@ -100,6 +100,11 @@ const PAGE_META: Record<string, { label: string; cls: string }> = {
     label: 'Best Tv 2',
     /* ⚠️ Тод ялгаатай өнгө — нэг харцаар салгах гол зорилго */
     cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300',
+  },
+  '2237164766611647': {
+    label: 'Шилдэг кино',
+    /* ⚠️ Гурав дахь өнгө — өмнөх хоёроос ТОД ялгаатай байх ёстой */
+    cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   },
 };
 
@@ -386,8 +391,10 @@ export default function ChatPage() {
      яриатай холилдоно, ялгаж харах шаардлагатай. */
   const [channel, setChannel] = useState('');
   /**
-   * ⚠️ FB PAGE шүүлт — BestTV нь ХОЁР page-тэй (Best TV, Best Tv 2).
+   * ⚠️ FB PAGE шүүлт — BestTV нь ОЛОН page-тэй.
    * Хоосон = бүх page. Зөвхөн `channel === 'facebook'` үед утгатай.
+   * ⚠️ Товчнууд `pageCounts`-оос ДИНАМИК үүснэ — шинэ page нэмэхэд
+   *    зөвхөн `PAGE_META`-д бүртгэхэд хангалттай.
    */
   const [pageId, setPageId] = useState('');
   const [page, setPage] = useState(1);
@@ -518,7 +525,7 @@ export default function ChatPage() {
           (onlyUnread ? '&onlyUnread=1' : '') +
           (onlyStarred ? '&onlyStarred=1' : '') +
           (channel ? `&channel=${channel}` : '') +
-          /* ⚠️ FB page шүүлт — хоёр page-тэй тул (Best TV / Best Tv 2) */
+          /* ⚠️ FB page шүүлт — олон page-тэй тул */
           (pageId ? `&pageId=${pageId}` : '') +
           (q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''),
       ),
@@ -782,9 +789,9 @@ export default function ChatPage() {
           {/**
             * ⚠️⚠️ FACEBOOK PAGE-ИЙН ШҮҮЛТ.
             *
-            * BestTV нь ХОЁР Facebook page-тэй (Best TV, Best Tv 2 —
-            * Богино драм). Аль page-ийн зурвасыг харж байгаагаа
-            * мэдэхгүй бол админ БУРУУ нэрийн өмнөөс хариулна.
+            * BestTV нь ОЛОН Facebook page-тэй (Best TV, Best Tv 2 —
+            * Богино драм, Шилдэг кинонууд). Аль page-ийн зурвасыг харж
+            * байгаагаа мэдэхгүй бол админ БУРУУ нэрийн өмнөөс хариулна.
             *
             * ⚠️ ЗӨВХӨН `facebook` таб сонгосон үед гарна — вэб/IG-д
             *    утгагүй, дэлгэц дэмий дүүрнэ.
