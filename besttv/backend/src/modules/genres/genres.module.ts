@@ -53,6 +53,14 @@ class ReorderDto {
   titleIds: string[];
 }
 
+/** ЖАНРУУДЫГ хооронд нь эрэмбэлэх (нүүрний эгнээний дараалал) */
+class ReorderGenresDto {
+  /** Жанрын ID-ууд ЯГ харагдах дарааллаар (index → order) */
+  @IsArray()
+  @IsString({ each: true })
+  ids: string[];
+}
+
 @Injectable()
 export class GenresService {
   private readonly logger = new Logger(GenresService.name);
@@ -242,6 +250,39 @@ export class GenresService {
     );
     return { ok: true, updated: clean.length };
   }
+
+  /**
+   * ЖАНРУУДЫН ӨӨРСДИЙН эрэмбийг хадгална (нүүр хуудсанд гарах дараалал).
+   *
+   * ⚠️ Дээрх `reorder`-оос ЯЛГААТАЙ: тэр нь жанр ДОТОРХ киног эрэмбэлдэг,
+   *    энэ нь ЖАНРУУДЫГ хооронд нь эрэмбэлнэ.
+   *
+   * ⚠️⚠️ ТРАНЗАКЦ ЗААВАЛ — нэг нэгээр нь update хийвэл дунд нь алдаа
+   *    гарахад ХАГАС эрэмбэ үлдэж, нүүрний эгнээний дараалал эмх
+   *    замбараагүй болно.
+   *
+   * ⚠️ Илгээсэн ID-ууд БОДИТ жанр мөн эсэхийг шалгана — байхгүй ID
+   *    ирвэл `update` нь `RecordNotFound` шидэж БҮХ транзакц унана.
+   */
+  async reorderGenres(ids: string[]) {
+    if (!ids?.length) throw new BadRequestException('Жанр илгээгээгүй байна');
+
+    const existing = await this.prisma.genre.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    const valid = new Set(existing.map((g) => g.id));
+    const clean = ids.filter((id) => valid.has(id));
+    if (!clean.length) throw new BadRequestException('Хүчинтэй жанр олдсонгүй');
+
+    await this.prisma.$transaction(
+      clean.map((id, i) =>
+        this.prisma.genre.update({ where: { id }, data: { order: i } }),
+      ),
+    );
+    this.logger.log(`Жанрын эрэмбэ шинэчлэв: ${clean.length} жанр`);
+    return { ok: true, updated: clean.length };
+  }
 }
 
 @Controller('genres')
@@ -270,6 +311,17 @@ export class GenresAdminController {
   @Post()
   create(@Body() dto: GenreDto) {
     return this.svc.create(dto);
+  }
+
+  /**
+   * ЖАНРУУДЫН дарааллыг хадгална (чирэх / сумаар зөөх).
+   *
+   * ⚠️⚠️ `@Patch(':id')`-ЭЭС ӨМНӨ байрлана. Доош тавибал «reorder» гэдэг
+   * нь ЖАНРЫН ID гэж ойлгогдож, `update` дуудагдан 404/400 буцаана.
+   */
+  @Patch('reorder')
+  reorderGenres(@Body() dto: ReorderGenresDto) {
+    return this.svc.reorderGenres(dto.ids);
   }
 
   @Patch(':id')

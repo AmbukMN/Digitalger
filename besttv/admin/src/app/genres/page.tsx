@@ -1,9 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ArrowUpDown, Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Loader2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Tags,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, useConfirm } from '@besttv/shared/ui';
@@ -35,15 +48,81 @@ export default function GenresPage() {
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
 
+  /* ── ЭРЭМБЭ: чирэх / сумаар зөөх ── */
+  const [list, setList] = useState<AdminGenre[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const dragIndex = useRef<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  /* ⚠️ Сервер дата ирэхэд ажлын хуулбарыг шинэчилнэ. Хадгалаагүй
+     өөрчлөлт байвал ДАРЖ БОЛОХГҮЙ — админы ажил алга болно
+     (`refetchOnWindowFocus` таб солиход асдаг). */
+  useEffect(() => {
+    if (data && !dirty) setList(data);
+  }, [data, dirty]);
+
   /**
    * ⚠️ Шүүлт CLIENT талд — жанрын жагсаалт богино (ихэвчлэн 30-аас цөөн)
    * тул сервер рүү дахин очих нь илүү удаан (сүлжээний саатал > шүүх хугацаа).
    */
+  const needle = q.trim().toLowerCase();
   const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return data ?? [];
-    return (data ?? []).filter((g) => g.name.toLowerCase().includes(needle));
-  }, [data, q]);
+    if (!needle) return list;
+    return list.filter((g) => g.name.toLowerCase().includes(needle));
+  }, [list, needle]);
+
+  /**
+   * ⚠️⚠️ ХАЙЖ БАЙХАД ЧИРЭХГҮЙ.
+   *
+   * Шүүсэн жагсаалтын index нь БҮТЭН жагсаалттай таарахгүй тул чирвэл
+   * ӨӨР жанр байраа солино (кино эрэмбэлэх хуудсанд яг энэ алдаанаас
+   * сэргийлж хайлтыг «зөвхөн тодруулга» болгосон). Энд жанр цөөн тул
+   * илүү энгийн шийдэл: хайлттай үед эрэмбэлэхийг түр хаана.
+   */
+  const canReorder = !needle && !savingOrder;
+
+  /** i-р жанрыг j-р байрлалд шилжүүлнэ */
+  const move = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= list.length) return;
+    setList((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+    setDirty(true);
+  };
+
+  /** Эрэмбийг сервер рүү хадгална */
+  const saveOrder = async () => {
+    setSavingOrder(true);
+    await runMutation(
+      () =>
+        api('/admin/genres/reorder', {
+          method: 'PATCH',
+          body: JSON.stringify({ ids: list.map((g) => g.id) }),
+        }),
+      {
+        success: 'Эрэмбэ хадгалагдлаа — нүүр хуудсанд шууд харагдана',
+        error: 'Эрэмбэ хадгалахад алдаа гарлаа',
+        /* ⚠️ `dirty=false` нь refetch-ЭЭС ӨМНӨ — эс бөгөөс useEffect
+           хуучин датаг буцааж тавина */
+        onDone: () => {
+          setDirty(false);
+          void refetch();
+          qc.invalidateQueries({ queryKey: ['admin-genres'] });
+        },
+      },
+    );
+    setSavingOrder(false);
+  };
+
+  /** Хадгалаагүй өөрчлөлтийг буцаана */
+  const resetOrder = () => {
+    if (data) setList(data);
+    setDirty(false);
+  };
 
   const openEdit = (genre: AdminGenre | 'new') => {
     setEditing(genre);
@@ -178,6 +257,12 @@ export default function GenresPage() {
           жанруудын контентыг нээдэг. Улс/төрлөөр (Монгол кино, Солонгос кино гэх мэт) жанр үүсгээд{' '}
           <strong className="text-foreground">Багц</strong> хуудаснаас холбоно. 🔞 тэмдэгтэй жанр нь
           ерөнхий каталогт харагдахгүй.
+          {/* ⚠️ Чирэх боломжтойг ХЭЛНЭ — эс бөгөөс админ бариулыг анзаарахгүй */}
+          <span className="mt-1 block">
+            Жанруудыг <strong className="text-foreground">чирж</strong> эсвэл{' '}
+            <strong className="text-foreground">сумаар</strong> эрэмбэлнэ — нүүр хуудсанд ЯГ энэ
+            дарааллаар гарна.
+          </span>
         </div>
 
         {/* ⚠️ Хайлт — өмнө нь ЗӨВХӨН доош гүйлгэж хайх боломжтой байв
@@ -209,7 +294,42 @@ export default function GenresPage() {
         {q && (
           <p className="mt-2 text-xs text-muted-foreground">
             {rows.length} / {data?.length ?? 0} жанр
+            {/* ⚠️ Хайлттай үед чирэх боломжгүйг ХЭЛНЭ — эс бөгөөс админ
+                «чирэх ажиллахгүй байна» гэж эвдэрсэн гэж бодно */}
+            <span className="ml-1.5 text-warning">· эрэмбэлэхийн тулд хайлтаа цэвэрлэнэ үү</span>
           </p>
+        )}
+
+        {/*
+          ⚠️⚠️ ХАДГАЛААГҮЙ ЭРЭМБИЙН МӨР — өөрчлөлт хийсэн үед л гарна.
+
+          Автоматаар хадгалахгүй: админ 5 жанрыг зөөх бүрд сервер рүү
+          хүсэлт явуулбал завсрын эмх замбараагүй дараалал нүүр хуудсанд
+          ХАРАГДАНА. Оронд нь бүгдийг зөөгөөд НЭГ удаа хадгална.
+        */}
+        {dirty && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/8 px-4 py-3">
+            <span className="text-sm font-medium text-foreground">
+              Эрэмбэ өөрчлөгдсөн — хадгалаагүй байна
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={resetOrder}
+                disabled={savingOrder}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+              >
+                <RotateCcw size={13} /> Буцаах
+              </button>
+              <button
+                onClick={saveOrder}
+                disabled={savingOrder}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-50"
+              >
+                {savingOrder ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                Хадгалах
+              </button>
+            </div>
+          </div>
         )}
 
         <div className="admin-card mt-4 overflow-hidden rounded-xl">
@@ -221,11 +341,47 @@ export default function GenresPage() {
             <TableSkeleton rows={6} cols={3} />
           ) : (
             <div className="divide-y divide-border">
-              {rows.map((g) => (
+              {rows.map((g, i) => (
                 <div
                   key={g.id}
-                  className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-accent/40"
+                  /* ⚠️ Чирэх нь ЗӨВХӨН хайлтгүй үед — шүүсэн index нь
+                     бүтэн жагсаалттай таарахгүй тул өөр жанр байраа солино */
+                  draggable={canReorder}
+                  onDragStart={() => (dragIndex.current = i)}
+                  onDragOver={(e) => {
+                    if (!canReorder) return;
+                    e.preventDefault();
+                    setOverIndex(i);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex.current !== null) move(dragIndex.current, i);
+                    dragIndex.current = null;
+                    setOverIndex(null);
+                  }}
+                  onDragEnd={() => {
+                    dragIndex.current = null;
+                    setOverIndex(null);
+                  }}
+                  className={cn(
+                    'group flex items-center justify-between px-4 py-3 transition-colors hover:bg-accent/40',
+                    /* Чирж буй мөрийн БУУХ байрлалыг тодоор заана */
+                    overIndex === i && dragIndex.current !== null && 'bg-primary/10 ring-1 ring-inset ring-primary/40',
+                  )}
                 >
+                  {/* ⚠️ Чирэх бариул — мөр бүхэлдээ draggable ч бариул нь
+                      «энийг чирж болно» гэдгийг ХАРУУЛНА (эс бөгөөс админ
+                      мэдэхгүй өнгөрнө). Хайж байхад бүдгэрнэ. */}
+                  <span
+                    className={cn(
+                      'mr-1 flex h-7 w-5 shrink-0 items-center justify-center text-muted-foreground/50',
+                      canReorder ? 'cursor-grab active:cursor-grabbing' : 'opacity-25',
+                    )}
+                    title={canReorder ? 'Чирж эрэмбэлэх' : 'Хайлт идэвхтэй үед эрэмбэлэх боломжгүй'}
+                  >
+                    <GripVertical size={15} />
+                  </span>
+
                   <button
                     onClick={() => openEdit(g)}
                     className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
@@ -240,6 +396,34 @@ export default function GenresPage() {
                   </button>
 
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {/*
+                      ⚠️ СУМАН ТОВЧ — чирэх нь зарим орчинд хүндрэлтэй
+                      (мэдрэгчтэй дэлгэц, чирэхийг мэддэггүй хэрэглэгч).
+                      Тиймээс хоёр аргыг ЗЭРЭГ өгнө.
+                      ⚠️ Хамгийн дээд/доод мөрөнд идэвхгүй болно.
+                    */}
+                    {canReorder && (
+                      <div className="mr-1 flex items-center gap-0.5">
+                        <button
+                          onClick={() => move(i, i - 1)}
+                          disabled={i === 0}
+                          aria-label="Дээш зөөх"
+                          title="Дээш зөөх"
+                          className="flex h-9 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary disabled:pointer-events-none disabled:opacity-20"
+                        >
+                          <ChevronUp size={15} />
+                        </button>
+                        <button
+                          onClick={() => move(i, i + 1)}
+                          disabled={i === rows.length - 1}
+                          aria-label="Доош зөөх"
+                          title="Доош зөөх"
+                          className="flex h-9 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary disabled:pointer-events-none disabled:opacity-20"
+                        >
+                          <ChevronDown size={15} />
+                        </button>
+                      </div>
+                    )}
                     {g.isAdult && (
                       <span className="rounded-md bg-destructive/15 px-2 py-1 text-xs font-medium text-destructive">
                         🔞 18+
