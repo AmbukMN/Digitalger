@@ -72,6 +72,27 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
   /* ⚠️ Мөнгөний үйлдэлд баталгаажуулалт (bank/page.tsx-тэй ижил загвар) */
   const confirm = useConfirm();
 
+  /**
+   * ⚠️⚠️ ӨӨРЧЛӨЛТИЙН ДАРААХ ШИНЭЧЛЭЛ — НЭГ эх сурвалж.
+   *
+   * БОДИТ ГОМДОЛ: эрх цуцлаад дэлгэц шинэчлэгдэхгүй, админ гараад
+   * дахин ороод байж харагддаг байв. Шалтгаан ХОЁР:
+   *   1. `useAdminUser`-т `staleTime` заагаагүй байсан (queries.ts-д
+   *      зассан) — `refetch()` сүлжээ рүү огт явдаггүй байв
+   *   2. `admin-user-counts` invalidate ХИЙГДЭХГҮЙ байсан тул дээд
+   *      талын статистик («Багцтай», «Эрхгүй») хуучнаараа үлддэг
+   *
+   * ⚠️ Гурван газарт давхардаж бичигдсэн байсныг НЭГТГЭВ — шинэ үйлдэл
+   *    нэмэхэд аль нэгийг мартах эрсдэлийг арилгана.
+   */
+  const refreshAll = () =>
+    Promise.all([
+      refetch(),
+      refetchTxs(),
+      qc.invalidateQueries({ queryKey: ['admin-users'] }),
+      qc.invalidateQueries({ queryKey: ['admin-user-counts'] }),
+    ]);
+
   const [tab, setTab] = useState('overview');
   const [newPassword, setNewPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
@@ -125,11 +146,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
       toast.success(direction === 'credit' ? 'Хэтэвч цэнэглэгдлээ' : 'Хэтэвчээс хасагдлаа');
       setWalletAmount('');
       setWalletNote('');
-      await Promise.all([
-        refetch(),
-        refetchTxs(),
-        qc.invalidateQueries({ queryKey: ['admin-users'] }),
-      ]);
+      await refreshAll();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally {
@@ -169,13 +186,12 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
         body: JSON.stringify({ planId: grantPlanId }),
       });
       toast.success('Эрх идэвхжлээ');
-      await Promise.all([
-        refetch(),
-        qc.invalidateQueries({ queryKey: ['admin-users'] }),
-      ]);
+      await refreshAll();
       setGrantPlanId('');
-    } catch {
-      toast.error('Алдаа гарлаа');
+      /* ⚠️ Backend-ийн мессежийг ХАРУУЛНА — «Алдаа гарлаа» гэсэн ерөнхий
+         текст юу буруу болсныг хэлдэггүй тул админ дахин дахин оролдоно */
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Алдаа гарлаа');
     } finally {
       setGranting(false);
     }
@@ -589,12 +605,7 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                                 planName={s.plan.name}
                                 expiresAt={s.expiresAt}
                                 plans={plans}
-                                onDone={() =>
-                                  Promise.all([
-                                    refetch(),
-                                    qc.invalidateQueries({ queryKey: ['admin-users'] }),
-                                  ])
-                                }
+                                onDone={refreshAll}
                               />
                             </div>
                           );

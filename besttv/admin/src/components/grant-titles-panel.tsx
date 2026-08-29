@@ -75,6 +75,24 @@ export function GrantTitlesPanel({ userId }: { userId: string }) {
     staleTime: 0,
   });
 
+  /**
+   * ⚠️⚠️ Эрх олгох/цуцлахад ДӨРВҮҮЛЭНГ нь шинэчилнэ:
+   *   admin-user-rentals — энэ панелийн жагсаалт
+   *   admin-user         — дээрх «Одоогийн эрх» карт
+   *   admin-users        — ард байгаа хэрэглэгчийн ЖАГСААЛТ
+   *   admin-user-counts  — дээд талын статистик картууд
+   *
+   * Аль нэгийг орхивол дэлгэцийн НЭГ хэсэг хуучнаараа үлдэж, админ
+   * «шинэчлэгдэхгүй байна» гэж гомдоно (бодит гомдол болсон).
+   */
+  const refreshAll = () =>
+    Promise.all([
+      refetchRentals(),
+      qc.invalidateQueries({ queryKey: ['admin-user', userId] }),
+      qc.invalidateQueries({ queryKey: ['admin-users'] }),
+      qc.invalidateQueries({ queryKey: ['admin-user-counts'] }),
+    ]);
+
   /* ── Киноны жагсаалт ── */
   const { data: titles, isLoading } = useQuery({
     queryKey: ['admin-grant-titles', q],
@@ -147,10 +165,7 @@ export function GrantTitlesPanel({ userId }: { userId: string }) {
           : `${r.granted.length} кино олгов`,
       );
       setSelected([]);
-      await Promise.all([
-        refetchRentals(),
-        qc.invalidateQueries({ queryKey: ['admin-user', userId] }),
-      ]);
+      await refreshAll();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally {
@@ -163,10 +178,13 @@ export function GrantTitlesPanel({ userId }: { userId: string }) {
     if (!confirm(`«${title}» эрхийг хүчингүй болгох уу?`)) return;
     try {
       await api(`/admin/users/${userId}/rentals/${rentalId}`, { method: 'DELETE' });
+      /* ⚠️⚠️ ЗӨВХӨН `refetchRentals()` байсан нь БОДИТ АЛДАА: доорх
+         жагсаалт шинэчлэгддэг ч дээрх «Одоогийн эрх» карт (`admin-user`)
+         хуучнаараа үлдэж, админ эрх хэвээр байна гэж бодно. */
+      await refreshAll();
       toast.success('Эрх хүчингүй боллоо');
-      await refetchRentals();
-    } catch {
-      toast.error('Алдаа гарлаа');
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Алдаа гарлаа');
     }
   };
 

@@ -420,6 +420,9 @@ export function useAdminUserCounts(params: { q?: string; from?: string; to?: str
     queryKey: ['admin-user-counts', params],
     queryFn: () => api<Record<string, number>>(`/admin/users/counts?${toQuery(params)}`),
     placeholderData: (prev) => prev,
+    /* ⚠️ Эрх олгох/цуцлахад статистик ШУУД шинэчлэгдэх ёстой —
+       `staleTime` заагаагүй бол invalidate хийсэн ч сүлжээ рүү явахгүй */
+    staleTime: 0,
   });
 }
 
@@ -438,6 +441,8 @@ export function useAdminWalletTxs(userId: string) {
     queryKey: ['admin-wallet-txs', userId],
     queryFn: () => api<AdminWalletTx[]>(`/admin/wallet/${userId}/transactions`),
     enabled: !!userId,
+    /* ⚠️ Хэтэвч цэнэглэсний дараа гүйлгээ ШУУД харагдана */
+    staleTime: 0,
   });
 }
 
@@ -687,11 +692,24 @@ export interface AdminUserDetail extends AdminUser {
   };
 }
 
+/**
+ * ⚠️⚠️ `staleTime: 0` ЗААВАЛ — админ панелийн нийтлэг дүрэм.
+ *
+ * БОДИТ ГОМДОЛ: багц/эрхийг цуцлаад дэлгэц ШУУД шинэчлэгддэггүй,
+ * админ гараад дахин ороод байж харагддаг байв. Шалтгаан нь энэ hook
+ * `staleTime` заагаагүй тул `refetch()` хийсэн ч TanStack Query
+ * «шинэхэн» гэж үзэж сүлжээ рүү огт явдаггүй байсан (бусад БҮХ
+ * админ query-д `staleTime: 0` тавьсан атал энэ ганцаараа орхигдсон).
+ *
+ * ⚠️ `refetchOnWindowFocus` — өөр таб дээр өөрчлөлт орсныг ч барина.
+ */
 export function useAdminUser(id: string) {
   return useQuery({
     queryKey: ['admin-user', id],
     queryFn: () => api<AdminUserDetail>(`/admin/users/${id}`),
     enabled: !!id,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }
 
