@@ -4,6 +4,11 @@ import { formatPrice } from '@besttv/shared';
 import { useState } from 'react';
 import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Trash2, Unlock, X } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  BulkGenreMenu,
+  type BulkGenreMode,
+  type SelectedTitleGenres,
+} from '@/components/bulk-genre-menu';
 
 export interface BulkImpact {
   total: number;
@@ -27,6 +32,8 @@ export function BulkBar({
   onDelete,
   onSetActive,
   onSetPremium,
+  onSetGenres,
+  selectedGenres,
   loadImpact,
 }: {
   count: number;
@@ -34,6 +41,10 @@ export function BulkBar({
   onDelete: (force: boolean) => Promise<void>;
   onSetActive: (isActive: boolean) => Promise<void>;
   onSetPremium: (isPremium: boolean) => Promise<void>;
+  /** Жанр бөөнөөр солих — нэмэх/хасах/солих */
+  onSetGenres: (genreIds: string[], mode: BulkGenreMode) => Promise<void>;
+  /** Сонгосон кинонуудын ОДООГИЙН жанр — нөлөөллийг урьдчилан харуулахад */
+  selectedGenres: SelectedTitleGenres[];
   loadImpact: () => Promise<BulkImpact>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -105,6 +116,13 @@ export function BulkBar({
           <BulkBtn onClick={() => run(() => onSetPremium(false))} disabled={busy} icon={<Unlock size={14} />}>
             Үнэгүй
           </BulkBtn>
+
+          {/* ⚠️ Жанр солих — цэс дотроосоо баталгаажуулна (нөлөөлөл харуулна) */}
+          <BulkGenreMenu
+            selected={selectedGenres}
+            disabled={busy}
+            onApply={(genreIds, mode) => onSetGenres(genreIds, mode)}
+          />
 
           <button
             type="button"

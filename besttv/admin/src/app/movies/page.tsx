@@ -123,6 +123,26 @@ export default function MoviesPage() {
       return next;
     });
 
+  /**
+   * Сонгосон кинонуудын ОДООГИЙН жанр — «Жанр солих» цэсэнд нөлөөллийг
+   * дарахаас ӨМНӨ харуулахад хэрэглэнэ («N кино жанраа алдана»).
+   *
+   * ⚠️ Зөвхөн ХАРАГДАЖ БУЙ хуудсаас уншина. Энэ нь аюулгүй: `set()` нь
+   * шүүлт/хуудас солигдох бүрд сонголтыг цэвэрлэдэг тул сонгогдсон мөр
+   * ҮРГЭЛЖ энэ хуудсанд байна.
+   */
+  const selectedGenres = useMemo(
+    () =>
+      (data?.items ?? [])
+        .filter((t) => selected.has(t.id))
+        .map((t) => ({
+          id: t.id,
+          title: t.title,
+          genreIds: t.genres.map(genreId).filter(Boolean),
+        })),
+    [data, selected],
+  );
+
   /** Bulk дараа — жагсаалт/тоолол шинэчилж, сонголт цэвэрлэнэ */
   const afterBulk = async (msg: string) => {
     await Promise.all([
@@ -347,6 +367,16 @@ export default function MoviesPage() {
               body: JSON.stringify({ ids, isPremium }),
             });
             await afterBulk(`${r.updated} контент ${isPremium ? 'төлбөртэй' : 'үнэгүй'} боллоо`);
+          }}
+          selectedGenres={selectedGenres}
+          onSetGenres={async (genreIds, mode) => {
+            const r = await api<{ updated: number }>('/admin/titles/bulk/genres', {
+              method: 'POST',
+              body: JSON.stringify({ ids, genreIds, mode }),
+            });
+            const verb =
+              mode === 'add' ? 'жанр нэмэгдлээ' : mode === 'remove' ? 'жанраас хасагдлаа' : 'жанр солигдлоо';
+            await afterBulk(`${r.updated} контентод ${verb}`);
           }}
         />
 

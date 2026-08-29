@@ -19,6 +19,7 @@ import { TitlesAdminService } from './titles-admin.service';
 import {
   BulkActiveDto,
   BulkDeleteDto,
+  BulkGenreDto,
   BulkIdsDto,
   BulkPremiumDto,
   CreateEpisodeDto,
@@ -151,6 +152,16 @@ export class TitlesAdminController {
   @Post('bulk/premium')
   bulkPremium(@Body() dto: BulkPremiumDto) {
     return this.svc.bulkSetPremium(dto.ids, dto.isPremium);
+  }
+
+  /**
+   * Жанр бөөнөөр солих — нэмэх / хасах / бүрэн солих.
+   * ⚠️ Кино ОЛОН жанртай байж болох тул `mode` ЗААВАЛ — «солих» нь
+   *    бусад жанрыг устгадгийг админ ойлгож байх ёстой.
+   */
+  @Post('bulk/genres')
+  bulkGenres(@Body() dto: BulkGenreDto) {
+    return this.svc.bulkSetGenres(dto.ids, dto.genreIds, dto.mode);
   }
 
   // ── Season / Episode ────────────────────────────────────────────────────────

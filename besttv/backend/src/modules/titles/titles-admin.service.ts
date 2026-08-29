@@ -7,6 +7,7 @@ import { slugify } from '../../common/slugify';
 import { expandQuery } from '../../common/transliterate';
 import { TitleMediaHelper } from './title-media.helper';
 import {
+  BulkGenreMode,
   CreateEpisodeDto,
   CreateSeasonDto,
   UpdateSeasonDto,
@@ -750,6 +751,103 @@ export class TitlesAdminService {
       data: { isPremium },
     });
     return { ok: true, updated: count };
+  }
+
+  /**
+   * ЖАНР бөөнөөр солих — нэмэх / хасах / бүрэн солих.
+   *
+   * ⚠️⚠️ ЯАГААД ГУРВАН ГОРИМ ВЭ: кино нь ОЛОН жанрт зэрэг харьяалагдана.
+   * Ганц «солих» горимтой байсан бол «С-drama доторх AI кинонуудыг AI
+   * багц руу» зөөх үед тэдгээрийн БУСАД жанр (ж: «Монгол кино») чимээгүй
+   * устана. Админ үүнийг хардаггүй тул `add` нь АНХДАГЧ горим.
+   *
+   * ⚠️ `order` — TitleGenre-д эрэмбэ бий. Нэмэхдээ ХАМГИЙН СҮҮЛД тавина,
+   * эс бөгөөс шинэ жанр эхний байрыг булааж, картан дээрх үндсэн шошго
+   * өөрчлөгдөнө.
+   */
+  async bulkSetGenres(ids: string[], genreIds: string[], mode: BulkGenreMode) {
+    this.assertBulk(ids);
+
+    /* ⚠️ `replace` нь ХООСОН жагсаалт зөвшөөрнө (бүх жанрыг арилгах),
+       харин `add`/`remove` нь утгагүй болно. */
+    if (!genreIds.length && mode !== BulkGenreMode.REPLACE) {
+      throw new BadRequestException('Нэг ч жанр сонгоогүй байна');
+    }
+
+    /* ⚠️ Байхгүй жанрын ID ирвэл createMany нь FK алдаагаар унана —
+       УРЬДЧИЛАН шалгаж ОЙЛГОМЖТОЙ мессеж өгнө. */
+    if (genreIds.length) {
+      const found = await this.prisma.genre.findMany({
+        where: { id: { in: genreIds } },
+        select: { id: true },
+      });
+      if (found.length !== genreIds.length) {
+        throw new BadRequestException('Сонгосон жанруудын зарим нь олдсонгүй');
+      }
+    }
+
+    /* ⚠️ Байхгүй Title-ыг чимээгүй алгасахгүй — админд ХЭД засагдсаныг
+       үнэн зөвөөр хэлнэ. */
+    const titles = await this.prisma.title.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    if (!titles.length) throw new NotFoundException('Сонгосон контент олдсонгүй');
+    const titleIds = titles.map((t) => t.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (mode === BulkGenreMode.REMOVE) {
+        await tx.titleGenre.deleteMany({
+          where: { titleId: { in: titleIds }, genreId: { in: genreIds } },
+        });
+        return;
+      }
+
+      if (mode === BulkGenreMode.REPLACE) {
+        await tx.titleGenre.deleteMany({ where: { titleId: { in: titleIds } } });
+        if (genreIds.length) {
+          await tx.titleGenre.createMany({
+            data: titleIds.flatMap((titleId) =>
+              genreIds.map((genreId, i) => ({ titleId, genreId, order: i })),
+            ),
+          });
+        }
+        return;
+      }
+
+      // ── ADD: байгаа дээр нь нэмнэ ──
+      /* ⚠️ Аль хэдийн байгаа хосыг ДАХИН үүсгэвэл unique зөрчинө.
+         Тиймээс кино тус бүрийн одоогийн жанрыг уншиж, ЗӨВХӨН
+         дутууг нь эрэмбийн ард залгана. */
+      const existing = await tx.titleGenre.findMany({
+        where: { titleId: { in: titleIds } },
+        select: { titleId: true, genreId: true, order: true },
+      });
+
+      const byTitle = new Map<string, { has: Set<string>; maxOrder: number }>();
+      for (const id of titleIds) byTitle.set(id, { has: new Set(), maxOrder: -1 });
+      for (const e of existing) {
+        const row = byTitle.get(e.titleId)!;
+        row.has.add(e.genreId);
+        if (e.order > row.maxOrder) row.maxOrder = e.order;
+      }
+
+      const rows: { titleId: string; genreId: string; order: number }[] = [];
+      for (const [titleId, row] of byTitle) {
+        let order = row.maxOrder;
+        for (const genreId of genreIds) {
+          if (row.has.has(genreId)) continue; // аль хэдийн байна
+          order += 1;
+          rows.push({ titleId, genreId, order });
+        }
+      }
+      if (rows.length) await tx.titleGenre.createMany({ data: rows });
+    });
+
+    this.logger.log(
+      `Bulk жанр (${mode}): ${titleIds.length} контент, ${genreIds.length} жанр`,
+    );
+    return { ok: true, updated: titleIds.length };
   }
 
   /** m3u8 key → HLS хавтасны prefix ('titles/uuid/video.m3u8' → 'titles/uuid/') */

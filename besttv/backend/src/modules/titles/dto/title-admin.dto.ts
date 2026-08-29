@@ -357,3 +357,32 @@ export class BulkPremiumDto extends BulkIdsDto {
   @IsBoolean()
   isPremium!: boolean;
 }
+
+/**
+ * Жанр бөөнөөр солих.
+ *
+ * ⚠️⚠️ ГУРВАН ГОРИМ ЗААВАЛ — ганц «солих» нь ӨГӨГДӨЛ УСТГАНА.
+ *
+ * Кино нь ОЛОН жанрт зэрэг харьяалагдана (`TitleGenre` нь олон мөр).
+ * Хэрэв зөвхөн `replace` байсан бол «Монгол кино + Насанд хүрэгчдийн»
+ * кинонуудыг «Насанд хүрэгчдийн» рүү зөөхөд «Монгол кино» гэсэн
+ * харьяалал ЧИМЭЭГҮЙ устана — админ мэдэхгүй, буцаах ч аргагүй.
+ *
+ *   add     — байгаа дээр нь НЭМНЭ (бусад жанр хэвээр)
+ *   remove  — зөвхөн заасан жанраас ХАСНА (бусад хэвээр)
+ *   replace — БҮХ жанрыг заасан жанруудаар солино (устгана)
+ */
+export enum BulkGenreMode {
+  ADD = 'add',
+  REMOVE = 'remove',
+  REPLACE = 'replace',
+}
+
+export class BulkGenreDto extends BulkIdsDto {
+  @IsArray()
+  @IsString({ each: true })
+  genreIds!: string[];
+
+  @IsEnum(BulkGenreMode)
+  mode!: BulkGenreMode;
+}
