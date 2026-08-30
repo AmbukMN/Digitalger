@@ -494,18 +494,21 @@ export default function ProfilePage() {
                        хоёр удаа авсан (эсвэл сунгасан) үед `planId`
                        давхардаж React мөрүүдийг андуурна. */
                     <div key={s.id ?? s.planId} className="rounded-lg bg-black/20 px-3 py-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-sm font-medium text-foreground/90">
-                          {s.isVip && <Crown size={12} className="text-premium" />}
-                          {s.planName}
+                      {/* ⚠️ `gap-2` — нэр урт үед огноотой наалдахаас сэргийлнэ */}
+                      <div className="flex items-center justify-between gap-2">
+                        {/* ⚠️ `min-w-0` + `truncate` — «Насанд хүрэгчдийн багц (18+)»
+                            гэх урт нэр гар утсан дээр огноог шахаж мөр
+                            хоёр болгодог байв */}
+                        <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground/90">
+                          {s.isVip && <Crown size={12} className="shrink-0 text-premium" />}
+                          <span className="truncate">{s.planName}</span>
                         </span>
                         {/*
-                          ⚠️ Огноо + цуцлах линк НЭГ баганад (баруун талд).
-                          Өмнө нь линк картын ЗҮҮН доод буланд тусдаа
-                          сууж, аль багцад хамаарахыг таах шаардлагатай
-                          байв — олон багцтай үед ойлгомжгүй.
+                          ⚠️ Огноо + цуцлах линк НЭГ МӨРӨНД, багцын нэртэй
+                          жигд эгнэнэ. Өмнө нь баганаар өрсөн тул огноо
+                          дээшээ хазайж, нэртэйгээ эгнэхгүй байв.
                         */}
-                        <span className="flex shrink-0 flex-col items-end gap-0.5">
+                        <span className="flex shrink-0 items-center gap-2">
                           <span className="text-xs text-foreground/45">
                             {new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл
                           </span>
@@ -522,9 +525,9 @@ export default function ProfilePage() {
                               onClick={() =>
                                 void cancelSubscription(s.id!, s.planName, s.expiresAt, !!s.autoRenew)
                               }
-                              className="text-[11px] text-foreground/35 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
+                              className="shrink-0 text-[11px] text-foreground/35 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
                             >
-                              {cancelingSubId === s.id ? 'Цуцалж байна…' : 'Багцаа цуцлах'}
+                              {cancelingSubId === s.id ? 'Цуцалж байна…' : 'Цуцлах'}
                             </button>
                           )}
                         </span>
