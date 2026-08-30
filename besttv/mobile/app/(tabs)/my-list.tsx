@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyList } from '../../src/lib/queries';
@@ -125,20 +125,50 @@ function DownloadsTab() {
       data={data}
       keyExtractor={(d) => d.id}
       contentContainerStyle={styles.dlList}
-      renderItem={({ item }) => <DownloadRowView row={item} onRemove={() => remove.mutate(item)} />}
+      renderItem={({ item, index }) => (
+        <DownloadRowView
+          row={item}
+          /* ⚠️ Дараагийн мөр ижил кинонийх бол л дараалан үзүүлнэ */
+          next={
+            data[index + 1]?.title.id === item.title.id ? data[index + 1] : undefined
+          }
+          onRemove={() => remove.mutate(item)}
+        />
+      )}
     />
   );
 }
 
-function DownloadRowView({ row, onRemove }: { row: DownloadRow; onRemove: () => void }) {
+function DownloadRowView({
+  row,
+  next,
+  onRemove,
+}: {
+  row: DownloadRow;
+  /** ⚠️ Мөн киноны ДАРААГИЙН татсан анги — дараалан үзэх боломж */
+  next?: DownloadRow;
+  onRemove: () => void;
+}) {
   const days = Math.ceil((new Date(row.expiresAt).getTime() - Date.now()) / 86400_000);
   return (
     <Pressable
-      onPress={() =>
+      onPress={() => {
+        /* ⚠️ Хугацаа дууссан бол файл устсан — тоглуулах гэвэл алдаа
+           гарна. Шалтгааныг ТОДОРХОЙ хэлж, дахин татахыг санал болгоно */
+        if (row.expired) {
+          Alert.alert(
+            'Хугацаа дууссан',
+            'Энэ татацын хугацаа дууссан тул файл устсан байна. Дахин татаж авна уу.',
+          );
+          return;
+        }
         router.push(
-          `/watch/${row.targetId}?offline=1&target=${row.target}&title=${encodeURIComponent(row.title.title)}`,
-        )
-      }
+          `/watch/${row.targetId}?offline=1&target=${row.target}` +
+            `&title=${encodeURIComponent(row.title.title)}` +
+            /* ⚠️ Дараагийн ТАТСАН анги — офлайн үед дараалан үзнэ */
+            (next && !next.expired ? `&nextId=${next.targetId}` : ''),
+        );
+      }}
       style={({ pressed }) => [styles.dlRow, pressed && { opacity: 0.75 }]}
     >
       {!!row.title.posterUrl && (

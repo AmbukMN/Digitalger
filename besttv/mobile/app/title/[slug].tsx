@@ -82,10 +82,26 @@ export default function TitleScreen() {
       return;
     }
     if (!target) return;
+
+    /**
+     * ⚠️⚠️ ДАРААГИЙН АНГИ — ПАРАМЕТРЭЭР дамжуулна.
+     *
+     * Плеер дотор хүсэлт явуулбал нэмэлт саатал үүсэх ба ОФЛАЙН үед
+     * ажиллахгүй. Энд аль хэдийн бүх ангийн жагсаалт байгаа тул
+     * дараагийнхыг нь шууд олж өгнө.
+     *
+     * ⚠️ Эрхгүй хэрэглэгчид зөвхөн ҮНЭГҮЙ анги санал болгоно — эс
+     * бөгөөс төлбөрийн хана руу шидэгдэж, эвгүй туршлага болно.
+     */
+    const idx = episodes.findIndex((e) => e.id === target.id);
+    const next = idx >= 0 ? episodes[idx + 1] : undefined;
+    const nextOk = next && (canWatch || next.isFreePreview) ? next : undefined;
+
     /* ⚠️⚠️ `tid` ЗААВАЛ — эс бөгөөс явц episodeId дор бичигдэнэ */
     router.push(
       `/watch/${target.id}?tid=${t.id}&title=${encodeURIComponent(t.title)}` +
-        resume(target.id),
+        resume(target.id) +
+        (nextOk ? `&nextId=${nextOk.id}&nextNum=${nextOk.number}` : ''),
     );
   };
 

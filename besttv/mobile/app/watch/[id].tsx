@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEvent } from 'expo';
+import { useEvent, useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { API_BASE, getAccess } from '../../src/lib/api';
 import { useSaveProgress } from '../../src/lib/queries';
@@ -19,7 +19,8 @@ import { colors, font, radius, space } from '../../src/theme';
  * плеер өөрөө үндсэн хостоос шийднэ.
  */
 export default function WatchScreen() {
-  const { id, kind, title, pos, tid, offline, target } = useLocalSearchParams<{
+  const { id, kind, title, pos, tid, nextId, nextNum, offline, target } =
+    useLocalSearchParams<{
     id: string;
     kind?: string;
     title?: string;
@@ -28,6 +29,10 @@ export default function WatchScreen() {
         ирэх ёстой. Эс бөгөөс явц episodeId дор бичигдэж «Үргэлжлүүлэх»
         эгнээ БУРУУ ажиллана. */
     tid?: string;
+    /** Дараагийн ангийн id — байвал төгсгөлд санал болгоно */
+    nextId?: string;
+    /** Дараагийн ангийн дугаар — «5-р анги» гэж харуулна */
+    nextNum?: string;
     /** ⚠️ `1` бол ЛОКАЛ файлаас тоглуулна (сүлжээгүй ч ажиллана) */
     offline?: string;
     target?: string;
@@ -85,6 +90,45 @@ export default function WatchScreen() {
   });
 
   /**
+   * ⚠️⚠️ ДАРААГИЙН АНГИ — 10 секундын тоолуур.
+   *
+   * АВТОМАТААР үсрэхгүй, БОЛИХ товчтой: хэрэглэгч титрийн дуу сонсох
+   * эсвэл зүгээр орхих эрхтэй. Вэб дээрх зан авиртай ИЖИЛ.
+   */
+  const [countdown, setCountdown] = useState<number | null>(null);
+  /* ⚠️ `flush` доор зарлагддаг тул ref-ээр холбоно — шилжихийн өмнө
+     явцыг хадгалахгүй бол дууссан анги «үзээгүй» хэвээр үлдэнэ */
+  const flushRef = useRef<((force?: boolean) => void) | null>(null);
+  const goNext = useCallback(() => {
+    if (!nextId) return;
+    flushRef.current?.(true);
+    /* ⚠️ `replace` — `push` бол буцах товч дарахад өмнөх ангиуд
+       давхарлан хуримтлагдана */
+    router.replace(
+      `/watch/${nextId}?kind=episode&tid=${tid ?? ''}` +
+        `&title=${encodeURIComponent(title ?? '')}` +
+        (offline === '1' ? '&offline=1&target=episode' : ''),
+    );
+  }, [nextId, tid, title, offline]);
+
+  /* ⚠️ `playToEnd` нь аргументгүй event — `useEventListener`-ээр барина
+     (`useEvent` нь утга буцаадаг event-д зориулагдсан) */
+  useEventListener(player, 'playToEnd', () => {
+    if (nextId) setCountdown(10);
+  });
+
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      goNext();
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [countdown, goNext]);
+
+  /**
    * ⚠️⚠️ ҮЗСЭН ЯВЦ — 5 секунд тутам ирдэг ч сервер рүү 20 сек тутам л
    * илгээнэ. Тутам илгээвэл 1 цагийн кинонд 720 хүсэлт болно.
    */
@@ -122,6 +166,11 @@ export default function WatchScreen() {
     [player, id, tid, kindTarget, saveProgress, isOffline],
   );
 
+  /* ⚠️ Дараагийн анги руу шилжихэд ашиглагдана */
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
   useEffect(() => {
     const t = setInterval(() => flush(false), 5000);
     return () => {
@@ -148,15 +197,52 @@ export default function WatchScreen() {
       <VideoView
         style={styles.video}
         player={player}
-        /* ⚠️ Нэйтив удирдлага — seek, чанар, хадмал бүгд орсон.
-            Бүтэн дэлгэц нь удирдлагад АВТОМАТААР багтсан (expo-video 57-д
-            `allowsFullscreen` талбар хасагдсан). */
+        /**
+         * ⚠️ Нэйтив удирдлага — seek, дуу, бүтэн дэлгэц.
+         *
+         * ⚠️⚠️ ХАДМАЛ ЭНД ГАРАХГҮЙ: `expo-video` нь хадмалыг ЗӨВХӨН
+         * media source-оос уншдаг (`availableSubtitleTracks`), гаднаас
+         * VTT залгах API байхгүй. Манай HLS playlist-д
+         * `#EXT-X-MEDIA:TYPE=SUBTITLES` мөр БАЙХГҮЙ тул хадмал огт
+         * ирэхгүй. Засах бол backend талд playlist-д хадмал нэмэх
+         * шаардлагатай — тэр нь ВЭБЭД нөлөөлөх тул тусад нь шийднэ.
+         */
         nativeControls
         allowsPictureInPicture
         /* ⚠️ Апп дэвсгэрт орох үед дуу үргэлжилнэ (app.json-д зөвшөөрсөн) */
         startsPictureInPictureAutomatically={false}
         contentFit="contain"
       />
+
+      {/* ⚠️⚠️ ДАРААГИЙН АНГИ — автоматаар үсрэхгүй, БОЛИХ боломжтой.
+          Хэрэглэгч титрийн дуу сонсох эрхтэй (вэбтэй ижил зан авир) */}
+      {countdown !== null && (
+        <View style={styles.nextBox}>
+          <Text style={styles.nextLabel}>
+            {nextNum ? `${nextNum}-р анги` : 'Дараагийн анги'}
+          </Text>
+          <Text style={styles.nextCount}>{countdown} секундын дараа</Text>
+          <View style={styles.nextRow}>
+            <Pressable
+              onPress={() => {
+                setCountdown(null);
+                goNext();
+              }}
+              style={({ pressed }) => [styles.nextBtn, pressed && { opacity: 0.8 }]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.nextBtnText}>Одоо үзэх</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setCountdown(null)}
+              style={({ pressed }) => [styles.cancelBtn, pressed && { opacity: 0.8 }]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelText}>Болих</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {status === 'loading' && (
         <View style={styles.overlay} pointerEvents="none">
@@ -208,4 +294,34 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: font.md },
+
+  /* ⚠️ Баруун доод буланд — видеоны удирдлагыг халхлахгүй */
+  nextBox: {
+    position: 'absolute',
+    right: space.lg,
+    bottom: space.xxl + space.lg,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+    borderRadius: radius.md,
+    padding: space.lg,
+    gap: space.sm,
+    minWidth: 210,
+  },
+  nextLabel: { color: colors.foreground, fontSize: font.md, fontWeight: '700' },
+  nextCount: { color: colors.dim, fontSize: font.sm },
+  nextRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  nextBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingVertical: space.sm,
+    alignItems: 'center',
+  },
+  nextBtnText: { color: '#fff', fontWeight: '700', fontSize: font.sm },
+  cancelBtn: {
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelText: { color: colors.dim, fontSize: font.sm },
 });
