@@ -6,6 +6,7 @@ import { useEvent } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { API_BASE, getAccess } from '../../src/lib/api';
 import { useSaveProgress } from '../../src/lib/queries';
+import { localPlaylist } from '../../src/lib/downloads';
 import { colors, font, radius, space } from '../../src/theme';
 
 /**
@@ -18,19 +19,29 @@ import { colors, font, radius, space } from '../../src/theme';
  * плеер өөрөө үндсэн хостоос шийднэ.
  */
 export default function WatchScreen() {
-  const { id, kind, title, pos } = useLocalSearchParams<{
+  const { id, kind, title, pos, offline, target } = useLocalSearchParams<{
     id: string;
     kind?: string;
     title?: string;
     pos?: string;
+    /** ⚠️ `1` бол ЛОКАЛ файлаас тоглуулна (сүлжээгүй ч ажиллана) */
+    offline?: string;
+    target?: string;
   }>();
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const saveProgress = useSaveProgress();
   const lastSave = useRef(0);
 
-  const target = kind === 'movie' ? 'movie' : 'episode';
-  const url = `${API_BASE}/stream/${target}/${id}/playlist.m3u8`;
+  const isOffline = offline === '1';
+  const kindTarget = target ?? (kind === 'movie' ? 'movie' : 'episode');
+  /**
+   * ⚠️⚠️ ОФЛАЙН: локал m3u8 — сүлжээ рүү ОГТ орохгүй.
+   * Онлайн: серверийн playlist (эрх шалгагдана).
+   */
+  const url = isOffline
+    ? localPlaylist(kindTarget, String(id))
+    : `${API_BASE}/stream/${kindTarget}/${id}/playlist.m3u8`;
 
   useEffect(() => {
     void getAccess().then(setToken).finally(() => setReady(true));
@@ -48,7 +59,13 @@ export default function WatchScreen() {
   }, []);
 
   const player = useVideoPlayer(
-    ready ? { uri: url, headers: token ? { Authorization: `Bearer ${token}` } : undefined } : null,
+    /* ⚠️ Офлайнд header ХЭРЭГГҮЙ — локал файл */
+    ready
+      ? {
+          uri: url,
+          headers: !isOffline && token ? { Authorization: `Bearer ${token}` } : undefined,
+        }
+      : null,
     (p) => {
       p.timeUpdateEventInterval = 5;
       /* ⚠️ Үргэлжлүүлэх байрлал — нүүрнээс дамжина */
@@ -70,19 +87,23 @@ export default function WatchScreen() {
   useEvent(player, 'timeUpdate', { currentTime: 0, currentLiveTimestamp: null, currentOffsetFromLive: null, bufferedPosition: 0 });
   useEffect(() => {
     const t = setInterval(() => {
+      /* ⚠️ ОФЛАЙН үед хадгалахгүй — сүлжээгүй тул алдаа хуримтлана.
+         Дараа онлайн орохдоо үргэлжлүүлэх байрлал бага зэрэг хоцорно,
+         тэр нь хүлээн зөвшөөрөгдөх (алдааны спамаас дээр). */
+      if (isOffline) return;
       const now = player.currentTime;
       const dur = player.duration;
       if (!dur || now < 5 || now - lastSave.current < 20) return;
       lastSave.current = now;
       saveProgress.mutate({
         titleId: String(id),
-        ...(target === 'episode' ? { episodeId: String(id) } : {}),
+        ...(kindTarget === 'episode' ? { episodeId: String(id) } : {}),
         positionSec: Math.floor(now),
         durationSec: Math.floor(dur),
       });
     }, 5000);
     return () => clearInterval(t);
-  }, [player, id, target, saveProgress]);
+  }, [player, id, kindTarget, saveProgress, isOffline]);
 
   return (
     <View style={styles.screen}>

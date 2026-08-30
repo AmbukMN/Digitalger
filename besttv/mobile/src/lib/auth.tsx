@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { api, clearTokens, getAccess, setTokens } from './api';
 import { registerPush, unregisterPush } from './push';
+import { syncDownloads } from './downloads';
 import type { Me } from './types';
 
 /**
@@ -57,6 +58,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* ⚠️ Аль хэдийн нэвтэрсэн — токен ӨӨРЧЛӨГДСӨН байж болно
          (апп шинэчлэгдэх, өгөгдөл цэвэрлэгдэх үед) тул дахин бүртгэнэ */
       pushToken.current = await registerPush();
+
+      /**
+       * ⚠️⚠️ ОФЛАЙН ТАТАЦЫН HEARTBEAT — DRM-ийн ОРЛУУЛАГЧ.
+       *
+       * Багцаа цуцалсан/дууссан хэрэглэгчийн локал файлыг устгана.
+       * Хийхгүй бол төлбөрөө больсон хүн контентыг ҮҮРД хадгална.
+       *
+       * ⚠️ `void` — унасан ч нэвтрэлт зогсох ЁСГҮЙ (офлайн байж болно).
+       */
+      void syncDownloads();
     } catch {
       /* ⚠️ Алдааг «гараагүй» гэж БҮҮ ойлго — офлайн байж болно.
          Токен үнэхээр хүчингүй бол `api()` дотор цэвэрлэгдсэн байна. */

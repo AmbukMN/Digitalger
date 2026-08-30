@@ -15,6 +15,7 @@ import { useMyListIds, useTitle, useToggleMyList } from '../../src/lib/queries';
 import { useAuth } from '../../src/lib/auth';
 import { ErrorState } from '../../src/components/error-state';
 import { RowSkeleton } from '../../src/components/skeleton';
+import { DownloadButton } from '../../src/components/download-button';
 import { colors, font, radius, space } from '../../src/theme';
 import type { Episode } from '../../src/lib/types';
 
@@ -195,6 +196,10 @@ export default function TitleScreen() {
                   </View>
                   {item.isFreePreview && !canWatch && (
                     <Text style={styles.freeTag}>ҮНЭГҮЙ</Text>
+                  )}
+                  {/* ⚠️ Татах товч — түгжээтэй ангид харуулахгүй */}
+                  {!locked && (
+                    <DownloadButton target="episode" targetId={item.id} />
                   )}
                   {locked && <Text style={styles.lock}>🔒</Text>}
                 </Pressable>
