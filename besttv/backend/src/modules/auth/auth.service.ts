@@ -7,11 +7,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role, User } from '@prisma/client';
+import { AuthProvider, Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizePhone } from '../../common/phone';
+import { MobileOAuthService } from './mobile-oauth.service';
 import { SessionService, MAX_DEVICES, type DeviceContext } from './session.service';
 import { EmailService } from '../email/email.service';
 import { SubscriberService } from '../email/email.module';
@@ -60,6 +61,8 @@ export class AuthService {
     /* ⚠️ Төхөөрөмжийн хязгаар (MAX_DEVICES) — нэг эрхээр хязгааргүй
        хүн зэрэг үзэхээс сэргийлнэ */
     private readonly sessions: SessionService,
+    /** ⚠️ Гар утасны апп — `id_token`-ыг провайдерын түлхүүрээр шалгана */
+    private readonly mobileOAuthSvc: MobileOAuthService,
   ) {}
 
   async register(dto: RegisterDto, ctx: DeviceContext = {}): Promise<AuthResult> {
@@ -303,6 +306,105 @@ export class AuthService {
    * нь эхлээд имэйлээр бүртгүүлсэн хэрэглэгч дараа Google-аар нэвтрэхэд ижил
    * акаунт руу холбогдоно) → аль нь ч биш бол шинэ хэрэглэгч үүсгэнэ.
    */
+  /**
+   * ⚠️⚠️ ГАР УТАСНЫ АППЫН OAUTH — `id_token`-оор.
+   *
+   * Аппаас `x-oauth-secret` ашиглаж БОЛОХГҮЙ: bundle доторх нууцыг
+   * задлан шинжилж гаргаж авна → хэн ч ADMIN эрх авна. Тиймээс апп нь
+   * провайдерын `id_token` илгээж, сервер нь ПРОВАЙДЕРЫН НИЙТИЙН
+   * ТҮЛХҮҮРЭЭР шалгана (`MobileOAuthService`).
+   *
+   * ⚠️ Шалгасны ДАРАА `oauthLogin`-ийг дотроос дуудна — хэрэглэгч
+   * үүсгэх/холбох логик (орлуулагч имэйл, аватар, бүртгэл булаахаас
+   * хамгаалалт) НЭГ газарт үлдэнэ.
+   *
+   * ⚠️ Apple-ийн НЭР нь зөвхөн АНХНЫ нэвтрэлтэд ирдэг тул апп тусад нь
+   * илгээнэ (`name`). Хадгалахгүй бол хэрэглэгч мөнхөд нэргүй үлдэнэ.
+   */
+  async mobileOAuth(
+    dto: { provider: 'google' | 'facebook' | 'apple'; idToken: string; name?: string },
+    ctx: DeviceContext = {},
+  ): Promise<AuthResult> {
+    if (dto.provider === 'apple') {
+      const { sub, email } = await this.mobileOAuthSvc.verifyApple(dto.idToken);
+      return this.appleLogin({ sub, email, name: dto.name }, ctx);
+    }
+
+    if (dto.provider === 'google') {
+      const g = await this.mobileOAuthSvc.verifyGoogle(dto.idToken);
+      /* ⚠️ Нууцыг ДОТРООС нь дамжуулна — app-аас ирээгүй */
+      return this.oauthLogin(
+        {
+          provider: 'google',
+          providerAccountId: g.sub,
+          email: g.email,
+          name: dto.name ?? g.name,
+          image: g.picture,
+        },
+        this.config.get<string>('auth.oauthSharedSecret'),
+        ctx,
+      );
+    }
+
+    /**
+     * ⚠️ Facebook нь `id_token`-ыг ЗӨВХӨН «Limited Login» (iOS) горимд
+     * өгдөг. Android/классик горимд `access_token` л ирдэг тул Graph
+     * API-аар шалгах шаардлагатай — одоогоор дэмжихгүй.
+     */
+    throw new BadRequestException('Facebook нэвтрэлт аппад одоогоор дэмжигдэхгүй');
+  }
+
+  /**
+   * Apple-ээр нэвтрэх/бүртгүүлэх.
+   *
+   * ⚠️⚠️ APPLE-ИЙН ОНЦЛОГ:
+   *  · Имэйл НУУГДМАЛ байж болно (`@privaterelay.appleid.com`) — тэр нь
+   *    ХҮЧИНТЭЙ хаяг, Apple дамжуулдаг тул хүлээн авна
+   *  · Имэйл ОГТ ирэхгүй байж болно (хоёр дахь нэвтрэлтээс) — тэр үед
+   *    `appleId`-гаар л олно
+   *  · Нэр зөвхөн АНХНЫ удаад ирнэ
+   */
+  private async appleLogin(
+    p: { sub: string; email?: string; name?: string },
+    ctx: DeviceContext,
+  ): Promise<AuthResult> {
+    let user = await this.prisma.user.findUnique({ where: { appleId: p.sub } });
+
+    /* ⚠️ `appleId`-гаар олдоогүй ч ИМЭЙЛЭЭР байж болно — вэб дээр
+       өмнө нь бүртгүүлсэн хүн апп дээр Apple-ээр орж байна */
+    if (!user && p.email) {
+      user = await this.prisma.user.findUnique({ where: { email: p.email } });
+    }
+
+    if (user) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          appleId: p.sub,
+          /* ⚠️ LOCAL хэрэглэгчийн provider-ыг СОЛИХГҮЙ — нууц үгээрээ
+             нэвтрэх эрх нь хэвээр байх ёстой */
+          provider: user.provider === 'LOCAL' ? undefined : AuthProvider.APPLE,
+          name: user.name ?? p.name?.trim() ?? null,
+        },
+      });
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          /* ⚠️ Имэйлгүй бол орлуулагч — `User.email` нь required */
+          email: p.email ?? `apple_${p.sub}@noemail.besttv.mn`,
+          name: p.name?.trim() || null,
+          provider: AuthProvider.APPLE,
+          appleId: p.sub,
+          /* ⚠️ Apple нь имэйлээ БАТАЛГААЖУУЛСАН байдаг (нуугдмал ч) */
+          emailVerified: !!p.email,
+        },
+      });
+      this.logger.log(`Apple-ээр шинэ хэрэглэгч: ${user.email}`);
+    }
+
+    return this.buildAuthResult(user, ctx);
+  }
+
   async oauthLogin(
     dto: OAuthLoginDto,
     sharedSecret?: string,

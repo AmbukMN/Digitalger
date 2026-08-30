@@ -33,7 +33,7 @@ import {
   ResetPasswordDto,
   UpdateProfileDto,
 } from './dto/auth.dto';
-import { OAuthLoginDto } from './dto/oauth.dto';
+import { MobileOAuthDto, OAuthLoginDto } from './dto/oauth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { StorageService } from '../../storage/storage.service';
@@ -133,6 +133,19 @@ export class AuthController {
    * механизм байхгүй тул энэ endpoint-ыг нягт хянах шаардлагатай.
    * Хэвийн клиент 15 минутад нэг л дуудна — 30/мин элбэг хангалттай.
    */
+  /**
+   * ⚠️⚠️ ГАР УТАСНЫ АППЫН OAUTH — `id_token`-оор.
+   *
+   * `/auth/oauth`-ЭЭС ЯЛГААТАЙ: тэр нь `x-oauth-secret` шаарддаг ба
+   * сервер-серверийн зам. Энэ нь КЛИЕНТЭД зориулагдсан — нууц
+   * хуваалцахгүй, провайдерын нийтийн түлхүүрээр шалгана.
+   */
+  @Post('mobile/oauth')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  mobileOAuth(@Body() dto: MobileOAuthDto, @Req() req: Request) {
+    return this.auth.mobileOAuth(dto, this.device(req));
+  }
+
   @Post('refresh')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   refresh(@Body() dto: RefreshDto, @Req() req: Request) {

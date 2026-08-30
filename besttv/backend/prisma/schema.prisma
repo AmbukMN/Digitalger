@@ -21,6 +21,9 @@ enum AuthProvider {
   LOCAL
   GOOGLE
   FACEBOOK
+  /// ⚠️ Гар утасны апп — App Store-ийн 4.8 дүрмээр Google/FB байвал
+  /// Apple Sign-In ЗААВАЛ байх ёстой (эс бөгөөс аппыг татгалзана)
+  APPLE
   GUEST
 }
 
@@ -90,10 +93,14 @@ model User {
   provider      AuthProvider @default(LOCAL)
   googleId      String?      @unique
   facebookId    String?      @unique
+  /// ⚠️ Apple-ийн `sub` — ХЭРЭГЛЭГЧ ТУС БҮРД, АПП ТУС БҮРД өөр байдаг
+  /// (Google/FB шиг глобал биш). Тиймээс bundle ID солих боломжгүй.
+  appleId       String?      @unique
   emailVerified Boolean      @default(false) // OAuth-аар ирвэл автоматаар true
 
   // ── Утасны дугаар (verify.mn MO SMS) ──────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**
@@ -1556,6 +1563,7 @@ model EmailLog {
 
   // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**
