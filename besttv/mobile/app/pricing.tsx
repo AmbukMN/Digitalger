@@ -186,6 +186,17 @@ export default function PricingScreen() {
       )}
       {!!couponErr && <Text style={styles.couponErr}>{couponErr}</Text>}
 
+      {/* ⚠️⚠️ БАНКНЫ ШИЛЖҮҮЛЭГ — QPay ажиллахгүй (лимит, банкны апп
+          суулгаагүй) хэрэглэгчийн ганц гарц. Вэбд байдаг атлаа аппад
+          байхгүй байв. */}
+      <Pressable
+        onPress={() => router.push('/bank')}
+        style={({ pressed }) => [styles.bankLink, pressed && { opacity: 0.75 }]}
+        accessibilityRole="button"
+      >
+        <Text style={styles.bankLinkText}>Банкны шилжүүлгээр төлөх</Text>
+      </Pressable>
+
       {isLoading || !plans ? (
         <View style={{ paddingVertical: space.xxl }}>
           <ActivityIndicator color={colors.primary} />
@@ -400,6 +411,12 @@ function BankPicker({
 }
 
 const styles = StyleSheet.create({
+  bankLink: { alignSelf: 'center', paddingVertical: space.sm, marginBottom: space.sm },
+  bankLinkText: {
+    color: colors.dim,
+    fontSize: font.sm,
+    textDecorationLine: 'underline',
+  },
   couponBox: { flexDirection: 'row', gap: space.sm, marginBottom: space.sm },
   couponInput: {
     flex: 1,

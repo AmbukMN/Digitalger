@@ -88,6 +88,7 @@ export default function RootLayout() {
                   options={{ title: 'Нууц үг сэргээх' }}
                 />
                 <Stack.Screen name="account" options={{ title: 'Профайл засах' }} />
+              <Stack.Screen name="bank" options={{ title: 'Банкны шилжүүлэг' }} />
               </Stack>
             </UpdateGate>
           </SafeAreaProvider>
