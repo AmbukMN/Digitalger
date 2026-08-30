@@ -490,14 +490,43 @@ export default function ProfilePage() {
               {user.subscriptions.length > 0 ? (
                 <div className="mt-3 space-y-2">
                   {user.subscriptions.map((s) => (
-                    <div key={s.planId} className="rounded-lg bg-black/20 px-3 py-2.5">
+                    /* ⚠️ `key` нь ЗАХИАЛГЫН id — `planId` биш. Нэг багцыг
+                       хоёр удаа авсан (эсвэл сунгасан) үед `planId`
+                       давхардаж React мөрүүдийг андуурна. */
+                    <div key={s.id ?? s.planId} className="rounded-lg bg-black/20 px-3 py-2.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-sm font-medium text-foreground/90">
                           {s.isVip && <Crown size={12} className="text-premium" />}
                           {s.planName}
                         </span>
-                        <span className="text-xs text-foreground/45">
-                          {new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл
+                        {/*
+                          ⚠️ Огноо + цуцлах линк НЭГ баганад (баруун талд).
+                          Өмнө нь линк картын ЗҮҮН доод буланд тусдаа
+                          сууж, аль багцад хамаарахыг таах шаардлагатай
+                          байв — олон багцтай үед ойлгомжгүй.
+                        */}
+                        <span className="flex shrink-0 flex-col items-end gap-0.5">
+                          <span className="text-xs text-foreground/45">
+                            {new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл
+                          </span>
+                          {/*
+                            ⚠️ VIP-д багтсан (идэвхгүй) багцад ХАРУУЛАХГҮЙ —
+                            цуцлах юм алга, зөвхөн будлиан үүсгэнэ.
+                            ⚠️ Онцгойлон тодруулахгүй (жижиг, бүдэг): гол
+                            үйлдэл нь кино үзэх болохоос багцаа цуцлах биш.
+                          */}
+                          {s.id && !s.supersededByVip && (
+                            <button
+                              type="button"
+                              disabled={cancelingSubId === s.id}
+                              onClick={() =>
+                                void cancelSubscription(s.id!, s.planName, s.expiresAt, !!s.autoRenew)
+                              }
+                              className="text-[11px] text-foreground/35 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
+                            >
+                              {cancelingSubId === s.id ? 'Цуцалж байна…' : 'Багцаа цуцлах'}
+                            </button>
+                          )}
                         </span>
                       </div>
                       {/* ⚠️ VIP нь бүх контентыг нээдэг тул бусад багц илүүдэл */}
@@ -539,28 +568,6 @@ export default function ProfilePage() {
                         </div>
                       )}
 
-                      {/*
-                        ⚠️⚠️ БАГЦ ЦУЦЛАХ — «сунгалт болиулах»-аас ЯЛГААТАЙ.
-                        Сунгалт болиулахад багц үлдсэн хоногоо ажилласаар
-                        байдаг. Энэ нь эрхийг ТЭР ДОР нь дуусгана.
-
-                        ⚠️ VIP-д багтсан (идэвхгүй) багцад ХАРУУЛАХГҮЙ —
-                           цуцлах юм алга, зөвхөн будлиан үүсгэнэ.
-                        ⚠️ Онцгойлон ТОДРУУЛАХГҮЙ (жижиг, бүдэг): гол
-                           үйлдэл нь кино үзэх болохоос багцаа цуцлах биш.
-                      */}
-                      {s.id && !s.supersededByVip && (
-                        <button
-                          type="button"
-                          disabled={cancelingSubId === s.id}
-                          onClick={() =>
-                            void cancelSubscription(s.id!, s.planName, s.expiresAt, !!s.autoRenew)
-                          }
-                          className="mt-2 text-[11px] text-foreground/35 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
-                        >
-                          {cancelingSubId === s.id ? 'Цуцалж байна…' : 'Багцаа цуцлах'}
-                        </button>
-                      )}
                     </div>
                   ))}
                 </div>
