@@ -46,6 +46,7 @@ docs/PLAN.md            Бүрэн төлөвлөгөө
 | Киноны дэлгэрэнгүй + ангиуд | ✅ |
 | Плеер — HLS, PiP, дэвсгэрт үргэлжлэх, явц хадгалах | ✅ |
 | Нэвтрэх / бүртгүүлэх | ✅ |
+| **Apple Sign-In** (iOS) | ✅ |
 
 ### Production дээр туршсан
 
@@ -62,10 +63,11 @@ docs/PLAN.md            Бүрэн төлөвлөгөө
 
 ## Дараа хийх (ҮЕ 1 backend + ҮЕ 3–5)
 
-- [ ] **Push мэдэгдэл** — `DeviceToken` модел + Expo Push
-- [ ] **Apple Sign-In** ⚠️ Google/FB байвал App Store-д ЗААВАЛ (4.8)
-- [ ] **Мобайл OAuth** — `x-oauth-secret` нь апп-д хадгалж болохгүй
-- [ ] **`/mobile/*` тусдаа зам** — 18+ шүүсэн каталог
+- [x] ~~**Push мэдэгдэл**~~ ✅ — `DeviceToken` + Expo Push
+- [x] ~~**Apple Sign-In**~~ ✅ — `usesAppleSignIn` + `/auth/mobile/oauth`
+- [x] ~~**Мобайл OAuth**~~ ✅ — `id_token` + JWKS баталгаажуулалт
+- [x] ~~**`/mobile/*` тусдаа зам**~~ ✅ — 154 кино (18+ хассан)
+- [ ] **Google нэвтрэлт** — `GOOGLE_MOBILE_CLIENT_IDS` тохируулах хэрэгтэй
 - [ ] **Төлбөр** — QPay QR + 22 банкны deeplink, алсаас унтраах тугтай
 - [ ] **Офлайн татах** — 100 анги, багц дуустал
 - [ ] Дүрсийг `@expo/vector-icons`-оор солих (одоо тэмдэгт)
@@ -82,3 +84,22 @@ playlist бүрд эрх шалгадаг тул токен хугацаа ду�
 
 ⚠️ **Дэлгэцийн эргэлт** зөвхөн плеер дээр чөлөөтэй. Бусад дэлгэц босоо —
 `watch/[id].tsx` гарахдаа буцааж түгждэг.
+
+## ⚠️ Тохиргоо шаардлагатай (.env.production)
+
+Эдгээрийг тохируулаагүй бол нэвтрэлт **аюулгүй хаагдана** (401):
+
+```bash
+# Apple Developer → Identifiers → App ID
+APPLE_CLIENT_IDS=mn.besttv.app
+
+# Google Cloud Console → OAuth 2.0 Client IDs (iOS + Android тус тусдаа)
+GOOGLE_MOBILE_CLIENT_IDS=xxx.apps.googleusercontent.com,yyy.apps.googleusercontent.com
+
+# Албадан шинэчлэлт / төлбөрийг алсаас удирдах
+APP_MIN_VERSION=1.0.0
+APP_PAYMENTS_ENABLED=true
+```
+
+⚠️ `aud` шалгалт нь эдгээрээс хамаарна — тохируулаагүй бол ДУРЫН аппын
+токеноор нэвтрэх эрсдэлтэй тул зориуд хаасан.

@@ -17,9 +17,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "mn.besttv.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSAllowsArbitraryLoads": false
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "mn.besttv.app",
@@ -29,7 +32,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["INTERNET", "POST_NOTIFICATIONS", "WAKE_LOCK"]
+      "permissions": [
+        "INTERNET",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -51,7 +58,8 @@
           "icon": "./assets/android-icon-monochrome.png",
           "color": "#E11D2E"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "extra": {
       "router": {},

@@ -23,6 +23,16 @@ interface AuthState {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
+  /**
+   * ⚠️ Сошиал нэвтрэлт — провайдерын `id_token`-оор.
+   * Backend нь түүнийг провайдерын НИЙТИЙН түлхүүрээр шалгана
+   * (нууц хуваалцахгүй — апп-д нууц хадгалж БОЛОХГҮЙ).
+   */
+  signInWithProvider: (p: {
+    provider: 'apple' | 'google';
+    idToken: string;
+    name?: string;
+  }) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -98,6 +108,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [afterAuth],
   );
 
+  const signInWithProvider = useCallback(
+    async (p: { provider: 'apple' | 'google'; idToken: string; name?: string }) => {
+      const d = await api<{ accessToken: string; refreshToken: string }>(
+        '/auth/mobile/oauth',
+        { method: 'POST', auth: false, body: JSON.stringify(p) },
+      );
+      await afterAuth(d);
+    },
+    [afterAuth],
+  );
+
   const signOut = useCallback(async () => {
     /* ⚠️⚠️ `/auth/logout` ЗААВАЛ дуудна — эс бөгөөс session мөр 30 хоног
        үлдэж, төхөөрөмжийн хязгаарын НЭГ БАЙРЫГ дэмий эзэлнэ. */
@@ -125,8 +146,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [qc]);
 
   const value = useMemo(
-    () => ({ me, loading, signIn, signUp, signOut, refresh: load }),
-    [me, loading, signIn, signUp, signOut, load],
+    () => ({ me, loading, signIn, signUp, signInWithProvider, signOut, refresh: load }),
+    [me, loading, signIn, signUp, signInWithProvider, signOut, load],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

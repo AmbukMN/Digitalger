@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../src/lib/auth';
+import { SocialAuth } from '../src/components/social-auth';
 import { colors, font, radius, space } from '../src/theme';
 
 export default function RegisterScreen() {
-  const { signUp } = useAuth();
+  const { signUp, signInWithProvider } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -98,6 +99,24 @@ export default function RegisterScreen() {
         <Pressable onPress={() => router.replace('/login')} style={styles.linkBtn}>
           <Text style={styles.link}>Бүртгэлтэй юу? Нэвтрэх</Text>
         </Pressable>
+
+        {/*
+          ⚠️ Apple Sign-In — App Store-ийн 4.8 дүрмээр ЗААВАЛ (Google/FB
+          байгаа тул). Зөвхөн iOS дээр харагдана.
+        */}
+        <SocialAuth
+          busy={busy}
+          onToken={(p) => {
+            setBusy(true);
+            setErr(null);
+            signInWithProvider(p)
+              .then(() => router.back())
+              .catch((e: unknown) =>
+                setErr(e instanceof Error ? e.message : 'Нэвтэрч чадсангүй'),
+              )
+              .finally(() => setBusy(false));
+          }}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../src/lib/auth';
+import { SocialAuth } from '../src/components/social-auth';
 import { colors, font, radius, space } from '../src/theme';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithProvider } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -88,14 +89,22 @@ export default function LoginScreen() {
         </Pressable>
 
         {/*
-          ⚠️⚠️ Сошиал нэвтрэлт (Google · Facebook · Apple) нь ҮЕ 1-д нэмэгдэнэ.
-          Одоогийн `/auth/oauth` нь `x-oauth-secret` header шаарддаг ба тэр нь
-          сервер-серверийн нууц — апп-д хадгалж БОЛОХГҮЙ. Мобайлд зориулж
-          `id_token` баталгаажуулах шинэ endpoint хэрэгтэй.
-
-          ⚠️ Apple Sign-In нь Google/FB байгаа тохиолдолд App Store-ийн 4.8
-          дүрмээр ЗААВАЛ байх ёстой.
+          ⚠️ Apple Sign-In — App Store-ийн 4.8 дүрмээр ЗААВАЛ (Google/FB
+          байгаа тул). Зөвхөн iOS дээр харагдана.
         */}
+        <SocialAuth
+          busy={busy}
+          onToken={(p) => {
+            setBusy(true);
+            setErr(null);
+            signInWithProvider(p)
+              .then(() => router.back())
+              .catch((e: unknown) =>
+                setErr(e instanceof Error ? e.message : 'Нэвтэрч чадсангүй'),
+              )
+              .finally(() => setBusy(false));
+          }}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
