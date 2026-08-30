@@ -129,3 +129,20 @@ export function useSaveProgress() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['home'] }),
   });
 }
+
+/**
+ * «ҮРГЭЛЖЛҮҮЛЭХ»-ЭЭС ХАСАХ.
+ *
+ * ⚠️⚠️ Үүнгүйгээр үзэж дууссан кино эгнээнд 99% дээр ҮҮРД үлдэж,
+ * эгнээ хуучин контентоор дүүрч ашиггүй болно.
+ */
+export function useRemoveProgress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (titleId: string) =>
+      api(`/progress/${titleId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['home'] });
+    },
+  });
+}

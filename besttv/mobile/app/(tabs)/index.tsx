@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
+  Alert,
   Dimensions,
   FlatList,
   Pressable,
@@ -11,8 +12,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useHome } from '../../src/lib/queries';
+import { useHome, useRemoveProgress } from '../../src/lib/queries';
 import { TitleCardView } from '../../src/components/title-card';
 import { HomeSkeleton } from '../../src/components/skeleton';
 import { ErrorState } from '../../src/components/error-state';
@@ -150,6 +152,7 @@ function Row({ title, items }: { title: string; items?: TitleCard[] }) {
 
 /** Үргэлжлүүлэх — явцын мөртэй */
 function ContinueRow({ items }: { items: ContinueItem[] }) {
+  const removeProgress = useRemoveProgress();
   return (
     <View style={styles.row}>
       <Text style={styles.rowTitle}>Үргэлжлүүлэх</Text>
@@ -178,7 +181,28 @@ function ContinueRow({ items }: { items: ContinueItem[] }) {
 
           return (
             <View>
-              <TitleCardView item={item} href={href} />
+              {/* ⚠️ Удаан дарж хасах — санамсаргүй нээсэн эсвэл үзэхээ
+                  больсон киног эгнээнээс авна */}
+              <Pressable
+                onLongPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  Alert.alert(
+                    'Жагсаалтаас хасах уу?',
+                    `«${item.title}» — үргэлжлүүлэх жагсаалтаас хасагдана.`,
+                    [
+                      { text: 'Болих', style: 'cancel' },
+                      {
+                        text: 'Хасах',
+                        style: 'destructive',
+                        onPress: () => removeProgress.mutate(item.id),
+                      },
+                    ],
+                  );
+                }}
+                delayLongPress={450}
+              >
+                <TitleCardView item={item} href={href} />
+              </Pressable>
               {/* ⚠️ Явцын мөр — хэр үзсэнээ НЭГ ХАРЦААР мэдэх */}
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${pct}%` }]} />

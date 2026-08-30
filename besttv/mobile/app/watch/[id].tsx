@@ -6,7 +6,7 @@ import { useEvent, useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE, getAccess } from '../../src/lib/api';
-import { useSaveProgress } from '../../src/lib/queries';
+import { useRemoveProgress, useSaveProgress } from '../../src/lib/queries';
 import { localPlaylist } from '../../src/lib/downloads';
 import { colors, font, radius, space } from '../../src/theme';
 
@@ -41,6 +41,7 @@ export default function WatchScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const saveProgress = useSaveProgress();
+  const removeProgress = useRemoveProgress();
   const lastSave = useRef(0);
 
   const isOffline = offline === '1';
@@ -141,6 +142,13 @@ export default function WatchScreen() {
   }, [status, player]);
 
   useEventListener(player, 'playToEnd', () => {
+    /**
+     * ⚠️⚠️ ҮЗЖ ДУУССАН → «Үргэлжлүүлэх»-ЭЭС ХАСНА.
+     *
+     * Эс бөгөөс эгнээнд 99% дээр ҮҮРД үлдэж, шинэ контент харагдахаа
+     * болино. Офлайн үед алгасна (сервер рүү хүрэхгүй).
+     */
+    if (!isOffline) removeProgress.mutate(String(tid ?? id));
     if (nextId) setCountdown(10);
   });
 
