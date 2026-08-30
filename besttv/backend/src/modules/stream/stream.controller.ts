@@ -192,8 +192,23 @@ export class StreamController {
      *    энэ шинж тэмдэг найдвартай.
      */
     @Headers('range') range?: string,
+    /**
+     * ⚠️⚠️ ХАДМАЛЫГ PLAYLIST-Д ЗАЛГАХ — ЗӨВХӨН МОБАЙЛ АПП.
+     *
+     * `expo-video` нь хадмалыг ЗӨВХӨН media source-оос уншдаг, гаднаас
+     * VTT залгах API байхгүй. Вэб нь `<track>` элементээр өөрөө
+     * залгадаг тул энэ тугийг дамжуулахгүй — вэбийн зан авир БҮРЭН
+     * хэвээр (давхар хадмал гарахаас сэргийлнэ).
+     */
+    @Query('subs') subs?: string,
   ) {
-    return this.stream.moviePlaylist(titleId, user?.sub, Boolean(auth), Boolean(range));
+    return this.stream.moviePlaylist(
+      titleId,
+      user?.sub,
+      Boolean(auth),
+      Boolean(range),
+      subs === '1',
+    );
   }
 
   /**
@@ -218,8 +233,16 @@ export class StreamController {
     @Headers('authorization') auth?: string,
     /* ⚠️ `<video>`-ийн хөндөлт — дээрх `movie`-ийн тайлбар үз */
     @Headers('range') range?: string,
+    /** ⚠️ Зөвхөн мобайл апп — дэлгэрэнгүйг `movie` дээр үз */
+    @Query('subs') subs?: string,
   ) {
-    return this.stream.episodePlaylist(episodeId, user?.sub, Boolean(auth), Boolean(range));
+    return this.stream.episodePlaylist(
+      episodeId,
+      user?.sub,
+      Boolean(auth),
+      Boolean(range),
+      subs === '1',
+    );
   }
 
   /**

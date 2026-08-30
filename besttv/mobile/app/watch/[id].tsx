@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent, useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { Ionicons } from '@expo/vector-icons';
 import { API_BASE, getAccess } from '../../src/lib/api';
 import { useSaveProgress } from '../../src/lib/queries';
 import { localPlaylist } from '../../src/lib/downloads';
@@ -50,7 +51,11 @@ export default function WatchScreen() {
    */
   const url = isOffline
     ? localPlaylist(kindTarget, String(id))
-    : `${API_BASE}/stream/${kindTarget}/${id}/playlist.m3u8`;
+    : /* ⚠️⚠️ `subs=1` — хадмалыг playlist дотор авчирна.
+         `expo-video` нь хадмалыг ЗӨВХӨН media source-оос уншдаг,
+         гаднаас VTT залгах API байхгүй. Вэб энэ тугийг дамжуулдаггүй
+         тул түүний зан авир хэвээр. */
+      `${API_BASE}/stream/${kindTarget}/${id}/playlist.m3u8?subs=1`;
 
   useEffect(() => {
     void getAccess().then(setToken).finally(() => setReady(true));
@@ -96,6 +101,9 @@ export default function WatchScreen() {
    * эсвэл зүгээр орхих эрхтэй. Вэб дээрх зан авиртай ИЖИЛ.
    */
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [subOpen, setSubOpen] = useState(false);
+  /* ⚠️ Хадмал playlist ачаалагдсаны ДАРАА л ирдэг тул төлөвт хадгална */
+  const [subTracks, setSubTracks] = useState<typeof player.availableSubtitleTracks>([]);
   /* ⚠️ `flush` доор зарлагддаг тул ref-ээр холбоно — шилжихийн өмнө
      явцыг хадгалахгүй бол дууссан анги «үзээгүй» хэвээр үлдэнэ */
   const flushRef = useRef<((force?: boolean) => void) | null>(null);
@@ -113,6 +121,25 @@ export default function WatchScreen() {
 
   /* ⚠️ `playToEnd` нь аргументгүй event — `useEventListener`-ээр барина
      (`useEvent` нь утга буцаадаг event-д зориулагдсан) */
+  /**
+   * ⚠️⚠️ ХАДМАЛЫН ЖАГСААЛТ — playlist ачаалагдсаны ДАРАА л бэлэн болно.
+   *
+   * `readyToPlay` төлөвт уншихгүй бол массив ХООСОН ирж, хадмалын
+   * товч огт гарахгүй. Офлайн үед локал playlist-д хадмал байхгүй тул
+   * товч ч гарахгүй — зөв зан авир.
+   */
+  useEffect(() => {
+    if (status !== 'readyToPlay') return;
+    const tracks = player.availableSubtitleTracks;
+    setSubTracks(tracks);
+    /* ⚠️ Анхдагчийг АВТОМАТААР асаана — SUB кино үзэж буй хүн хадмал
+       хүсэж байгаа нь илэрхий. Хэрэглэгч хүсвэл «Хаах» дарна. */
+    if (tracks.length && !player.subtitleTrack) {
+      const def = tracks.find((t) => t.language === 'mn') ?? tracks[0];
+      player.subtitleTrack = def;
+    }
+  }, [status, player]);
+
   useEventListener(player, 'playToEnd', () => {
     if (nextId) setCountdown(10);
   });
@@ -244,6 +271,68 @@ export default function WatchScreen() {
         </View>
       )}
 
+      {/* ⚠️⚠️ ХАДМАЛ СОНГОХ — нэйтив удирдлагад Android дээр хадмалын
+          цэс НАЙДВАРГҮЙ гардаг тул өөрсдөө өгнө. Хадмалгүй бол огт
+          харагдахгүй (илүүдэл товч гаргахгүй). */}
+      {subTracks.length > 0 && (
+        <Pressable
+          onPress={() => setSubOpen((v) => !v)}
+          style={styles.ccBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Хадмал сонгох"
+        >
+          <Ionicons
+            name={player.subtitleTrack ? 'chatbox' : 'chatbox-outline'}
+            size={19}
+            color={player.subtitleTrack ? colors.primary : '#fff'}
+          />
+        </Pressable>
+      )}
+
+      {subOpen && (
+        <View style={styles.ccMenu}>
+          <Pressable
+            onPress={() => {
+              player.subtitleTrack = null;
+              setSubOpen(false);
+            }}
+            style={styles.ccItem}
+          >
+            <Text
+              style={[
+                styles.ccText,
+                !player.subtitleTrack && { color: colors.primary, fontWeight: '700' },
+              ]}
+            >
+              Хаах
+            </Text>
+          </Pressable>
+          {subTracks.map((tr) => (
+            <Pressable
+              key={tr.id ?? tr.language}
+              onPress={() => {
+                player.subtitleTrack = tr;
+                setSubOpen(false);
+              }}
+              style={styles.ccItem}
+            >
+              <Text
+                style={[
+                  styles.ccText,
+                  player.subtitleTrack?.language === tr.language && {
+                    color: colors.primary,
+                    fontWeight: '700',
+                  },
+                ]}
+              >
+                {tr.label ?? tr.language}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       {status === 'loading' && (
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator size="large" color={colors.primary} />
@@ -306,6 +395,30 @@ const styles = StyleSheet.create({
     gap: space.sm,
     minWidth: 210,
   },
+  /* ⚠️ Баруун ДЭЭД булан — нэйтив удирдлагыг халхлахгүй */
+  ccBtn: {
+    position: 'absolute',
+    top: space.xxl,
+    right: space.lg,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ccMenu: {
+    position: 'absolute',
+    top: space.xxl + 44,
+    right: space.lg,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    borderRadius: radius.md,
+    paddingVertical: space.xs,
+    minWidth: 130,
+  },
+  ccItem: { paddingHorizontal: space.lg, paddingVertical: space.sm },
+  ccText: { color: '#fff', fontSize: font.sm },
+
   nextLabel: { color: colors.foreground, fontSize: font.md, fontWeight: '700' },
   nextCount: { color: colors.dim, fontSize: font.sm },
   nextRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
