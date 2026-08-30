@@ -86,11 +86,15 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* ⚠️ Хэтэвч — вэбтэй ижил мэдээлэл харагдана */}
+      {/* ⚠️ Хэтэвч — дарж гүйлгээ/захиалгын түүх рүү орно */}
       <Text style={styles.section}>Хэтэвч</Text>
-      <View style={styles.card}>
+      <Pressable
+        onPress={() => router.push('/wallet')}
+        style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
+      >
         <Text style={styles.wallet}>{me.walletBalance.toLocaleString('mn-MN')}₮</Text>
-      </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
 
       {/*
         ⚠️ Багц авах дэлгэц — QPay + 22 банкны deeplink.
@@ -110,6 +114,15 @@ export default function ProfileScreen() {
         style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
       >
         <Text style={styles.rowValue}>Мэдэгдэл</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+
+      {/* ⚠️ Тусламж — вэбийн чат widget-тэй ИЖИЛ backend (n8n AI) */}
+      <Pressable
+        onPress={() => router.push('/support')}
+        style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
+      >
+        <Text style={styles.rowValue}>Тусламж / Чат</Text>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
 
@@ -136,7 +149,14 @@ export default function ProfileScreen() {
             thumbColor="#fff"
           />
         </View>
-        <Row label="Төхөөрөмж" value="3 хүртэл" />
+        {/* ⚠️ Дарж нэвтэрсэн төхөөрөмжөө харах/гаргах */}
+        <Pressable
+          onPress={() => router.push('/devices')}
+          style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
+        >
+          <Text style={styles.rowLabel}>Төхөөрөмж</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
         <Row label="Хувилбар" value={Constants.expoConfig?.version ?? '1.0.0'} />
       </View>
 

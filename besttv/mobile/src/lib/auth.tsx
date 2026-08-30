@@ -11,6 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, clearTokens, getAccess, setTokens } from './api';
 import { registerPush, unregisterPush } from './push';
 import { syncDownloads } from './downloads';
+import { linkChatSession } from './chat';
 import type { Me } from './types';
 
 /**
@@ -68,6 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
        * ⚠️ `void` — унасан ч нэвтрэлт зогсох ЁСГҮЙ (офлайн байж болно).
        */
       void syncDownloads();
+
+      /* ⚠️ Чатын session-ыг бүртгэлтэй хэрэглэгчтэй холбоно — админ
+         хэнтэй ярьж байгаагаа мэдэх ёстой */
+      void linkChatSession();
     } catch {
       /* ⚠️ Алдааг «гараагүй» гэж БҮҮ ойлго — офлайн байж болно.
          Токен үнэхээр хүчингүй бол `api()` дотор цэвэрлэгдсэн байна. */
@@ -88,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* ⚠️⚠️ Push зөвшөөрлийг НЭВТЭРСНИЙ ДАРАА асууна — апп нээгдмэгц
          асуувал ихэнх нь «Үгүй» дарж, iOS дахин асуухыг зөвшөөрдөггүй */
       pushToken.current = await registerPush();
+      void linkChatSession();
       /* ⚠️ Кэшийг цэвэрлэнэ — өмнөх хэрэглэгчийн «дуртай», «үргэлжлүүлэх»
          шинэ хэрэглэгчид харагдах ёсгүй */
       qc.clear();

@@ -73,6 +73,9 @@ export default function RootLayout() {
               />
               <Stack.Screen name="pricing" options={{ title: 'Багц авах' }} />
               <Stack.Screen name="notifications" options={{ title: 'Мэдэгдэл' }} />
+              <Stack.Screen name="support" options={{ title: 'Тусламж' }} />
+              <Stack.Screen name="wallet" options={{ title: 'Хэтэвч' }} />
+              <Stack.Screen name="devices" options={{ title: 'Төхөөрөмж' }} />
               <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
               <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
             </Stack>
