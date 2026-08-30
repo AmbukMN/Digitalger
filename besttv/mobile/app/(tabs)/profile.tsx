@@ -1,5 +1,6 @@
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -103,6 +104,15 @@ export default function ProfileScreen() {
         <Text style={styles.btnText}>Багц авах / сунгах</Text>
       </Pressable>
 
+      {/* ⚠️ Мэдэгдэл — push дарж амжаагүй хэрэглэгч эндээс үзнэ */}
+      <Pressable
+        onPress={() => router.push('/notifications')}
+        style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
+      >
+        <Text style={styles.rowValue}>Мэдэгдэл</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+
       <Text style={styles.section}>Тохиргоо</Text>
       <View style={styles.card}>
         {/*
@@ -140,6 +150,35 @@ export default function ProfileScreen() {
         style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.7 }]}
       >
         <Text style={styles.signOutText}>Гарах</Text>
+      </Pressable>
+
+      {/*
+        ⚠️⚠️ APPLE 5.1.1(v) — АКАУНТ ҮҮСГЭДЭГ АПП НЬ ДАНС УСТГАХ ЗАМЫГ
+        АПП ДОТРООС ӨГӨХ ЁСТОЙ. Байхгүй бол review дээр ТАТГАЛЗАНА.
+
+        ⚠️ Устгалт нь эргэшгүй бөгөөд төлбөрийн түүхэд нөлөөлдөг тул
+        вэбийн хуудсаар (баталгаажуулалттай) гүйцэтгэнэ — апп дотор
+        нэг товчоор устгах нь санамсаргүй дарах эрсдэлтэй.
+      */}
+      <Pressable
+        onPress={() =>
+          Alert.alert(
+            'Данс устгах',
+            'Данс устгах хүсэлтийг вэбсайтаар илгээнэ. Устгасны дараа ' +
+              'бүх мэдээлэл, багц, түүх эргэлт буцалтгүй арилна.',
+            [
+              { text: 'Болих', style: 'cancel' },
+              {
+                text: 'Үргэлжлүүлэх',
+                onPress: () =>
+                  void Linking.openURL('https://besttv.us/p/data-deletion'),
+              },
+            ],
+          )
+        }
+        style={({ pressed }) => [styles.deleteAcc, pressed && { opacity: 0.7 }]}
+      >
+        <Text style={styles.deleteAccText}>Данс устгах</Text>
       </Pressable>
     </ScrollView>
   );
@@ -220,6 +259,11 @@ const styles = StyleSheet.create({
   },
   rowLabel: { color: colors.dim, fontSize: font.md },
   rowValue: { color: colors.foreground, fontSize: font.md },
+  navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chevron: { color: colors.faint, fontSize: font.xl },
   signOut: { padding: space.lg, alignItems: 'center' },
   signOutText: { color: colors.destructive, fontSize: font.md, fontWeight: '600' },
+  /* ⚠️ Гарахаас БҮДЭГ — санамсаргүй дарахаас сэргийлнэ */
+  deleteAcc: { padding: space.md, alignItems: 'center' },
+  deleteAccText: { color: colors.faint, fontSize: font.sm },
 });

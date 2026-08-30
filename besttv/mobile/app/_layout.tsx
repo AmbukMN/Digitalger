@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/lib/auth';
+import { UpdateGate } from '../src/components/update-gate';
 import { colors } from '../src/theme';
 
 /**
@@ -50,29 +51,32 @@ export default function RootLayout() {
               `backgroundColor` нь expo-status-bar 57-д хасагдсан —
               өнгийг `contentStyle`-аас авна. */}
           <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: colors.background },
-              headerTintColor: colors.foreground,
-              headerTitleStyle: { fontWeight: '600' },
-              contentStyle: { backgroundColor: colors.background },
-              /* Буцах товчны текстийг монголоор */
-              headerBackTitle: 'Буцах',
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="title/[slug]"
-              options={{ title: '', headerTransparent: true }}
-            />
-            <Stack.Screen
-              name="watch/[id]"
-              options={{ headerShown: false, orientation: 'default' }}
-            />
-            <Stack.Screen name="pricing" options={{ title: 'Багц авах' }} />
-            <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
-            <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
-          </Stack>
+          <UpdateGate>
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: colors.background },
+                headerTintColor: colors.foreground,
+                headerTitleStyle: { fontWeight: '600' },
+                contentStyle: { backgroundColor: colors.background },
+                /* Буцах товчны текстийг монголоор */
+                headerBackTitle: 'Буцах',
+              }}
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="title/[slug]"
+                options={{ title: '', headerTransparent: true }}
+              />
+              <Stack.Screen
+                name="watch/[id]"
+                options={{ headerShown: false, orientation: 'default' }}
+              />
+              <Stack.Screen name="pricing" options={{ title: 'Багц авах' }} />
+              <Stack.Screen name="notifications" options={{ title: 'Мэдэгдэл' }} />
+              <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
+              <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
+            </Stack>
+          </UpdateGate>
         </SafeAreaProvider>
       </AuthProvider>
     </QueryClientProvider>
