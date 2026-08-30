@@ -806,7 +806,8 @@ export default function PricingPage() {
           амлалт болно (хэрэглэгч гомдох, буцаалт нэхэх үндэслэл).
           Тодорхой тоо бичих нь итгэл алдахаас сэргийлнэ.
         */}
-        {['Завсаргүй үзвэр', 'FHD чанар', '2 төхөөрөмж хүртэл'].map((f) => (
+        {/* ⚠️ Төхөөрөмжийн тоо backend-ийн MAX_DEVICES-тэй ТААРНА (одоо 3) */}
+        {['Завсаргүй үзвэр', 'FHD чанар', '3 төхөөрөмж хүртэл'].map((f) => (
           <span key={f} className="flex items-center gap-1.5 text-xs text-foreground/70">
             <Check size={14} className="shrink-0 text-success" /> {f}
           </span>
