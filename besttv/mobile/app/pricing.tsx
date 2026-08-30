@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { mnt } from '../src/lib/format';
 import {
   ActivityIndicator,
   Image,
@@ -138,7 +139,7 @@ export default function PricingScreen() {
               <Text style={[styles.planName, p.isVip && { color: colors.premium }]}>
                 {p.name}
               </Text>
-              <Text style={styles.price}>{p.price.toLocaleString('mn-MN')}₮</Text>
+              <Text style={styles.price}>{mnt(p.price)}</Text>
             </View>
             <Text style={styles.days}>{p.durationDays} хоног</Text>
 
@@ -228,7 +229,7 @@ function BankPicker({
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Банкаа сонгоно уу</Text>
       <Text style={styles.sub}>
-        {plan?.name} · {invoice.amount.toLocaleString('mn-MN')}₮
+        {plan?.name} · {mnt(invoice.amount)}
       </Text>
 
       {/* ⚠️ Хүлээж байгааг ТОДОРХОЙ харуулна — хэрэглэгч банкнаас буцаж

@@ -78,6 +78,11 @@ export default function RootLayout() {
               <Stack.Screen name="devices" options={{ title: 'Төхөөрөмж' }} />
               <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
               <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
+              <Stack.Screen
+                name="forgot-password"
+                options={{ title: 'Нууц үг сэргээх' }}
+              />
+              <Stack.Screen name="account" options={{ title: 'Профайл засах' }} />
             </Stack>
           </UpdateGate>
         </SafeAreaProvider>

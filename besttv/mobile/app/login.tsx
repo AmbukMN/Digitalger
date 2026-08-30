@@ -84,6 +84,16 @@ export default function LoginScreen() {
           <Text style={styles.btnText}>{busy ? 'Түр хүлээнэ үү…' : 'Нэвтрэх'}</Text>
         </Pressable>
 
+        {/* ⚠️⚠️ ЗААВАЛ — үүнгүйгээр нууц үгээ мартсан хэрэглэгч
+            апп дотор БҮРМӨСӨН гацна */}
+        <Pressable
+          onPress={() => router.push('/forgot-password')}
+          style={styles.linkBtn}
+          hitSlop={8}
+        >
+          <Text style={styles.link}>Нууц үгээ мартсан уу?</Text>
+        </Pressable>
+
         <Pressable onPress={() => router.replace('/register')} style={styles.linkBtn}>
           <Text style={styles.link}>Бүртгэлгүй юу? Бүртгүүлэх</Text>
         </Pressable>

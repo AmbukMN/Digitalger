@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { date, mnt } from '../../src/lib/format';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
@@ -80,12 +81,27 @@ export default function ProfileScreen() {
                 )}
               </View>
               <Text style={styles.subDate}>
-                {new Date(s.expiresAt).toLocaleDateString('mn-MN')}
+                {date(s.expiresAt)}
               </Text>
             </View>
           ))
         )}
       </View>
+
+      {/* ⚠️⚠️ Профайл засах — нэр/имэйл/утас/нууц үг. Вэбэд байдаг
+          атлаа аппад байхгүй байсан (хэрэглэгч нэрээ ч солиж чадахгүй) */}
+      <Pressable
+        onPress={() => router.push('/account')}
+        style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Профайл засах"
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+          <Ionicons name="person-circle-outline" size={20} color={colors.dim} />
+          <Text style={styles.rowLabel}>Профайл засах</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+      </Pressable>
 
       {/* ⚠️ Хэтэвч — дарж гүйлгээ/захиалгын түүх рүү орно */}
       <Text style={styles.section}>Хэтэвч</Text>
@@ -93,7 +109,7 @@ export default function ProfileScreen() {
         onPress={() => router.push('/wallet')}
         style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
       >
-        <Text style={styles.wallet}>{me.walletBalance.toLocaleString('mn-MN')}₮</Text>
+        <Text style={styles.wallet}>{mnt(me.walletBalance)}</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.faint} />
       </Pressable>
 

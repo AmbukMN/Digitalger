@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { ago } from '../src/lib/format';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -101,12 +102,9 @@ export default function NotificationsScreen() {
                 {item.body}
               </Text>
               <Text style={styles.date}>
-                {new Date(item.createdAt).toLocaleDateString('mn-MN', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {/* ⚠️ Мэдэгдэлд харьцангуй хугацаа илүү ойлгомжтой;
+                    7 хоногоос хойш бүтэн огноо болно */}
+                {ago(item.createdAt)}
               </Text>
             </View>
             {!item.readAt && <View style={styles.dot} />}

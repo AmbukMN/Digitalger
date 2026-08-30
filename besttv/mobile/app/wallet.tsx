@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { date, mnt } from '../src/lib/format';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../src/lib/api';
@@ -57,7 +58,7 @@ export default function WalletScreen() {
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Хэтэвчний үлдэгдэл</Text>
         <Text style={styles.balance}>
-          {(balance.data?.balance ?? 0).toLocaleString('mn-MN')}₮
+          {mnt((balance.data?.balance ?? 0))}
         </Text>
       </View>
 
@@ -108,7 +109,7 @@ function TxTab() {
                 {item.planName || item.description || meta.label}
               </Text>
               <Text style={styles.rowMeta}>
-                {meta.label} · {new Date(item.createdAt).toLocaleDateString('mn-MN')}
+                {meta.label} · {date(item.createdAt)}
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
@@ -119,11 +120,11 @@ function TxTab() {
                 ]}
               >
                 {meta.positive ? '+' : '−'}
-                {Math.abs(item.amount).toLocaleString('mn-MN')}₮
+                {mnt(Math.abs(item.amount))}
               </Text>
               {/* ⚠️ Үлдэгдэл — хэрэглэгч гүйлгээ бүрийн дараах дүнг мэднэ */}
               <Text style={styles.after}>
-                {item.balanceAfter.toLocaleString('mn-MN')}₮
+                {mnt(item.balanceAfter)}
               </Text>
             </View>
           </View>
@@ -167,13 +168,13 @@ function OrdersTab() {
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{what}</Text>
               <Text style={styles.rowMeta}>
-                {new Date(item.paidAt ?? item.createdAt).toLocaleDateString('mn-MN')}
+                {date(item.paidAt ?? item.createdAt)}
                 {granted ? ' · Админаас олгосон' : ''}
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.amount}>
-                {granted ? '—' : `${item.amount.toLocaleString('mn-MN')}₮`}
+                {granted ? '—' : `${mnt(item.amount)}`}
               </Text>
               <Text
                 style={[
