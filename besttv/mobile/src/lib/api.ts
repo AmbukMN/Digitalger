@@ -84,6 +84,15 @@ export class ApiError extends Error {
  *
  * @param auth `false` бол токен хавсаргахгүй (нэвтрэх, бүртгүүлэх)
  */
+/**
+ * ⚠️ Нэвтрэлт бүрмөсөн алдагдахад дуудагдана — `AuthProvider` бүртгэнэ.
+ * Модул хоорондын дугуй хамаарлаас зайлсхийхийн тулд callback ашиглав.
+ */
+let onAuthLost: (() => void) | null = null;
+export function setAuthLostHandler(fn: (() => void) | null) {
+  onAuthLost = fn;
+}
+
 export async function api<T = unknown>(
   path: string,
   options: RequestInit & { auth?: boolean } = {},
@@ -99,6 +108,15 @@ export async function api<T = unknown>(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },
+      /**
+       * ⚠️⚠️ TIMEOUT ЗААВАЛ — үүнгүйгээр муу сүлжээнд (метро, лифт,
+       * хөдөө) хүсэлт ҮҮРД унжиж, spinner эргэлдсээр байна. Хэрэглэгч
+       * аппыг «хөлдсөн» гэж үзнэ.
+       *
+       * ⚠️ Дуудагч өөрөө signal өгсөн бол түүнийг хүндэтгэнэ
+       * (татацыг болиулах г.м).
+       */
+      signal: init.signal ?? AbortSignal.timeout(20_000),
     });
   };
 
@@ -106,7 +124,19 @@ export async function api<T = unknown>(
 
   /* ⚠️ 401 → нэг удаа refresh хийгээд ДАХИН оролдоно */
   if (res.status === 401 && auth) {
-    if (await refreshTokens()) res = await send();
+    if (await refreshTokens()) {
+      res = await send();
+    } else {
+      /**
+       * ⚠️⚠️ REFRESH БҮТЭЛГҮЙТЛЭЭ — UI-д МЭДЭГДЭНЭ.
+       *
+       * Өмнө нь токен цэвэрлэгддэг ч `auth.tsx`-ийн `me` ХЭВЭЭР
+       * үлддэг байв: хэрэглэгч «нэвтэрсэн» мэт харагдсаар, дарсан
+       * товч бүр алдаа өгнө. Одоо профайл цэвэрлэгдэж «Нэвтрэх»
+       * дэлгэц гарна.
+       */
+      onAuthLost?.();
+    }
   }
 
   if (!res.ok) {

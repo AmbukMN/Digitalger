@@ -1,7 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { date, mnt } from '../src/lib/format';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  usePaymentStatus,
+  useTopup,
+  type QPayInvoice,
+} from '../src/lib/payments';
 import { api } from '../src/lib/api';
 import { EmptyState, ErrorState } from '../src/components/error-state';
 import { colors, font, radius, space } from '../src/theme';
@@ -43,8 +56,28 @@ const TX_LABEL: Record<string, { label: string; positive: boolean }> = {
   PURCHASE: { label: 'Худалдан авалт', positive: false },
 };
 
+/** ⚠️ Түгээмэл дүнгүүд — гараар бичих нь мобайл дээр төвөгтэй */
+const TOPUP_AMOUNTS = [10_000, 20_000, 50_000, 100_000];
+
 export default function WalletScreen() {
   const [tab, setTab] = useState<'wallet' | 'orders'>('wallet');
+  const [topupOpen, setTopupOpen] = useState(false);
+  const [invoice, setInvoice] = useState<QPayInvoice | null>(null);
+  const topup = useTopup();
+  const qc = useQueryClient();
+
+  const { data: status } = usePaymentStatus(invoice?.paymentId ?? null);
+
+  /* ⚠️ Цэнэглэлт баталгаажмагц үлдэгдлийг ШУУД шинэчилнэ — эс бөгөөс
+     хэрэглэгч «мөнгө орсонгүй» гэж бодно */
+  useEffect(() => {
+    if (!status?.paid) return;
+    setInvoice(null);
+    setTopupOpen(false);
+    void qc.invalidateQueries({ queryKey: ['wallet'] });
+    void qc.invalidateQueries({ queryKey: ['me'] });
+    Alert.alert('Амжилттай', 'Хэтэвч цэнэглэгдлээ.');
+  }, [status?.paid, qc]);
 
   const balance = useQuery({
     queryKey: ['wallet'],
@@ -60,7 +93,61 @@ export default function WalletScreen() {
         <Text style={styles.balance}>
           {mnt((balance.data?.balance ?? 0))}
         </Text>
+
+        {/* ⚠️⚠️ ЦЭНЭГЛЭХ — өмнө нь зөвхөн вэбээс хийх боломжтой байв */}
+        <Pressable
+          onPress={() => setTopupOpen((v) => !v)}
+          style={({ pressed }) => [styles.topupBtn, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.topupBtnText}>
+            {topupOpen ? 'Хаах' : 'Цэнэглэх'}
+          </Text>
+        </Pressable>
+
+        {topupOpen && (
+          <View style={styles.amounts}>
+            {TOPUP_AMOUNTS.map((a) => (
+              <Pressable
+                key={a}
+                disabled={topup.isPending}
+                onPress={() =>
+                  topup.mutate(
+                    { amount: a },
+                    {
+                      onSuccess: setInvoice,
+                      onError: (e) =>
+                        Alert.alert(
+                          'Цэнэглэж чадсангүй',
+                          e instanceof Error ? e.message : 'Дахин оролдоно уу',
+                        ),
+                    },
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.amountChip,
+                  (pressed || topup.isPending) && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.amountText}>{mnt(a)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
+
+      {/* ⚠️ QPay нэхэмжлэх — банкны апп руу шилжинэ */}
+      {!!invoice && (
+        <View style={styles.invoiceBar}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.invoiceText} numberOfLines={2}>
+            Банкны апп-аар төлнө үү — төлөгдмөгц автоматаар нэмэгдэнэ
+          </Text>
+          <Pressable onPress={() => setInvoice(null)} hitSlop={8}>
+            <Text style={styles.invoiceCancel}>Болих</Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.tabs}>
         <Tab label="Гүйлгээ" on={tab === 'wallet'} onPress={() => setTab('wallet')} />
@@ -193,6 +280,41 @@ function OrdersTab() {
 }
 
 const styles = StyleSheet.create({
+  topupBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.xl,
+    alignSelf: 'center',
+    marginTop: space.md,
+  },
+  topupBtnText: { color: '#fff', fontWeight: '700', fontSize: font.sm },
+  amounts: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    justifyContent: 'center',
+    marginTop: space.md,
+  },
+  amountChip: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.full,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+  },
+  amountText: { color: colors.foreground, fontWeight: '700', fontSize: font.sm },
+  invoiceBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    backgroundColor: colors.card,
+    marginHorizontal: space.lg,
+    marginBottom: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
+  },
+  invoiceText: { flex: 1, color: colors.dim, fontSize: font.xs, lineHeight: 17 },
+  invoiceCancel: { color: colors.destructive, fontSize: font.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   balanceCard: {
     backgroundColor: colors.card,

@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 
 /** Багц */
@@ -57,10 +58,73 @@ export function usePlans() {
 /** Багц худалдаж авах — QPay invoice үүсгэнэ */
 export function useCreateInvoice() {
   return useMutation({
-    mutationFn: (planId: string) =>
+    mutationFn: (v: { planId: string; couponCode?: string }) =>
       api<QPayInvoice>('/payments/initiate', {
         method: 'POST',
-        body: JSON.stringify({ planId }),
+        /* ⚠️ Хоосон купон илгээхгүй — сервер «буруу код» гэж татгалзана */
+        body: JSON.stringify(
+          v.couponCode ? { planId: v.planId, couponCode: v.couponCode } : { planId: v.planId },
+        ),
+      }),
+  });
+}
+
+/**
+ * КУПОН ШАЛГАХ.
+ *
+ * ⚠️ Хямдралыг ЭНД тооцохгүй — сервер эцсийн үнийг өөрөө бодно.
+ * Энэ нь зөвхөн ХАРУУЛАХ зорилготой (хэрэглэгч төлөхийн өмнө хямдрал
+ * хэр болохыг мэдэх ёстой).
+ */
+export interface CouponResult {
+  code: string;
+  discount: number;
+  finalPrice: number;
+}
+
+export function useValidateCoupon() {
+  return useMutation({
+    mutationFn: (v: { code: string; price: number }) =>
+      api<CouponResult>('/coupons/validate', {
+        method: 'POST',
+        body: JSON.stringify({ code: v.code.trim().toUpperCase(), price: v.price }),
+      }),
+  });
+}
+
+/**
+ * ХЭТЭВЧЭЭР ТӨЛӨХ — QPay дамжихгүй, шууд үлдэгдлээс хасна.
+ *
+ * ⚠️ Хамгийн хурдан төлөлт: банкны апп руу шилжих, буцаж ирэх,
+ * баталгаажуулалт хүлээх шаардлагагүй.
+ */
+export function usePurchaseWithWallet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { planId: string; couponCode?: string }) =>
+      api<{ ok: boolean }>('/payments/wallet/purchase', {
+        method: 'POST',
+        body: JSON.stringify(
+          v.couponCode ? { planId: v.planId, couponCode: v.couponCode } : { planId: v.planId },
+        ),
+      }),
+    onSuccess: () => {
+      /* ⚠️ Эрх ШУУД идэвхжинэ — профайл, хэтэвч, эрхийн мэдээлэл
+         бүгдийг шинэчилнэ, эс бөгөөс хэрэглэгч «болоогүй» гэж бодно */
+      void qc.invalidateQueries({ queryKey: ['wallet'] });
+      void qc.invalidateQueries({ queryKey: ['me'] });
+      void qc.invalidateQueries({ queryKey: ['home'] });
+    },
+  });
+}
+
+/** ХЭТЭВЧ ЦЭНЭГЛЭХ — QPay invoice үүсгэнэ */
+export function useTopup() {
+  return useMutation({
+    mutationFn: (v: { amount: number; method?: string }) =>
+      api<QPayInvoice>('/payments/wallet/topup', {
+        method: 'POST',
+        body: JSON.stringify({ amount: v.amount, ...(v.method ? { method: v.method } : {}) }),
       }),
   });
 }
@@ -76,13 +140,29 @@ export function useCreateInvoice() {
  * иднэ.
  */
 export function usePaymentStatus(paymentId: string | null) {
+  /**
+   * ⚠️⚠️ ХЯЗГААР — 10 минут.
+   *
+   * Өмнө нь `paid` болтол ҮҮРД 3 секунд тутам дуудна. Хэрэглэгч
+   * төлөхгүй орхиод дэлгэцээ хаахгүй бол апп батарей, дата зарцуулсаар
+   * байна. QPay-ийн invoice ч ойролцоо хугацаанд хүчингүй болдог.
+   */
+  const startedAt = useRef(Date.now());
+  useEffect(() => {
+    startedAt.current = Date.now();
+  }, [paymentId]);
+
   return useQuery({
     queryKey: ['payment', paymentId],
     queryFn: () => api<{ paid: boolean }>(`/payments/${paymentId}/check`),
     enabled: !!paymentId,
     /* ⚠️ 3 сек — QPay-ийн баталгаажуулалт ихэвчлэн 5-15 сек авдаг.
        Түүнээс богино бол сервер дэмий ачаална. */
-    refetchInterval: (q) => (q.state.data?.paid ? false : 3000),
+    refetchInterval: (q) => {
+      if (q.state.data?.paid) return false;
+      if (Date.now() - startedAt.current > 600_000) return false;
+      return 3000;
+    },
     staleTime: 0,
   });
 }

@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
-import { api, clearTokens, getAccess, setTokens } from './api';
+import { api, clearTokens, getAccess, setAuthLostHandler, setTokens } from './api';
 import { registerPush, unregisterPush } from './push';
 import { syncDownloads } from './downloads';
 import { linkChatSession } from './chat';
@@ -112,6 +112,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * ⚠️⚠️ Refresh бүрмөсөн бүтэлгүйтвэл (30 хоног дууссан, админ
+   * гаргасан, төхөөрөмжийн хязгаар) UI-г ЦЭВЭРЛЭНЭ.
+   *
+   * Үүнгүйгээр хэрэглэгч «нэвтэрсэн» мэт харагдсаар, дарсан товч бүр
+   * алдаа өгнө — «эвдэрсэн» гэсэн сэтгэгдэл төрүүлнэ.
+   */
+  useEffect(() => {
+    setAuthLostHandler(() => {
+      setMe(null);
+      void SecureStore.deleteItemAsync(ME_CACHE).catch(() => {});
+      qc.clear();
+    });
+    return () => setAuthLostHandler(null);
+  }, [qc]);
 
   const afterAuth = useCallback(
     async (d: { accessToken: string; refreshToken: string }) => {

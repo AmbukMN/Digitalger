@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { mnt } from '../src/lib/format';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -18,6 +20,9 @@ import {
   useCreateInvoice,
   usePaymentStatus,
   usePlans,
+  usePurchaseWithWallet,
+  useValidateCoupon,
+  type CouponResult,
   type Plan,
   type QPayInvoice,
 } from '../src/lib/payments';
@@ -43,6 +48,16 @@ export default function PricingScreen() {
   const createInvoice = useCreateInvoice();
   const [invoice, setInvoice] = useState<QPayInvoice | null>(null);
   const [picked, setPicked] = useState<Plan | null>(null);
+
+  /* ⚠️ Купон — багц сонгохоос ӨМНӨ оруулна (хямдарсан үнийг харуулна) */
+  const [coupon, setCoupon] = useState('');
+  const [applied, setApplied] = useState<CouponResult | null>(null);
+  const [couponErr, setCouponErr] = useState<string | null>(null);
+  const validateCoupon = useValidateCoupon();
+  const purchaseWallet = usePurchaseWithWallet();
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+
+  const balance = me?.walletBalance ?? 0;
 
   const { data: status } = usePaymentStatus(invoice?.paymentId ?? null);
 
@@ -113,6 +128,64 @@ export default function PricingScreen() {
         Багц идэвхжсэнээр тухайн ангиллын бүх кино нээгдэнэ
       </Text>
 
+      {/* ⚠️⚠️ КУПОН — багц сонгохоос ӨМНӨ. Дараа нь оруулах боломжгүй
+          (invoice үүссэн бол үнэ тогтчихсон) */}
+      <View style={styles.couponBox}>
+        <TextInput
+          value={coupon}
+          onChangeText={(v) => {
+            setCoupon(v);
+            /* ⚠️ Код өөрчлөгдвөл хуучин хямдрал ХҮЧИНГҮЙ — эс бөгөөс
+               буруу үнэ харуулна */
+            if (applied) setApplied(null);
+            if (couponErr) setCouponErr(null);
+          }}
+          placeholder="Купон код (заавал биш)"
+          placeholderTextColor={colors.faint}
+          style={styles.couponInput}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={32}
+          editable={!validateCoupon.isPending}
+        />
+        <Pressable
+          onPress={() => {
+            const c = coupon.trim();
+            if (!c || !plans?.length) return;
+            setCouponErr(null);
+            /* ⚠️ Хамгийн хямд багцын үнээр шалгана — купон нь дүнгээс
+               хамаарах доод хязгаартай байж болно */
+            const cheapest = plans.reduce((a, b) => (a.price <= b.price ? a : b));
+            validateCoupon.mutate(
+              { code: c, price: cheapest.price },
+              {
+                onSuccess: (r) => setApplied(r),
+                onError: (e) =>
+                  setCouponErr(e instanceof Error ? e.message : 'Купон хүчингүй'),
+              },
+            );
+          }}
+          disabled={!coupon.trim() || validateCoupon.isPending}
+          style={({ pressed }) => [
+            styles.couponBtn,
+            (!coupon.trim() || validateCoupon.isPending) && { opacity: 0.4 },
+            pressed && { opacity: 0.8 },
+          ]}
+        >
+          {validateCoupon.isPending ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.couponBtnText}>Шалгах</Text>
+          )}
+        </Pressable>
+      </View>
+      {!!applied && (
+        <Text style={styles.couponOk}>
+          ✓ {mnt(applied.discount)} хямдрал идэвхжлээ
+        </Text>
+      )}
+      {!!couponErr && <Text style={styles.couponErr}>{couponErr}</Text>}
+
       {isLoading || !plans ? (
         <View style={{ paddingVertical: space.xxl }}>
           <ActivityIndicator color={colors.primary} />
@@ -121,13 +194,67 @@ export default function PricingScreen() {
         plans.map((p) => (
           <Pressable
             key={p.id}
-            disabled={createInvoice.isPending}
+            disabled={createInvoice.isPending || busyPlan !== null}
             onPress={() => {
+              /* ⚠️ Купон нь ТУХАЙН үнэд шалгагдсан — өөр багц сонгосон
+                 бол дахин шалгуулах ёстой (хямдрал дүнгээс хамаарна) */
+              const code = applied?.code;
+              const price = applied && applied.code === coupon.trim().toUpperCase()
+                ? applied.finalPrice
+                : p.price;
+
+              /* ⚠️⚠️ ХЭТЭВЧИНД ХҮРЭЛЦЭХ бол СОНГОЛТ өгнө — QPay дамжих
+                 шаардлагагүй байхад дамжуулах нь орлогын саад */
+              if (balance >= price) {
+                Alert.alert(
+                  'Төлбөрийн хэлбэр',
+                  `${p.name} — ${mnt(price)}
+Хэтэвчний үлдэгдэл: ${mnt(balance)}`,
+                  [
+                    { text: 'Болих', style: 'cancel' },
+                    {
+                      text: 'Хэтэвчээр',
+                      onPress: () => {
+                        setBusyPlan(p.id);
+                        purchaseWallet.mutate(
+                          { planId: p.id, couponCode: code },
+                          {
+                            onSuccess: () => {
+                              setBusyPlan(null);
+                              Alert.alert('Амжилттай', 'Багц идэвхжлээ.');
+                              router.back();
+                            },
+                            onError: (e) => {
+                              setBusyPlan(null);
+                              Alert.alert(
+                                'Төлж чадсангүй',
+                                e instanceof Error ? e.message : 'Дахин оролдоно уу',
+                              );
+                            },
+                          },
+                        );
+                      },
+                    },
+                    {
+                      text: 'QPay',
+                      onPress: () => {
+                        setPicked(p);
+                        createInvoice.mutate(
+                          { planId: p.id, couponCode: code },
+                          { onSuccess: setInvoice, onError: () => setPicked(null) },
+                        );
+                      },
+                    },
+                  ],
+                );
+                return;
+              }
+
               setPicked(p);
-              createInvoice.mutate(p.id, {
-                onSuccess: setInvoice,
-                onError: () => setPicked(null),
-              });
+              createInvoice.mutate(
+                { planId: p.id, couponCode: code },
+                { onSuccess: setInvoice, onError: () => setPicked(null) },
+              );
             }}
             style={({ pressed }) => [
               styles.card,
@@ -273,6 +400,28 @@ function BankPicker({
 }
 
 const styles = StyleSheet.create({
+  couponBox: { flexDirection: 'row', gap: space.sm, marginBottom: space.sm },
+  couponInput: {
+    flex: 1,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    height: 46,
+    color: colors.foreground,
+    fontSize: font.md,
+  },
+  couponBtn: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 84,
+  },
+  couponBtnText: { color: colors.foreground, fontWeight: '700', fontSize: font.sm },
+  couponOk: { color: colors.success, fontSize: font.sm, marginBottom: space.sm },
+  couponErr: { color: colors.destructive, fontSize: font.sm, marginBottom: space.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: space.lg, paddingBottom: space.xxl },
   center: {

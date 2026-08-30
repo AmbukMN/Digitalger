@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { ErrorBoundary } from '../src/components/error-boundary';
 import { Stack, router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
@@ -44,49 +45,53 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={qc}>
-      <AuthProvider>
-        <SafeAreaProvider>
-          {/* ⚠️ Апп харанхуй тул статус мөр ЦАГААН бичигтэй.
-              `backgroundColor` нь expo-status-bar 57-д хасагдсан —
-              өнгийг `contentStyle`-аас авна. */}
-          <StatusBar style="light" />
-          <UpdateGate>
-            <Stack
-              screenOptions={{
-                headerStyle: { backgroundColor: colors.background },
-                headerTintColor: colors.foreground,
-                headerTitleStyle: { fontWeight: '600' },
-                contentStyle: { backgroundColor: colors.background },
-                /* Буцах товчны текстийг монголоор */
-                headerBackTitle: 'Буцах',
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="title/[slug]"
-                options={{ title: '', headerTransparent: true }}
-              />
-              <Stack.Screen
-                name="watch/[id]"
-                options={{ headerShown: false, orientation: 'default' }}
-              />
-              <Stack.Screen name="pricing" options={{ title: 'Багц авах' }} />
-              <Stack.Screen name="notifications" options={{ title: 'Мэдэгдэл' }} />
-              <Stack.Screen name="support" options={{ title: 'Тусламж' }} />
-              <Stack.Screen name="wallet" options={{ title: 'Хэтэвч' }} />
-              <Stack.Screen name="devices" options={{ title: 'Төхөөрөмж' }} />
-              <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
-              <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
-              <Stack.Screen
-                name="forgot-password"
-                options={{ title: 'Нууц үг сэргээх' }}
-              />
-              <Stack.Screen name="account" options={{ title: 'Профайл засах' }} />
-            </Stack>
-          </UpdateGate>
-        </SafeAreaProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    /* ⚠️⚠️ ХАМГИЙН ГАДНА — Provider өөрөө унасан ч барих ёстой.
+       Үүнгүйгээр ямар ч render алдаа БҮХ АППЫГ хар дэлгэц болгоно */
+    <ErrorBoundary>
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <SafeAreaProvider>
+            {/* ⚠️ Апп харанхуй тул статус мөр ЦАГААН бичигтэй.
+                `backgroundColor` нь expo-status-bar 57-д хасагдсан —
+                өнгийг `contentStyle`-аас авна. */}
+            <StatusBar style="light" />
+            <UpdateGate>
+              <Stack
+                screenOptions={{
+                  headerStyle: { backgroundColor: colors.background },
+                  headerTintColor: colors.foreground,
+                  headerTitleStyle: { fontWeight: '600' },
+                  contentStyle: { backgroundColor: colors.background },
+                  /* Буцах товчны текстийг монголоор */
+                  headerBackTitle: 'Буцах',
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="title/[slug]"
+                  options={{ title: '', headerTransparent: true }}
+                />
+                <Stack.Screen
+                  name="watch/[id]"
+                  options={{ headerShown: false, orientation: 'default' }}
+                />
+                <Stack.Screen name="pricing" options={{ title: 'Багц авах' }} />
+                <Stack.Screen name="notifications" options={{ title: 'Мэдэгдэл' }} />
+                <Stack.Screen name="support" options={{ title: 'Тусламж' }} />
+                <Stack.Screen name="wallet" options={{ title: 'Хэтэвч' }} />
+                <Stack.Screen name="devices" options={{ title: 'Төхөөрөмж' }} />
+                <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
+                <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
+                <Stack.Screen
+                  name="forgot-password"
+                  options={{ title: 'Нууц үг сэргээх' }}
+                />
+                <Stack.Screen name="account" options={{ title: 'Профайл засах' }} />
+              </Stack>
+            </UpdateGate>
+          </SafeAreaProvider>
+          </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
