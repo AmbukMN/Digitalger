@@ -108,6 +108,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -174,6 +175,8 @@ model User {
   sessions             UserSession[]
   /// ⚠️ Push токен — төхөөрөмж тус бүрд нэг (session-ээс ТУСДАА)
   deviceTokens         DeviceToken[]
+  /// ⚠️ Офлайн татсан контент — эрх дуусахад автоматаар хүчингүй
+  downloads            Download[]
   /// Ашигласан урамшууллууд (давтан ашиглахаас сэргийлэх + үр дүн хэмжих)
   promotionRedemptions PromotionRedemption[]
   notifications        Notification[]
@@ -355,6 +358,8 @@ model Title {
   myList         MyListItem[]
   reviews        Review[]
   rentals        Rental[]
+  /// ⚠️ Офлайн татац — кино устахад cascade
+  downloads      Download[]
   /// ⚠️ Энэ киног ширхэгээр түрээслэх QPay төлбөрүүд (`onDelete: SetNull`
   /// тул кино устсан ч төлбөрийн түүх үлдэнэ)
   rentalPayments Payment[]       @relation("RentalPayments")
@@ -1574,6 +1579,7 @@ model EmailLog {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
    * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
    * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
@@ -2201,4 +2207,42 @@ model DeviceToken {
 
   /// Хэрэглэгчийн бүх төхөөрөмж рүү илгээх гол query
   @@index([userId, enabled])
+}
+
+/// ГАР УТСАНД ОФЛАЙН ТАТСАН КОНТЕНТ.
+///
+/// ⚠️⚠️ ЯАГААД БҮРТГЭХ ВЭ: DRM байхгүй тул татсан файлыг техникийн
+/// хувьд хамгаалах боломжгүй. Оронд нь ЭРХИЙГ мөрдөнө — апп нээгдэх
+/// бүрд `/downloads/check` дуудаж, багцаа цуцалсан/дууссан хэрэглэгчийн
+/// татацыг серверээс «хүчингүй» гэж авч локал файлыг устгана.
+///
+/// ⚠️ Энэ бол DRM-ийн ОРЛУУЛАГЧ: төлбөрөө больсон хүн контентыг үүрд
+/// хадгалахаас сэргийлнэ. Бүрэн хамгаалалт нь Widevine/FairPlay.
+model Download {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// movie | episode
+  target   String
+  /// Title.id эсвэл Episode.id
+  targetId String
+
+  /// ⚠️ Эрх шалгахад хэрэгтэй — episode бол түүний Title
+  titleId String
+  title   Title  @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  /// v0=1080p · v1=720p · v2=480p
+  quality String @default("v2")
+
+  /// ⚠️ Эрхийн хугацаанаас ХЭТРЭХГҮЙ — багц дуусахад татац ч хүчингүй
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// ⚠️ Нэг анги нэг л удаа — дахин татахад upsert хийнэ
+  @@unique([userId, target, targetId])
+  /// Хэрэглэгчийн жагсаалт + heartbeat-ын гол query
+  @@index([userId, expiresAt])
 }
