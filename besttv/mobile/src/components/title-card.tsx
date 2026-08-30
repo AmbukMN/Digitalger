@@ -24,15 +24,25 @@ export const TitleCardView = memo(function TitleCardView({
   /** ⚠️ Сүлжээ (3 багана) дээр `marginRight` нь зайг ЗӨРҮҮЛНЭ —
       `columnWrapperStyle: space-between` өөрөө зай тавьдаг */
   grid,
+  /**
+   * ⚠️⚠️ ЗАМЫГ STRING-ЭЭР дамжуулна, функцээр БИШ.
+   *
+   * `memo` нь shallow compare хийдэг — inline `() => {}` өгвөл render
+   * бүрд шинэ лавлагаа үүсч memo УТГАГҮЙ болж, нүүрний 100+ карт
+   * дахин зурагдаж ЗУРАГ ГЯЛАЛЗАНА (өмнө нь тохиолдсон алдаа).
+   * String нь утгаараа харьцуулагддаг тул аюулгүй.
+   */
+  href,
 }: {
   item: T;
   width?: number;
   grid?: boolean;
+  href?: string;
 }) {
   const h = Math.round(width * 1.5);
   return (
     <Pressable
-      onPress={() => router.push(`/title/${item.slug}`)}
+      onPress={() => router.push((href ?? `/title/${item.slug}`) as never)}
       style={({ pressed }) => [
         styles.wrap,
         grid && { marginRight: 0 },

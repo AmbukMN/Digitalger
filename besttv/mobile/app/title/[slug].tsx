@@ -52,6 +52,20 @@ export default function TitleScreen() {
   const firstFree = episodes.find((e) => e.isFreePreview);
   const canWatch = t.hasAccess || !t.isPremium;
 
+  /**
+   * ⚠️⚠️ ҮРГЭЛЖЛҮҮЛЭХ БАЙРЛАЛ — киноны хуудаснаас үзэхэд ч сэргээнэ.
+   *
+   * Хэрэглэгч нүүрнээс биш, киноны хуудаснаас дарж болно. Байрлал
+   * дамжуулахгүй бол «Үргэлжлүүлэх» гэж бичээд ЭХНЭЭС нь тоглоно.
+   */
+  const resume = (episodeId?: string) => {
+    const p = t.progress;
+    if (!p || !p.positionSec || p.positionSec < 10) return '';
+    /* ⚠️ Анги таарахгүй бол байрлал ХЭРЭГГҮЙ — өөр ангийн явц */
+    if (episodeId && p.episodeId && p.episodeId !== episodeId) return '';
+    return `&pos=${Math.floor(p.positionSec)}`;
+  };
+
   const play = (ep?: Episode) => {
     /* ⚠️ Эрхгүй БА үнэгүй анги ч байхгүй бол багц авах руу чиглүүлнэ —
        эс бөгөөс товч дарахад ЮУ Ч болохгүй, эвдэрсэн мэт харагдана */
@@ -61,11 +75,18 @@ export default function TitleScreen() {
     }
     const target = ep ?? (canWatch ? episodes[0] : firstFree);
     if (t.type === 'MOVIE') {
-      router.push(`/watch/${t.id}?kind=movie&title=${encodeURIComponent(t.title)}`);
+      /* ⚠️ Кинонд `id` нь өөрөө titleId — `tid` илүүдэл */
+      router.push(
+        `/watch/${t.id}?kind=movie&title=${encodeURIComponent(t.title)}` + resume(),
+      );
       return;
     }
     if (!target) return;
-    router.push(`/watch/${target.id}?title=${encodeURIComponent(t.title)}`);
+    /* ⚠️⚠️ `tid` ЗААВАЛ — эс бөгөөс явц episodeId дор бичигдэнэ */
+    router.push(
+      `/watch/${target.id}?tid=${t.id}&title=${encodeURIComponent(t.title)}` +
+        resume(target.id),
+    );
   };
 
   return (

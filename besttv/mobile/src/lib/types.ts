@@ -69,6 +69,14 @@ export interface Season {
   episodes: Episode[];
 }
 
+/** ⚠️ Зөвхөн НЭВТЭРСЭН үед ирнэ — үргэлжлүүлэн үзэх байрлал */
+export interface WatchProgress {
+  positionSec: number;
+  durationSec: number | null;
+  /** ⚠️ Цувралд аль анги дээр зогссоныг заана (кинонд `null`) */
+  episodeId: string | null;
+}
+
 export interface TitleDetail extends TitleCard {
   description: string | null;
   country: string | null;
@@ -81,6 +89,8 @@ export interface TitleDetail extends TitleCard {
   /** ⚠️ Хэрэглэгч энэ контентыг үзэх эрхтэй эсэх (нэвтэрсэн үед) */
   hasAccess?: boolean;
   trailerAvailable?: boolean;
+  /** ⚠️ Үргэлжлүүлэн үзэх байрлал — зөвхөн нэвтэрсэн үед ирнэ */
+  progress?: WatchProgress | null;
 }
 
 export interface Paged<T> {

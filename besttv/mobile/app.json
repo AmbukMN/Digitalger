@@ -83,7 +83,8 @@
           "color": "#E11D2E"
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-font"
     ],
     "extra": {
       "router": {},

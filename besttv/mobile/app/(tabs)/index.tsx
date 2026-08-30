@@ -163,9 +163,22 @@ function ContinueRow({ items }: { items: ContinueItem[] }) {
           const pct = item.durationSec
             ? Math.min(100, Math.round((item.positionSec / item.durationSec) * 100))
             : 0;
+          /**
+           * ⚠️⚠️ ШУУД ПЛЕЕР РҮҮ — байрлалыг дамжуулна.
+           *
+           * Энгийн карт шиг `/title/{slug}` руу явбал кино ЭХНЭЭСЭЭ
+           * тоглож, «Үргэлжлүүлэх» гэдэг нэр утгагүй болно.
+           * `pos` нь секундээр — `watch/[id].tsx` үүнийг хүлээдэг.
+           */
+          const target = item.episodeId ?? item.id;
+          const kind = item.episodeId ? 'episode' : 'movie';
+          const href =
+            `/watch/${target}?kind=${kind}&pos=${Math.floor(item.positionSec)}` +
+            `&tid=${item.id}&title=${encodeURIComponent(item.title)}`;
+
           return (
             <View>
-              <TitleCardView item={item} />
+              <TitleCardView item={item} href={href} />
               {/* ⚠️ Явцын мөр — хэр үзсэнээ НЭГ ХАРЦААР мэдэх */}
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${pct}%` }]} />

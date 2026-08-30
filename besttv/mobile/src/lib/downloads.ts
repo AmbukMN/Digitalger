@@ -99,7 +99,27 @@ export async function downloadEpisode(
        ҮРГЭЛЖЛҮҮЛЭХ боломж (эхнээс нь дахин татахгүй) */
     const info = await FileSystem.getInfoAsync(dest);
     if (!info.exists) {
-      await FileSystem.downloadAsync(seg.url, dest);
+      const res = await FileSystem.downloadAsync(seg.url, dest);
+
+      /**
+       * ⚠️⚠️ СТАТУС ЗААВАЛ ШАЛГАНА.
+       *
+       * `downloadAsync` нь 403/500 ирсэн ч алдаа ШИДДЭГГҮЙ — алдааны
+       * хариуг видео файл болгон хадгална. Дараагийн удаа `exists`
+       * үнэн болж алгасах тул хэрэглэгч ОФЛАЙН болоод үзэх гэхэд
+       * ЭВДЭРСЭН файл тулгарна (сүлжээгүй тул засах ч аргагүй).
+       *
+       * Гэмтсэн файлыг ШУУД устгана — эс бөгөөс дахин татах
+       * оролдлого мөн алгасагдана.
+       */
+      if (res.status !== 200) {
+        await FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
+        throw new Error(
+          res.status === 403
+            ? 'Татах эрх дууссан байна. Дахин оролдоно уу.'
+            : `Сегмент татаж чадсангүй (${res.status})`,
+        );
+      }
     }
     opts.onProgress?.((i + 1) / total);
   }

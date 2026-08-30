@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import * as SecureStore from 'expo-secure-store';
 import { api, clearTokens, getAccess, setTokens } from './api';
 import { registerPush, unregisterPush } from './push';
 import { syncDownloads } from './downloads';
@@ -39,6 +40,10 @@ interface AuthState {
   refresh: () => Promise<void>;
 }
 
+/** ⚠️ Офлайн үед сэргээх профайлын кэш — зөвхөн ХАРУУЛАХ зориулалттай,
+    эрх шалгахад ХЭРЭГЛЭХГҮЙ (сервер шалгана) */
+const ME_CACHE = 'besttv.me.cache';
+
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -55,7 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setMe(null);
         return;
       }
-      setMe(await api<Me>('/auth/me'));
+      const fresh = await api<Me>('/auth/me');
+      setMe(fresh);
+      /* ⚠️⚠️ ОФЛАЙН СЭРГЭЭЛТ — сүлжээгүй үед татсан кино рүү орох
+         цорын ганц зам. Кэшгүй бол `me=null` болж «Нэвтрэх» дэлгэц
+         гарч, ТАТСАН КОНТЕНТ БҮРЭН ХААГДАНА. */
+      void SecureStore.setItemAsync(ME_CACHE, JSON.stringify(fresh)).catch(() => {});
       /* ⚠️ Аль хэдийн нэвтэрсэн — токен ӨӨРЧЛӨГДСӨН байж болно
          (апп шинэчлэгдэх, өгөгдөл цэвэрлэгдэх үед) тул дахин бүртгэнэ */
       pushToken.current = await registerPush();
@@ -74,8 +84,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
          хэнтэй ярьж байгаагаа мэдэх ёстой */
       void linkChatSession();
     } catch {
-      /* ⚠️ Алдааг «гараагүй» гэж БҮҮ ойлго — офлайн байж болно.
-         Токен үнэхээр хүчингүй бол `api()` дотор цэвэрлэгдсэн байна. */
+      /**
+       * ⚠️⚠️ Алдааг «гараагүй» гэж БҮҮ ойлго — офлайн байж болно.
+       *
+       * Токен үнэхээр хүчингүй бол `api()` дотор цэвэрлэгдсэн байна.
+       * Тиймээс токен ХЭВЭЭР байвал энэ бол СҮЛЖЭЭНИЙ алдаа →
+       * кэшлэсэн профайлаар үргэлжлүүлнэ (татсан кино нээгдэнэ).
+       */
+      const stillHasToken = await getAccess().catch(() => null);
+      if (stillHasToken) {
+        const cached = await SecureStore.getItemAsync(ME_CACHE).catch(() => null);
+        if (cached) {
+          try {
+            setMe(JSON.parse(cached) as Me);
+            return;
+          } catch {
+            /* эвдэрсэн кэш — доор null болно */
+          }
+        }
+      }
       setMe(null);
     } finally {
       setLoading(false);
@@ -89,7 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const afterAuth = useCallback(
     async (d: { accessToken: string; refreshToken: string }) => {
       await setTokens(d.accessToken, d.refreshToken);
-      setMe(await api<Me>('/auth/me'));
+      const fresh = await api<Me>('/auth/me');
+      setMe(fresh);
+      /* ⚠️⚠️ ОФЛАЙН СЭРГЭЭЛТ — сүлжээгүй үед татсан кино рүү орох
+         цорын ганц зам. Кэшгүй бол `me=null` болж «Нэвтрэх» дэлгэц
+         гарч, ТАТСАН КОНТЕНТ БҮРЭН ХААГДАНА. */
+      void SecureStore.setItemAsync(ME_CACHE, JSON.stringify(fresh)).catch(() => {});
       /* ⚠️⚠️ Push зөвшөөрлийг НЭВТЭРСНИЙ ДАРАА асууна — апп нээгдмэгц
          асуувал ихэнх нь «Үгүй» дарж, iOS дахин асуухыг зөвшөөрдөггүй */
       pushToken.current = await registerPush();
@@ -140,7 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     /* ⚠️⚠️ `/auth/logout` ЗААВАЛ дуудна — эс бөгөөс session мөр 30 хоног
        үлдэж, төхөөрөмжийн хязгаарын НЭГ БАЙРЫГ дэмий эзэлнэ. */
     try {
-      const SecureStore = await import('expo-secure-store');
       const rt = await SecureStore.getItemAsync('btv_refresh');
       if (rt) {
         await api('/auth/logout', {
@@ -159,6 +190,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     await clearTokens();
     setMe(null);
+    /* ⚠️⚠️ Офлайн кэшийг ЗААВАЛ устгана — эс бөгөөс өөр хэрэглэгч
+       сүлжээгүй нэвтрэхэд ӨМНӨХИЙН нэр/имэйл харагдана */
+    void SecureStore.deleteItemAsync(ME_CACHE).catch(() => {});
     qc.clear();
   }, [qc]);
 

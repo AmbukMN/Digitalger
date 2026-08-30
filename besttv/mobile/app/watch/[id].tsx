@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
@@ -19,11 +19,15 @@ import { colors, font, radius, space } from '../../src/theme';
  * плеер өөрөө үндсэн хостоос шийднэ.
  */
 export default function WatchScreen() {
-  const { id, kind, title, pos, offline, target } = useLocalSearchParams<{
+  const { id, kind, title, pos, tid, offline, target } = useLocalSearchParams<{
     id: string;
     kind?: string;
     title?: string;
     pos?: string;
+    /** ⚠️⚠️ ЦУВРАЛД ЗААВАЛ — `id` нь episodeId тул киноны id тусад нь
+        ирэх ёстой. Эс бөгөөс явц episodeId дор бичигдэж «Үргэлжлүүлэх»
+        эгнээ БУРУУ ажиллана. */
+    tid?: string;
     /** ⚠️ `1` бол ЛОКАЛ файлаас тоглуулна (сүлжээгүй ч ажиллана) */
     offline?: string;
     target?: string;
@@ -85,25 +89,59 @@ export default function WatchScreen() {
    * илгээнэ. Тутам илгээвэл 1 цагийн кинонд 720 хүсэлт болно.
    */
   useEvent(player, 'timeUpdate', { currentTime: 0, currentLiveTimestamp: null, currentOffsetFromLive: null, bufferedPosition: 0 });
-  useEffect(() => {
-    const t = setInterval(() => {
-      /* ⚠️ ОФЛАЙН үед хадгалахгүй — сүлжээгүй тул алдаа хуримтлана.
-         Дараа онлайн орохдоо үргэлжлүүлэх байрлал бага зэрэг хоцорно,
-         тэр нь хүлээн зөвшөөрөгдөх (алдааны спамаас дээр). */
+  /**
+   * ⚠️⚠️ ЯВЦ ХАДГАЛАХ — ганц эх сурвалж.
+   *
+   * `force` нь дэлгэцээс ГАРАХ үед — 20 секундын хязгаарыг алгасна,
+   * эс бөгөөс хэрэглэгч буцах товч дармагц сүүлийн 20 сек АЛДАГДАНА.
+   */
+  const flush = useCallback(
+    (force = false) => {
       if (isOffline) return;
       const now = player.currentTime;
       const dur = player.duration;
-      if (!dur || now < 5 || now - lastSave.current < 20) return;
+      if (!dur || now < 5) return;
+      if (!force && now - lastSave.current < 20) return;
       lastSave.current = now;
-      saveProgress.mutate({
-        titleId: String(id),
-        ...(kindTarget === 'episode' ? { episodeId: String(id) } : {}),
-        positionSec: Math.floor(now),
-        durationSec: Math.floor(dur),
-      });
-    }, 5000);
-    return () => clearInterval(t);
-  }, [player, id, kindTarget, saveProgress, isOffline]);
+      saveProgress.mutate(
+        {
+          /* ⚠️⚠️ Цувралд `id` нь episodeId — киноны id-г `tid`-ээс авна.
+             Хоёуланг нь ижил өгвөл «Үргэлжлүүлэх» эгнээ эвдэрнэ. */
+          titleId: String(tid ?? id),
+          ...(kindTarget === 'episode' ? { episodeId: String(id) } : {}),
+          positionSec: Math.floor(now),
+          durationSec: Math.floor(dur),
+        },
+        {
+          /* ⚠️ Чимээгүй унана — офлайн/сүлжээ саатвал хэрэглэгчид
+             алдаа харуулах шаардлагагүй, зүгээр л алгасна */
+          onError: () => {},
+        },
+      );
+    },
+    [player, id, tid, kindTarget, saveProgress, isOffline],
+  );
+
+  useEffect(() => {
+    const t = setInterval(() => flush(false), 5000);
+    return () => {
+      clearInterval(t);
+      /* ⚠️⚠️ ГАРАХАД ЭЦСИЙН ХАДГАЛАЛТ — үүнгүйгээр буцах товч дарахад
+         сүүлийн 20 секунд алдагдаж, дахин нээхэд ХОЙШ үсэрнэ */
+      flush(true);
+    };
+  }, [flush]);
+
+  /**
+   * ⚠️⚠️ АПП ДАРААС РУУ ОРОХОД ч хадгална — хэрэглэгч home товч дараад
+   * аппыг устгавал `unmount` ажиллахгүй, явц бүрмөсөн алдагдана.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') flush(true);
+    });
+    return () => sub.remove();
+  }, [flush]);
 
   return (
     <View style={styles.screen}>
