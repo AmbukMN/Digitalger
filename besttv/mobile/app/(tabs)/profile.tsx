@@ -1,6 +1,5 @@
 import {
   Alert,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -93,12 +92,12 @@ export default function ProfileScreen() {
       </View>
 
       {/*
-        ⚠️⚠️ БАГЦ АВАХ нь ВЭБ рүү чиглүүлнэ (эхний хувилбар).
-        Apple-ийн IAP дүрмийн эрсдэлээс болж апп дотор шууд зарахгүй —
-        `/mobile/config`-оор алсаас асаах боломжтой болгоно.
+        ⚠️ Багц авах дэлгэц — QPay + 22 банкны deeplink.
+        `paymentsEnabled` унтраасан бол тэр дэлгэц өөрөө вэб рүү
+        чиглүүлнэ (Apple татгалзсан тохиолдолд).
       */}
       <Pressable
-        onPress={() => void Linking.openURL('https://besttv.us/pricing')}
+        onPress={() => router.push('/pricing')}
         style={({ pressed }) => [styles.btn, styles.fullBtn, pressed && { opacity: 0.8 }]}
       >
         <Text style={styles.btnText}>Багц авах / сунгах</Text>

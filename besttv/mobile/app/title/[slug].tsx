@@ -51,6 +51,12 @@ export default function TitleScreen() {
   const canWatch = t.hasAccess || !t.isPremium;
 
   const play = (ep?: Episode) => {
+    /* ⚠️ Эрхгүй БА үнэгүй анги ч байхгүй бол багц авах руу чиглүүлнэ —
+       эс бөгөөс товч дарахад ЮУ Ч болохгүй, эвдэрсэн мэт харагдана */
+    if (!canWatch && !firstFree) {
+      router.push('/pricing');
+      return;
+    }
     const target = ep ?? (canWatch ? episodes[0] : firstFree);
     if (t.type === 'MOVIE') {
       router.push(`/watch/${t.id}?kind=movie&title=${encodeURIComponent(t.title)}`);

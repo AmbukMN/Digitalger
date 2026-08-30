@@ -20,7 +20,31 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "NSAllowsArbitraryLoads": false
+        "NSAllowsArbitraryLoads": false,
+        "LSApplicationQueriesSchemes": [
+          "qpaywallet",
+          "khanbank",
+          "statebankmongolia",
+          "xacbank",
+          "tdbbank",
+          "socialpay-payment",
+          "most",
+          "nibank",
+          "ckbank",
+          "capitronbank",
+          "bogdbank",
+          "transbank",
+          "mbank",
+          "ard",
+          "toki",
+          "arig",
+          "monpay",
+          "hipay",
+          "tdbwallet",
+          "sono",
+          "payon",
+          "tino"
+        ]
       },
       "usesAppleSignIn": true
     },

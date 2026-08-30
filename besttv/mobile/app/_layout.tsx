@@ -69,6 +69,7 @@ export default function RootLayout() {
               name="watch/[id]"
               options={{ headerShown: false, orientation: 'default' }}
             />
+            <Stack.Screen name="pricing" options={{ title: 'Багц авах' }} />
             <Stack.Screen name="login" options={{ title: 'Нэвтрэх' }} />
             <Stack.Screen name="register" options={{ title: 'Бүртгүүлэх' }} />
           </Stack>
