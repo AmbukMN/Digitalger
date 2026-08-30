@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { OfflineBanner } from '../src/components/offline-banner';
 import { ErrorBoundary } from '../src/components/error-boundary';
 import { Stack, router } from 'expo-router';
 import * as Notifications from 'expo-notifications';

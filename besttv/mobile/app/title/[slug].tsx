@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  Alert,
   Dimensions,
   FlatList,
   Pressable,
@@ -12,6 +13,12 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { mnt } from '../../src/lib/format';
+import {
+  useRentPrice,
+  useRentWithQpay,
+  useRentWithWallet,
+} from '../../src/lib/payments';
 import { useMyListIds, useTitle, useToggleMyList } from '../../src/lib/queries';
 import { useAuth } from '../../src/lib/auth';
 import { ErrorState } from '../../src/components/error-state';
@@ -51,6 +58,11 @@ export default function TitleScreen() {
   /** ⚠️ Эхний ҮНЭГҮЙ анги — эрхгүй хэрэглэгчид үзүүлэх */
   const firstFree = episodes.find((e) => e.isFreePreview);
   const canWatch = t.hasAccess || !t.isPremium;
+
+  /* ⚠️ Түрээс — зөвхөн эрхгүй үед хэрэгтэй (эрхтэй бол дэмий хүсэлт) */
+  const rent = useRentPrice(!canWatch ? t.id : undefined);
+  const rentWallet = useRentWithWallet();
+  const rentQpay = useRentWithQpay();
 
   /**
    * ⚠️⚠️ ҮРГЭЛЖЛҮҮЛЭХ БАЙРЛАЛ — киноны хуудаснаас үзэхэд ч сэргээнэ.
@@ -174,6 +186,77 @@ export default function TitleScreen() {
           </Text>
         )}
 
+        {/**
+         * ⚠️⚠️ ТҮРЭЭС — багц авах хүсэлгүй хэрэглэгчийн ганц гарц.
+         *
+         * `available: false` (админ унтраасан) эсвэл аль хэдийн эрхтэй
+         * бол ОГТ харуулахгүй — илүүдэл товч төөрөгдөл үүсгэнэ.
+         */}
+        {!canWatch && rent.data?.available && (
+          <Pressable
+            onPress={() => {
+              if (!me) {
+                router.push('/login');
+                return;
+              }
+              const { price, hours } = rent.data!;
+              const balance = me.walletBalance ?? 0;
+              Alert.alert(
+                'Түрээслэх',
+                `${t.title}
+${mnt(price)} — ${hours} цагийн турш үзнэ` +
+                  (balance >= price ? `
+
+Хэтэвч: ${mnt(balance)}` : ''),
+                [
+                  { text: 'Болих', style: 'cancel' },
+                  /* ⚠️ Хэтэвчинд хүрэлцвэл л сонголт харуулна */
+                  ...(balance >= price
+                    ? [
+                        {
+                          text: 'Хэтэвчээр',
+                          onPress: () =>
+                            rentWallet.mutate(t.id, {
+                              onSuccess: () =>
+                                Alert.alert('Амжилттай', `${hours} цагийн турш үзэх боломжтой.`),
+                              onError: (e: unknown) =>
+                                Alert.alert(
+                                  'Түрээслэж чадсангүй',
+                                  e instanceof Error ? e.message : 'Дахин оролдоно уу',
+                                ),
+                            }),
+                        },
+                      ]
+                    : []),
+                  {
+                    text: 'QPay',
+                    onPress: () =>
+                      rentQpay.mutate(t.id, {
+                        onSuccess: () =>
+                          Alert.alert(
+                            'Нэхэмжлэх үүслээ',
+                            'Банкны апп-аар төлнө үү. Төлөгдмөгц кино нээгдэнэ.',
+                          ),
+                        onError: (e: unknown) =>
+                          Alert.alert(
+                            'Алдаа',
+                            e instanceof Error ? e.message : 'Дахин оролдоно уу',
+                          ),
+                      }),
+                  },
+                ],
+              );
+            }}
+            disabled={rentWallet.isPending || rentQpay.isPending}
+            style={({ pressed }) => [styles.rentBtn, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.rentText}>
+              {mnt(rent.data.price)}-өөр {rent.data.hours} цаг түрээслэх
+            </Text>
+          </Pressable>
+        )}
+
         {!!t.description && <Text style={styles.desc}>{t.description}</Text>}
 
         {!!t.genres?.length && (
@@ -253,6 +336,16 @@ export default function TitleScreen() {
 }
 
 const styles = StyleSheet.create({
+  rentBtn: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.premium,
+    paddingVertical: space.md,
+    alignItems: 'center',
+    marginTop: space.md,
+  },
+  rentText: { color: colors.premium, fontWeight: '700', fontSize: font.md },
   screen: { flex: 1, backgroundColor: colors.background },
   hero: { height: W * 0.62, backgroundColor: colors.muted },
   heroFade: {

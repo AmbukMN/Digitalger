@@ -166,3 +166,62 @@ export function usePaymentStatus(paymentId: string | null) {
     staleTime: 0,
   });
 }
+
+/* ══════════ ТҮРЭЭС ══════════ */
+
+export interface RentPrice {
+  price: number;
+  hours: number;
+  /** ⚠️ Түрээс идэвхтэй эсэх — админ унтраасан байж болно */
+  available: boolean;
+}
+
+/** Киноны түрээсийн үнэ — `available: false` бол UI харуулахгүй */
+export function useRentPrice(titleId: string | undefined) {
+  return useQuery({
+    queryKey: ['rent-price', titleId],
+    queryFn: () => api<RentPrice>(`/rentals/price/${titleId}`),
+    enabled: !!titleId,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Идэвхтэй түрээс — үлдсэн хугацаа харуулахад */
+export function useMyRental(titleId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['rental', titleId],
+    queryFn: () => api<{ expiresAt: string } | null>(`/rentals/mine/${titleId}`),
+    /* ⚠️ Зөвхөн нэвтэрсэн үед — зочинд 401 */
+    enabled: !!titleId && enabled,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * ХЭТЭВЧЭЭР ТҮРЭЭСЛЭХ — QPay дамжихгүй, шууд идэвхжинэ.
+ */
+export function useRentWithWallet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (titleId: string) =>
+      api<{ ok: boolean }>(`/rentals/${titleId}/wallet`, { method: 'POST' }),
+    onSuccess: () => {
+      /* ⚠️ Эрх ШУУД нээгдэнэ — киноны хуудас, хэтэвч шинэчилнэ */
+      void qc.invalidateQueries({ queryKey: ['title'] });
+      void qc.invalidateQueries({ queryKey: ['rental'] });
+      void qc.invalidateQueries({ queryKey: ['wallet'] });
+      void qc.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+}
+
+/** QPay-ээр түрээслэх — банкны апп руу шилжинэ */
+export function useRentWithQpay() {
+  return useMutation({
+    mutationFn: (titleId: string) =>
+      api<QPayInvoice>('/payments/rental/initiate', {
+        method: 'POST',
+        body: JSON.stringify({ titleId }),
+      }),
+  });
+}
