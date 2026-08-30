@@ -1,11 +1,24 @@
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { useState } from 'react';
 import { useAuth } from '../../src/lib/auth';
+import { api } from '../../src/lib/api';
 import { colors, font, radius, space } from '../../src/theme';
 
 export default function ProfileScreen() {
   const { me, loading, signOut } = useAuth();
+  /* ⚠️ Анхдагч ON — бүртгэх үед backend `enabled: true` тавьдаг */
+  const [pushOn, setPushOn] = useState(true);
 
   if (loading) {
     return <View style={styles.screen} />;
@@ -93,6 +106,27 @@ export default function ProfileScreen() {
 
       <Text style={styles.section}>Тохиргоо</Text>
       <View style={styles.card}>
+        {/*
+          ⚠️ Push унтраах — токеныг УСТГАХГҮЙ, зөвхөн `enabled: false`.
+          Дахин асаахад ижил токен ашиглана (Expo шинэ токен өгөх
+          шаардлагагүй, зөвшөөрөл дахин асуухгүй).
+        */}
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Мэдэгдэл</Text>
+          <Switch
+            value={pushOn}
+            onValueChange={(v) => {
+              setPushOn(v);
+              /* ⚠️ Алдаа гарвал БУЦААНА — эс бөгөөс UI худал харуулна */
+              api('/notifications/push/toggle', {
+                method: 'POST',
+                body: JSON.stringify({ enabled: v }),
+              }).catch(() => setPushOn(!v));
+            }}
+            trackColor={{ false: colors.secondary, true: colors.primary }}
+            thumbColor="#fff"
+          />
+        </View>
         <Row label="Төхөөрөмж" value="3 хүртэл" />
         <Row label="Хувилбар" value={Constants.expoConfig?.version ?? '1.0.0'} />
       </View>

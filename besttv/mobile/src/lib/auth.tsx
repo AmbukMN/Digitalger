@@ -1,6 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, clearTokens, getAccess, setTokens } from './api';
+import { registerPush, unregisterPush } from './push';
 import type { Me } from './types';
 
 /**
@@ -22,6 +31,8 @@ const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
+  /** ⚠️ Гарахад устгахын тулд токеныг санана */
+  const pushToken = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const qc = useQueryClient();
 
@@ -33,6 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       setMe(await api<Me>('/auth/me'));
+      /* ⚠️ Аль хэдийн нэвтэрсэн — токен ӨӨРЧЛӨГДСӨН байж болно
+         (апп шинэчлэгдэх, өгөгдөл цэвэрлэгдэх үед) тул дахин бүртгэнэ */
+      pushToken.current = await registerPush();
     } catch {
       /* ⚠️ Алдааг «гараагүй» гэж БҮҮ ойлго — офлайн байж болно.
          Токен үнэхээр хүчингүй бол `api()` дотор цэвэрлэгдсэн байна. */
@@ -50,6 +64,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (d: { accessToken: string; refreshToken: string }) => {
       await setTokens(d.accessToken, d.refreshToken);
       setMe(await api<Me>('/auth/me'));
+      /* ⚠️⚠️ Push зөвшөөрлийг НЭВТЭРСНИЙ ДАРАА асууна — апп нээгдмэгц
+         асуувал ихэнх нь «Үгүй» дарж, iOS дахин асуухыг зөвшөөрдөггүй */
+      pushToken.current = await registerPush();
       /* ⚠️ Кэшийг цэвэрлэнэ — өмнөх хэрэглэгчийн «дуртай», «үргэлжлүүлэх»
          шинэ хэрэглэгчид харагдах ёсгүй */
       qc.clear();
@@ -97,6 +114,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* Сүлжээгүй ч локал токеныг цэвэрлэнэ */
     }
+    /* ⚠️ Push токеныг УСТГАНА — эс бөгөөс гарсан хэрэглэгчид
+       (эсвэл утсыг авсан шинэ эзэнд) мэдэгдэл ирсээр байна */
+    await unregisterPush(pushToken.current);
+    pushToken.current = null;
+
     await clearTokens();
     setMe(null);
     qc.clear();

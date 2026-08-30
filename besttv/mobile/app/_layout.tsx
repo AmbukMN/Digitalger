@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -23,10 +24,22 @@ const qc = new QueryClient({
 });
 
 export default function RootLayout() {
+  /**
+   * ⚠️⚠️ МЭДЭГДЭЛ ДАРАХАД зөв хуудас руу очно.
+   *
+   * Backend нь `data.link` талбарт зам явуулдаг (`/title/slug`,
+   * `/profile?tab=orders`). Үүнийг барихгүй бол хэрэглэгч мэдэгдэл дараад
+   * зүгээр нүүр хуудсанд ирж, юуны тухай байсныг олохгүй.
+   */
   useEffect(() => {
-    /* ⚠️ Дэлгэцийн эргэлтийг ЗӨВХӨН плеер дээр зөвшөөрнө — бусад
-       дэлгэц босоо. Тохиргоог `app.json`-д `default` болгосон тул
-       энд удирдана. */
+    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
+      const link = res.notification.request.content.data?.link;
+      if (typeof link === 'string' && link.startsWith('/')) {
+        /* ⚠️ `push` — буцах товч ажиллана (`replace` бол түүх алдагдана) */
+        router.push(link as never);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   return (
