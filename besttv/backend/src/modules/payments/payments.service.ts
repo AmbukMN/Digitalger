@@ -282,6 +282,62 @@ export class PaymentsService {
   }
 
   /**
+   * ⚠️⚠️ БАГЦЫГ БҮРМӨСӨН ЦУЦЛАХ (хэрэглэгч өөрөө, профайлаас).
+   *
+   * `setAutoRenew(false)`-ЭЭС ЯЛГААТАЙ: тэр нь зөвхөн дараагийн
+   * төлбөрийг зогсоодог ба багц үлдсэн хоногоо ажилласаар байдаг.
+   * Энэ нь эрхийг ТЭР ДОР нь дуусгана — үлдсэн хоног ХҮЧИНГҮЙ болно.
+   *
+   * ⚠️ МӨРИЙГ УСТГАХГҮЙ — `expiresAt = одоо`. Устгавал `paymentId`
+   *    дамжуулан холбогдох `Payment`-тай холбоо тасарч САНХҮҮГИЙН
+   *    түүх алдагдана (буцаалт/маргаан шийдэх боломжгүй болно).
+   *    Админы `revokeSubscription`-тай ЯГ ИЖИЛ зарчим.
+   *
+   * ⚠️ Автомат сунгалтыг ЗААВАЛ унтраана — эс бөгөөс цуцалсан багц
+   *    маргааш картаас дахин төлөгдөж, хэрэглэгч мөнгөө алдана.
+   *
+   * ⚠️ МӨНГӨ БУЦААХГҮЙ — энэ нь зөвхөн эрхийг зогсооно. Буцаалт нь
+   *    админы шийдвэр (гараар) бөгөөд хэрэглэгчид UI дээр тодорхой
+   *    анхааруулна.
+   */
+  async cancelSubscription(userId: string, subscriptionId: string) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { id: subscriptionId, userId },
+      include: { plan: { select: { name: true } } },
+    });
+    if (!sub) throw new NotFoundException('Захиалга олдсонгүй');
+
+    const now = new Date();
+    /* ⚠️ Дууссан багцыг «цуцлах» нь утгагүй — дуусах огноог УРАГШ
+       үсрүүлж түүхийг гажуудуулна */
+    if (sub.expiresAt <= now) {
+      throw new BadRequestException('Энэ багц аль хэдийн дууссан байна');
+    }
+
+    const daysLeft = Math.ceil((sub.expiresAt.getTime() - now.getTime()) / 86400_000);
+
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: {
+        expiresAt: now,
+        autoRenew: false,
+        autoRenewCancelledAt: now,
+      },
+    });
+
+    /* ⚠️⚠️ ЭРХИЙН КЭШИЙГ ШУУД ЦЭВЭРЛЭНЭ.
+       `accessScope` нь 30 сек Redis кэштэй тул цэвэрлэхгүй бол
+       хэрэглэгч «цуцаллаа» гэсэн мэдэгдэл харчихаад 30 секундын турш
+       кино үзсээр байна — эвдэрсэн мэт харагдана. */
+    await this.subs.invalidateAccessScope(userId);
+
+    this.logger.log(
+      `Хэрэглэгч багцаа цуцлав: ${sub.plan.name} (user ${userId}, ${daysLeft} хоног үлдсэн)`,
+    );
+    return { ok: true, planName: sub.plan.name, daysLost: daysLeft };
+  }
+
+  /**
    * Боломжтой төлбөрийн аргууд — frontend UI-д харуулахад.
    * ⚠️ `card` нь карт/Apple Pay/Google Pay/WeChat-ыг НЭГЭН зэрэг
    *    илэрхийлнэ (бүгд нэг зуучлагчаар).

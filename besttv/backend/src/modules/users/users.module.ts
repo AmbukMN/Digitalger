@@ -34,6 +34,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 class UpdateUserDto {
   @IsOptional()
@@ -141,6 +143,12 @@ export class UsersService {
     private readonly storage: StorageService,
     /* ⚠️ Аудит — админы эрсдэлтэй үйлдлийг мөрдөх (нууц үг солих г.м) */
     private readonly tracking: TrackingService,
+    /**
+     * ⚠️⚠️ ЭРХИЙН КЭШ ЦЭВЭРЛЭХЭД. `accessScope` нь 30 сек Redis
+     * кэштэй тул админ эрх өгөөд/хасаад шууд шалгахад ХУУЧИН
+     * төлөв харагдана — «ажиллахгүй байна» гэсэн гомдол үүсгэнэ.
+     */
+    private readonly subs: SubscriptionsService,
   ) {}
 
   /**
@@ -848,7 +856,7 @@ export class UsersService {
        алгасдаг тул энэ дүрэм өмнө нь огт ажиллаагүй). */
     const supersededPlanIds = await this.planIdsByVip(!plan.isVip);
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       // ── VIP ↔ энгийн багцыг харилцан ХҮЧИНГҮЙ болгоно ──
       //   VIP олгож байна    → бусад бүх энгийн багц илүүдэл
       //   энгийн олгож байна → VIP хүчингүй (админ зориуд бууруулж байна)
@@ -867,6 +875,12 @@ export class UsersService {
         data: { userId: id, planId: dto.planId, startsAt, expiresAt },
       });
     });
+
+    /* ⚠️ Эрхийн кэш (30 сек) — цэвэрлэхгүй бол админ багц олгоод
+       шууд шалгахад «эрхгүй» гэж харагдана */
+    await this.subs.invalidateAccessScope(id);
+
+    return created;
   }
 
   /**
@@ -923,6 +937,9 @@ export class UsersService {
       }
     }
 
+    /* ⚠️ Эрхийн кэш (30 сек) — шууд хэрэгжинэ */
+    await this.subs.invalidateAccessScope(id);
+
     this.logger.log(
       `Админ ${out.length} кино олгов: ${user.email} — ` +
         out.map((o) => o.title).join(', ').slice(0, 160),
@@ -964,6 +981,8 @@ export class UsersService {
       where: { id: rentalId },
       data: { expiresAt: new Date() },
     });
+    /* ⚠️ Эрхийн кэш (30 сек) — шууд хэрэгжинэ */
+    await this.subs.invalidateAccessScope(userId);
     return { ok: true };
   }
 
@@ -1004,6 +1023,9 @@ export class UsersService {
         autoRenewCancelledAt: now,
       },
     });
+
+    /* ⚠️ Эрхийн кэш (30 сек) — шууд хэрэгжинэ */
+    await this.subs.invalidateAccessScope(userId);
 
     this.logger.log(`Админ багц хүчингүй болгов: ${s.plan.name} (user ${userId})`);
     return { ok: true };
@@ -1059,7 +1081,7 @@ export class UsersService {
        ЧИМЭЭГҮЙ алгасдаг (`planIdsByVip`-ийн тайлбарыг үзнэ үү). */
     const supersededPlanIds = await this.planIdsByVip(!plan.isVip);
 
-    return this.prisma.$transaction(async (tx) => {
+    const res = await this.prisma.$transaction(async (tx) => {
       /* ── VIP ↔ энгийн багцын харилцан хүчингүй дүрэм ──
          ⚠️ ӨӨРИЙГӨӨ хасна (`id: { not: subId }`) — эс бөгөөс дөнгөж
             солих гэж буй мөрөө хаачихна. */
@@ -1102,6 +1124,11 @@ export class UsersService {
       );
       return { ok: true, from: sub.plan.name, to: updated.plan.name, expiresAt: finalExpires };
     });
+
+    /* ⚠️ Эрхийн кэш (30 сек) — шууд хэрэгжинэ */
+    await this.subs.invalidateAccessScope(userId);
+
+    return res;
   }
 
 
@@ -1275,6 +1302,8 @@ export class UsersController {
 }
 
 @Module({
+  /* ⚠️ Эрхийн кэш цэвэрлэхэд SubscriptionsService хэрэгтэй */
+  imports: [SubscriptionsModule],
   controllers: [UsersController],
   providers: [UsersService],
 })

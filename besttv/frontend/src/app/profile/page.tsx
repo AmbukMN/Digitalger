@@ -121,6 +121,62 @@ export default function ProfilePage() {
     }
   };
 
+  /**
+   * ⚠️⚠️ БАГЦЫГ БҮРМӨСӨН ЦУЦЛАХ — автомат сунгалт болиулахаас ЯЛГААТАЙ.
+   *
+   * Автомат сунгалт болиулахад багц үлдсэн хоногоо АЖИЛЛАСААР байна.
+   * Энэ нь эрхийг ТЭР ДОР нь дуусгана — үлдсэн хоног ХҮЧИНГҮЙ болно.
+   *
+   * ⚠️ БУЦААГДАХГҮЙ бөгөөд мөнгө буцаахгүй тул:
+   *   1. Үлдсэн ХОНОГИЙГ тоогоор харуулна (хэрэглэгч юу алдахаа мэдэх)
+   *   2. Дахин асуух (`useConfirm`) — санамсаргүй дарахаас сэргийлнэ
+   *   3. Автомат сунгалттай бол «зөвхөн сунгалтыг болиулах» гэсэн
+   *      ЗӨӨЛӨН хувилбар байгааг сануулна
+   */
+  const [cancelingSubId, setCancelingSubId] = useState<string | null>(null);
+  const cancelSubscription = async (
+    subId: string,
+    planName: string,
+    expiresAt: string,
+    autoRenew: boolean,
+  ) => {
+    const daysLeft = Math.max(
+      0,
+      Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400_000),
+    );
+
+    const bullets = [
+      `Үлдсэн ${daysLeft} хоног ХҮЧИНГҮЙ болно`,
+      'Энэ багцын кинонууд тэр даруй хаагдана',
+      'Төлсөн мөнгө буцаагдахгүй',
+    ];
+    /* ⚠️ Автомат сунгалттай хүнд ЗӨӨЛӨН хувилбарыг санал болгоно —
+       ихэнх нь «дараагийн төлбөрөө зогсоох» гэж ирдэг */
+    if (autoRenew) {
+      bullets.push('Зөвхөн дараагийн төлбөрөө зогсоох бол «Сунгалт болиулах»-ыг сонгоно уу');
+    }
+
+    const ok = await confirm({
+      title: `«${planName}» багцаа цуцлах уу?`,
+      description: 'Энэ үйлдлийг буцаах боломжгүй.',
+      bullets,
+      confirmLabel: 'Багц цуцлах',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    setCancelingSubId(subId);
+    try {
+      await api(`/payments/subscriptions/${subId}/cancel`, { method: 'PATCH' });
+      await refreshMe();
+      toast.success('Багц цуцлагдлаа');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Цуцалж чадсангүй');
+    } finally {
+      setCancelingSubId(null);
+    }
+  };
+
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -478,9 +534,32 @@ export default function ProfilePage() {
                             onClick={() => void cancelAutoRenew(s.id!)}
                             className="shrink-0 text-[11px] font-semibold text-foreground/55 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
                           >
-                            {cancelingId === s.id ? 'Болиулж байна…' : 'Болиулах'}
+                            {cancelingId === s.id ? 'Болиулж байна…' : 'Сунгалт болиулах'}
                           </button>
                         </div>
+                      )}
+
+                      {/*
+                        ⚠️⚠️ БАГЦ ЦУЦЛАХ — «сунгалт болиулах»-аас ЯЛГААТАЙ.
+                        Сунгалт болиулахад багц үлдсэн хоногоо ажилласаар
+                        байдаг. Энэ нь эрхийг ТЭР ДОР нь дуусгана.
+
+                        ⚠️ VIP-д багтсан (идэвхгүй) багцад ХАРУУЛАХГҮЙ —
+                           цуцлах юм алга, зөвхөн будлиан үүсгэнэ.
+                        ⚠️ Онцгойлон ТОДРУУЛАХГҮЙ (жижиг, бүдэг): гол
+                           үйлдэл нь кино үзэх болохоос багцаа цуцлах биш.
+                      */}
+                      {s.id && !s.supersededByVip && (
+                        <button
+                          type="button"
+                          disabled={cancelingSubId === s.id}
+                          onClick={() =>
+                            void cancelSubscription(s.id!, s.planName, s.expiresAt, !!s.autoRenew)
+                          }
+                          className="mt-2 text-[11px] text-foreground/35 underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
+                        >
+                          {cancelingSubId === s.id ? 'Цуцалж байна…' : 'Багцаа цуцлах'}
+                        </button>
                       )}
                     </div>
                   ))}

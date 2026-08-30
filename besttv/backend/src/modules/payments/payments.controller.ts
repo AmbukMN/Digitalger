@@ -128,6 +128,22 @@ export class PaymentsController {
     return this.payments.setAutoRenew(user.sub, id, dto.enabled);
   }
 
+  /**
+   * ⚠️⚠️ БАГЦЫГ БҮРМӨСӨН ЦУЦЛАХ — хэрэглэгч өөрөө.
+   *
+   * `auto-renew` (унтраах)-ААС ЯЛГААТАЙ: тэр нь дараагийн төлбөрийг
+   * зогсоодог ба багц үлдсэн хоногоо ажилладаг. Энэ нь эрхийг ТЭР ДОР
+   * нь дуусгана — үлдсэн хоног ХҮЧИНГҮЙ болно (мөнгө буцаахгүй).
+   *
+   * ⚠️ `DELETE` биш `PATCH`: мөр УСТДАГГҮЙ, зөвхөн `expiresAt=одоо`
+   *    болно (санхүүгийн түүх хэвээр үлдэнэ).
+   */
+  @Patch('subscriptions/:id/cancel')
+  @UseGuards(JwtAuthGuard)
+  cancelSubscription(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.payments.cancelSubscription(user.sub, id);
+  }
+
   /** QPay callback — нээлттэй endpoint, дотор нь QPay API-аар баталгаажуулна */
   @Post('qpay/callback')
   @HttpCode(200)
