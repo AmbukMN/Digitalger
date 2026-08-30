@@ -11,6 +11,7 @@ import {
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useMyListIds, useTitle, useToggleMyList } from '../../src/lib/queries';
 import { useAuth } from '../../src/lib/auth';
 import { ErrorState } from '../../src/components/error-state';
@@ -120,9 +121,11 @@ export default function TitleScreen() {
             style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
             accessibilityLabel={saved ? 'Дуртайгаас хасах' : 'Дуртайд нэмэх'}
           >
-            <Text style={[styles.icon, saved && { color: colors.primary }]}>
-              {saved ? '♥' : '♡'}
-            </Text>
+            <Ionicons
+              name={saved ? 'heart' : 'heart-outline'}
+              size={22}
+              color={saved ? colors.primary : colors.foreground}
+            />
           </Pressable>
         </View>
 

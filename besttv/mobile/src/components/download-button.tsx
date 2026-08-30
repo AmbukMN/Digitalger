@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { downloadEpisode, isDownloaded, removeLocal } from '../lib/downloads';
 import { colors, font } from '../theme';
 
@@ -101,9 +102,11 @@ export function DownloadButton({
       style={styles.btn}
       accessibilityLabel={state === 'done' ? 'Татсаныг устгах' : 'Татаж авах'}
     >
-      <Text style={[styles.icon, state === 'done' && { color: colors.success }]}>
-        {state === 'done' ? '✓' : '↓'}
-      </Text>
+      <Ionicons
+        name={state === 'done' ? 'checkmark-circle' : 'download-outline'}
+        size={20}
+        color={state === 'done' ? colors.success : colors.dim}
+      />
     </Pressable>
   );
 }

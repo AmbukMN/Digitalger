@@ -1,20 +1,17 @@
 import { Tabs } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, font } from '../../src/theme';
 
 /**
- * ⚠️ Дүрсийг сангаас БИШ, энгийн тэмдэгтээр гаргав — эхний хувилбарт
- * нэмэлт сан (lucide/vector-icons) татахгүй, bundle жижиг байлгана.
- * Дараа `@expo/vector-icons`-оор солино.
+ * ⚠️ Дүрс нь `Ionicons` — өмнө нь `⌂ ▦ ♥` тэмдэгт ашиглаж байсан нь
+ * төхөөрөмж бүр дээр ӨӨР харагдаж, зарим Android дээр огт гардаггүй
+ * (фонтод байхгүй). Дэлгүүрийн чанарын үнэлгээнд ч нөлөөлнө.
  */
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 18, color: focused ? colors.primary : colors.faint }}>
-        {label}
-      </Text>
-    </View>
-  );
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+/** ⚠️ Сонгосон үед дүүрэн, сонгоогүй үед контур — iOS-ийн жишиг */
+function icon(base: string, focused: boolean): IoniconName {
+  return (focused ? base : `${base}-outline`) as IoniconName;
 }
 
 export default function TabsLayout() {
@@ -41,35 +38,45 @@ export default function TabsLayout() {
         options={{
           title: 'Нүүр',
           headerShown: false,
-          tabBarIcon: ({ focused }) => <TabIcon label="⌂" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={icon('home', focused)} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="catalog"
         options={{
           title: 'Кино',
-          tabBarIcon: ({ focused }) => <TabIcon label="▦" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={icon('film', focused)} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="my-list"
         options={{
           title: 'Дуртай',
-          tabBarIcon: ({ focused }) => <TabIcon label="♥" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={icon('heart', focused)} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
           title: 'Хайх',
-          tabBarIcon: ({ focused }) => <TabIcon label="⌕" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={icon('search', focused)} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Профайл',
-          tabBarIcon: ({ focused }) => <TabIcon label="☺" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={icon('person', focused)} size={22} color={color} />
+          ),
         }}
       />
     </Tabs>

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useAuth } from '../../src/lib/auth';
 import { api } from '../../src/lib/api';
@@ -93,7 +94,7 @@ export default function ProfileScreen() {
         style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
       >
         <Text style={styles.wallet}>{me.walletBalance.toLocaleString('mn-MN')}₮</Text>
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
       </Pressable>
 
       {/*
@@ -114,7 +115,7 @@ export default function ProfileScreen() {
         style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
       >
         <Text style={styles.rowValue}>Мэдэгдэл</Text>
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
       </Pressable>
 
       {/* ⚠️ Тусламж — вэбийн чат widget-тэй ИЖИЛ backend (n8n AI) */}
@@ -123,7 +124,7 @@ export default function ProfileScreen() {
         style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
       >
         <Text style={styles.rowValue}>Тусламж / Чат</Text>
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
       </Pressable>
 
       <Text style={styles.section}>Тохиргоо</Text>
@@ -155,7 +156,7 @@ export default function ProfileScreen() {
           style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
         >
           <Text style={styles.rowLabel}>Төхөөрөмж</Text>
-          <Text style={styles.chevron}>›</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.faint} />
         </Pressable>
         <Row label="Хувилбар" value={Constants.expoConfig?.version ?? '1.0.0'} />
       </View>

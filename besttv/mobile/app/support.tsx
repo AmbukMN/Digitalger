@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useChatMessages, useSendMessage, type ChatMsg } from '../src/lib/chat';
 import { colors, font, radius, space } from '../src/theme';
 
@@ -106,7 +107,7 @@ export default function SupportScreen() {
           ]}
           accessibilityLabel="Илгээх"
         >
-          <Text style={styles.sendText}>➤</Text>
+          <Ionicons name="send" size={18} color="#fff" />
         </Pressable>
       </View>
     </KeyboardAvoidingView>

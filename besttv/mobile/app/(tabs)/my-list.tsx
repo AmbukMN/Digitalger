@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useMyList } from '../../src/lib/queries';
 import { useAuth } from '../../src/lib/auth';
 import {
@@ -164,7 +165,7 @@ function DownloadRowView({ row, onRemove }: { row: DownloadRow; onRemove: () => 
         style={styles.dlDelete}
         accessibilityLabel="Устгах"
       >
-        <Text style={styles.dlDeleteText}>✕</Text>
+        <Ionicons name="close" size={18} color={colors.faint} />
       </Pressable>
     </Pressable>
   );

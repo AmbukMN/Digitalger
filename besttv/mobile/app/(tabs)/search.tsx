@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSearch } from '../../src/lib/queries';
 import { TitleCardView } from '../../src/components/title-card';
@@ -29,7 +30,7 @@ export default function SearchScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.searchBar}>
-        <Text style={styles.icon}>⌕</Text>
+        <Ionicons name="search" size={18} color={colors.faint} style={{ marginRight: space.sm }} />
         <TextInput
           value={text}
           onChangeText={setText}
