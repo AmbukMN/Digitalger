@@ -164,10 +164,24 @@ export function TitleRow({
   const updateScrollState = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
-    setCanScroll({
-      left: el.scrollLeft > 8,
-      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 8,
-    });
+
+    const left = el.scrollLeft > 8;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 8;
+    /**
+     * ⚠️⚠️ УТГА ӨӨРЧЛӨГДӨӨГҮЙ бол `setState` ДУУДАХГҮЙ.
+     *
+     * БОДИТ АЛДАА (хэрэглэгчийн бичлэгээр илэрсэн): постерууд гүйлгэх
+     * үед ГЯЛАЛЗДАГ байв. `onScroll` нь секундэд 60 удаа дуудагдана.
+     * Бүр удаа `setCanScroll({...})` ШИНЭ объект үүсгэдэг тул React
+     * төлөв өөрчлөгдсөн гэж үзэж эцэг компонентыг дахин render хийнэ →
+     * бүх карт дахин зурагдаж `next/image` анивчина.
+     *
+     * ⚠️ Функцийн хэлбэрээр (`prev => ...`) шалгана — `canScroll`-ыг
+     * хамааралд оруулбал `useCallback` бүр render-д дахин үүснэ.
+     */
+    setCanScroll((prev) =>
+      prev.left === left && prev.right === right ? prev : { left, right },
+    );
 
     /**
      * ⚠️⚠️ ТӨГСГӨЛД ОЙРТВОЛ ДАРААГИЙН ХУУДСЫГ ТАТНА.

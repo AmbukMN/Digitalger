@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { useCallback, Fragment, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -42,7 +42,12 @@ export function HomeClient({ initial }: { initial?: HomeData }) {
    * ⚠️ Давхар дарахаас хамгаална (`removing`) — эс бөгөөс хурдан
    *    хоёр дарахад хоёр хүсэлт явна.
    */
-  const removeFromContinue = async (titleId: string) => {
+  /**
+   * ⚠️⚠️ `useCallback` ЗААВАЛ — `TitleCard` нь `memo`-той бөгөөд
+   * `onRemove`-ыг лавлагаагаар харьцуулдаг. Inline функц бол render
+   * бүрд шинэ лавлагаа үүсч memo УТГАГҮЙ болно (постер гялалзана).
+   */
+  const removeFromContinue = useCallback(async (titleId: string) => {
     if (removing) return;
     setRemoving(titleId);
     try {
@@ -56,7 +61,14 @@ export function HomeClient({ initial }: { initial?: HomeData }) {
     } finally {
       setRemoving(null);
     }
-  };
+  }, [removing, qc]);
+
+  /* ⚠️ Мөн энэ нь тогтвортой байх ёстой — inline arrow бол дээрх
+     `useCallback` дэмий болно */
+  const handleRemove = useCallback(
+    (id: string) => void removeFromContinue(id),
+    [removeFromContinue],
+  );
 
   if (isLoading) return <HomeSkeleton />;
 
@@ -130,7 +142,7 @@ export function HomeClient({ initial }: { initial?: HomeData }) {
             items={data.continueWatching}
             progressById={progressById}
             /* ⚠️ Хасах товч — ЗӨВХӨН энэ эгнээнд (жанрынханд утгагүй) */
-            onRemove={(id) => void removeFromContinue(id)}
+            onRemove={handleRemove}
             /* ⚠️ ҮРГЭЛЖ нэг мөр — цөөн кинотой ч 2 эгнээ болгож
                дэлгэцийн зай эзлэхгүй (бусад жанр 2 мөр хэвээр) */
             singleRow

@@ -1,5 +1,7 @@
 'use client';
 
+import { memo } from 'react';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -39,7 +41,7 @@ export interface TitleCardProps {
  *  - hover-д зөөлөн томорч quick action (Үзэх / Жагсаалт / Мэдээлэл) гарна
  *  - continue-watching үед доод талд улаан progress bar
  */
-export function TitleCard({ title, progressPercent, inGrid, onRemove }: TitleCardProps) {
+function TitleCardBase({ title, progressPercent, inGrid, onRemove }: TitleCardProps) {
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -405,7 +407,7 @@ export function TitleCard({ title, progressPercent, inGrid, onRemove }: TitleCar
 }
 
 /** Top 10 мөрөнд — том дугаартай хос загвар */
-export function Top10Card({ title, rank }: { title: TitleCardType; rank: number }) {
+function Top10CardBase({ title, rank }: { title: TitleCardType; rank: number }) {
   const { user } = useAuth();
   /**
    * ⚠️⚠️ ЭРХИЙГ ТООЦНО — өмнө нь `title.isPremium` ДАНГААРАА хардаг байв.
@@ -450,3 +452,37 @@ export function Top10Card({ title, rank }: { title: TitleCardType; rank: number 
     </Link>
   );
 }
+
+/**
+ * ⚠️⚠️ `memo` ЗААВАЛ — БОДИТ АЛДАА (хэрэглэгчийн бичлэгээр илэрсэн):
+ * постер зургууд ГЯЛАЛЗДАГ байв.
+ *
+ * ШАЛТГААН: `title-row` нь `onScroll` бүрд `setCanScroll({...})` дуудаж
+ * ШИНЭ объект үүсгэдэг → эцэг компонент дахин render → memo-гүй бүх
+ * карт дахин зурагдана → `next/image` дахин ачаалагдаж ГЯЛСХИЙНЭ.
+ * Нэг эгнээнд 20+ карт, нүүрэнд 8+ эгнээ тул 200+ зураг зэрэг анивчина.
+ *
+ * ⚠️ Харьцуулалт нь `title.id` + өөрчлөгддөг талбаруудаар — бүх объектыг
+ * гүнзгий харьцуулах шаардлагагүй (`title` нь query-ээс ирдэг тул
+ * агуулга ижил үед ч ШИНЭ лавлагаа байж болно).
+ */
+export const TitleCard = memo(TitleCardBase, (a, b) => {
+  return (
+    a.title.id === b.title.id &&
+    a.title.posterUrl === b.title.posterUrl &&
+    a.title.title === b.title.title &&
+    a.title.isPremium === b.title.isPremium &&
+    a.progressPercent === b.progressPercent &&
+    a.inGrid === b.inGrid &&
+    a.onRemove === b.onRemove
+  );
+});
+
+/** ⚠️ `TitleCard`-тай ИЖИЛ шалтгаан — Top10 нь ижил гүйлгэдэг эгнээнд байдаг */
+export const Top10Card = memo(
+  Top10CardBase,
+  (a, b) =>
+    a.title.id === b.title.id &&
+    a.title.posterUrl === b.title.posterUrl &&
+    a.rank === b.rank,
+);
