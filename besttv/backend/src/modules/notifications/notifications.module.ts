@@ -17,6 +17,9 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { PushService } from './push.service';
+import { Body } from '@nestjs/common';
 
 /**
  * ХЭРЭГЛЭГЧИЙН МЭДЭГДЭЛ.
@@ -33,7 +36,11 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    /** ⚠️ Гар утасны push — мэдэгдэл үүсэх бүрд автоматаар явна */
+    private readonly push: PushService,
+  ) {}
 
   /**
    * Мэдэгдэл үүсгэнэ.
@@ -53,6 +60,15 @@ export class NotificationsService {
       .catch((e) => {
         this.logger.warn(`Мэдэгдэл үүсгэж чадсангүй (user=${userId}): ${String(e)}`);
       });
+
+    /**
+     * ⚠️⚠️ ГАР УТСАНД PUSH — энэ нь мэдэгдлийн НЭГ цэг тул шинэ төрөл
+     * нэмэхэд push автоматаар явна (тусад нь дуудах шаардлагагүй).
+     *
+     * ⚠️ `void` — push унасан ч үндсэн үйлдэл (төлбөр баталгаажуулах)
+     * зогсох ЁСГҮЙ. `sendToUser` дотроо бүх алдааг барьдаг.
+     */
+    void this.push.sendToUser(userId, title, body, link ? { link } : undefined);
   }
 
   /**
@@ -82,6 +98,65 @@ export class NotificationsService {
       this.prisma.notification.count({ where: { userId, readAt: null } }),
     ]);
     return { items, unread };
+  }
+
+  /**
+   * ⚠️⚠️ PUSH ТОКЕН БҮРТГЭХ (upsert).
+   *
+   * Апп нээгдэх бүрд дуудагдана. Токен ижил бол шинэчилнэ.
+   *
+   * ⚠️ `token` нь UNIQUE тул НЭГ УТСАНД өөр хэрэглэгч нэвтэрвэл `userId`
+   * шинэчлэгдэнэ — эс бөгөөс өмнөх эзний хувийн мэдэгдэл (төлбөр,
+   * багц) шинэ хүнд очно.
+   *
+   * ⚠️ `enabled: true` — дахин бүртгэхэд асаана. Хэрэглэгч аппаа
+   * дахин суулгасан бол push ажиллах хүлээлттэй.
+   */
+  async registerPushToken(
+    userId: string,
+    dto: { token: string; platform: string; appVersion?: string; deviceName?: string },
+  ) {
+    await this.prisma.deviceToken.upsert({
+      where: { token: dto.token },
+      create: {
+        userId,
+        token: dto.token,
+        platform: dto.platform,
+        appVersion: dto.appVersion ?? null,
+        deviceName: dto.deviceName ?? null,
+      },
+      update: {
+        userId,
+        platform: dto.platform,
+        appVersion: dto.appVersion ?? null,
+        deviceName: dto.deviceName ?? null,
+        enabled: true,
+        lastUsedAt: new Date(),
+      },
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Push асаах/унтраах.
+   * ⚠️ Токеныг УСТГАХГҮЙ — дахин асаахад ижил токен ашиглана
+   * (Expo шинэ токен өгөх шаардлагагүй).
+   */
+  async togglePush(userId: string, enabled: boolean) {
+    const { count } = await this.prisma.deviceToken.updateMany({
+      where: { userId },
+      data: { enabled },
+    });
+    return { ok: true, devices: count };
+  }
+
+  /**
+   * Гарахад тухайн ТӨХӨӨРӨМЖИЙН токеныг устгана.
+   * ⚠️ `userId` шалгана — өөр хүний токен устгахаас (IDOR) хамгаална.
+   */
+  async removePushToken(userId: string, token: string) {
+    await this.prisma.deviceToken.deleteMany({ where: { token, userId } });
+    return { ok: true };
   }
 
   /** Зөвхөн уншаагүйн тоо — хонхны улаан цэгт (хөнгөн query) */
@@ -333,10 +408,66 @@ export class NotificationsService {
   }
 }
 
+/**
+ * ⚠️ Аппаас push токен бүртгэх.
+ *
+ * Апп нээгдэх бүрд илгээнэ (Expo токен ӨӨРЧЛӨГДӨЖ болно — апп
+ * шинэчлэгдэх, өгөгдөл цэвэрлэгдэх үед). Тиймээс `upsert`.
+ */
+class RegisterPushDto {
+  @IsString()
+  token: string;
+
+  @IsIn(['ios', 'android'])
+  platform: string;
+
+  @IsOptional()
+  @IsString()
+  appVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceName?: string;
+}
+
+class PushToggleDto {
+  @IsBoolean()
+  enabled: boolean;
+}
+
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly svc: NotificationsService) {}
+
+  /**
+   * ⚠️⚠️ ГАР УТАСНЫ PUSH ТОКЕН БҮРТГЭХ.
+   *
+   * Апп нээгдэх бүрд дуудна. Токен ижил бол зөвхөн `lastUsedAt`,
+   * `appVersion` шинэчлэгдэнэ.
+   *
+   * ⚠️ Токен нь UNIQUE тул НЭГ утсанд өөр хэрэглэгч нэвтэрвэл `userId`
+   * шинэчлэгдэнэ — эс бөгөөс өмнөх хүний мэдэгдэл шинэ хүнд очно.
+   */
+  @Post('push/register')
+  registerPush(@CurrentUser() user: JwtPayload, @Body() dto: RegisterPushDto) {
+    return this.svc.registerPushToken(user.sub, dto);
+  }
+
+  /** Аппаас push унтраах/асаах (токеныг устгахгүй) */
+  @Post('push/toggle')
+  togglePush(@CurrentUser() user: JwtPayload, @Body() dto: PushToggleDto) {
+    return this.svc.togglePush(user.sub, dto.enabled);
+  }
+
+  /**
+   * Гарахад дуудна — тухайн ТӨХӨӨРӨМЖИЙН токеныг устгана.
+   * ⚠️ Устгахгүй бол гарсан хэрэглэгчид мэдэгдэл ирсээр байна.
+   */
+  @Delete('push/:token')
+  removePush(@CurrentUser() user: JwtPayload, @Param('token') token: string) {
+    return this.svc.removePushToken(user.sub, token);
+  }
 
   @Get()
   list(@CurrentUser() user: JwtPayload, @Query('limit') limit?: string) {
@@ -419,7 +550,9 @@ export class NotificationsAdminController {
 @Global()
 @Module({
   controllers: [NotificationsController, NotificationsAdminController],
-  providers: [NotificationsService],
-  exports: [NotificationsService],
+  providers: [NotificationsService, PushService],
+  /* ⚠️ `PushService` экспортлоно — «шинэ анги гарлаа» гэх мэт бөөн
+     мэдэгдлийг titles/videos модулиас шууд илгээнэ */
+  exports: [NotificationsService, PushService],
 })
 export class NotificationsModule {}

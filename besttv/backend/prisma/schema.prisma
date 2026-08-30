@@ -100,6 +100,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -164,6 +165,8 @@ model User {
   adminSeens           AdminSeen[]
   passwordResets       PasswordResetToken[]
   sessions             UserSession[]
+  /// ⚠️ Push токен — төхөөрөмж тус бүрд нэг (session-ээс ТУСДАА)
+  deviceTokens         DeviceToken[]
   /// Ашигласан урамшууллууд (давтан ашиглахаас сэргийлэх + үр дүн хэмжих)
   promotionRedemptions PromotionRedemption[]
   notifications        Notification[]
@@ -195,6 +198,17 @@ model UserSession {
    * Хэрэглэгчид таниулах — «Chrome · Windows», «Safari · iPhone»
    */
   deviceName String?
+
+  /**
+   * ⚠️ web | ios | android — АПП vs БРАУЗЕР ялгах.
+   * User-Agent-аас таамаглах нь мобайл аппад АЖИЛЛАХГҮЙ: Expo/RN нь
+   * `okhttp/4.12` эсвэл хоосон UA илгээдэг тул «Тодорхойгүй төхөөрөмж»
+   * гэж харагдана (production дээр батлагдсан). Апп өөрөө мэдэгдэнэ.
+   */
+  platform String?
+
+  /// Аппын хувилбар — дэмжлэгт «ямар хувилбар дээр эвдэрсэн» гэдгийг мэдэх
+  appVersion String?
   /**
    * Түүхий User-Agent (дэлгэрэнгүй шаардлагатай үед)
    */
@@ -1551,6 +1565,7 @@ model EmailLog {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️⚠️ SES-ийн MessageId — SNS үйл явдлыг ЭНЭ мөртэй холбох ЦОРЫН ГАНЦ түлхүүр.
    * Өмнө нь `this.ses.send(...)` хариуг хувьсагчид ОГТ авдаггүй байсан тул
    * MessageId алдагдаж, ирсэн үйл явдлыг аль имэйлийнх болохыг мэдэх
@@ -2136,4 +2151,46 @@ model ErrorLog {
   /// «Ямар алдаа хамгийн олон удаа гарсан» бүлэглэлт
   @@index([source, createdAt])
   @@index([userId])
+}
+
+/// ГАР УТАСНЫ АППЫН PUSH ТОКЕН.
+///
+/// ⚠️⚠️ ЯАГААД `UserSession`-ЭЭС ТУСДАА ВЭ: session нь refresh token-той
+/// холбоотой бөгөөд хэрэглэгч гарахад устдаг. Push токен нь ТӨХӨӨРӨМЖИЙН
+/// шинж чанар — хэрэглэгч гарсан ч тухайн утас дээр хэвээр байна. Мөн нэг
+/// хэрэглэгч 3 төхөөрөмжтэй ч push токен нь тус бүрдээ өөр.
+///
+/// ⚠️ `token` нь UNIQUE: Expo/FCM нэг төхөөрөмжид нэг л токен өгдөг.
+/// Хэрэглэгч солигдвол (нэг утсанд хоёр хүн нэвтэрвэл) `userId` шинэчлэгдэнэ
+/// — эс бөгөөс өмнөх хэрэглэгчийн мэдэгдэл шинэ хүнд очно.
+model DeviceToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Expo push token — `ExponentPushToken[xxx]`
+  token String @unique
+
+  /// ios | android
+  platform String
+
+  /// Аппын хувилбар — хуучин хувилбарт тохирохгүй мэдэгдэл илгээхгүйн тулд
+  appVersion String?
+
+  /// Төхөөрөмжийн нэр — «iPhone 15», «Samsung SM-G991B»
+  deviceName String?
+
+  /// ⚠️ Push унтраасан эсэх (аппын тохиргооноос). Токеныг УСТГАХГҮЙ —
+  /// дахин асаахад ижил токен ашиглана.
+  enabled Boolean @default(true)
+
+  /// ⚠️ Хамгийн сүүлд амжилттай илгээсэн — 60+ хоног чимээгүй токеныг
+  /// цэвэрлэхэд (Expo «DeviceNotRegistered» буцаадаг).
+  lastUsedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Хэрэглэгчийн бүх төхөөрөмж рүү илгээх гол query
+  @@index([userId, enabled])
 }

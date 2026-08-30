@@ -6,6 +6,7 @@ import { StorageService } from '../../storage/storage.service';
 import { slugify } from '../../common/slugify';
 import { expandQuery } from '../../common/transliterate';
 import { TitleMediaHelper } from './title-media.helper';
+import { PushService } from '../notifications/push.service';
 import {
   BulkGenreMode,
   CreateEpisodeDto,
@@ -39,6 +40,8 @@ export class TitlesAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    /** ⚠️ Шинэ контент гарахад эрхтэй хэрэглэгчид мэдэгдэнэ */
+    private readonly push: PushService,
     private readonly media: TitleMediaHelper,
   ) {}
 
@@ -736,11 +739,74 @@ export class TitlesAdminService {
   /** Идэвх (нийтлэгдсэн эсэх) бөөнөөр солих */
   async bulkSetActive(ids: string[], isActive: boolean) {
     this.assertBulk(ids);
+
+    /* ⚠️ Аль нь ШИНЭЭР идэвхжиж байгааг ӨМНӨ нь тэмдэглэнэ — аль хэдийн
+       идэвхтэй байсан кинонд дахин мэдэгдэл явуулах ЁСГҮЙ */
+    const newlyActive = isActive
+      ? await this.prisma.title.findMany({
+          where: { id: { in: ids }, isActive: false },
+          select: { id: true, title: true, slug: true },
+        })
+      : [];
+
     const { count } = await this.prisma.title.updateMany({
       where: { id: { in: ids } },
       data: { isActive },
     });
+
+    /* ⚠️ Push нь `void` — идэвхжүүлэлт мэдэгдлээс болж зогсох ЁСГҮЙ */
+    for (const t of newlyActive) void this.notifyNewTitle(t.id, t.title, t.slug);
+
     return { ok: true, updated: count };
+  }
+
+  /**
+   * ⚠️⚠️ ШИНЭ КОНТЕНТ ГАРСАН — ЗӨВХӨН ТУХАЙН ЖАНРЫН ЭРХТЭЙ хэрэглэгчид.
+   *
+   * Бүх хэрэглэгч рүү илгээвэл:
+   *   · эрхгүй хүн мэдэгдэл дараад «үзэх боломжгүй» гэж уурлана
+   *   · спам гэж үзэж push-ыг бүрмөсөн унтраана (буцаах аргагүй)
+   *
+   * Тиймээс тухайн киноны ЖАНРЫГ агуулсан идэвхтэй багцтай (эсвэл VIP)
+   * хэрэглэгчид л мэдэгдэнэ.
+   */
+  private async notifyNewTitle(titleId: string, title: string, slug: string): Promise<void> {
+    try {
+      const genres = await this.prisma.titleGenre.findMany({
+        where: { titleId },
+        select: { genreId: true },
+      });
+      if (!genres.length) return;
+      const genreIds = genres.map((g) => g.genreId);
+      const now = new Date();
+
+      /* ⚠️ VIP нь БҮХ жанрыг нээдэг тул тэднийг ч оруулна */
+      const subs = await this.prisma.subscription.findMany({
+        where: {
+          expiresAt: { gt: now },
+          OR: [
+            { plan: { isVip: true } },
+            { plan: { genres: { some: { genreId: { in: genreIds } } } } },
+          ],
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+        /* ⚠️ Дээд хязгаар — нэг удаад хэт олон push нь Expo-гийн
+           rate limit-д мөргөнө. Цаашид дараалалд шилжүүлнэ. */
+        take: 2000,
+      });
+      if (!subs.length) return;
+
+      await this.push.sendToUsers(
+        subs.map((x) => x.userId),
+        'Шинэ контент',
+        `«${title}» нэмэгдлээ`,
+        { link: `/title/${slug}` },
+      );
+      this.logger.log(`Шинэ контент push: ${title} → ${subs.length} хэрэглэгч`);
+    } catch (e) {
+      this.logger.warn(`Шинэ контентын push амжилтгүй (${title}): ${String(e)}`);
+    }
   }
 
   /** Төлбөртэй/үнэгүй бөөнөөр солих */
