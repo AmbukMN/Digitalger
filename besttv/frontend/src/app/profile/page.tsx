@@ -494,8 +494,13 @@ export default function ProfilePage() {
                        хоёр удаа авсан (эсвэл сунгасан) үед `planId`
                        давхардаж React мөрүүдийг андуурна. */
                     <div key={s.id ?? s.planId} className="rounded-lg bg-black/20 px-3 py-2.5">
-                      {/* ⚠️ `gap-2` — нэр урт үед огноотой наалдахаас сэргийлнэ */}
-                      <div className="flex items-center justify-between gap-2">
+                      {/*
+                        ⚠️ `items-start` — баруун талд огноо + цуцлах ХОЁР
+                        мөр байдаг. `items-center` бол тэр багана босоо
+                        голлож, огноо ДЭЭШЭЭ хазайж багцын нэртэй
+                        эгнэхээ болино (бодит гомдол).
+                      */}
+                      <div className="flex items-start justify-between gap-2">
                         {/* ⚠️ `min-w-0` + `truncate` — «Насанд хүрэгчдийн багц (18+)»
                             гэх урт нэр гар утсан дээр огноог шахаж мөр
                             хоёр болгодог байв */}
@@ -504,11 +509,11 @@ export default function ProfilePage() {
                           <span className="truncate">{s.planName}</span>
                         </span>
                         {/*
-                          ⚠️ Огноо + цуцлах линк НЭГ МӨРӨНД, багцын нэртэй
-                          жигд эгнэнэ. Өмнө нь баганаар өрсөн тул огноо
-                          дээшээ хазайж, нэртэйгээ эгнэхгүй байв.
+                          ⚠️ Огноо ДЭЭР, цуцлах нь ДООД мөрөнд (баруун
+                          талд эгнэнэ). Эцэг блок `items-start` тул огноо
+                          нь багцын нэртэй ЯГ нэг мөрөнд таарна.
                         */}
-                        <span className="flex shrink-0 items-center gap-2">
+                        <span className="flex shrink-0 flex-col items-end gap-1">
                           <span className="text-xs text-foreground/45">
                             {new Date(s.expiresAt).toLocaleDateString('mn-MN')} хүртэл
                           </span>
