@@ -19,12 +19,9 @@ export default function CatalogScreen() {
   const { data, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useCatalog({ type, genre });
 
-  /* ⚠️ Хуудсуудыг нэгтгэхдээ ДАВХАРДЛЫГ шүүнэ — backend нь offset
-     пагинаци ашигладаг тул шинэ кино нэмэгдэхэд мөр давхардаж болно */
-  const seen = new Set<string>();
-  const items = (data?.pages ?? [])
-    .flatMap((p) => p.items)
-    .filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+  /* ⚠️ Cursor пагинаци тул давхардал үүсэхгүй (backend `id`-гаар
+     эрэмбэлдэг). Шүүлт хийх шаардлагагүй. */
+  const items = (data?.pages ?? []).flatMap((p) => p.items);
 
   return (
     <View style={styles.screen}>

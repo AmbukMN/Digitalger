@@ -12,6 +12,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
 import Redis from 'ioredis';
 import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { MobileModule } from './modules/mobile/mobile.module';
 import { TitlesModule } from './modules/titles/titles.module';
 import { GenresModule } from './modules/genres/genres.module';
 import { LibraryModule } from './modules/library/library.module';
@@ -128,6 +129,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     SubscriptionsModule,
     AuthModule,
     TitlesModule,
+    /* ⚠️ Гар утасны апп — 18+ хассан ТУСДАА зам (/api/mobile/*) */
+    MobileModule,
     GenresModule,
     LibraryModule,
     StreamModule,

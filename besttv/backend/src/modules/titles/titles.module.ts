@@ -9,6 +9,9 @@ import { TitleMediaHelper } from './title-media.helper';
 @Module({
   controllers: [TitlesController, TitlesAdminController],
   providers: [TitlesService, TitlesAdminService, TitleMediaHelper],
-  exports: [TitleMediaHelper],
+  /* ⚠️ `TitlesService` — гар утасны модул (`MobileModule`) нь хайлт,
+     дэлгэрэнгүйг ДАХИН ашиглана. Код давхардуулахгүйн тулд экспортлов;
+     вэбийн зан төлөв ХӨНДӨГДӨӨГҮЙ (зөвхөн нэмэлт). */
+  exports: [TitleMediaHelper, TitlesService],
 })
 export class TitlesModule {}
