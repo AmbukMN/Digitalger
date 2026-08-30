@@ -1,0 +1,117 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { api, clearTokens, getAccess, setTokens } from './api';
+import type { Me } from './types';
+
+/**
+ * Нэвтрэлтийн төлөв.
+ *
+ * ⚠️ Апп нээгдэхэд токен байгаа эсэхийг ЭХЛЭЭД шалгана (`loading`) —
+ * эс бөгөөс нэвтэрсэн хэрэглэгчид нэвтрэх дэлгэц гялсхийж эвгүй.
+ */
+interface AuthState {
+  me: Me | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+const Ctx = createContext<AuthState | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [me, setMe] = useState<Me | null>(null);
+  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+
+  const load = useCallback(async () => {
+    try {
+      const token = await getAccess();
+      if (!token) {
+        setMe(null);
+        return;
+      }
+      setMe(await api<Me>('/auth/me'));
+    } catch {
+      /* ⚠️ Алдааг «гараагүй» гэж БҮҮ ойлго — офлайн байж болно.
+         Токен үнэхээр хүчингүй бол `api()` дотор цэвэрлэгдсэн байна. */
+      setMe(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const afterAuth = useCallback(
+    async (d: { accessToken: string; refreshToken: string }) => {
+      await setTokens(d.accessToken, d.refreshToken);
+      setMe(await api<Me>('/auth/me'));
+      /* ⚠️ Кэшийг цэвэрлэнэ — өмнөх хэрэглэгчийн «дуртай», «үргэлжлүүлэх»
+         шинэ хэрэглэгчид харагдах ёсгүй */
+      qc.clear();
+    },
+    [qc],
+  );
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const d = await api<{ accessToken: string; refreshToken: string }>('/auth/login', {
+        method: 'POST',
+        auth: false,
+        body: JSON.stringify({ email, password }),
+      });
+      await afterAuth(d);
+    },
+    [afterAuth],
+  );
+
+  const signUp = useCallback(
+    async (email: string, password: string, name: string) => {
+      const d = await api<{ accessToken: string; refreshToken: string }>('/auth/register', {
+        method: 'POST',
+        auth: false,
+        body: JSON.stringify({ email, password, name }),
+      });
+      await afterAuth(d);
+    },
+    [afterAuth],
+  );
+
+  const signOut = useCallback(async () => {
+    /* ⚠️⚠️ `/auth/logout` ЗААВАЛ дуудна — эс бөгөөс session мөр 30 хоног
+       үлдэж, төхөөрөмжийн хязгаарын НЭГ БАЙРЫГ дэмий эзэлнэ. */
+    try {
+      const SecureStore = await import('expo-secure-store');
+      const rt = await SecureStore.getItemAsync('btv_refresh');
+      if (rt) {
+        await api('/auth/logout', {
+          method: 'POST',
+          auth: false,
+          body: JSON.stringify({ refreshToken: rt }),
+        });
+      }
+    } catch {
+      /* Сүлжээгүй ч локал токеныг цэвэрлэнэ */
+    }
+    await clearTokens();
+    setMe(null);
+    qc.clear();
+  }, [qc]);
+
+  const value = useMemo(
+    () => ({ me, loading, signIn, signUp, signOut, refresh: load }),
+    [me, loading, signIn, signUp, signOut, load],
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useAuth(): AuthState {
+  const c = useContext(Ctx);
+  if (!c) throw new Error('useAuth нь AuthProvider дотор байх ёстой');
+  return c;
+}
