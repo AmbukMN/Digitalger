@@ -302,12 +302,18 @@ export function TitleDetailClient({
                     Хоёулаа «мөнгө төлөхгүйгээр яг одоо үзэж болно»
                     гэсэн үйлдэл тул зэрэгцэнэ. Төлбөрийн товчнууд
                     (түрээс/багц) доор нь орно.
-                    ⚠️ Хоёрдогч өнгө — үндсэн товчтой өрсөлдөхгүй.
+                    ⚠️⚠️ `bg-background/85` + хүрээ — ТУНГАЛАГ БОЛГОХГҮЙ.
+                    Өмнө нь `bg-foreground/10` байсан нь ард нь BACKDROP
+                    зураг харагдаж, тод зураг дээр товч АЛГА болдог байв
+                    (хэрэглэгчийн гомдол). `bg-secondary` ч болохгүй:
+                    light-д #f3f4f6 тул цайвар зураг дээр дахин алга
+                    болно. `--background` нь theme гадаргуу тул
+                    dark=бараан / light=цагаан — хоёуланд ТОД.
                   */}
                   {data.trailerAvailable && (
                     <button
                       onClick={() => setTrailerOpen(true)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground/10 px-3 py-2.5 text-xs font-semibold text-foreground active:scale-[0.98]"
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-foreground/15 bg-background/85 px-3 py-2.5 text-xs font-semibold text-foreground backdrop-blur-sm active:scale-[0.98]"
                     >
                       <Film size={15} /> Трейлер
                     </button>
@@ -350,7 +356,7 @@ export function TitleDetailClient({
               {!locked && data.trailerAvailable && (
                 <button
                   onClick={() => setTrailerOpen(true)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground/10 px-3 py-2.5 text-xs font-semibold text-foreground active:scale-[0.98]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-foreground/15 bg-background/85 px-3 py-2.5 text-xs font-semibold text-foreground backdrop-blur-sm active:scale-[0.98]"
                 >
                   <Film size={15} /> Трейлер
                 </button>
@@ -477,15 +483,17 @@ export function TitleDetailClient({
                       байсан — хэрэглэгч «Багц авах»-ыг өнгөрч байж л
                       олдог, ихэнх нь трейлер байгааг ч мэдэхгүй байв.
 
-                      ⚠️ ХОЁРДОГЧ өнгө (`bg-foreground/10`) — үндсэн
-                      «үзэх» товчтой өрсөлдөхгүй.
+                      ⚠️⚠️ `bg-background/85` — ТУНГАЛАГ БИШ. Ард нь
+                      backdrop зураг байдаг тул тунгалаг өнгө нь тод
+                      зураг дээр товчийг АЛГА болгодог байв.
+                      Хоёрдогч байдал нь хүрээ+бүдэг дэвсгэрээр хадгалагдана.
                       ⚠️ `hidden md:flex` — мобайлд «Үзэх»-ийн доор аль
                       хэдийн гарсан (давхардуулахгүй).
                     */}
                     {data.trailerAvailable && (
                       <button
                         onClick={() => setTrailerOpen(true)}
-                        className="hidden items-center justify-center gap-2 rounded-lg bg-foreground/10 px-6 py-3 font-semibold text-foreground transition-all hover:bg-foreground/20 active:scale-[0.98] sm:py-2.5 md:flex"
+                        className="hidden items-center justify-center gap-2 rounded-lg border border-foreground/15 bg-background/85 px-6 py-3 font-semibold text-foreground backdrop-blur-sm transition-all hover:bg-background active:scale-[0.98] sm:py-2.5 md:flex"
                       >
                         <Film size={17} /> Трейлер
                       </button>
@@ -544,7 +552,7 @@ export function TitleDetailClient({
                 {!locked && data.trailerAvailable && (
                   <button
                     onClick={() => setTrailerOpen(true)}
-                    className="hidden items-center justify-center gap-2 rounded-lg bg-foreground/10 px-6 py-3 font-semibold text-foreground transition-all hover:bg-foreground/20 active:scale-[0.98] sm:py-2.5 md:flex"
+                    className="hidden items-center justify-center gap-2 rounded-lg border border-foreground/15 bg-background/85 px-6 py-3 font-semibold text-foreground backdrop-blur-sm transition-all hover:bg-background active:scale-[0.98] sm:py-2.5 md:flex"
                   >
                     <Film size={17} /> Трейлер
                   </button>
