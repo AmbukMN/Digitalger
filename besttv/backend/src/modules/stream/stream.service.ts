@@ -52,14 +52,6 @@ export class StreamService {
     userId?: string | null,
     tokenSent?: boolean,
     rangeProbe?: boolean,
-    /**
-     * ⚠️⚠️ ЗӨВХӨН МОБАЙЛ АПП дамжуулна (`?subs=1`).
-     *
-     * Вэб нь `<track>` элементээр хадмалаа өөрөө залгадаг — playlist-д
-     * ДАВХАР нэмбэл хоёр хадмал зэрэг гарч болзошгүй. Тиймээс вэб
-     * энэ тугийг дамжуулахгүй бөгөөд түүний зан авир БҮРЭН хэвээр.
-     */
-    withSubs?: boolean,
   ): Promise<string> {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
@@ -94,12 +86,7 @@ export class StreamService {
     // ⚠️ ABR master бол дэд playlist-ыг манай API руу чиглүүлнэ (эрх дахин шалгагдана)
     /* ⚠️ Түрээстэй бол presign нь ҮЛДЭГДЭЛ ХУГАЦААГААР богиносно */
     const ttl = await this.presignTtl(userId, titleId);
-    return this.rewritePlaylist(
-      title.videoKey,
-      `/api/stream/movie/${titleId}/variant.m3u8`,
-      ttl,
-      withSubs ? await this.subsFor('movie', titleId) : undefined,
-    );
+    return this.rewritePlaylist(title.videoKey, `/api/stream/movie/${titleId}/variant.m3u8`, ttl);
   }
 
   /**
@@ -580,8 +567,6 @@ export class StreamService {
     userId?: string | null,
     tokenSent?: boolean,
     rangeProbe?: boolean,
-    /** ⚠️ Зөвхөн мобайл апп — дэлгэрэнгүйг `moviePlaylist` дээр үз */
-    withSubs?: boolean,
   ): Promise<string> {
     const episode = await this.prisma.episode.findUnique({
       where: { id: episodeId },
@@ -649,7 +634,6 @@ export class StreamService {
       episode.videoKey,
       `/api/stream/episode/${episodeId}/variant.m3u8`,
       ttl,
-      withSubs ? await this.subsFor('episode', episodeId) : undefined,
     );
   }
 
@@ -1075,34 +1059,6 @@ export class StreamService {
   }
 
   /**
-   * Хадмалын жагсаалт — master playlist-д залгах хэлбэрээр.
-   *
-   * ⚠️ R2 хаяг ОГТ өгөхгүй: `/api/subtitles/...` руу чиглүүлнэ.
-   * Тэнд эрх шалгагдана (видеотой ижил) — хадмалыг видеонээс тусад нь
-   * татах боломжгүй байх ёстой.
-   *
-   * ⚠️ Алдаа гарвал ХОГСОНГҮЙ — хадмал байхгүй гэж үзнэ. Хадмалын
-   * асуудлаас болж ВИДЕО ОГТ ТОГЛОХГҮЙ болох нь хамаагүй дор.
-   */
-  private async subsFor(kind: 'movie' | 'episode', id: string) {
-    try {
-      const rows = await this.prisma.subtitle.findMany({
-        where: kind === 'episode' ? { episodeId: id } : { titleId: id },
-        orderBy: [{ order: 'asc' }, { lang: 'asc' }],
-        select: { lang: true, label: true, isDefault: true },
-      });
-      return rows.map((r) => ({
-        lang: r.lang,
-        label: r.label,
-        isDefault: r.isDefault,
-        src: `/api/subtitles/${kind}/${id}/${r.lang}.vtt`,
-      }));
-    } catch {
-      return undefined;
-    }
-  }
-
-  /**
    * @param ttl segment presign-ийн хугацаа (секунд). Түрээстэй
    *   хэрэглэгчид үлдэгдэл хугацаагаар богиносгоно.
    */
@@ -1110,17 +1066,6 @@ export class StreamService {
     m3u8Key: string,
     variantBase?: string,
     ttl?: number,
-    /**
-     * ⚠️⚠️ ХАДМАЛ — master playlist-д `#EXT-X-MEDIA` мөр нэмнэ.
-     *
-     * ШААРДЛАГА: мобайл апп (`expo-video`) нь хадмалыг ЗӨВХӨН media
-     * source-оос уншдаг — гаднаас VTT залгах API байхгүй. Вэб нь
-     * `<track>` элементээр залгадаг тул өмнө нь шаардлагагүй байв.
-     *
-     * ⚠️ Хадмалгүй үед playlist ЯГ ӨМНӨХӨӨРӨӨ үлдэнэ (мөр нэмэгдэхгүй)
-     * тул вэбэд эрсдэлгүй.
-     */
-    subs?: { lang: string; label: string; isDefault: boolean; src: string }[],
   ): Promise<string> {
     const expires = ttl ?? this.SEGMENT_EXPIRES;
     /**
@@ -1134,13 +1079,7 @@ export class StreamService {
      * seek хурдны асуудал эргэж ирэхгүй.
      */
     const useCache = ttl === undefined;
-    /* ⚠️⚠️ Хадмалын гарын үсгийг түлхүүрт ЗААВАЛ оруулна — эс бөгөөс
-       хадмалгүй хувилбар кэшлэгдээд, дараа нь хадмал нэмсэн ч
-       хуучин (хадмалгүй) playlist үйлчилсээр байна */
-    const subsKey = subs?.length
-      ? subs.map((x) => `${x.lang}${x.isDefault ? '*' : ''}`).join(',')
-      : '';
-    const cacheKey = `${m3u8Key}|${variantBase ?? ''}|${subsKey}`;
+    const cacheKey = `${m3u8Key}|${variantBase ?? ''}`;
     if (useCache) {
       const hit = this.playlistCache.get(cacheKey);
       if (hit && Date.now() - hit.at < StreamService.PLAYLIST_TTL_MS) return hit.text;
