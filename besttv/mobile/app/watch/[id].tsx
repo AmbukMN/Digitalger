@@ -46,6 +46,8 @@ export default function WatchScreen() {
 
   const isOffline = offline === '1';
   const kindTarget = target ?? (kind === 'movie' ? 'movie' : 'episode');
+  /* ⚠️ Трейлер — явц хадгалах, хадмал татах шаардлагагүй */
+  const isTrailer = kindTarget === 'trailer';
   /**
    * ⚠️⚠️ ОФЛАЙН: локал m3u8 — сүлжээ рүү ОГТ орохгүй.
    * Онлайн: серверийн playlist (эрх шалгагдана).
@@ -56,7 +58,8 @@ export default function WatchScreen() {
          `expo-video` нь хадмалыг ЗӨВХӨН media source-оос уншдаг,
          гаднаас VTT залгах API байхгүй. Вэб энэ тугийг дамжуулдаггүй
          тул түүний зан авир хэвээр. */
-      `${API_BASE}/stream/${kindTarget}/${id}/playlist.m3u8?subs=1`;
+      `${API_BASE}/stream/${kindTarget}/${id}/playlist.m3u8` +
+        (isTrailer ? '' : '?subs=1');
 
   useEffect(() => {
     void getAccess().then(setToken).finally(() => setReady(true));
@@ -148,7 +151,7 @@ export default function WatchScreen() {
      * Эс бөгөөс эгнээнд 99% дээр ҮҮРД үлдэж, шинэ контент харагдахаа
      * болино. Офлайн үед алгасна (сервер рүү хүрэхгүй).
      */
-    if (!isOffline) removeProgress.mutate(String(tid ?? id));
+    if (!isOffline && !isTrailer) removeProgress.mutate(String(tid ?? id));
     if (nextId) setCountdown(10);
   });
 
@@ -176,7 +179,9 @@ export default function WatchScreen() {
    */
   const flush = useCallback(
     (force = false) => {
-      if (isOffline) return;
+      /* ⚠️ Трейлерийн явц хадгалбал «Үргэлжлүүлэх» эгнээнд трейлер
+         орж, дарахад кино биш трейлер тоглоно */
+      if (isOffline || isTrailer) return;
       const now = player.currentTime;
       const dur = player.duration;
       if (!dur || now < 5) return;
@@ -198,7 +203,7 @@ export default function WatchScreen() {
         },
       );
     },
-    [player, id, tid, kindTarget, saveProgress, isOffline],
+    [player, id, tid, kindTarget, saveProgress, isOffline, isTrailer],
   );
 
   /* ⚠️ Дараагийн анги руу шилжихэд ашиглагдана */

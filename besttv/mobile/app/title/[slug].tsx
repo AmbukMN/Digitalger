@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
+  Linking,
+  Share,
   FlatList,
   Pressable,
   ScrollView,
@@ -14,6 +16,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { mnt } from '../../src/lib/format';
+import { TitleCardView } from '../../src/components/title-card';
 import {
   useRentPrice,
   useRentWithQpay,
@@ -178,6 +181,53 @@ export default function TitleScreen() {
           </Pressable>
         </View>
 
+        <View style={styles.actionRow}>
+          {/* ⚠️ ТРЕЙЛЕР — эрх шаардахгүй, кино авахаасаа өмнө үзнэ
+              (борлуулалтад шууд тустай). YouTube бол гадагш нээнэ. */}
+          {(t.trailerAvailable || t.trailerYoutubeKey) && (
+            <Pressable
+              onPress={() => {
+                if (t.trailerYoutubeKey) {
+                  void Linking.openURL(
+                    `https://www.youtube.com/watch?v=${t.trailerYoutubeKey}`,
+                  );
+                  return;
+                }
+                router.push(
+                  `/watch/${t.id}?kind=trailer&target=trailer` +
+                    `&title=${encodeURIComponent(`${t.title} — трейлер`)}`,
+                );
+              }}
+              style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.75 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Трейлер үзэх"
+            >
+              <Ionicons name="play-circle-outline" size={19} color={colors.foreground} />
+              <Text style={styles.actionText}>Трейлер</Text>
+            </Pressable>
+          )}
+
+          {/* ⚠️⚠️ ХУВААЛЦАХ — мобайл дээр шинэ хэрэглэгч татах ГОЛ суваг.
+              Вэбд байдаг атлаа аппад байхгүй байв. */}
+          <Pressable
+            onPress={() => {
+              void Share.share({
+                message: `${t.title} — BestTV дээр үзээрэй
+https://besttv.us/title/${t.slug}`,
+                /* ⚠️ iOS нь `url`-ыг тусад нь хүсдэг, Android үл тоомсорлоно */
+                url: `https://besttv.us/title/${t.slug}`,
+                title: t.title,
+              }).catch(() => {});
+            }}
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Хуваалцах"
+          >
+            <Ionicons name="share-outline" size={19} color={colors.foreground} />
+            <Text style={styles.actionText}>Хуваалцах</Text>
+          </Pressable>
+        </View>
+
         {!canWatch && (
           <Text style={styles.lockNote}>
             {firstFree
@@ -259,6 +309,63 @@ ${mnt(price)} — ${hours} цагийн турш үзнэ` +
 
         {!!t.description && <Text style={styles.desc}>{t.description}</Text>}
 
+        {/* ⚠️ ЖҮЖИГЧИД — `cast` (зурагтай) давуу, байхгүй бол `actors` */}
+        {!!t.cast?.length && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Жүжигчид</Text>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={t.cast}
+              keyExtractor={(c, i) => `${c.name}-${i}`}
+              contentContainerStyle={{ gap: space.md }}
+              renderItem={({ item }) => (
+                <View style={styles.castItem}>
+                  {item.photoUrl ? (
+                    <Image source={{ uri: item.photoUrl }} style={styles.castPhoto} />
+                  ) : (
+                    <View style={[styles.castPhoto, styles.castNoPhoto]}>
+                      <Ionicons name="person" size={22} color={colors.faint} />
+                    </View>
+                  )}
+                  <Text style={styles.castName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  {!!item.character && (
+                    <Text style={styles.castRole} numberOfLines={1}>
+                      {item.character}
+                    </Text>
+                  )}
+                </View>
+              )}
+            />
+          </View>
+        )}
+
+        {/* ⚠️ `cast` байхгүй үед л — давхардуулахгүй */}
+        {!t.cast?.length && !!t.actors?.length && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Жүжигчид</Text>
+            <Text style={styles.desc}>{t.actors.join(', ')}</Text>
+          </View>
+        )}
+
+        {/* ⚠️⚠️ ТӨСТЭЙ КИНО — мобайл API нь 18+ шүүсэн байна
+            (өмнө нь шүүгдэхгүй, 18+ санал болгогддог байсан) */}
+        {!!t.related?.length && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Төстэй кино</Text>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={t.related}
+              keyExtractor={(r) => r.id}
+              contentContainerStyle={{ gap: space.md }}
+              renderItem={({ item }) => <TitleCardView item={item} width={98} />}
+            />
+          </View>
+        )}
+
         {!!t.genres?.length && (
           <View style={styles.genreRow}>
             {t.genres.map((g) => (
@@ -336,6 +443,45 @@ ${mnt(price)} — ${hours} цагийн турш үзнэ` +
 }
 
 const styles = StyleSheet.create({
+  actionRow: { flexDirection: 'row', gap: space.md, marginTop: space.md },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.secondary,
+  },
+  actionText: { color: colors.foreground, fontSize: font.sm, fontWeight: '600' },
+  section: { marginTop: space.xl },
+  sectionTitle: {
+    color: colors.foreground,
+    fontSize: font.md,
+    fontWeight: '700',
+    marginBottom: space.md,
+  },
+  castItem: { width: 76 },
+  castPhoto: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: colors.muted,
+  },
+  castNoPhoto: { alignItems: 'center', justifyContent: 'center' },
+  castName: {
+    color: colors.foreground,
+    fontSize: font.xs,
+    textAlign: 'center',
+    marginTop: space.xs,
+    lineHeight: 15,
+  },
+  castRole: {
+    color: colors.faint,
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 1,
+  },
   rentBtn: {
     backgroundColor: colors.secondary,
     borderRadius: radius.md,

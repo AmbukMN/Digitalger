@@ -268,7 +268,38 @@ export class MobileService {
     if (!t || t.genres.some((g) => g.genre.isAdult)) {
       throw new NotFoundException('Контент олдсонгүй');
     }
-    return this.titles.detail(slug, userId ?? undefined);
+
+    const detail = await this.titles.detail(slug, userId ?? undefined);
+
+    /**
+     * ⚠️⚠️ `related`-ЫГ ЗААВАЛ ШҮҮНЭ.
+     *
+     * БОДИТ ЦООРХОЙ байсан: `titles.detail` нь вэбийн хариу буцаадаг
+     * тул «Төстэй кино» жагсаалтад 18+ кино ОРЖ ирдэг байв (тестээр
+     * шалгасан 15 киноны БҮГД дээр илэрсэн). Кино өөрөө хаагдсан
+     * атлаа санал болголтоор нэвтэрч байсан.
+     *
+     * ⚠️ Вэбийн `titles.service.ts`-д ХҮРЭХГҮЙ — зөвхөн энд шүүнэ.
+     */
+    const related = (detail as { related?: { id: string }[] }).related ?? [];
+    if (related.length) {
+      const adultIds = new Set(
+        (
+          await this.prisma.title.findMany({
+            where: {
+              id: { in: related.map((r) => r.id) },
+              genres: { some: { genre: { isAdult: true } } },
+            },
+            select: { id: true },
+          })
+        ).map((x) => x.id),
+      );
+      if (adultIds.size) {
+        return { ...detail, related: related.filter((r) => !adultIds.has(r.id)) };
+      }
+    }
+
+    return detail;
   }
 
   /** Жанрын жагсаалт — 18+ хассан */

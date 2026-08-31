@@ -89,8 +89,13 @@ export interface TitleDetail extends TitleCard {
   /** ⚠️ Хэрэглэгч энэ контентыг үзэх эрхтэй эсэх (нэвтэрсэн үед) */
   hasAccess?: boolean;
   trailerAvailable?: boolean;
+  /** ⚠️ Манай HLS БАЙХГҮЙ үед л ирнэ — эс бөгөөс `null` */
+  trailerYoutubeKey?: string | null;
   /** ⚠️ Үргэлжлүүлэн үзэх байрлал — зөвхөн нэвтэрсэн үед ирнэ */
   progress?: WatchProgress | null;
+  /** ⚠️ Төстэй кино — мобайлд 18+ шүүгдсэн байна */
+  related?: TitleCard[];
+  reviewStats?: { average: number | null; count: number };
 }
 
 export interface Paged<T> {
