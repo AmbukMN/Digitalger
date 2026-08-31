@@ -225,3 +225,43 @@ export function useRentWithQpay() {
       }),
   });
 }
+
+/* ══════════ БАГЦ УДИРДАХ ══════════ */
+
+/**
+ * АВТО-СУНГАЛТ асаах/унтраах.
+ *
+ * ⚠️⚠️ Хэрэглэгч мэдэлгүй мөнгө хасагдвал гомдол болдог тул энэ
+ * хяналт ЗААВАЛ аппад байх ёстой (вэбд аль хэдийн бий).
+ */
+export function useAutoRenew() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; enabled: boolean }) =>
+      api(`/payments/subscriptions/${v.id}/auto-renew`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: v.enabled }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+}
+
+/**
+ * БАГЦ ЦУЦЛАХ.
+ *
+ * ⚠️⚠️ Үлдсэн хоног ДАГАЖ УСТАНА — буцаалт хийгддэггүй. Хэрэглэгчид
+ * үүнийг ТОДОРХОЙ хэлж байж баталгаажуулна.
+ */
+export function useCancelSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/payments/subscriptions/${id}/cancel`, { method: 'PATCH' }),
+    onSuccess: () => {
+      /* ⚠️ Эрх ШУУД хаагдана — нүүр, каталог бүгдийг шинэчилнэ */
+      void qc.invalidateQueries();
+    },
+  });
+}

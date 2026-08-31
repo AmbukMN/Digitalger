@@ -146,3 +146,24 @@ export function useRemoveProgress() {
     },
   });
 }
+
+/**
+ * УНШААГҮЙ МЭДЭГДЛИЙН ТОО — таб/профайлын badge.
+ *
+ * ⚠️⚠️ `notifications.tsx`-тэй ЯГ ИЖИЛ queryKey — өөр түлхүүр өгвөл
+ * хоёр дахин хүсэлт явж, дэлгэц дээрх тоо badge-тэй зөрнө.
+ *
+ * ⚠️ Нэвтрээгүй үед дуудахгүй (401) — зочинд badge утгагүй.
+ */
+export function useUnreadCount(enabled: boolean) {
+  const q = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () =>
+      api<{ items: unknown[]; unread: number }>('/notifications?limit=50'),
+    enabled,
+    staleTime: 60_000,
+    /* ⚠️ Апп нээх бүрд шинэчилнэ — хуучин тоо харуулах нь эвгүй */
+    refetchOnWindowFocus: true,
+  });
+  return q.data?.unread ?? 0;
+}

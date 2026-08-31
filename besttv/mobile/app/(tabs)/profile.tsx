@@ -12,13 +12,22 @@ import { router } from 'expo-router';
 import { date, mnt } from '../../src/lib/format';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  useAutoRenew,
+  useCancelSubscription,
+} from '../../src/lib/payments';
 import { useState } from 'react';
 import { useAuth } from '../../src/lib/auth';
+import { useUnreadCount } from '../../src/lib/queries';
 import { api } from '../../src/lib/api';
 import { colors, font, radius, space } from '../../src/theme';
 
 export default function ProfileScreen() {
   const { me, loading, signOut } = useAuth();
+  const autoRenew = useAutoRenew();
+  const cancelSub = useCancelSubscription();
+  /* ⚠️ Нэвтрээгүй үед дуудахгүй — зочинд 401 */
+  const unread = useUnreadCount(!!me);
   /* ⚠️ Анхдагч ON — бүртгэх үед backend `enabled: true` тавьдаг */
   const [pushOn, setPushOn] = useState(true);
 
@@ -71,18 +80,95 @@ export default function ProfileScreen() {
           </Text>
         ) : (
           active.map((s) => (
-            <View key={s.id ?? s.planId} style={styles.subRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.subName}>{s.planName}</Text>
-                {!s.isVip && !!s.genres?.length && (
-                  <Text style={styles.subGenres}>
-                    {s.genres.map((g) => g.name).join(' · ')}
-                  </Text>
-                )}
+            <View key={s.id ?? s.planId} style={styles.subCard}>
+              <View style={styles.subRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.subName}>{s.planName}</Text>
+                  {!s.isVip && !!s.genres?.length && (
+                    <Text style={styles.subGenres}>
+                      {s.genres.map((g) => g.name).join(' · ')}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.subDate}>{date(s.expiresAt)}</Text>
               </View>
-              <Text style={styles.subDate}>
-                {date(s.expiresAt)}
-              </Text>
+
+              {/**
+               * ⚠️⚠️ УДИРДЛАГА — зөвхөн `id` ирсэн үед.
+               * Backend өгдөг нь батлагдсан (auth.service.ts:282) ч
+               * тип нь `id?` тул хамгаалалт үлдээв.
+               */}
+              {!!s.id && (
+                <View style={styles.subActions}>
+                  {/* ⚠️ Авто-сунгалтын төлөвийг ХАРУУЛНА — мэдэлгүй
+                      мөнгө хасагдвал гомдол болдог */}
+                  <Pressable
+                    onPress={() =>
+                      autoRenew.mutate(
+                        { id: s.id!, enabled: !s.autoRenew },
+                        {
+                          onError: (e: unknown) =>
+                            Alert.alert(
+                              'Алдаа',
+                              e instanceof Error ? e.message : 'Дахин оролдоно уу',
+                            ),
+                        },
+                      )
+                    }
+                    disabled={autoRenew.isPending}
+                    style={styles.subAction}
+                    hitSlop={6}
+                  >
+                    <Ionicons
+                      name={s.autoRenew ? 'repeat' : 'repeat-outline'}
+                      size={15}
+                      color={s.autoRenew ? colors.success : colors.faint}
+                    />
+                    <Text
+                      style={[
+                        styles.subActionText,
+                        s.autoRenew && { color: colors.success },
+                      ]}
+                    >
+                      {s.autoRenew ? 'Авто-сунгалт асаалттай' : 'Авто-сунгалт унтраалттай'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() =>
+                      Alert.alert(
+                        'Багц цуцлах уу?',
+                        /* ⚠️⚠️ Үлдсэн хоног ДАГАЖ УСТАНА — буцаалт
+                           хийгддэггүй. Тодорхой хэлж байж зөвшөөрүүлнэ */
+                        `«${s.planName}» багцыг цуцалснаар эрх ШУУД хаагдаж, ` +
+                          `үлдсэн хоног дагаж устана. Буцаалт хийгдэхгүй.`,
+                        [
+                          { text: 'Болих', style: 'cancel' },
+                          {
+                            text: 'Цуцлах',
+                            style: 'destructive',
+                            onPress: () =>
+                              cancelSub.mutate(s.id!, {
+                                onSuccess: () =>
+                                  Alert.alert('Цуцлагдлаа', 'Багц цуцлагдсан.'),
+                                onError: (e: unknown) =>
+                                  Alert.alert(
+                                    'Цуцалж чадсангүй',
+                                    e instanceof Error ? e.message : 'Дахин оролдоно уу',
+                                  ),
+                              }),
+                          },
+                        ],
+                      )
+                    }
+                    disabled={cancelSub.isPending}
+                    style={styles.subAction}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.subCancel}>Цуцлах</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
           ))
         )}
@@ -131,7 +217,17 @@ export default function ProfileScreen() {
         style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
       >
         <Text style={styles.rowValue}>Мэдэгдэл</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          {/* ⚠️⚠️ Уншаагүй мэдэгдэл байгааг хэрэглэгч ОГТ мэдэхгүй
+              байв — push ирээгүй бол бүрмөсөн алдагдана.
+              ⚠️ 99+ таслана — гурваас олон орон мөрийг эвдэнэ */}
+          {unread > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unread > 99 ? '99+' : unread}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+        </View>
       </Pressable>
 
       {/* ⚠️ Тусламж — вэбийн чат widget-тэй ИЖИЛ backend (n8n AI) */}
@@ -231,6 +327,26 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  badge: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  subCard: { gap: space.sm, paddingVertical: space.sm },
+  subActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.md,
+  },
+  subAction: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  subActionText: { color: colors.faint, fontSize: font.xs },
+  subCancel: { color: colors.destructive, fontSize: font.xs, fontWeight: '600' },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: space.lg, paddingBottom: space.xxl },
   center: {
