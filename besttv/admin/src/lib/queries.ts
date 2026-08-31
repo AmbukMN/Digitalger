@@ -57,6 +57,12 @@ export interface TitleFilters {
   access?: string;
   /** 'true' | 'false' */
   active?: string;
+  /**
+   * ⚠️ Нүүрний carousel-д гарч буй кино — 'true' | 'false'.
+   * Заагаагүй бол бүгд. Өмнө нь `isBanner` шүүх боломжгүй байсан тул
+   * админ 236 киног нэг бүрчлэн нээж шалгах ёстой байв.
+   */
+  banner?: string;
   year?: string;
   sort?: string;
   dir?: 'asc' | 'desc';

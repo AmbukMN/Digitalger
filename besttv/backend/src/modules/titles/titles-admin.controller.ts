@@ -50,13 +50,17 @@ export class TitlesAdminController {
     @Query('status') status?: string,
     @Query('access') access?: string,
     @Query('active') active?: string,
+    /** ⚠️ Нүүрний carousel-д гарч буй кино — 'true' | 'false' */
+    @Query('banner') banner?: string,
     @Query('year') year?: number,
     @Query('sort') sort?: string,
     @Query('dir') dir?: 'asc' | 'desc',
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.svc.list({ q, type, genre, status, access, active, year, sort, dir, page, limit });
+    return this.svc.list({
+      q, type, genre, status, access, active, banner, year, sort, dir, page, limit,
+    });
   }
 
   /**
@@ -72,11 +76,16 @@ export class TitlesAdminController {
     @Query('status') status?: string,
     @Query('access') access?: string,
     @Query('active') active?: string,
+    /** ⚠️ Жагсаалттай ЯГ ИЖИЛ шүүлт — эс бөгөөс харсан мөрөөс
+        өөр тоо татагдана */
+    @Query('banner') banner?: string,
     @Query('year') year?: number,
     @Query('sort') sort?: string,
     @Query('dir') dir?: 'asc' | 'desc',
   ) {
-    return this.svc.exportCsv({ q, type, genre, status, access, active, year, sort, dir });
+    return this.svc.exportCsv({
+      q, type, genre, status, access, active, banner, year, sort, dir,
+    });
   }
 
   /** Шүүлтэд тохирсон тоолол — табын badge (`:id`-ээс ӨМНӨ байх ёстой) */

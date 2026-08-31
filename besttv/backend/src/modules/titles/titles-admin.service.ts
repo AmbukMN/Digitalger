@@ -85,6 +85,8 @@ export class TitlesAdminService {
     status?: string;
     access?: string;
     active?: string;
+    /** ⚠️ Нүүрний carousel — 'true' | 'false' (заагаагүй бол бүгд) */
+    banner?: string;
     year?: number;
   }): Prisma.TitleWhereInput {
     const where: Prisma.TitleWhereInput = {};
@@ -109,6 +111,11 @@ export class TitlesAdminService {
     if (params.active === 'true') where.isActive = true;
     else if (params.active === 'false') where.isActive = false;
     if (params.year) where.year = Number(params.year);
+    /* ⚠️ Нүүрний carousel-д гарч буй кино — админ аль нь баннер дээр
+       байгааг НЭГ ХАРЦААР мэдэх ёстой (өмнө нь кино бүрийг нээж
+       шалгах шаардлагатай байв) */
+    if (params.banner === 'true') where.isBanner = true;
+    else if (params.banner === 'false') where.isBanner = false;
 
     return where;
   }
@@ -131,6 +138,9 @@ export class TitlesAdminService {
     status?: string;
     access?: string;
     active?: string;
+    /** ⚠️ Жагсаалттай ЯГ ИЖИЛ байх ЁСТОЙ — эс бөгөөс дээрх алдаа
+        (харсан мөрөөс өөр тоо татагдана) давтагдана */
+    banner?: string;
     year?: number;
     sort?: string;
     dir?: 'asc' | 'desc';
@@ -242,6 +252,7 @@ export class TitlesAdminService {
     status?: string;
     access?: string;
     active?: string;
+    banner?: string;
     year?: number;
     sort?: string;
     dir?: 'asc' | 'desc';

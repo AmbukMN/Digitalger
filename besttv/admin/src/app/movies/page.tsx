@@ -42,6 +42,7 @@ const EMPTY: TitleFilters = {
   status: 'ALL',
   access: 'ALL',
   active: 'ALL',
+  banner: 'ALL',
   year: '',
   sort: 'createdAt',
   dir: 'desc',
@@ -181,6 +182,7 @@ export default function MoviesPage() {
     if (f.status && f.status !== 'ALL') n++;
     if (f.access && f.access !== 'ALL') n++;
     if (f.active && f.active !== 'ALL') n++;
+    if (f.banner && f.banner !== 'ALL') n++;
     if (f.year) n++;
     return n;
   }, [f]);
@@ -259,6 +261,19 @@ export default function MoviesPage() {
                 { value: 'false', label: 'Нуугдсан' },
               ],
               onChange: (v) => set({ active: v }),
+            },
+            {
+              /* ⚠️ Нүүрний hero carousel — аль кино тэнд гарч байгааг
+                 өмнө нь кино бүрийг нээж байж л мэддэг байв */
+              id: 'banner',
+              label: 'Баннер',
+              value: f.banner ?? 'ALL',
+              options: [
+                { value: 'ALL', label: 'Бүгд' },
+                { value: 'true', label: 'Баннер дээр' },
+                { value: 'false', label: 'Баннер дээр биш' },
+              ],
+              onChange: (v) => set({ banner: v }),
             },
           ]}
           limit={f.limit}
