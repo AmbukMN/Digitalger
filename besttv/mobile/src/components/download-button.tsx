@@ -47,6 +47,28 @@ export function DownloadButton({
 
   const start = async () => {
     /**
+     * ⚠️⚠️ ЧАНАР СОНГОХ — өмнө нь ҮРГЭЛЖ 480p татдаг байв (backend
+     * анхдагч `v2`), том дэлгэцтэй утсанд бүдэг харагдана.
+     *
+     * ⚠️ Зайн зөрүүг ТОДОРХОЙ хэлнэ — «өндөр чанар» гэж сонгоод
+     * санах ой дүүрэхэд хэрэглэгч гайхна.
+     */
+    const quality = await new Promise<string | null>((resolve) => {
+      Alert.alert(
+        'Чанар сонгох',
+        'Өндөр чанар илүү их зай эзэлнэ.',
+        [
+          { text: 'Болих', style: 'cancel', onPress: () => resolve(null) },
+          { text: '480p · хэмнэлттэй', onPress: () => resolve('v2') },
+          { text: '720p · дунд', onPress: () => resolve('v1') },
+          { text: '1080p · өндөр', onPress: () => resolve('v0') },
+        ],
+        { cancelable: true, onDismiss: () => resolve(null) },
+      );
+    });
+    if (!quality) return;
+
+    /**
      * ⚠️⚠️ МОБАЙЛ ДАТА дээр СОНГОЛТ өгнө — нэг анги ~120MB.
      * Монголд дата үнэтэй тул чимээгүй татвал хэрэглэгчийн багц
      * дуусаж, бодит гомдол болно.
@@ -74,6 +96,7 @@ export function DownloadButton({
     setPct(0);
     try {
       await downloadEpisode(target, targetId, {
+        quality,
         onProgress: (p) => setPct(Math.round(p * 100)),
         signal: signal.current,
       });

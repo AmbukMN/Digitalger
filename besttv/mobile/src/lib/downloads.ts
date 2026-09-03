@@ -131,12 +131,19 @@ export async function downloadEpisode(
    * ⚠️⚠️ Backend нь сегментийн ХЭМЖЭЭ өгдөггүй (зөвхөн durationSec)
    * тул ХУГАЦААНААС тооцоолно.
    *
-   * Хэмжсэн утга: R2 дээрх дундаж сегмент 800KB / ~6 сек ≈ 133KB/сек.
-   * Ойролцоо ч гэсэн «зай дүүрч татац дунд замдаа унах»-аас дээр.
+   * ⚠️⚠️ ЧАНАРААС ХАМААРНА — ганц тоо ашиглавал 1080p сонгоход
+   * хэрэгцээ 3 дахин их болж, «зай хүрэлцэнэ» гэж андуурч татаад
+   * дунд замдаа унана.
+   *
+   * Харьцаа нь HLS-ийн ердийн битрэйтээс:
+   *   v0 (1080p) ≈ 4.5 Mbps ≈ 560 KB/сек
+   *   v1 (720p)  ≈ 2.5 Mbps ≈ 310 KB/сек
+   *   v2 (480p)  ≈ 1.1 Mbps ≈ 140 KB/сек  ← R2-ын хэмжсэнтэй нийцнэ
    */
-  const BYTES_PER_SEC = 133 * 1024;
+  const KB_PER_SEC: Record<string, number> = { v0: 560, v1: 310, v2: 140 };
+  const perSec = (KB_PER_SEC[auth.quality] ?? 140) * 1024;
   const needBytes = Math.round(
-    auth.segments.reduce((n, x) => n + (x.durationSec || 0), 0) * BYTES_PER_SEC,
+    auth.segments.reduce((n, x) => n + (x.durationSec || 0), 0) * perSec,
   );
   if (needBytes > 0 && !(await hasSpaceFor(needBytes))) {
     throw new Error(
