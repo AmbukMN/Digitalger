@@ -85,14 +85,28 @@ export default function HomeScreen() {
 /** Дээд баннер — эхний контентыг том харуулна */
 function Banner({ items }: { items: TitleCard[] }) {
   const h = Math.round(SCREEN_W * 0.62);
+  /* ⚠️ Хэдэн дэх баннер дээр байгааг харуулна — эс бөгөөс хэрэглэгч
+     гүйлгэж болохыг МЭДЭХГҮЙ, зөвхөн эхнийхийг л хардаг */
+  const [idx, setIdx] = useState(0);
+
   return (
+    <View style={{ marginBottom: space.xl }}>
     <FlatList
       horizontal
       pagingEnabled
       showsHorizontalScrollIndicator={false}
       data={items}
       keyExtractor={(i) => i.id}
-      style={{ marginBottom: space.xl }}
+      /**
+       * ⚠️⚠️ Индексийг ЭНГИЙН тооцоогоор — `onViewableItemsChanged`
+       * нь дахин үүсгэвэл RN алдаа шиднэ («changed on the fly»).
+       * ⚠️ 16мс throttle — `setState` нь ижил утгатай үед React
+       * дахин зурдаггүй тул нэмэлт хамгаалалт шаардлагагүй.
+       */
+      onScroll={(e) =>
+        setIdx(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
+      }
+      scrollEventThrottle={16}
       renderItem={({ item }) => (
         <Pressable
           onPress={() => router.push(`/title/${item.slug}`)}
@@ -128,6 +142,15 @@ function Banner({ items }: { items: TitleCard[] }) {
         </Pressable>
       )}
     />
+    {/* ⚠️ Ганц баннер үед цэг харуулах нь утгагүй */}
+    {items.length > 1 && (
+      <View style={styles.dots} pointerEvents="none">
+        {items.map((it, k) => (
+          <View key={it.id} style={[styles.dot, k === idx && styles.dotOn]} />
+        ))}
+      </View>
+    )}
+    </View>
   );
 }
 
@@ -228,6 +251,20 @@ function ContinueRow({ items }: { items: ContinueItem[] }) {
 }
 
 const styles = StyleSheet.create({
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: space.sm,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.faint,
+    opacity: 0.4,
+  },
+  dotOn: { backgroundColor: colors.primary, opacity: 1, width: 16 },
   screen: { flex: 1, backgroundColor: colors.background },
   brandBar: { paddingHorizontal: space.lg, paddingVertical: space.md },
   brand: { color: colors.foreground, fontSize: font.xxl, fontWeight: '800' },
