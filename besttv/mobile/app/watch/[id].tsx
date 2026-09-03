@@ -4,6 +4,10 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent, useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import {
+  activateKeepAwakeAsync,
+  deactivateKeepAwake,
+} from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE, getAccess } from '../../src/lib/api';
 import { useRemoveProgress, useSaveProgress } from '../../src/lib/queries';
@@ -66,13 +70,38 @@ export default function WatchScreen() {
   }, []);
 
   /**
+   * ⚠️⚠️ ДЭЛГЭЦ УНТРАХААС СЭРГИЙЛНЭ.
+   *
+   * `WAKE_LOCK` зөвшөөрөл авсан атлаа код бичээгүй байв. `expo-video`
+   * зарим төхөөрөмж дээр өөрөө барьдаг ч БАТАЛГААГҮЙ — Android-ийн
+   * зарим хувилбарт кино үзэж байхад дэлгэц унтарч тасална.
+   *
+   * ⚠️ Гарахад ЗААВАЛ суллана — эс бөгөөс каталог дээр ч дэлгэц
+   * унтрахгүй болж БАТАРЕЙ иднэ.
+   */
+  useEffect(() => {
+    void activateKeepAwakeAsync('besttv-player').catch(() => {});
+    return () => {
+      void deactivateKeepAwake('besttv-player').catch(() => {});
+    };
+  }, []);
+
+  /**
    * ⚠️⚠️ ДЭЛГЭЦИЙН ЭРГЭЛТ — зөвхөн ЭНЭ дэлгэц дээр чөлөөтэй.
    * Гарахад БОСОО болгож буцаана, эс бөгөөс каталог хэвтээ үлдэнэ.
    */
   useEffect(() => {
     void ScreenOrientation.unlockAsync();
     return () => {
-      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      /**
+       * ⚠️⚠️ `lockAsync(PORTRAIT_UP)` БИШ — тэр нь ТАБЛЕТ дээр
+       * (`supportsTablet: true`) БҮХ дэлгэцийг босоо түгжинэ.
+       * Таблет хэрэглэгч ихэвчлэн хэвтээ барьдаг тул маш эвгүй.
+       *
+       * `unlockAsync` нь эргэлтийг чөлөөтэй болгоно — утсан дээр
+       * `app.json`-ы `orientation: default` зохицуулна.
+       */
+      void ScreenOrientation.unlockAsync();
     };
   }, []);
 
@@ -106,6 +135,8 @@ export default function WatchScreen() {
    */
   const [countdown, setCountdown] = useState<number | null>(null);
   const [subOpen, setSubOpen] = useState(false);
+  /* ⚠️ Гараар хэвтээ болгосон эсэх — товчны дүрсийг сольж харуулна */
+  const [landscape, setLandscape] = useState(false);
   /* ⚠️ Хадмал playlist ачаалагдсаны ДАРАА л ирдэг тул төлөвт хадгална */
   const [subTracks, setSubTracks] = useState<typeof player.availableSubtitleTracks>([]);
   /* ⚠️ `flush` доор зарлагддаг тул ref-ээр холбоно — шилжихийн өмнө
@@ -346,6 +377,40 @@ export default function WatchScreen() {
         </View>
       )}
 
+      {/**
+        * ⚠️⚠️ ХЭВТЭЭ БОЛГОХ — `unlockAsync()` нь утасны СИСТЕМИЙН
+        * «эргэлт түгжих» тохиргоог ДАВДАГГҮЙ. Тэр тохиргоог асаасан
+        * хэрэглэгч (маш түгээмэл) киног хэвтээ болгож ОГТ чадахгүй,
+        * жижиг дүрсээр үзнэ. Товчоор `lockAsync` дуудвал давна.
+        */}
+      <Pressable
+        onPress={() => {
+          const next = !landscape;
+          setLandscape(next);
+          void ScreenOrientation.lockAsync(
+            next
+              ? ScreenOrientation.OrientationLock.LANDSCAPE
+              : ScreenOrientation.OrientationLock.PORTRAIT_UP,
+          )
+            /* ⚠️ Дараа нь чөлөөтэй болгоно — эс бөгөөс хэрэглэгч
+               гараараа эргүүлж чадахгүй болно */
+            .then(() => {
+              if (!next) void ScreenOrientation.unlockAsync();
+            })
+            .catch(() => {});
+        }}
+        style={styles.rotBtn}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={landscape ? 'Босоо болгох' : 'Хэвтээ болгох'}
+      >
+        <Ionicons
+          name={landscape ? 'phone-portrait-outline' : 'phone-landscape-outline'}
+          size={18}
+          color="#fff"
+        />
+      </Pressable>
+
       {status === 'loading' && (
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator size="large" color={colors.primary} />
@@ -409,6 +474,18 @@ const styles = StyleSheet.create({
     minWidth: 210,
   },
   /* ⚠️ Баруун ДЭЭД булан — нэйтив удирдлагыг халхлахгүй */
+  /* ⚠️ Хадмалын товчны ЗҮҮН талд — давхцахгүй */
+  rotBtn: {
+    position: 'absolute',
+    top: space.xxl,
+    right: space.lg + 46,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   ccBtn: {
     position: 'absolute',
     top: space.xxl,
