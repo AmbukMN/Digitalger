@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   name: { color: colors.foreground, fontSize: font.md, fontWeight: '600' },
   badge: {
     color: colors.primary,
-    fontSize: 9,
+    fontSize: font.xs,
     fontWeight: '800',
     backgroundColor: colors.primary + '22',
     paddingHorizontal: 5,
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   meta: { color: colors.dim, fontSize: font.xs, marginTop: 4 },
-  ip: { color: colors.faint, fontSize: 10, marginTop: 2 },
+  ip: { color: colors.faint, fontSize: font.xs, marginTop: 2 },
   out: { paddingHorizontal: space.md, paddingVertical: space.sm },
   outText: { color: colors.destructive, fontSize: font.sm, fontWeight: '600' },
   allBtn: { margin: space.lg, padding: space.md, alignItems: 'center' },

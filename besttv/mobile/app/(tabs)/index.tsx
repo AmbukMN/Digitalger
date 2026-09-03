@@ -97,6 +97,10 @@ function Banner({ items }: { items: TitleCard[] }) {
         <Pressable
           onPress={() => router.push(`/title/${item.slug}`)}
           style={{ width: SCREEN_W, height: h }}
+          accessibilityRole="button"
+          /* ⚠️ Эс бөгөөс screen reader «товч» гэж л уншина — ямар
+             кино болох нь мэдэгдэхгүй */
+          accessibilityLabel={`${item.title} — дэлгэрэнгүй харах`}
         >
           {!!(item.backdropUrl || item.posterUrl) && (
             <Image
@@ -184,6 +188,11 @@ function ContinueRow({ items }: { items: ContinueItem[] }) {
               {/* ⚠️ Удаан дарж хасах — санамсаргүй нээсэн эсвэл үзэхээ
                   больсон киног эгнээнээс авна */}
               <Pressable
+                accessibilityRole="button"
+                /* ⚠️ Удаан дарах үйлдлийг ЗААВАЛ хэлнэ — screen reader
+                   ашиглагч нуугдсан үйлдлийг таамаглах ёсгүй */
+                accessibilityLabel={`${item.title}, ${pct}% үзсэн`}
+                accessibilityHint="Удаан дарж жагсаалтаас хасна"
                 onLongPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   Alert.alert(

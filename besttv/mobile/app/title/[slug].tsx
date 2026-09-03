@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
   },
   castRole: {
     color: colors.faint,
-    fontSize: 10,
+    fontSize: font.xs,
     textAlign: 'center',
     marginTop: 1,
   },
@@ -591,6 +591,6 @@ const styles = StyleSheet.create({
   },
   epName: { color: colors.foreground, fontSize: font.md },
   epDur: { color: colors.faint, fontSize: font.xs, marginTop: 2 },
-  freeTag: { color: colors.success, fontSize: 10, fontWeight: '800' },
+  freeTag: { color: colors.success, fontSize: font.xs, fontWeight: '800' },
   lock: { fontSize: font.md },
 });

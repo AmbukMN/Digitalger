@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bankLogo: { width: 36, height: 36 },
-  bankName: { color: colors.dim, fontSize: 10, textAlign: 'center' },
+  bankName: { color: colors.dim, fontSize: font.xs, textAlign: 'center' },
 
   btn: {
     backgroundColor: colors.primary,

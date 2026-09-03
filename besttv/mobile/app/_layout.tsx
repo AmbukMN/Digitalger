@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { applyFontScaling } from '../src/lib/font-scaling';
 import { OfflineBanner } from '../src/components/offline-banner';
 import { ErrorBoundary } from '../src/components/error-boundary';
 import { Stack, router } from 'expo-router';
@@ -25,6 +26,13 @@ const qc = new QueryClient({
     },
   },
 });
+
+/**
+ * ⚠️⚠️ Компонент RENDER болохоос ӨМНӨ — модулийн түвшинд.
+ * `useEffect` дотор дуудвал ЭХНИЙ зураглал хуучин тохиргоогоор
+ * гарч, дараа нь үсрэнгүй өөрчлөгдөнө.
+ */
+applyFontScaling();
 
 export default function RootLayout() {
   /**

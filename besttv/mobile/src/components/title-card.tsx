@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#1a1200', fontSize: font.xs, fontWeight: '800' },
   soon: { backgroundColor: colors.primary },
-  soonText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  soonText: { color: '#fff', fontSize: font.xs, fontWeight: '700' },
   title: {
     color: colors.foreground,
     fontSize: font.sm,
