@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { useAuth } from '../../src/lib/auth';
 import {
   useDownloads,
   useRemoveDownload,
+  usedSpaceMb,
   type DownloadRow,
 } from '../../src/lib/downloads';
 import { TitleCardView } from '../../src/components/title-card';
@@ -95,9 +96,28 @@ function SavedTab() {
  * ⚠️ Сүлжээгүй үед ч харагдах ЁСТОЙ — офлайн татахын гол зорилго.
  * `useDownloads` унавал алдаа биш, «сүлжээгүй» гэж үзнэ.
  */
+function UsedSpace({ mb }: { mb: number }) {
+  return (
+    <Text style={styles.usedText}>
+      Татсан контент {mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`} эзэлж байна
+    </Text>
+  );
+}
+
 function DownloadsTab() {
   const { data, isLoading, isError, refetch } = useDownloads();
   const remove = useRemoveDownload();
+  const [used, setUsed] = useState(0);
+
+  /* ⚠️ Татац өөрчлөгдөх бүрд дахин тооцно — устгасны дараа хуучин
+     тоо харуулбал төөрөгдөл үүснэ */
+  useEffect(() => {
+    let alive = true;
+    void usedSpaceMb().then((m) => alive && setUsed(m)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [data]);
 
   if (isLoading) return <GridSkeleton count={4} />;
 
@@ -125,6 +145,9 @@ function DownloadsTab() {
       data={data}
       keyExtractor={(d) => d.id}
       contentContainerStyle={styles.dlList}
+      /* ⚠️ Эзэлж буй зай — `usedSpaceMb` бичигдсэн ч хэрэглэгддэггүй
+         байв. Хэрэглэгч зай дүүрэхээс өмнө мэдэх ёстой */
+      ListHeaderComponent={used > 0 ? <UsedSpace mb={used} /> : null}
       renderItem={({ item, index }) => (
         <DownloadRowView
           row={item}
@@ -261,4 +284,10 @@ const styles = StyleSheet.create({
   dlMeta: { color: colors.faint, fontSize: font.xs, marginTop: 3 },
   dlDelete: { padding: space.sm },
   dlDeleteText: { color: colors.faint, fontSize: font.lg },
+  usedText: {
+    color: colors.faint,
+    fontSize: font.xs,
+    marginBottom: space.md,
+    textAlign: 'center',
+  },
 });

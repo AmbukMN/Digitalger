@@ -7,6 +7,7 @@
  * тохиромжтой (шинэ API нь файл тус бүрд объект үүсгэдэг).
  */
 import * as FileSystem from 'expo-file-system/legacy';
+import NetInfo from '@react-native-community/netinfo';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 
@@ -72,6 +73,44 @@ export async function isDownloaded(target: string, targetId: string): Promise<bo
  * ⚠️ Дараалан татна — зэрэг 20 холболт нээвэл сүлжээ дүүрч, бусад
  *    хүсэлт (эрх шалгах, мэдэгдэл) удаашрана.
  */
+/**
+ * ⚠️⚠️ СҮЛЖЭЭНИЙ ТӨРӨЛ — мобайл дата дээр татахаас өмнө сануулна.
+ *
+ * Нэг анги ~120MB. Монголд мобайл дата үнэтэй тул хэрэглэгчийн
+ * багц чимээгүй дуусах нь бодит гомдол болно.
+ *
+ * ⚠️ Алдаа гарвал «Wi-Fi» гэж ҮЗНЭ — сүлжээний төрөл мэдэхгүйгээс
+ * болж татацыг БҮРЭН хаах нь буруу.
+ */
+export async function isOnCellular(): Promise<boolean> {
+  try {
+    const st = await NetInfo.fetch();
+    return st.type === 'cellular';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ⚠️⚠️ ЗАЙ ХҮРЭЛЦЭХ эсэх.
+ *
+ * Хүрэлцэхгүй бол татац дунд замдаа унаж, ХАГАС файл үлдэнэ —
+ * хэрэглэгч офлайн болоод үзэх гэхэд эвдэрсэн байна.
+ *
+ * ⚠️ 200MB нөөц үлдээнэ: систем өөрөө зай шаарддаг ба бүрэн
+ * дүүргэвэл утас удаашрана.
+ */
+export async function hasSpaceFor(bytes: number): Promise<boolean> {
+  try {
+    const free = await FileSystem.getFreeDiskStorageAsync();
+    return free > bytes + 200 * 1024 * 1024;
+  } catch {
+    /* ⚠️ Мэдэхгүй бол ЗӨВШӨӨРНӨ — шалгалт унаснаас болж татац
+       бүрэн хаагдах ёсгүй */
+    return true;
+  }
+}
+
 export async function downloadEpisode(
   target: 'movie' | 'episode',
   targetId: string,
@@ -81,6 +120,30 @@ export async function downloadEpisode(
     method: 'POST',
     body: JSON.stringify({ target, targetId, quality: opts.quality }),
   });
+
+  /**
+   * ⚠️⚠️ ЗАЙ ШАЛГАНА — татац эхлэхээс ӨМНӨ.
+   *
+   * Дунд замдаа унавал хагас файл үлдэж, хэрэглэгч офлайн болоод
+   * үзэх гэхэд эвдэрсэн байна (сүлжээгүй тул засах ч аргагүй).
+   */
+  /**
+   * ⚠️⚠️ Backend нь сегментийн ХЭМЖЭЭ өгдөггүй (зөвхөн durationSec)
+   * тул ХУГАЦААНААС тооцоолно.
+   *
+   * Хэмжсэн утга: R2 дээрх дундаж сегмент 800KB / ~6 сек ≈ 133KB/сек.
+   * Ойролцоо ч гэсэн «зай дүүрч татац дунд замдаа унах»-аас дээр.
+   */
+  const BYTES_PER_SEC = 133 * 1024;
+  const needBytes = Math.round(
+    auth.segments.reduce((n, x) => n + (x.durationSec || 0), 0) * BYTES_PER_SEC,
+  );
+  if (needBytes > 0 && !(await hasSpaceFor(needBytes))) {
+    throw new Error(
+      `Санах ой хүрэлцэхгүй байна (${Math.ceil(needBytes / 1024 / 1024)}MB шаардлагатай). ` +
+        'Татсан контентоо устгаад дахин оролдоно уу.',
+    );
+  }
 
   const dir = dirFor(target, targetId);
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });

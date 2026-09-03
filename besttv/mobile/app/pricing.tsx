@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../src/lib/auth';
 import {
@@ -21,6 +22,7 @@ import {
   usePaymentStatus,
   usePlans,
   usePurchaseWithWallet,
+  usePromotions,
   useValidateCoupon,
   type CouponResult,
   type Plan,
@@ -65,6 +67,8 @@ export default function PricingScreen() {
   const [couponErr, setCouponErr] = useState<string | null>(null);
   const validateCoupon = useValidateCoupon();
   const purchaseWallet = usePurchaseWithWallet();
+  /* ⚠️ Зочин ч харна — урамшууллыг нуувал өндөр үнэ хараад буцна */
+  const promos = usePromotions();
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
 
   const balance = me?.walletBalance ?? 0;
@@ -189,6 +193,14 @@ export default function PricingScreen() {
           )}
         </Pressable>
       </View>
+      {/* ⚠️⚠️ Купон хаагдсан урамшуулал байвал ТОДОРХОЙ анхааруулна —
+          эс бөгөөс хэрэглэгч купоноо оруулаад ажиллахгүй гэж гомдоно */}
+      {Object.values(promos.data ?? {}).some((x) => x.blockCoupons) && (
+        <Text style={styles.couponWarn}>
+          ⚠️ Зарим багцын урамшуулалтай үед купон хэрэглэх боломжгүй
+        </Text>
+      )}
+
       {!!applied && (
         <Text style={styles.couponOk}>
           ✓ {mnt(applied.discount)} хямдрал идэвхжлээ
@@ -280,14 +292,38 @@ export default function PricingScreen() {
             style={({ pressed }) => [
               styles.card,
               p.isVip && styles.vipCard,
+              !!promos.data?.[p.id] && styles.promoCard,
               pressed && { opacity: 0.85 },
             ]}
           >
+            {!!promos.data?.[p.id] && (
+              <View style={styles.promoTag}>
+                <Ionicons name="pricetag" size={11} color="#fff" />
+                <Text style={styles.promoText}>
+                  {promos.data[p.id].shortText}
+                </Text>
+              </View>
+            )}
             <View style={styles.cardHead}>
+              {/* ⚠️ Урамшууллын тэмдэг — хэрэглэгч ХЯМДАРСАН гэдгийг
+                  нэг харцаар мэдэх ёстой */}
               <Text style={[styles.planName, p.isVip && { color: colors.premium }]}>
                 {p.name}
               </Text>
-              <Text style={styles.price}>{mnt(p.price)}</Text>
+              {(() => {
+                const promo = promos.data?.[p.id];
+                /* ⚠️ Урамшуулалгүй бол ЭНГИЙН үнэ — дэмий зурааc
+                   татсан үнэ харуулбал төөрөгдөл үүснэ */
+                if (!promo) return <Text style={styles.price}>{mnt(p.price)}</Text>;
+                return (
+                  <View style={{ alignItems: 'flex-end' }}>
+                    {promo.finalPrice < promo.originalPrice && (
+                      <Text style={styles.oldPrice}>{mnt(promo.originalPrice)}</Text>
+                    )}
+                    <Text style={styles.price}>{mnt(promo.finalPrice)}</Text>
+                  </View>
+                );
+              })()}
             </View>
             <Text style={styles.days}>{p.durationDays} хоног</Text>
 
@@ -421,6 +457,25 @@ function BankPicker({
 }
 
 const styles = StyleSheet.create({
+  promoCard: { borderWidth: 1, borderColor: colors.success },
+  promoTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: colors.success,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.sm,
+    paddingVertical: 3,
+    marginBottom: space.sm,
+  },
+  promoText: { color: '#fff', fontSize: font.xs, fontWeight: '800' },
+  /* ⚠️ Хуучин үнэ — зураастай, бүдэг */
+  oldPrice: {
+    color: colors.faint,
+    fontSize: font.sm,
+    textDecorationLine: 'line-through',
+  },
   bankLink: { alignSelf: 'center', paddingVertical: space.sm, marginBottom: space.sm },
   bankLinkText: {
     color: colors.dim,
@@ -447,6 +502,12 @@ const styles = StyleSheet.create({
     minWidth: 84,
   },
   couponBtnText: { color: colors.foreground, fontWeight: '700', fontSize: font.sm },
+  couponWarn: {
+    color: colors.premium,
+    fontSize: font.xs,
+    marginBottom: space.sm,
+    lineHeight: 17,
+  },
   couponOk: { color: colors.success, fontSize: font.sm, marginBottom: space.sm },
   couponErr: { color: colors.destructive, fontSize: font.sm, marginBottom: space.sm },
   screen: { flex: 1, backgroundColor: colors.background },

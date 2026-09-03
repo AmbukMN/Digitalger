@@ -134,6 +134,9 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="account" options={{ title: 'Профайл засах' }} />
               <Stack.Screen name="bank" options={{ title: 'Банкны шилжүүлэг' }} />
+              <Stack.Screen name="faq" options={{ title: 'Түгээмэл асуулт' }} />
+              {/* ⚠️ Гарчгийг дэлгэц ӨӨРӨӨ датанаас тавина */}
+              <Stack.Screen name="page/[slug]" options={{ title: '' }} />
               </Stack>
             </UpdateGate>
           </SafeAreaProvider>

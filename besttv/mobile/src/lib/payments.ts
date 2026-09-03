@@ -265,3 +265,41 @@ export function useCancelSubscription() {
     },
   });
 }
+
+/* ══════════ УРАМШУУЛАЛ ══════════ */
+
+/**
+ * Багцад тохирсон урамшуулал.
+ *
+ * ⚠️ Бүтэц нь backend-ийн `AppliedPromotion`-той ЯГ ИЖИЛ
+ * (promotions.service.ts:18).
+ */
+export interface Promotion {
+  id: string;
+  name: string;
+  shortText: string;
+  type: string;
+  finalPrice: number;
+  originalPrice: number;
+  totalDays: number;
+  bonusDays: number;
+  giftPlanName: string | null;
+  /** ⚠️ Үнэн бол купон хамт ажиллахгүй — хэрэглэгчид ХЭЛНЭ */
+  blockCoupons: boolean;
+  endsAt: string;
+}
+
+/**
+ * ⚠️⚠️ `{ [planId]: Promotion }` объект буцаана (жагсаалт БИШ) —
+ * controller нь `Object.fromEntries(map)` хийдэг.
+ *
+ * ⚠️ Зочин ч харна (OptionalJwtAuthGuard) — нэвтрээгүй хүнд
+ * урамшууллыг нуувал өндөр үнэ хараад буцна.
+ */
+export function usePromotions() {
+  return useQuery({
+    queryKey: ['promotions'],
+    queryFn: () => api<Record<string, Promotion>>('/promotions/for-plans'),
+    staleTime: 5 * 60_000,
+  });
+}

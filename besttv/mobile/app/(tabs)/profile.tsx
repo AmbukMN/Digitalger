@@ -230,6 +230,21 @@ export default function ProfileScreen() {
         </View>
       </Pressable>
 
+      {/* ⚠️⚠️ FAQ — чат руу орохоос ӨМНӨ. Ихэнх асуулт эндээс
+          хариулагдвал ажилтны цаг хэмнэгдэнэ */}
+      <Pressable
+        onPress={() => router.push('/faq')}
+        style={({ pressed }) => [styles.card, styles.navRow, pressed && { opacity: 0.75 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Түгээмэл асуулт"
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+          <Ionicons name="help-circle-outline" size={20} color={colors.dim} />
+          <Text style={styles.rowLabel}>Түгээмэл асуулт</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+      </Pressable>
+
       {/* ⚠️ Тусламж — вэбийн чат widget-тэй ИЖИЛ backend (n8n AI) */}
       <Pressable
         onPress={() => router.push('/support')}

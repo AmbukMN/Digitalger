@@ -3,7 +3,12 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text } from 'react-nat
 import { useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { downloadEpisode, isDownloaded, removeLocal } from '../lib/downloads';
+import {
+  downloadEpisode,
+  isDownloaded,
+  isOnCellular,
+  removeLocal,
+} from '../lib/downloads';
 import { colors, font } from '../theme';
 
 /**
@@ -41,6 +46,29 @@ export function DownloadButton({
   }, [target, targetId]);
 
   const start = async () => {
+    /**
+     * ⚠️⚠️ МОБАЙЛ ДАТА дээр СОНГОЛТ өгнө — нэг анги ~120MB.
+     * Монголд дата үнэтэй тул чимээгүй татвал хэрэглэгчийн багц
+     * дуусаж, бодит гомдол болно.
+     *
+     * ⚠️ БҮРЭН ХОРИГЛОХГҮЙ — Wi-Fi байхгүй газар татах эрх нь
+     * хэрэглэгчийнх. Зөвхөн МЭДЭЭЛНЭ.
+     */
+    if (await isOnCellular()) {
+      const ok = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Мобайл дата ашиглах уу?',
+          'Та Wi-Fi-д холбогдоогүй байна. Нэг анги ойролцоогоор 120MB дата зарцуулна.',
+          [
+            { text: 'Болих', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Татах', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) },
+        );
+      });
+      if (!ok) return;
+    }
+
     signal.current = { cancelled: false };
     setState('busy');
     setPct(0);
