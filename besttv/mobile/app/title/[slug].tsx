@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { mnt } from '../../src/lib/format';
 import { TitleCardView } from '../../src/components/title-card';
+import { ReviewsSection } from '../../src/components/reviews-section';
 import {
   useRentPrice,
   useRentWithQpay,
@@ -349,6 +350,10 @@ ${mnt(price)} — ${hours} цагийн турш үзнэ` +
             <Text style={styles.desc}>{t.actors.join(', ')}</Text>
           </View>
         )}
+
+        {/* ⚠️ Үнэлгээ — төстэй киноноос ӨМНӨ. Сэтгэгдэл нь ЭНЭ
+            киноных, төстэй нь өөр контент руу хөтөлдөг тул эрэмбэ чухал */}
+        <ReviewsSection titleId={t.id} />
 
         {/* ⚠️⚠️ ТӨСТЭЙ КИНО — мобайл API нь 18+ шүүсэн байна
             (өмнө нь шүүгдэхгүй, 18+ санал болгогддог байсан) */}
