@@ -43,14 +43,51 @@ export default function RootLayout() {
    * зүгээр нүүр хуудсанд ирж, юуны тухай байсныг олохгүй.
    */
   useEffect(() => {
+    /**
+     * ⚠️ Замыг ШАЛГАЖ шилжинэ.
+     *
+     * ⚠️⚠️ `startsWith('/')` ЗААВАЛ: гадаад URL ирвэл (сервер эвдэрсэн
+     * эсвэл хортой мэдэгдэл) апп дурын хуудас руу шилжих ёсгүй.
+     * `//evil.com` мэт хос ташуугаар эхэлсэн замыг ч ХААНА.
+     */
+    const go = (link: unknown) => {
+      if (typeof link !== 'string') return;
+      if (!link.startsWith('/') || link.startsWith('//')) return;
+      /* ⚠️ `push` — буцах товч ажиллана (`replace` бол түүх алдагдана) */
+      router.push(link as never);
+    };
+
     const sub = Notifications.addNotificationResponseReceivedListener((res) => {
-      const link = res.notification.request.content.data?.link;
-      if (typeof link === 'string' && link.startsWith('/')) {
-        /* ⚠️ `push` — буцах товч ажиллана (`replace` бол түүх алдагдана) */
-        router.push(link as never);
-      }
+      go(res.notification.request.content.data?.link);
     });
-    return () => sub.remove();
+
+    /**
+     * ⚠️⚠️ COLD START — апп БҮРЭН ХААЛТТАЙ үед мэдэгдэл дарж нээвэл
+     * дээрх listener бүртгэгдэхээс ӨМНӨ event өнгөрч, хэрэглэгч
+     * нүүр хуудсанд ирдэг байв.
+     *
+     * Энэ нь push-ийн ХАМГИЙН ТҮГЭЭМЭЛ хэрэглээ (апп хаалттай байхад
+     * мэдэгдэл ирж, хэрэглэгч дарах) тул заавал барих ёстой.
+     *
+     * ⚠️ Navigator бэлэн болтол хүлээнэ — эрт дуудвал шилжилт
+     *    алдагдана.
+     */
+    let alive = true;
+    const t = setTimeout(() => {
+      void Notifications.getLastNotificationResponseAsync()
+        .then((res) => {
+          if (alive && res) go(res.notification.request.content.data?.link);
+        })
+        /* ⚠️ Унасан ч апп нээгдэх ёстой — мэдэгдлийн зам чухал боловч
+           аппыг блоклох ёсгүй */
+        .catch(() => {});
+    }, 400);
+
+    return () => {
+      alive = false;
+      clearTimeout(t);
+      sub.remove();
+    };
   }, []);
 
   return (

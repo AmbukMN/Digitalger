@@ -13,6 +13,18 @@ import { useAuth } from '../src/lib/auth';
 import { SocialAuth } from '../src/components/social-auth';
 import { colors, font, radius, space } from '../src/theme';
 
+/**
+ * ⚠️⚠️ АЮУЛГҮЙ БУЦАЛТ.
+ *
+ * `safeBack()` нь буцах ТҮҮХГҮЙ үед хоосон дэлгэц үлдээнэ.
+ * Мэдэгдлээр эсвэл deep link-ээр шууд энэ дэлгэц рүү орсон
+ * хэрэглэгчид яг тэр тохиолдол үүснэ.
+ */
+function safeBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/(tabs)');
+}
+
 export default function RegisterScreen() {
   const { signUp, signInWithProvider } = useAuth();
   const [name, setName] = useState('');
@@ -35,7 +47,7 @@ export default function RegisterScreen() {
     setErr(null);
     try {
       await signUp(email.trim(), password, name.trim());
-      router.back();
+      safeBack();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Бүртгүүлж чадсангүй');
     } finally {
@@ -110,7 +122,7 @@ export default function RegisterScreen() {
             setBusy(true);
             setErr(null);
             signInWithProvider(p)
-              .then(() => router.back())
+              .then(() => safeBack())
               .catch((e: unknown) =>
                 setErr(e instanceof Error ? e.message : 'Нэвтэрч чадсангүй'),
               )

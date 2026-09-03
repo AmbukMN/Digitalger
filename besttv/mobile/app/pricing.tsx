@@ -40,6 +40,16 @@ import { colors, font, radius, space } from '../src/theme';
  * Apple татгалзвал АЛСААС унтраагаад «Вэб дээр авна уу» гэсэн текст
  * үлдээнэ — апп дахин build хийхгүй.
  */
+/**
+ * ⚠️⚠️ АЮУЛГҮЙ БУЦАЛТ — `safeBack()` нь буцах ТҮҮХГҮЙ үед хоосон
+ * дэлгэц үлдээнэ. Мэдэгдлээр эсвэл deep link-ээр шууд орсон
+ * хэрэглэгчид яг тэр тохиолдол үүснэ.
+ */
+function safeBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/(tabs)');
+}
+
 export default function PricingScreen() {
   const { me } = useAuth();
   const qc = useQueryClient();
@@ -68,7 +78,7 @@ export default function PricingScreen() {
     void qc.invalidateQueries();
     setInvoice(null);
     setPicked(null);
-    router.back();
+    safeBack();
   }, [status?.paid, qc]);
 
   /* ⚠️ Нэвтрээгүй бол төлбөр эхлүүлэх боломжгүй (backend 401) */
@@ -233,7 +243,7 @@ export default function PricingScreen() {
                             onSuccess: () => {
                               setBusyPlan(null);
                               Alert.alert('Амжилттай', 'Багц идэвхжлээ.');
-                              router.back();
+                              safeBack();
                             },
                             onError: (e) => {
                               setBusyPlan(null);

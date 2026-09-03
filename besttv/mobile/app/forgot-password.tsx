@@ -26,6 +26,16 @@ import { colors, font, radius, space } from '../src/theme';
  * link (`besttv://reset?token=`) тохируулах шаардлагатай — тэр нь
  * имэйлийн загварыг ӨӨРЧИЛНӨ гэсэн үг, вэбэд нөлөөлөх тул хийхгүй.
  */
+/**
+ * ⚠️⚠️ АЮУЛГҮЙ БУЦАЛТ — `safeBack()` нь буцах ТҮҮХГҮЙ үед хоосон
+ * дэлгэц үлдээнэ. Мэдэгдлээр эсвэл deep link-ээр шууд орсон
+ * хэрэглэгчид яг тэр тохиолдол үүснэ.
+ */
+function safeBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/(tabs)');
+}
+
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,7 +90,7 @@ export default function ForgotPasswordScreen() {
           </Text>
 
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => safeBack()}
             style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}
           >
             <Text style={styles.btnText}>Нэвтрэх рүү буцах</Text>
@@ -142,7 +152,7 @@ export default function ForgotPasswordScreen() {
           )}
         </Pressable>
 
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={() => safeBack()} hitSlop={8}>
           <Text style={styles.link}>Нэвтрэх рүү буцах</Text>
         </Pressable>
       </ScrollView>

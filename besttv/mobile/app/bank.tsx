@@ -47,6 +47,16 @@ interface BankOrder {
   status: string;
 }
 
+/**
+ * ⚠️⚠️ АЮУЛГҮЙ БУЦАЛТ — `safeBack()` нь буцах ТҮҮХГҮЙ үед хоосон
+ * дэлгэц үлдээнэ. Мэдэгдлээр эсвэл deep link-ээр шууд орсон
+ * хэрэглэгчид яг тэр тохиолдол үүснэ.
+ */
+function safeBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/(tabs)');
+}
+
 export default function BankScreen() {
   const { planId, amount } = useLocalSearchParams<{
     planId?: string;
@@ -80,7 +90,7 @@ export default function BankScreen() {
           Одоогоор идэвхгүй байна. QPay-ээр төлнө үү.
         </Text>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => safeBack()}
           style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}
         >
           <Text style={styles.btnText}>Буцах</Text>
@@ -171,7 +181,7 @@ export default function BankScreen() {
       Alert.alert(
         'Хүсэлт илгээлээ',
         'Ажилтан шалгаад баталгаажуулна. Ажлын цагаар 1-3 цаг зарцуулна.',
-        [{ text: 'Ойлголоо', onPress: () => router.back() }],
+        [{ text: 'Ойлголоо', onPress: () => safeBack() }],
       );
     } catch (e) {
       Alert.alert('Алдаа', e instanceof Error ? e.message : 'Дахин оролдоно уу');
