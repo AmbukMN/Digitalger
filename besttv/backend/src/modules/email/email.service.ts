@@ -500,7 +500,18 @@ export class EmailService {
     ctaText?: string;
     ctaUrl?: string;
   }): string {
-    return this.layout({ ...opts, showUnsubscribe: true });
+    /**
+     * ⚠️⚠️ `email` ЗААВАЛ — `unsub` нь `showUnsubscribe && email`
+     * ХОЁУЛАА шаарддаг. Дамжуулахгүй бол урьдчилан харахад
+     * unsubscribe ОГТ гарахгүй, админ «дутуу» гэж эндүү дүгнэнэ.
+     *
+     * ⚠️ Жишээ хаяг — хэнд ч ИЛГЭЭГДЭХГҮЙ, зөвхөн харагдац.
+     */
+    return this.layout({
+      ...opts,
+      showUnsubscribe: true,
+      email: 'preview@besttv.us',
+    });
   }
 
   private layout(opts: {
