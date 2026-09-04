@@ -337,7 +337,7 @@ export function TitleDetailClient({
                         зэргэлдээ «Түрээслэх» товчтой эгнээ алдагдана.
                         ⚠️ `pointer-events-none` — badge дээр дарахад ч
                         товч ажиллана. */}
-                    <span className="pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
+                    <span className="plan-nudge pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
                       Илүү ашигтай
                     </span>
                   </Link>
@@ -529,7 +529,7 @@ export function TitleDetailClient({
                       Багц авах
                       {/* ⚠️ Мобайлынхтай ИЖИЛ — нэгийг нь өөрчилвөл
                           нөгөөг ч заавал (төхөөрөмжөөс хамаарч зөрнө) */}
-                      <span className="pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
+                      <span className="plan-nudge pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
                         Илүү ашигтай
                       </span>
                     </Link>
