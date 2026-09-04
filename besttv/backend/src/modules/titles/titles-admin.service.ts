@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ubDayKey } from '../../common/ub-date';
 import { Prisma } from '@prisma/client';
 import { fillSeo } from './title-seo.helper';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -199,7 +200,9 @@ export class TitlesAdminService {
           r.durationSec ? Math.round(r.durationSec / 60) : '',
           r._count.seasons,
           r._count.rentals,
-          r.createdAt.toISOString().slice(0, 10),
+          /* ⚠️ UB огноо — `toISOString()` нь UTC тул UB-гийн
+             00:00–08:00-д нэмсэн кино ӨМНӨХ өдрөөр бичигдэнэ */
+          ubDayKey(r.createdAt),
         ]
           .map(esc)
           .join(','),

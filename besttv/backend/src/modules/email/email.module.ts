@@ -50,6 +50,7 @@ import { verifySnsSignature } from './sns-signature.util';
 import { EmailService } from './email.service';
 import { EmailHtmlService } from './email-html.service';
 import { FLOWS, LifecycleService } from './lifecycle.service';
+import { ubRangeStart } from '../../common/ub-date';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
@@ -1637,9 +1638,11 @@ export class EmailAdminController {
 
   @Get('suppressions/stats')
   async suppressionStats() {
-    const now = new Date();
-    const d7 = new Date(now.getTime() - 7 * 86400_000);
-    const d30 = new Date(now.getTime() - 30 * 86400_000);
+    /* ⚠️ UB ӨДРИЙН ХИЛЭЭР — админ «сүүлийн 7 хоног» гэдгийг өдрийн
+       хилээр ойлгоно, «7×24 цаг» гэж бодохгүй. Мөн хянах самбартай
+       ижил аргачлалтай байх ёстой (тоо зөрөхгүй). */
+    const d7 = ubRangeStart(7);
+    const d30 = ubRangeStart(30);
 
     const [byReason, total, last7, last30] = await Promise.all([
       this.prisma.emailSuppression.groupBy({

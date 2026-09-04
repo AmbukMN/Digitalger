@@ -79,3 +79,28 @@ export function ubRangeFilter(
   }
   return range;
 }
+
+/**
+ * `Date` → UB өдрийн түлхүүр (`YYYY-MM-DD`).
+ *
+ * ⚠️⚠️ `toISOString().slice(0, 10)` ХЭРЭГЛЭХГҮЙ — тэр нь UTC огноо
+ * өгнө. UB-гийн 00:00–08:00-д хийсэн үйлдэл ӨМНӨХ өдөрт бичигдэж,
+ * өдрийн графикийн баганууд 8 цагаар зөрнө.
+ */
+export function ubDayKey(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ulaanbaatar' });
+}
+
+/**
+ * «Сүүлийн N хоног»-ийн эхлэл — UB ӨДРИЙН ХИЛЭЭР.
+ *
+ * ⚠️⚠️ `Date.now() - N * 86400000` ХЭРЭГЛЭХГҮЙ: тэр нь ЦАГ ХОЦРООД
+ * эхэлдэг. Жишээ нь 22:06-д «өнөөдөр» гэвэл өчигдрийн 22:06-аас
+ * хойшхи дүн гарч, админ «өнөөдрийн орлого» гэж эндүү уншина.
+ *
+ * @param days 1 = өнөөдөр (UB 00:00-оос), 7 = өнөөдрийг оруулаад 7 хоног
+ */
+export function ubRangeStart(days: number): Date {
+  const todayStart = ubDayStart(ubToday());
+  return new Date(todayStart.getTime() - (Math.max(1, days) - 1) * DAY_MS);
+}

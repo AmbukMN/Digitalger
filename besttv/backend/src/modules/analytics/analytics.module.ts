@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ubDayKey, ubRangeStart } from '../../common/ub-date';
 import { Body, Controller, Get, Injectable, Patch, Query, UseGuards } from '@nestjs/common';
 import { IsInt, Max, Min } from 'class-validator';
 import { MetaCapiService } from './meta-capi.service';
@@ -35,12 +36,25 @@ const RANGE_DAYS: Record<string, number> = {
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Сонгосон мужийн эхлэл + өмнөх ижил урттай мужийн эхлэл (харьцуулалтад) */
+  /**
+   * Сонгосон мужийн эхлэл + өмнөх ижил урттай мужийн эхлэл (харьцуулалтад).
+   *
+   * ⚠️⚠️ UB ӨДРИЙН ХИЛЭЭР (`ubRangeStart`) — `now - N*86400000` БИШ.
+   *
+   * БОДИТ АЛДАА: тэр нь ЦАГ ХОЦРООД эхэлдэг. Админ 22:06-д «Өнөөдөр»
+   * дарвал ӨЧИГДРИЙН 22:06-аас хойшхи дүн гарч, «өнөөдрийн орлого»
+   * гэж эндүү уншина. Мөн төлбөрийн жагсаалт (`ubRangeFilter`)-тай
+   * тоо ЗӨРНӨ — тэр нь UB өдрийн хилээр шүүдэг.
+   *
+   * ⚠️ `now` нь ОДООГИЙН агшин хэвээр (мужийн ТӨГСГӨЛ) — ирээдүйн
+   * бичлэг байхгүй тул өдрийн төгсгөл хүртэл сунгах шаардлагагүй.
+   */
   private bounds(range: string) {
     const days = RANGE_DAYS[range] ?? 30;
     const now = new Date();
-    const from = new Date(now.getTime() - days * 86400_000);
-    // ⚠️ Өмнөх ижил урттай муж — өсөлт/бууралтын хувь тооцоход
+    const from = ubRangeStart(days);
+    /* ⚠️ Өмнөх ижил урттай муж — өсөлт/бууралтын хувь тооцоход.
+       `from`-оос ЯГ N хоногийн өмнөх UB өдрийн хил. */
     const prevFrom = new Date(from.getTime() - days * 86400_000);
     return { days, now, from, prevFrom };
   }
@@ -201,7 +215,10 @@ export class AnalyticsService {
       }),
     ]);
 
-    const key = (d: Date) => d.toISOString().slice(0, 10);
+    /* ⚠️⚠️ UB өдрийн түлхүүр — `toISOString()` нь UTC огноо өгдөг тул
+       UB-гийн 00:00–08:00-д хийсэн гүйлгээ ӨМНӨХ өдрийн баганад
+       бичигдэж, график 8 цагаар зөрнө. */
+    const key = (d: Date) => ubDayKey(d);
     const revenueMap = new Map<string, number>();
     const userMap = new Map<string, number>();
 
@@ -217,7 +234,9 @@ export class AnalyticsService {
 
     const out: { date: string; revenue: number; users: number }[] = [];
     for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400_000);
+      /* ⚠️ UB өдрийн хилээс тоолно — эс бөгөөс өнөөдрийн багана
+         дутуу/илүү гарна */
+      const d = new Date(ubRangeStart(1).getTime() - i * 86400_000);
       const k = key(d);
       out.push({ date: k, revenue: revenueMap.get(k) ?? 0, users: userMap.get(k) ?? 0 });
     }

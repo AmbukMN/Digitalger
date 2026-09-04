@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ubRangeFilter } from '../../common/ub-date';
 import {
   BadRequestException,
   Body,
@@ -203,17 +204,19 @@ export class UsersService {
       where.subscriptions = { none: { expiresAt: { gt: now } } };
     }
 
-    // ⚠️ `to` нь тухайн ӨДРИЙГ бүтнээр хамруулна
-    if (params.from || params.to) {
-      const range: Prisma.DateTimeFilter = {};
-      if (params.from) range.gte = new Date(params.from);
-      if (params.to) {
-        const end = new Date(params.to);
-        end.setHours(23, 59, 59, 999);
-        range.lte = end;
-      }
-      where.createdAt = range;
-    }
+    /**
+     * ⚠️⚠️ UB ӨДРИЙН ХИЛЭЭР (`ubRangeFilter`).
+     *
+     * Өмнө нь ХОЛИМОГ байв — `payments-admin`-д зассантай ЯГ ИЖИЛ алдаа:
+     *   · `new Date('2026-09-04')` нь UTC шөнө дунд гэж уншина (= UB 08:00)
+     *   · `setHours(23,59,59)` нь ЛОКАЛ (TZ) цагаар ажиллана
+     * Хоёр өөр цагийн бүсээр шүүж, өдрийн хил 8 цагаар зөрдөг байлаа.
+     *
+     * ⚠️ `to` нь тухайн ӨДРИЙГ БҮТНЭЭР хамруулна (дараагийн өдрийн
+     *    00:00 хүртэл, `lt`) — эс бөгөөс тэр өдрийн бүртгэл алга болно.
+     */
+    const dateRange = ubRangeFilter(params.from, params.to);
+    if (dateRange) where.createdAt = dateRange;
 
     return where;
   }

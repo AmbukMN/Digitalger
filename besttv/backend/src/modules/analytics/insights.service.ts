@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ubRangeStart } from '../../common/ub-date';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 
@@ -37,9 +38,18 @@ export class InsightsService {
     private readonly cache: CacheService,
   ) {}
 
+  /**
+   * ⚠️⚠️ UB ӨДРИЙН ХИЛЭЭР — `Date.now() - N*86400000` БИШ.
+   *
+   * Тэр нь ЦАГ ХОЦРООД эхэлдэг тул «өнөөдөр» нь өчигдрийн ижил
+   * цагаас эхэлнэ. Мөн `AnalyticsService`-тэй НЭГ мужийн сонголтоор
+   * шүүгддэг (кодын тайлбар: «RANGE_DAYS-тэй ЯГ ИЖИЛ байх ёстой»)
+   * тул хоёулаа ижил аргачлалтай байх ЁСТОЙ — эс бөгөөс нэг
+   * дэлгэцэн дээрх хоёр карт өөр тоо харуулна.
+   */
   private bounds(range: string) {
     const days = RANGE_DAYS[range] ?? 30;
-    const from = new Date(Date.now() - days * 86400_000);
+    const from = ubRangeStart(days);
     return { days, from };
   }
 

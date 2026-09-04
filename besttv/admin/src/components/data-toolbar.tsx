@@ -12,16 +12,30 @@ export const DATE_PRESETS = [
   { id: '90d', label: 'Сүүлийн 90 хоног', days: 89 },
 ] as const;
 
-/** YYYY-MM-DD (local) — input[type=date]-д тохирно */
+/**
+ * YYYY-MM-DD — УЛААНБААТАРЫН огноогоор.
+ *
+ * ⚠️⚠️ `getTimezoneOffset()` ХЭРЭГЛЭХГҮЙ — тэр нь АДМИНЫ КОМПЬЮТЕРЫН
+ * цагийн бүсээр тооцдог. Монголд байгаа админд зөв гарах ч:
+ *   · гадаадаас нэвтэрсэн админ (аялал, гадаад ажилтан)
+ *   · компьютерын цаг буруу тохируулагдсан
+ * эдгээр үед өдрийн хил зөрж, backend-ийн UB тооцоотой ТААРАХГҮЙ.
+ *
+ * ⚠️ Backend нь `ubRangeFilter`-ээр UB өдрийн хилээр шүүдэг тул
+ * UI ч UB огноо илгээх ЁСТОЙ — эс бөгөөс «Өнөөдөр» дарахад өөр
+ * өдрийн дата гарна.
+ */
 export function toDateInput(d: Date): string {
-  const tz = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
-  return tz.toISOString().slice(0, 10);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ulaanbaatar' });
 }
 
+/**
+ * ⚠️ Хоногийг UB огнооны ХЭЛБЭРЭЭР тоолно — `setDate` нь браузерын
+ * локал сар/өдрөөр ажилладаг тул сарын шилжилтэд зөрж болно.
+ */
 export function presetRange(days: number): { from: string; to: string } {
   const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - days);
+  const from = new Date(to.getTime() - days * 86_400_000);
   return { from: toDateInput(from), to: toDateInput(to) };
 }
 
