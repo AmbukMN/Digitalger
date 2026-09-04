@@ -475,13 +475,31 @@ export class StorageService {
                   Range: `bytes=${start}-${end}`,
                 }),
               );
-              const chunks: Buffer[] = [];
-              /* ⚠️ Урсгал `string | Buffer | Uint8Array` буцааж болно —
-                 `Buffer.from` гурвуулангийн аль нэгийг зөв хөрвүүлнэ */
-              for await (const c of res.Body as AsyncIterable<Buffer | Uint8Array | string>) {
-                chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c as Uint8Array));
+              /**
+               * ⚠️⚠️ САНАХ ОЙД ЦУГЛУУЛАХГҮЙ — ирсэн даруй дискэнд бичнэ.
+               *
+               * Бүтнээр цуглуулбал 8 урсгал × 16 MB = 128 MB, `concat`
+               * үед түр ХОЁР ДАХИН. HLS_CONCURRENCY=2 тул 512 MB болно.
+               * Сервер 7 GB (3 GB чөлөөтэй), Node heap 2 GB — багтах ч
+               * имэйл/cron нэмэгдвэл OOM. Урсгалаар бичихэд ~64 KB л
+               * эзэлнэ.
+               *
+               * ⚠️ `pos` нь ТУС ХЭСГИЙН дотоод шилжилт — файл дахь
+               * бодит байрлал нь `start + pos`.
+               */
+              let pos = 0;
+              for await (const c of res.Body as AsyncIterable<
+                Buffer | Uint8Array | string
+              >) {
+                const buf = Buffer.isBuffer(c) ? c : Buffer.from(c as Uint8Array);
+                await fd.write(buf, 0, buf.length, start + pos);
+                pos += buf.length;
               }
-              await fd.write(Buffer.concat(chunks), 0, undefined, start);
+              /* ⚠️ Хэсэг ДУТУУ ирвэл алдаа — чимээгүй нүхтэй файл
+                 үлдээвэл кино дунд замдаа эвдэрнэ */
+              if (pos !== end - start + 1) {
+                throw new Error(`хэсэг дутуу: ${pos}/${end - start + 1}`);
+              }
               lastErr = null;
               break;
             } catch (e) {
