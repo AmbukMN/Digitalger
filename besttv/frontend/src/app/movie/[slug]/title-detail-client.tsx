@@ -330,9 +330,16 @@ export function TitleDetailClient({
                   <Link
                     href="/pricing"
                     onClick={() => savePostPurchaseReturn()}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-premium-solid px-3 py-2.5 text-xs font-bold text-premium-foreground active:scale-[0.98]"
+                    className="relative flex w-full items-center justify-center gap-1.5 rounded-lg bg-premium-solid px-3 py-2.5 text-xs font-bold text-premium-foreground active:scale-[0.98]"
                   >
                     <Lock size={15} /> Багц авах
+                    {/* ⚠️ Товчны хэмжээ ӨӨРЧЛӨХГҮЙ (`absolute`) — эс бөгөөс
+                        зэргэлдээ «Түрээслэх» товчтой эгнээ алдагдана.
+                        ⚠️ `pointer-events-none` — badge дээр дарахад ч
+                        товч ажиллана. */}
+                    <span className="pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
+                      Илүү ашигтай
+                    </span>
                   </Link>
                 </>
               ) : watchHref ? (
@@ -516,10 +523,15 @@ export function TitleDetailClient({
                     <Link
                       href="/pricing"
                       onClick={() => savePostPurchaseReturn()}
-                      className="flex items-center justify-center gap-2 rounded-lg bg-premium-solid px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
+                      className="relative flex items-center justify-center gap-2 rounded-lg bg-premium-solid px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
                     >
                       <Lock size={17} />
                       Багц авах
+                      {/* ⚠️ Мобайлынхтай ИЖИЛ — нэгийг нь өөрчилвөл
+                          нөгөөг ч заавал (төхөөрөмжөөс хамаарч зөрнө) */}
+                      <span className="pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
+                        Илүү ашигтай
+                      </span>
                     </Link>
                   </>
                 ) : watchHref ? (
