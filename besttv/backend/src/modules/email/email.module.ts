@@ -1,4 +1,9 @@
-import { Global, Module } from '@nestjs/common';
+import {
+  Delete,
+  Global,
+  Module,
+  Patch,
+} from '@nestjs/common';
 import {
   BadRequestException,
   Body,
@@ -218,6 +223,58 @@ class BroadcastDto {
   @IsString()
   @MaxLength(300)
   ctaUrl?: string;
+
+  /**
+   * ⚠️⚠️ Илгээгчийн НЭР (хаяг БИШ).
+   *
+   * Хаяг нь `MAIL_FROM` ХЭВЭЭР үлдэнэ — шинэ хаяг нь SES/Resend дээр
+   * баталгаажуулалт шаарддаг бөгөөс батлагдаагүй хаягаар илгээвэл
+   * имэйл ОГТ ЯВАХГҮЙ (MessageRejected).
+   *
+   * ⚠️ Толгой эвдэх тэмдэгтийг `sourceHeader` цэвэрлэнэ.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  senderName?: string;
+
+  /** 'subscribers' | 'users' | 'both' */
+  @IsOptional()
+  @IsString()
+  audience?: string;
+}
+
+/** Хадгалсан загвар үүсгэх/засах */
+class SaveTemplateDto {
+  @IsString()
+  @MaxLength(80)
+  name: string;
+
+  @IsString()
+  @MaxLength(200)
+  subject: string;
+
+  @IsString()
+  @MaxLength(200)
+  heading: string;
+
+  @IsString()
+  bodyHtml: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  ctaText?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  ctaUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  senderName?: string;
 
   /** 'subscribers' | 'users' | 'both' */
   @IsOptional()
@@ -1507,6 +1564,107 @@ export class EmailAdminController {
    * Client-д бүгдийг татах боломжгүй тул хуудаслалт/хайлтыг ЭНД хийнэ
    * (coupons/logs таб-тай ижил pattern).
    */
+  /**
+   * ХОРИГЛОСОН ХАЯГИЙН ТООЛОЛТ — админы статистик хайрцгууд.
+   *
+   * ⚠️⚠️ Админ хэдэн хаяг хориглогдсоныг ОГТ мэдэхгүй байв. Bounce
+   * хэт өсөх нь SES-ийн нэр хүндэд (reputation) ШУУД аюул — тэр нь
+   * доошилвол БҮХ имэйл спам руу орно. Тиймээс нэг харцаар харагдах
+   * ёстой.
+   *
+   * ⚠️ `@@index([reason, createdAt])` бий тул groupBy хурдан.
+   */
+  /* ══════════ ХАДГАЛСАН ЗАГВАР ══════════ */
+
+  /**
+   * ⚠️ Сүүлд ашигласан нь ЭХЭНД — админ идэвхтэй загвараа хурдан олно.
+   * Хэзээ ч ашиглаагүй нь (`lastUsedAt = null`) хамгийн ард.
+   */
+  @Get('templates')
+  async templates() {
+    return this.prisma.emailTemplateSaved.findMany({
+      orderBy: [{ lastUsedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    });
+  }
+
+  @Post('templates')
+  async createTemplate(@Body() dto: SaveTemplateDto) {
+    return this.prisma.emailTemplateSaved.create({ data: dto });
+  }
+
+  @Patch('templates/:id')
+  async updateTemplate(@Param('id') id: string, @Body() dto: SaveTemplateDto) {
+    return this.prisma.emailTemplateSaved.update({ where: { id }, data: dto });
+  }
+
+  @Delete('templates/:id')
+  async deleteTemplate(@Param('id') id: string) {
+    await this.prisma.emailTemplateSaved.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  /**
+   * УРЬДЧИЛАН ХАРАХ — илгээхийн ӨМНӨ.
+   *
+   * ⚠️⚠️ ЗААВАЛ: илгээсэн имэйлийг БУЦААХ БОЛОМЖГҮЙ. 1,346 хүнд
+   * эвдэрсэн бичвэр явуулсны дараа засах арга байхгүй тул админ
+   * заавал шалгах ёстой.
+   *
+   * ⚠️ Хэнд ч ИЛГЭЭХГҮЙ — зөвхөн HTML буцаана.
+   */
+  @Post('preview')
+  previewEmail(@Body() dto: BroadcastDto) {
+    return {
+      html: this.email.buildMarketingHtml({
+        heading: dto.heading,
+        bodyHtml: dto.bodyHtml,
+        ctaText: dto.ctaText,
+        ctaUrl: dto.ctaUrl,
+      }),
+      subject: dto.subject,
+      senderName: dto.senderName || 'BestTV',
+    };
+  }
+
+  @Get('suppressions/stats')
+  async suppressionStats() {
+    const now = new Date();
+    const d7 = new Date(now.getTime() - 7 * 86400_000);
+    const d30 = new Date(now.getTime() - 30 * 86400_000);
+
+    const [byReason, total, last7, last30] = await Promise.all([
+      this.prisma.emailSuppression.groupBy({
+        by: ['reason'],
+        _count: { _all: true },
+      }),
+      this.prisma.emailSuppression.count(),
+      this.prisma.emailSuppression.count({ where: { createdAt: { gte: d7 } } }),
+      this.prisma.emailSuppression.count({ where: { createdAt: { gte: d30 } } }),
+    ]);
+
+    /* ⚠️ Дэд төрлөөр ч задална — `OnAccountSuppressionList` нь
+       «AWS-ийн дотоод жагсаалт» гэсэн үг бөгөөс жинхэнэ буруу хаягаас
+       ЯЛГААТАЙ. Админ шалтгааныг ялгаж ойлгох ёстой. */
+    const bySubType = await this.prisma.emailSuppression.groupBy({
+      by: ['subType'],
+      _count: { _all: true },
+      orderBy: { _count: { subType: 'desc' } },
+      take: 6,
+    });
+
+    return {
+      total,
+      last7,
+      last30,
+      byReason: Object.fromEntries(
+        byReason.map((r) => [r.reason, r._count._all]),
+      ),
+      bySubType: bySubType
+        .filter((r) => r.subType)
+        .map((r) => ({ subType: r.subType, count: r._count._all })),
+    };
+  }
+
   @Get('suppressions')
   async suppressions(
     @Query('page') page?: string,
@@ -1597,6 +1755,8 @@ export class EmailAdminController {
         subject: dto.subject,
         heading: dto.heading,
         bodyHtml: dto.bodyHtml,
+        /* ⚠️ Админы тохируулсан илгээгчийн нэр */
+        senderName: dto.senderName,
         ctaText: dto.ctaText,
         ctaUrl: dto.ctaUrl,
       });

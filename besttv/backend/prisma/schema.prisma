@@ -2246,3 +2246,39 @@ model Download {
   /// Хэрэглэгчийн жагсаалт + heartbeat-ын гол query
   @@index([userId, expiresAt])
 }
+
+
+/// Админы хадгалсан имэйлийн загвар — броадкастад дахин ашиглана.
+///
+/// ⚠️ `Page`/`Faq` шиг ЭНГИЙН контентын хүснэгт: гадаад холбоосгүй,
+/// устгахад юу ч тасрахгүй. Илгээсэн имэйл нь HTML-ээ `EmailLog`-д
+/// ӨӨРӨӨ хадгалдаг тул загвар устгасан ч түүх бүрэн үлдэнэ.
+model EmailTemplateSaved {
+  id String @id @default(cuid())
+
+  /// Админд харагдах нэр — «Шинэ кино 7 хоног», «Урамшуулал 10%»
+  name String
+
+  /// Имэйлийн гарчиг (subject)
+  subject String
+  /// Имэйл доторх том гарчиг (heading)
+  heading String
+  /// Биеийн HTML — админы бичсэн текст + зураг
+  bodyHtml String
+
+  /// Товчны текст ба холбоос — заавал биш
+  ctaText String?
+  ctaUrl  String?
+
+  /// ⚠️ Илгээгчийн НЭР (хаяг БИШ — тэр нь MAIL_FROM хэвээр)
+  senderName String?
+
+  /// ⚠️ Хамгийн сүүлд ашигласан огноо — админ идэвхтэйг нь эхэнд харна
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Жагсаалтын эрэмбэ — сүүлд ашигласан нь дээр
+  @@index([lastUsedAt])
+}

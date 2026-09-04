@@ -58,7 +58,7 @@ export class UploadsController {
   )
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @Body('kind') kind: 'poster' | 'backdrop' | 'still' | 'cast' | 'gallery' = 'poster',
+    @Body('kind') kind: 'poster' | 'backdrop' | 'still' | 'cast' | 'gallery' | 'email' = 'poster',
   ) {
     if (!file) throw new BadRequestException('Файл сонгоогүй байна');
     if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
@@ -68,16 +68,47 @@ export class UploadsController {
     const sharp = (await import('sharp')).default;
     const maxWidth =
       kind === 'backdrop' || kind === 'gallery' ? 1920 : kind === 'cast' ? 300 : kind === 'still' ? 800 : 600;
-    const buf = await sharp(file.buffer)
-      .resize({ width: maxWidth, withoutEnlargement: true })
-      .webp({ quality: 90, effort: 4, smartSubsample: true })
-      .toBuffer();
 
-    const key = `images/${kind}/${this.storage.buildKey(kind, 'img.webp').split('/').pop()}`;
-    await this.storage.upload(key, buf, 'image/webp');
+    /**
+     * ⚠️⚠️ ИМЭЙЛД WebP БОЛОХГҮЙ — Outlook (Windows) нь WebP-г ОГТ
+     * дэмждэггүй тул зураг харагдахгүй болно. JPEG нь имэйлийн бүх
+     * клиентэд ажилладаг цорын ганц найдвартай формат.
+     *
+     * ⚠️ `flatten` — PNG-ийн ил тод хэсгийг ЦАГААН болгоно. Үгүй бол
+     * JPEG-д ХАР болж, имэйл дээр бараан толбо гарна.
+     */
+    const forEmail = kind === 'email';
+    const pipeline = sharp(file.buffer).resize({
+      width: forEmail ? 600 : maxWidth,
+      withoutEnlargement: true,
+    });
+    const buf = forEmail
+      ? await pipeline
+          .flatten({ background: '#ffffff' })
+          .jpeg({ quality: 82, progressive: true })
+          .toBuffer()
+      : await pipeline.webp({ quality: 90, effort: 4, smartSubsample: true }).toBuffer();
 
-    return { key, url: await this.storage.publicAssetUrl(key, 7200) };
+    const ext = forEmail ? 'jpg' : 'webp';
+    const key = `images/${kind}/${this.storage.buildKey(kind, `img.${ext}`).split('/').pop()}`;
+    await this.storage.upload(key, buf, forEmail ? 'image/jpeg' : 'image/webp');
+
+    const url = await this.storage.publicAssetUrl(key, 7200);
+
+    /**
+     * ⚠️⚠️ ИМЭЙЛИЙН URL нь БАЙНГЫН байх ЁСТОЙ. Presigned бол 2 цагийн
+     * дараа имэйл нээхэд зураг АЛГА болно — хэрэглэгч эвдэрсэн имэйл
+     * харна. `R2_PUBLIC_URL` тохируулаагүй бол ЭНД зогсооно.
+     */
+    if (forEmail && url.includes('X-Amz-Signature')) {
+      throw new BadRequestException(
+        'R2_PUBLIC_URL тохируулаагүй — имэйлийн зураг хугацаа дуусах тул ашиглах боломжгүй',
+      );
+    }
+
+    return { key, url };
   }
+
 
   /** Storage драйверийг frontend танихад (R2=presign PUT, local=шууд upload endpoint) */
   @Post('video/init')

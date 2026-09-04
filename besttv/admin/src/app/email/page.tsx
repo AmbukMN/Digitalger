@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  Clock,
   CheckCircle2,
+  Image as ImageIcon,
   Inbox,
   Loader2,
   Mail,
@@ -33,6 +35,7 @@ import { NewBadge } from '@/components/new-badge';
 import { AddSubscribersDialog } from '@/components/add-subscribers-dialog';
 import { EmailBatchDialog } from '@/components/email-batch-dialog';
 import { api } from '@/lib/api';
+import { uploadImage } from '@/lib/upload';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 import { useNewSince } from '@/lib/use-new-since';
@@ -731,8 +734,120 @@ function BroadcastTab() {
     ctaText: '',
     ctaUrl: '',
     audience: 'subscribers',
+    /* ⚠️ Илгээгчийн НЭР (хаяг БИШ — MAIL_FROM хэвээр) */
+    senderName: '',
   });
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  /* ⚠️ Хадгалсан загварууд — сүүлд ашигласан нь эхэнд */
+  const { data: templates } = useQuery({
+    queryKey: ['admin-email-templates'],
+    queryFn: () =>
+      api<
+        {
+          id: string;
+          name: string;
+          subject: string;
+          heading: string;
+          bodyHtml: string;
+          ctaText: string | null;
+          ctaUrl: string | null;
+          senderName: string | null;
+        }[]
+      >('/admin/email/templates'),
+    staleTime: 30_000,
+  });
+
+  /**
+   * ⚠️⚠️ ЗУРАГ — `/uploads/email-image` (энгийн `/uploads/image` БИШ).
+   *
+   * Тэр нь WebP болгодог бөгөөс Outlook (Windows) нь WebP-г ОГТ
+   * дэмждэггүй — зураг харагдахгүй болно. Имэйлийн endpoint нь JPEG
+   * болгож, БАЙНГЫН URL буцаана.
+   */
+  const insertImage = async (file: File) => {
+    setUploading(true);
+    try {
+      /**
+       * ⚠️⚠️ `uploadImage()` ашиглана — гараар `fetch` бичвэл
+       * CROSS-ORIGIN болж `Authorization` header алдагдан 401 буцна
+       * (upload.ts-д бодит нотолгоо бичигдсэн). Энэ функц нь
+       * same-origin, токен refresh, явцыг зөв боловсруулдаг.
+       *
+       * ⚠️ `kind: 'email'` — backend тэрийг JPEG болгоно (WebP бол
+       * Outlook дээр зураг ОГТ харагдахгүй).
+       */
+      const { url } = await uploadImage(file, 'email').promise;
+
+      /* ⚠️ Курсорын байрлалд оруулна — төгсгөлд нь наавал админ
+         зургаа дунд нь тавьж чадахгүй */
+      const tag = `<img src="${url}" alt="" style="width:100%;max-width:536px;border-radius:10px;display:block;margin:14px 0" />`;
+      const el = bodyRef.current;
+      const at = el?.selectionStart ?? form.body.length;
+      setForm((f) => ({ ...f, body: f.body.slice(0, at) + tag + f.body.slice(at) }));
+      toast.success('Зураг нэмэгдлээ');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Зураг оруулж чадсангүй');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /** Загвараа хадгалах — нэр асууна */
+  const saveTemplate = async () => {
+    if (!form.subject.trim() || !form.heading.trim() || !form.body.trim()) {
+      return toast.error('Гарчиг, толгой, агуулга заавал');
+    }
+    const name = window.prompt('Загварын нэр:', form.subject.slice(0, 40));
+    if (!name?.trim()) return;
+    try {
+      await api('/admin/email/templates', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name.trim(),
+          subject: form.subject,
+          heading: form.heading,
+          bodyHtml: form.body,
+          ctaText: form.ctaText || undefined,
+          ctaUrl: form.ctaUrl || undefined,
+          senderName: form.senderName || undefined,
+        }),
+      });
+      void qc.invalidateQueries({ queryKey: ['admin-email-templates'] });
+      toast.success('Загвар хадгалагдлаа');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Хадгалж чадсангүй');
+    }
+  };
+
+  /**
+   * ⚠️⚠️ УРЬДЧИЛАН ХАРАХ — илгээхийн ӨМНӨ ЗААВАЛ.
+   * Илгээсэн имэйлийг БУЦААХ БОЛОМЖГҮЙ.
+   */
+  const openPreview = async () => {
+    if (!form.heading.trim() || !form.body.trim()) {
+      return toast.error('Толгой ба агуулга заавал');
+    }
+    try {
+      const r = await api<{ html: string }>('/admin/email/preview', {
+        method: 'POST',
+        body: JSON.stringify({
+          subject: form.subject || '(гарчиггүй)',
+          heading: form.heading,
+          bodyHtml: form.body,
+          ctaText: form.ctaText || undefined,
+          ctaUrl: form.ctaUrl || undefined,
+          senderName: form.senderName || undefined,
+        }),
+      });
+      setPreview(r.html);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Урьдчилан харж чадсангүй');
+    }
+  };
 
   /** Хүлээн авагчийн бодит тоо — аль сонголт хэдэн хүнд очих */
   const { data: counts } = useQuery({
@@ -782,11 +897,15 @@ function BroadcastTab() {
             .join(''),
           ctaText: form.ctaText || undefined,
           ctaUrl: form.ctaUrl || undefined,
+          /* ⚠️ Дамжуулахгүй бол админы бичсэн нэр ЧИМЭЭГҮЙ алдагдана */
+          senderName: form.senderName || undefined,
           audience: form.audience,
         }),
       });
       toast.success(`${res.queued} хаяг руу дараалалд орлоо`);
       qc.invalidateQueries({ queryKey: ['admin-email-logs'] });
+      /* ⚠️ `senderName`, `audience` нь ҮЛДЭНЭ — ижил илгээгч/сонсогчид
+         дараалан хэд хэдэн имэйл явуулах нь түгээмэл */
       setForm({ ...form, subject: '', heading: '', body: '', ctaText: '', ctaUrl: '' });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Алдаа гарлаа');
@@ -852,11 +971,57 @@ function BroadcastTab() {
           />
         </label>
 
+        {/* ⚠️ Илгээгчийн НЭР — хаяг нь MAIL_FROM хэвээр (SES
+            баталгаажуулалт шаарддаг тул энд солих боломжгүй) */}
         <label className="block">
           <span className="mb-1 block text-xs text-muted-foreground">
-            Агуулга (хоосон мөрөөр догол мөр тусгаарлана)
+            Илгээгчийн нэр (заавал биш — өгөгдмөл «BestTV»)
+          </span>
+          <input
+            value={form.senderName}
+            onChange={(e) => setForm({ ...form, senderName: e.target.value })}
+            placeholder="BestTV"
+            maxLength={60}
+            className="admin-input"
+          />
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            Хаяг нь хэвээр үлдэнэ — зөвхөн харагдах нэр солигдоно
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Агуулга (хоосон мөрөөр догол мөр тусгаарлана)</span>
+
+            {/* ⚠️ Зураг — курсорын байрлалд ордог тул админ дунд нь
+                тавьж чадна. JPEG болгоно (Outlook WebP дэмждэггүй). */}
+            <span className="flex items-center gap-2">
+              <label
+                className={cn(
+                  'inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70',
+                  uploading && 'pointer-events-none opacity-50',
+                )}
+              >
+                <ImageIcon size={13} />
+                {uploading ? 'Ачаалж байна…' : 'Зураг нэмэх'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    /* ⚠️ Утгыг цэвэрлэнэ — ИЖИЛ файлыг дахин
+                       сонгоход `onChange` дахин ажиллана */
+                    e.target.value = '';
+                    if (f) void insertImage(f);
+                  }}
+                />
+              </label>
+            </span>
           </span>
           <textarea
+            ref={bodyRef}
             value={form.body}
             onChange={(e) => setForm({ ...form, body: e.target.value })}
             rows={8}
@@ -886,15 +1051,134 @@ function BroadcastTab() {
           </label>
         </div>
 
-        <button
-          onClick={send}
-          disabled={busy}
-          className="btn-primary flex items-center gap-2 disabled:opacity-50"
-        >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-          Илгээх
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={send}
+            disabled={busy}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+            Илгээх
+          </button>
+
+          {/* ⚠️⚠️ УРЬДЧИЛАН ХАРАХ — илгээсэн имэйлийг БУЦААХ
+              БОЛОМЖГҮЙ тул заавал шалгах ёстой */}
+          <button
+            onClick={() => void openPreview()}
+            type="button"
+            className="btn-secondary flex items-center gap-2"
+          >
+            <MailOpen size={15} />
+            Урьдчилан харах
+          </button>
+
+          <button
+            onClick={() => void saveTemplate()}
+            type="button"
+            className="btn-secondary flex items-center gap-2"
+          >
+            <FolderOpen size={15} />
+            Загвар болгож хадгалах
+          </button>
+        </div>
+
+        {/* ⚠️ Хадгалсан загварууд — сонгоход маягт дүүрнэ.
+            Сүүлд ашигласан нь эхэнд. */}
+        {!!templates?.length && (
+          <div className="border-t border-border pt-3">
+            <p className="mb-2 text-xs text-muted-foreground">
+              Хадгалсан загвар ({templates.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {templates.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-1 rounded-md bg-secondary pl-2.5 text-xs"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((f) => ({
+                        ...f,
+                        subject: t.subject,
+                        heading: t.heading,
+                        body: t.bodyHtml,
+                        ctaText: t.ctaText ?? '',
+                        ctaUrl: t.ctaUrl ?? '',
+                        senderName: t.senderName ?? '',
+                      }));
+                      toast.success(`«${t.name}» ачааллаа`);
+                    }}
+                    className="py-1.5 font-medium text-foreground hover:text-primary"
+                  >
+                    {t.name}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${t.name} устгах`}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Загвар устгах уу?',
+                        description: `«${t.name}» устгагдана. Илгээсэн имэйлийн түүхэд НӨЛӨӨЛӨХГҮЙ.`,
+                        confirmLabel: 'Устгах',
+                        tone: 'danger',
+                      });
+                      if (!ok) return;
+                      try {
+                        await api(`/admin/email/templates/${t.id}`, { method: 'DELETE' });
+                        void qc.invalidateQueries({ queryKey: ['admin-email-templates'] });
+                        toast.success('Устгагдлаа');
+                      } catch {
+                        toast.error('Устгаж чадсангүй');
+                      }
+                    }}
+                    className="px-1.5 py-1.5 text-muted-foreground hover:text-destructive"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ⚠️ Урьдчилан харах — sandbox iframe (скрипт ажиллуулахгүй) */}
+      {preview !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="admin-card flex max-h-[85vh] w-full max-w-[680px] flex-col overflow-hidden rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {form.subject || '(гарчиггүй)'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Илгээгч: {form.senderName || 'BestTV'}
+                </p>
+              </div>
+              <button
+                onClick={() => setPreview(null)}
+                aria-label="Хаах"
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <iframe
+              srcDoc={preview}
+              sandbox=""
+              title="Имэйлийн урьдчилан харах"
+              className="h-[70vh] w-full border-0 bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -944,7 +1228,75 @@ function SuppressionsTab() {
   });
   const rows = data?.items ?? [];
 
+  /**
+   * ⚠️⚠️ СТАТИСТИК — админ хэдэн хаяг хориглогдсоныг ОГТ мэдэхгүй байв.
+   * Bounce хэт өсөх нь SES-ийн нэр хүндэд ШУУД аюул: доошилвол БҮХ
+   * имэйл спам руу орно. Тиймээс нэг харцаар харагдана.
+   *
+   * ⚠️ Хайлтаас ХАМААРАХГҮЙ — нийт зураглал үргэлж ижил байх ёстой.
+   */
+  const stats = useQuery({
+    queryKey: ['admin-suppression-stats'],
+    queryFn: () =>
+      api<{
+        total: number;
+        last7: number;
+        last30: number;
+        byReason: Record<string, number>;
+        bySubType: { subType: string; count: number }[];
+      }>('/admin/email/suppressions/stats'),
+    staleTime: 60_000,
+  });
+
   return (
+    <div className="space-y-4">
+      {/* ⚠️ Сүүлийн 7 хоног нь ХАМГИЙН чухал — гэнэт өсвөл асуудал */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          icon={<ShieldOff size={17} />}
+          label="Нийт хориглосон"
+          value={stats.data?.total ?? 0}
+          tone="warning"
+        />
+        <StatCard
+          icon={<XCircle size={17} />}
+          label="Bounce (буцсан)"
+          value={stats.data?.byReason?.bounce ?? 0}
+          tone="danger"
+        />
+        <StatCard
+          icon={<AlertTriangle size={17} />}
+          label="Гомдол"
+          value={
+            (stats.data?.byReason?.complaint ?? 0) +
+            (stats.data?.byReason?.manual ?? 0)
+          }
+          tone="danger"
+        />
+        <StatCard
+          icon={<Clock size={17} />}
+          label="Сүүлийн 7 хоног"
+          value={stats.data?.last7 ?? 0}
+          tone={(stats.data?.last7 ?? 0) > 50 ? 'danger' : 'default'}
+        />
+      </div>
+
+      {/* ⚠️ Дэд төрөл — «OnAccountSuppressionList» нь AWS-ийн дотоод
+          жагсаалт бөгөөс жинхэнэ буруу хаягаас ЯЛГААТАЙ. Админ
+          шалтгааныг ялгаж ойлгох ёстой. */}
+      {!!stats.data?.bySubType?.length && (
+        <div className="admin-card flex flex-wrap gap-2 rounded-xl p-3">
+          {stats.data.bySubType.map((x) => (
+            <span
+              key={x.subType}
+              className="rounded-md bg-secondary px-2.5 py-1 text-xs text-muted-foreground"
+            >
+              {x.subType} <span className="font-bold text-foreground">{x.count}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
     <div className="admin-card overflow-hidden rounded-xl">
       <p className="border-b border-border p-4 text-xs text-muted-foreground">
         Bounce/complaint ирсэн хаягууд — эдгээр рүү дахин илгээхгүй. Ингэснээр SES-ийн нэр хүнд
@@ -1014,6 +1366,7 @@ function SuppressionsTab() {
         limit={LIMIT}
         onPage={(p) => setPage(p)}
       />
+    </div>
     </div>
   );
 }

@@ -109,6 +109,27 @@ export class EmailService {
     return this.ses !== null;
   }
   private readonly from: string;
+
+  /**
+   * Илгээгчийн «нэр <хаяг>» толгой.
+   *
+   * ⚠️⚠️ ЗӨВХӨН НЭР тохируулна — ХАЯГ нь `MAIL_FROM` ХЭВЭЭР.
+   * Шинэ ХАЯГ нь SES дээр баталгаажуулалт шаарддаг тул батлагдаагүй
+   * хаягаар илгээвэл имэйл ОГТ ЯВАХГҮЙ (MessageRejected).
+   *
+   * ⚠️⚠️ ТОЛГОЙН ХАМГААЛАЛТ: нэрэнд `<`, `>`, `"`, таслал эсвэл шинэ
+   * мөр орвол Source толгой эвдэрч, илгээлт бүхэлдээ унана
+   * (header injection). Тиймээс зөвшөөрөгдөх тэмдэгтээр хязгаарлана.
+   */
+  private sourceHeader(name?: string | null): string {
+    const clean = (name ?? '')
+      /* ⚠️ Хяналтын тэмдэгт + толгой эвдэх тэмдэгтүүдийг ХАСНА */
+      .replace(/[<>"'\r\n,;:\\]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60);
+    return `${clean || 'BestTV'} <${this.from}>`;
+  }
   private readonly siteUrl: string;
   /**
    * ⚠️ БРЭНДИЙН ЛОГО — имэйлийн толгойд жинхэнэ PNG лого (текст биш).
@@ -249,6 +270,12 @@ export class EmailService {
     html: string;
     template: EmailTemplate;
     userId?: string;
+    /**
+     * ⚠️ Илгээгчийн НЭР (хаяг биш). Заагаагүй бол «BestTV».
+     * Хаяг нь `MAIL_FROM` ХЭВЭЭР — шинэ хаяг SES баталгаажуулалт
+     * шаарддаг тул энд солих БОЛОМЖГҮЙ.
+     */
+    senderName?: string;
     replyTo?: string;
     /**
      * ⚠️ Нээлтийн pixel хийх эсэх. Гүйлгээний имэйлд (нууц үг, OTP)
@@ -331,7 +358,7 @@ export class EmailService {
          */
         const res = await this.ses.send(
           new SendEmailCommand({
-            Source: `BestTV <${this.from}>`,
+            Source: this.sourceHeader(opts.senderName),
             Destination: { ToAddresses: [to] },
             ReplyToAddresses: opts.replyTo ? [opts.replyTo] : undefined,
             Message: {
@@ -455,6 +482,27 @@ export class EmailService {
    * Бүх имэйлийн НЭГДСЭН layout.
    * ⚠️ Table-based — Outlook/Gmail зэрэг бүх client зөв харуулна (flex/grid БОЛОХГҮЙ).
    */
+  /**
+   * УРЬДЧИЛАН ХАРАХ HTML — админ илгээхийн ӨМНӨ шалгана.
+   *
+   * ⚠️⚠️ Илгээсэн имэйлийг БУЦААХ БОЛОМЖГҮЙ тул энэ шалгалт ЗААВАЛ.
+   *
+   * ⚠️ `showUnsubscribe: true` — ЖИНХЭНЭ маркетингийн имэйлтэй ЯГ
+   * ИЖИЛ байх ёстой. Эс бөгөөс админ шалгаад «зөв» гэж үзээд
+   * илгээхэд өөр харагдана.
+   *
+   * ⚠️ `email`/`logId` дамжуулахгүй — нээлтийн pixel хэрэггүй
+   * (хэн ч хүлээж аваагүй).
+   */
+  buildMarketingHtml(opts: {
+    heading: string;
+    bodyHtml: string;
+    ctaText?: string;
+    ctaUrl?: string;
+  }): string {
+    return this.layout({ ...opts, showUnsubscribe: true });
+  }
+
   private layout(opts: {
     heading: string;
     bodyHtml: string;
@@ -1052,6 +1100,8 @@ ${pixel}
     /** ⚠️ Bulk бүлэг — кино реклам/broadcast-ийн бүх имэйл ижил batchId */
     batchId?: string;
     batchLabel?: string;
+    /** ⚠️ Илгээгчийн нэр — админ броадкаст дээр тохируулна */
+    senderName?: string;
   }) {
     const html = this.layout({
       heading: opts.heading,
@@ -1079,6 +1129,9 @@ ${pixel}
       track: true,
       batchId: opts.batchId,
       batchLabel: opts.batchLabel,
+      /* ⚠️ Дамжуулахгүй бол админы тохируулсан илгээгчийн нэр
+         ЧИМЭЭГҮЙ алдагдана */
+      senderName: opts.senderName,
     });
   }
 
