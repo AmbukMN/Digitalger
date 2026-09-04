@@ -584,20 +584,30 @@ export default function ProfilePage() {
               )}
 
               {/*
-                ⚠️ ҮРГЭЛЖ харагдана (VIP-ээс бусад). Өмнө нь зөвхөн багцгүй
-                хэрэглэгчид харагддаг байсан тул НЭГ багцтай хүн нэмэлт багц
-                авах гарцгүй болж, зөвхөн footer-ийн линк үлддэг байв.
-                VIP бол бүх ангилал нээлттэй тул илүүдэл.
+                ⚠️⚠️ ҮРГЭЛЖ харагдана — VIP-Д Ч ГЭСЭН.
+
+                Өмнө нь `!vip` нөхцөлтэй байсан («VIP бол бүх ангилал
+                нээлттэй тул илүүдэл»). Гэвч VIP-ийн ХУГАЦАА ДУУСДАГ:
+                тэр өдөр дөхөхөд VIP хэрэглэгч сунгах ГАРЦГҮЙ болж,
+                зөвхөн footer-ийн жижиг линк үлддэг байв.
+
+                ⚠️ Сунгах нь бүрэн дэмжигдсэн: pricing хуудасны
+                тайлбар «Идэвхтэй багцаа ДАХИН авбал хугацаа нь ДЭЭР
+                НЬ нэмэгдэнэ» гэж заасан.
               */}
-              {!vip && (
-                <Link
-                  href="/pricing"
-                  className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-premium-solid py-2.5 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.01] hover:brightness-105"
-                >
-                  <Crown size={15} />
-                  {user.subscriptions.length > 0 ? 'Багц нэмэх / сунгах' : 'Багц авах'}
-                </Link>
-              )}
+              <Link
+                href="/pricing"
+                className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-premium-solid py-2.5 text-sm font-bold text-premium-foreground transition-transform hover:scale-[1.01] hover:brightness-105"
+              >
+                <Crown size={15} />
+                {/* ⚠️ VIP-д «сунгах» гэж ТОДОРХОЙ хэлнэ — «багц авах»
+                    гэвэл «би аль хэдийн авсан шүү дээ» гэж эргэлзэнэ */}
+                {vip
+                  ? 'VIP сунгах / өөр багц авах'
+                  : user.subscriptions.length > 0
+                    ? 'Багц нэмэх / сунгах'
+                    : 'Багц авах'}
+              </Link>
             </div>
 
             {/*
