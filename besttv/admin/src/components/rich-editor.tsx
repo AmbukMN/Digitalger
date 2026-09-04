@@ -48,11 +48,20 @@ export function RichEditor({
   onChange,
   placeholder = 'Энд бичнэ үү...',
   minHeight = 400,
+  imageKind = 'gallery',
 }: {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: number;
+  /**
+   * ⚠️⚠️ Зургийн боловсруулалтын төрөл.
+   *
+   * `gallery` (анхдагч) — 1920px WebP, блог/хуудсанд зөв.
+   * `email` — 600px JPEG: Outlook (Windows) нь WebP-г ОГТ дэмждэггүй
+   * тул имэйлд WebP тавибал зураг харагдахгүй болно.
+   */
+  imageKind?: 'gallery' | 'email';
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -113,7 +122,7 @@ export function RichEditor({
     try {
       const form = new FormData();
       form.append('file', file);
-      form.append('kind', 'gallery');
+      form.append('kind', imageKind);
       const res = await api<{ key: string; url: string }>('/admin/uploads/image', {
         method: 'POST',
         body: form,

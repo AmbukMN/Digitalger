@@ -48,6 +48,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { EmailEventsService } from './email-events.service';
 import { verifySnsSignature } from './sns-signature.util';
 import { EmailService } from './email.service';
+import { EmailHtmlService } from './email-html.service';
 import { FLOWS, LifecycleService } from './lifecycle.service';
 
 /**
@@ -858,6 +859,12 @@ export class EmailAdminController {
     private readonly email: EmailService,
     /** ⚠️ Кино реклам имэйлд постерын public URL хэрэгтэй */
     private readonly storage: StorageService,
+    /**
+     * ⚠️⚠️ TipTap → имэйлийн HTML хувиргагч.
+     * Урьдчилан харах ба илгээх ХОЁУЛАА үүгээр дамжина — админы
+     * харсан зүйл хүлээн авагчийнхтай ЯГ ИЖИЛ байх ёстой.
+     */
+    private readonly emailHtml: EmailHtmlService,
   ) {}
 
   /**
@@ -1617,7 +1624,9 @@ export class EmailAdminController {
     return {
       html: this.email.buildMarketingHtml({
         heading: dto.heading,
-        bodyHtml: dto.bodyHtml,
+        /* ⚠️⚠️ ЖИНХЭНЭ илгээлттэй ЯГ ИЖИЛ хувиргалт — админ энд
+           харсан зүйлээ ЯГ ТЭР ЧИГЭЭР нь хүлээн авагч харна */
+        bodyHtml: this.emailHtml.toEmailHtml(dto.bodyHtml),
         ctaText: dto.ctaText,
         ctaUrl: dto.ctaUrl,
       }),
@@ -1749,12 +1758,18 @@ export class EmailAdminController {
       optedOut.forEach((r) => targets.delete(r.email));
     }
 
+    /* ⚠️ Давталтын ГАДНА — 1,346 хүнд илгээхэд ижил хувиргалтыг
+       давтан хийх нь дэмий (агуулга бүгдэд ИЖИЛ) */
+    const bodyForEmail = this.emailHtml.toEmailHtml(dto.bodyHtml);
+
     for (const to of targets) {
       this.email.sendMarketing({
         to,
         subject: dto.subject,
         heading: dto.heading,
-        bodyHtml: dto.bodyHtml,
+        /* ⚠️⚠️ Урьдчилан харахтай ЯГ ИЖИЛ хувиргалт (`toEmailHtml`) —
+           хоёр тусдаа бичвэл админы харсан зүйл ЗӨРНӨ */
+        bodyHtml: bodyForEmail,
         /* ⚠️ Админы тохируулсан илгээгчийн нэр */
         senderName: dto.senderName,
         ctaText: dto.ctaText,
@@ -1776,6 +1791,8 @@ export class EmailAdminController {
   controllers: [EmailPublicController, EmailOtpController, EmailAdminController, EmailEventsController],
   providers: [
     EmailService,
+    /* ⚠️ Бүртгэхгүй бол NestJS асахдаа UnknownDependenciesException */
+    EmailHtmlService,
     EmailOtpService,
     SubscriberService,
     EmailEventsService,

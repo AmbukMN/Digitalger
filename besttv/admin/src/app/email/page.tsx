@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
-  Image as ImageIcon,
   Inbox,
   Loader2,
   Mail,
@@ -34,6 +33,7 @@ import { Pagination } from '@/components/pagination';
 import { NewBadge } from '@/components/new-badge';
 import { AddSubscribersDialog } from '@/components/add-subscribers-dialog';
 import { EmailBatchDialog } from '@/components/email-batch-dialog';
+import { RichEditor } from '@/components/rich-editor';
 import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/upload';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
@@ -738,9 +738,7 @@ function BroadcastTab() {
     senderName: '',
   });
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   /* ⚠️ Хадгалсан загварууд — сүүлд ашигласан нь эхэнд */
   const { data: templates } = useQuery({
@@ -768,33 +766,6 @@ function BroadcastTab() {
    * дэмждэггүй — зураг харагдахгүй болно. Имэйлийн endpoint нь JPEG
    * болгож, БАЙНГЫН URL буцаана.
    */
-  const insertImage = async (file: File) => {
-    setUploading(true);
-    try {
-      /**
-       * ⚠️⚠️ `uploadImage()` ашиглана — гараар `fetch` бичвэл
-       * CROSS-ORIGIN болж `Authorization` header алдагдан 401 буцна
-       * (upload.ts-д бодит нотолгоо бичигдсэн). Энэ функц нь
-       * same-origin, токен refresh, явцыг зөв боловсруулдаг.
-       *
-       * ⚠️ `kind: 'email'` — backend тэрийг JPEG болгоно (WebP бол
-       * Outlook дээр зураг ОГТ харагдахгүй).
-       */
-      const { url } = await uploadImage(file, 'email').promise;
-
-      /* ⚠️ Курсорын байрлалд оруулна — төгсгөлд нь наавал админ
-         зургаа дунд нь тавьж чадахгүй */
-      const tag = `<img src="${url}" alt="" style="width:100%;max-width:536px;border-radius:10px;display:block;margin:14px 0" />`;
-      const el = bodyRef.current;
-      const at = el?.selectionStart ?? form.body.length;
-      setForm((f) => ({ ...f, body: f.body.slice(0, at) + tag + f.body.slice(at) }));
-      toast.success('Зураг нэмэгдлээ');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Зураг оруулж чадсангүй');
-    } finally {
-      setUploading(false);
-    }
-  };
 
   /** Загвараа хадгалах — нэр асууна */
   const saveTemplate = async () => {
@@ -989,46 +960,38 @@ function BroadcastTab() {
           </span>
         </label>
 
-        <label className="block">
-          <span className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Агуулга (хоосон мөрөөр догол мөр тусгаарлана)</span>
-
-            {/* ⚠️ Зураг — курсорын байрлалд ордог тул админ дунд нь
-                тавьж чадна. JPEG болгоно (Outlook WebP дэмждэггүй). */}
-            <span className="flex items-center gap-2">
-              <label
-                className={cn(
-                  'inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70',
-                  uploading && 'pointer-events-none opacity-50',
-                )}
-              >
-                <ImageIcon size={13} />
-                {uploading ? 'Ачаалж байна…' : 'Зураг нэмэх'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    /* ⚠️ Утгыг цэвэрлэнэ — ИЖИЛ файлыг дахин
-                       сонгоход `onChange` дахин ажиллана */
-                    e.target.value = '';
-                    if (f) void insertImage(f);
-                  }}
-                />
-              </label>
-            </span>
+        <div className="block">
+          <span className="mb-1 block text-xs text-muted-foreground">
+            Агуулга — Word шиг форматлана (тод, өнгө, жагсаалт, зураг)
           </span>
-          <textarea
-            ref={bodyRef}
+
+          {/**
+           * ⚠️⚠️ TipTap — блог/хуудастай ИЖИЛ редактор.
+           *
+           * Гаралт нь HTML. Backend нь `toEmailHtml()`-ээр имэйлд
+           * тохируулан хувиргана: имэйлийн клиент CSS класс ачаалдаггүй
+           * тул inline `style` болгож, бараан карт дээр уншигдах өнгө
+           * тавина.
+           *
+           * ⚠️ Урьдчилан харах нь ЯГ ТЭР хувиргалтаар дамждаг тул
+           * админы харсан зүйл хүлээн авагчийнхтай ИЖИЛ.
+           */}
+          <RichEditor
             value={form.body}
-            onChange={(e) => setForm({ ...form, body: e.target.value })}
-            rows={8}
-            placeholder="Сайн байна уу!&#10;&#10;Энэ долоо хоногт..."
-            className="admin-textarea"
+            onChange={(html) => setForm((f) => ({ ...f, body: html }))}
+            placeholder="Сайн байна уу! Энэ долоо хоногт…"
+            minHeight={260}
+            /* ⚠️⚠️ `email` — 600px JPEG. Анхдагч `gallery` нь 1920px
+               WebP бөгөөс Outlook (Windows) нь WebP-г ОГТ дэмждэггүй
+               тул имэйлд зураг харагдахгүй болно. */
+            imageKind="email"
           />
-        </label>
+
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            ⚠️ Илгээхийн өмнө «Урьдчилан харах» дарж шалгаарай — илгээсэн
+            имэйлийг буцаах боломжгүй
+          </span>
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
