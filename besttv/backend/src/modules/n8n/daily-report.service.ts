@@ -32,23 +32,33 @@ export class DailyReportService implements OnModuleDestroy {
   }
 
   /**
-   * ⚠️ 23:01 Улаанбаатарын цагаар — өдөр дуусахын өмнөхөн.
+   * ⚠️⚠️ 00:00 Улаанбаатарын цагаар — ӨНГӨРСӨН өдрийн тайлан.
    *
-   * Шөнө дунд (00:00) бол «өчигдрийн» тайлан болж, админ өглөө
-   * сэрээд хуучирсан мэдээлэл уншина.
+   * БОДИТ АЛДАА: өмнө нь 23:01-д илгээдэг байсан атлаа тайлан нь
+   * `ubDayRange()` буюу 00:00–23:59:59 хамардаг байв. Улмаас өдрийн
+   * СҮҮЛИЙН ~59 МИНУТЫН БОРЛУУЛАЛТ тайланд огт орохгүй, орлого
+   * дутуу харагдаж байв (хэрэглэгч илрүүлэв).
    *
-   * ⚠️⚠️ 23:00 БИШ 23:01 — DigitalGer-ийн тайлан ЯГ 23:00-д ирдэг.
-   * Хоёр тайлан нэг мөчид ирвэл Telegram дээр дараалж гарч, аль нь
-   * аль сайтынх болох нь эргэлзээтэй болно. Нэг минут зөрүүлснээр
-   * тодорхой ялгарна.
+   * Одоо шинэ өдрийн эхэнд ажиллаж `dayRange(-1)`-ээр ӨМНӨХ өдрийг
+   * БҮТНЭЭР хамруулна — нэг ч гүйлгээ алдагдахгүй.
+   *
+   * ⚠️ ЯГ 00:00:00 — хэрэглэгчийн сонголт. Тайлангийн муж нь
+   * `< 00:00:00` тул яг тэр агшинд бичигдэж буй гүйлгээ (QPay
+   * callback) АЛДАГДАХГҮЙ — маргаашийн тайланд орно.
+   *
+   * ⚠️ Давхцал шалгасан: DigitalGer 23:00, auto-renew 01:00,
+   * errors cleanup 04:00 — аль нь ч давхцахгүй.
    */
-  @Cron('1 23 * * *', { timeZone: 'Asia/Ulaanbaatar' })
+  @Cron('0 0 * * *', { timeZone: 'Asia/Ulaanbaatar' })
   async send(): Promise<void> {
     /**
      * ⚠️⚠️ REDIS LOCK ЗААВАЛ — backend болон worker хоёул ижил код
      * ажиллуулдаг тул түгжээгүй бол тайлан ХОЁР УДАА илгээгдэнэ.
      */
-    const key = `cron:besttv-daily-report:${this.dayKey()}`;
+    /* ⚠️ Түлхүүр нь ТАЙЛАНГИЙН өдрөөр (өчигдөр) — өнөөдрөөр биш.
+       Эс бөгөөс гар аргаар дахин ажиллуулахад түлхүүр зөрж, ижил
+       тайлан ХОЁР УДАА илгээгдэнэ. */
+    const key = `cron:besttv-daily-report:${this.dayKey(-1)}`;
     const got = await this.redis.set(key, '1', 'EX', 3600, 'NX').catch(() => null);
     if (!got) {
       this.logger.log('Өдрийн тайлан: өөр process илгээсэн — алгасав');
@@ -62,9 +72,15 @@ export class DailyReportService implements OnModuleDestroy {
     }
   }
 
-  /** Улаанбаатарын өдрийн түлхүүр (YYYY-MM-DD) */
-  private dayKey(): string {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ulaanbaatar' });
+  /**
+   * Улаанбаатарын өдрийн түлхүүр (YYYY-MM-DD).
+   *
+   * ⚠️ `offsetDays: -1` нь ӨМНӨХ өдөр — тайлан шинэ өдрийн эхэнд
+   * ажиллаж өчигдрийг хамардаг тул түгжээ ч тэр өдрөөр байх ёстой.
+   */
+  private dayKey(offsetDays = 0): string {
+    const d = new Date(Date.now() + offsetDays * 86_400_000);
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ulaanbaatar' });
   }
 
   /**
@@ -83,8 +99,10 @@ export class DailyReportService implements OnModuleDestroy {
   }
 
   private async build(): Promise<void> {
-    const { start, end } = this.dayRange();
-    const prev = this.dayRange(-1);
+    /* ⚠️⚠️ Тайлан нь ӨЧИГДРИЙН БҮТЭН өдрийг хамарна (00:00–23:59:59).
+       Харьцуулалт нь түүнээс өмнөх өдөр. */
+    const { start, end } = this.dayRange(-1);
+    const prev = this.dayRange(-2);
 
     const [payments, prevPayments, newUsers, views, activeUsers, pendingBank] =
       await Promise.all([
@@ -161,7 +179,9 @@ export class DailyReportService implements OnModuleDestroy {
     }
 
     this.n8n.emitDailyReport({
-      date: this.dayKey(),
+      /* ⚠️⚠️ ӨЧИГДРИЙН огноо — тайлан 00:05-д ажилладаг тул
+         `dayKey()` (өнөөдөр) бол дата ба гарчиг ЗӨРНӨ. */
+      date: this.dayKey(-1),
       /* ⚠️ Орлого = багц + түрээс (ТОПАП ХАСНА — давхар тооцоо болно).
          Топапыг тусдаа `topupRevenue`-д мэдээлэл болгож харуулна. */
       totalRevenue: planRevenue + rentalRevenue,
