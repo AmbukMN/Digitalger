@@ -51,6 +51,8 @@ const ACTOR_LABEL: Record<string, string> = {
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString('mn-MN', {
+    /* ⚠️ UB цагаар — админ гомдол шийдэхдээ DB-тэй тулгадаг */
+    timeZone: 'Asia/Ulaanbaatar',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

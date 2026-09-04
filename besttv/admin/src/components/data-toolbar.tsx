@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Calendar, ChevronDown, Download, Loader2, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '@besttv/shared';
+import { browserOffsetDiffersFromUb } from './social/ub-time';
 
 /** Огнооны хурдан сонголт — "сүүлийн 7 хоног" гэх мэт */
 export const DATE_PRESETS = [
@@ -279,7 +280,21 @@ export function DataToolbar({
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <Calendar size={13} /> Огнооны муж
+                {/* ⚠️ Шүүлт нь UB өдрийн хилээр (00:00–23:59) явдгийг тодотгоно —
+                    backend `ubRangeFilter`-тэй нийцнэ */}
+                <span className="font-normal normal-case tracking-normal opacity-60">
+                  · Улаанбаатарын цагаар
+                </span>
               </p>
+              {/* ⚠️ Гадаадаас нэвтэрсэн админд огноо зөрөхийг ХЭЛНЭ —
+                  чимээгүй зөрвөл «яагаад өчигдрийн дата вэ» гэж эргэлзэнэ.
+                  social/composer.tsx-тэй ИЖИЛ хэв маяг. */}
+              {browserOffsetDiffersFromUb() && (
+                <p className="mb-2 text-[11px] text-amber-500">
+                  Таны төхөөрөмжийн цагийн бүс Улаанбаатараас өөр байна —
+                  шүүлт нь Улаанбаатарын өдрөөр тооцогдоно.
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 {DATE_PRESETS.map((p) => {
                   const r = presetRange(p.days);

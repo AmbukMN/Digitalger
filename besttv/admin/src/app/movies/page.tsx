@@ -95,6 +95,8 @@ export default function MoviesPage() {
    */
   const sizeComputedAt = storage?.computedAt
     ? new Date(storage.computedAt).toLocaleString('mn-MN', {
+        /* ⚠️ UB цагаар — админ серверийн логтой тулгадаг */
+        timeZone: 'Asia/Ulaanbaatar',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',

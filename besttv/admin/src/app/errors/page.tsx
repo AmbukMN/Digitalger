@@ -168,7 +168,9 @@ export default function ErrorsPage() {
                     </span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">
                       {e.path ?? '—'} ·{' '}
-                      {new Date(e.createdAt).toLocaleString('mn-MN')}
+                      {new Date(e.createdAt).toLocaleString('mn-MN', {
+                        timeZone: 'Asia/Ulaanbaatar',
+                      })}
                       {e.user ? ` · ${e.user.email}` : ' · зочин'}
                     </span>
                   </span>

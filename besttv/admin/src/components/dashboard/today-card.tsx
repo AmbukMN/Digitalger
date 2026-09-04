@@ -98,8 +98,12 @@ export function TodayCard() {
           </span>
           Өнөөдөр
         </p>
+        {/* ⚠️⚠️ ЗААВАЛ `timeZone: 'Asia/Ulaanbaatar'` — эс бөгөөс БРАУЗЕРЫН
+            огноо гарна. Backend нь UB өдрийн хилээр тоолдог тул гадаадаас
+            нэвтэрсэн админд гарчиг ба тоо ЗӨРНӨ (хамгийн эндүүрүүлэх). */}
         <p className="text-[11px] text-muted-foreground">
           {new Date().toLocaleDateString('mn-MN', {
+            timeZone: 'Asia/Ulaanbaatar',
             month: 'long',
             day: 'numeric',
             weekday: 'long',
