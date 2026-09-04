@@ -535,6 +535,31 @@ export class EmailService {
 <meta name="supported-color-schemes" content="dark light">
 <style>
   :root { color-scheme: dark light; supported-color-schemes: dark light; }
+
+  /* ⚠️⚠️ ӨНГӨ нь @media-ААС ГАДНА байх ЁСТОЙ.
+
+     БОДИТ АЛДАА: текст уншигдахгүй байв (сонгож байж л харагдана).
+     Карт/толгойн БАРААН дэвсгэр нь inline тул ҮРГЭЛЖ хэрэгжинэ,
+     харин өнгөний дүрмүүд @media (prefers-color-scheme: dark)
+     дотор байсан. Хэрэглэгчийн систем ЦАЙВАР горимд байвал
+     дэвсгэр бараан хэвээр атлаа текст бүдэг саарал болж
+     УНШИГДАХГҮЙ.
+
+     Дэвсгэр хэдийд ч бараан тул текст ч хэдийд ч цайвар байна.
+     ⚠️ ЭНЭ БЛОК нь JS template literal дотор — backtick бичиж
+     БОЛОХГҮЙ (string тасарна). */
+  .btv-bg   { background:#20222a !important; }
+  .btv-card { background:#17181c !important; }
+  .btv-head { background:#0e0f13 !important; }
+  .btv-foot { background:#101114 !important; }
+  .btv-text, .btv-text * { color:#ffffff !important; }
+  .btv-muted, .btv-muted * { color:#c8c8ce !important; }
+  .btv-box  { background:#1e1f24 !important; }
+  .btv-cta  { background:#e50914 !important; color:#ffffff !important; }
+  /* ⚠️ Холбоос — өгөгдмөл цэнхэр нь бараан дээр бүдэг */
+  .btv-card a { color:#e50914; }
+  .btv-foot a { color:#c8c8ce !important; }
+
   /* WARN Gmail/Outlook dark mode: keep OUR colors, block the inversion */
   @media (prefers-color-scheme: dark) {
     /* ⚠️ Гадна дэвсгэр (btv-bg) нь ХАР БИШ — зөвхөн КАРТ бараан.
