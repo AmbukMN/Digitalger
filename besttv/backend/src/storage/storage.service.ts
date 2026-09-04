@@ -6,6 +6,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -402,15 +403,104 @@ export class StorageService {
    * Том видеог ДИСК рүү stream-ээр татах — memory дүүргэхгүй.
    * ⚠️ 246MB+ Buffer-д татвал worker OOM (DigitalGer дээр батлагдсан сургамж).
    */
+  /**
+   * R2-оос файлыг ОЛОН ХЭСГЭЭР ЗЭРЭГ татаж дискэнд бичнэ.
+   *
+   * ⚠️⚠️ ЯАГААД ЗЭРЭГЦЭЭ ВЭ: R2 нь НЭГ холболтын хурдыг хатуу
+   * хязгаарладаг. 2.6 GB кино ганц урсгалаар 62 KB/сек явж, 11+ ЦАГ
+   * үргэлжилж байв — админ «2%» дээр гацсан мэт харагдана.
+   *
+   * Production дээрх хэмжилт (ижил файл):
+   *   ганц урсгал   5.68 MB/сек · 8 зэрэг  46.92 MB/сек → 8.3 дахин
+   * Сервер буруугүй байв: сүлжээ 49.9 MB/сек, диск 1.6 GB/сек,
+   * iowait 0%. Ганц урсгалын дарангуйлал л шалтгаан.
+   *
+   * ⚠️ Хэсгүүдийг ДАРААЛЛААР нь бичнэ (`start` байрлалд `fd.write`) —
+   * зэрэг ирсэн ч файл эвдрэхгүй.
+   *
+   * ⚠️ 8-аас олон урсгал НЭМЭР ӨГӨХГҮЙ (сүлжээ 50 MB/сек дүүрнэ)
+   * бөгөөс R2-ийн Class B дуудлагыг нэмэгдүүлнэ.
+   */
   async downloadToFile(key: string, destPath: string): Promise<void> {
     if (!this.client) {
       await pipeline(createReadStream(this.localPath(key)), createWriteStream(destPath));
       return;
     }
-    const res = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
-    await pipeline(res.Body as NodeJS.ReadableStream, createWriteStream(destPath));
+
+    /* ⚠️ Хэмжээг эхлээд мэдэх ёстой — Range тооцоход хэрэгтэй */
+    const head = await this.client
+      .send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }))
+      .catch(() => null);
+    const total = head?.ContentLength ?? 0;
+
+    /* ⚠️ Жижиг файл (эсвэл хэмжээ мэдэгдэхгүй) бол ганц урсгал —
+       зэрэгцээ татах нь илүү дарамт болно */
+    const PART = 16 * 1024 * 1024;
+    if (!total || total <= PART * 2) {
+      const res = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      await pipeline(res.Body as NodeJS.ReadableStream, createWriteStream(destPath));
+      return;
+    }
+
+    const parts = Math.ceil(total / PART);
+    const CONCURRENCY = Math.min(8, parts);
+    const fd = await fs.open(destPath, 'w');
+    try {
+      /* ⚠️ Файлыг урьдчилан бүтэн хэмжээгээр товойлгоно — хэсгүүд
+         дур мэдэн байрлалд бичигдэх тул */
+      await fd.truncate(total);
+
+      let next = 0;
+      let failed: Error | null = null;
+
+      /* ⚠️ Ажилчин бүр ДАРААГИЙН сул хэсгийг авна — урьдчилан
+         хуваарилвал нэг удаан хэсэг бүгдийг хүлээлгэнэ */
+      const worker = async () => {
+        for (;;) {
+          const i = next++;
+          if (i >= parts || failed) return;
+          const start = i * PART;
+          const end = Math.min(start + PART, total) - 1;
+
+          /* ⚠️ Түр саатал гарч болно — 3 удаа дахин оролдоно */
+          let lastErr: unknown;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const res = await this.client!.send(
+                new GetObjectCommand({
+                  Bucket: this.bucket,
+                  Key: key,
+                  Range: `bytes=${start}-${end}`,
+                }),
+              );
+              const chunks: Buffer[] = [];
+              /* ⚠️ Урсгал `string | Buffer | Uint8Array` буцааж болно —
+                 `Buffer.from` гурвуулангийн аль нэгийг зөв хөрвүүлнэ */
+              for await (const c of res.Body as AsyncIterable<Buffer | Uint8Array | string>) {
+                chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c as Uint8Array));
+              }
+              await fd.write(Buffer.concat(chunks), 0, undefined, start);
+              lastErr = null;
+              break;
+            } catch (e) {
+              lastErr = e;
+              await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+          if (lastErr) {
+            failed = lastErr as Error;
+            return;
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+      if (failed) throw failed;
+    } finally {
+      await fd.close();
+    }
   }
 
   async listAllKeys(
