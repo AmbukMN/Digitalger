@@ -84,7 +84,14 @@ const CARD_SELECT = {
 /** sitemap.xml стандартын дээд хязгаар */
 const SITEMAP_MAX = 50_000;
 
+/**
+ * ⚠️ Насанд хүрэгчдийн жанрын slug — «Шинэ кино» САНАЛ БОЛГОЛТООС
+ * хасахад л ашиглана. DB-д ийм бичигдсэн (`Genre.slug`).
+ */
+const ADULT_GENRE_SLUG = 'nasand-huregchdiin';
+
 @Injectable()
+
 export class TitlesService {
   private readonly logger = new Logger(TitlesService.name);
 
@@ -579,11 +586,36 @@ export class TitlesService {
     /**
      * Хайх үг байхгүй ч ТӨРӨЛ заасан бол — тухайн төрлийн ШИНЭ
      * кинонуудыг буцаана («цуврал байна уу» → сүүлийн цувралууд).
+     *
+     * ⚠️⚠️ 18+ КОНТЕНТЫГ ХАСНА — энэ бол САНАЛ БОЛГОЛТ.
+     *
+     * БОДИТ АСУУДАЛ: чатботын «🎬 Шинэ кино» товч дарахад сүүлд
+     * нэмсэн 6 кино гарна. Сүүлийн үед насанд хүрэгчдийн контент их
+     * орсон тул чат нээмэгц 18+ кино дүүрэн харагдаж байв.
+     *
+     * ⚠️ ХАЙЛТ ХӨНДӨГДӨХГҮЙ: хэрэглэгч киноны НЭРЭЭР хайвал доорх
+     * салбар руу орж 18+ ХЭВЭЭР олдоно. Вэбийн хайлт (`useSearch`)
+     * ч мөн тэнд. Зөвхөн «юу байна вэ» гэсэн санал болголтод л хасна.
+     *
+     * ⚠️ ХОЁР ШАЛГУУР ЗААВАЛ — аль нь ч дангаараа дутуу (production):
+     *   «Насанд хүрэгчдийн» жанар 75 · ageRating '18+' 77
+     *   жанартай ч ageRating буруу 1 · 18+ атал өөр жанартай 3
      */
     if (!parsed.usable) {
       if (!type) return [];
       const rows = await this.prisma.title.findMany({
-        where: { isActive: true, comingSoon: false, type },
+        where: {
+          isActive: true,
+          comingSoon: false,
+          type,
+          /* ⚠️⚠️ `not: '18+'` ГАНЦААРАА БОЛОХГҮЙ — SQL-д
+             `ageRating <> '18+'` болж, NULL үед FALSE буцаана.
+             Улмаас ageRating хоосон БҮХ кино чимээгүй хасагдана.
+             БОДИТООР: «Цуврал» товч 6-ын оронд 1 буцааж байв
+             (SERIES-ийн 73 нь NULL, 1 нь «16+»). */
+          OR: [{ ageRating: null }, { ageRating: { not: '18+' } }],
+          genres: { none: { genre: { slug: ADULT_GENRE_SLUG } } },
+        },
         orderBy: [{ createdAt: 'desc' }],
         take: limit,
         select: { ...CARD_SELECT, description: true },
