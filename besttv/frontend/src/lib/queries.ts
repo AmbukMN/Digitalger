@@ -87,7 +87,15 @@ export interface TitleDetail extends Omit<TitleCard, 'comingSoon'> {
   /** Хэрэглэгч энэ контентыг үзэх эрхтэй эсэх (үнэгүй бол үргэлж true) */
   hasAccess: boolean;
   /** Эрхгүй үед аль багц авбал нээгдэхийг харуулна */
-  requiredPlans: { id: string; name: string; price: number; isVip: boolean }[];
+  /* ⚠️ `durationDays` — «Багц авах» товчны tooltip-д
+     (PlanHint). Backend `titles.service.ts:requiredPlans`-аас. */
+  requiredPlans: {
+    id: string;
+    name: string;
+    price: number;
+    isVip: boolean;
+    durationDays: number;
+  }[];
   /** Ширхэгээр түрээслэх — багц авахгүйгээр нэг киног хугацаатай үзэх */
   rental: {
     available: boolean;

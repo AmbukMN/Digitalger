@@ -22,6 +22,7 @@ import { ShareButton } from '@/components/title/share-button';
 import { GalleryRow } from '@/components/title/gallery-row';
 import { ReviewsSection } from '@/components/title/reviews-section';
 import { RentDialog } from '@/components/title/rent-dialog';
+import { PlanHint } from '@/components/title/plan-hint';
 import { consumeAuthIntent, savePostPurchaseReturn } from '@/lib/auth-intent';
 
 /**
@@ -118,6 +119,8 @@ export function TitleDetailClient({
   const cheapestPlan = data.requiredPlans?.length
     ? [...data.requiredPlans].sort((a, b) => a.price - b.price)[0]
     : null;
+  /* ⚠️ «Багц авах» товчны tooltip-д ЖАНРЫН НЭРИЙГ динамикаар өгнө */
+  const genreNames = (data.genres ?? []).map((g) => g.name);
   const seasons = data.seasons ?? [];
   const firstPlayableEpisode = seasons.flatMap((s) => s.episodes).find((e) => e.playable);
 
@@ -327,20 +330,26 @@ export function TitleDetailClient({
                       {formatPrice(data.rental.price)} · {formatRentDurationShort(data.rental.hours)}
                     </button>
                   )}
-                  <Link
-                    href="/pricing"
-                    onClick={() => savePostPurchaseReturn()}
-                    className="relative flex w-full items-center justify-center gap-1.5 rounded-lg bg-premium-solid px-3 py-2.5 text-xs font-bold text-premium-foreground active:scale-[0.98]"
-                  >
-                    <Lock size={15} /> Багц авах
-                    {/* ⚠️ Товчны хэмжээ ӨӨРЧЛӨХГҮЙ (`absolute`) — эс бөгөөс
-                        зэргэлдээ «Түрээслэх» товчтой эгнээ алдагдана.
-                        ⚠️ `pointer-events-none` — badge дээр дарахад ч
-                        товч ажиллана. */}
-                    <span className="plan-nudge pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
-                      Илүү ашигтай
-                    </span>
-                  </Link>
+                  {/* ⚠️ Хуруу хүрэхэд тайлбар — гар утсанд hover БАЙХГҮЙ тул
+                      `touchstart`-аар нээж 3.5 сек-ийн дараа хаана.
+                      ⚠️ Боолт нь `w-full` байх ЁСТОЙ — эс бөгөөс товч агшиж
+                      зэргэлдээ «Түрээслэх»-тэй эгнээ алдагдана. */}
+                  <PlanHint genreNames={genreNames} align="center">
+                    <Link
+                      href="/pricing"
+                      onClick={() => savePostPurchaseReturn()}
+                      className="relative flex w-full items-center justify-center gap-1.5 rounded-lg bg-premium-solid px-3 py-2.5 text-xs font-bold text-premium-foreground active:scale-[0.98]"
+                    >
+                      <Lock size={15} /> Багц авах
+                      {/* ⚠️ Товчны хэмжээ ӨӨРЧЛӨХГҮЙ (`absolute`) — эс бөгөөс
+                          зэргэлдээ «Түрээслэх» товчтой эгнээ алдагдана.
+                          ⚠️ `pointer-events-none` — badge дээр дарахад ч
+                          товч ажиллана. */}
+                      <span className="plan-nudge pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
+                        Илүү ашигтай
+                      </span>
+                    </Link>
+                  </PlanHint>
                 </>
               ) : watchHref ? (
                 <Link
@@ -520,19 +529,23 @@ export function TitleDetailClient({
                       хэрэглэгч ЭНЭ КИНО руугаа буцна. Өмнө нь /pricing дээр
                       үлдээд өөрөө буцаж хайх шаардлагатай байв.
                     */}
-                    <Link
-                      href="/pricing"
-                      onClick={() => savePostPurchaseReturn()}
-                      className="relative flex items-center justify-center gap-2 rounded-lg bg-premium-solid px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
-                    >
-                      <Lock size={17} />
-                      Багц авах
-                      {/* ⚠️ Мобайлынхтай ИЖИЛ — нэгийг нь өөрчилвөл
-                          нөгөөг ч заавал (төхөөрөмжөөс хамаарч зөрнө) */}
-                      <span className="plan-nudge pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
-                        Илүү ашигтай
-                      </span>
-                    </Link>
+                    {/* ⚠️ Хулгана очиход тайлбар гарна. Мобайлынхтай ИЖИЛ
+                        логик — нэгийг өөрчилвөл нөгөөг ч ЗААВАЛ. */}
+                    <PlanHint genreNames={genreNames} align="center">
+                      <Link
+                        href="/pricing"
+                        onClick={() => savePostPurchaseReturn()}
+                        className="relative flex items-center justify-center gap-2 rounded-lg bg-premium-solid px-6 py-3 font-semibold text-premium-foreground transition-all hover:brightness-105 active:scale-[0.98] sm:py-2.5"
+                      >
+                        <Lock size={17} />
+                        Багц авах
+                        {/* ⚠️ Мобайлынхтай ИЖИЛ — нэгийг нь өөрчилвөл
+                            нөгөөг ч заавал (төхөөрөмжөөс хамаарч зөрнө) */}
+                        <span className="plan-nudge pointer-events-none absolute -bottom-1.5 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white shadow-sm">
+                          Илүү ашигтай
+                        </span>
+                      </Link>
+                    </PlanHint>
                   </>
                 ) : watchHref ? (
                   <Link

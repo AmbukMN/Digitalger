@@ -1127,6 +1127,13 @@ export class TitlesService {
   }
 
   /** Тухайн жанруудыг нээдэг идэвхтэй багцууд (VIP үргэлж багтана) */
+  /**
+   * Тухайн киног нээх боломжтой багцууд.
+   *
+   * ⚠️ `durationDays` нь дэлгэрэнгүй хуудасны «Багц авах» товчны
+   * tooltip-д («13,900₮ / сар»). Киноны ТОО ХАРУУЛАХГҮЙ —
+   * хэрэглэгчийн шийдвэр (тоо нь өдөр бүр өөрчлөгддөг, эргэлзээ төрүүлнэ).
+   */
   private async requiredPlans(titleGenreIds: string[]) {
     if (!titleGenreIds.length) return [];
     return this.prisma.plan.findMany({
@@ -1135,7 +1142,7 @@ export class TitlesService {
         OR: [{ isVip: true }, { genres: { some: { genreId: { in: titleGenreIds } } } }],
       },
       orderBy: { price: 'asc' },
-      select: { id: true, name: true, price: true, isVip: true },
+      select: { id: true, name: true, price: true, isVip: true, durationDays: true },
     });
   }
 

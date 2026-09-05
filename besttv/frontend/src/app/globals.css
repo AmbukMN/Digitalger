@@ -462,6 +462,37 @@ video {
   .notif-in { animation: none; }
 }
 
+/* ─── «БАГЦ АВАХ» ТОВЧНЫ ТАЙЛБАР (tooltip) ──────────────────────────────── */
+
+/**
+ * ⚠️ Товчны ДЭЭРЭЭС зөөлөн гарч ирнэ. `notif-drop`-той ижил муруй —
+ * сайт даяар нэг мэдрэмж.
+ */
+@keyframes plan-hint-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.plan-hint-in {
+  animation: plan-hint-in 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: bottom center;
+}
+
+/* ⚠️ Төвлөрүүлсэн tooltip нь `-translate-x-1/2`-тай тул анимацийн
+   `transform` түүнийг ДАРНА. Тиймээс тэр тохиолдолд зөвхөн opacity. */
+.plan-hint-in.-translate-x-1\/2 {
+  animation: plan-hint-fade 150ms ease-out;
+}
+
+@keyframes plan-hint-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-hint-in { animation: none; }
+}
+
 /* ─── ХАДМАЛЫН ХАРАГДАЦ (Vidstack captions) ─────────────────────────────── */
 
 /**
