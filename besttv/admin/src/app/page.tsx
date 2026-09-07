@@ -51,6 +51,10 @@ import { PayKindCell } from '@/components/pay-kind-badge';
 
 const RANGES = [
   { id: 'today', label: 'Өнөөдөр' },
+  /* ⚠️ «Өчигдөр» нь МУЖ биш НЭГ ӨДӨР — backend `bounds()` дотор
+     тусгайлан боловсруулна (өнөөдрийн дата ОРОХГҮЙ) */
+  { id: 'yesterday', label: 'Өчигдөр' },
+  { id: '3d', label: '3 хоног' },
   { id: '7d', label: '7 хоног' },
   { id: '30d', label: 'Сар' },
   { id: '90d', label: '3 сар' },
@@ -193,15 +197,34 @@ export default function DashboardPage() {
         */}
         {data && (
           <p className="mb-3 text-xs text-muted-foreground">
-            <b className="text-foreground">{rangeLabel}</b> — сүүлийн {data.days} хоног
-            {data.days > 1 && (
+            <b className="text-foreground">{rangeLabel}</b>
+            {/* ⚠️ «Өчигдөр» нь МУЖ БИШ — «сүүлийн 1 хоног» гэж бичвэл
+                эвгүй. Тухайн өдрийн огноог л харуулна.
+                ⚠️ Огноо UB цагаар — backend UB өдрийн хилээр тоолдог. */}
+            {range === 'yesterday' ? (
               <>
-                {' '}
-                ({new Date(Date.now() - data.days * 86400_000).toLocaleDateString('mn-MN', {
-                  month: 'numeric',
+                {' — '}
+                {new Date(Date.now() - 86400_000).toLocaleDateString('mn-MN', {
+                  timeZone: 'Asia/Ulaanbaatar',
+                  month: 'long',
                   day: 'numeric',
-                })}{' '}
-                – өнөөдөр)
+                })}
+              </>
+            ) : (
+              <>
+                {' — сүүлийн '}
+                {data.days} хоног
+                {data.days > 1 && (
+                  <>
+                    {' '}
+                    ({new Date(Date.now() - data.days * 86400_000).toLocaleDateString('mn-MN', {
+                      timeZone: 'Asia/Ulaanbaatar',
+                      month: 'numeric',
+                      day: 'numeric',
+                    })}{' '}
+                    – өнөөдөр)
+                  </>
+                )}
               </>
             )}
           </p>

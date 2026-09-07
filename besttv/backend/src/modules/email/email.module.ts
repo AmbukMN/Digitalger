@@ -50,7 +50,7 @@ import { verifySnsSignature } from './sns-signature.util';
 import { EmailService } from './email.service';
 import { EmailHtmlService } from './email-html.service';
 import { FLOWS, LifecycleService } from './lifecycle.service';
-import { ubRangeStart } from '../../common/ub-date';
+import { ubRangeFilter, ubRangeStart } from '../../common/ub-date';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
@@ -604,8 +604,15 @@ export class SubscriberService {
     q?: string;
     status?: string;
     source?: string;
+    /** ⚠️ UB өдрийн хилээр — «сүүлийн 3 өдөр хэд нэмэгдсэн» гэх шүүлтэд */
+    from?: string;
+    to?: string;
   }): Prisma.SubscriberWhereInput {
     const where: Prisma.SubscriberWhereInput = {};
+    /* ⚠️ Энэ функц ЖАГСААЛТ + CSV ХОЁУЛАНД ашиглагдана — нэг газар
+       нэмэхэд хоёулаа ижил шүүгдэнэ. */
+    const dateRange = ubRangeFilter(params.from, params.to);
+    if (dateRange) where.createdAt = dateRange;
     if (params.q?.trim()) {
       where.OR = [
         { email: { contains: params.q.trim(), mode: 'insensitive' } },
@@ -623,6 +630,8 @@ export class SubscriberService {
     q?: string;
     status?: string;
     source?: string;
+    from?: string;
+    to?: string;
     page?: number;
     limit?: number;
   }) {
@@ -1255,6 +1264,9 @@ export class EmailAdminController {
     @Query('search') search?: string,
     /** 'yes' = нээсэн, 'no' = нээгээгүй, эсвэл хоосон = бүгд */
     @Query('opened') opened?: string,
+    /** ⚠️ UB өдрийн хилээр — админ панелийн бусад хэсэгтэй ИЖИЛ */
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
@@ -1267,6 +1279,9 @@ export class EmailAdminController {
      * search байвал bulk дотор ч хайж болно (нээлттэй).
      */
     const where: Prisma.EmailLogWhereInput = {};
+    /* ⚠️ Огнооны шүүлт — UB өдрийн хилээр */
+    const dateRange = ubRangeFilter(from, to);
+    if (dateRange) where.createdAt = dateRange;
     if (!search?.trim()) where.batchId = null;
     if (template && template !== 'ALL') where.template = template;
     if (status && status !== 'ALL') where.status = status;
@@ -1366,10 +1381,13 @@ export class EmailAdminController {
     @Query('q') q?: string,
     @Query('status') status?: string,
     @Query('source') source?: string,
+    /** ⚠️ «Сүүлийн 3 өдөр хэд нэмэгдсэн» гэх шүүлтэд — UB өдрийн хилээр */
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.subs.list({ q, status, source, page, limit });
+    return this.subs.list({ q, status, source, from, to, page, limit });
   }
 
   /**
@@ -1682,14 +1700,18 @@ export class EmailAdminController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    /** ⚠️ UB өдрийн хилээр — «сүүлийн 7 хоногт хэд хоригдсон» гэх шүүлтэд */
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     const p = Math.max(1, Number(page) || 1);
     const take = Math.min(100, Math.max(1, Number(limit) || 20));
     const q = (search ?? '').trim();
 
-    const where: Prisma.EmailSuppressionWhereInput = q
-      ? { email: { contains: q, mode: 'insensitive' } }
-      : {};
+    const where: Prisma.EmailSuppressionWhereInput = {};
+    if (q) where.email = { contains: q, mode: 'insensitive' };
+    const dateRange = ubRangeFilter(from, to);
+    if (dateRange) where.createdAt = dateRange;
 
     const [items, total] = await Promise.all([
       this.prisma.emailSuppression.findMany({

@@ -25,6 +25,10 @@ const RANGE_DAYS: Record<string, number> = {
    * харьцуулалт ХУДАЛ болно (30 хоногийн орлогыг «өчигдөр» гэж үзнэ).
    */
   '2d': 2,
+  /** ⚠️ «Өчигдөр» — МУЖ биш НЭГ ӨДӨР. `bounds()` дотор тусгайлан
+      боловсруулна (from=өчигдрийн 00:00, to=өнөөдрийн 00:00). */
+  yesterday: 1,
+  '3d': 3,
   '7d': 7,
   '30d': 30,
   '90d': 90,
@@ -51,6 +55,25 @@ export class AnalyticsService {
    */
   private bounds(range: string) {
     const days = RANGE_DAYS[range] ?? 30;
+
+    /**
+     * ⚠️⚠️ «ӨЧИГДӨР» нь БУСДААС ЯЛГААТАЙ — ӨНГӨРСӨН нэг өдөр.
+     *
+     * Бусад муж нь «сүүлийн N хоног» тул төгсгөл нь ОДООГИЙН агшин.
+     * Гэвч «өчигдөр» гэвэл ӨНӨӨДРИЙН дүн ОРОХ ЁСГҮЙ — тиймээс
+     * төгсгөлийг өнөөдрийн 00:00 (UB) болгоно.
+     */
+    if (range === 'yesterday') {
+      const todayStart = ubRangeStart(1); // өнөөдрийн 00:00 (UB)
+      const from = new Date(todayStart.getTime() - 86400_000);
+      return {
+        days: 1,
+        now: todayStart,
+        from,
+        prevFrom: new Date(from.getTime() - 86400_000),
+      };
+    }
+
     const now = new Date();
     const from = ubRangeStart(days);
     /* ⚠️ Өмнөх ижил урттай муж — өсөлт/бууралтын хувь тооцоход.

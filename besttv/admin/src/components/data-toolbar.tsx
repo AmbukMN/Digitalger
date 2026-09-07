@@ -5,12 +5,23 @@ import { Calendar, ChevronDown, Download, Loader2, RotateCcw, Search, SlidersHor
 import { cn } from '@besttv/shared';
 import { browserOffsetDiffersFromUb } from './social/ub-time';
 
-/** Огнооны хурдан сонголт — "сүүлийн 7 хоног" гэх мэт */
+/**
+ * Огнооны хурдан сонголт.
+ *
+ * ⚠️ `days` = МУЖИЙН УРТ (өнөөдрийг оруулаад). 0 = зөвхөн өнөөдөр.
+ * ⚠️ `offset` = хэдэн хоногийн ӨМНӨ дуусах. «Өчигдөр» нь МУЖ БИШ,
+ *    нэг өдөр тул `days:0, offset:1` (from=to=өчигдөр).
+ */
 export const DATE_PRESETS = [
-  { id: 'today', label: 'Өнөөдөр', days: 0 },
-  { id: '7d', label: 'Сүүлийн 7 хоног', days: 6 },
-  { id: '30d', label: 'Сүүлийн 30 хоног', days: 29 },
-  { id: '90d', label: 'Сүүлийн 90 хоног', days: 89 },
+  { id: 'today', label: 'Өнөөдөр', days: 0, offset: 0 },
+  { id: 'yesterday', label: 'Өчигдөр', days: 0, offset: 1 },
+  { id: '3d', label: '3 хоног', days: 2, offset: 0 },
+  { id: '7d', label: '7 хоног', days: 6, offset: 0 },
+  { id: '14d', label: '14 хоног', days: 13, offset: 0 },
+  { id: '30d', label: 'Сар', days: 29, offset: 0 },
+  { id: '90d', label: '3 сар', days: 89, offset: 0 },
+  { id: '180d', label: '6 сар', days: 179, offset: 0 },
+  { id: '365d', label: 'Жил', days: 364, offset: 0 },
 ] as const;
 
 /**
@@ -33,9 +44,13 @@ export function toDateInput(d: Date): string {
 /**
  * ⚠️ Хоногийг UB огнооны ХЭЛБЭРЭЭР тоолно — `setDate` нь браузерын
  * локал сар/өдрөөр ажилладаг тул сарын шилжилтэд зөрж болно.
+ *
+ * ⚠️ `offset` — мужийн ТӨГСГӨЛ хэдэн хоногийн өмнө дуусах.
+ * «Өчигдөр» = `days:0, offset:1` → from=to=өчигдөр.
  */
-export function presetRange(days: number): { from: string; to: string } {
-  const to = new Date();
+export function presetRange(days: number, offset = 0): { from: string; to: string } {
+  const now = Date.now();
+  const to = new Date(now - offset * 86_400_000);
   const from = new Date(to.getTime() - days * 86_400_000);
   return { from: toDateInput(from), to: toDateInput(to) };
 }
@@ -297,7 +312,7 @@ export function DataToolbar({
               )}
               <div className="flex flex-wrap items-center gap-2">
                 {DATE_PRESETS.map((p) => {
-                  const r = presetRange(p.days);
+                  const r = presetRange(p.days, p.offset);
                   const active = from === r.from && to === r.to;
                   return (
                     <button

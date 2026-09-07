@@ -221,7 +221,8 @@ export default function PaymentsPage() {
           onTab={(id) => set({ status: id })}
           from={f.from}
           to={f.to}
-          onDateRange={(from, to) => set({ from, to })}
+          /* ⚠️ `page:1` ЗААВАЛ — 5-р хуудсанд байхад шүүвэл хоосон гарна */
+          onDateRange={(from, to) => set({ from, to, page: 1 })}
           selects={[
             {
               id: 'kind',

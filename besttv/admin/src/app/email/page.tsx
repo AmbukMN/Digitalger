@@ -28,7 +28,7 @@ import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { AdminErrorState } from '@/components/admin-error-state';
-import { DataToolbar } from '@/components/data-toolbar';
+import { DATE_PRESETS, DataToolbar, presetRange } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
 import { NewBadge } from '@/components/new-badge';
 import { AddSubscribersDialog } from '@/components/add-subscribers-dialog';
@@ -163,6 +163,9 @@ function LogsTab() {
     status: 'ALL',
     /** ⚠️ Нээсэн эсэхээр шүүх — 'ALL' | 'yes' | 'no' */
     opened: 'ALL',
+    /** ⚠️ Огнооны муж — UB өдрийн хилээр (backend `ubRangeFilter`) */
+    from: '',
+    to: '',
     page: 1,
     limit: 20,
   });
@@ -247,14 +250,25 @@ function LogsTab() {
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Бөөн илгээлтүүд ({grouped.folders.length})
           </h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {/*
+            ⚠️⚠️ НЭГ ЭГНЭЭНД ХЭВТЭЭ ГҮЙЛГЭНЭ — өмнө нь `grid` байсан тул
+            кампанит ажил олон болоход ДООШ сунаж хуудсыг эзэлдэг байв
+            (7 илгээлт = 3 мөр). Backend нь `createdAt desc`-ээр өгдөг
+            тул СҮҮЛД илгээсэн нь ЭХЭНД харагдана.
+
+            ⚠️ `shrink-0 w-[17.5rem]` — эс бөгөөс карт шахагдаж гарчиг
+               уншигдахгүй болно.
+            ⚠️ `snap-x` — гар утсанд картаар нь таслаж зогсоно.
+            ⚠️ `pb-1` — scrollbar карттай наалдахгүй.
+          */}
+          <div className="flex snap-x gap-2 overflow-x-auto pb-1">
             {grouped.folders.map((fo) => {
               const rate = fo.total ? Math.round((fo.opened / fo.total) * 100) : 0;
               return (
                 <button
                   key={fo.batchId}
                   onClick={() => setOpenBatch(fo.batchId)}
-                  className="flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
+                  className="flex w-[17.5rem] shrink-0 snap-start items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
                 >
                   <span className="mt-0.5 shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
                     <FolderOpen size={18} />
@@ -302,10 +316,15 @@ function LogsTab() {
         />
       </div>
 
+      {/* ⚠️ Огноо солиход `page:1` — эс бөгөөс 5-р хуудсанд байхад
+          шүүхэд хоосон харагдана */}
       <DataToolbar
         search={f.search}
         onSearch={(v) => set({ search: v })}
         searchPlaceholder="Имэйл хаяг эсвэл гарчгаар хайх..."
+        from={f.from}
+        to={f.to}
+        onDateRange={(from, to) => set({ from, to, page: 1 })}
         selects={[
           {
             id: 'template',
@@ -346,7 +365,13 @@ function LogsTab() {
         onLimit={(n) => set({ limit: n })}
         activeCount={activeCount}
         onReset={() =>
-          setF({ search: '', template: 'ALL', status: 'ALL', opened: 'ALL', page: 1, limit: 20 })
+          setF({
+            search: '', template: 'ALL', status: 'ALL', opened: 'ALL',
+            /* ⚠️ Огноог Ч цэвэрлэнэ — эс бөгөөс «Цэвэрлэх» дарсан ч
+               шүүлт үлдэж, админ эргэлзэнэ */
+            from: '', to: '',
+            page: 1, limit: 20,
+          })
         }
       />
 
@@ -484,7 +509,12 @@ function LogsTab() {
 function SubscribersTab() {
   // Сүүлийн үзэлтээс хойш шинээр бүртгүүлсэн хүмүүсийг тэмдэглэнэ
   const isNew = useNewSince('subscribers');
-  const [f, setF] = useState({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 });
+  const [f, setF] = useState({
+    q: '', status: 'ALL', source: 'ALL',
+    /** ⚠️ «Сүүлийн 3 өдөр хэд нэмэгдсэн» — UB өдрийн хилээр */
+    from: '', to: '',
+    page: 1, limit: 20,
+  });
   const [exporting, setExporting] = useState(false);
   const [adding, setAdding] = useState(false);
   const qc = useQueryClient();
@@ -560,6 +590,9 @@ function SubscribersTab() {
 
       <DataToolbar
         search={f.q}
+        from={f.from}
+        to={f.to}
+        onDateRange={(from, to) => set({ from, to, page: 1 })}
         onSearch={(v) => set({ q: v })}
         searchPlaceholder="Имэйл, нэрээр хайх..."
         tabs={[
@@ -589,7 +622,10 @@ function SubscribersTab() {
         onExport={exportCsv}
         exporting={exporting}
         activeCount={f.source !== 'ALL' ? 1 : 0}
-        onReset={() => setF({ q: '', status: 'ALL', source: 'ALL', page: 1, limit: 20 })}
+        onReset={() =>
+          /* ⚠️ Огноог Ч цэвэрлэнэ */
+          setF({ q: '', status: 'ALL', source: 'ALL', from: '', to: '', page: 1, limit: 20 })
+        }
         actions={
           <div className="flex gap-2">
             {/* ⚠️ Дутуу нэгтгэх — данс нээсэн ч Subscriber-т ороогүй
@@ -1158,6 +1194,8 @@ function SuppressionsTab() {
    */
   const LIMIT = 20;
   const [q, setQ] = useState('');
+  /** ⚠️ Огнооны муж — «сүүлийн 7 хоногт хэд хоригдсон» гэх шүүлтэд */
+  const [range, setRange] = useState({ from: '', to: '' });
   const [page, setPage] = useState(1);
 
   /* ⚠️ Хайлтыг debounce — үсэг бүрд сервер рүү очихгүй */
@@ -1173,12 +1211,15 @@ function SuppressionsTab() {
   }, [debouncedQ]);
 
   const { data, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['admin-suppressions', { page, search: debouncedQ }],
+    queryKey: ['admin-suppressions', { page, search: debouncedQ, ...range }],
     queryFn: () => {
       const qs = new URLSearchParams();
       qs.set('page', String(page));
       qs.set('limit', String(LIMIT));
       if (debouncedQ) qs.set('search', debouncedQ);
+      /* ⚠️ UB өдрийн хилээр — backend `ubRangeFilter` */
+      if (range.from) qs.set('from', range.from);
+      if (range.to) qs.set('to', range.to);
       return api<{
         items: { id: string; email: string; reason: string; subType: string | null; createdAt: string }[];
         total: number;
@@ -1278,6 +1319,49 @@ function SuppressionsTab() {
             aria-label="Хориглосон хаяг хайх"
             className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
           />
+        </div>
+
+        {/*
+          ⚠️ ОГНООНЫ ХУРДАН СОНГОЛТ — «сүүлийн 7 хоногт хэд хоригдсон»
+          гэх асуултад шууд хариулна. `DataToolbar`-тай ИЖИЛ preset.
+          ⚠️ Огноо солиход `page:1` — эс бөгөөс хоосон харагдана.
+        */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Хугацаа
+          </span>
+          {DATE_PRESETS.map((p) => {
+            const r = presetRange(p.days, p.offset);
+            const active = range.from === r.from && range.to === r.to;
+            return (
+              <button
+                key={p.id}
+                onClick={() => {
+                  setRange(r);
+                  setPage(1);
+                }}
+                className={cn(
+                  'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                  active
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-accent/60 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+          {(range.from || range.to) && (
+            <button
+              onClick={() => {
+                setRange({ from: '', to: '' });
+                setPage(1);
+              }}
+              className="rounded-lg px-2.5 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Цэвэрлэх
+            </button>
+          )}
         </div>
       </div>
       {/* ⚠️ АЛДААНЫ ТӨЛӨВ — API унахад «имэйл байхгүй» гэж ХУДАЛ

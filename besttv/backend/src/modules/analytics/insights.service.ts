@@ -13,6 +13,10 @@ const RANGE_DAYS: Record<string, number> = {
    * харьцуулалт ХУДАЛ болно (30 хоногийн орлогыг «өчигдөр» гэж үзнэ).
    */
   '2d': 2,
+  /** ⚠️ «Өчигдөр» — МУЖ биш НЭГ ӨДӨР. `bounds()` дотор тусгайлан
+      боловсруулна (from=өчигдрийн 00:00, to=өнөөдрийн 00:00). */
+  yesterday: 1,
+  '3d': 3,
   '7d': 7,
   '30d': 30,
   '90d': 90,
@@ -49,8 +53,22 @@ export class InsightsService {
    */
   private bounds(range: string) {
     const days = RANGE_DAYS[range] ?? 30;
-    const from = ubRangeStart(days);
-    return { days, from };
+
+    /**
+     * ⚠️⚠️ «ӨЧИГДӨР» — ӨНГӨРСӨН нэг өдөр тул ТӨГСГӨЛ хэрэгтэй.
+     * Бусад мужид `to` нь ирээдүй тул `undefined` (хязгааргүй).
+     * `analytics.module.ts`-ийн `bounds()`-тэй ЯГ ИЖИЛ логик.
+     */
+    if (range === 'yesterday') {
+      const todayStart = ubRangeStart(1);
+      return {
+        days: 1,
+        from: new Date(todayStart.getTime() - 86400_000),
+        to: todayStart,
+      };
+    }
+
+    return { days, from: ubRangeStart(days), to: undefined as Date | undefined };
   }
 
   /**
@@ -64,7 +82,15 @@ export class InsightsService {
   }
 
   private async overviewFresh(range: string) {
-    const { days, from } = this.bounds(range);
+    const { days, from, to } = this.bounds(range);
+    /**
+     * ⚠️⚠️ БҮХ query ЭНЭ шүүлтийг ашиглана — 12 газар байдаг тул
+     * гараар бичвэл нэгийг мартаж ЧИМЭЭГҮЙ буруу тоо гарна.
+     *
+     * ⚠️ `to` нь зөвхөн «Өчигдөр» мужид байна (өнгөрсөн нэг өдөр).
+     * Бусад мужид ирээдүйн бичлэг байхгүй тул хязгаар шаардлагагүй.
+     */
+    const dateFilter = to ? { gte: from, lt: to } : { gte: from };
 
     const [
       pageViews,
@@ -81,49 +107,49 @@ export class InsightsService {
       noResultSearches,
       hourly,
     ] = await Promise.all([
-      this.prisma.pageView.count({ where: { createdAt: { gte: from } } }),
+      this.prisma.pageView.count({ where: { createdAt: dateFilter } }),
       this.prisma.pageView
         .findMany({
-          where: { createdAt: { gte: from }, sessionId: { not: null } },
+          where: { createdAt: dateFilter, sessionId: { not: null } },
           distinct: ['sessionId'],
           select: { sessionId: true },
         })
         .then((r) => r.length),
       this.prisma.pageView
         .findMany({
-          where: { createdAt: { gte: from }, userId: { not: null } },
+          where: { createdAt: dateFilter, userId: { not: null } },
           distinct: ['userId'],
           select: { userId: true },
         })
         .then((r) => r.length),
       this.prisma.pageView.groupBy({
         by: ['device'],
-        where: { createdAt: { gte: from } },
+        where: { createdAt: dateFilter },
         _count: true,
       }),
       this.prisma.pageView.groupBy({
         by: ['path'],
-        where: { createdAt: { gte: from } },
+        where: { createdAt: dateFilter },
         _count: true,
         orderBy: { _count: { path: 'desc' } },
         take: 12,
       }),
       this.prisma.pageView.groupBy({
         by: ['referrer'],
-        where: { createdAt: { gte: from }, referrer: { not: null } },
+        where: { createdAt: dateFilter, referrer: { not: null } },
         _count: true,
         orderBy: { _count: { referrer: 'desc' } },
         take: 8,
       }),
       this.prisma.titleEvent.groupBy({
         by: ['type'],
-        where: { createdAt: { gte: from } },
+        where: { createdAt: dateFilter },
         _count: true,
       }),
       // Хамгийн их НЭЭСЭН (дэлгэрэнгүй харсан)
       this.prisma.titleEvent.groupBy({
         by: ['titleId', 'titleName'],
-        where: { createdAt: { gte: from }, type: 'view' },
+        where: { createdAt: dateFilter, type: 'view' },
         _count: true,
         orderBy: { _count: { titleId: 'desc' } },
         take: 10,
@@ -131,7 +157,7 @@ export class InsightsService {
       // Хамгийн их ТОГЛУУЛСАН
       this.prisma.titleEvent.groupBy({
         by: ['titleId', 'titleName'],
-        where: { createdAt: { gte: from }, type: 'play' },
+        where: { createdAt: dateFilter, type: 'play' },
         _count: true,
         orderBy: { _count: { titleId: 'desc' } },
         take: 10,
@@ -139,14 +165,14 @@ export class InsightsService {
       // Хамгийн их ДУУСГАСАН — жинхэнэ таалагдсан контент
       this.prisma.titleEvent.groupBy({
         by: ['titleId', 'titleName'],
-        where: { createdAt: { gte: from }, type: 'complete' },
+        where: { createdAt: dateFilter, type: 'complete' },
         _count: true,
         orderBy: { _count: { titleId: 'desc' } },
         take: 10,
       }),
       this.prisma.searchEvent.groupBy({
         by: ['query'],
-        where: { createdAt: { gte: from } },
+        where: { createdAt: dateFilter },
         _count: true,
         orderBy: { _count: { query: 'desc' } },
         take: 12,
@@ -155,7 +181,7 @@ export class InsightsService {
       // дутуу байгааг шууд харуулна
       this.prisma.searchEvent.groupBy({
         by: ['query'],
-        where: { createdAt: { gte: from }, results: 0 },
+        where: { createdAt: dateFilter, results: 0 },
         _count: true,
         orderBy: { _count: { query: 'desc' } },
         take: 12,

@@ -21,6 +21,7 @@ import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guar
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { ubRangeFilter } from '../../common/ub-date';
 
 /**
  * АЛДААНЫ БҮРТГЭЛ.
@@ -102,10 +103,19 @@ export class ErrorsService {
   }
 
   /** Админ жагсаалт — шүүлт + хуудаслалт */
-  async list(opts: { page?: number; source?: string; q?: string }) {
+  async list(opts: {
+    page?: number;
+    source?: string;
+    q?: string;
+    /** ⚠️ UB өдрийн хилээр — «өнөөдөр хэдэн алдаа» гэх шүүлтэд */
+    from?: string;
+    to?: string;
+  }) {
     const page = Math.max(1, Number(opts.page) || 1);
     const take = 50;
     const where: Record<string, unknown> = {};
+    const dateRange = ubRangeFilter(opts.from, opts.to);
+    if (dateRange) where.createdAt = dateRange;
     if (opts.source === 'client' || opts.source === 'server') where.source = opts.source;
     if (opts.q?.trim()) {
       where.OR = [
@@ -206,8 +216,14 @@ export class ErrorsAdminController {
   constructor(private readonly svc: ErrorsService) {}
 
   @Get()
-  list(@Query('page') page?: string, @Query('source') source?: string, @Query('q') q?: string) {
-    return this.svc.list({ page: Number(page) || 1, source, q });
+  list(
+    @Query('page') page?: string,
+    @Query('source') source?: string,
+    @Query('q') q?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.svc.list({ page: Number(page) || 1, source, q, from, to });
   }
 
   @Get('summary')

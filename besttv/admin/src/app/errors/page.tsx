@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Monitor, Server } from 'lucide-react';
 import { cn } from '@besttv/shared';
+import { DATE_PRESETS, presetRange } from '@/components/data-toolbar';
 import { api } from '@/lib/api';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { TableSkeleton } from '@/components/table-skeleton';
@@ -44,6 +45,8 @@ export default function ErrorsPage() {
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<'' | 'client' | 'server'>('');
   const [q, setQ] = useState('');
+  /** ⚠️ Огнооны муж — «өнөөдөр хэдэн алдаа» гэх шүүлтэд (UB өдрийн хил) */
+  const [range, setRange] = useState({ from: '', to: '' });
   const [open, setOpen] = useState<string | null>(null);
 
   const { data: summary } = useQuery<SummaryRow[]>({
@@ -56,13 +59,16 @@ export default function ErrorsPage() {
     total: number;
     totalPages: number;
   }>({
-    queryKey: ['admin-errors', page, source, q],
-    queryFn: () =>
-      api(
-        `/admin/errors?page=${page}${source ? `&source=${source}` : ''}${
-          q ? `&q=${encodeURIComponent(q)}` : ''
-        }`,
-      ),
+    queryKey: ['admin-errors', page, source, q, range],
+    queryFn: () => {
+      const qs = new URLSearchParams({ page: String(page) });
+      if (source) qs.set('source', source);
+      if (q) qs.set('q', q);
+      /* ⚠️ UB өдрийн хилээр — backend `ubRangeFilter` */
+      if (range.from) qs.set('from', range.from);
+      if (range.to) qs.set('to', range.to);
+      return api(`/admin/errors?${qs}`);
+    },
   });
 
   const items = data?.items ?? [];
@@ -132,6 +138,49 @@ export default function ErrorsPage() {
             {s === '' ? 'Бүгд' : s === 'client' ? 'Browser' : 'Сервер'}
           </button>
         ))}
+      </div>
+
+      {/*
+        ⚠️ ОГНООНЫ ХУРДАН СОНГОЛТ — «өнөөдөр хэдэн алдаа гарав»,
+        «сүүлийн 3 хоногт нэмэгдсэн үү» гэх асуултад шууд хариулна.
+        ⚠️ Огноо солиход `page:1` — эс бөгөөс хоосон харагдана.
+      */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          Хугацаа
+        </span>
+        {DATE_PRESETS.map((p) => {
+          const r = presetRange(p.days, p.offset);
+          const active = range.from === r.from && range.to === r.to;
+          return (
+            <button
+              key={p.id}
+              onClick={() => {
+                setRange(r);
+                setPage(1);
+              }}
+              className={cn(
+                'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                active
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-accent/60 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+        {(range.from || range.to) && (
+          <button
+            onClick={() => {
+              setRange({ from: '', to: '' });
+              setPage(1);
+            }}
+            className="rounded-lg px-2.5 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Цэвэрлэх
+          </button>
+        )}
       </div>
 
       {isError ? (
