@@ -56,6 +56,7 @@ const RANGES = [
   { id: 'yesterday', label: 'Өчигдөр' },
   { id: '3d', label: '3 хоног' },
   { id: '7d', label: '7 хоног' },
+  { id: '14d', label: '14 хоног' },
   { id: '30d', label: 'Сар' },
   { id: '90d', label: '3 сар' },
   { id: '180d', label: '6 сар' },

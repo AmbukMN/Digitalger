@@ -18,6 +18,7 @@ const RANGE_DAYS: Record<string, number> = {
   yesterday: 1,
   '3d': 3,
   '7d': 7,
+  '14d': 14,
   '30d': 30,
   '90d': 90,
   '180d': 180,

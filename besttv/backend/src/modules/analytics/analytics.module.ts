@@ -30,6 +30,7 @@ const RANGE_DAYS: Record<string, number> = {
   yesterday: 1,
   '3d': 3,
   '7d': 7,
+  '14d': 14,
   '30d': 30,
   '90d': 90,
   '180d': 180,
@@ -256,10 +257,16 @@ export class AnalyticsService {
     }
 
     const out: { date: string; revenue: number; users: number }[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      /* ⚠️ UB өдрийн хилээс тоолно — эс бөгөөс өнөөдрийн багана
-         дутуу/илүү гарна */
-      const d = new Date(ubRangeStart(1).getTime() - i * 86400_000);
+    for (let i = 0; i < days; i++) {
+      /**
+       * ⚠️⚠️ `from`-ООС ЭХЭЛНЭ — өмнө нь `ubRangeStart(1)` (өнөөдөр)-өөс
+       * УХАРЧ тоолдог байсан тул `from` параметр ҮЛ ХЭРЭГСЭГДЭЖ байв.
+       *
+       * БОДИТ АЛДАА: «Өчигдөр» муж сонгоход график ӨНӨӨДРИЙГ харуулж
+       * байв (тестээр барив). Бусад мужид далд байсан — тэдгээр нь
+       * өнөөдрөөр дуусдаг тул үр дүн санамсаргүй таарч байсан.
+       */
+      const d = new Date(from.getTime() + i * 86400_000);
       const k = key(d);
       out.push({ date: k, revenue: revenueMap.get(k) ?? 0, users: userMap.get(k) ?? 0 });
     }
