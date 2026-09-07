@@ -309,6 +309,26 @@ export class SubtitlesService {
    * ⚠️ Эрхийн шалгалт нь ВИДЕОТОЙ ЯГ ИЖИЛ — хадмалыг видеонээс
    * тусад нь татах боломжгүй байх ёстой.
    */
+  /**
+   * ⚠️⚠️ ЗӨВХӨН АДМИНД — эрх (багц/түрээс) ШАЛГАХГҮЙ.
+   *
+   * `content()` нь `assertAccess` дуудна. Админ өөрийн контентоо
+   * preview дээр шалгахад тэр нь 403 өгдөг тул тусад нь гаргав.
+   *
+   * ⚠️ ЗӨВХӨН `@Roles(Role.ADMIN)` controller-оос дуудагдана —
+   *    задгай гаргавал орчуулга алдагдана.
+   */
+  async rawContent(kind: 'movie' | 'episode', id: string, lang: string) {
+    const row = await this.prisma.subtitle.findFirst({
+      where: kind === 'episode' ? { episodeId: id, lang } : { titleId: id, lang },
+      select: { fileKey: true },
+    });
+    if (!row) throw new NotFoundException('Хадмал олдсонгүй');
+    const text = await this.storage.downloadText(row.fileKey).catch(() => null);
+    if (!text) throw new NotFoundException('Хадмалын файл олдсонгүй');
+    return text;
+  }
+
   async content(kind: 'movie' | 'episode', id: string, lang: string, userId?: string | null) {
     const row = await this.prisma.subtitle.findFirst({
       where: kind === 'episode' ? { episodeId: id, lang } : { titleId: id, lang },
@@ -432,6 +452,33 @@ export class SubtitlesAdminController {
   @Get('langs')
   langs() {
     return SUBTITLE_LANGS;
+  }
+
+  /**
+   * ⚠️⚠️ АДМИН PREVIEW-Д ХАДМАЛЫН АГУУЛГА.
+   *
+   * Нийтийн `/subtitles/:kind/:id/:lang.vtt` нь эрх (багц/түрээс)
+   * шалгадаг тул админ ӨӨРИЙН контентоо шалгахад 403 авна. Видеонд
+   * `/admin/stream/` гэсэн ижил шийдэл байдаг — хадмалд ч давтана.
+   *
+   * ⚠️ Controller нь `@Roles(Role.ADMIN)`-оор хамгаалагдсан тул
+   *    орчуулга задгай гарахгүй.
+   *
+   * ⚠️ Зам нь `:lang.vtt` — хөтөч `<track>`-д `.vtt` өргөтгөл хүлээдэг.
+   */
+  @Get(':kind/:id/:lang.vtt')
+  @Header('Content-Type', 'text/vtt; charset=utf-8')
+  async adminContent(
+    @Param('kind') kind: string,
+    @Param('id') id: string,
+    @Param('lang') lang: string,
+  ) {
+    const row = await this.svc.rawContent(
+      kind === 'episode' ? 'episode' : 'movie',
+      id,
+      lang,
+    );
+    return row;
   }
 
   @Get('movie/:titleId')

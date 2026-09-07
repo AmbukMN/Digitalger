@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState } from 'react';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -73,6 +73,9 @@ function TitleCardBase({ title, progressPercent, inGrid, onRemove }: TitleCardPr
    * нэвтрээгүй хэрэглэгч хоосон плеер дээр гацдаг байсан.
    */
   const play = usePlayGuard();
+  /* ⚠️ Overlay-г HOVER хийсний дараа л рендерлэнэ — эхний HTML-ээс
+     154 карт × 3 SVG хасагдана (доорх тайлбар харна уу) */
+  const [hovered, setHovered] = useState(false);
   /**
    * ⚠️ Видео бэлэн эсэх. `streamStatus` нь ХУУЧИН кэшлэгдсэн хариунд
    * байхгүй байж болно (`undefined`) — тэр үед БЭЛЭН гэж үзнэ (хуучин
@@ -351,9 +354,29 @@ function TitleCardBase({ title, progressPercent, inGrid, onRemove }: TitleCardPr
           </button>
         )}
 
-        {/* Hover overlay — quick actions */}
-        <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/85 via-black/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+        {/*
+          Hover overlay — quick actions
+
+          ⚠️⚠️ ЗӨВХӨН HOVER ХИЙСНИЙ ДАРАА рендерлэнэ (`hovered`).
+
+          БОДИТ АСУУДАЛ: нүүрэнд 154 карт байдаг. Карт бүрд 4 icon
+          (play/heart/info + lock) байсан тул HTML-д 736 SVG,
+          1068 `<path>` шигдэж, хуудас 1 MB болж байв. Сервер 0.25
+          сек-д хариулдаг ч хөтөч задлахад 3-4 СЕКУНД зарцуулж,
+          skeleton удаан харагдаж байсан.
+
+          ⚠️ Функц ХЭВЭЭР — hover/focus хийвэл ижил товчнууд гарна.
+          ⚠️ Гар утсанд hover БАЙХГҮЙ тул огт рендерлэгдэхгүй
+             (тэнд доорх ♥ товч `fav-touch-only`-оор ажиллана).
+        */}
+        <div
+          onPointerEnter={() => setHovered(true)}
+          onFocusCapture={() => setHovered(true)}
+          className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/85 via-black/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100"
+        >
           <div className="card-actions flex items-center gap-1.5 p-2.5">
+            {hovered && (
+              <>
             {!title.comingSoon && (
               <button
                 onClick={goWatch}
@@ -379,6 +402,8 @@ function TitleCardBase({ title, progressPercent, inGrid, onRemove }: TitleCardPr
             >
               <Info size={14} />
             </span>
+              </>
+            )}
           </div>
         </div>
 

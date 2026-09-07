@@ -17,11 +17,74 @@ type Kind = 'movie' | 'episode' | 'trailer';
  * ⚠️ Зөвхөн дарсны ДАРАА ачаална (lazy) — нэг хуудсанд 12 анги байхад
  *   бүгдийг зэрэг ачаалбал R2-оос олон зуун segment татаж эхэлнэ.
  */
+interface SubTrack {
+  lang: string;
+  label: string;
+  isDefault: boolean;
+  blobUrl: string;
+}
+
 export function VideoPreview({ kind, id }: { kind: Kind; id: string }) {
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  /**
+   * ⚠️ ХАДМАЛ — админ preview дээр ч харагдана.
+   *
+   * Хэрэглэгч: «урьдчилж харахад хадмалтай бол хадмалаар гаргаач».
+   * Байршуулсан хадмал ЗӨВ эсэхийг эндээс шалгах боломжтой болно.
+   *
+   * ⚠️ Trailer-д хадмал БАЙХГҮЙ.
+   */
+  const [tracks, setTracks] = useState<SubTrack[]>([]);
+
+  /**
+   * ⚠️⚠️ ХАДМАЛ ТАТАХ — `<track src>` нь Authorization header тавих
+   * боломжгүй тул fetch-ээр татаж BLOB болгоно
+   * (frontend/video-player.tsx-тэй ЯГ ИЖИЛ арга).
+   *
+   * ⚠️ Trailer-д хадмал БАЙХГҮЙ.
+   */
+  useEffect(() => {
+    if (!active || kind === 'trailer') return;
+    let cancelled = false;
+    const created: string[] = [];
+
+    (async () => {
+      const token = getAccessToken();
+      const auth = token ? { Authorization: `Bearer ${token}` } : undefined;
+      try {
+        const res = await fetch(`/api/admin/subtitles/${kind}/${id}`, { headers: auth });
+        if (!res.ok) return;
+        const list: { lang: string; label: string; isDefault: boolean }[] = await res.json();
+        const out: SubTrack[] = [];
+        for (const sub of list) {
+          const r = await fetch(`/api/admin/subtitles/${kind}/${id}/${sub.lang}.vtt`, {
+            headers: auth,
+          });
+          if (!r.ok) continue;
+          const text = await r.text();
+          const url = URL.createObjectURL(new Blob([text], { type: 'text/vtt' }));
+          created.push(url);
+          out.push({ lang: sub.lang, label: sub.label, isDefault: sub.isDefault, blobUrl: url });
+        }
+        if (cancelled) {
+          created.forEach((u) => URL.revokeObjectURL(u));
+          return;
+        }
+        setTracks(out);
+      } catch {
+        /* ⚠️ Хадмал унасан ч видео ажиллана — preview зогсох ёсгүй */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      /* ⚠️ blob-ыг ЗААВАЛ чөлөөлнө — эс бөгөөс санах ой алдагдана */
+      created.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [active, kind, id]);
 
   useEffect(() => {
     if (!active || !videoRef.current) return;
@@ -113,7 +176,20 @@ export function VideoPreview({ kind, id }: { kind: Kind; id: string }) {
           playsInline
           className="max-h-[60vh] w-full object-contain"
           controlsList="nodownload"
-        />
+        >
+          {/* ⚠️ Хадмал — хөтчийн CC товчоор асаана/унтраана.
+              `default` нь анхдагч хадмалыг АВТОМАТ асаана. */}
+          {tracks.map((t) => (
+            <track
+              key={t.lang}
+              kind="subtitles"
+              srcLang={t.lang}
+              label={t.label}
+              src={t.blobUrl}
+              default={t.isDefault}
+            />
+          ))}
+        </video>
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60">
             <Loader2 size={22} className="animate-spin text-white" />
