@@ -33,6 +33,7 @@ import {
 import { NotificationType, PaymentStatus, Role } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertSameSite } from '../../common/site/site-guard';
 import { ubRangeFilter } from '../../common/ub-date';
 import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -300,6 +301,12 @@ export class BankService {
   }
 
   async updateAccount(id: string, dto: Partial<BankAccountDto>) {
+    /**
+     * ⚠️ `assertSameSite` — `update` нь site шүүлт АВДАГГҮЙ. Доорх
+     * `findUnique` нь `select`-гүй тул одоогоор post-filter ажилладаг ч
+     * `select` нэмэх мөчид чимээгүй эвдэрнэ.
+     */
+    await assertSameSite(this.prisma.bankAccount, id, 'Данс олдсонгүй');
     const exists = await this.prisma.bankAccount.findUnique({ where: { id } });
     if (!exists) throw new NotFoundException('Данс олдсонгүй');
 

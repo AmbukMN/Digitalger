@@ -24,6 +24,7 @@ import {
 } from 'class-validator';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertSameSite } from '../../common/site/site-guard';
 import { StorageService } from '../../storage/storage.service';
 import { CacheInvalidateInterceptor } from '../../common/cache/cache-invalidate.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -246,6 +247,16 @@ export class BannersService {
   }
 
   async update(id: string, dto: BannerDto) {
+    /**
+     * ⚠️ `assertSameSite` — `update` нь site шүүлт АВДАГГҮЙ.
+     *
+     * Одоогоор доорх `findUnique` нь `select`-гүй тул бүх талбар
+     * буцаж post-filter ажилладаг — гэвч энэ нь ТОХИОЛДЛЫН
+     * хамгаалалт. Хэн нэгэн гүйцэтгэл сайжруулах гэж `select`
+     * нэмэх мөчид чимээгүй эвдэрнэ (`remove` нь зориуд
+     * хамгаалагдсан атал `update` орхигдсон байв).
+     */
+    await assertSameSite(this.prisma.homeBanner, id, 'Баннер олдсонгүй');
     const found = await this.prisma.homeBanner.findUnique({ where: { id } });
     if (!found) throw new NotFoundException('Баннер олдсонгүй');
 

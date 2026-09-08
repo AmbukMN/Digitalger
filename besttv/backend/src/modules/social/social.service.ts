@@ -9,6 +9,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { assertSameSite } from '../../common/site/site-guard';
 import { MetaGraphService } from '../crosspost/meta-graph.service';
 import { validatePost, type ValidationIssue } from './social-validate';
 import { nextFreeSlot, reassignSlots, type SlotDef } from './social-slots';
@@ -132,6 +133,21 @@ export class SocialService {
       ...(createdById ? { createdById } : {}),
     };
 
+    /**
+     * ⚠️⚠️ `assertSameSite` ЗААВАЛ — `update` нь site шүүлт АВДАГГҮЙ.
+     *
+     * ⛔ Аудитаар илэрсэн (2026-09-09): урьдчилсан уншилт огт байгаагүй
+     * тул нэг сайтын админ нөгөөгийн постын `id` илгээвэл түүний
+     * текст/медиа/сувгийг дарж бичнэ. `targets` нь дахин үүсгэгддэг
+     * тул FB/IG руу БУРУУ КОНТЕНТ нийтлэгдэх эрсдэлтэй байв.
+     *
+     * ⚠️ `schedule`/`unschedule` нь `findUnique`-ээр (select-гүй тул
+     * post-filter ажиллана) аль хэдийн хамгаалагдсан — зөвхөн энэ
+     * замд урьдчилсан уншилт байгаагүй.
+     */
+    if (params.id) {
+      await assertSameSite(this.prisma.socialPost, params.id, 'Пост олдсонгүй');
+    }
     const post = params.id
       ? await this.prisma.socialPost.update({ where: { id: params.id }, data })
       : await this.prisma.socialPost.create({ data });

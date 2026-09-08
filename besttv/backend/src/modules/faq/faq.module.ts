@@ -16,6 +16,7 @@ import { Prisma } from '@prisma/client';
 import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertSameSite } from '../../common/site/site-guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -125,6 +126,16 @@ export class FaqService {
   }
 
   async update(id: string, dto: FaqDto) {
+    /**
+     * ⚠️ `assertSameSite` — `update` нь site шүүлт АВДАГГҮЙ.
+     *
+     * Одоогоор доорх `findUnique` нь `select`-гүй тул бүх талбар
+     * буцаж post-filter ажилладаг — гэвч энэ нь ТОХИОЛДЛЫН
+     * хамгаалалт. Хэн нэгэн гүйцэтгэл сайжруулах гэж `select`
+     * нэмэх мөчид чимээгүй эвдэрнэ (`remove` нь зориуд
+     * хамгаалагдсан атал `update` орхигдсон байв).
+     */
+    await assertSameSite(this.prisma.faq, id, 'Асуулт олдсонгүй');
     const faq = await this.prisma.faq.findUnique({ where: { id } });
     if (!faq) throw new NotFoundException('Асуулт олдсонгүй');
     return this.prisma.faq.update({ where: { id }, data: dto });

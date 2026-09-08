@@ -8,6 +8,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { StorageService } from './storage.service';
+import { currentSite } from '../common/site/site-context';
+import { DEFAULT_SITE } from '../common/site/site.constants';
 
 // ⚠️ Docker-т системийн ffmpeg (apk add ffmpeg) байвал ТҮҮНИЙГ ашиглана
 // (@ffmpeg-installer alpine-д libs дутуу унадаг). Эс бол installer path руу унана.
@@ -72,12 +74,26 @@ const LADDER = [
 const X264_PRESET = process.env.X264_PRESET ?? 'veryfast';
 
 /**
- * Watermark логоны R2 key.
- * ⚠️ Брэндийн тохиргооны логотой ИЖИЛ — админ логоо солиход watermark
- * ч автоматаар шинэчлэгдэнэ (хоёр тусдаа файл байлгах нь зөрөх эрсдэлтэй).
+ * ⚠️⚠️ WATERMARK ЛОГО — САЙТ БҮРД ТУСДАА.
+ *
+ * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): өмнө нь `'brand/logo.png'` гэсэн
+ * ГАНЦ глобал түлхүүр байсан. BestFilm-д кино байршуулж watermark
+ * чагтлавал **BestTV-ийн лого видеонд ШАТААНА** — буцаах ганц зам нь
+ * бүх ангийг дахин хөрвүүлэх (2 цаг × ангийн тоо).
+ *
  * ⚠️ Тунгалаг PNG байх ЁСТОЙ — эс бөгөөс хайрцагтай харагдана.
+ * (Brand тохиргооны лого нь `.webp` байж болох тул түүнийг ШУУД
+ * ашиглаж БОЛОХГҮЙ — ffmpeg overlay-д PNG хэрэгтэй.)
+ *
+ * ⚠️ BestTV-ийнх ЯГ ХЭВЭЭР: `besttv` → `'brand/logo.png'`.
+ * Шинэ сайтад `brand/<site>-logo.png` байршуулна. Байхгүй бол
+ * логогүй үргэлжилнэ (доорх `catch`) — БУРУУ брэндийн лого шатаахаас
+ * хамаагүй дээр.
  */
-const WATERMARK_KEY = 'brand/logo.png';
+function watermarkKey(): string {
+  const site = currentSite();
+  return site === DEFAULT_SITE ? 'brand/logo.png' : `brand/${site}-logo.png`;
+}
 
 export interface HlsResult {
   playlistKey: string; // R2 key: 'videos/{uuid}/video.m3u8' (videoKey-д хадгална — R2 KEY, URL БИШ!)
@@ -171,13 +187,13 @@ export class VideoHlsService {
       let wmPath: string | null = null;
       if (watermark) {
         try {
-          const logoBuf = await this.storage.downloadBuffer(WATERMARK_KEY);
+          const logoBuf = await this.storage.downloadBuffer(watermarkKey());
           wmPath = path.join(tmpDir, 'wm.png');
           await fs.writeFile(wmPath, logoBuf);
         } catch (e) {
           wmPath = null;
           this.logger.warn(
-            `Watermark лого татаж чадсангүй (${WATERMARK_KEY}) — логогүй үргэлжилнэ: ${String(e)}`,
+            `Watermark лого татаж чадсангүй (${watermarkKey()}) — логогүй үргэлжилнэ: ${String(e)}`,
           );
         }
       }

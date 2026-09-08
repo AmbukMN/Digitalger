@@ -19,6 +19,7 @@ import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-valid
 import { Throttle } from '@nestjs/throttler';
 import { DiscountType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertSameSite } from '../../common/site/site-guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -185,6 +186,12 @@ export class CouponsService {
   }
 
   async update(id: string, dto: Partial<CouponDto>) {
+    /**
+     * ⚠️ `assertSameSite` — `update` нь site шүүлт АВДАГГҮЙ. Доорх
+     * `findUnique` нь `select`-гүй тул одоогоор post-filter ажилладаг ч
+     * `select` нэмэх мөчид чимээгүй эвдэрнэ.
+     */
+    await assertSameSite(this.prisma.coupon, id, 'Купон олдсонгүй');
     const coupon = await this.prisma.coupon.findUnique({ where: { id } });
     if (!coupon) throw new NotFoundException('Купон олдсонгүй');
     /**

@@ -1731,6 +1731,15 @@ export class EmailAdminController {
 
   @Delete('templates/:id')
   async deleteTemplate(@Param('id') id: string) {
+    /**
+     * ⚠️⚠️ `assertSameSite` ЗААВАЛ — `delete` нь site шүүлт АВДАГГҮЙ.
+     *
+     * ⛔ Аудитаар илэрсэн (2026-09-09): зэргэлдээ `@Patch` нь
+     * `assertSameSite`-тэй атал `@Delete` нь шалгалтгүй байв —
+     * нэг сайтын админ нөгөөгийн имэйл загварыг ЭРГЭЛТ БУЦАЛТГҮЙ
+     * устгаж чадна.
+     */
+    await assertSameSite(this.prisma.emailTemplateSaved, id, 'Загвар олдсонгүй');
     await this.prisma.emailTemplateSaved.delete({ where: { id } });
     return { ok: true };
   }

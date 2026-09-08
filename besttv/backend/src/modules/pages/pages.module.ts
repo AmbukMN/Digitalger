@@ -15,6 +15,7 @@ import {
 import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertSameSite } from '../../common/site/site-guard';
 import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -114,6 +115,16 @@ export class PagesService {
   }
 
   async update(id: string, dto: Partial<PageDto>) {
+    /**
+     * ⚠️ `assertSameSite` — `update` нь site шүүлт АВДАГГҮЙ.
+     *
+     * Одоогоор доорх `findUnique` нь `select`-гүй тул бүх талбар
+     * буцаж post-filter ажилладаг — гэвч энэ нь ТОХИОЛДЛЫН
+     * хамгаалалт. Хэн нэгэн гүйцэтгэл сайжруулах гэж `select`
+     * нэмэх мөчид чимээгүй эвдэрнэ (`remove` нь зориуд
+     * хамгаалагдсан атал `update` орхигдсон байв).
+     */
+    await assertSameSite(this.prisma.page, id, 'Хуудас олдсонгүй');
     const page = await this.prisma.page.findUnique({ where: { id } });
     if (!page) throw new NotFoundException('Хуудас олдсонгүй');
 
