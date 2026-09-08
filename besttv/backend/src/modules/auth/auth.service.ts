@@ -21,6 +21,8 @@ import { TrackingService } from '../tracking/tracking.service';
 import { ChangePasswordDto, LoginDto, RegisterDto, UpdateProfileDto } from './dto/auth.dto';
 import { OAuthLoginDto } from './dto/oauth.dto';
 import { siteConfig, isPlaceholderEmail } from '../../common/site/site-config';
+import { runAcrossSites, runWithSiteAsync } from '../../common/site/site-context';
+import type { Site } from '../../common/site/site.constants';
 
 export interface AuthTokens {
   accessToken: string;
@@ -159,9 +161,61 @@ export class AuthService {
     return this.prisma.user.findFirst({ where: { phone } });
   }
 
-  /** Админ нэвтрэлт — зөвхөн ADMIN role */
+  /**
+   * Админ нэвтрэлт — зөвхөн ADMIN role.
+   *
+   * ⚠️⚠️ `runAcrossSites` ЗААВАЛ — АДМИН БҮХ САЙТАД НИЙТЛЭГ.
+   *
+   * БОДИТ АЛДАА (2026-09-09, хэрэглэгч мэдээлсэн): админ панелийн
+   * сайт солигч `X-Site: bestfilm` илгээдэг. `User` нь site-scoped
+   * (`@@unique([email, site])`) тул `admin@besttv.mn` (site='besttv')
+   * ОЛДОХГҮЙ → «Имэйл/утас эсвэл нууц үг буруу байна» гэсэн ХУДАЛ
+   * мессеж. Нууц үг зөв ч админ ОГТ орж чадахгүй.
+   *
+   * ⚠️ Frontend талд `X-Site` илгээхгүй болгосон ч ХАНГАЛТГҮЙ:
+   * толгой нь proxy/CDN/хуучин browser кэшээс ч ирж болно, мөн
+   * `admin.besttv.us`-аас гадна дуудагдвал бас. Тиймээс backend
+   * талд ЭХ СУРВАЛЖИД нь засах ёстой (`jwt.strategy.ts`-тэй ижил
+   * зарчим).
+   *
+   * ⚠️ ЭНГИЙН ХЭРЭГЛЭГЧИЙН `login` нь ХЭВЭЭР site-scoped — тэнд
+   * bestfilm-ийн хэрэглэгч besttv-гээр нэвтрэх ЁСГҮЙ. Зөвхөн
+   * АДМИН нэвтрэлт нийтлэг.
+   */
   async adminLogin(dto: LoginDto, ctx: DeviceContext = {}): Promise<AuthResult> {
-    const result = await this.login(dto, ctx);
+    /**
+     * ⚠️⚠️ ЭРХИЙГ ЭХЛЭЭД ШАЛГАНА — session үүсгэхээс ӨМНӨ.
+     *
+     * `runAcrossSites` нь бүх сайтын хэрэглэгчийг харуулдаг тул
+     * шууд `login()` дуудвал ЭНГИЙН хэрэглэгч ч нэвтэрч, session
+     * үүсч, `audit` бичигдэнэ — дараа нь «Админ эрхгүй» гэж хаясан
+     * ч ул мөр үлдэнэ (төхөөрөмжийн хязгаарын мөр ч эзэлнэ).
+     *
+     * Тиймээс эхлээд role-ыг л шалгаад, ADMIN бол ердийн урсгалаар
+     * үргэлжлүүлнэ.
+     */
+    const raw = dto.email.trim();
+    const found = await runAcrossSites(() =>
+      raw.includes('@')
+        ? this.prisma.user.findFirst({
+            where: { email: raw.toLowerCase() },
+            select: { role: true, site: true },
+          })
+        : null,
+    );
+    if (found && found.role !== Role.ADMIN) {
+      throw new UnauthorizedException('Админ эрхгүй байна');
+    }
+
+    /**
+     * ⚠️ ADMIN мөн бол ТҮҮНИЙ сайтын контекстээр нэвтрүүлнэ —
+     * `runAcrossSites` дотор session/audit бичих нь контекстгүй
+     * тул эрсдэлтэй.
+     */
+    const result = found?.site
+      ? await runWithSiteAsync(found.site as Site, () => this.login(dto, ctx))
+      : await this.login(dto, ctx);
+
     if (result.user.role !== Role.ADMIN) {
       throw new UnauthorizedException('Админ эрхгүй байна');
     }
