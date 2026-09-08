@@ -6,6 +6,7 @@ import { Eye, Loader2, Megaphone, Send, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
+import { useSiteUrl } from '@/lib/site-store';
 
 /**
  * КИНО РЕКЛАМ — тухайн киног бүх хэрэглэгчид promotion имэйлээр bulk илгээх.
@@ -23,6 +24,8 @@ export function PromoteTitleDialog({
   titleName: string;
   onClose: () => void;
 }) {
+  /** ⚠️ Сонгосон сайтын нэр — placeholder дэх hardcode «BestTV»-г орлоно */
+  const { label: siteLabel } = useSiteUrl();
   const [audience, setAudience] = useState<'both' | 'users' | 'subscribers'>('both');
   const [subject, setSubject] = useState('');
   const [heading, setHeading] = useState('');
@@ -151,7 +154,7 @@ export function PromoteTitleDialog({
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder={`${titleName} — BestTV дээр үзээрэй`}
+              placeholder={`${titleName} — ${siteLabel} дээр үзээрэй`}
               maxLength={200}
               className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary"
             />

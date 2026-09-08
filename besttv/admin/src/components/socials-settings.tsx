@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Facebook, Instagram, Loader2, Mail, Phone, Plus, Trash2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { useSiteUrl } from '@/lib/site-store';
 
 /** ⚠️ `platform` нь backend-ийн `SOCIAL_PLATFORMS`-тэй ЯГ ТААРНА */
 type Platform = 'facebook' | 'instagram' | 'youtube' | 'twitter' | 'tiktok';
@@ -76,6 +77,8 @@ const platformOf = (p: Platform) => PLATFORMS.find((x) => x.key === p)!;
  * ⚠️ Хоосон URL-тай мөрийг backend ХАЯНА — устгах товч дарахтай ижил.
  */
 export function SocialsSettings() {
+  /** ⚠️ Сонгосон сайтын домэйн — placeholder дэх hardcode-ыг орлоно */
+  const { host: siteHost } = useSiteUrl();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-socials'],
@@ -289,7 +292,7 @@ export function SocialsSettings() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="info@besttv.us"
+                placeholder={`info@${siteHost}`}
                 className="admin-input"
               />
             </label>

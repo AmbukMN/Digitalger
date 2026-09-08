@@ -235,7 +235,11 @@ export class PlansService {
 
     // ⚠️ `.catch(() => null)` БАЙХГҮЙ — алдаа нуувал хэрэглэгч "устгагдлаа"
     // гэсэн мэдэгдэл авах мөртлөө мөр хэвээр үлдэж эргэлздэг
-    const exists = await this.prisma.plan.findUnique({ where: { id }, select: { id: true } });
+    /* ⚠️ `site` — өргөтгөлийн post-filter ЗААВАЛ (эс бөгөөс алгасагдана) */
+    const exists = await this.prisma.plan.findUnique({
+      where: { id },
+      select: { id: true, site: true },
+    });
     if (!exists) throw new NotFoundException('Багц олдсонгүй');
     await this.prisma.plan.delete({ where: { id } });
     return { ok: true, deleted: true, forced: force && used > 0 };

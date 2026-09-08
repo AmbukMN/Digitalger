@@ -128,7 +128,11 @@ export class PagesService {
   async remove(id: string) {
     // ⚠️ `.catch(() => null)` БАЙХГҮЙ — алдаа нуувал хэрэглэгч "устгагдлаа"
     // гэсэн мэдэгдэл авах мөртлөө мөр хэвээр үлдэж эргэлздэг
-    const exists = await this.prisma.page.findUnique({ where: { id }, select: { id: true } });
+    /* ⚠️ `site` — өргөтгөлийн post-filter ЗААВАЛ (эс бөгөөс алгасагдана) */
+    const exists = await this.prisma.page.findUnique({
+      where: { id },
+      select: { id: true, site: true },
+    });
     if (!exists) throw new NotFoundException('Хуудас олдсонгүй');
     await this.prisma.page.delete({ where: { id } });
     return { ok: true };

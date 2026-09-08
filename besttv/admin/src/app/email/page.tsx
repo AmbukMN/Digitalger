@@ -35,6 +35,7 @@ import { AddSubscribersDialog } from '@/components/add-subscribers-dialog';
 import { EmailBatchDialog } from '@/components/email-batch-dialog';
 import { RichEditor } from '@/components/rich-editor';
 import { api } from '@/lib/api';
+import { useSiteUrl } from '@/lib/site-store';
 import { uploadImage } from '@/lib/upload';
 import { downloadCsv, filtersToQuery } from '@/lib/export-csv';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
@@ -761,6 +762,8 @@ function SubscribersTab() {
 // ─── Олноор илгээх ────────────────────────────────────────────────────────────
 
 function BroadcastTab() {
+  /** ⚠️ Сонгосон сайтын нэр — preview дэх hardcode «BestTV»-г орлоно */
+  const { label: siteLabel } = useSiteUrl();
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [form, setForm] = useState({
@@ -1157,8 +1160,12 @@ function BroadcastTab() {
                 <p className="truncate text-sm font-semibold text-foreground">
                   {form.subject || '(гарчиггүй)'}
                 </p>
+                {/* ⚠️ `siteLabel` — hardcode «BestTV» байсан. Энэ нь буцаах
+                    БОЛОМЖГҮЙ илгээлтийн ӨМНӨХ сүүлчийн шалгалт тул
+                    BestFilm-ийн кампанит ажлыг «BestTV»-ээс ирэх мэт
+                    харуулж, админыг андуурна. */}
                 <p className="text-xs text-muted-foreground">
-                  Илгээгч: {form.senderName || 'BestTV'}
+                  Илгээгч: {form.senderName || siteLabel}
                 </p>
               </div>
               <button
