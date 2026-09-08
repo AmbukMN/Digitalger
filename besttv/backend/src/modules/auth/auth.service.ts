@@ -265,10 +265,29 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+    /**
+     * ⚠️⚠️ `runAcrossSites` ЗААВАЛ — ЭНЭ БОЛ ӨӨРИЙН ДАТА.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-09, хэрэглэгч мэдээлсэн): «BestFilm дээр
+     * байхад browser refresh хийвэл гараад явчихаж байна».
+     *
+     * Шалтгаан: `userId` нь JWT-ээс ирдэг — өөрөөр хэлбэл АЛЬ ХЭДИЙН
+     * баталгаажсан. Гэвч `select`-д `site` байгаа тул өргөтгөлийн
+     * post-filter ажиллаж, админ (`site='besttv'`) нь `X-Site:
+     * bestfilm` үед ОЛДОХГҮЙ → 401.
+     *
+     * Урсгал: refresh → `auth-store.init()` → `/auth/me` → 401 →
+     * `catch { user: null }` → `AdminShell` → `/login`.
+     *
+     * ⚠️ Аюулгүй байдалд НӨЛӨӨЛӨХГҮЙ: `userId` нь гарын үсэгтэй
+     * токеноос ирнэ, хэрэглэгч ӨӨРИЙНХӨӨ мөрийг л уншина. Сайт
+     * хоорондын хил нь `jwt.strategy.ts`-д ХЭВЭЭР хэрэгжинэ (энгийн
+     * хэрэглэгч өөр сайтын токеноор орж чадахгүй).
+     */
+    const user = await runAcrossSites(() =>
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
         site: true,
         id: true,
         email: true,
@@ -285,8 +304,9 @@ export class AuthService {
         pendingPhone: true,
         walletBalance: true,
         createdAt: true,
-      },
-    });
+        },
+      }),
+    );
     if (!user) throw new UnauthorizedException();
 
     // Идэвхтэй эрх — frontend "Premium" төлөв харуулахад.
