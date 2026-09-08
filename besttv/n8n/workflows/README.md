@@ -35,3 +35,35 @@
    `_aiTalkedPlans = true` болж нөөц хайлт зогсдог байв.
 
 ⚠️ Гурвуулаа ВЭБ + FB/IG хоёуланд хийгдсэн (гурван суваг ижил).
+
+## ⚠️ ТЕСТ — `chat-test.js`
+
+```bash
+node besttv/n8n/workflows/chat-test.js
+```
+
+25 тохиолдол: админы түлхүүр, киноны нэр, галиг, FAQ, мэндчилгээ,
+жанар, хилийн тохиолдол.
+
+⚠️⚠️ **`curl` ХЭРЭГЛЭЖ БОЛОХГҮЙ** — Windows bash нь кирилл текстийг
+`??? ????????` болгож гажуудуулна. Тест бүтэлгүйтэж, БАЙХГҮЙ
+асуудлыг «олсон» мэт харагдана (бодит алдаа, 2026-09-08).
+Node-ийн `fetch` UTF-8-ыг зөв дамжуулна.
+
+⚠️ Session id нь `zz_qa_` угтвартай. Тестийн дараа ЗААВАЛ цэвэрлэ:
+
+```sql
+DELETE FROM "ChatMessage" m USING "ChatConversation" c
+ WHERE m."conversationId" = c.id AND c."sessionId" LIKE 'zz_%';
+DELETE FROM "ChatConversation" WHERE "sessionId" LIKE 'zz_%';
+-- ⚠️ Тестээс өссөн тоолуурыг ч тэглэ
+UPDATE "ChatKeyword" SET "hitCount" = 0, "lastHitAt" = NULL;
+```
+
+## Emoji + тоо («🎬99»)
+
+Facebook-ийн ice breaker товч нь ҮРГЭЛЖ emoji-тэй илгээдэг.
+Хоёр газарт цэвэрлэнэ:
+
+1. `isFaqOnly()` — emoji хассаны дараа тоо үлдвэл FAQ БИШ
+2. Fallback-ийн `uq` — «🎬99» → «99» (админы дүрэмтэй таарна)
