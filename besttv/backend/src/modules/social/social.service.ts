@@ -12,6 +12,7 @@ import { StorageService } from '../../storage/storage.service';
 import { MetaGraphService } from '../crosspost/meta-graph.service';
 import { validatePost, type ValidationIssue } from './social-validate';
 import { nextFreeSlot, reassignSlots, type SlotDef } from './social-slots';
+import { currentSite } from '../../common/site/site-context';
 
 /** Видео эсэхийг key-ээс таана */
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm)$/i;
@@ -592,9 +593,17 @@ export class SocialService {
    * ДАРААЛАЛДАА үлдэнэ — сэргээхэд үргэлжилнэ.
    */
   async setPaused(channel: SocialChannel, paused: boolean) {
+    /**
+     * ⚠️⚠️ ТҮЛХҮҮРТ `site` ЗААВАЛ.
+     *
+     * Өмнө нь `where: { channel }` байсан тул BestFilm-ийн админ
+     * Facebook-ийг зогсоовол BestTV-ийн мөрийг олж зогсоодог байв —
+     * нэг сайтын админ НӨГӨӨГИЙНХӨӨ нийтлэлийг зогсооно.
+     */
+    const site = currentSite();
     await this.prisma.socialChannelSetting.upsert({
-      where: { channel },
-      create: { channel, paused },
+      where: { channel_site: { channel, site } },
+      create: { channel, site, paused },
       update: { paused },
     });
     return { channel, paused };

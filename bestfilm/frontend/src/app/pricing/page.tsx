@@ -10,6 +10,7 @@ import {
 import { formatPrice, cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
 import { usePlans, useValidateCoupon } from '@/lib/queries';
+import { BRAND } from '@/lib/brand';
 import { usePlanPromotions, useBankAccounts, type AppliedPromotion } from '@/lib/queries';
 import { BankTransferModal } from '@/components/payment/bank-transfer-modal';
 import { useAuth } from '@/lib/auth-store';
@@ -314,7 +315,7 @@ export default function PricingPage() {
         }),
       });
       if (res.devMode) {
-        toast.success('Эрх нээгдлээ (dev mode)');
+        toast.success('Эрх нээгдлээ');
         await refreshAll();
         return;
       }
@@ -354,7 +355,7 @@ export default function PricingPage() {
         body: JSON.stringify({ planId, couponCode: appliedCoupon?.code }),
       });
       if (res.devMode) {
-        toast.success('Эрх нээгдлээ (dev mode)');
+        toast.success('Эрх нээгдлээ');
         await refreshAll();
         router.push('/');
         return true;
@@ -381,7 +382,7 @@ export default function PricingPage() {
     <main className="min-h-screen bg-background px-4 pb-24 pt-28 md:px-8">
       <div className="mx-auto max-w-2xl text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-premium-solid/12 px-3 py-1 text-xs font-bold text-premium">
-          <Sparkles size={12} /> BESTTV БАГЦУУД
+          <Sparkles size={12} /> {BRAND.name.toUpperCase()} БАГЦУУД
         </span>
         <h1 className="mt-4 text-3xl font-black tracking-tight text-foreground md:text-5xl">
           Хүссэн багцаа сонго

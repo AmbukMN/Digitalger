@@ -2443,7 +2443,20 @@ model SocialSlot {
  * явахгүй байна» гэж удаан хайна.
  */
 model SocialChannelSetting {
-  channel SocialChannel @id
+  /**
+   * ⚠️⚠️ `channel` нь ГАНЦААРАА `@id` БАЙСАН — КРИТИК АЛДАА.
+   *
+   * БОДИТ ЭРСДЭЛ (аудитаар илэрсэн): хоёр сайтад нийт 2 мөр л (FACEBOOK,
+   * INSTAGRAM) багтана. BestFilm-ийн админ Facebook-ийг зогсоовол
+   * `upsert({ where: { channel } })` нь BestTV-ийн мөрийг олж `paused`
+   * болгодог — НЭГ САЙТЫН АДМИН НӨГӨӨГИЙНХӨӨ нийтлэлийг зогсооно.
+   *
+   * Уншилтын тал ч эвдэрсэн: `findUnique` дээр өргөтгөл нь `where`-д
+   * site нэмдэггүй, зөвхөн үр дүнг post-filter хийдэг. Тэр мөр өөр
+   * сайтынх бол `null` буцаж, pause нь ЧИМЭЭГҮЙ үл тоомсорлогдоно.
+   */
+  id      String        @id @default(cuid())
+  channel SocialChannel
 
   /// true = товлосон пост явахгүй (дараалалд хэвээр үлдэнэ)
   paused Boolean @default(false)
@@ -2455,6 +2468,7 @@ model SocialChannelSetting {
    */
   site String @default("besttv")
 
+  @@unique([channel, site])
   @@index([site])
 }
 

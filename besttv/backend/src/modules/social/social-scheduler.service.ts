@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SocialPublisherService } from './social-publisher.service';
 import { SocialService } from './social.service';
 import { nextWeekdayTime } from './social-slots';
+import { forEachSite } from '../../common/site/site-cron';
 
 /**
  * ⚠️⚠️ ХУВААРИЙН CRON — минут тутам.
@@ -36,24 +37,41 @@ export class SocialSchedulerService implements OnModuleDestroy {
     await this.redis.quit().catch(() => null);
   }
 
+  /**
+   * ⚠️⚠️ САЙТ БҮРД ТУСАД НЬ — FB/IG хуудас, slot, pause бүгд ӨӨР.
+   *
+   * БОДИТ АЛДАА (аудитаар илэрсэн): `forEachSite` БАЙГААГҮЙ тул
+   * контекстгүй ажиллаж, ХОЁР САЙТЫН постыг нэг дор боловсруулдаг
+   * байв. Улмаар `duplicate()` нь контекстгүй `create` хийж, шинэ
+   * пост схемийн `@default("besttv")`-ээр бичигдэн — BestFilm-ийн
+   * recycle пост BestTV-д ХУУЛБАРЛАГДДАГ байв.
+   *
+   * ⚠️ `site-cron.ts` нь энэ файлыг НЭРЛЭЖ «сайт бүрд тусад нь»
+   * гэж заасан атал орхигдсон.
+   */
   @Cron(CronExpression.EVERY_MINUTE)
   async tick() {
-    /**
-     * ⚠️⚠️ REDIS ТҮГЖЭЭ — backend хэвтээ scale хийгдвэл олон
-     * instance зэрэг ажиллаж НЭГ постыг ХОЁР удаа нийтэлнэ.
-     * TTL 55 сек — дараагийн tick-ээс өмнө суларна.
-     */
-    const lock = await this.redis
-      .set('social:scheduler:lock', '1', 'EX', 55, 'NX')
-      .catch(() => null);
-    if (!lock) return;
+    await forEachSite('Сошиал хуваарь', async (site) => {
+      /**
+       * ⚠️⚠️ REDIS ТҮГЖЭЭ — backend хэвтээ scale хийгдвэл олон
+       * instance зэрэг ажиллаж НЭГ постыг ХОЁР удаа нийтэлнэ.
+       * TTL 55 сек — дараагийн tick-ээс өмнө суларна.
+       *
+       * ⚠️ Түлхүүрт `site` ЗААВАЛ — эс бөгөөс эхний сайт түгжээг
+       * авч, хоёр дахь сайт БҮХЭЛДЭЭ алгасагдана.
+       */
+      const lock = await this.redis
+        .set(`social:scheduler:lock:${site}`, '1', 'EX', 55, 'NX')
+        .catch(() => null);
+      if (!lock) return;
 
-    try {
-      await this.publishDue();
-      await this.retryPending();
-    } catch (e) {
-      this.logger.error(`Хуваарийн cron алдаа: ${String(e)}`);
-    }
+      try {
+        await this.publishDue();
+        await this.retryPending();
+      } catch (e) {
+        this.logger.error(`Хуваарийн cron алдаа (${site}): ${String(e)}`);
+      }
+    });
   }
 
   /** Цаг нь болсон постуудыг илгээнэ */

@@ -20,7 +20,8 @@ import { MetaCapiService } from '../analytics/meta-capi.service';
 import { BonumService } from './bonum.service';
 import type { BonumMethod } from './dto/payments.dto';
 import { resolveByRecord, runAcrossSites, withSite } from '../../common/site/site-webhook';
-import { currentSite } from '../../common/site/site-context';
+import { currentSite, runWithSiteAsync } from '../../common/site/site-context';
+import { toSite } from '../../common/site/site.constants';
 import { isQpayConfigured, qpayCredentials } from '../../common/site/site-qpay';
 
 interface QPayTokenResponse {
@@ -1211,7 +1212,21 @@ export class PaymentsService {
       for (const payment of pending) {
         try {
           if (await this.verifyPaymentWithQpay(payment.qpayInvoiceId!)) {
-            await this.completePayment(payment.id);
+            /**
+             * ⚠️⚠️ ЗӨВ САЙТЫН КОНТЕКСТЭД — `completePayment` нь имэйл
+             * илгээдэг, Meta CAPI event бичдэг, n8n мэдэгдэл явуулдаг.
+             *
+             * Энэ cron нь контекстгүй ажилладаг тул `siteConfig()` нь
+             * `besttv` буцаана → BestFilm-ийн хэрэглэгч «BestTV» нэр,
+             * besttv.us холбоос, BestTV-ийн илгээгчтэй «Багц идэвхжлээ»
+             * имэйл авна. Webhook тасарсан үед л илэрдэг ЧИМЭЭГҮЙ алдаа.
+             *
+             * ⚠️ `payment-cleanup.service.ts`-д ЯГ ИЖИЛ алдааг өмнө нь
+             * олж зассан — энэ зам орхигдсон байв.
+             */
+            await runWithSiteAsync(toSite(payment.site), () =>
+              this.completePayment(payment.id),
+            );
             confirmed++;
           }
         } catch (err) {
@@ -1237,7 +1252,10 @@ export class PaymentsService {
         for (const payment of bonumPending) {
           try {
             if ((await this.bonum.checkInvoice(payment.bonumInvoiceId!)) === 'PAID') {
-              await this.completePayment(payment.id);
+              /* ⚠️ Дээрхтэй ижил — мөрийн сайтаар */
+              await runWithSiteAsync(toSite(payment.site), () =>
+                this.completePayment(payment.id),
+              );
               confirmed++;
             }
           } catch (err) {

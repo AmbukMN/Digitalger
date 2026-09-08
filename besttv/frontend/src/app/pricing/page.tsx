@@ -314,7 +314,7 @@ export default function PricingPage() {
         }),
       });
       if (res.devMode) {
-        toast.success('Эрх нээгдлээ (dev mode)');
+        toast.success('Эрх нээгдлээ');
         await refreshAll();
         return;
       }
@@ -354,7 +354,7 @@ export default function PricingPage() {
         body: JSON.stringify({ planId, couponCode: appliedCoupon?.code }),
       });
       if (res.devMode) {
-        toast.success('Эрх нээгдлээ (dev mode)');
+        toast.success('Эрх нээгдлээ');
         await refreshAll();
         router.push('/');
         return true;

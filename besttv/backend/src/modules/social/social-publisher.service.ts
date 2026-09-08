@@ -219,7 +219,15 @@ export class SocialPublisherService {
     }
 
     /* ⚠️ Суваг зогсоосон эсэх — pause үед явахгүй */
-    const setting = await this.prisma.socialChannelSetting.findUnique({
+    /**
+     * ⚠️⚠️ `findFirst` — `findUnique` БИШ.
+     *
+     * `findUnique` дээр site өргөтгөл нь `where`-д шүүлт НЭМДЭГГҮЙ,
+     * зөвхөн үр дүнг post-filter хийдэг. Тэр мөр нөгөө сайтынх бол
+     * `null` буцаж, pause нь ЧИМЭЭГҮЙ үл тоомсорлогдоно — зогсоосон
+     * суваг руу пост явна. `findFirst` нь автомат шүүлтийг авдаг.
+     */
+    const setting = await this.prisma.socialChannelSetting.findFirst({
       where: { channel: target.channel },
     });
     if (setting?.paused) {

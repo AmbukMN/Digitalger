@@ -351,7 +351,7 @@ export default function ProfilePage() {
         return;
       }
       if (res.devMode) {
-        toast.success('Хэтэвч цэнэглэгдлээ (dev mode)');
+        toast.success('Хэтэвч цэнэглэгдлээ');
         setTopupAmount('');
         await refreshWallet();
         return;

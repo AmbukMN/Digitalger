@@ -227,8 +227,20 @@ export class CacheService implements OnModuleDestroy {
   async incr(key: string, ttlSec: number): Promise<number | null> {
     if (!this.redis) return null;
     try {
-      const v = await this.redis.incr(key);
-      if (v === 1) await this.redis.expire(key, ttlSec);
+      /**
+       * ⚠️⚠️ `this.k()` — бусад БҮХ метод (get/set/take/lock/unlock)
+       * сайтын дагавар нэмдэг атал ЗӨВХӨН энэ орхигдсон байв (аудитаар
+       * илэрсэн).
+       *
+       * Өнөөдөр цорын ганц дуудагч нь `view:<titleId>:<who>` — `titleId`
+       * нь глобал давтагдашгүй cuid тул бодит нөлөө байхгүй. ГЭВЧ
+       * сайтаар ялгах ёстой тоолуурт (rate limit, өдрийн квот) хэрэглэвэл
+       * ШУУД эвдэрнэ. Мөн дагаваргүй түлхүүрт `invalidate()`-ийн SCAN
+       * загвар хүрэхгүй тул цэвэрлэгдэхгүй үлдэнэ.
+       */
+      const k = this.k(key);
+      const v = await this.redis.incr(k);
+      if (v === 1) await this.redis.expire(k, ttlSec);
       return v;
     } catch {
       return null;
