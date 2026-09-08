@@ -120,7 +120,9 @@ export class WalletService {
   async balance(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { walletBalance: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, walletBalance: true },
     });
     return { balance: user?.walletBalance ?? 0 };
   }

@@ -231,7 +231,9 @@ export class BlogService {
   async remove(id: string) {
     const post = await this.prisma.blogPost.findUnique({
       where: { id },
-      select: { id: true, coverKey: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, coverKey: true },
     });
     if (!post) throw new NotFoundException('Нийтлэл олдсонгүй');
 

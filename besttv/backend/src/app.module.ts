@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -53,6 +54,14 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    /**
+     * ⚠️⚠️ `AllSitesGuard` нь GLOBAL guard тул `JwtService`-ийг ӨӨРӨӨ
+     * шаардана — `AuthModule`-ийн `JwtModule` нь тэр модульд хаалттай.
+     *
+     * ⚠️ `register({})` — нууцыг `verify()` дуудахдаа өгнө
+     * (`AuthModule`-тэй ижил хэв маяг).
+     */
+    JwtModule.register({}),
     /**
      * ⚠️⚠️ CRON ЗӨВХӨН НЭГ INSTANCE-Д.
      *

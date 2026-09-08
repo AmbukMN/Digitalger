@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
+import { currentSite } from '../../common/site/site-context';
 
 /**
  * BONUM GATEWAY — карт (VISA/Mastercard/UnionPay/Amex), Apple Pay,
@@ -62,6 +63,26 @@ export class BonumService {
   private lastCheckAt = new Map<string, number>();
 
   constructor(private readonly config: ConfigService) {}
+
+  /**
+   * ⚠️⚠️ CALLBACK ХАЯГТ САЙТЫГ ШИГТГЭНЭ.
+   *
+   * БОДИТ АЛДАА (аудитаар илэрсэн): Bonum-ын hosted checkout нь
+   * төлбөр дуусаад хэрэглэгчийг `callback` хаяг руу буцаадаг. Тэр
+   * навигаци нь `bonum.mn`-ээс ирдэг тул `Origin` байхгүй, `Host` нь
+   * `api.besttv.us` → `resolveSite` нь ҮРГЭЛЖ `besttv` гэж шийднэ →
+   * **BestFilm-ээс картаар төлсөн хэрэглэгч besttv.us/profile руу
+   * шидэгддэг** байв (өөр сайт, нэвтрээгүй байдалтай).
+   *
+   * ⚠️ Bonum нь НЭГ merchant тул `callbackUrl` нь env-д нэг л байна.
+   * Тиймээс сайтыг QUERY параметрээр дамжуулна — `bonumReturn` нь
+   * түүнийг уншиж зөв домэйн руу буцаана.
+   */
+  private callbackWithSite(base: string): string {
+    const site = currentSite();
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}site=${encodeURIComponent(site)}`;
+  }
 
   isConfigured(): boolean {
     const c = this.config.get('bonum');
@@ -162,7 +183,7 @@ export class BonumService {
 
     const invoiceBody = {
       amount,
-      callback: c.callbackUrl,
+      callback: this.callbackWithSite(c.callbackUrl),
       transactionId,
       /**
        * ⚠️⚠️ ДЭЭД ХЯЗГААР 6 ЦАГ (21600с) — Bonum-ын хатуу шаардлага.
@@ -297,7 +318,7 @@ export class BonumService {
     const body: Record<string, unknown> = {
       /* ⚠️ Токенжуулалт дууссаны дараа хэрэглэгчийг БУЦААХ хаяг.
          Webhook-оос ТУСДАА (webhook нь server-to-server). */
-      callback: c.cardCallbackUrl ?? c.callbackUrl,
+      callback: this.callbackWithSite(c.cardCallbackUrl ?? c.callbackUrl),
       transactionId,
     };
     /* ⚠️ `payment.amount` өгвөл токен үүсгэхийн зэрэгцээ ТӨЛНӨ */

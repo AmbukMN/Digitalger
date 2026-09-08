@@ -338,7 +338,9 @@ class PromotionsAdminService {
   async remove(id: string) {
     const exists = await this.prisma.promotion.findUnique({
       where: { id },
-      select: { id: true, _count: { select: { redemptions: true } } },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, _count: { select: { redemptions: true } } },
     });
     if (!exists) throw new NotFoundException('Урамшуулал олдсонгүй');
 
@@ -363,7 +365,9 @@ class PromotionsAdminService {
   async stats(id: string) {
     const promo = await this.prisma.promotion.findUnique({
       where: { id },
-      select: { id: true, name: true, usedCount: true, maxUses: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, name: true, usedCount: true, maxUses: true },
     });
     if (!promo) throw new NotFoundException('Урамшуулал олдсонгүй');
 

@@ -763,7 +763,9 @@ export class ChatService {
     const conv = await this.prisma.chatConversation.findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, name: true, email: true, avatarKey: true } },
+        user: { select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, name: true, email: true, avatarKey: true } },
         messages: {
           orderBy: { createdAt: 'asc' },
           take: 200,
@@ -842,7 +844,9 @@ export class ChatService {
       where: { id },
       /* ⚠️ `pageId` ЗААВАЛ — хоёр FB page-тэй тул админы хариу
          ЯГ ТЭР page-ийн токеноор явах ёстой */
-      select: { id: true, userId: true, sessionId: true, channel: true, pageId: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, userId: true, sessionId: true, channel: true, pageId: true },
     });
     if (!conv) return { ok: false as const };
 

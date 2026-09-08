@@ -361,7 +361,9 @@ export class EmailOtpService {
   async request(userId: string, newEmail?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, name: true, emailVerified: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, email: true, name: true, emailVerified: true },
     });
     if (!user) throw new BadRequestException('Хэрэглэгч олдсонгүй');
 
@@ -1323,6 +1325,8 @@ export class EmailAdminController {
     const log = await this.prisma.emailLog.findUnique({
       where: { id },
       select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true,
         id: true,
         to: true,
         subject: true,

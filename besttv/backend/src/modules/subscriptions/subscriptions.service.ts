@@ -157,7 +157,9 @@ export class SubscriptionsService {
     const now = new Date();
     const plan = await this.prisma.plan.findUnique({
       where: { id: planId },
-      select: { isVip: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, isVip: true },
     });
 
     // ⚠️ ЗӨВХӨН ижил багцын үлдэгдэл дээр залгана — өөр багцын дуусах
@@ -190,7 +192,7 @@ export class SubscriptionsService {
       })
     ).map((p) => p.id);
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       /**
        * ⚠️ VIP-ийн ОНЦГОЙ ДҮРЭМ (админ олголттой ижил):
        *   VIP авбал → бусад багц хүчингүй (илүүдэл)
@@ -208,5 +210,24 @@ export class SubscriptionsService {
         data: { userId, planId, startsAt, expiresAt, paymentId },
       });
     });
+
+    /**
+     * ⚠️⚠️ ЭРХИЙН КЭШИЙГ ЦЭВЭРЛЭНЭ — ТӨЛБӨР ТӨЛМӨГЦ ШУУД НЭЭГДЭНЭ.
+     *
+     * БОДИТ АЛДАА (аудитаар илэрсэн): `accessScope` нь 30 секунд
+     * кэштэй. `grant()` нь invalidate ХИЙДЭГГҮЙ байсан тул хэрэглэгч
+     * төлбөрөө төлж «Амжилттай» гэсэн мэдэгдэл харчихаад, кино дээр
+     * дарахад **30 секунд хүртэл «Төлбөртэй»** гэж харагддаг байв.
+     *
+     * ⚠️ Асимметр нь тод байсан: ЦУЦЛАХАД invalidate хийдэг
+     * (`payments.service.ts:396`, `users.module.ts` 5 газар) атлаа
+     * ОЛГОХОД хийдэггүй. Дуудагч 4 зам (QPay/Bonum, хэтэвч,
+     * auto-renew, бэлэг багц) бүгд нөлөөлж байв.
+     *
+     * ⚠️ Транзакцийн ДАРАА — эс бөгөөс rollback болвол кэш дэмий
+     * цэвэрлэгдэнэ (дараагийн уншилт хуучин эрхийг дахин кэшлэнэ).
+     */
+    await this.invalidateAccessScope(userId);
+    return created;
   }
 }

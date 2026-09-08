@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   RawBodyRequest,
   Req,
   Res,
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { AutoRenewDto, PurchasePlanDto, RentTitleDto, TopupDto } from './dto/payments.dto';
 import { siteConfig } from '../../common/site/site-config';
+import { toSite } from '../../common/site/site.constants';
 
 @Controller('payments')
 export class PaymentsController {
@@ -180,10 +182,20 @@ export class PaymentsController {
    * хоёр урсгал хоорондоо огт саад болохгүй.
    */
   @Get('bonum/callback')
-  bonumReturn(@Res() res: Response) {
-    /* ⚠️ Хэрэглэгчийг ӨӨРИЙН сайт руу нь буцаана — BestFilm-ээс
-       төлсөн хүн BestTV рүү очвол төөрөлдөнө */
-    const site = siteConfig().url.replace(/\/$/, '');
+  bonumReturn(@Res() res: Response, @Query('site') siteParam?: string) {
+    /**
+     * ⚠️⚠️ ХЭРЭГЛЭГЧИЙГ ӨӨРИЙН САЙТ РУУ НЬ БУЦААНА.
+     *
+     * БОДИТ АЛДАА (аудитаар илэрсэн): `siteConfig()` нь `currentSite()`-
+     * ээс уншдаг. Энэ навигаци нь `bonum.mn`-ээс ирдэг тул `Origin`
+     * байхгүй, `Host` нь `api.besttv.us` → ҮРГЭЛЖ `besttv` →
+     * BestFilm-ээс картаар төлсөн хэрэглэгч besttv.us руу шидэгддэг
+     * байв (өөр сайт, нэвтрээгүй байдалтай).
+     *
+     * ⚠️ `bonum.service.ts` нь одоо invoice үүсгэхдээ `?site=<сайт>`
+     * шигтгэдэг (`callbackWithSite`) — түүнийг УНШИНА.
+     */
+    const site = siteConfig(toSite(siteParam)).url.replace(/\/$/, '');
     /* ⚠️ Эрх нь webhook-оор нээгддэг — энд зөвхөн БУЦААНА.
        `?pay=return` нь frontend-д «төлбөрөө шалгаж байна» гэж
        харуулж, polling-оо эхлүүлэх дохио. */

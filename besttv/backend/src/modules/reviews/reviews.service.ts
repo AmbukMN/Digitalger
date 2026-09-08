@@ -188,7 +188,9 @@ export class ReviewsService {
   ) {
     const parent = await this.prisma.review.findUnique({
       where: { id: parentId },
-      select: { id: true, titleId: true, parentId: true, isHidden: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, titleId: true, parentId: true, isHidden: true },
     });
     if (!parent || parent.isHidden) throw new NotFoundException('Сэтгэгдэл олдсонгүй');
     // ⚠️ Зөвхөн 2 давхар — хариун дээр хариу бичихэд эх сэтгэгдэлд холбоно
@@ -218,7 +220,9 @@ export class ReviewsService {
   async vote(userId: string, reviewId: string, value: 1 | -1) {
     const review = await this.prisma.review.findUnique({
       where: { id: reviewId },
-      select: { id: true, userId: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, userId: true },
     });
     if (!review) throw new NotFoundException('Сэтгэгдэл олдсонгүй');
     if (review.userId === userId) {
@@ -268,7 +272,9 @@ export class ReviewsService {
   async report(userId: string, reviewId: string, reason: string, note?: string) {
     const review = await this.prisma.review.findUnique({
       where: { id: reviewId },
-      select: { id: true, userId: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, userId: true },
     });
     if (!review) throw new NotFoundException('Сэтгэгдэл олдсонгүй');
     if (review.userId === userId) {
@@ -304,7 +310,9 @@ export class ReviewsService {
   async removeOwn(userId: string, reviewId: string, role: string) {
     const review = await this.prisma.review.findUnique({
       where: { id: reviewId },
-      select: { id: true, userId: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, userId: true },
     });
     if (!review) return { ok: true };
     if (review.userId !== userId && role !== Role.ADMIN) {

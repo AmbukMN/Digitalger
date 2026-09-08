@@ -12,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { normalizePhone } from '../../common/phone';
 import { NotificationsService } from '../notifications/notifications.module';
 import { VerifyMnService } from './verify-mn.service';
+import { resolveByRecord } from '../../common/site/site-webhook';
 
 export type PhoneVerifyStatus = 'pending' | 'verified' | 'expired';
 
@@ -175,15 +176,33 @@ export class PhoneVerifyService {
    */
   async handleCallback(localSessionId: string): Promise<void> {
     if (!localSessionId) return;
-    const local = await this.prisma.phoneVerifySession.findUnique({
-      where: { id: localSessionId },
-    });
-    if (!local) {
-      this.logger.warn(`Callback — session олдсонгүй (sid=${localSessionId})`);
-      return;
-    }
-    await this.resolveSession(local).catch((err) =>
-      this.logger.error(`Callback resolve алдаа: ${String(err)}`),
+
+    /**
+     * ⚠️⚠️ САЙТААС ҮЛ ХАМААРАН ХАЙНА.
+     *
+     * БОДИТ АЛДАА (аудитаар илэрсэн): verify.mn нь `X-Site` толгой
+     * ИЛГЭЭДЭГГҮЙ тул middleware энэ хүсэлтийг ҮРГЭЛЖ `besttv` гэж
+     * таамаглана. `PhoneVerifySession` нь SCOPED тул өргөтгөлийн
+     * post-filter нь BestFilm-ийн мөрийг `null` болгодог байв →
+     * «session олдсонгүй» гэж ЧИМЭЭГҮЙ буцдаг.
+     *
+     * Хэрэглэгчийн polling (3 сек) нь зөв контексттэй тул эцэст нь
+     * барьдаг ч, диалогоо хаачихсан бол баталгаажилт бүртгэгдэхгүй.
+     *
+     * `resolveByRecord` нь (1) бүх сайтаас хайж, (2) олдсоны дараа
+     * тухайн SESSION-ы сайтаар үлдсэн ажлыг ажиллуулна — утас
+     * баталгаажсан имэйл зөв брэндээр очно.
+     */
+    await resolveByRecord(
+      () => this.prisma.phoneVerifySession.findFirst({ where: { id: localSessionId } }),
+      async (local) => {
+        await this.resolveSession(local).catch((err) =>
+          this.logger.error(`Callback resolve алдаа: ${String(err)}`),
+        );
+      },
+      () => {
+        this.logger.warn(`Callback — session олдсонгүй (sid=${localSessionId})`);
+      },
     );
   }
 

@@ -212,7 +212,9 @@ export class CouponsService {
   async remove(id: string) {
     // ⚠️ `.catch(() => null)` БАЙХГҮЙ — алдаа нуувал хэрэглэгч "устгагдлаа"
     // гэсэн мэдэгдэл авах мөртлөө мөр хэвээр үлдэж эргэлздэг
-    const exists = await this.prisma.coupon.findUnique({ where: { id }, select: { id: true } });
+    const exists = await this.prisma.coupon.findUnique({ where: { id }, select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true } });
     if (!exists) throw new NotFoundException('Купон олдсонгүй');
     await this.prisma.coupon.delete({ where: { id } });
     return { ok: true };

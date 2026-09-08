@@ -214,6 +214,8 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true,
         id: true,
         email: true,
         name: true,
@@ -594,7 +596,9 @@ export class AuthService {
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const before = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, avatarKey: true, email: true, passwordHash: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, name: true, avatarKey: true, email: true, passwordHash: true },
     });
     if (!before) throw new UnauthorizedException();
 
@@ -637,7 +641,9 @@ export class AuthService {
     if (dto.phone !== undefined) {
       const cur = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { phone: true },
+        select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, phone: true },
       });
       /* Хоосон мөр = дугаараа УСТГАХ гэсэн үг */
       nextPhone = dto.phone.trim() ? normalizePhone(dto.phone) : null;

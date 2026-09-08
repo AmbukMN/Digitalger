@@ -1122,7 +1122,9 @@ export class TitlesService {
         userId
           ? this.prisma.watchProgress.findUnique({
               where: { userId_titleId: { userId, titleId: title.id } },
-              select: { positionSec: true, durationSec: true, episodeId: true },
+              select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, positionSec: true, durationSec: true, episodeId: true },
             })
           : Promise.resolve(null),
         userId

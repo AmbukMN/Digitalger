@@ -21,7 +21,7 @@ import { BonumService } from './bonum.service';
 import type { BonumMethod } from './dto/payments.dto';
 import { resolveByRecord, runAcrossSites, withSite } from '../../common/site/site-webhook';
 import { currentSite, runWithSiteAsync } from '../../common/site/site-context';
-import { toSite } from '../../common/site/site.constants';
+import { SITES, toSite } from '../../common/site/site.constants';
 import { isQpayConfigured, qpayCredentials } from '../../common/site/site-qpay';
 
 interface QPayTokenResponse {
@@ -249,7 +249,9 @@ export class PaymentsService {
     if (!sub) return;
     const p = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      select: { autoRenewRequested: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, autoRenewRequested: true },
     });
     if (!p?.autoRenewRequested) return;
     await this.prisma.subscription.update({
@@ -991,7 +993,26 @@ export class PaymentsService {
    * QPay-аас өөрөөс нь баталгаажуулж байж Л эрх нээнэ.
    */
   async handleWebhook(body: Record<string, unknown>, rawBody: string, signature?: string) {
-    const webhookSecret = qpayCredentials().webhookSecret;
+    /**
+     * ⚠️⚠️ БҮХ САЙТЫН НУУЦААР ТУРШИНА — `currentSite()` БИШ.
+     *
+     * БОДИТ АЛДАА (аудитаар илэрсэн): `qpayCredentials()` нь
+     * `currentSite()`-ээс уншдаг. QPay нь `X-Site` толгой
+     * ИЛГЭЭДЭГГҮЙ тул middleware энэ хүсэлтийг ҮРГЭЛЖ `besttv` гэж
+     * таамаглана → `QPAY_WEBHOOK_SECRET`-ээр шалгана. Гэтэл BestFilm-
+     * ийн merchant нь `BESTFILM_QPAY_WEBHOOK_SECRET`-ээр гарын үсэг
+     * зурсан байна → **BestFilm-ийн ЯМАР Ч webhook 401 авдаг байв**.
+     *
+     * Доорх `resolveByRecord` нь зөв бичигдсэн атал ХЭЗЭЭ Ч хүрдэггүй
+     * байв — энэ шалгалт нь хаалт болдог.
+     *
+     * ⚠️ Гарын үсгийг шалгах МӨЧИД аль сайтынх болохыг мэдэх аргагүй
+     * (`invoice_id`-г DB-ээс хайх нь гарын үсэг батлагдахаас ӨМНӨ
+     * болно — тэр нь баталгаагүй өгөгдлөөр DB дуудна). Тиймээс
+     * САЙТ БҮРИЙН нууцаар туршина: аль нэг нь таарвал хүлээн авна.
+     */
+    const secrets = SITES.map((s) => qpayCredentials(s).webhookSecret).filter(Boolean);
+    const webhookSecret = secrets[0] ?? '';
 
     /**
      * ⚠️⚠️ PRODUCTION-Д SECRET ЗААВАЛ — байхгүй бол endpoint-ыг ХААНА.
@@ -1014,8 +1035,12 @@ export class PaymentsService {
       this.logger.error('QPAY_WEBHOOK_SECRET тохируулаагүй — webhook хаагдлаа');
       throw new UnauthorizedException('Webhook тохиргоо дутуу');
     }
-    if (webhookSecret) {
-      if (!signature || !this.verifyWebhookSignature(rawBody, signature)) {
+    if (secrets.length) {
+      /* ⚠️ Аль нэг сайтын нууцад таарвал ХҮРЭЛЦЭНЭ */
+      const ok =
+        Boolean(signature) &&
+        secrets.some((sec) => this.verifyWebhookSignature(rawBody, signature!, sec));
+      if (!ok) {
         throw new UnauthorizedException('Webhook гарын үсэг буруу');
       }
     }
@@ -1213,8 +1238,14 @@ export class PaymentsService {
         try {
           if (await this.verifyPaymentWithQpay(payment.qpayInvoiceId!)) {
             /**
-             * ⚠️⚠️ ЗӨВ САЙТЫН КОНТЕКСТЭД — `completePayment` нь имэйл
-             * илгээдэг, Meta CAPI event бичдэг, n8n мэдэгдэл явуулдаг.
+             * ⚠️ Мөрийн сайтаар — `completePayment` нь имэйл илгээдэг,
+             * Meta CAPI event бичдэг, n8n мэдэгдэл явуулдаг.
+             *
+             * ⚠️ Дуудагч (`payments-reconcile.service.ts`) нь одоо
+             * `forEachSite`-аар контекст өгдөг тул энэ нь ДАВХАРДСАН
+             * хамгаалалт. Гэхдээ `reconcilePending`-ыг өөр газраас
+             * (админы гар дуудлага, тест) контекстгүй дуудвал ЭНЭ нь
+             * барина — тиймээс үлдээв.
              *
              * Энэ cron нь контекстгүй ажилладаг тул `siteConfig()` нь
              * `besttv` буцаана → BestFilm-ийн хэрэглэгч «BestTV» нэр,
@@ -1328,6 +1359,8 @@ export class PaymentsService {
       const promo = await this.prisma.promotion.findUnique({
         where: { id: payment.promotionId },
         select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true,
           id: true,
           name: true,
           type: true,
@@ -1421,7 +1454,9 @@ export class PaymentsService {
     try {
       const promo = await this.prisma.promotion.findUnique({
         where: { id: payment.promotionId },
-        select: { id: true, name: true, type: true, bonusAmount: true },
+        select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, name: true, type: true, bonusAmount: true },
       });
       /* ⚠️ Төрлийг ЗААВАЛ шалгана — багцын урамшууллын id санамсаргүй
          орвол хэтэвчид мөнгө цутгах эрсдэлтэй */
@@ -1473,7 +1508,9 @@ export class PaymentsService {
       include: {
         plan: true,
         /* ⚠️ Telegram мэдэгдэлд хэрэглэгчийн нэр/имэйл хэрэгтэй */
-        user: { select: { name: true, email: true } },
+        user: { select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, name: true, email: true } },
         rentalTitle: { select: { title: true } },
       },
     });
@@ -1548,7 +1585,9 @@ export class PaymentsService {
       // Мэдэгдэл — хэрэглэгч цэнэглэлт орсныг мэдэх ёстой
       const u = await this.prisma.user.findUnique({
         where: { id: payment.userId },
-        select: { email: true, name: true, walletBalance: true },
+        select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, email: true, name: true, walletBalance: true },
       });
       if (u) {
         this.email.sendWalletTopup({
@@ -1607,11 +1646,15 @@ export class PaymentsService {
     const [buyer, planFull, activeSub] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: payment.userId },
-        select: { email: true, name: true },
+        select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, email: true, name: true },
       }),
       this.prisma.plan.findUnique({
         where: { id: payment.plan.id },
         select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true,
           isVip: true,
           genres: { select: { genre: { select: { name: true } } } },
         },
@@ -1974,7 +2017,9 @@ export class PaymentsService {
       /* WARN `email` is needed by Meta CAPI below - without a hashed
          identifier Meta accepts the event but can match it to nobody,
          making it worthless for ad optimisation. */
-      select: { walletBalance: true, email: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, walletBalance: true, email: true },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
     if (user.walletBalance < amount) {
@@ -2131,11 +2176,15 @@ export class PaymentsService {
       const [buyer, planFull, activeSub] = await Promise.all([
         this.prisma.user.findUnique({
           where: { id: userId },
-          select: { email: true, name: true },
+          select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, email: true, name: true },
         }),
         this.prisma.plan.findUnique({
           where: { id: planId },
           select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true,
             isVip: true,
             genres: { select: { genre: { select: { name: true } } } },
           },
@@ -2205,11 +2254,16 @@ export class PaymentsService {
     }
   }
 
-  private verifyWebhookSignature(payload: string, signature: string): boolean {
-    const secret = qpayCredentials().webhookSecret;
-    if (!secret) return this.config.get<string>('nodeEnv') === 'development';
+  /**
+   * @param secret — ЗААВАЛ дамжуулна. Өмнө нь `qpayCredentials()`-ээс
+   * уншдаг байсан тул webhook-ийн контекстэд (site тодорхойгүй) ҮРГЭЛЖ
+   * `besttv`-ийн нууцаар шалгаж, BestFilm-ийг 401 болгодог байв.
+   */
+  private verifyWebhookSignature(payload: string, signature: string, secret?: string): boolean {
+    const key = secret ?? qpayCredentials().webhookSecret;
+    if (!key) return this.config.get<string>('nodeEnv') === 'development';
 
-    const expected = createHmac('sha256', secret).update(payload).digest('hex');
+    const expected = createHmac('sha256', key).update(payload).digest('hex');
     try {
       return timingSafeEqual(
         Buffer.from(expected, 'hex'),

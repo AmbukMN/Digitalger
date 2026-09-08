@@ -401,7 +401,9 @@ export class SocialService {
         const { post } = await this.duplicate(postId, when);
         const row = await this.prisma.socialPost.findUnique({
           where: { id: post.id },
-          select: { scheduledAt: true },
+          select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, scheduledAt: true },
         });
         created.push({ id: post.id, at: row?.scheduledAt ?? null });
       } catch (e) {
@@ -555,7 +557,8 @@ export class SocialService {
   async get(id: string) {
     const post = await this.prisma.socialPost.findUnique({
       where: { id },
-      include: { targets: true, title: { select: { id: true, title: true, slug: true } } },
+      include: { targets: true, title: { select: {
+        id: true, title: true, slug: true } } },
     });
     if (!post) throw new NotFoundException('Пост олдсонгүй');
     return {
@@ -655,7 +658,9 @@ export class SocialService {
      */
     const row = await this.prisma.socialPostTarget.findUnique({
       where: { id: targetId },
-      select: { attempts: true, idempotencyKey: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, attempts: true, idempotencyKey: true },
     });
 
     /* Анхны оролдлогод idempotency түлхүүр олгоно */

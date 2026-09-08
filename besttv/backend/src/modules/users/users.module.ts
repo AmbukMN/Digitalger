@@ -701,7 +701,9 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto, actorId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, role: true },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
 
@@ -757,7 +759,9 @@ export class UsersService {
   async setPassword(id: string, password: string, actorId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, role: true },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
 
@@ -909,7 +913,8 @@ export class UsersService {
 
     const titles = await this.prisma.title.findMany({
       where: { id: { in: ids } },
-      select: { id: true, title: true, rentHours: true },
+      select: {
+        id: true, title: true, rentHours: true },
     });
     if (!titles.length) throw new BadRequestException('Кино олдсонгүй');
 

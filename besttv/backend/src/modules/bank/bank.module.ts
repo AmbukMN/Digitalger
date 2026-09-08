@@ -322,7 +322,9 @@ export class BankService {
   async removeAccount(id: string) {
     const acc = await this.prisma.bankAccount.findUnique({
       where: { id },
-      select: { id: true, _count: { select: { payments: true } } },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, _count: { select: { payments: true } } },
     });
     if (!acc) throw new NotFoundException('Данс олдсонгүй');
 

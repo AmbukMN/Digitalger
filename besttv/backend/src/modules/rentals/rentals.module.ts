@@ -199,7 +199,9 @@ export class RentalsService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { walletBalance: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, walletBalance: true },
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
     if (user.walletBalance < info.price) {
@@ -257,7 +259,9 @@ export class RentalsService {
 
     // ── Түрээсийн баталгаажуулах имэйл ──
     const [renter, title] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, email: true, name: true } }),
       this.prisma.title.findUnique({ where: { id: titleId }, select: { slug: true } }),
     ]);
     if (renter && title) {
@@ -290,7 +294,9 @@ export class RentalsService {
   async grantFromPayment(paymentId: string, userId: string, titleId: string) {
     const existingForPayment = await this.prisma.rental.findUnique({
       where: { paymentId },
-      select: { id: true, expiresAt: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, expiresAt: true },
     });
     if (existingForPayment) return existingForPayment;
 
@@ -352,7 +358,9 @@ export class RentalsService {
           });
 
     const [renter, title] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, email: true, name: true } }),
       this.prisma.title.findUnique({ where: { id: titleId }, select: { slug: true } }),
     ]);
     if (renter && title) {

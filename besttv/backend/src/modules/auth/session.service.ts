@@ -197,7 +197,9 @@ export class SessionService {
     try {
       const s = await this.prisma.userSession.findUnique({
         where: { tokenHash },
-        select: { id: true, userId: true, expiresAt: true },
+        select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, userId: true, expiresAt: true },
       });
 
       /**

@@ -198,7 +198,9 @@ export class PlansService {
   async remove(id: string, force = false) {
     const plan = await this.prisma.plan.findUnique({
       where: { id },
-      select: { id: true, name: true },
+      select: {
+        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+        site: true, id: true, name: true },
     });
     if (!plan) return { ok: true, notFound: true };
 
