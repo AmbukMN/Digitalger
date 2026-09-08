@@ -12,6 +12,7 @@ import {
 import { TitleMediaHelper } from './title-media.helper';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CacheService } from '../../common/cache/cache.service';
+import { currentSite } from '../../common/site/site-context';
 
 // Card жагсаалтад хэрэгтэй хөнгөн select (videoKey зэрэг нууц талбар ОРОХГҮЙ)
 const CARD_SELECT = {
@@ -867,6 +868,12 @@ export class TitlesService {
                ) AS sim
         FROM "Title" t
         WHERE t."isActive" = true
+          /* ⚠️⚠️ САЙТААР ШҮҮНЭ — raw SQL нь Prisma өргөтгөлөөр
+             дамждаггүй тул ГАРААР. Мартвал BestFilm-ийн хайлтад
+             тэнд нийтлэгдээгүй кино гарч, дарахад 404 өгнө.
+             ⚠️ Тайлбарт BACKTICK бичиж БОЛОХГҮЙ — template literal
+             тасарч compile алдаа өгнө. */
+          AND ${currentSite()} = ANY(t."sites")
           AND (${type}::text IS NULL OR t.type::text = ${type}::text)
           AND (
             lower(t.title) % lower(${q})
@@ -887,6 +894,10 @@ export class TitlesService {
           const alt = await this.prisma.$queryRaw<{ id: string }[]>`
             SELECT t.id FROM "Title" t
             WHERE t."isActive" = true
+              /* ⚠️ САЙТААР ШҮҮНЭ — raw SQL нь өргөтгөлөөр дамждаггүй.
+                 Доорх findMany нь дахин шүүх ч, энд шүүхгүй бол
+                 хэрэггүй мөр татаж LIMIT-ийг дэмий зарцуулна. */
+              AND ${currentSite()} = ANY(t."sites")
               AND (${type}::text IS NULL OR t.type::text = ${type}::text)
               AND (
                 replace(lower(t.slug), '-', ' ') % lower(${v})

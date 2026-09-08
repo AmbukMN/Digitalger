@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ubRangeStart } from '../../common/ub-date';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
+import { currentSite } from '../../common/site/site-context';
 
 /** Хугацааны сонголт — dashboard-тай ижил */
 /** ⚠️ AnalyticsService-ийн RANGE_DAYS-тэй ЯГ ИЖИЛ байх ёстой */
@@ -200,10 +201,18 @@ export class InsightsService {
        * серверийн цагийн бүсээр тооцдог байсан — сервер UTC тул үр дүн
        * ИЖИЛ (Германд байрлалтай ч контейнер UTC).
        */
+      /**
+       * ⚠️⚠️ САЙТААР ШҮҮНЭ — ГАРААР.
+       *
+       * `$queryRaw` нь Prisma-гийн query өргөтгөлөөр ДАМЖДАГГҮЙ тул
+       * автомат `site` шүүлт хийгдэхгүй. Мартвал BestFilm-ийн
+       * дашбоардад BestTV-ийн цагийн статистик харагдана.
+       */
       this.prisma.$queryRaw<{ h: number; c: bigint }[]>`
         SELECT date_part('hour', "createdAt")::int AS h, count(*)::bigint AS c
         FROM "PageView"
         WHERE "createdAt" >= ${from}
+          AND "site" = ${currentSite()}
         GROUP BY 1
       `,
     ]);
