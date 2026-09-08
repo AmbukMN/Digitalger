@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { api, clearTokens, getAccessToken, setTokens } from './api';
+import { ApiError, api, clearTokens, getAccessToken, setTokens, tryRefresh } from './api';
 
 export interface AdminUser {
   id: string;
@@ -28,15 +28,48 @@ export const useAdminAuth = create<AuthState>((set) => ({
   loading: true,
 
   init: async () => {
-    if (!getAccessToken()) {
-      set({ loading: false });
+    /**
+     * ⚠️⚠️ REFRESH TOKEN-ЫГ Ч ШАЛГАНА.
+     *
+     * Access нь 15 минут, refresh нь 30 хоног. Зөвхөн access-ыг
+     * шалгавал 30 хоногийн хүчинтэй refresh байсаар атал админ
+     * гарна (storage хэсэгчлэн цэвэрлэгдсэн, өөр таб дуусгасан).
+     * Вэб талд (`frontend/src/lib/auth-store.ts`) энэ нь аль хэдийн
+     * зөв — админд хуулагдаагүй байв.
+     */
+    const hasRefresh = Boolean(localStorage.getItem('btv_admin_refresh'));
+    if (!getAccessToken() && !hasRefresh) {
+      set({ user: null, loading: false });
       return;
+    }
+    if (!getAccessToken()) {
+      const ok = await tryRefresh();
+      if (!ok) {
+        clearTokens();
+        set({ user: null, loading: false });
+        return;
+      }
     }
     try {
       const user = await api<AdminUser>('/auth/me');
       set({ user, loading: false });
-    } catch {
-      set({ user: null, loading: false });
+    } catch (e) {
+      /**
+       * ⚠️⚠️ СҮЛЖЭЭНИЙ АЛДААНД ГАРГАХГҮЙ.
+       *
+       * Өмнө нь `catch { user: null }` байсан тул 500, timeout, DNS,
+       * JSON задлах алдаа — БҮГД «нэвтрээгүй» болж, админыг /login
+       * руу шиднэ. Backend deploy хийж байхад F5 дарвал 502 → гарна,
+       * токен нь бүрэн хүчинтэй атал.
+       *
+       * ⚠️ Зөвхөн 401 (жинхэнэ эрхийн алдаа) үед л токен цэвэрлэнэ.
+       */
+      if (e instanceof ApiError && e.status === 401) {
+        clearTokens();
+        set({ user: null, loading: false });
+      } else {
+        set({ loading: false });
+      }
     }
   },
 
@@ -55,6 +88,25 @@ export const useAdminAuth = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    /**
+     * ⚠️⚠️ BACKEND-Д ЗААВАЛ МЭДЭГДЭНЭ.
+     *
+     * Зөвхөн localStorage цэвэрлэвэл `UserSession` мөр DB-д 30 хоног
+     * үлдэж, ТӨХӨӨРӨМЖИЙН ХЯЗГААРЫН БАЙРЫГ дэмий эзэлнэ — «2
+     * төхөөрөмж» гэж зарласан атлаа 1 л ажиллана. Админ 2 удаа
+     * гараад орвол 3 дахь нэвтрэлт өмнөх session-ыг чимээгүй хөөнө.
+     *
+     * ⚠️ `await` ХИЙХГҮЙ — офлайн үед UI гацна. Гарах нь клиент
+     * талдаа шууд болно.
+     */
+    const rt = localStorage.getItem('btv_admin_refresh');
+    if (rt) {
+      void api('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: rt }),
+        auth: false,
+      }).catch(() => null);
+    }
     clearTokens();
     set({ user: null });
   },

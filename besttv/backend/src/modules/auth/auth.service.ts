@@ -228,7 +228,18 @@ export class AuthService {
       const payload = this.jwt.verify<{ sub: string }>(refreshToken, {
         secret: this.config.get<string>('jwt.refreshSecret'),
       });
-      user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      /**
+       * ⚠️⚠️ `runAcrossSites` — ӨӨРИЙН ДАТА (`me()`-тэй ижил шалтгаан).
+       *
+       * ⛔ БОДИТ АЛДАА (2026-09-09): `select` байхгүй тул БҮХ талбар
+       * буцна — `site` ч орно → post-filter ажиллаж, админ
+       * (`site='besttv'`) нь `X-Site: bestfilm` үед ОЛДОХГҮЙ → 401
+       * «Refresh token хүчингүй» (тестээр батлав: besttv=201,
+       * bestfilm=401). Токен дуусмагц админ гарч явна.
+       */
+      user = await runAcrossSites(() =>
+        this.prisma.user.findUnique({ where: { id: payload.sub } }),
+      );
       if (!user || !user.isActive) throw new Error();
     } catch {
       throw new UnauthorizedException('Refresh token хүчингүй байна');
@@ -244,7 +255,24 @@ export class AuthService {
      * ⚠️ Мессеж нь ТОДОРХОЙ байх ёстой — хэрэглэгч «яагаад гарчихав»
      * гэж эргэлзэхээс сэргийлнэ.
      */
-    const valid = await this.sessions.touch(user.id, refreshToken);
+    /**
+     * ⚠️⚠️ SESSION-ыг ХЭРЭГЛЭГЧИЙН САЙТЫН КОНТЕКСТЭЭР шалгана.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-09): `UserSession` нь site-scoped
+     * (төхөөрөмжийн хязгаар сайт бүрд тусдаа — ЗӨВ загвар). Гэвч
+     * админы session нь `besttv`-д үүссэн атал панель `X-Site:
+     * bestfilm` илгээдэг → session ОЛДОХГҮЙ → «Өөр төхөөрөмжөөс
+     * нэвтэрсэн тул та гарсан байна» гэсэн ХУДАЛ мессежээр 401.
+     * Токен дуусмагц (15 мин) админ BestFilm дээрээс шидэгдэнэ.
+     *
+     * ⚠️ `runAcrossSites` ХЭРЭГЛЭХГҮЙ — тэр нь төхөөрөмжийн хязгаарыг
+     * сайт хооронд НИЙЛҮҮЛЖ, «2 төхөөрөмж» дүрмийг эвдэнэ. Оронд нь
+     * ХЭРЭГЛЭГЧИЙН өөрийн сайтаар ажиллуулна: session тэнд үүссэн,
+     * тэндээ шалгагдана.
+     */
+    const valid = await runWithSiteAsync(user.site as Site, () =>
+      this.sessions.touch(user!.id, refreshToken),
+    );
     if (!valid) {
       throw new UnauthorizedException(
         `Өөр төхөөрөмжөөс нэвтэрсэн тул та гарсан байна (дээд тал нь ${MAX_DEVICES} төхөөрөмж). Дахин нэвтэрнэ үү.`,
@@ -254,12 +282,16 @@ export class AuthService {
     const tokens = this.signTokens(user);
     /* ⚠️ ROTATION — хуучин токен устаж шинэ нь бүртгэгдэнэ. Нэг
        төхөөрөмж 2 мөр эзлэхгүй, хулгайлагдсан токен ч хүчингүй болно. */
-    await this.sessions.rotate(
-      user.id,
-      refreshToken,
-      tokens.refreshToken,
-      ctx,
-      this.refreshExpiryDate(),
+    /* ⚠️ `rotate` ч ИЖИЛ контекстээр — эс бөгөөс шинэ session буруу
+       сайтад үүсэж, дараагийн refresh дахин унана */
+    await runWithSiteAsync(user.site as Site, () =>
+      this.sessions.rotate(
+        user!.id,
+        refreshToken,
+        tokens.refreshToken,
+        ctx,
+        this.refreshExpiryDate(),
+      ),
     );
     return tokens;
   }
@@ -668,12 +700,20 @@ export class AuthService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
-    const before = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
-        site: true, name: true, avatarKey: true, email: true, passwordHash: true },
-    });
+    /**
+     * ⚠️⚠️ `runAcrossSites` — ӨӨРИЙН ДАТА (`me()`-тэй ижил шалтгаан).
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-09): админ BestFilm сонгосон байхад
+     * профайлаа засах гэвэл 401 (тестээр батлав: besttv=200,
+     * bestfilm=401). `userId` нь токеноос ирдэг тул site шүүлт
+     * утгагүй — зөвхөн саад болно.
+     */
+    const before = await runAcrossSites(() =>
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { site: true, name: true, avatarKey: true, email: true, passwordHash: true },
+      }),
+    );
     if (!before) throw new UnauthorizedException();
 
     // ── Имэйл солих (нууц үгээр баталгаажна) ────────────────────────────
@@ -713,12 +753,13 @@ export class AuthService {
     let nextPhone: string | null | undefined;
     let phoneChanged = false;
     if (dto.phone !== undefined) {
-      const cur = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-        /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
-        site: true, phone: true },
-      });
+      /* ⚠️ `runAcrossSites` — ӨӨРИЙН дата (дээрхтэй ижил шалтгаан) */
+      const cur = await runAcrossSites(() =>
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { site: true, phone: true },
+        }),
+      );
       /* Хоосон мөр = дугаараа УСТГАХ гэсэн үг */
       nextPhone = dto.phone.trim() ? normalizePhone(dto.phone) : null;
       if (dto.phone.trim() && !nextPhone) {
@@ -768,7 +809,14 @@ export class AuthService {
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    /**
+     * ⚠️ `runAcrossSites` — ӨӨРИЙН дата. Эс бөгөөс BestFilm дээр
+     * «Энэ бүртгэлд нууц үг тохируулаагүй байна» гэсэн ТӨӨРӨГДҮҮЛЭХ
+     * мессеж гарна (тестээр батлав) — үнэндээ хэрэглэгч олдоогүй.
+     */
+    const user = await runAcrossSites(() =>
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    );
     if (!user?.passwordHash) {
       throw new UnauthorizedException('Энэ бүртгэлд нууц үг тохируулаагүй байна');
     }

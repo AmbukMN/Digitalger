@@ -20,12 +20,19 @@ const API_BASE = '/api';
  * ⚠️ Шинэ auth зам нэмэх бол ЭНД БАС нэм — эс бөгөөс ижил алдаа
  * чимээгүй давтагдана.
  */
-const AUTH_FREE_PATHS = [
+/**
+ * ⚠️ `Set` + ЯГ ТААРАХ шалгалт — `startsWith` БИШ.
+ *
+ * `startsWith` нь prefix мөргөлдөөн үүсгэдэг: `/auth/me` нэмбэл
+ * `/auth/me/avatar` ч чөлөөлөгдөж, аватар `X-Site`-гүй бичигдэнэ.
+ * Мөн `/auth/login` нь ирээдүйн `/auth/login-otp`-г чимээгүй хамрана.
+ */
+const AUTH_FREE_PATHS = new Set([
   '/auth/admin/login',
   '/auth/login',
   '/auth/refresh',
   '/auth/logout',
-];
+]);
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -73,6 +80,16 @@ export async function api<T = unknown>(
 ): Promise<T> {
   const { auth = true, ...init } = options;
 
+  /**
+   * ⚠️⚠️ САЙТЫГ НЭГ УДАА барина — `doFetch` дотор БИШ.
+   *
+   * Retry (401 → refresh → дахин) үед `currentAdminSite()` дахин
+   * уншигдвал нэг логик хүсэлт эхний оролдлогод `besttv`, хоёр
+   * дахьд `bestfilm` явж болно (админ дундуур солибол).
+   */
+  const site = currentAdminSite();
+  const authFree = AUTH_FREE_PATHS.has(path.split('?')[0]);
+
   const doFetch = () => {
     const token = auth ? getAccessToken() : null;
     return fetch(`${API_BASE}${path}`, {
@@ -101,13 +118,18 @@ export async function api<T = unknown>(
          * ⚠️ Нэвтрэх мөчид хэрэглэгч аль сайтынх нь МЭДЭГДЭХГҮЙ —
          * `auth.service` өөрөө `X-Site`-гүй үед бүх сайтаас хайдаг.
          */
-        ...(AUTH_FREE_PATHS.some((pp) => path.startsWith(pp))
-          ? {}
-          : { 'X-Site': currentAdminSite() }),
+        ...(authFree ? {} : { 'X-Site': site }),
         ...init.headers,
       },
     });
   };
+
+  /**
+   * ⚠️ Refresh явж байвал ХҮЛЭЭНЭ — эс бөгөөс хуудас ачаалах үеийн
+   * 5-6 зэрэг хүсэлт бүгд хуучин токеноор явж, бүгд 401 аваад дахин
+   * явна (console дүүрч, ачаалалт 2 дахин).
+   */
+  if (auth && refreshPromise) await refreshPromise.catch(() => null);
 
   let res = await doFetch();
 
