@@ -102,6 +102,20 @@ export class CreateTitleDto {
   @IsString({ each: true })
   actors?: string[];
 
+  /**
+   * ⚠️⚠️ ХАЙЛТЫН НЭМЭЛТ ТҮЛХҮҮР ҮГ — хэрэглэгчийн ХОЧ, товчлол.
+   *
+   * БОДИТ ХЭРЭГЦЭЭ: «Өнчин охин» киног чатад «99», «999» гэж
+   * хайдаг. Гарчигт байхгүй тул энгийн хайлт ОЛОХГҮЙ.
+   *
+   * ⚠️ Хайлтад ЯГ ТААРЦААР (`has`) ажиллана — «9» гэж хайхад
+   * бүх кино гарахгүй.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  searchAliases?: string[];
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

@@ -87,6 +87,9 @@ export const SCOPED_MODELS = [
   'SocialSlot',
   'SocialChannelSetting',
 
+  /* ── Чатбот ── */
+  'ChatKeyword', //         түлхүүр үг сайт бүрд өөр
+
   /* ── Админ ── */
   'AdminSeen',
 ] as const;

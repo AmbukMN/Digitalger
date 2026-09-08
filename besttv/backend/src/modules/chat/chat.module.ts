@@ -20,6 +20,8 @@ import { ChatService, type ChatTitleCard } from './chat.service';
 import { LinkPreviewService, type LinkPreview } from './link-preview.service';
 import { runWithSiteAsync } from '../../common/site/site-context';
 import { toSite } from '../../common/site/site.constants';
+import { ChatKeywordsService } from './chat-keywords.service';
+import { ChatKeywordsAdminController } from './chat-keywords.controller';
 
 /**
  * ⚠️⚠️ ЧАТБОТЫН ХЯЗГААР — БҮХ бакетыг дарж бичнэ.
@@ -395,8 +397,10 @@ export class ChatAdminController {
 }
 
 @Module({
-  controllers: [ChatController, ChatAdminController],
-  providers: [ChatService, LinkPreviewService],
-  exports: [ChatService],
+  controllers: [ChatController, ChatAdminController, ChatKeywordsAdminController],
+  providers: [ChatService, LinkPreviewService, ChatKeywordsService],
+  /* ⚠️ `ChatKeywordsService` экспорт — `TitlesModule` дууддаг
+     (хайлтын endpoint дотор түлхүүр шалгана) */
+  exports: [ChatService, ChatKeywordsService],
 })
 export class ChatModule {}

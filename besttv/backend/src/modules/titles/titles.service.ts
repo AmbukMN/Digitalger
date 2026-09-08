@@ -13,6 +13,7 @@ import { TitleMediaHelper } from './title-media.helper';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { currentSite } from '../../common/site/site-context';
+import { ChatKeywordsService } from '../chat/chat-keywords.service';
 
 // Card жагсаалтад хэрэгтэй хөнгөн select (videoKey зэрэг нууц талбар ОРОХГҮЙ)
 const CARD_SELECT = {
@@ -102,6 +103,8 @@ export class TitlesService {
     private readonly subs: SubscriptionsService,
     /* ⚠️ Нүүрний кэш + үзэлтийн давхардал шүүлт (@Global тул import хэрэггүй) */
     private readonly cache: CacheService,
+    /* ⚠️ Админаас тохируулсан чатботын түлхүүр үг («99» → Өнчин охин) */
+    private readonly keywords: ChatKeywordsService,
   ) {}
 
   // ─── Нүүр хуудас ────────────────────────────────────────────────────────────
@@ -580,7 +583,52 @@ export class TitlesService {
     return this.media.decorateMany(rows);
   }
 
+  /**
+   * ⚠️⚠️ АДМИНЫ ТОХИРУУЛСАН ТҮЛХҮҮР ҮГЭЭР КИНО ОЛОХ.
+   *
+   * `ChatKeyword` дүрэм таарвал ТУХАЙН киног (эрэмбээр нь) буцаана.
+   * Таараагүй бол `null` — энгийн хайлт үргэлжилнэ.
+   *
+   * ⚠️ Идэвхгүй/устгагдсан киног ХАСНА — админ дүрэмд үлдээсэн ч
+   * хэрэглэгчид «энэ кино байхгүй» гэсэн 404 харагдах ёсгүй.
+   */
+  private async keywordTitles(q: string) {
+    const hit = await this.keywords.match(q);
+    if (!hit?.titleIds.length) return null;
+
+    const rows = await this.prisma.title.findMany({
+      where: { id: { in: hit.titleIds }, isActive: true },
+      select: { ...CARD_SELECT, description: true },
+    });
+    if (!rows.length) return null;
+
+    /* ⚠️ АДМИНЫ ЭРЭМБИЙГ хадгална — Prisma нь дурын дараалал буцаадаг */
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const ordered = hit.titleIds.map((id) => byId.get(id)).filter(Boolean);
+
+    return this.media.decorateMany(ordered as typeof rows);
+  }
+
   async search(q: string, limit = 20, type?: 'MOVIE' | 'SERIES') {
+    /**
+     * ⚠️⚠️ 0) АДМИНЫ ТҮЛХҮҮР ҮГ — ХАМГИЙН ТҮРҮҮНД.
+     *
+     * БОДИТ ХЭРЭГЦЭЭ: хэрэглэгч «99» гэж бичихэд «Өнчин охин»
+     * киног харуулах. Тэр үг гарчиг/тайлбарт БАЙХГҮЙ тул доорх
+     * энгийн хайлт ОЛОХГҮЙ.
+     *
+     * ⚠️ ЯАГААД ЭХЭНД ВЭ: админ ЗОРИУД тохируулсан дүрэм нь
+     * автомат хайлтаас ДЭЭГҮҮР байх ёстой. «99» гэж хайхад
+     * «1999 он» гэх кино эхэнд гарвал дүрэм утгагүй болно.
+     *
+     * ⚠️ ГУРВАН СУВАГТ ИЖИЛ (вэб/FB/IG): n8n нь энэ endpoint-ыг
+     * дууддаг тул нэмэлт workflow засвар ШААРДАХГҮЙ.
+     *
+     * ⚠️ Дүрэм олдоогүй бол доош үргэлжилнэ — зан төлөв ХЭВЭЭР.
+     */
+    const keyworded = await this.keywordTitles(q);
+    if (keyworded) return keyworded;
+
     // 1) Stop word хасаж гол үгсийг ялгана ("сайхан кино байна уу" → ∅)
     const parsed = parseQuery(q);
 
@@ -650,14 +698,32 @@ export class TitlesService {
      * найруулагч, улс, жанрт хайх нь ЧИМЭЭ л нэмнэ.
      */
     const matchClauses = (t: string): Prisma.TitleWhereInput[] => {
+      /**
+       * ⚠️⚠️ ХОЧ / ТОВЧЛОЛ — `searchAliases` массив.
+       *
+       * БОДИТ ХЭРЭГЦЭЭ: «Өнчин охин» киног хэрэглэгчид «99», «999»
+       * гэж хайдаг. Эдгээр нь гарчигт БАЙХГҮЙ тул энгийн `contains`
+       * ОЛОХГҮЙ.
+       *
+       * ⚠️ `has` (ЯГ таарц) — `contains` БИШ. «9» гэж хайхад
+       * «99», «999» бүгд таарч, хамаагүй кино гарах эрсдэлтэй.
+       *
+       * ⚠️ БОГИНО ҮГЭНД ч ажиллана — «99» бол 2 тэмдэгт бөгөөд
+       * `isShortWord` шүүлтэд ордог. Alias нь ЗОРИУД тохируулсан
+       * утга тул чимээ үүсгэхгүй.
+       */
+      const aliasClause: Prisma.TitleWhereInput = { searchAliases: { has: t } };
+
       if (isShortWord(t)) {
         return [
+          aliasClause,
           { title: { contains: t, mode: 'insensitive' as const } },
           { titleEn: { contains: t, mode: 'insensitive' as const } },
           { slug: { contains: t, mode: 'insensitive' as const } },
         ];
       }
       return [
+      aliasClause,
       { title: { contains: t, mode: 'insensitive' as const } },
       { titleEn: { contains: t, mode: 'insensitive' as const } },
       { slug: { contains: t, mode: 'insensitive' as const } },

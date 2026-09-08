@@ -55,6 +55,7 @@ export class TitlesController {
     return this.titles.search(q ?? '', n, t);
   }
 
+
   /** 18+ хуудас — ерөнхий каталогт харагдахгүй контент (нас баталгаажуулсны дараа) */
   @Get('adult')
   adult(

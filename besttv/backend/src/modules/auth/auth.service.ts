@@ -20,7 +20,7 @@ import { StorageService } from '../../storage/storage.service';
 import { TrackingService } from '../tracking/tracking.service';
 import { ChangePasswordDto, LoginDto, RegisterDto, UpdateProfileDto } from './dto/auth.dto';
 import { OAuthLoginDto } from './dto/oauth.dto';
-import { siteConfig } from '../../common/site/site-config';
+import { siteConfig, isPlaceholderEmail } from '../../common/site/site-config';
 
 export interface AuthTokens {
   accessToken: string;
@@ -397,7 +397,8 @@ export class AuthService {
       user = await this.prisma.user.create({
         data: {
           /* ⚠️ Имэйлгүй бол орлуулагч — `User.email` нь required */
-          email: p.email ?? `apple_${p.sub}@noemail.besttv.mn`,
+          /* ⚠️ Орлуулагч имэйл — САЙТЫН домэйнээр (site-config.ts) */
+      email: p.email ?? `apple_${p.sub}${siteConfig().noEmailSuffix}`,
           name: p.name?.trim() || null,
           provider: AuthProvider.APPLE,
           appleId: p.sub,
@@ -503,7 +504,9 @@ export class AuthService {
        * гараар оруулсан жинхэнэ хаягийг OAuth-ийн утгаар СОЛИХГҮЙ.
        * ⚠️ Шинэ хаяг ӨӨР хүнд бүртгэлтэй бол алгасна (unique зөрчил).
        */
-      const isPlaceholder = user.email.endsWith('@noemail.besttv.mn');
+      /* ⚠️ БҮХ сайтын орлуулагчийг таньна — хэрэглэгч нэг сайтаас
+         нөгөө рүү шилжихгүй ч, cron нь хоёуланг хамардаг */
+    const isPlaceholder = isPlaceholderEmail(user.email);
       let emailUpdate: string | undefined;
       if (email && isPlaceholder && email !== user.email) {
         const taken = await this.prisma.user
@@ -540,7 +543,8 @@ export class AuthService {
            * илгээвэл буцна. Тиймээс доор `emailVerified: false`
            * тавьж, UI/имэйл систем түүнийг «хаяггүй» гэж үзнэ.
            */
-          email: email ?? `oauth_${dto.provider}_${dto.providerAccountId}@noemail.besttv.mn`,
+          /* ⚠️ Орлуулагч имэйл — САЙТЫН домэйнээр */
+        email: email ?? `oauth_${dto.provider}_${dto.providerAccountId}${siteConfig().noEmailSuffix}`,
           name: dto.name?.trim() || null,
           provider: providerEnum,
           ...(isGoogle
@@ -577,7 +581,7 @@ export class AuthService {
      *    хог хаяг жагсаалт бохирдуулна. `subscribe` идемпотент тул
      *    давхардвал алдаагүй (дахин нэвтрэхэд дахин нэмэхгүй).
      */
-    if (email && !user.email.endsWith('@noemail.besttv.mn')) {
+    if (email && !isPlaceholderEmail(user.email)) {
       void this.subscribers
         .subscribe({ email, name: user.name ?? undefined, source: 'oauth', userId: user.id })
         .catch(() => null);

@@ -29,7 +29,7 @@ import {
   Users,
   Wallet,
   X,
-} from 'lucide-react';
+  Hash,} from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@besttv/shared';
 import { BrandLogo } from '@besttv/shared/ui';
@@ -65,6 +65,9 @@ const NAV_GROUPS = [
     label: 'Харилцаа',
     items: [
       { href: '/chat', label: 'Чат', icon: MessagesSquare, section: 'chat' },
+      /* ⚠️ Чатботын түлхүүр үг — «99» → «Өнчин охин» гэх дүрэм.
+         Админ хэдэн ч дүрэм нэмнэ, код засах шаардлагагүй. */
+      { href: '/chat-keywords', label: 'Чат түлхүүр', icon: Hash },
       { href: '/email', label: 'Имэйл', icon: Mail, section: 'subscribers' },
       /* ⚠️ FB→IG хөндлөн нийтлэл — Meta нь хоёр сүлжээг холбосон ч
          автомат хуваалцахыг зөвшөөрдөггүй тул гараар хийдэг байсныг

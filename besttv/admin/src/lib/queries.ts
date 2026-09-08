@@ -877,6 +877,51 @@ export interface AdminFaq {
   createdAt: string;
 }
 
+/**
+ * ⚠️⚠️ ЧАТБОТЫН ТҮЛХҮҮР ҮГ — админаас удирдана.
+ *
+ * БОДИТ ХЭРЭГЦЭЭ: хэрэглэгч чатад «99» гэж бичихэд «Өнчин охин»
+ * киног харуулах. Тэр үг гарчигт БАЙХГҮЙ тул энгийн хайлт олохгүй.
+ */
+export interface AdminChatKeyword {
+  id: string;
+  keywords: string[];
+  matchType: 'EXACT' | 'CONTAINS' | 'PREFIX';
+  titleIds: string[];
+  /** ⚠️ Сервер нь киноны НЭРИЙГ хамт буцаана (ID хараад ойлгохгүй) */
+  titles: { id: string; title: string; slug: string; posterKey: string | null }[];
+  reply: string | null;
+  note: string | null;
+  isActive: boolean;
+  order: number;
+  hitCount: number;
+  lastHitAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function useAdminChatKeywords(
+  params: { q?: string; isActive?: boolean; page?: number; limit?: number } = {},
+) {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set('q', params.q);
+  if (params.isActive !== undefined) qs.set('isActive', String(params.isActive));
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+
+  return useQuery({
+    queryKey: ['admin-chat-keywords', params],
+    queryFn: () =>
+      api<{ items: AdminChatKeyword[]; total: number; page: number; limit: number }>(
+        `/admin/chat-keywords?${qs.toString()}`,
+      ),
+    /* ⚠️ Хуудас/шүүлт солиход хуучин дата харуулж skeleton гацахгүй */
+    placeholderData: (prev) => prev,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useAdminFaqs(params: {
   page?: number;
   limit?: number;

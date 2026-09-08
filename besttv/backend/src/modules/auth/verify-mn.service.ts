@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { siteConfig } from '../../common/site/site-config';
 
 /**
  * verify.mn MO SMS утас баталгаажуулалтын HTTP клиент.
@@ -69,7 +70,9 @@ export class VerifyMnService {
        * UCS-2 болж 70 тэмдэгт болох ба зардал өснө. Баталгаажсаны
        * дараа хэрэглэгчид буцаж очих мессеж.
        */
-      responseSms: 'BestTV: Tany utas batalgaajlaa',
+      /* ⚠️ Сайтын нэрээр — BestFilm-ийн хэрэглэгчид «BestTV» гэж
+         ирвэл өөр сайтаас гэж бодож санаа зовно */
+      responseSms: `${siteConfig().name}: Tany utas batalgaajlaa`,
     };
 
     const data = await this.request<{

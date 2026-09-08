@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
+import { currentSite } from '../../common/site/site-context';
+import { siteConfig } from '../../common/site/site-config';
 
 /**
  * META CONVERSIONS API — СЕРВЕР ТАЛААС КОНВЕРСИ ИЛГЭЭХ.
@@ -44,22 +46,54 @@ export interface CapiPurchase {
 @Injectable()
 export class MetaCapiService {
   private readonly logger = new Logger(MetaCapiService.name);
-  private readonly pixelId: string;
-  private readonly token: string;
-  private readonly siteUrl: string;
+
+  /**
+   * ⚠️⚠️ META PIXEL — САЙТ БҮРД ӨӨР.
+   *
+   * Урьд нь `readonly` талбар байсан (constructor-т нэг удаа).
+   * Нэг backend хоёр сайт үйлчилдэг тул getter болгов:
+   *
+   *   besttv   → META_PIXEL_ID          (ХУУЧИН env, зан төлөв ХЭВЭЭР)
+   *   bestfilm → BESTFILM_META_PIXEL_ID
+   *
+   * ⚠️ ЯАГААД ЧУХАЛ ВЭ: pixel нь СУРТАЛЧИЛГААНЫ данстай холбоотой.
+   * Нэг pixel хуваалцвал BestFilm-ийн худалдан авалт BestTV-ийн
+   * кампанит ажлын үр дүнд бүртгэгдэж, зар сурталчилгааны төсвийг
+   * БУРУУ хуваарилна.
+   *
+   * ⚠️ Тохируулаагүй бол ЧИМЭЭГҮЙ алгасна (`isConfigured` false) —
+   * сайт унахгүй.
+   */
+  private env(key: string): string {
+    const prefix = currentSite() === 'besttv' ? '' : 'BESTFILM_';
+    return (process.env[`${prefix}${key}`] ?? '').trim();
+  }
+
+  private get pixelId(): string {
+    return this.env('META_PIXEL_ID');
+  }
+  private get token(): string {
+    return this.env('META_CAPI_TOKEN');
+  }
+  /** ⚠️ Үйл явдлын эх сурвалж URL — сайтын ӨӨРИЙН домэйн */
+  private get siteUrl(): string {
+    return siteConfig().url;
+  }
 
   constructor(private readonly config: ConfigService) {
-    this.pixelId = this.config.get<string>('META_PIXEL_ID')?.trim() ?? '';
-    this.token = this.config.get<string>('META_CAPI_TOKEN')?.trim() ?? '';
-    /* ⚠️ Constructor-т тогтооно — Meta pixel нь сайт бүрд ӨӨР ID-тай
-       тул `metaCapi` тохиргоог мөн сайтаар салгасан (settings) */
-    this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
-
-    if (this.pixelId && this.token) {
-      this.logger.log(`Meta Conversions API бэлэн — pixel ${this.pixelId}`);
-    } else {
-      this.logger.warn('META_PIXEL_ID/META_CAPI_TOKEN алга — CAPI илгээхгүй');
-    }
+    /* ⚠️ Логд ЗӨВХӨН BestTV-ийнхийг харуулна — эхлэх үед контекст
+       байхгүй тул `currentSite()` нь besttv буцаана. */
+    const hasBesttv = Boolean(
+      process.env.META_PIXEL_ID?.trim() && process.env.META_CAPI_TOKEN?.trim(),
+    );
+    const hasBestfilm = Boolean(
+      process.env.BESTFILM_META_PIXEL_ID?.trim() &&
+        process.env.BESTFILM_META_CAPI_TOKEN?.trim(),
+    );
+    this.logger.log(
+      `Meta CAPI — besttv: ${hasBesttv ? 'бэлэн' : 'тохируулаагүй'}, ` +
+        `bestfilm: ${hasBestfilm ? 'бэлэн' : 'тохируулаагүй'}`,
+    );
   }
 
   get isConfigured(): boolean {
