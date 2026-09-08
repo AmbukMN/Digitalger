@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { runAcrossSites } from '../../common/site/site-context';
 
 /**
  * НЭВТЭРСЭН ТӨХӨӨРӨМЖИЙН УДИРДЛАГА.
@@ -302,18 +303,37 @@ export class SessionService {
   /** Хэрэглэгчийн бүх идэвхтэй төхөөрөмж (профайлд харуулна) */
   async list(userId: string, currentToken?: string | null) {
     const currentHash = currentToken ? this.hash(currentToken) : null;
-    const rows = await this.prisma.userSession.findMany({
-      where: { userId, expiresAt: { gt: new Date() } },
-      orderBy: { lastUsedAt: 'desc' },
-      select: {
-        id: true,
-        deviceName: true,
-        ip: true,
-        lastUsedAt: true,
-        createdAt: true,
-        tokenHash: true,
-      },
-    });
+    /**
+     * ⚠️⚠️ `runAcrossSites` — ХЭРЭГЛЭГЧИЙН ӨӨРИЙН ТӨХӨӨРӨМЖҮҮД.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-09): `UserSession` нь SCOPED тул
+     * `findMany`-д `site` шүүлт автоматаар нэмэгддэг. Админы session
+     * нь `besttv`-д үүссэн атал панель `X-Site: bestfilm` илгээдэг →
+     * жагсаалт ХООСОН (тестээр батлав: besttv=5, bestfilm=0).
+     * Профайлын «Төхөөрөмж» хэсэг хоосон, «X/2» карт буруу,
+     * төхөөрөмжөө гаргах ч боломжгүй.
+     *
+     * ⚠️ Аюулгүй байдал буурахгүй: `where`-т `userId` ЗААВАЛ байгаа —
+     * тэр нь JWT-ээс ирдэг тул хэрэглэгч ӨӨРИЙНХӨӨ мөрийг л харна.
+     * Site шүүлт нь нэмэлт хамгаалалт БИШ, зөвхөн саад байсан.
+     *
+     * ⚠️ Төхөөрөмжийн ХЯЗГААР (`MAX_DEVICES`) нь `add()` дотор
+     * ХЭВЭЭР сайт бүрд тусдаа тоологдоно — энэ нь зөвхөн ХАРУУЛАХ.
+     */
+    const rows = await runAcrossSites(() =>
+      this.prisma.userSession.findMany({
+        where: { userId, expiresAt: { gt: new Date() } },
+        orderBy: { lastUsedAt: 'desc' },
+        select: {
+          id: true,
+          deviceName: true,
+          ip: true,
+          lastUsedAt: true,
+          createdAt: true,
+          tokenHash: true,
+        },
+      }),
+    );
 
     return {
       max: MAX_DEVICES,
@@ -334,20 +354,31 @@ export class SessionService {
   async revoke(userId: string, sessionId: string): Promise<boolean> {
     /* ⚠️ `userId` нөхцөл ЗААВАЛ — өөр хүний session устгах IDOR-оос
        хамгаална */
-    const res = await this.prisma.userSession.deleteMany({
-      where: { id: sessionId, userId },
-    });
+    /* ⚠️ `runAcrossSites` — `list()` нь бүх сайтын мөрийг ХАРУУЛДАГ
+       болсон тул устгах нь ч ижил хамрах хүрээтэй байх ЁСТОЙ. Эс
+       бөгөөс хэрэглэгч харагдаж буй төхөөрөмжөө гаргаж чадахгүй
+       («Төхөөрөмж олдсонгүй»). `userId` нөхцөл IDOR-оос хамгаална. */
+    const res = await runAcrossSites(() =>
+      this.prisma.userSession.deleteMany({
+        where: { id: sessionId, userId },
+      }),
+    );
     return res.count > 0;
   }
 
   /** Бусад БҮХ төхөөрөмжийг гаргах (нууц үг алдагдсан үед) */
   async revokeOthers(userId: string, currentToken?: string | null): Promise<number> {
-    const res = await this.prisma.userSession.deleteMany({
-      where: {
-        userId,
-        ...(currentToken ? { NOT: { tokenHash: this.hash(currentToken) } } : {}),
-      },
-    });
+    /* ⚠️ `runAcrossSites` — «бусад БҮХ төхөөрөмжийг гарга» гэдэг нь
+       хэрэглэгчийн хүлээлтээр БҮХ сайтыг хамрах ёстой (нууц үг
+       алдагдсан үед хэрэглэдэг тул хагас цэвэрлэх нь аюултай). */
+    const res = await runAcrossSites(() =>
+      this.prisma.userSession.deleteMany({
+        where: {
+          userId,
+          ...(currentToken ? { NOT: { tokenHash: this.hash(currentToken) } } : {}),
+        },
+      }),
+    );
     return res.count;
   }
 }

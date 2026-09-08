@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertSameSite } from '../../common/site/site-guard';
 
 export type ReviewSort = 'helpful' | 'newest' | 'oldest' | 'highest' | 'lowest';
 
@@ -387,12 +388,25 @@ export class ReviewsService {
 
   /** Устгахгүйгээр нуух/буцаах */
   async adminSetHidden(id: string, isHidden: boolean) {
-    await this.prisma.review.update({ where: { id }, data: { isHidden } }).catch(() => null);
+    /**
+     * ⚠️⚠️ `assertSameSite` ЗААВАЛ — `update` нь site шүүлт АВДАГГҮЙ.
+     *
+     * ⛔ Аудитаар илэрсэн (2026-09-09): уншилт огт байгаагүй тул
+     * BestTV-ийн админ BestFilm-ийн сэтгэгдлийг нууж/гаргаж чадна.
+     * Мөн `.catch(() => null)` нь алдааг залгиж `ok: true` буцаадаг
+     * байсан — админ болсон гэж бодоод үнэндээ юу ч болоогүй.
+     */
+    await assertSameSite(this.prisma.review, id, 'Сэтгэгдэл олдсонгүй');
+    await this.prisma.review.update({ where: { id }, data: { isHidden } });
     return { ok: true, isHidden };
   }
 
   /** Мэдээллийг цэвэрлэх (зөв сэтгэгдэл гэж шийдсэн) */
   async adminClearReports(id: string) {
+    /* ⚠️ `deleteMany` нь site шүүлт авдаг ч `update` АВДАГГҮЙ — тиймээс
+       өмнө нь ХАГАС ажилладаг байсан (мэдээлэл устахгүй, тоолуур
+       тэглэгдэнэ). `assertSameSite` хоёуланг зөв болгоно. */
+    await assertSameSite(this.prisma.review, id, 'Сэтгэгдэл олдсонгүй');
     await this.prisma.$transaction([
       this.prisma.reviewReport.deleteMany({ where: { reviewId: id } }),
       this.prisma.review.update({ where: { id }, data: { reportCount: 0 } }),
@@ -403,8 +417,10 @@ export class ReviewsService {
   async adminRemove(id: string) {
     // ⚠️ `.catch(() => null)` БАЙХГҮЙ — алдаа нуувал хэрэглэгч "устгагдлаа"
     // гэсэн мэдэгдэл авах мөртлөө мөр хэвээр үлдэж эргэлздэг
-    const exists = await this.prisma.review.findUnique({ where: { id }, select: { id: true } });
-    if (!exists) throw new NotFoundException('Сэтгэгдэл олдсонгүй');
+    /* ⚠️⚠️ `findUnique` + `select: { id: true }` нь site шалгалтыг
+       АЛГАСДАГ (`'site' in row` = false). Устгал ЭРГЭЛТ БУЦАЛТГҮЙ тул
+       `assertSameSite` (findFirst — шүүлт автоматаар авдаг) ашиглана. */
+    await assertSameSite(this.prisma.review, id, 'Сэтгэгдэл олдсонгүй');
     await this.prisma.review.delete({ where: { id } });
     return { ok: true };
   }

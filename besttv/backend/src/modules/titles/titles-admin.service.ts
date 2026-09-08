@@ -479,7 +479,29 @@ export class TitlesAdminService {
      */
     const sitesData = (() => {
       const clean = normalizeSites(rawSites);
-      return clean ? { sites: clean } : {};
+      if (!clean) return {};
+      /**
+       * ⚠️⚠️ ӨӨРИЙН САЙТААС ХАСАХЫГ ХОРИГЛОНО — `bulkSetSite`-тай ИЖИЛ.
+       *
+       * ⛔ Аудитаар илэрсэн (2026-09-09): `bulkSetSite` (мөр ~828) нь
+       * 3 хамгаалалттай (хоосон болгохгүй, өөрийн сайтаас хасахгүй,
+       * нэмэх/хасах) атал ГАНЦ киноны `update` нь `sites`-ыг ШУУД
+       * дарж бичдэг байв.
+       *
+       * Үр дагавар: BestTV-ийн админ `{"sites":["besttv"]}` илгээвэл
+       * кино BestFilm-ийн каталог/нүүр/хайлт/чатботоос ШУУД алга
+       * болно. `{"sites":["bestfilm"]}` бол өөрийн панелаасаа ч
+       * харагдахгүй болж, буцаах ганц зам нь DB гар засвар.
+       *
+       * ⚠️ BestTV-д ЭЕРЭГ нөлөө: санамсаргүй хасахаас хамгаална.
+       * Зориуд хасах бол bulk үйлдэл ашиглана (тэнд баталгаажуулалттай).
+       */
+      if (!clean.includes(currentSite()) && existing.sites.includes(currentSite())) {
+        throw new BadRequestException(
+          'Киног өөрийн сайтаас хасах боломжгүй — жагсаалтаас сонгоод bulk үйлдэл ашиглана уу',
+        );
+      }
+      return { sites: clean };
     })();
 
     /**

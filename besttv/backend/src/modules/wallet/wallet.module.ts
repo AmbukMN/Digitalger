@@ -82,9 +82,17 @@ export class WalletService {
 
       if (count === 0) {
         // Хэрэглэгч байхгүй эсвэл үлдэгдэл хүрэлцэхгүй — алийг нь ялгана
+        /**
+         * ⚠️⚠️ `site` ЗААВАЛ — эс бөгөөс ҮЛДЭГДЭЛ ТАНДАХ oracle болно.
+         *
+         * ⛔ Post-filter алгасагдвал нөгөө сайтын хэрэглэгчийг олоод
+         * «Хэтэвчийн үлдэгдэл хүрэлцэхгүй» гэнэ («Хэрэглэгч олдсонгүй»
+         * биш). `amount`-оор хоёртын хайлт хийвэл нөгөө сайтын ЯГ
+         * үлдэгдэл гарна.
+         */
         const exists = await client.user.findUnique({
           where: { id: params.userId },
-          select: { id: true },
+          select: { id: true, site: true },
         });
         if (!exists) throw new NotFoundException('Хэрэглэгч олдсонгүй');
         throw new BadRequestException('Хэтэвчийн үлдэгдэл хүрэлцэхгүй байна');
@@ -94,9 +102,10 @@ export class WalletService {
        * ⚠️ `balanceAfter`-ыг ШИНЭЧЛЭЛТИЙН ДАРАА уншина — өмнө нь өөрсдөө
        * бодож байсан тул зэрэг гүйлгээнд буруу snapshot үлддэг байв.
        */
+      /* ⚠️ `site` ЗААВАЛ — post-filter (дээрхтэй ижил шалтгаан) */
       const after = await client.user.findUniqueOrThrow({
         where: { id: params.userId },
-        select: { walletBalance: true },
+        select: { walletBalance: true, site: true },
       });
 
       return client.walletTransaction.create({

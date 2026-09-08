@@ -317,6 +317,20 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
+        /**
+         * ⚠️⚠️ `site` — ӨРГӨТГӨЛИЙН POST-FILTER АЖИЛЛАХАД ЗААВАЛ.
+         *
+         * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): энэ талбар дутсанаас
+         * `'site' in row` нь false болж, шалгалт ЧИМЭЭГҮЙ алгасагдаж
+         * байв. Улмаас BestTV-ийн админ `GET /admin/users/<bestfilm-id>`
+         * дуудахад 200 буцаж, НӨГӨӨ САЙТЫН хэрэглэгчийн 30 талбар —
+         * session (IP хаягтай), төлбөр, хэтэвч, аудит лог, чат, утас —
+         * бүгд харагдаж байсан.
+         *
+         * ⚠️ Ижил файлын `update()` ба `setPassword()` нь `site: true`-тэй —
+         * зөвхөн энэ нэг нь орхигдсон байв.
+         */
+        site: true,
         id: true,
         email: true,
         name: true,
