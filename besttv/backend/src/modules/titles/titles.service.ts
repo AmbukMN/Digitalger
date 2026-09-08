@@ -10,6 +10,7 @@ import {
   parseQuery,
 } from '../../common/search-text';
 import { TitleMediaHelper } from './title-media.helper';
+import { siteKey } from '../../common/site/site-settings-key';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { currentSite } from '../../common/site/site-context';
@@ -1224,7 +1225,20 @@ export class TitlesService {
     userId?: string | null,
   ) {
     const [row, active] = await Promise.all([
-      this.prisma.settings.findUnique({ where: { key: 'rent' } }).catch(() => null),
+      /**
+       * ⚠️⚠️ `siteKey` ЗААВАЛ — `'rent'` ШУУД уншиж БОЛОХГҮЙ.
+       *
+       * ⛔ Аудитаар илэрсэн (2026-09-09): `rentals.module.ts:97,115` нь
+       * `siteKey(RENT_KEY)`-ээр УНШИЖ/БИЧДЭГ (BestFilm → `bestfilm:rent`)
+       * атал энэ мөр глобал `'rent'`-ээс уншдаг байв.
+       *
+       * Үр дагавар: BestFilm-ийн админ түрээсийн үнийг өөрчилвөл
+       * дэлгэрэнгүй хуудсанд ХУУЧИН (BestTV-ийн) үнэ харагдаж, төлөх
+       * үед ӨӨР үнэ гарна — «харуулсан үнэ ≠ төлүүлэх үнэ».
+       *
+       * ⚠️ BestTV-д нөлөөгүй: `siteKey('rent')` нь besttv-д яг `'rent'`.
+       */
+      this.prisma.settings.findUnique({ where: { key: siteKey('rent') } }).catch(() => null),
       userId ? this.subs.activeRental(userId, title.id) : Promise.resolve(null),
     ]);
     const cfg = (row?.value ?? {}) as { price?: number; hours?: number; enabled?: boolean };
