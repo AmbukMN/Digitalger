@@ -9,6 +9,7 @@ import { NewsletterForm } from '@/components/newsletter-form';
 import { FooterPaymentMarks } from '@/components/payment/footer-payment-marks';
 import { useBrand } from '@/lib/queries';
 import { BRAND } from '@/lib/brand';
+import { BestFilmLogo } from '@/components/bestfilm-logo';
 
 const FOOTER_LINKS = [
   {
@@ -82,7 +83,7 @@ function XIcon({ size = 16 }: { size?: number }) {
  */
 export function Footer() {
   const { data: brand } = useBrand();
-  const logoUrl = brand?.logoUrl ?? null;
+
   const siteName = brand?.siteName ?? BRAND.name;
 
   const { data: socials } = useQuery({
@@ -183,7 +184,11 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-[1.4fr_repeat(3,1fr)] md:gap-10">
           <div>
             <Link href="/" className="inline-flex items-center">
-              <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto" />
+              {brand?.logoUrl ? (
+                <BrandLogo logoUrl={brand.logoUrl} siteName={siteName} imgClassName="h-14 w-auto" />
+              ) : (
+                <BestFilmLogo className="h-14 w-auto" />
+              )}
             </Link>
             {/*
               ⚠️ Тайлбар + форм:

@@ -10,6 +10,7 @@ import { AdminErrorState } from '@/components/admin-error-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { Pagination } from '@/components/pagination';
+import { SiteSwitcher } from '@/components/site-switcher';
 
 /**
  * АЛДААНЫ БҮРТГЭЛ.
@@ -75,11 +76,16 @@ export default function ErrorsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">Алдааны бүртгэл</h1>
-        <p className="text-sm text-muted-foreground">
-          Хэрэглэгчийн browser болон серверийн алдаа — сүүлийн 30 хоног
-        </p>
+      {/* ⚠️ Сайт солигч — алдаа нь САЙТ бүрд тусдаа бүртгэгддэг.
+          Үүнгүйгээр админ аль сайтын алдаа болохыг мэдэхгүй. */}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold text-foreground">Алдааны бүртгэл</h1>
+          <p className="text-sm text-muted-foreground">
+            Хэрэглэгчийн browser болон серверийн алдаа — сүүлийн 30 хоног
+          </p>
+        </div>
+        <SiteSwitcher />
       </div>
 
       {/* ХУРААНГУЙ — юуг эхлээд засахыг харуулна */}

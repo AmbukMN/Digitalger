@@ -49,6 +49,131 @@
   --accent-foreground: #ffffff;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ⚠️⚠️ BESTFILM ЗАГВАР — ЗӨӨЛӨН, ОРЧИН ҮЕИЙН
+   ═══════════════════════════════════════════════════════════════
+
+   BestTV-ээс ЯЛГААТАЙ байх ёстой (хэрэглэгчийн шийдвэр). Өнгө нь
+   аль хэдийн өөр; энд ХЭЛБЭР, ХӨДӨЛГӨӨН-ийг ялгана.
+
+   BestTV                    BestFilm
+   ─────────────────────     ─────────────────────
+   rounded-lg (8px)          rounded-xl (12px)
+   хатуу ирмэг               зөөлөн, дугуй
+   сүүдэргүй                 hover дээр зөөлөн сүүдэр
+   зураастай хуваалт         зайгаар хуваалт
+
+   ⚠️⚠️ `@besttv/shared`-ийн Button/Card-ыг ХӨНДӨХГҮЙ — тэр пакет
+   ХОЁР сайтад хуваалцагдана. Оронд нь энд ДАРЖ БИЧНЭ.
+
+   ⚠️ Сонголт нь БАЙГАА класс дээр тулгуурлана (`rounded-lg` →
+   `rounded-xl`) — компонент бүрийг засах шаардлагагүй.
+   ═══════════════════════════════════════════════════════════════ */
+
+/*
+ * ── Хэлбэр: `rounded-lg` (8px) → 12px ──
+ *
+ * ⚠️⚠️ ЯАГААД `button` СЕЛЕКТОР АШИГЛААГҮЙ ВЭ:
+ *
+ * `button { border-radius }` нь ХЭТ ӨРГӨН — icon товч (`rounded-full`),
+ * таб, шилжүүлэгч бүгдийг хөндөж, дугуй товч дөрвөлжин болно.
+ * `!important`-аар нөхөх нь дараагийн засварт мөргөлдөөн үүсгэнэ.
+ *
+ * ЗӨВ АРГА: Tailwind-ийн `rounded-lg` УТИЛИТИЙГ ӨӨРИЙГ нь дарна.
+ * Ингэснээр:
+ *   · `rounded-lg` бүхэн 12px болно (товч, карт, input)
+ *   · `rounded-full`, `rounded-md`, `rounded-2xl` ХЭВЭЭР
+ *   · `!important` шаардлагагүй → мөргөлдөөнгүй
+ *
+ * ⚠️ Specificity: Tailwind нь `.rounded-lg{border-radius:.5rem}`
+ * гэж үүсгэдэг. Ижил specificity тул ЭНЭ ФАЙЛ (import-ийн дараа)
+ * ялна — `!important` хэрэггүй.
+ */
+.rounded-lg {
+  border-radius: 0.75rem;
+}
+
+/* ⚠️ `rounded-md` (6px) → 8px — жижиг элемент ч зөөлөрнө */
+.rounded-md {
+  border-radius: 0.5rem;
+}
+
+/*
+ * ⚠️ `rounded` (4px) → 6px — badge, шошго.
+ *
+ * Hero дээрх «ШИНЭ», «VIP» шошго, картын өнцөг дэх тэмдэглэгээ
+ * бүгд энэ классыг ашигладаг. 4px нь хатуу, 6px нь картын
+ * 12px-тэй зохицно.
+ */
+.rounded {
+  border-radius: 0.375rem;
+}
+
+/*
+ * ⚠️⚠️ ЗУРАГНЫ ЗӨӨЛӨН ТОМРОЛТ — hover дээр постер бага зэрэг томроно.
+ *
+ * BestTV-д зураг ХӨДӨЛГӨӨНГҮЙ. BestFilm-д 3% томрох нь «амьд»
+ * мэдрэмж өгнө.
+ *
+ * ⚠️ ЗӨВХӨН заагчтай төхөөрөмжид (`hover: hover`) — гар утсанд
+ * hover нь «наалдаж» үлддэг тул дарсны дараа зураг томорсон хэвээр
+ * үлдэнэ.
+ * ⚠️ `overflow-hidden` эцэг дээр байгаа тул зураг хүрээнээс гарахгүй.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .title-card:hover img {
+    transform: scale(1.03);
+  }
+}
+
+/*
+ * ── ЛОГО: dark/light сэлгэлт ──
+ *
+ * ⚠️⚠️ Tailwind-д `light:` variant БАЙХГҮЙ (зөвхөн `dark:`).
+ * Тиймээс өөрийн дүрэм.
+ *
+ * ⚠️ ӨГӨГДМӨЛ = DARK: `next-themes` нь `.dark` классыг CLIENT талд
+ * тавьдаг тул серверийн HTML-д байхгүй. `defaultTheme="dark"` тул
+ * dark логог өгөгдмөл харуулбал АНИВЧИЛТ ГАРАХГҮЙ.
+ *
+ * ⚠️ `html.light` — next-themes нь гэрэл горимд ЭНЭ классыг тавина.
+ */
+.bf-logo-light {
+  display: none;
+}
+html.light .bf-logo-dark {
+  display: none;
+}
+html.light .bf-logo-light {
+  display: block;
+}
+
+/* ── Модал / Sheet — илүү зөөлөн ── */
+.dialog-content {
+  border-radius: 1.25rem; /* 20px */
+}
+
+/* ── Карт — hover дээр зөөлөн өргөлт ── */
+.title-card img {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * ⚠️⚠️ ХӨДӨЛГӨӨНИЙГ ЗОГСООХ ТОХИРГОО — ЗААВАЛ.
+ *
+ * Вестибуляр эмгэгтэй хүнд хөдөлгөөн нь дотор муухайрал үүсгэдэг.
+ * ⚠️ Мөн хуучин утсанд (iPhone 7) transform анимац нь гүйлгэлтийг
+ * удаашруулна — тэдэнд ч тустай.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .title-card,
+  .title-card img,
+  .title-card > div {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
 /*
  * BestFilm frontend — DARK/LIGHT ХОЁУЛАА.
  * `next-themes` нь `<html>`-д `.dark` class тавина (providers.tsx).

@@ -123,11 +123,24 @@ function TitleCardBase({ title, progressPercent, inGrid, onRemove }: TitleCardPr
       href={`/movie/${title.slug}`}
       aria-label={`${title.title}${title.year ? `, ${title.year}` : ''}`}
       className={cn(
-        'title-card group relative block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        /* ⚠️ BestFilm — hover дээр 2px дээшилнэ (зөөлөн мэдрэмж).
+           `transform` нь layout-ыг хөндөхгүй тул reflow үүсгэхгүй. */
+        'title-card group relative block transition-transform duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
         inGrid ? 'w-full' : 'w-37.5 shrink-0 sm:w-45',
       )}
     >
-      <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-muted">
+      {/*
+        ⚠️⚠️ BESTFILM ЗАГВАР — `rounded-xl` + зөөлөн сүүдэр.
+
+        BestTV нь `rounded-lg` (8px) — хатуухан ирмэгтэй.
+        BestFilm нь `rounded-xl` (12px) + hover дээр өргөгдөнө.
+
+        ⚠️ `shadow` нь hover дээр л — байнга байвал 150+ карттай
+        нүүр хуудсанд GPU ачаалал өснө (compositing давхарга бүрд).
+        ⚠️ `will-change` ХЭРЭГЛЭХГҮЙ — карт бүрд давхарга үүсгэж
+        санах ой иднэ (гар утсанд мэдэгдэхүйц).
+      */}
+      <div className="relative aspect-2/3 overflow-hidden rounded-xl bg-muted transition-all duration-300 group-hover:shadow-xl group-hover:shadow-black/25">
         {/*
           ⚠️⚠️ ХАСАХ ТОВЧ — «Үргэлжлүүлэн үзэх»-д л гарна.
 

@@ -14,6 +14,7 @@ import { loginUrl } from '@/lib/auth-intent';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NotificationBell } from '@/components/notification-bell';
 import { BRAND } from '@/lib/brand';
+import { BestFilmLogo } from '@/components/bestfilm-logo';
 
 const NAV_LINKS = [
   { href: '/', label: 'Нүүр' },
@@ -29,7 +30,7 @@ export function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { data: brand } = useBrand();
-  const logoUrl = brand?.logoUrl ?? null;
+
   const siteName = brand?.siteName ?? BRAND.name;
   const router = useRouter();
   const { user, logout, loading: authLoading } = useAuth();
@@ -108,7 +109,13 @@ export function Navbar() {
       */}
       <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-3 sm:gap-4 md:gap-6 md:px-8">
         <Link href="/" className="flex shrink-0 items-center" aria-label={`${siteName} нүүр`}>
-          <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-7 w-auto sm:h-9" />
+          {/* ⚠️ Админ DB-д лого оруулбал ТЭР, эс бөгөөс BestFilm-ийн
+              статик лого (dark/light хоёулаа) */}
+          {brand?.logoUrl ? (
+            <BrandLogo logoUrl={brand.logoUrl} siteName={siteName} imgClassName="h-10 w-auto sm:h-12" />
+          ) : (
+            <BestFilmLogo className="h-10 w-auto sm:h-12" />
+          )}
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 text-sm" aria-label="Үндсэн цэс">
@@ -118,9 +125,13 @@ export function Navbar() {
               href={l.href}
               aria-current={pathname === l.href ? 'page' : undefined}
               className={cn(
+                /* ⚠️ BestFilm — идэвхтэй холбоос БРЭНДИЙН өнгөөр.
+                   BestTV нь саарал (`foreground/12`) — тэнд лого нь
+                   улаан тул давхарлавал бүдгэрнэ. BestFilm-ийн лого
+                   нь мөнгө+улаан тул навбарт улаан онцлол зохино. */
                 'rounded-full px-3.5 py-1.5 transition-colors',
                 pathname === l.href
-                  ? 'bg-foreground/12 text-foreground font-semibold'
+                  ? 'bg-primary/12 text-primary font-semibold'
                   : 'text-foreground/65 hover:text-foreground hover:bg-foreground/6',
               )}
             >

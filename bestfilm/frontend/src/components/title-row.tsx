@@ -383,16 +383,27 @@ export function TitleRow({
         ЯАГААД зураас вэ: жанрууд хооронд хараагаар ЯЛГАРАХГҮЙ, эгнээ
         бүр нэг урсгал мэт харагддаг байв. Зураас нь хэсгийн ХИЛ болно.
       */}
-      <div className="mb-3 flex items-end justify-between gap-3 border-b-2 border-primary">
-        <h2 className="truncate pb-1.5 text-lg font-bold tracking-tight text-foreground md:text-xl">
+      {/*
+        ⚠️⚠️ BESTFILM ЗАГВАР — BestTV-ээс ЯЛГААТАЙ.
+
+        BestTV: доод талд 2px улаан зураас + дөрвөлжин таб «БҮГД»
+                (сонин/телевизийн хуваарь мэт хатуу)
+        BestFilm: зураасгүй, «Бүгд» нь pill товч (rounded-full)
+                (стриминг платформын зөөлөн харагдац)
+
+        ⚠️ Хэсгүүдийн ХИЛ нь зураасаар БИШ, ЗАЙГААР (mb-4) заагдана.
+      */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="truncate text-lg font-bold tracking-tight text-foreground md:text-xl">
           {title}
         </h2>
         {href && (
-          /* ⚠️ `rounded-t-md` + padding зөвхөн дээр — товч зураасан
-             дээр СУУСАН мэт харагдана (доод ирмэг нь зурааст нийлнэ) */
+          /* ⚠️ Pill товч — өнгө нь зөвхөн hover дээр гарна.
+             Байнга улаан байвал эгнээ бүрд «анхаар» дохио давтагдаж
+             хэрэглэгчийн нүд ядарна. */
           <Link
             href={href}
-            className="group flex shrink-0 items-center gap-1 rounded-t-md bg-primary px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-primary-foreground transition-all hover:brightness-110"
+            className="group flex shrink-0 items-center gap-1 rounded-full border border-foreground/12 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/8 hover:text-primary"
           >
             Бүгд
             <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
