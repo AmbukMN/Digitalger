@@ -38,6 +38,7 @@ import { CardSkeleton } from '@/components/table-skeleton';
 import { Pagination } from '@/components/pagination';
 import { UserAvatar } from '@/components/user-avatar';
 import { api } from '@/lib/api';
+import { useSiteUrl } from '@/lib/site-store';
 import { runMutation } from '@/lib/mutate';
 import { BulkBar, SelectBox, useBulkSelect } from '@/lib/use-bulk-select';
 
@@ -183,6 +184,9 @@ function ChatCards({
   channel: string;
 }) {
   const isMessenger = channel === 'facebook' || channel === 'instagram';
+  /* ⚠️ Киноны холбоос СОНГОСОН САЙТ руу — hardcode besttv.us байсан
+     тул BestFilm-ийн чат харж байхад BestTV рүү үсэрдэг байв. */
+  const { url: siteBase } = useSiteUrl();
 
   if (isMessenger) {
     return (
@@ -230,7 +234,7 @@ function ChatCards({
               {/* ⚠️ Messenger дээр товч нь картын БҮРЭН ӨРГӨН, дээд
                   талдаа зураастай — тэр дүрсийг хуулна */}
               <a
-                href={t.url ?? `https://besttv.us/movie/${t.slug}`}
+                href={t.url ?? `${siteBase}/movie/${t.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block border-t border-border px-2.5 py-2 text-center text-xs font-medium text-primary transition-colors hover:bg-accent"
@@ -253,7 +257,7 @@ function ChatCards({
         return (
           <a
             key={t.slug ?? ti}
-            href={t.url ?? `https://besttv.us/movie/${t.slug}`}
+            href={t.url ?? `${siteBase}/movie/${t.slug}`}
             target="_blank"
             rel="noopener noreferrer"
             title={t.title}

@@ -2212,6 +2212,12 @@ model SocialRelay {
    */
   site String @default("besttv")
 
+  /// ⚠️⚠️ `site` ЗОРИУД ОРООГҮЙ (audit-site-isolation.mjs үүнийг заана).
+  ///
+  /// `sourcePostId` нь Facebook-ийн ГЛОБАЛ ID («1081…_169…») тул хоёр
+  /// сайт хооронд ХЭЗЭЭ Ч давхцахгүй. `site` нэмбэл хамгаалалт СУЛРАНА:
+  /// нэг постыг нэг зорилтот руу хоёр сайтын нэрээр ХОЁР УДАА нийтлэх
+  /// боломж нээгдэж, дагагчид давхардсан пост харна.
   @@unique([sourcePostId, targetId])
   @@index([status, createdAt])
   @@index([sourceId])

@@ -3,6 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { runWithSiteAsync } from '../../common/site/site-context';
+import { toSite } from '../../common/site/site.constants';
 
 /**
  * ⚠️ QPay нэхэмжлэл ~15 мин хүчинтэй. Гэхдээ хэрэглэгч дараа нь банкны
@@ -59,6 +61,8 @@ export class PaymentCleanupService {
       select: {
         id: true,
         amount: true,
+        /* ⚠️ Аль сайтын төлбөр вэ — имэйлийн брэнд/домэйн үүнээс */
+        site: true,
         user: { select: { id: true, email: true, name: true } },
         plan: { select: { name: true } },
       },
@@ -84,14 +88,28 @@ export class PaymentCleanupService {
       if (already) continue;
 
       /* WARN One bad address must not stop the rest of the batch */
-      const ok = await this.email
-        .sendPaymentAbandoned({
+      /**
+       * ⚠️⚠️ ЗӨВ САЙТЫН КОНТЕКСТЭД ИЛГЭЭНЭ.
+       *
+       * БОДИТ АЛДАА (2026-09-08): cron нь хүсэлтээс ГАДУУР ажилладаг
+       * тул `hasSiteContext()=false` → Prisma шүүлт хийхгүй → ХОЁР
+       * САЙТЫН төлбөрийг олно (энэ нь ЗӨВ). Гэвч `sendPaymentAbandoned`
+       * доторх `siteConfig()` нь контекстгүй үед `besttv` буцаадаг тул
+       * BestFilm-ийн хэрэглэгчид «BestTV» нэр, besttv.us холбоос,
+       * BestTV-ийн илгээгч хаягтай имэйл очиж байв.
+       *
+       * ⚠️ `runWithSiteAsync` — `runWithSite` БИШ. Sync callback нь
+       * AsyncLocalStorage контекстийг алддаг (тэмдэглэсэн урхи).
+       */
+      const ok = await runWithSiteAsync(toSite(p.site), () =>
+        this.email.sendPaymentAbandoned({
           to: p.user.email,
           name: p.user.name,
           planName: p.plan?.name ?? 'Багц',
           amount: p.amount,
           userId: p.user.id,
-        })
+        }),
+      )
         .catch((e) => {
           this.logger.warn(`Сануулга илгээж чадсангүй (${p.id}): ${String(e).slice(0, 120)}`);
           return false;

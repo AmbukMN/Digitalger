@@ -10,6 +10,7 @@ import { ImageUpload } from '@/components/image-upload';
 import { SeoPagesManager } from '@/components/seo-pages-manager';
 import { api } from '@/lib/api';
 import { useAdminSeo, type SeoSettings } from '@/lib/queries';
+import { useSiteUrl } from '@/lib/site-store';
 
 const EMPTY: SeoSettings = {
   siteName: '',
@@ -26,6 +27,8 @@ const EMPTY: SeoSettings = {
 
 export default function SeoPage() {
   const { data, isLoading } = useAdminSeo();
+  /* ⚠️ Сайт солиход preview-ийн домэйн ДАГАЖ өөрчлөгдөнө */
+  const { host: previewHost } = useSiteUrl();
   const qc = useQueryClient();
   const [form, setForm] = useState<SeoSettings>(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -168,10 +171,11 @@ export default function SeoPage() {
               )}
             </div>
             <div className="p-3">
-              {/* ⚠️ Домэйныг hardcode ХИЙХГҮЙ — env-ээс (домэйн солигдвол энд ч дагана) */}
-              <p className="truncate text-xs text-muted-foreground">
-                {(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://besttv.us').replace(/^https?:\/\//, '')}
-              </p>
+              {/* ⚠️⚠️ СОНГОСОН САЙТЫН домэйн — `process.env` БИШ.
+                  Админ нь НЭГ build, ХОЁР сайт үйлчилдэг тул env нь
+                  үргэлж besttv.us байсан: BestFilm сонгоод SEO засаж
+                  байхад preview дээр «besttv.us» гэж харагдана. */}
+              <p className="truncate text-xs text-muted-foreground">{previewHost}</p>
               <p className="truncate text-sm font-semibold text-foreground">{form.metaTitle || 'Meta title...'}</p>
               <p className="line-clamp-2 text-xs text-muted-foreground">
                 {form.metaDescription || 'Meta description...'}

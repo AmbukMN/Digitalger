@@ -78,3 +78,42 @@ export function siteMeta(s: SiteScope) {
     ? { label: 'Бүх сайт', domain: 'besttv.us + bestfilm.net', color: '#6b7280' }
     : SITE_META[s];
 }
+
+/**
+ * ⚠️⚠️ СОНГОСОН САЙТЫН БҮТЭН ХАЯГ — `process.env.NEXT_PUBLIC_SITE_URL` БИШ.
+ *
+ * БОДИТ АЛДАА (2026-09-08): SEO хуудасны Social Preview нь
+ * `process.env.NEXT_PUBLIC_SITE_URL ?? 'https://besttv.us'` уншдаг
+ * байв. Админ нь НЭГ build, ХОЁР сайтыг үйлчилдэг тул тэр утга нь
+ * үргэлж `besttv.us` — BestFilm сонгосон байхад ч preview дээр
+ * «besttv.us» гэж харагдана.
+ *
+ * Ижил алдаа `/pages/[id]`-д ч байсан (хуудасны URL preview).
+ *
+ * ⚠️ `all` горимд BestTV-г буцаана — холбоос ажиллах ёстой.
+ */
+export function siteUrl(s: SiteScope = currentAdminSite()): string {
+  const domain = s === 'all' ? SITE_META.besttv.domain : SITE_META[s].domain;
+  return `https://${domain}`;
+}
+
+/** Схемгүй хэлбэр — `besttv.us` (preview-ийн доод мөрөнд). */
+export function siteHost(s: SiteScope = currentAdminSite()): string {
+  return s === 'all' ? SITE_META.besttv.domain : SITE_META[s].domain;
+}
+
+/**
+ * ⚠️⚠️ REACT-Д ЭНИЙГ АШИГЛА — `siteUrl()`-ыг ШУУД БИШ.
+ *
+ * `siteUrl()` нь `getState()` уншдаг тул компонент дотор дуудвал
+ * сайт солиход ДАХИН РЕНДЕР ХИЙХГҮЙ — preview хуучин домэйноор
+ * үлдэнэ (яг одоо засаж буй алдааны нөгөө хувилбар).
+ *
+ * `useSiteStore`-оос уншсанаар Zustand дахин рендерлэнэ.
+ */
+export function useSiteUrl(): { url: string; host: string; label: string } {
+  const site = useSiteStore((s) => s.site);
+  const host = site === 'all' ? SITE_META.besttv.domain : SITE_META[site].domain;
+  const label = site === 'all' ? SITE_META.besttv.label : SITE_META[site].label;
+  return { url: `https://${host}`, host, label };
+}

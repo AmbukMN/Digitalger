@@ -9,6 +9,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { RichEditor } from '@/components/rich-editor';
 import { api } from '@/lib/api';
+import { useSiteUrl } from '@/lib/site-store';
 import { useAdminPage } from '@/lib/queries';
 
 /**
@@ -16,7 +17,9 @@ import { useAdminPage } from '@/lib/queries';
  * ⚠️ ХАТУУ localhost БИЧИХГҮЙ: production дээр админ "Харах" дарахад
  * localhost руу үсэрч эвдэрдэг байсан.
  */
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://besttv.us';
+/* ⚠️⚠️ Домэйныг МОДУЛИЙН ТҮВШИНД тогтоохгүй — админ нь НЭГ build,
+   ХОЁР сайт үйлчилдэг. `useSiteUrl()`-ээр компонент дотор уншина
+   (сайт солиход холбоос ДАГАЖ өөрчлөгдөнө). */
 
 export default function PageEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -24,6 +27,8 @@ export default function PageEditPage({ params }: { params: Promise<{ id: string 
   const router = useRouter();
   const qc = useQueryClient();
   const { data: existing } = useAdminPage(id);
+  /* ⚠️ «Сайт дээр харах» холбоос — сонгосон сайтын домэйноор */
+  const { url: siteBase } = useSiteUrl();
 
   const [form, setForm] = useState({
     slug: '',
@@ -183,7 +188,7 @@ export default function PageEditPage({ params }: { params: Promise<{ id: string 
 
             {savedId && form.slug && (
               <a
-                href={`${SITE_URL}/p/${form.slug}`}
+                href={`${siteBase}/p/${form.slug}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-2 block rounded-lg bg-accent py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground"
