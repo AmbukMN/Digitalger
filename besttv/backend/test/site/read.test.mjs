@@ -110,22 +110,29 @@ const t = async (name, fn) => {
 
 console.log('\n╔═══ БОДИТ DB ТЕСТ — Prisma site өргөтгөл ═══╗\n');
 
+/**
+ * ⚠️ ХАТУУ ТОО АШИГЛАХГҮЙ — `bootstrap-bestfilm.mjs` нь BestFilm-д
+ * админ үүсгэдэг тул тоо өөрчлөгдөнө. Тест нь ӨГӨГДЛӨӨС хамаарах
+ * ёсгүй, ХАРЬЦААГ л шалгана.
+ */
+const total = await runAcrossSites(() => p.user.count());
+const btv = await runWithSite('besttv', () => p.user.count());
+const bfm = await runWithSite('bestfilm', () => p.user.count());
+
 console.log('── 1. УНШИЛТ: сайт бүрд өөр тоо ──');
-await t('besttv-д 2179 хэрэглэгч', async () => {
-  const n = await runWithSite('besttv', () => p.user.count());
-  return n === 2179 || `${n} байна (2179 хүлээсэн)`;
-});
-await t('bestfilm-д 0 хэрэглэгч', async () => {
-  const n = await runWithSite('bestfilm', () => p.user.count());
-  return n === 0 || `${n} байна (0 хүлээсэн)`;
-});
+await t(`besttv=${btv} + bestfilm=${bfm} = нийт ${total}`, async () =>
+  btv + bfm === total || `${btv}+${bfm} ≠ ${total}`);
+await t('besttv-д хэрэглэгч бий (production хуулбар)', async () =>
+  btv > 2000 || `${btv} байна (2000+ хүлээсэн)`);
+await t('bestfilm-д НЭМЭГДЭХГҮЙ (шүүлт ажиллаж байна)', async () =>
+  bfm < 10 || `${bfm} байна — шүүлт эвдэрсэн байж магадгүй`);
 await t('bestfilm-д 0 төлбөр', async () => {
   const n = await runWithSite('bestfilm', () => p.payment.count());
   return n === 0 || `${n} байна`;
 });
-await t('besttv-д 2712 төлбөр', async () => {
+await t('besttv-д төлбөр бий', async () => {
   const n = await runWithSite('besttv', () => p.payment.count());
-  return n === 2712 || `${n} байна`;
+  return n > 2000 || `${n} байна (2000+ хүлээсэн)`;
 });
 
 console.log('\n── 2. КИНО: хоёуланд харагдана ──');
@@ -180,15 +187,15 @@ await t('OR нөхцөл эвдэрдэггүй', async () => {
 });
 
 console.log('\n── 6. runAcrossSites — админы нэгдсэн харагдац ──');
-await t('бүх сайтаас 2179 хэрэглэгч', async () => {
+await t('бүх сайтаас = besttv + bestfilm', async () => {
   const n = await runAcrossSites(() => p.user.count());
-  return n === 2179 || `${n} байна`;
+  return n === btv + bfm || `${n} ≠ ${btv}+${bfm}`;
 });
 
 console.log('\n── 7. Контекстгүй (cron) — шүүлтгүй ──');
-await t('cron нь бүх сайтыг хардаг', async () => {
+await t('cron нь бүх сайтыг хардаг (шүүлтгүй)', async () => {
   const n = await p.user.count();
-  return n === 2179 || `${n} байна`;
+  return n === btv + bfm || `${n} ≠ ${btv}+${bfm}`;
 });
 
 console.log('\n── 8. findUnique хамгаалалт ──');
