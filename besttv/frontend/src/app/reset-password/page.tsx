@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
-import { BrandLogo } from '@besttv/shared/ui';
+import { BrandLogo, PasswordInput } from '@besttv/shared/ui';
 import { api, ApiError } from '@/lib/api';
 import { useBrand } from '@/lib/queries';
 
@@ -174,8 +174,7 @@ export default function ResetPasswordPage() {
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-foreground/45">
             Нууц үг давтах
           </span>
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={6}
             value={confirmPassword}

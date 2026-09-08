@@ -23,3 +23,4 @@ export * from './ui-provider';
 export * from './brand-logo';
 export * from './link-preview-card';
 export * from './rich-text';
+export * from './password-input';

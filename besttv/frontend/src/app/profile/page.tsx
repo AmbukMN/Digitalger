@@ -27,7 +27,7 @@ import {
 import { toast } from 'sonner';
 /* ⚠️ `formatRentLeft as rentLeft` — доорх дуудлагууд хэвээр ажиллана */
 import { cn, formatPrice, formatRentLeft as rentLeft } from '@besttv/shared';
-import { useConfirm } from '@besttv/shared/ui';
+import { PasswordInput, useConfirm } from '@besttv/shared/ui';
 import { useAuth, hasPremium } from '@/lib/auth-store';
 import { useMyPayments, useMyRentals, useWalletTransactions, type WalletTx } from '@/lib/queries';
 import { useBankAccounts } from '@/lib/queries';
@@ -681,15 +681,16 @@ export default function ProfilePage() {
                     aria-label="Шинэ имэйл"
                     className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                   />
-                  <input
-                    type="password"
-                    value={emailPassword}
-                    onChange={(e) => setEmailPassword(e.target.value)}
-                    placeholder="Одоогийн нууц үг"
-                    aria-label="Одоогийн нууц үг"
-                    autoComplete="current-password"
-                    className="mt-2 w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
-                  />
+                  <div className="mt-2">
+                    <PasswordInput
+                      value={emailPassword}
+                      onChange={(e) => setEmailPassword(e.target.value)}
+                      placeholder="Одоогийн нууц үг"
+                      aria-label="Одоогийн нууц үг"
+                      autoComplete="current-password"
+                      className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
+                    />
+                  </div>
                   <p className="mt-2 text-xs text-foreground/40">
                     Аюулгүй байдлын үүднээс нууц үгээ баталгаажуулна уу
                   </p>
@@ -765,20 +766,20 @@ export default function ProfilePage() {
                   </button>
                 ) : (
                   <div className="mt-3 space-y-2.5">
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="Одоогийн нууц үг"
-                    aria-label="Одоогийн нууц үг"
+                      aria-label="Одоогийн нууц үг"
+                      autoComplete="current-password"
                       className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                     />
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Шинэ нууц үг (8+ тэмдэгт)"
-                    aria-label="Шинэ нууц үг"
+                      aria-label="Шинэ нууц үг"
+                      autoComplete="new-password"
                       className="w-full rounded-lg border border-foreground/14 bg-black/30 px-3 py-2 text-sm text-foreground placeholder:text-foreground/35 outline-none focus:border-primary"
                     />
                     <div className="flex gap-2">

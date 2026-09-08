@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  PasswordInput,
   Tabs,
   TabsContent,
   TabsList,
@@ -1118,11 +1119,11 @@ export function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: 
                   <KeyRound size={12} /> Нууц үг тохируулах
                 </p>
                 <div className="flex gap-2">
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Шинэ нууц үг (8+ тэмдэгт)"
+                    autoComplete="new-password"
                     className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
                   />
                   <button

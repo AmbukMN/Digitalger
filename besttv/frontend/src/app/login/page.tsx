@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Check, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
-import { BrandLogo } from '@besttv/shared/ui';
+import { BrandLogo, PasswordInput } from '@besttv/shared/ui';
 import { useAuth } from '@/lib/auth-store';
 import { useBrand } from '@/lib/queries';
 import { trackRegistration } from '@/lib/track';
@@ -260,13 +260,13 @@ export default function LoginPage() {
             </Field>
             {mode === 'register' && (
               <Field label="Нууц үг давтах">
-                <input
-                  type="password"
+                <PasswordInput
                   required
                   minLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Нууц үгээ дахин оруулна уу"
+                  autoComplete="new-password"
                   aria-invalid={passwordsMismatch}
                   className={cn('input-dark', passwordsMismatch && 'input-dark-error')}
                 />

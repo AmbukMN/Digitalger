@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Lock, Mail } from 'lucide-react';
 import { toast } from 'sonner';
-import { BrandLogo } from '@besttv/shared/ui';
+import { BrandLogo, PasswordInput } from '@besttv/shared/ui';
 import { useAdminAuth } from '@/lib/auth-store';
 import { useBrand } from '@/lib/queries';
 
@@ -59,13 +59,13 @@ export default function AdminLoginPage() {
           </div>
           <div className="relative">
             <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="password"
+            <PasswordInput
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Нууц үг"
-              className="w-full rounded-lg border border-input bg-background py-2.5 pl-9 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+              autoComplete="current-password"
+              className="w-full rounded-lg border border-input bg-background py-2.5 pl-9 text-sm text-foreground outline-none transition-colors focus:border-primary"
             />
           </div>
           <button
