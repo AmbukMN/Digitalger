@@ -153,6 +153,12 @@ interface EmailInsight {
    */
   openTracking: boolean;
   deliveryTracking: boolean;
+  /**
+   * ⚠️ `SES_CONFIGURATION_SET` env тохируулагдсан эсэх — дата байгаа
+   * эсэхээс ӨӨР. Тохируулагдсан атлаа дата 0 бол «үүсгэ» гэж зөвлөх
+   * нь ХУДАЛ (2026-09-09 бодит төөрөгдөл).
+   */
+  deliveryConfigured: boolean;
   /** @deprecated `deliveryTracking` ашигла */
   trackingActive: boolean;
 }
@@ -1536,17 +1542,35 @@ function EmailFunnel({ insight }: { insight?: EmailInsight }) {
         «нээсэн эсэхийг мэдэхийн тулд AWS хэрэгтэй» гэж ХУДАЛ бичсэн
         байв — үнэндээ хэрэггүй.
       */}
-      {!insight.deliveryTracking && (
-        <p className="mt-3 flex items-start gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
-          <AlertTriangle size={12} className="mt-0.5 shrink-0 text-premium" />
-          <span>
-            <span className="text-foreground/80">Нээлтийн хяналт ажиллаж байна.</span>{' '}
-            «Хүрсэн / Дарсан» багана хоосон — AWS SES-д Configuration Set үүсгээд{' '}
-            <code className="rounded bg-foreground/10 px-1">SES_CONFIGURATION_SET</code> тохируулбал
-            нэмэгдэнэ.
-          </span>
-        </p>
-      )}
+      {/*
+        ⚠️⚠️ ХОЁР ӨӨР ШАЛТГААНЫГ ЯЛГАНА — өмнө нь хольсон.
+
+        БОДИТ ТӨӨРӨГДӨЛ (2026-09-09): BestFilm-д амжилттай илгээсэн
+        имэйл 0 байсан тул «Configuration Set ҮҮСГЭ» гэж зөвлөсөн.
+        Гэтэл тэр нь аль хэдийн үүссэн, ажиллаж байсан — админ
+        байхгүй асуудлыг засах гэж AWS дээр дэмий ажил хийх байлаа.
+      */}
+      {!insight.deliveryTracking &&
+        (insight.deliveryConfigured ? (
+          <p className="mt-3 flex items-start gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
+            <span>
+              <span className="text-foreground/80">Хяналт бүрэн тохируулагдсан.</span>{' '}
+              «Хүрсэн / Дарсан» багана нь энэ сайтаас имэйл амжилттай илгээгдмэгц
+              бөглөгдөнө — одоогоор илгээсэн имэйл алга.
+            </span>
+          </p>
+        ) : (
+          <p className="mt-3 flex items-start gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0 text-premium" />
+            <span>
+              <span className="text-foreground/80">Нээлтийн хяналт ажиллаж байна.</span>{' '}
+              «Хүрсэн / Дарсан» багана хоосон — AWS SES-д Configuration Set үүсгээд{' '}
+              <code className="rounded bg-foreground/10 px-1">SES_CONFIGURATION_SET</code>{' '}
+              тохируулбал нэмэгдэнэ.
+            </span>
+          </p>
+        ))}
 
       {/* ⚠️ Буцаагдсан нь 0-ээс их үед л харагдана — эрүүл үед анхаарал сарниулахгүй */}
       {insight.bounced > 0 && (

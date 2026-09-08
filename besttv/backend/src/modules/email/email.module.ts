@@ -1459,6 +1459,19 @@ export class EmailAdminController {
          */
         openTracking: agg._count.openedAt > 0,
         deliveryTracking: agg._count.deliveredAt > 0,
+        /**
+         * ⚠️⚠️ ТОХИРГОО ХИЙГДСЭН ЭСЭХ — ДАТА БАЙГАА ЭСЭХЭЭС ӨӨР.
+         *
+         * БОДИТ ТӨӨРӨГДӨЛ (2026-09-09, хэрэглэгч асуусан): BestFilm-д
+         * `deliveredAt` мөр 0 байсан тул UI нь «AWS SES-д Configuration
+         * Set ҮҮСГЭЭД тохируул» гэж зөвлөсөн. Гэтэл Configuration Set
+         * (`besttv-tracking`) АЛЬ ХЭДИЙН үүссэн бөгөөд ажиллаж байсан —
+         * зүгээр л BestFilm-д амжилттай имэйл хараахан яваагүй байв.
+         *
+         * Админ байхгүй асуудлыг «засах» гэж AWS дээр дэмий ажил
+         * хийхээс сэргийлж, тохиргоо хийгдсэн эсэхийг ТУСДАА хэлнэ.
+         */
+        deliveryConfigured: Boolean(process.env.SES_CONFIGURATION_SET?.trim()),
         /** @deprecated Хуучин UI-д зориулав — `deliveryTracking` ашигла */
         trackingActive: agg._count.deliveredAt > 0 || agg._count.openedAt > 0,
       },
