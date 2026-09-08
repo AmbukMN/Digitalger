@@ -110,3 +110,9 @@ bestfilm/node_modules/
 bestfilm/frontend/.next/
 bestfilm/frontend/node_modules/
 bestfilm/frontend/tsconfig.tsbuildinfo
+
+# ⚠️⚠️ SSL хувийн түлхүүр — git-д ХЭЗЭЭ Ч оруулахгүй
+bestfilm/*.key
+bestfilm/*.pem
+besttv/*.key
+besttv/*.pem
