@@ -92,7 +92,12 @@ const X264_PRESET = process.env.X264_PRESET ?? 'veryfast';
  */
 function watermarkKey(): string {
   const site = currentSite();
-  return site === DEFAULT_SITE ? 'brand/logo.png' : `brand/${site}-logo.png`;
+  /**
+   * ⚠️ `-email-` дагавар нь имэйлийн логотой ИЖИЛ файл (нэг эх сурвалж).
+   * `bestfilm-logo.png` нэр Cloudflare-т 404 сөрөг кэш авсан тул
+   * `site-config.ts`-тэй ижил нэр ашиглана.
+   */
+  return site === DEFAULT_SITE ? 'brand/logo.png' : `brand/${site}-email-logo.png`;
 }
 
 export interface HlsResult {

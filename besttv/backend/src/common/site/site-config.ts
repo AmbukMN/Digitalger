@@ -116,7 +116,28 @@ const CONFIGS: Record<Site, SiteConfig> = {
      * («BestFilm») л ялгарна — хаяг нь нийтлэг.
      */
     mailFrom: envOr('BESTFILM_MAIL_FROM', envOr('MAIL_FROM', 'noreply@digitalger.mn')),
-    logoUrl: envOr('BESTFILM_EMAIL_LOGO_URL', 'https://assets.besttv.us/brand/bestfilm-logo.png'),
+    /**
+     * ⚠️⚠️ ИМЭЙЛИЙН ЛОГО — R2-д БОДИТООР БАЙХ ЁСТОЙ.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-09, хэрэглэгч зурагтай мэдээлсэн):
+     * `brand/bestfilm-logo.png` файл R2-д ОГТ БАЙГААГҮЙ → BestFilm-ийн
+     * БҮХ имэйлийн толгойд эвдэрсэн зураг (❓ хайрцаг) харагдаж байв.
+     *
+     * ЗАСВАР: админд оруулсан ЖИНХЭНЭ логог (`.webp`, 500×152) PNG
+     * болгож (395×120, тунгалаг) R2-д байршуулав.
+     *
+     * ⚠️ `-email-` гэсэн нэр нь САНААТАЙ: `bestfilm-logo.png` нэр нь
+     * Cloudflare-т 4 цагийн 404 СӨРӨГ КЭШ авсан байсан (файл
+     * байршуулсны дараа ч 404 буцаасаар). Кэш дуусахыг хүлээхийн
+     * оронд шинэ нэр ашиглав.
+     *
+     * ⚠️ Зохиосон/демо лого ХЭРЭГЛЭЭГҮЙ — эх сурвалж нь админы
+     * `bestfilm:brand` тохиргооны лого.
+     */
+    logoUrl: envOr(
+      'BESTFILM_EMAIL_LOGO_URL',
+      'https://assets.besttv.us/brand/bestfilm-email-logo.png',
+    ),
     tagline: 'Үз, мэдэр, дахин үз',
     guestEmailSuffix: '@guest.bestfilm.net',
     noEmailSuffix: '@noemail.bestfilm.net',
