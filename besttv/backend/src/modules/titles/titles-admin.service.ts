@@ -10,7 +10,7 @@ import { TitleMediaHelper } from './title-media.helper';
 import { PushService } from '../notifications/push.service';
 import { currentSite, runAcrossSites } from '../../common/site/site-context';
 import { normalizeSites } from '../../common/site/site-models';
-import { isSite } from '../../common/site/site.constants';
+import { isSite, SITE_LABEL, type Site } from '../../common/site/site.constants';
 import {
   BulkGenreMode,
   CreateEpisodeDto,
@@ -859,6 +859,23 @@ export class TitlesAdminService {
         blocked.push(r.title);
         continue;
       }
+
+      /**
+       * ⚠️⚠️ ӨӨРИЙН САЙТААС ХАСАХЫГ ХОРИГЛОНО.
+       *
+       * БОДИТ ЭРСДЭЛ (тестээр илэрсэн): BestTV-ийн админ панелд сууж
+       * байгаад «BestTV-ээс хасах» дарвал кино production сайтаас
+       * ШУУД алга болно. Бүр дордуулж, тэр кино дараа нь өөрийн
+       * панелд ХАРАГДАХАА БОЛЬДОГ (`sites` дотор `besttv` алга) тул
+       * буцааж нэмэх ч боломжгүй — зөвхөн DB-ээс гараар засна.
+       *
+       * Нөгөө сайтаас хасах нь зүгээр (тэр сайтын админ шалгаж чадна).
+       */
+      if (!enabled && site === currentSite()) {
+        blocked.push(r.title);
+        continue;
+      }
+
       updates.push({ id: r.id, sites: next });
     }
 
@@ -883,9 +900,17 @@ export class TitlesAdminService {
       unchanged,
       /* ⚠️ Админд ЯГ хэлнэ — чимээгүй алгасвал «яагаад болсонгүй» гэнэ */
       blocked,
+      /**
+       * ⚠️ Блоклох ХОЁР шалтгаан бий — админд ЯЛГАЖ хэлнэ, эс бөгөөс
+       * «яагаад болсонгүй» гэдгийг ойлгохгүй.
+       */
       message: blocked.length
-        ? `${blocked.length} кино хасагдсангүй — тэдгээр нь зөвхөн энэ ` +
-          `сайтад байгаа тул хасвал хаана ч харагдахгүй болно`
+        ? !enabled && site === currentSite()
+          ? `${blocked.length} кино хасагдсангүй — өөрийн сайтаасаа хасах ` +
+            `боломжгүй. ${SITE_LABEL[site]}-ээс хасах бол нөгөө сайт руу ` +
+            `шилжиж, тэндээс хасна уу.`
+          : `${blocked.length} кино хасагдсангүй — тэдгээр нь зөвхөн энэ ` +
+            `сайтад байгаа тул хасвал хаана ч харагдахгүй болно`
         : undefined,
     };
   }
