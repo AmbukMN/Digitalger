@@ -257,7 +257,9 @@ async function main() {
   // ── Блог ──
   let posts = 0;
   for (const p of POSTS) {
-    const exists = await prisma.blogPost.findUnique({ where: { slug: p.slug } });
+    /* ⚠️ `slug` нь сайтын хүрээнд unique (`@@unique([slug, site])`) —
+       `findFirst` ашиглана (seed нь besttv-д ажилладаг). */
+    const exists = await prisma.blogPost.findFirst({ where: { slug: p.slug } });
     if (exists) continue;
     await prisma.blogPost.create({
       data: {

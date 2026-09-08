@@ -20,6 +20,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { PushService } from './push.service';
 import { Body } from '@nestjs/common';
+import { currentSite } from '../../common/site/site-context';
 
 /**
  * ХЭРЭГЛЭГЧИЙН МЭДЭГДЭЛ.
@@ -382,9 +383,15 @@ export class NotificationsService {
 
   /** Хэсгийг «үзсэн» гэж тэмдэглэнэ */
   async markSectionSeen(adminId: string, section: string) {
+    /**
+     * ⚠️⚠️ `site` ЗААВАЛ түлхүүрт — сайт бүрд ТУСДАА тэмдэглэгээ.
+     * Үгүй бол BestFilm дээр «үзсэн» дарахад BestTV-ийн мөр шинэчлэгдэж,
+     * BestFilm-ийн badge арилахгүй үлдэнэ (`AdminSeen`-ийн тайлбарыг үз).
+     */
+    const site = currentSite();
     await this.prisma.adminSeen.upsert({
-      where: { adminId_section: { adminId, section } },
-      create: { adminId, section, lastSeenAt: new Date() },
+      where: { adminId_section_site: { adminId, section, site } },
+      create: { adminId, section, site, lastSeenAt: new Date() },
       update: { lastSeenAt: new Date() },
     });
     return { ok: true };

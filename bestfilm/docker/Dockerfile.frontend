@@ -64,10 +64,16 @@ ARG NEXT_PUBLIC_ASSETS_URL
 ARG NEXT_PUBLIC_CHAT_WEBHOOK_URL
 ARG NEXTAUTH_URL
 ARG API_URL
+# ⚠️⚠️ canonical / og:url / sitemap — тохируулаагүй бол `metadataBase`
+#    нь localhost болж, FB дээр хуваалцахад зураг ХООСОН гарна.
+ARG NEXT_PUBLIC_SITE_URL
+ARG SITE_URL
 ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL \
     NEXT_PUBLIC_CHAT_WEBHOOK_URL=$NEXT_PUBLIC_CHAT_WEBHOOK_URL \
     NEXTAUTH_URL=$NEXTAUTH_URL \
     API_URL=$API_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    SITE_URL=$SITE_URL \
     NEXT_TELEMETRY_DISABLED=1
 
 # shared нь build script-гүй — Next transpilePackages-аар шууд TS уншина

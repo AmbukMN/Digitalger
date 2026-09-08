@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { slugify } from '../../common/slugify';
+import { currentSite } from '../../common/site/site-context';
 import { TitlesModule } from '../titles/titles.module';
 import { TitleMediaHelper } from '../titles/title-media.helper';
 
@@ -61,6 +62,12 @@ class ReorderGenresDto {
   ids: string[];
 }
 
+/** Жанрыг тухайн САЙТАД харуулах эсэх */
+class GenreVisibleDto {
+  @IsBoolean()
+  isVisible: boolean;
+}
+
 @Injectable()
 export class GenresService {
   private readonly logger = new Logger(GenresService.name);
@@ -74,11 +81,37 @@ export class GenresService {
   ) {}
 
   /** Admin — бүх жанр (18+ хамт) */
-  list() {
-    return this.prisma.genre.findMany({
-      orderBy: { order: 'asc' },
-      include: { _count: { select: { titles: true } } },
-    });
+  /**
+   * ⚠️ Админ жагсаалт — public-тай ИЖИЛ эрэмбээр (`GenreSiteOrder`).
+   *
+   * Эс бөгөөс админ чирээд хадгалсны дараа хуудсаа сэргээхэд хуучин
+   * дараалал буцаж харагдаж, «хадгалагдсангүй» гэж ойлгогдоно.
+   * ⚠️ Нуусан жанрыг ч ХАРУУЛНА (`isVisible` тугтайгаар) — админ буцааж
+   * асаах боломжтой байх ёстой.
+   */
+  async list() {
+    const [genres, overrides] = await Promise.all([
+      this.prisma.genre.findMany({
+        orderBy: { order: 'asc' },
+        include: { _count: { select: { titles: true } } },
+      }),
+      this.prisma.genreSiteOrder.findMany({
+        select: { genreId: true, order: true, isVisible: true },
+      }),
+    ]);
+
+    const by = new Map(overrides.map((o) => [o.genreId, o]));
+
+    return genres
+      .map((g) => {
+        const o = by.get(g.id);
+        return {
+          ...g,
+          order: o ? o.order : g.order,
+          isVisible: o ? o.isVisible : true,
+        };
+      })
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'mn'));
   }
 
   /**
@@ -91,13 +124,42 @@ export class GenresService {
    * өгөгдөл атлаа header цэс, каталогийн шүүлтүүр, нүүр бүрээс
    * дуудагддаг байв.
    */
+  /**
+   * ⚠️⚠️ ЭРЭМБЭ САЙТ БҮРД ӨӨР (`GenreSiteOrder`).
+   *
+   * `Genre` нь SHARED — нэр нь хоёр сайтад ижил. Гэвч эрэмбэ,
+   * харагдац нь өөр байх ёстой: BestFilm-д «Монгол кино» дээгүүр,
+   * BestTV-д «Богино драм» дээгүүр байж болно.
+   *
+   * ⚠️ Мөр байхгүй жанр нь `Genre.order`-оор эрэмбэлэгдэж, ХАРАГДАНА
+   * — BestTV-ийн одоогийн зан төлөв ЯГ ХЭВЭЭР. Админ тухайн сайтад
+   * гар хүрч байж л зөрүү үүснэ.
+   */
   listPublic() {
-    return this.cache.wrap('genres:public:v1', 300, () =>
-      this.prisma.genre.findMany({
-        orderBy: { order: 'asc' },
-        include: { _count: { select: { titles: true } } },
-      }),
-    );
+    return this.cache.wrap('genres:public:v1', 300, async () => {
+      const [genres, overrides] = await Promise.all([
+        this.prisma.genre.findMany({
+          orderBy: { order: 'asc' },
+          include: { _count: { select: { titles: true } } },
+        }),
+        /* ⚠️ SCOPED — одоогийн сайтын мөр л ирнэ */
+        this.prisma.genreSiteOrder.findMany({
+          select: { genreId: true, order: true, isVisible: true },
+        }),
+      ]);
+
+      const by = new Map(overrides.map((o) => [o.genreId, o]));
+
+      return genres
+        .filter((g) => by.get(g.id)?.isVisible !== false)
+        .map((g) => {
+          const o = by.get(g.id);
+          return o ? { ...g, order: o.order } : g;
+        })
+        /* ⚠️ Эрэмбэ давхацвал нэрээр — дараалал ТОГТВОРТОЙ байх ёстой,
+           эс бөгөөс хуудас дахин ачаалах бүрд жанр үсэрнэ. */
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'mn'));
+    });
   }
 
   async create(dto: GenreDto) {
@@ -275,13 +337,56 @@ export class GenresService {
     const clean = ids.filter((id) => valid.has(id));
     if (!clean.length) throw new BadRequestException('Хүчинтэй жанр олдсонгүй');
 
+    /**
+     * ⚠️⚠️ ЭРЭМБИЙГ `Genre.order`-Т БИШ `GenreSiteOrder`-Т БИЧНЭ.
+     *
+     * `Genre` нь SHARED — түүнд бичвэл BestFilm дээр эрэмбэ өөрчлөхөд
+     * BestTV-ийн нүүрний эгнээний дараалал ЧИМЭЭГҮЙ өөрчлөгдөнө.
+     * Хоёр сайт нэг мөрийг дарж бичих тул хамгийн сүүлд хадгалсан нь
+     * нөгөөгийнхөө тохиргоог үргэлж алдагдуулна.
+     *
+     * ⚠️ `upsert` — тухайн сайтад анх удаа эрэмбэлж байгаа жанрын мөр
+     * хараахан байхгүй.
+     */
+    const site = currentSite();
+
     await this.prisma.$transaction(
-      clean.map((id, i) =>
-        this.prisma.genre.update({ where: { id }, data: { order: i } }),
+      clean.map((genreId, i) =>
+        this.prisma.genreSiteOrder.upsert({
+          where: { genreId_site: { genreId, site } },
+          create: { genreId, site, order: i },
+          update: { order: i },
+        }),
       ),
     );
-    this.logger.log(`Жанрын эрэмбэ шинэчлэв: ${clean.length} жанр`);
+    this.logger.log(`Жанрын эрэмбэ шинэчлэв (${site}): ${clean.length} жанр`);
     return { ok: true, updated: clean.length };
+  }
+
+  /**
+   * Жанрыг тухайн сайтад харуулах эсэх.
+   *
+   * ⚠️ BestFilm-д «Насанд хүрэгчдийн» жанрыг нуух гэх мэт хэрэгцээ.
+   * Жанрыг УСТГАХГҮЙ — устгавал багцын холбоос cascade-аар алга болж
+   * төлбөртэй захиалагч эрхээ алдана (`remove`-ийн тайлбарыг үз).
+   */
+  async setVisible(genreId: string, isVisible: boolean) {
+    const genre = await this.prisma.genre.findUnique({
+      where: { id: genreId },
+      select: { id: true, name: true },
+    });
+    if (!genre) throw new NotFoundException('Жанр олдсонгүй');
+
+    const site = currentSite();
+    await this.prisma.genreSiteOrder.upsert({
+      where: { genreId_site: { genreId, site } },
+      create: { genreId, site, isVisible },
+      update: { isVisible },
+    });
+    this.logger.log(
+      `Жанр «${genre.name}» ${site} дээр ${isVisible ? 'харагдана' : 'НУУГДАВ'}`,
+    );
+    return { ok: true, isVisible };
   }
 }
 
@@ -322,6 +427,17 @@ export class GenresAdminController {
   @Patch('reorder')
   reorderGenres(@Body() dto: ReorderGenresDto) {
     return this.svc.reorderGenres(dto.ids);
+  }
+
+  /**
+   * Тухайн САЙТАД харуулах/нуух.
+   * ⚠️ `@Patch(':id')`-ээс ӨМНӨ — Nest нь эхэлж таарсныг авдаг ч
+   * `:id/visible` нь хоёр сегменттэй тул зөрчилгүй. Дараалал нь
+   * зөвхөн уншихад тодорхой байх үүрэгтэй.
+   */
+  @Patch(':id/visible')
+  setVisible(@Param('id') id: string, @Body() dto: GenreVisibleDto) {
+    return this.svc.setVisible(id, dto.isVisible);
   }
 
   @Patch(':id')

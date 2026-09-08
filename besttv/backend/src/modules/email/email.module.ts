@@ -1589,9 +1589,12 @@ export class EmailAdminController {
       couponPercent: dto.couponPercent ?? 0,
       couponDays: dto.couponDays ?? 0,
     };
+    /* ⚠️ `campaign` нь сайтын хүрээнд unique (`@@unique([campaign, site])`)
+       — сайт бүр өөрийн имэйл загвартай. Түлхүүрт `site` ЗААВАЛ. */
+    const site = currentSite();
     await this.prisma.emailTemplateOverride.upsert({
-      where: { campaign },
-      create: { campaign, ...data },
+      where: { campaign_site: { campaign, site } },
+      create: { campaign, site, ...data },
       update: data,
     });
     return { ok: true };
@@ -1600,7 +1603,10 @@ export class EmailAdminController {
   /** Загварыг кодын анхдагч руу буцаана */
   @Post('lifecycle/:campaign/reset')
   async resetLifecycle(@Param('campaign') campaign: string) {
-    await this.prisma.emailTemplateOverride.delete({ where: { campaign } }).catch(() => null);
+    /* ⚠️ Зөвхөн ТУХАЙН САЙТЫН загварыг устгана — нөгөө сайтынх хэвээр */
+    await this.prisma.emailTemplateOverride
+      .delete({ where: { campaign_site: { campaign, site: currentSite() } } })
+      .catch(() => null);
     return { ok: true };
   }
 

@@ -27,6 +27,9 @@ services:
         NEXT_PUBLIC_ASSETS_URL: ${NEXT_PUBLIC_ASSETS_URL}
         NEXT_PUBLIC_CHAT_WEBHOOK_URL: ${NEXT_PUBLIC_CHAT_WEBHOOK_URL}
         NEXTAUTH_URL: ${NEXTAUTH_URL}
+        # ⚠️ canonical/og:url — build үед шигдэнэ
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        SITE_URL: ${SITE_URL}
         # ⚠️⚠️ BestTV-ийн backend руу — container нэрээр (нэг backend!)
         API_URL: http://besttv-backend:4100
     container_name: bestfilm-frontend

@@ -431,8 +431,16 @@ export class LifecycleService implements OnModuleDestroy {
     const base = FLOWS[campaign];
     if (!base) return null;
 
+    /**
+     * ⚠️⚠️ `findFirst` — `findUnique` БИШ.
+     *
+     * `campaign` нь одоо сайтын хүрээнд unique (`@@unique([campaign, site])`)
+     * тул сайт бүр өөрийн загвартай. `findFirst` нь site өргөтгөлийн
+     * шүүлтийг АВТОМАТААР авдаг — cron/worker-ээс дуудагдахад ч
+     * `runWithSiteAsync` дотор зөв сайтын загварыг олно.
+     */
     const row = await this.prisma.emailTemplateOverride
-      .findUnique({ where: { campaign } })
+      .findFirst({ where: { campaign } })
       .catch(() => null);
 
     if (row && !row.isEnabled) return null;

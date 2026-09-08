@@ -184,10 +184,12 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-[1.4fr_repeat(3,1fr)] md:gap-10">
           <div>
             <Link href="/" className="inline-flex items-center">
+              {/* ⚠️ ХЭВТЭЭ лого (3.29:1) — h-14 бол 184px өргөн болж
+                  footer-ийн эхний баганыг эзэлнэ. h-11 = 118px. */}
               {brand?.logoUrl ? (
-                <BrandLogo logoUrl={brand.logoUrl} siteName={siteName} imgClassName="h-14 w-auto" />
+                <BrandLogo logoUrl={brand.logoUrl} siteName={siteName} imgClassName="h-11 w-auto" />
               ) : (
-                <BestFilmLogo className="h-14 w-auto" />
+                <BestFilmLogo className="h-11 w-auto" />
               )}
             </Link>
             {/*

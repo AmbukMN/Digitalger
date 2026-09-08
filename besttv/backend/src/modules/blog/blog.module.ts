@@ -88,10 +88,23 @@ export class BlogService {
     };
   }
 
+  /**
+   * ⚠️⚠️ `findFirst` — `findUnique` БИШ.
+   *
+   * `slug` нь одоо ГЛОБАЛ unique биш (`@@unique([slug, site])`): хоёр
+   * сайт ижил нийтлэлтэй байж болно. `findUnique({ where: { slug } })`
+   * нь одоо бүр компайл ч хийхгүй, харин `slug_site` түлхүүр шаардана.
+   * `findFirst` нь site өргөтгөлийн шүүлтийг АВТОМАТААР авдаг тул
+   * тухайн сайтын нийтлэлийг зөв олно.
+   */
   async getBySlug(slug: string) {
-    const post = await this.prisma.blogPost.findUnique({ where: { slug } });
+    const post = await this.prisma.blogPost.findFirst({ where: { slug } });
     if (!post || !post.isPublished) throw new NotFoundException('Нийтлэл олдсонгүй');
-    await this.prisma.blogPost.update({ where: { slug }, data: { views: { increment: 1 } } });
+    /* ⚠️ Тоолуурыг ID-гаар — `slug` нь дангаараа мөрийг заахаа больсон */
+    await this.prisma.blogPost.update({
+      where: { id: post.id },
+      data: { views: { increment: 1 } },
+    });
     return this.decorate(post);
   }
 
@@ -144,7 +157,9 @@ export class BlogService {
   async create(dto: BlogPostDto) {
     if (!dto.title.trim()) throw new BadRequestException('Гарчиг шаардлагатай');
     const base = slugify(dto.title);
-    const exists = await this.prisma.blogPost.findUnique({ where: { slug: base } });
+    /* ⚠️ `findFirst` — slug нь сайтын хүрээнд unique (`@@unique([slug, site])`).
+       Нөгөө сайтад ижил slug байхад давхардал гэж үзэх ЁСГҮЙ. */
+    const exists = await this.prisma.blogPost.findFirst({ where: { slug: base } });
     const slug = exists ? `${base}-${Date.now() % 1000}` : base;
 
     return this.prisma.blogPost.create({

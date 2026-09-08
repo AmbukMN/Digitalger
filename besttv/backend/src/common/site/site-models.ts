@@ -35,6 +35,7 @@ export const SCOPED_MODELS = [
   'Subscription',
   'Plan', //                багц, үнэ сайт бүрд өөр
   'PlanGenre',
+  'GenreSiteOrder', //      ⚠️ жанрын эрэмбэ сайт бүрд (Genre нь SHARED)
   'Rental',
   'SavedCard',
   'WalletTransaction',
@@ -107,9 +108,10 @@ export type ScopedModel = (typeof SCOPED_MODELS)[number];
  *     `sites[]`-ээр хянагддаг тул эдгээрт site ХЭРЭГГҮЙ. Нэмбэл
  *     давхардсан эх сурвалж болж, зөрөх эрсдэлтэй.
  *
- *   Genre, TitleGenre — жанрын нэр хоёр сайтад ижил. ⚠️ Жанрын
- *     ЭРЭМБЭ сайт бүрд өөр байх шаардлага гарвал тусдаа
- *     `GenreSiteOrder` модел нэмнэ — Genre-г салгахгүй.
+ *   Genre, TitleGenre — жанрын нэр хоёр сайтад ижил. ЭРЭМБЭ ба
+ *     ХАРАГДАЦ нь `GenreSiteOrder`-оор сайт бүрд салгагдсан
+ *     (2026-09-08). Genre-г өөрийг нь салгавал 160+ киноны холбоос
+ *     давхарлах шаардлагатай болно — тиймээс салгахгүй.
  *
  *   Settings — R2, SES, n8n нэг. ⚠️ QPay нь merchant ӨӨР тул
  *     түлхүүрийн нэрэнд сайт шигтгэнэ («bestfilm.qpay.username»)

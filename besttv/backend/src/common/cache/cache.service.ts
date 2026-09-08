@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { currentSite, isAllSites } from '../site/site-context';
 
 /**
  * Redis кэш — үнэтэй асуулгын үр дүнг хэсэг хугацаанд хадгална.
@@ -40,10 +41,40 @@ export class CacheService implements OnModuleDestroy {
     this.redis.on('error', (e) => this.logger.warn(`Redis кэш алдаа: ${e.message}`));
   }
 
+  /**
+   * ⚠️⚠️ САЙТЫН ТУСГААРЛАЛТ — БҮХ ТҮЛХҮҮРТ АВТОМАТААР.
+   *
+   * БОДИТ АЛДАА (2026-09-08): BestFilm нээгдсэний дараа `/plans`,
+   * нүүр, жанр, баннер БҮГД BestTV-ийнхийг харуулж байв. Шалтгаан
+   * нь Prisma-ийн шүүлт БИШ — тэр зөв ажиллаж байсан — харин кэшийн
+   * түлхүүр `plans:active:v1` гэх мэт сайтын нэргүй байсан явдал.
+   * Аль сайт ЭХЭЛЖ дуудсан нь кэшийг эзэмшиж, нөгөө сайт түүнийг
+   * уншдаг байв (7/7 багцын ID давхцсан).
+   *
+   * ⚠️ Дуудагч талд нь засвал ШИНЭ кэш нэмэхэд дахин мартагдана
+   * (6 газраас 6-уулаа алдаатай байсан нь үүний нотолгоо). Тиймээс
+   * ЭНД, доод давхаргад шийднэ — цаашид ямар ч `wrap`/`set` автоматаар
+   * тусгаарлагдана.
+   *
+   * ⚠️ Дагавар нь түлхүүрийн ЭХЭНД биш АРД байна: `invalidate('home:*')`
+   * гэх одоогийн загварууд ажиллаж байхын тулд. Угтвар болговол
+   * тэдгээр цэвэрлэлт ЧИМЭЭГҮЙ ажиллахаа больж, админ кино нэмэхэд
+   * нүүрэнд гарахгүй болно.
+   */
+  private k(key: string): string {
+    /**
+     * ⚠️ Админы «бүх сайт» горим нь ХОЁР сайтын өгөгдлийг нийлүүлж
+     * буцаадаг. Түүнийг `|besttv` гэж бичвэл BestTV-ийн жинхэнэ
+     * хэрэглэгч нөгөө сайтын өгөгдөл ХОЛИЛДСОН хариу авна. Тусдаа
+     * нэрийн талбарт хийнэ.
+     */
+    return `${key}|${isAllSites() ? 'all' : currentSite()}`;
+  }
+
   async get<T>(key: string): Promise<T | null> {
     if (!this.redis) return null;
     try {
-      const raw = await this.redis.get(key);
+      const raw = await this.redis.get(this.k(key));
       return raw ? (JSON.parse(raw) as T) : null;
     } catch {
       return null;
@@ -54,7 +85,7 @@ export class CacheService implements OnModuleDestroy {
   async set(key: string, value: unknown, ttlSec: number): Promise<void> {
     if (!this.redis) return;
     try {
-      await this.redis.set(key, JSON.stringify(value), 'EX', ttlSec);
+      await this.redis.set(this.k(key), JSON.stringify(value), 'EX', ttlSec);
     } catch {
       /* ⚠️ Кэш бичиж чадаагүй нь алдаа БИШ — дараагийн удаа дахин оролдоно */
     }
@@ -72,11 +103,13 @@ export class CacheService implements OnModuleDestroy {
   async take<T>(key: string): Promise<T | null> {
     if (!this.redis) return null;
     try {
+      /* ⚠️ `set`-тэй ИЖИЛ дагавар — эс бөгөөс татах тасалбар олдохгүй */
+      const sk = this.k(key);
       /* GETDEL needs Redis 6.2+; fall back to a MULTI if unsupported */
       const raw = await this.redis
-        .getdel(key)
+        .getdel(sk)
         .catch(async () => {
-          const res = await this.redis!.multi().get(key).del(key).exec();
+          const res = await this.redis!.multi().get(sk).del(sk).exec();
           return (res?.[0]?.[1] as string | null) ?? null;
         });
       return raw ? (JSON.parse(raw) as T) : null;
@@ -115,7 +148,7 @@ export class CacheService implements OnModuleDestroy {
   async lock(key: string, ttlSec: number): Promise<boolean> {
     if (!this.redis) return true;
     try {
-      const res = await this.redis.set(`lock:${key}`, '1', 'EX', ttlSec, 'NX');
+      const res = await this.redis.set(this.k(`lock:${key}`), '1', 'EX', ttlSec, 'NX');
       return res === 'OK';
     } catch {
       /* ⚠️ Redis унасан — ажлыг зогсоохгүй */
@@ -127,7 +160,7 @@ export class CacheService implements OnModuleDestroy {
   async unlock(key: string): Promise<void> {
     if (!this.redis) return;
     try {
-      await this.redis.del(`lock:${key}`);
+      await this.redis.del(this.k(`lock:${key}`));
     } catch {
       /* ⚠️ Суллаж чадаагүй ч TTL-ээр өөрөө арилна */
     }
@@ -158,7 +191,21 @@ export class CacheService implements OnModuleDestroy {
   async invalidate(pattern: string): Promise<void> {
     if (!this.redis) return;
     try {
-      const full = `besttv:cache:${pattern}`;
+      /**
+       * ⚠️⚠️ Түлхүүр бүр `|<сайт>` дагавартай (`k()`-г үз). Загвар нь
+       * `*`-аар төгсөөгүй бол ЯГ таарах шаардлагатай тул дагавар нь
+       * түүнийг ЧИМЭЭГҮЙ ажиллахгүй болгоно.
+       *
+       * БОДИТ ЭРСДЭЛ: `invalidate('access-scope:123')` — багц дуусахад
+       * эрхийн кэш цэвэрлэдэг. Таарахгүй бол хэрэглэгч төлбөрөө
+       * төлсөн ч 30 секунд хүртэл хаалттай хэвээр (эсвэл эсрэгээр
+       * дууссан багцаар үзсээр) байна.
+       *
+       * ⚠️ `*`-аар төгссөн загварыг хөндөхгүй — `home:*` нь БҮХ сайтын
+       * нүүрийг цэвэрлэх ёстой (админ аль ч сайтын кино нэмж болно).
+       */
+      const scoped = pattern.endsWith('*') ? pattern : `${pattern}|*`;
+      const full = `besttv:cache:${scoped}`;
       let cursor = '0';
       do {
         const [next, keys] = await this.redis.scan(cursor, 'MATCH', full, 'COUNT', 200);

@@ -7,6 +7,8 @@ import {
   ArrowUpDown,
   ChevronDown,
   ChevronUp,
+  Eye,
+  EyeOff,
   GripVertical,
   Loader2,
   Pencil,
@@ -116,6 +118,43 @@ export default function GenresPage() {
       },
     );
     setSavingOrder(false);
+  };
+
+  /**
+   * ⚠️⚠️ ЖАНРЫГ ТУХАЙН САЙТАД НУУХ / ХАРУУЛАХ.
+   *
+   * ЯАГААД УСТГАХ БИШ ВЭ: `Genre` нь хоёр сайтад НИЙТЛЭГ (нэр, кино
+   * нь хуваалцсан). Устгавал `PlanGenre` cascade-аар алга болж, тэр
+   * жанртай багц авсан ТӨЛБӨРТЭЙ захиалагчид контентоо БҮГДИЙГ
+   * алдана — мөнгө буцаагдахгүй, сэргээх боломжгүй.
+   *
+   * Нуух нь зөвхөн ТУХАЙН САЙТЫН нүүр/каталогоос хасна
+   * (`GenreSiteOrder.isVisible`), нөгөө сайт хэвийн хэвээр.
+   */
+  const [visBusy, setVisBusy] = useState<string | null>(null);
+
+  const toggleVisible = async (g: AdminGenre) => {
+    if (visBusy) return;
+    const next = !(g.isVisible ?? true);
+    setVisBusy(g.id);
+    await runMutation(
+      () =>
+        api(`/admin/genres/${g.id}/visible`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isVisible: next }),
+        }),
+      {
+        success: next
+          ? `«${g.name}» энэ сайтад харагдана`
+          : `«${g.name}» энэ сайтад НУУГДЛАА (кино устаагүй)`,
+        error: 'Харагдацыг өөрчилж чадсангүй',
+        onDone: () => {
+          void refetch();
+          qc.invalidateQueries({ queryKey: ['admin-genres'] });
+        },
+      },
+    );
+    setVisBusy(null);
   };
 
   /** Хадгалаагүй өөрчлөлтийг буцаана */
@@ -367,6 +406,9 @@ export default function GenresPage() {
                     'group flex items-center justify-between px-4 py-3 transition-colors hover:bg-accent/40',
                     /* Чирж буй мөрийн БУУХ байрлалыг тодоор заана */
                     overIndex === i && dragIndex.current !== null && 'bg-primary/10 ring-1 ring-inset ring-primary/40',
+                    /* ⚠️ Энэ САЙТАД нуугдсан жанр — админ шууд танина.
+                       Мөр УСТААГҮЙ тул бүдгэрүүлнэ, нуухгүй. */
+                    g.isVisible === false && 'opacity-45',
                   )}
                 >
                   {/* ⚠️ Чирэх бариул — мөр бүхэлдээ draggable ч бариул нь
@@ -429,6 +471,34 @@ export default function GenresPage() {
                         🔞 18+
                       </span>
                     )}
+                    {/* ⚠️ ЭНЭ САЙТАД нуух/харуулах — жанр УСТАХГҮЙ.
+                        Нөгөө сайт хэвээр ажиллана. */}
+                    <button
+                      onClick={() => toggleVisible(g)}
+                      disabled={visBusy === g.id}
+                      aria-label={
+                        g.isVisible === false ? 'Энэ сайтад харуулах' : 'Энэ сайтаас нуух'
+                      }
+                      title={
+                        g.isVisible === false
+                          ? 'Энэ сайтад НУУГДСАН — дарж харуулна (кино устаагүй)'
+                          : 'Энэ сайтаас нуух (кино устахгүй, нөгөө сайт хэвээр)'
+                      }
+                      className={cn(
+                        'flex h-9 w-9 items-center justify-center rounded-md transition-colors disabled:opacity-40',
+                        g.isVisible === false
+                          ? 'text-destructive hover:bg-destructive/10'
+                          : 'text-muted-foreground hover:bg-accent hover:text-primary',
+                      )}
+                    >
+                      {visBusy === g.id ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : g.isVisible === false ? (
+                        <EyeOff size={15} />
+                      ) : (
+                        <Eye size={15} />
+                      )}
+                    </button>
                     {/* ⚠️ Кинотой жанрт л эрэмбэлэх утгатай — хоосон жанрт
                         товч гарвал хоосон хуудас нээгдэж будлиан үүснэ */}
                     {(g._count?.titles ?? 0) > 1 && (

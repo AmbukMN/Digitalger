@@ -463,10 +463,43 @@ model Genre {
   titles TitleGenre[]
   plans  PlanGenre[]
 
+  /// Сайт бүрийн эрэмбэ/харагдац (доорх моделийг үз)
+  siteOrders GenreSiteOrder[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([isAdult])
+}
+
+/// Жанрын САЙТ БҮРИЙН эрэмбэ ба харагдац.
+///
+/// ⚠️⚠️ ЯАГААД ТУСДАА МОДЕЛ ВЭ (Genre-г салгахын оронд):
+/// `Genre` нь `TitleGenre`-ээр 160+ кинотой холбоотой. Сайт бүрд
+/// хуулбарлавал холбоос бүрийг давхарлах шаардлага гарч, кино нэг
+/// сайтад жанргүй үлдэх ЧИМЭЭГҮЙ эрсдэл үүснэ. Жанрын НЭР хоёр
+/// сайтад ижил хэвээр — зөвхөн ЭРЭМБЭ, ХАРАГДАЦ нь өөр.
+///
+/// ⚠️ Мөр БАЙХГҮЙ бол `Genre.order`-оор эрэмбэлж, харуулна —
+/// одоогийн BestTV-ийн зан төлөв ЯГ ХЭВЭЭР үлдэнэ.
+model GenreSiteOrder {
+  id      String @id @default(cuid())
+  genreId String
+  site    String
+
+  /// Тухайн сайт дээрх дараалал (бага нь эхэнд)
+  order Int @default(0)
+
+  /// Тухайн сайтын нүүр/каталогт харуулах эсэх
+  isVisible Boolean @default(true)
+
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([genreId, site])
+  @@index([site, order])
 }
 
 /// Олон-олон + жанрын мөр доторх дараалал (админ удирдана)
@@ -1065,9 +1098,11 @@ enum ChatMatchType {
 }
 
 model BlogPost {
-  id       String   @id @default(cuid())
-  title    String
-  slug     String   @unique
+  id    String @id @default(cuid())
+  title String
+  /// ⚠️ Глобал БИШ — `@@unique([slug, site])`. Хоёр сайт ижил
+  /// нийтлэлтэй байж болно (BestTV-ийнхийг BestFilm-д хуулна).
+  slug     String
   excerpt  String   @default("")
   content  String
   coverKey String?
@@ -1089,6 +1124,7 @@ model BlogPost {
    */
   site String @default("besttv")
 
+  @@unique([slug, site])
   @@index([isPublished, publishedAt])
   @@index([site])
   @@index([site, createdAt])
@@ -2038,7 +2074,17 @@ model AdminSeen {
    */
   site String @default("besttv")
 
-  @@unique([adminId, section])
+  /**
+   * ⚠️⚠️ `site` ЗААВАЛ unique-д ОРНО.
+   *
+   * БОДИТ АЛДАА (2026-09-08): unique нь `[adminId, section]` байсан
+   * тул BestFilm дээр хэсэг рүү орж badge цэвэрлэхэд `upsert` нь
+   * BestTV-ийн мөрийг олж, түүний `lastSeenAt`-ыг шинэчилдэг байв
+   * (`site` нь `besttv` хэвээр). Дараа нь SCOPED шүүлт тэр мөрийг
+   * BestFilm-д ХАРУУЛАХГҮЙ тул badge ХЭЗЭЭ Ч арилахгүй, харин
+   * BestTV-ийн badge нь буруугаар цэвэрлэгдэж байв.
+   */
+  @@unique([adminId, section, site])
   @@index([adminId])
   @@index([site])
 }
@@ -2375,7 +2421,7 @@ model SocialSlot {
    */
   site String @default("besttv")
 
-  @@unique([channel, weekday, time])
+  @@unique([channel, weekday, time, site])
   @@index([channel])
   @@index([site])
   @@index([site, createdAt])
@@ -2421,7 +2467,8 @@ model EmailTemplateOverride {
   id String @id @default(cuid())
 
   /// Урсгалын түлхүүр — «winback-3d», «no-purchase-3d» г.м.
-  campaign String @unique
+  /// ⚠️ Глобал БИШ — сайт бүр өөрийн загвартай (`@@unique([campaign, site])`).
+  campaign String
 
   /// Имэйлийн гарчиг (subject). Хоосон бол кодын анхдагч.
   subject  String @default("")
@@ -2451,6 +2498,7 @@ model EmailTemplateOverride {
    */
   site String @default("besttv")
 
+  @@unique([campaign, site])
   @@index([site])
   @@index([site, createdAt])
 }

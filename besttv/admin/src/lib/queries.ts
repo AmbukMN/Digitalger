@@ -166,8 +166,16 @@ export interface AdminGenre {
   id: string;
   name: string;
   slug: string;
+  /** ⚠️ ТУХАЙН САЙТЫН эрэмбэ (`GenreSiteOrder`) — сайт солиход өөрчлөгдөнө */
   order: number;
   isAdult: boolean;
+  /**
+   * ⚠️ Тухайн САЙТАД харагдах эсэх. Жанр нь хоёр сайтад НИЙТЛЭГ
+   * (нэр, кино нь хуваалцсан) тул нуух нь УСТГАХААС ялгаатай —
+   * устгавал багцын холбоос cascade-аар алга болж, төлбөртэй
+   * захиалагч эрхээ алдана.
+   */
+  isVisible?: boolean;
   _count?: { titles: number };
 }
 

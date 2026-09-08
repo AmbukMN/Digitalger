@@ -111,10 +111,14 @@ export function Navbar() {
         <Link href="/" className="flex shrink-0 items-center" aria-label={`${siteName} нүүр`}>
           {/* ⚠️ Админ DB-д лого оруулбал ТЭР, эс бөгөөс BestFilm-ийн
               статик лого (dark/light хоёулаа) */}
+          {/* ⚠️⚠️ ӨНДӨР нь ХЭВТЭЭ логонд тохируулагдсан (500×152 = 3.29:1).
+              Хуучин лого бараг дөрвөлжин (1.2:1) байсан тул `h-12` нь
+              58px өргөн байв; ижил өндөрт шинэ лого 158px болж, гар
+              утсанд цэс/хайлтын товчийг шахна. h-8/h-9 = 105/125px. */}
           {brand?.logoUrl ? (
-            <BrandLogo logoUrl={brand.logoUrl} siteName={siteName} imgClassName="h-10 w-auto sm:h-12" />
+            <BrandLogo logoUrl={brand.logoUrl} siteName={siteName} imgClassName="h-8 w-auto sm:h-9" />
           ) : (
-            <BestFilmLogo className="h-10 w-auto sm:h-12" />
+            <BestFilmLogo className="h-8 w-auto sm:h-9" />
           )}
         </Link>
 
