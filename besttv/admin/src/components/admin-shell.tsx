@@ -36,6 +36,7 @@ import { BrandLogo } from '@besttv/shared/ui';
 import { useAdminAuth } from '@/lib/auth-store';
 import { api } from '@/lib/api';
 import { useBrand } from '@/lib/queries';
+import { useSiteStore } from '@/lib/site-store';
 
 const NAV_GROUPS = [
   {
@@ -118,6 +119,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: brand } = useBrand();
   const logoUrl = brand?.logoUrl ?? null;
   const siteName = brand?.siteName ?? 'BestTV';
+  /** ⚠️ Доорх `key={site}`-д хэрэглэнэ — сайт солиход хуудас дахин үүснэ */
+  const site = useSiteStore((st) => st.site);
 
   /**
    * Sidebar-ийн "уншаагүй" badge-ууд — 30 сек тутам шинэчилнэ.
@@ -355,7 +358,33 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        {children}
+        {/*
+          ⚠️⚠️ `key={site}` — САЙТ СОЛИХОД ХУУДСЫГ БҮРЭН ДАХИН ҮҮСГЭНЭ.
+
+          ЯАГААД ЗААВАЛ ВЭ (2026-09-09 аудитаар илэрсэн):
+
+          React-ийн `useState` нь сайт солиход ДАХИН ТОХИРУУЛАГДДАГГҮЙ.
+          Улмаас нөгөө сайтын өгөгдөл дэлгэц дээр үлдэж, бодит эвдрэл
+          үүсгэж байсан:
+
+            · чат — сонгосон ярианы ID үлдэж, 404 болоод spinner
+              мөнхөд эргэлдэнэ (гарах зам ч байхгүй)
+            · данс — модал нээлттэй байхад солиход `loaded` флаг
+              үлдэж, BestTV-ийн тохиргоог BestFilm дээр ХАДГАЛНА
+            · жанр — чирсэн дараалал үлдэж, «Хадгалах» дархад
+              BestTV-ийн ID-ууд BestFilm-ийн эрэмбэ рүү бичигдэнэ
+            · багц/чат түлхүүр/урамшуулал — нээлттэй модалд нөгөө
+              сайтын мөрийн ID үлдэж, буруу мөрийг PATCH хийнэ
+            · bulk сонголт, хуудасны дугаар, шүүлт — бүгд үлдэнэ
+
+          ⚠️ `queryKeyHashFn`-д НАЙДАЖ БОЛОХГҮЙ: TanStack Query нь
+          observer-ийн hash-ыг mount үед ТОГТООДОГ тул сайт солиход
+          шинэ түлхүүр үүсдэггүй (туршиж баталсан).
+
+          ⚠️ Үнэ: сайт солиход шүүлт/хайлт тэглэгдэнэ. Энэ нь АЛДАА
+          БИШ — өөр сайтын шүүлтийг үргэлжлүүлэх нь утгагүй.
+        */}
+        <div key={site}>{children}</div>
       </div>
     </div>
   );

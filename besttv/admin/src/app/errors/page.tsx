@@ -10,7 +10,8 @@ import { AdminErrorState } from '@/components/admin-error-state';
 import { TableSkeleton } from '@/components/table-skeleton';
 import { TableEmptyState } from '@/components/table-empty-state';
 import { Pagination } from '@/components/pagination';
-import { SiteSwitcher } from '@/components/site-switcher';
+import { AdminShell } from '@/components/admin-shell';
+import { AdminTopbar } from '@/components/admin-topbar';
 
 /**
  * АЛДААНЫ БҮРТГЭЛ.
@@ -75,18 +76,24 @@ export default function ErrorsPage() {
   const items = data?.items ?? [];
 
   return (
-    <div className="space-y-5">
-      {/* ⚠️ Сайт солигч — алдаа нь САЙТ бүрд тусдаа бүртгэгддэг.
-          Үүнгүйгээр админ аль сайтын алдаа болохыг мэдэхгүй. */}
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-foreground">Алдааны бүртгэл</h1>
-          <p className="text-sm text-muted-foreground">
-            Хэрэглэгчийн browser болон серверийн алдаа — сүүлийн 30 хоног
-          </p>
-        </div>
-        <SiteSwitcher />
-      </div>
+    /*
+     * ⚠️⚠️ `AdminShell` ЗААВАЛ — энэ бол ЦОРЫН ГАНЦ эрхийн хамгаалалт.
+     *
+     * БОДИТ АЛДАА (2026-09-09): 29 хуудаснаас ЗӨВХӨН энэ нь `AdminShell`-гүй
+     * байсан. Улмаас нэвтрээгүй хүн `/errors`-д ороход `/login` руу
+     * ЧИГЛҮҮЛЭГДЭХГҮЙ, цэс/гарах товч/мэдэгдлийн хонх ч байхгүй, хуудас
+     * 401-ийн улмаас мөнхөд хоосон харагдана.
+     *
+     * ⚠️ `SiteSwitcher` гараар тавьсныг ХАСАВ — `AdminTopbar` өөрөө
+     * агуулдаг тул хоёр солигч давхарлана.
+     */
+    <AdminShell>
+      <AdminTopbar
+        title="Алдааны бүртгэл"
+        subtitle="Хэрэглэгчийн browser болон серверийн алдаа — сүүлийн 30 хоног"
+      />
+
+      <main className="space-y-5 p-4 pt-5 sm:p-8 sm:pt-6">
 
       {/* ХУРААНГУЙ — юуг эхлээд засахыг харуулна */}
       {!!summary?.length && (
@@ -256,9 +263,10 @@ export default function ErrorsPage() {
         </div>
       )}
 
-      {(data?.totalPages ?? 1) > 1 && (
-        <Pagination page={page} totalPages={data!.totalPages} onPage={setPage} />
-      )}
-    </div>
+        {(data?.totalPages ?? 1) > 1 && (
+          <Pagination page={page} totalPages={data!.totalPages} onPage={setPage} />
+        )}
+      </main>
+    </AdminShell>
   );
 }

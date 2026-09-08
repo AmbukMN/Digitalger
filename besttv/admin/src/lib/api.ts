@@ -3,12 +3,29 @@ import { currentAdminSite } from './site-store';
 const API_BASE = '/api';
 
 /**
- * ⚠️ Эдгээр зам нь САЙТААС ҮЛ ХАМААРНА — `X-Site` илгээхгүй.
+ * ⚠️⚠️ Эдгээр зам нь САЙТААС ҮЛ ХАМААРНА — `X-Site` илгээхгүй.
  *
  * Нэвтрэх мөчид хэрэглэгч аль сайтынх нь мэдэгдэхгүй тул сайтын
  * толгой илгээвэл буруу сайтад хайж «нууц үг буруу» гэнэ.
+ *
+ * ⚠️⚠️ `/auth/admin/login` — АДМИН нэвтрэх ЖИНХЭНЭ зам.
+ *
+ * БОДИТ АЛДАА (2026-09-09): жагсаалтад `/auth/login` л байсан ба
+ * `'/auth/admin/login'.startsWith('/auth/login')` нь **false** тул
+ * энэ хамгаалалт ОГТ ҮЙЛЧЛЭЭГҮЙ. Админ BestFilm сонгосон байхад
+ * `X-Site: bestfilm` явж, `admin@besttv.mn` (`site='besttv'`)
+ * олдохгүй → «Имэйл/утас эсвэл нууц үг буруу байна» гэсэн ХУДАЛ
+ * мессеж. Админ огт нэвтэрч чадахгүй болно.
+ *
+ * ⚠️ Шинэ auth зам нэмэх бол ЭНД БАС нэм — эс бөгөөс ижил алдаа
+ * чимээгүй давтагдана.
  */
-const AUTH_FREE_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
+const AUTH_FREE_PATHS = [
+  '/auth/admin/login',
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/logout',
+];
 
 let refreshPromise: Promise<boolean> | null = null;
 

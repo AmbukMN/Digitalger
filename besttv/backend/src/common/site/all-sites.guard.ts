@@ -62,8 +62,13 @@ export class AllSitesGuard implements CanActivate {
      * Нэвтрэх мөчид хэрэглэгч хараахан танигдаагүй тул эрх шалгах
      * утгагүй — `JwtAuthGuard` дараа нь бүрэн шалгана.
      */
+    /**
+     * ⚠️⚠️ `admin/` ХЭСЭГ ЗААВАЛ — админ нь `/auth/admin/login` руу
+     * явдаг. Хуучин загвар `/auth/(login|...)` нь тэр замд ТААРАХГҮЙ
+     * байсан тул хамгаалалт админд ОГТ үйлчлээгүй (2026-09-09).
+     */
     const p = req.path ?? req.url ?? '';
-    if (/\/auth\/(login|refresh|logout)/.test(p)) return true;
+    if (/\/auth\/(admin\/)?(login|refresh|logout)/.test(p)) return true;
 
     /**
      * ⚠️ `req.user` байвал түүнийг ашиглана (route guard эрт ажилласан
