@@ -23,6 +23,7 @@ import { StorageService } from '../../storage/storage.service';
 import { ImageProcessorService } from '../../storage/image-processor.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VIDEO_QUEUE, VideoHlsJob, VideoTarget } from '../videos/video-queue.types';
+import { currentSite } from '../../common/site/site-context';
 
 const IMAGE_SIZE_LIMIT = 30 * 1024 * 1024; // 30MB — зураг backend-ээр дамжина
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -311,7 +312,8 @@ export class UploadsController {
 
     await this.videoQueue.add(
       'convert',
-      { target, targetId, rawKey },
+      /* ⚠️ `site` — унасан мэдэгдэл зөв брэндээр явахад ЗААВАЛ */
+      { target, targetId, rawKey, site: currentSite() },
       { attempts: 2, backoff: { type: 'fixed', delay: 30_000 }, removeOnComplete: 50 },
     );
 

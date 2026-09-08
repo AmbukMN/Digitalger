@@ -31,6 +31,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { PromotionsService } from './promotions.service';
+import { assertSameSite } from '../../common/site/site-guard';
 
 class PromotionDto {
   @IsString()
@@ -328,6 +329,8 @@ class PromotionsAdminService {
       }
     }
 
+    /* ⚠️ САЙТ ХООРОНД БИЧИХЭЭС — `site-guard.ts` тайлбарыг үз */
+    await assertSameSite(this.prisma.promotion, id, 'Урамшуулал олдсонгүй');
     return this.prisma.promotion.update({
       where: { id },
       data,

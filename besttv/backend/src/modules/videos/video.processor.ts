@@ -7,6 +7,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { VideoHlsService, type HlsProgress } from '../../storage/video-hls.service';
 import { VIDEO_QUEUE, VideoHlsJob } from './video-queue.types';
+import { runWithSiteAsync } from '../../common/site/site-context';
+import { toSite } from '../../common/site/site.constants';
 
 /** Явцыг DB-д хэт олон удаа бичихгүй — 2 секундэд нэг */
 const PROGRESS_THROTTLE_MS = 2000;
@@ -61,6 +63,21 @@ export class VideoProcessor {
    */
   @Process({ name: 'convert', concurrency: Number(process.env.HLS_CONCURRENCY ?? 2) })
   async handle(job: Job<VideoHlsJob>) {
+    /**
+     * ⚠️⚠️ САЙТЫН КОНТЕКСТИЙГ СЭРГЭЭНЭ.
+     *
+     * BullMQ job нь HTTP хүсэлтээс ГАДУУР ажилладаг тул ALS контекст
+     * БАЙХГҮЙ. Үүнгүйгээр хөрвүүлэлт унахад `emitVideoFailed` нь
+     * `currentSite()` → ҮРГЭЛЖ `besttv` гэж илгээж, BestFilm-ийн кино
+     * унахад Telegram-д «BestTV» гэж БАТТАЙ ХУДАЛ мэдэгдэнэ.
+     *
+     * ⚠️ `CrosspostProcessor` нь үүнийг зөв хийсэн — энэ орхигдсон.
+     * ⚠️ Хуучин (site-гүй) job → `toSite(undefined)` = `besttv`.
+     */
+    return runWithSiteAsync(toSite(job.data.site), () => this.handleInner(job));
+  }
+
+  private async handleInner(job: Job<VideoHlsJob>) {
     const { target, targetId, rawKey } = job.data;
 
     /**

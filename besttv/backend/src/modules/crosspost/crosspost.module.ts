@@ -27,6 +27,7 @@ import { CROSSPOST_QUEUE, type CrosspostJob } from './crosspost-queue.types';
 import { CurrentUser, type JwtPayload } from '../../common/decorators/current-user.decorator';
 import { SocialService } from '../social/social.service';
 import { SocialModule } from '../social/social.module';
+import { assertSameSite } from '../../common/site/site-guard';
 
 class EnqueueDto {
   @IsArray()
@@ -187,6 +188,8 @@ export class CrosspostAdminController {
   /** Амжилтгүй болсныг дахин оролдох */
   @Post(':id/retry')
   async retry(@Param('id') id: string) {
+    /* ⚠️ САЙТ ХООРОНД БИЧИХЭЭС — `site-guard.ts` тайлбарыг үз */
+    await assertSameSite(this.prisma.socialCrosspost, id, 'Пост олдсонгүй');
     await this.prisma.socialCrosspost.update({
       where: { id },
       /* ⚠️ `attempts` тэглэнэ — эс бөгөөс 3-т хүрсэн мөр дахин
@@ -256,6 +259,8 @@ export class CrosspostAdminController {
    */
   @Delete(':id')
   async remove(@Param('id') id: string) {
+    /* ⚠️ САЙТ ХООРОНД УСТГАХААС — эргэлт буцалтгүй тул ЗААВАЛ */
+    await assertSameSite(this.prisma.socialCrosspost, id, 'Бүртгэл олдсонгүй');
     await this.prisma.socialCrosspost.delete({ where: { id } });
     return { ok: true };
   }

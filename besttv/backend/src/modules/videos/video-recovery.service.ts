@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VIDEO_QUEUE, VideoHlsJob } from './video-queue.types';
+import { currentSite } from '../../common/site/site-context';
 
 /**
  * ⚠️⚠️ Хэдэн минутын дараа "гацсан" гэж үзэх вэ.
@@ -118,7 +119,10 @@ export class VideoRecoveryService {
       // ── Raw файл байгаа → ДАХИН оролдоно ──
       await this.queue.add(
         'convert',
-        { target, targetId, rawKey },
+        /* ⚠️ `site` — унасан мэдэгдэл зөв брэндээр явахад ЗААВАЛ.
+           ⚠️ Энэ нь cron дотор тул контекст `forEachSite`-аас ирнэ;
+           байхгүй бол `besttv` (хуучин зан төлөв). */
+        { target, targetId, rawKey, site: currentSite() },
         { attempts: 2, removeOnComplete: true, removeOnFail: false },
       );
       await this.setStatus(target, targetId, {

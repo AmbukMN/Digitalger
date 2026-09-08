@@ -3,8 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { PrismaService } from '../../prisma/prisma.service';
 import { signUnsubscribe } from '../../common/unsub-token';
-import { currentSite } from '../../common/site/site-context';
+import { currentSite, runWithSiteAsync } from '../../common/site/site-context';
 import { siteConfig, isPlaceholderEmail, isTestEmail } from '../../common/site/site-config';
+import { SITES } from '../../common/site/site.constants';
 
 /**
  * SES-ийн ТҮР зуурын алдаанууд — эдгээрт л дахин оролдоно.
@@ -199,8 +200,15 @@ export class EmailService {
         region,
         credentials: { accessKeyId, secretAccessKey },
       });
+      /**
+       * ⚠️ ХОЁУЛАНГ нь хэвлэнэ — өмнө нь зөвхөн `besttv`-гийнхийг
+       * харуулдаг байсан тул DevOps «илгээгч нь noreply@besttv.us»
+       * гэж буруу ойлгож, BestFilm-ийн `BESTFILM_MAIL_FROM`
+       * тохируулаагүйг анзаарахгүй өнгөрөх эрсдэлтэй байв.
+       */
+      const senders = SITES.map((s) => `${s}=${siteConfig(s).mailFrom}`).join(' · ');
       this.logger.log(
-        `AWS SES бэлэн — ${region}, sender: ${siteConfig('besttv').mailFrom}` +
+        `AWS SES бэлэн — ${region}, sender: ${senders}` +
           (this.configSet ? `, хяналт: ${this.configSet}` : ', хяналтгүй'),
       );
     } else {
@@ -211,8 +219,34 @@ export class EmailService {
 
   // ─── Дараалал ───────────────────────────────────────────────────────────────
 
+  /**
+   * ⚠️⚠️ САЙТЫН КОНТЕКСТИЙГ ДАРААЛАЛД ХАДГАЛНА.
+   *
+   * БОДИТ АЛДАА (аудитаар илэрсэн): `drain()` нь `void`-оор эхэлсэн
+   * НЭГ loop бөгөөд ЭХНИЙ дуудагчийн AsyncLocalStorage контекст дотор
+   * ажиллаж эхэлдэг. Дараа нь ӨӨР сайтаас `queueSend` дуудахад тэр
+   * task нь **эхлүүлсэн loop-ийн контекстэд** гүйцэтгэгддэг байв.
+   *
+   * Үр дүнд:
+   *   · `from` буруу (BestFilm-ийн имэйл `noreply@besttv.us`-ээс явна)
+   *   · `EmailLog.site` буруу бичигдэнэ
+   *   · `isSuppressed` буруу сайтаар шүүгдэнэ
+   *
+   * ⚠️ Хамрах хүрээ ӨРГӨН: welcome, password-changed, subscription,
+   * rental, wallet, expiring, marketing — өөрөөр хэлбэл transactional
+   * имэйлийн дийлэнх + БҮХ bulk/broadcast/lifecycle.
+   *
+   * ⚠️ HTML нь `queueSend`-ээс ӨМНӨ (зөв контекстэд) бүтдэг тул
+   * холбоос/лого зөв байсан — зөвхөн илгээх мөчид тооцогддог зүйлс
+   * зөрдөг байсан нь алдааг НУУСАН.
+   *
+   * ШИЙДЭЛ: дараалалд ОРОХ мөчид сайтыг барьж, гүйцэтгэх үед
+   * `runWithSiteAsync`-ээр сэргээнэ.
+   */
   private enqueue(task: () => Promise<unknown>) {
-    this.queue.push(task);
+    /* ⚠️ `currentSite()` — task ҮҮСЭХ мөчид (зөв хүсэлтийн контекст) */
+    const site = currentSite();
+    this.queue.push(() => runWithSiteAsync(site, task));
     if (!this.draining) void this.drain();
   }
 
@@ -251,14 +285,27 @@ export class EmailService {
       return true;
     }
 
-    const c = this.suppressionCache.get(key);
+    /**
+     * ⚠️⚠️ КЭШИЙН ТҮЛХҮҮРТ САЙТ ЗААВАЛ.
+     *
+     * БОДИТ АЛДАА (аудитаар илэрсэн): түлхүүр нь зөвхөн имэйл байсан
+     * тул BestTV дээр bounce болж хоригдсон хаяг кэшинд `true` болж,
+     * дараагийн 5 минутад **BestFilm-ийн хүсэлтэд ч `true`** буцаадаг
+     * байв — Prisma-ийн site шүүлт хүртэл ОГТ хүрдэггүй.
+     *
+     * `EmailSuppression` нь `@@unique([email, site])`-тэй буюу схемийн
+     * хувьд ЗӨВ салгагдсан атал кэш нь тэр салгалтыг ЗӨРЧИЖ байв —
+     * бичихдээ салгаад уншихдаа холих хагас хэрэгжилт.
+     */
+    const ck = `${currentSite()}:${key}`;
+    const c = this.suppressionCache.get(ck);
     if (c && Date.now() - c.at < this.SUPPRESSION_TTL) return c.v;
     try {
       const row = await this.prisma.emailSuppression.findFirst({
         where: { email: key },
       });
       const v = !!row;
-      this.suppressionCache.set(key, { v, at: Date.now() });
+      this.suppressionCache.set(ck, { v, at: Date.now() });
       return v;
     } catch {
       // DB алдаанд имэйлийг блоклохгүй (false-safe), кэшлэхгүй
@@ -272,11 +319,12 @@ export class EmailService {
       .upsert({
         /* ⚠️ `@@unique([email, site])` — хориг сайт бүрд тусдаа */
         where: { email_site: { email: key, site: currentSite() } },
-        create: { email: key, reason, subType, detail },
+        create: { email: key, site: currentSite(), reason, subType, detail },
         update: { reason, subType, detail },
       })
       .catch(() => null);
-    this.suppressionCache.set(key, { v: true, at: Date.now() });
+    /* ⚠️ Кэшийн түлхүүрт сайт — `isSuppressed`-тэй ИЖИЛ хэлбэр */
+    this.suppressionCache.set(`${currentSite()}:${key}`, { v: true, at: Date.now() });
   }
 
   // ─── Илгээх ─────────────────────────────────────────────────────────────────

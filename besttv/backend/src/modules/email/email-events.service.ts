@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from './email.service';
+import { currentSite, runAcrossSites, runWithSiteAsync } from '../../common/site/site-context';
+import { toSite, type Site } from '../../common/site/site.constants';
 
 /**
  * AWS SES → SNS үйл явдал боловсруулагч.
@@ -84,29 +86,72 @@ export class EmailEventsService {
       return { ok: true, action: 'ignored-no-id' };
     }
 
-    switch (kind) {
-      case 'delivery':
-        await this.mark(messageId, { deliveredAt: new Date() });
-        return { ok: true, action: 'delivery' };
+    /**
+     * ⚠️⚠️ АЛЬ САЙТЫН ИМЭЙЛ ВЭ — `messageId`-ЭЭР ОЛНО.
+     *
+     * БОДИТ АЛДАА (аудитаар илэрсэн): SNS нь AWS-ээс ирдэг тул
+     * `X-Site` толгойгүй → middleware ҮРГЭЛЖ `besttv` гэж шийднэ.
+     * Үр дүнд:
+     *   · `addSuppression` буруу сайтын хоригийн мөр үүсгэнэ
+     *   · `emailLog.findUnique` нь post-filter-ээр `null` буцаж,
+     *     нөгөө сайтын хүргэлт/нээлт/дарсан статистик ОГТ
+     *     бүртгэгдэхгүй (зөвхөн debug лог үлдэнэ)
+     *
+     * ⚠️ `SES_CONFIGURATION_SET` нь env-д ГАНЦ утга тул хоёр сайт нэг
+     * Configuration Set хуваалцана — сайтыг ЗӨВХӨН `messageId`-аар
+     * сэргээж болно.
+     *
+     * ⚠️ Лог олдохгүй бол (хуучин имэйл, эсвэл өөр системийнх)
+     * одоогийн контекстээр үргэлжилнэ — чимээгүй унагахгүй.
+     */
+    const site = await this.siteOfMessage(messageId);
 
-      case 'open':
-        await this.markOpen(messageId);
-        return { ok: true, action: 'open' };
+    return runWithSiteAsync(site, async () => {
+      switch (kind) {
+        case 'delivery':
+          await this.mark(messageId, { deliveredAt: new Date() });
+          return { ok: true, action: 'delivery' };
 
-      case 'click':
-        await this.markClick(messageId);
-        return { ok: true, action: 'click' };
+        case 'open':
+          await this.markOpen(messageId);
+          return { ok: true, action: 'open' };
 
-      case 'bounce':
-        await this.handleBounce(ev);
-        return { ok: true, action: 'bounce' };
+        case 'click':
+          await this.markClick(messageId);
+          return { ok: true, action: 'click' };
 
-      case 'complaint':
-        await this.handleComplaint(ev);
-        return { ok: true, action: 'complaint' };
+        case 'bounce':
+          await this.handleBounce(ev);
+          return { ok: true, action: 'bounce' };
 
-      default:
-        return { ok: true, action: `ignored-${kind}` };
+        case 'complaint':
+          await this.handleComplaint(ev);
+          return { ok: true, action: 'complaint' };
+
+        default:
+          return { ok: true, action: `ignored-${kind}` };
+      }
+    });
+  }
+
+  /**
+   * `messageId`-аас имэйлийн САЙТЫГ олно.
+   *
+   * ⚠️ `runAcrossSites` — бүх сайтаас хайна (энэ нь зөвшөөрөгдсөн
+   * цөөн хэрэглээний нэг: webhook-ийн бичлэг хайх).
+   * ⚠️ Олдохгүй бол одоогийн сайт (fail-soft).
+   */
+  private async siteOfMessage(messageId: string): Promise<Site> {
+    try {
+      const row = await runAcrossSites(() =>
+        this.prisma.emailLog.findFirst({
+          where: { messageId },
+          select: { site: true },
+        }),
+      );
+      return toSite(row?.site);
+    } catch {
+      return currentSite();
     }
   }
 

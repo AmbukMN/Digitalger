@@ -565,7 +565,8 @@ export class LifecycleService implements OnModuleDestroy {
 
     /* Давхардлаас сэргийлж 3 удаа оролдоно */
     for (let i = 0; i < 3; i++) {
-      const code = `BTV${randomBytes(3).toString('hex').toUpperCase()}`;
+      /* ⚠️ Угтвар нь САЙТААС — BestFilm-д «BTV…» код очих ёсгүй */
+      const code = `${siteConfig().couponPrefix}${randomBytes(3).toString('hex').toUpperCase()}`;
       try {
         const row = await this.prisma.coupon.create({
           data: {

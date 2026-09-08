@@ -19,6 +19,7 @@ import { CacheService } from '../../common/cache/cache.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { assertSameSite } from '../../common/site/site-guard';
 
 class PlanDto {
   @IsString()
@@ -169,6 +170,8 @@ export class PlansService {
   }
 
   async update(id: string, dto: Partial<PlanDto>) {
+    /* ⚠️ САЙТ ХООРОНД БИЧИХЭЭС — `site-guard.ts` тайлбарыг үз */
+    await assertSameSite(this.prisma.plan, id, 'Багц олдсонгүй');
     const { genreIds, ...data } = dto;
     const plan = await this.prisma.plan.update({ where: { id }, data });
 

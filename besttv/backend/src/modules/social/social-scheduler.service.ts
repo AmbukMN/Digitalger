@@ -193,10 +193,27 @@ export class SocialSchedulerService implements OnModuleDestroy {
    *
    * ⚠️ Анхны постыг ХӨНДӨХГҮЙ — түүх, аналитик хадгалагдана.
    */
+  /**
+   * ⚠️⚠️ САЙТ БҮРД ТУСАД НЬ — `tick()`-тэй ИЖИЛ шалтгаанаар.
+   *
+   * БОДИТ АЛДАА (аудитаар илэрсэн): `tick()`-ийг зассан ч ЭНЭ метод
+   * орхигдсон байв. Контекстгүй тул `socialPost.findMany` нь ХОЁР
+   * САЙТЫН постыг цуглуулж, `duplicate()` нь контекстгүй `create`
+   * хийдэг → схемийн `@default("besttv")` бичигдэн **BestFilm-ийн
+   * recycle пост BestTV-д хуулбарлагдана**.
+   *
+   * ⚠️ Түгжээний түлхүүрт `site` ЗААВАЛ: ижил түлхүүр дээр эхний сайт
+   * TTL 3600 секундтэй түгжээ авбал ХОЁР ДАХЬ САЙТ БҮХЭЛДЭЭ
+   * алгасагдана (`if (!lock) return`).
+   */
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async recycleTick() {
+    await forEachSite('Сошиал recycle', (site) => this.recycleForSite(site));
+  }
+
+  private async recycleForSite(site: string): Promise<void> {
     const lock = await this.redis
-      .set('social:recycle:lock', '1', 'EX', 3600, 'NX')
+      .set(`social:recycle:lock:${site}`, '1', 'EX', 3600, 'NX')
       .catch(() => null);
     if (!lock) return;
 

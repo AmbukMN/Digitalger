@@ -2,6 +2,14 @@ import { currentAdminSite } from './site-store';
 
 const API_BASE = '/api';
 
+/**
+ * ⚠️ Эдгээр зам нь САЙТААС ҮЛ ХАМААРНА — `X-Site` илгээхгүй.
+ *
+ * Нэвтрэх мөчид хэрэглэгч аль сайтынх нь мэдэгдэхгүй тул сайтын
+ * толгой илгээвэл буруу сайтад хайж «нууц үг буруу» гэнэ.
+ */
+const AUTH_FREE_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
+
 let refreshPromise: Promise<boolean> | null = null;
 
 export function getAccessToken(): string | null {
@@ -64,10 +72,21 @@ export async function api<T = unknown>(
          * хүсэлтийн БҮХ Prisma query-г шүүнэ. Мартвал админ
          * BestTV-ийн өгөгдлийг BestFilm гэж хараад засварлана.
          *
-         * ⚠️ `init.headers`-ЭЭС ӨМНӨ — дуудагч зориуд өөр сайт
-         * заасан бол (ховор) түүнийг ХҮНДЭТГЭНЭ.
+         * ⚠️⚠️ НЭВТРЭХ/ТОКЕН СЭРГЭЭХ дуудлагад ИЛГЭЭХГҮЙ.
+         *
+         * БОДИТ АЛДАА (2026-09-08, хэрэглэгч мэдээлсэн): админ сүүлд
+         * BestFilm эсвэл «Бүх сайт» сонгоод гарсан бол тэр сонголт
+         * `localStorage`-д үлдэнэ. Дараа нь нэвтрэхэд `X-Site:
+         * bestfilm` явж, `admin@besttv.mn` нь BestTV-ийн хэрэглэгч
+         * тул **401 «нууц үг буруу»** гэж ХУДАЛ мэдэгдэнэ. `all`
+         * үед 403. Хэрэглэгч зөв нууц үгээ бичсэн ч ОГТ орж чадахгүй.
+         *
+         * ⚠️ Нэвтрэх мөчид хэрэглэгч аль сайтынх нь МЭДЭГДЭХГҮЙ —
+         * `auth.service` өөрөө `X-Site`-гүй үед бүх сайтаас хайдаг.
          */
-        'X-Site': currentAdminSite(),
+        ...(AUTH_FREE_PATHS.some((pp) => path.startsWith(pp))
+          ? {}
+          : { 'X-Site': currentAdminSite() }),
         ...init.headers,
       },
     });

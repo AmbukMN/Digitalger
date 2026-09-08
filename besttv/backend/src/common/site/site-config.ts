@@ -42,6 +42,15 @@ export interface SiteConfig {
   brandColor: string;
   /** Telegram сануулгын bot тэмдэг (лог, дохио) */
   alertPrefix: string;
+
+  /**
+   * ⚠️ Автомат үүсгэсэн купоны кодын угтвар («BTV3F9A2C»).
+   *
+   * БОДИТ АЛДАА (аудитаар илэрсэн): `lifecycle.service.ts` нь БҮХ
+   * сайтад `BTV` угтвар хэрэглэдэг байв — BestFilm-ийн хэрэглэгчид
+   * «BTV…» гэсэн код очиж брэнд зөрдөг.
+   */
+  couponPrefix: string;
 }
 
 /**
@@ -73,6 +82,7 @@ const CONFIGS: Record<Site, SiteConfig> = {
     noEmailSuffix: '@noemail.besttv.mn',
     brandColor: '#e50914',
     alertPrefix: 'BestTV',
+    couponPrefix: 'BTV',
   },
   bestfilm: {
     key: 'bestfilm',
@@ -92,6 +102,7 @@ const CONFIGS: Record<Site, SiteConfig> = {
      */
     brandColor: '#C8001E',
     alertPrefix: 'BestFilm',
+    couponPrefix: 'BFM',
   },
 };
 

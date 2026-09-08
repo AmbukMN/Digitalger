@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ChatMatchType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { expandQuery } from '../../common/transliterate';
+import { assertSameSite } from '../../common/site/site-guard';
 
 /**
  * ⚠️⚠️ ЧАТБОТЫН ТҮЛХҮҮР ҮГ — админаас удирдана.
@@ -197,6 +198,8 @@ export class ChatKeywordsService {
       order: number;
     }>,
   ) {
+    /* ⚠️ САЙТ ХООРОНД БИЧИХЭЭС — `site-guard.ts` тайлбарыг үз */
+    await assertSameSite(this.prisma.chatKeyword, id, 'Түлхүүр олдсонгүй');
     return this.prisma.chatKeyword.update({
       where: { id },
       data: {
@@ -212,6 +215,8 @@ export class ChatKeywordsService {
   }
 
   async remove(id: string) {
+    /* ⚠️ САЙТ ХООРОНД БИЧИХЭЭС — `site-guard.ts` тайлбарыг үз */
+    await assertSameSite(this.prisma.chatKeyword, id, 'Түлхүүр олдсонгүй');
     await this.prisma.chatKeyword.delete({ where: { id } });
     return { ok: true };
   }

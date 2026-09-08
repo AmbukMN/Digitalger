@@ -48,6 +48,7 @@ import { FLOWS, LifecycleService } from './lifecycle.service';
 import { ubRangeFilter, ubRangeStart } from '../../common/ub-date';
 import { currentSite } from '../../common/site/site-context';
 import { siteConfig, isPlaceholderEmail } from '../../common/site/site-config';
+import { assertSameSite } from '../../common/site/site-guard';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
@@ -1710,6 +1711,8 @@ export class EmailAdminController {
 
   @Patch('templates/:id')
   async updateTemplate(@Param('id') id: string, @Body() dto: SaveTemplateDto) {
+    /* ⚠️ САЙТ ХООРОНД БИЧИХЭЭС — `site-guard.ts` тайлбарыг үз */
+    await assertSameSite(this.prisma.emailTemplateSaved, id, 'Загвар олдсонгүй');
     return this.prisma.emailTemplateSaved.update({ where: { id }, data: dto });
   }
 
