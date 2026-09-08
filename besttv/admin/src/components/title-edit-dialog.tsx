@@ -40,6 +40,7 @@ import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
 import { SeasonsManager } from '@/components/seasons-manager';
 import { genreId } from '@/lib/genre';
+import { ADMIN_SITES, SITE_META } from '@/lib/site-store';
 import { autoMetaDescription, autoMetaTitle, SEO_MIN_TITLE_LEN } from '@/lib/seo';
 
 const EMPTY_FORM = {
@@ -70,6 +71,15 @@ const EMPTY_FORM = {
   comingSoon: false,
   isActive: true,
   genreIds: [] as string[],
+  /**
+   * ⚠️⚠️ АЛЬ САЙТАД ХАРАГДАХ ВЭ — «Идэвхтэй»-ЭЭС ЯЛГААТАЙ.
+   *
+   * `isActive`   → ХОЁУЛАНГ нь нэг дор нууна
+   * `sites`      → сайт бүрд ТУСАД нь (BestFilm-д харуулж, BestTV-д нуух)
+   *
+   * ⚠️ Хоосон бол сервер тал ажиллаж байгаа сайтыг өгнө (шинэ кино).
+   */
+  sites: [] as string[],
 };
 
 /* ⚠️ SEO үүсгэгч нь `@/lib/seo`-д — модал БА `/movies/[id]` хуудас
@@ -162,6 +172,8 @@ export function TitleEditDialog({
       comingSoon: e.comingSoon,
       isActive: e.isActive,
       genreIds: (e.genres ?? []).map(genreId).filter(Boolean),
+      /* ⚠️ Хуучин кинонд `sites` байхгүй байж болно → besttv */
+      sites: e.sites?.length ? e.sites : ['besttv'],
     });
     setPosterKey(e.posterKey);
     setPosterUrl(e.posterUrl);
@@ -317,6 +329,18 @@ export function TitleEditDialog({
       setTab('info');
       return;
     }
+    /**
+     * ⚠️⚠️ ХООСОН САЙТААР ХАДГАЛУУЛАХГҮЙ.
+     *
+     * Backend нь хоосон массивыг үл тоомсорлодог (хэвээр үлдээнэ) ч
+     * админ «сонголтоо хассан» гэж бодоод хадгалбал хүлээлт зөрнө.
+     * `/movies/[id]` хуудастай ИЖИЛ зан төлөв.
+     */
+    if (form.sites.length === 0) {
+      toast.error('Дор хаяж нэг сайт сонгоно уу — эс бөгөөс кино хаана ч харагдахгүй');
+      setTab('info');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -375,6 +399,9 @@ export function TitleEditDialog({
         comingSoon: form.comingSoon,
         isActive: form.isActive,
         genreIds: form.genreIds,
+        /* ⚠️ Хоосон бол ИЛГЭЭХГҮЙ — сервер өөрийн анхдагчийг хэрэглэнэ.
+           Хоосон массив илгээвэл кино ХААНА Ч харагдахгүй болно. */
+        ...(form.sites.length ? { sites: form.sites } : {}),
         posterKey,
         backdropKey,
       };
@@ -763,6 +790,73 @@ export function TitleEditDialog({
                   checked={form.isActive}
                   onChange={(v) => setForm((f) => ({ ...f, isActive: v }))}
                 />
+              </div>
+
+              {/*
+                ⚠️⚠️ АЛЬ САЙТАД ХАРАГДАХ ВЭ — «Идэвхтэй»-ЭЭС ЯЛГААТАЙ.
+
+                  `Идэвхтэй`  → ХОЁУЛАНГ нь нэг дор нууна
+                  энэ блок    → сайт бүрд ТУСАД нь
+
+                ⚠️ БОДИТ ЦООРХОЙ: энэ талбарыг `/movies/[id]` хуудсанд
+                нэмээд ЭНЭ МОДАЛД мартсан. Админ голдуу жагсаалтаас
+                модалаар заддаг тул функц нь «байхгүй» мэт харагдсан.
+                (Дээрх `watermark`-ийн тайлбар нь ЯГ ИЖИЛ цоорхойг
+                өмнө нь тэмдэглэсэн — давтагдсан хэв шинж.)
+
+                ⚠️ Кино нь ХОЁУЛАНД нь байж болно: нэг мөр, нэг видео,
+                R2 дээр зай 2 дахин эзлэхгүй.
+              */}
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="mb-2 text-sm font-semibold text-foreground">
+                  Аль сайтад харагдах вэ
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {ADMIN_SITES.map((s) => {
+                    const on = form.sites.includes(s);
+                    const meta = SITE_META[s];
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            sites: on ? f.sites.filter((x) => x !== s) : [...f.sites, s],
+                          }))
+                        }
+                        aria-pressed={on}
+                        className={cn(
+                          'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                          on
+                            ? 'border-transparent text-foreground'
+                            : 'border-border text-muted-foreground hover:border-primary/40',
+                        )}
+                        style={
+                          on
+                            ? { background: `color-mix(in srgb, ${meta.color} 16%, transparent)` }
+                            : undefined
+                        }
+                      >
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{
+                            background: on ? meta.color : 'transparent',
+                            boxShadow: on ? 'none' : `inset 0 0 0 1.5px ${meta.color}`,
+                          }}
+                          aria-hidden
+                        />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* ⚠️ Хоосон үлдээх нь АЛДАА — админд ТЭР ДОР нь хэлнэ */}
+                {form.sites.length === 0 && (
+                  <p className="mt-2 text-xs font-medium text-destructive">
+                    ⚠️ Нэг ч сайт сонгоогүй — энэ кино ХААНА Ч харагдахгүй.
+                  </p>
+                )}
               </div>
 
               {/*

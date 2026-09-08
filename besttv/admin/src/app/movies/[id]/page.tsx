@@ -44,6 +44,16 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
     director: '',
     country: '',
     ageRating: '',
+    /**
+     * ⚠️ ХЭЛНИЙ ХУВИЛБАР — картан дээр шошго болж гарна.
+     *   MN  → 🇲🇳 Монгол хэлтэй
+     *   SUB → Хадмал орчуулгатай
+     *
+     * ⚠️ БОДИТ АЛДАА (аудитаар илэрсэн): энэ талбар модалд байсан ч
+     * бүтэн хуудсанд БАЙГААГҮЙ тул эндээс засаад хадгалбал хэлний
+     * тохиргоо ЧИМЭЭГҮЙ алдагддаг байв.
+     */
+    language: 'MN' as 'MN' | 'SUB',
     /** ⚠️ YouTube трейлерийн key — R2 HLS трейлерээс ТУСДАА */
     trailerYoutubeKey: '',
     metaTitle: '',
@@ -90,6 +100,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         director: e.director ?? '',
         country: e.country ?? '',
         ageRating: e.ageRating ?? '',
+        language: (e.language ?? 'MN') as 'MN' | 'SUB',
         trailerYoutubeKey: e.trailerYoutubeKey ?? '',
         metaTitle: e.metaTitle ?? '',
         metaDescription: e.metaDescription ?? '',
@@ -259,6 +270,7 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         director: form.director.trim() || null,
         country: form.country.trim() || null,
         ageRating: form.ageRating.trim() || null,
+        language: form.language,
         /**
          * ⚠️⚠️ ХООСОН бол `null` — `undefined` БИШ.
          *
@@ -417,6 +429,18 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
                   <option value="PG-13">PG-13</option>
                   <option value="16+">16+</option>
                   <option value="18+">18+</option>
+                </select>
+                {/* ⚠️ Хэлний хувилбар — модалтай ИЖИЛ сонголт байх ЁСТОЙ */}
+                <select
+                  value={form.language}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, language: e.target.value as 'MN' | 'SUB' }))
+                  }
+                  aria-label="Хэлний хувилбар"
+                  className="rounded-lg border border-input bg-background px-3 py-2 text-foreground outline-none transition-colors focus:border-primary"
+                >
+                  <option value="MN">🇲🇳 Монгол хэлтэй</option>
+                  <option value="SUB">Хадмал орчуулгатай</option>
                 </select>
               </div>
               <input
