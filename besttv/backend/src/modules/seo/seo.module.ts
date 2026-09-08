@@ -17,6 +17,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { siteKey } from '../../common/site/site-settings-key';
+import { siteConfig } from '../../common/site/site-config';
 
 const SEO_KEY = 'seo';
 /**
@@ -71,9 +73,15 @@ export interface SeoSettings {
   siteVerification: string;
 }
 
-const DEFAULT_SEO: SeoSettings = {
-  siteName: 'BestTV',
-  metaTitle: 'BestTV — Үз, мэдэр, дахин үз',
+/**
+ * ⚠️ ФУНКЦ, тогтмол БИШ — сайт бүрд өөр нэр буцаана.
+ *
+ * Тогтмол байсан бол BestFilm-ийн SEO-д «BestTV» гэж гарч,
+ * Google-д буруу брэндээр индексжинэ.
+ */
+const defaultSeo = (): SeoSettings => ({
+  siteName: siteConfig().name,
+  metaTitle: `${siteConfig().name} — ${siteConfig().tagline}`,
   metaDescription: 'Монголын киноны стриминг платформ',
   ogImageUrl: null,
   twitterCard: 'summary_large_image',
@@ -82,7 +90,7 @@ const DEFAULT_SEO: SeoSettings = {
   googleTagManagerId: '',
   facebookPixelId: '',
   siteVerification: '',
-};
+});
 
 class SeoDto {
   @IsOptional() @IsString() siteName?: string;
@@ -102,16 +110,16 @@ export class SeoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async get(): Promise<SeoSettings> {
-    const row = await this.prisma.settings.findUnique({ where: { key: SEO_KEY } });
-    return row ? { ...DEFAULT_SEO, ...(row.value as object) } : DEFAULT_SEO;
+    const row = await this.prisma.settings.findUnique({ where: { key: siteKey(SEO_KEY) } });
+    return row ? { ...defaultSeo(), ...(row.value as object) } : defaultSeo();
   }
 
   async update(dto: SeoDto): Promise<SeoSettings> {
     const current = await this.get();
     const next = { ...current, ...dto };
     await this.prisma.settings.upsert({
-      where: { key: SEO_KEY },
-      create: { key: SEO_KEY, value: next as object },
+      where: { key: siteKey(SEO_KEY) },
+      create: { key: siteKey(SEO_KEY), value: next as object },
       update: { value: next as object },
     });
     return next;
@@ -121,7 +129,7 @@ export class SeoService {
 
   /** Бүх override — админ жагсаалтад */
   async allPages(): Promise<Record<string, SeoPageOverride>> {
-    const row = await this.prisma.settings.findUnique({ where: { key: SEO_PAGES_KEY } });
+    const row = await this.prisma.settings.findUnique({ where: { key: siteKey(SEO_PAGES_KEY) } });
     return (row?.value as Record<string, SeoPageOverride>) ?? {};
   }
 
@@ -154,8 +162,8 @@ export class SeoService {
 
     all[path] = clean;
     await this.prisma.settings.upsert({
-      where: { key: SEO_PAGES_KEY },
-      create: { key: SEO_PAGES_KEY, value: all as object },
+      where: { key: siteKey(SEO_PAGES_KEY) },
+      create: { key: siteKey(SEO_PAGES_KEY), value: all as object },
       update: { value: all as object },
     });
     return clean;
@@ -166,8 +174,8 @@ export class SeoService {
     const all = await this.allPages();
     delete all[path];
     await this.prisma.settings.upsert({
-      where: { key: SEO_PAGES_KEY },
-      create: { key: SEO_PAGES_KEY, value: all as object },
+      where: { key: siteKey(SEO_PAGES_KEY) },
+      create: { key: siteKey(SEO_PAGES_KEY), value: all as object },
       update: { value: all as object },
     });
     return { ok: true };

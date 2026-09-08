@@ -78,7 +78,7 @@ export class PagesService {
   }
 
   async getBySlug(slug: string) {
-    const page = await this.prisma.page.findUnique({ where: { slug } });
+    const page = await this.prisma.page.findFirst({ where: { slug } });
     if (!page || !page.isActive) throw new NotFoundException('Хуудас олдсонгүй');
     return this.decorate(page);
   }
@@ -96,7 +96,7 @@ export class PagesService {
   async create(dto: PageDto) {
     if (!dto.title.trim()) throw new BadRequestException('Гарчиг шаардлагатай');
     const base = dto.slug?.trim() || slugify(dto.title);
-    const exists = await this.prisma.page.findUnique({ where: { slug: base } });
+    const exists = await this.prisma.page.findFirst({ where: { slug: base } });
     if (exists) throw new BadRequestException('Энэ хаяг (slug) аль хэдийн бүртгэлтэй байна');
 
     return this.prisma.page.create({
@@ -118,7 +118,7 @@ export class PagesService {
     if (!page) throw new NotFoundException('Хуудас олдсонгүй');
 
     if (dto.slug && dto.slug !== page.slug) {
-      const taken = await this.prisma.page.findUnique({ where: { slug: dto.slug } });
+      const taken = await this.prisma.page.findFirst({ where: { slug: dto.slug } });
       if (taken) throw new BadRequestException('Энэ хаяг (slug) аль хэдийн бүртгэлтэй байна');
     }
 

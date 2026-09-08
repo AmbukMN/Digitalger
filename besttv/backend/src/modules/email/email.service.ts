@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { PrismaService } from '../../prisma/prisma.service';
 import { signUnsubscribe } from '../../common/unsub-token';
+import { currentSite } from '../../common/site/site-context';
+import { siteConfig, isPlaceholderEmail, isTestEmail } from '../../common/site/site-config';
 
 /**
  * SES-ийн ТҮР зуурын алдаанууд — эдгээрт л дахин оролдоно.
@@ -108,7 +110,19 @@ export class EmailService {
   get isConfigured(): boolean {
     return this.ses !== null;
   }
-  private readonly from: string;
+  /**
+   * ⚠️⚠️ ИЛГЭЭГЧИЙН ХАЯГ — САЙТААР ӨӨРЧЛӨГДӨНӨ.
+   *
+   * Урьд нь `readonly` талбар байсан (constructor-т нэг удаа). Нэг
+   * backend хоёр сайт үйлчилдэг болсон тул getter болгов — BestFilm-д
+   * бүртгүүлсэн хэрэглэгч `noreply@besttv.us`-ээс имэйл авах ёсгүй.
+   *
+   * ⚠️ BestTV-ийн утга ЯГ ХЭВЭЭР: `siteConfig('besttv').mailFrom` нь
+   * `MAIL_FROM` env-ийг эхлээд уншдаг.
+   */
+  private get from(): string {
+    return siteConfig().mailFrom;
+  }
 
   /**
    * Илгээгчийн «нэр <хаяг>» толгой.
@@ -128,22 +142,29 @@ export class EmailService {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 60);
-    return `${clean || 'BestTV'} <${this.from}>`;
+    return `${clean || siteConfig().name} <${this.from}>`;
   }
-  private readonly siteUrl: string;
+  /** ⚠️ Сайтын хаяг — хүсэлтийн сайтаар (besttv.us | bestfilm.net) */
+  private get siteUrl(): string {
+    return siteConfig().url;
+  }
   /**
    * ⚠️ БРЭНДИЙН ЛОГО — имэйлийн толгойд жинхэнэ PNG лого (текст биш).
    * Admin-д оруулсан лого R2-д `brand/logo.png` нэрээр хадгалагддаг
    * (settings brand). Тогтмол тул хатуу URL — имэйл бүрд settings
    * дуудвал удаана. Solix биш бол ENV-ээр дарж бичиж болно.
    */
-  private readonly logoUrl: string;
+  private get logoUrl(): string {
+    return siteConfig().logoUrl;
+  }
   /**
    * ⚠️ API-ийн ГАДААД хаяг — нээлтийн pixel-д. Шуудангийн клиент
    * (Gmail сервер) энэ хаягийг ИНТЕРНЭТЭЭС татна, тиймээс дотоод
    * docker хаяг (besttv-backend:4100) БОЛОХГҮЙ.
    */
-  private readonly apiUrl: string;
+  private get apiUrl(): string {
+    return siteConfig().apiUrl.replace(/\/$/, '');
+  }
   /**
    * ⚠️ SES Configuration Set — Open/Click/Bounce үйл явдлыг SNS руу
    * илгээхэд ЗААВАЛ. Тохируулаагүй бол `undefined` (имэйл хэвийн явна,
@@ -160,14 +181,11 @@ export class EmailService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    this.from = this.config.get<string>('MAIL_FROM') ?? 'noreply@besttv.us';
-    this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
-    this.logoUrl =
-      this.config.get<string>('EMAIL_LOGO_URL') ?? 'https://assets.besttv.us/brand/logo.png';
-    /* ⚠️ Gmail сервер интернэтээс татна — дотоод docker хаяг БОЛОХГҮЙ */
-    this.apiUrl = (
-      this.config.get<string>('PUBLIC_API_URL') ?? 'https://api.besttv.us'
-    ).replace(/\/$/, '');
+    /**
+     * ⚠️ `from`, `siteUrl`, `logoUrl`, `apiUrl` нь ОДОО getter —
+     * `siteConfig()`-оос хүсэлт бүрд уншина. Constructor-т тогтоовол
+     * BestFilm-ийн имэйл BestTV-ийн хаягаар явна.
+     */
 
     const region = this.config.get<string>('AWS_REGION') ?? 'eu-north-1';
     const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
@@ -177,9 +195,12 @@ export class EmailService {
     this.configSet = this.config.get<string>('SES_CONFIGURATION_SET')?.trim() || undefined;
 
     if (accessKeyId && secretAccessKey) {
-      this.ses = new SESClient({ region, credentials: { accessKeyId, secretAccessKey } });
+      this.ses = new SESClient({
+        region,
+        credentials: { accessKeyId, secretAccessKey },
+      });
       this.logger.log(
-        `AWS SES бэлэн — ${region}, sender: ${this.from}` +
+        `AWS SES бэлэн — ${region}, sender: ${siteConfig('besttv').mailFrom}` +
           (this.configSet ? `, хяналт: ${this.configSet}` : ', хяналтгүй'),
       );
     } else {
@@ -226,14 +247,16 @@ export class EmailService {
      * ⚠️ Форматгүй хог хаягийг ч мөн адил (OAuth-аас хачин утга ирж
      * DB-д үлдсэн байж болно).
      */
-    if (key.endsWith('@noemail.besttv.mn') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) {
+    if (isPlaceholderEmail(key) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) {
       return true;
     }
 
     const c = this.suppressionCache.get(key);
     if (c && Date.now() - c.at < this.SUPPRESSION_TTL) return c.v;
     try {
-      const row = await this.prisma.emailSuppression.findUnique({ where: { email: key } });
+      const row = await this.prisma.emailSuppression.findFirst({
+        where: { email: key },
+      });
       const v = !!row;
       this.suppressionCache.set(key, { v, at: Date.now() });
       return v;
@@ -247,7 +270,8 @@ export class EmailService {
     const key = email.toLowerCase().trim();
     await this.prisma.emailSuppression
       .upsert({
-        where: { email: key },
+        /* ⚠️ `@@unique([email, site])` — хориг сайт бүрд тусдаа */
+        where: { email_site: { email: key, site: currentSite() } },
         create: { email: key, reason, subType, detail },
         update: { reason, subType, detail },
       })
@@ -257,7 +281,8 @@ export class EmailService {
 
   // ─── Илгээх ─────────────────────────────────────────────────────────────────
 
-  private isGuest = (e: string) => e.endsWith('@guest.besttv.mn') || e.endsWith('@besttv.test');
+  /** ⚠️ Зочны орлуулагч имэйл — БҮХ сайтынхыг таньна (site-config.ts) */
+  private isGuest = (e: string) => isPlaceholderEmail(e) || isTestEmail(e);
   private isValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && !this.isGuest(e);
 
   /**
@@ -425,7 +450,10 @@ export class EmailService {
     this.logger.error(`Имэйл амжилтгүй → ${to}: ${msg}`);
     if (logId) {
       await this.prisma.emailLog
-        .update({ where: { id: logId }, data: { status: 'failed', error: msg } })
+        .update({
+          where: { id: logId },
+          data: { status: 'failed', error: msg },
+        })
         .catch(() => null);
     } else {
       await this.log(to, opts.subject, opts.template, 'failed', msg, opts.userId);
@@ -465,7 +493,9 @@ export class EmailService {
     html?: string | null,
   ) {
     await this.prisma.emailLog
-      .create({ data: { to, subject, template, status, error, userId, messageId, html } })
+      .create({
+        data: { to, subject, template, status, error, userId, messageId, html },
+      })
       .catch(() => null);
   }
 
@@ -510,7 +540,7 @@ export class EmailService {
     return this.layout({
       ...opts,
       showUnsubscribe: true,
-      email: 'preview@besttv.us',
+      email: `preview@${siteConfig().domain}`,
     });
   }
 
@@ -529,7 +559,7 @@ export class EmailService {
     const cta =
       opts.ctaText && opts.ctaUrl
         ? `<tr><td style="padding:4px 32px 28px;text-align:center">
-             <a href="${opts.ctaUrl}" class="btv-cta" style="display:inline-block;background:#e50914;color:#fff;font-weight:700;font-size:15px;padding:14px 34px;border-radius:10px;text-decoration:none">${opts.ctaText}</a>
+             <a href="${opts.ctaUrl}" class="btv-cta" style="display:inline-block;background:${siteConfig().brandColor};color:#fff;font-weight:700;font-size:15px;padding:14px 34px;border-radius:10px;text-decoration:none">${opts.ctaText}</a>
            </td></tr>`
         : '';
     const pre = opts.preheader
@@ -614,9 +644,9 @@ export class EmailService {
   .btv-text, .btv-text * { color:#ffffff !important; }
   .btv-muted, .btv-muted * { color:#c8c8ce !important; }
   .btv-box  { background:#1e1f24 !important; }
-  .btv-cta  { background:#e50914 !important; color:#ffffff !important; }
+  .btv-cta  { background:${siteConfig().brandColor} !important; color:#ffffff !important; }
   /* ⚠️ Холбоос — өгөгдмөл цэнхэр нь бараан дээр бүдэг */
-  .btv-card a { color:#e50914; }
+  .btv-card a { color:${siteConfig().brandColor}; }
   .btv-foot a { color:#c8c8ce !important; }
 
   /* WARN Gmail/Outlook dark mode: keep OUR colors, block the inversion */
@@ -636,7 +666,7 @@ export class EmailService {
     .btv-muted, .btv-muted * { color:#c8c8ce !important; }
     .btv-box  { background:#1e1f24 !important; }
     /* WARN Brand red must survive inversion - it is the only CTA */
-    .btv-cta  { background:#e50914 !important; color:#ffffff !important; }
+    .btv-cta  { background:${siteConfig().brandColor} !important; color:#ffffff !important; }
   }
   /* Outlook.com rewrites classes with a [data-ogsc] prefix */
   [data-ogsc] .btv-bg   { background:#20222a !important; }
@@ -650,9 +680,9 @@ ${pre}
 <table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#f4f5f7;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="btv-card" style="background:#17181c;border-radius:16px;overflow:hidden;max-width:600px;width:100%">
-  <tr><td class="btv-head" style="background:#0e0f13;padding:24px 32px;text-align:center;border-bottom:2px solid #e50914">
+  <tr><td class="btv-head" style="background:#0e0f13;padding:24px 32px;text-align:center;border-bottom:2px solid ${siteConfig().brandColor}">
     <a href="${this.siteUrl}" style="display:inline-block;text-decoration:none">
-      <img src="${this.logoUrl}" alt="BestTV" height="34" style="display:block;height:34px;width:auto;border:0" />
+      <img src="${this.logoUrl}" alt="${siteConfig().name}" height="34" style="display:block;height:34px;width:auto;border:0" />
     </a>
   </td></tr>
   <tr><td style="padding:32px 32px 8px">
@@ -661,7 +691,7 @@ ${pre}
   </td></tr>
   ${cta}
   <tr><td class="btv-foot" style="background:#101114;padding:20px 32px;text-align:center;border-top:1px solid #26272b">
-    <p class="btv-muted" style="margin:0;font-size:12px;color:#777">© ${new Date().getFullYear()} BestTV · <a href="${this.siteUrl}" style="color:#999;text-decoration:none">besttv.us</a></p>
+    <p class="btv-muted" style="margin:0;font-size:12px;color:#777">© ${new Date().getFullYear()} ${siteConfig().name} · <a href="${this.siteUrl}" style="color:#999;text-decoration:none">${siteConfig().domain}</a></p>
     ${unsub}
 ${pixel}
   </td></tr>
@@ -692,9 +722,9 @@ ${pixel}
   sendWelcome(opts: { to: string; name?: string | null; userId?: string }) {
     const html = this.layout({
       heading: `Тавтай морил${opts.name ? `, ${opts.name}` : ''}! 🎬`,
-      preheader: 'BestTV-д тавтай морил — мянга мянган кино таныг хүлээж байна',
+      preheader: `${siteConfig().name}-д тавтай морил — мянга мянган кино таныг хүлээж байна`,
       bodyHtml:
-        this.p('Таны BestTV бүртгэл амжилттай үүслээ.') +
+        this.p(`Таны ${siteConfig().name} бүртгэл амжилттай үүслээ.`) +
         this.p(
           'Одооноос та хүссэн кинонуудаа шууд үзэх боломжтой. Төлбөртэй контентыг үзэхийн тулд багц авах эсвэл киног ширхэгээр түрээслэнэ үү.',
         ),
@@ -703,7 +733,7 @@ ${pixel}
     });
     this.queueSend({
       to: opts.to,
-      subject: 'BestTV-д тавтай морил! 🎬',
+      subject: `${siteConfig().name}-д тавтай морил! 🎬`,
       html,
       template: 'welcome',
       userId: opts.userId,
@@ -738,7 +768,7 @@ ${pixel}
     // ⚠️ OTP нь ХҮЛЭЭЛТТЭЙ — хэрэглэгч код хүлээж байгаа тул шууд илгээнэ
     return this.send({
       to: opts.to,
-      subject: `BestTV баталгаажуулах код: ${opts.code}`,
+      subject: `${siteConfig().name} баталгаажуулах код: ${opts.code}`,
       html,
       template: 'verify',
       userId: opts.userId,
@@ -767,11 +797,15 @@ ${pixel}
       heading: 'Имэйл цуцлахыг баталгаажуулна уу',
       preheader: 'Доорх товчийг дарж маркетингийн имэйлээс салгана',
       bodyHtml:
-        this.p('Та BestTV-ийн маркетингийн имэйлээс салах хүсэлт илгээлээ.') +
-        this.p('Баталгаажуулахын тулд доорх товчийг дарна уу. Үүнийг хийтэл таны тохиргоо ӨӨРЧЛӨГДӨӨГҮЙ.') +
+        this.p(`Та ${siteConfig().name}-ийн маркетингийн имэйлээс салах хүсэлт илгээлээ.`) +
+        this.p(
+          'Баталгаажуулахын тулд доорх товчийг дарна уу. Үүнийг хийтэл таны тохиргоо ӨӨРЧЛӨГДӨӨГҮЙ.',
+        ) +
         /* Same reassurance pattern as password reset: if a stranger
            triggered this, the real owner must know inaction is safe. */
-        this.p('Хэрэв та энэ хүсэлтийг илгээгээгүй бол энэ имэйлийг үл тоомсорлоно уу — юу ч өөрчлөгдөхгүй.') +
+        this.p(
+          'Хэрэв та энэ хүсэлтийг илгээгээгүй бол энэ имэйлийг үл тоомсорлоно уу — юу ч өөрчлөгдөхгүй.',
+        ) +
         `<p class="btv-muted" style="margin:16px 0 0;font-size:11px;line-height:1.6;word-break:break-all">
            Товч ажиллахгүй бол энэ хаягийг browser-т хуулна уу:<br>${url}
          </p>`,
@@ -780,7 +814,7 @@ ${pixel}
     });
     return this.send({
       to,
-      subject: 'BestTV — имэйл цуцлахыг баталгаажуулна уу',
+      subject: `${siteConfig().name} — имэйл цуцлахыг баталгаажуулна уу`,
       html,
       template: 'unsubscribe-confirm',
     });
@@ -825,19 +859,17 @@ ${pixel}
             'авахаар дарсан ч төлбөр төлөгдөөгүй байна.',
         ) +
         this.p(
-          'Доорх товчийг дарж хэдхэн секундэд үргэлжлүүлж төлбөрөө ' +
-            'баталгаажуулах боломжтой.',
+          'Доорх товчийг дарж хэдхэн секундэд үргэлжлүүлж төлбөрөө ' + 'баталгаажуулах боломжтой.',
         ) +
         this.p(
-          'Бидэнтэй хамт байгаад баярлалаа. Маш олон сонирхолтой кино ' +
-            'нэмэгдсэн байгаа шүү 🎬',
+          'Бидэнтэй хамт байгаад баярлалаа. Маш олон сонирхолтой кино ' + 'нэмэгдсэн байгаа шүү 🎬',
         ),
       ctaText: 'Үргэлжлүүлэх',
       ctaUrl: url,
     });
     return this.send({
       to: opts.to,
-      subject: 'BestTV — төлбөр дуусаагүй байна',
+      subject: `${siteConfig().name} — төлбөр дуусаагүй байна`,
       html,
       template: 'payment-abandoned',
       userId: opts.userId,
@@ -857,7 +889,7 @@ ${pixel}
       bodyHtml:
         this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
         this.p(
-          'Та BestTV бүртгэлийнхээ нууц үгийг сэргээх хүсэлт илгээлээ. Доорх товчийг дарж шинэ нууц үгээ тохируулна уу.',
+          `Та ${siteConfig().name} бүртгэлийнхээ нууц үгийг сэргээх хүсэлт илгээлээ. Доорх товчийг дарж шинэ нууц үгээ тохируулна уу.`,
         ) +
         this.p(
           `Энэ линк <strong style="color:#fff">${opts.expiresMinutes} минутын дотор</strong> хүчинтэй бөгөөд <strong style="color:#fff">ганц удаа</strong> ашиглагдана.`,
@@ -877,7 +909,7 @@ ${pixel}
     });
     return this.send({
       to: opts.to,
-      subject: 'BestTV — нууц үг сэргээх',
+      subject: `${siteConfig().name} — нууц үг сэргээх`,
       html,
       template: 'password-reset',
       userId: opts.userId,
@@ -892,10 +924,10 @@ ${pixel}
   sendPasswordChanged(opts: { to: string; name?: string | null; userId?: string }) {
     const html = this.layout({
       heading: 'Нууц үг солигдлоо ✅',
-      preheader: 'Таны BestTV бүртгэлийн нууц үг амжилттай солигдлоо',
+      preheader: `Таны ${siteConfig().name} бүртгэлийн нууц үг амжилттай солигдлоо`,
       bodyHtml:
         this.p(`Сайн байна уу${opts.name ? `, ${opts.name}` : ''}!`) +
-        this.p('Таны BestTV бүртгэлийн нууц үг саяхан солигдлоо.') +
+        this.p(`Таны ${siteConfig().name} бүртгэлийн нууц үг саяхан солигдлоо.`) +
         this.p(
           '<strong style="color:#fff">Хэрэв та үүнийг хийгээгүй бол</strong> яаралтай бидэнтэй холбогдож, бүртгэлээ хамгаална уу.',
         ),
@@ -904,7 +936,7 @@ ${pixel}
     });
     this.queueSend({
       to: opts.to,
-      subject: 'BestTV — нууц үг солигдлоо',
+      subject: `${siteConfig().name} — нууц үг солигдлоо`,
       html,
       template: 'password-changed',
       userId: opts.userId,
@@ -942,7 +974,7 @@ ${pixel}
     });
     this.queueSend({
       to: opts.to,
-      subject: `${opts.planName} идэвхжлээ — BestTV`,
+      subject: `${opts.planName} идэвхжлээ — ${siteConfig().name}`,
       html,
       template: 'subscription',
       userId: opts.userId,
@@ -1078,7 +1110,7 @@ ${pixel}
     });
     this.queueSend({
       to: opts.to,
-      subject: `Багц ${opts.daysLeft} хоногийн дараа дуусна — BestTV`,
+      subject: `Багц ${opts.daysLeft} хоногийн дараа дуусна — ${siteConfig().name}`,
       html,
       template: 'expiring',
       userId: opts.userId,

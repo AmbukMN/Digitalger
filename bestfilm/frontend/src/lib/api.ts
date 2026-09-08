@@ -1,0 +1,319 @@
+import { BRAND } from './brand';
+// BestFilm API клиент — JWT auth + автомат refresh.
+// Токен localStorage-д: btv_access / btv_refresh.
+
+const API_BASE = '/api';
+
+let refreshPromise: Promise<'ok' | 'invalid' | 'network'> | null = null;
+
+/**
+ * ⚠️⚠️ localStorage АЛДАА ШИДЭЖ БОЛНО — SSR-ээс гадна:
+ *   • Safari "Private Browsing" (хуучин iOS) — `setItem` QuotaExceededError
+ *   • Facebook/Instagram webview-д cookie/storage хориглосон тохиргоо
+ *   • Санах ой дүүрсэн үе
+ * Хамгаалалтгүй бол `setTokens` шидээд НЭВТРЭЛТ БҮХЭЛДЭЭ УНАНА (цагаан
+ * дэлгэц). Хуучин iPhone7/FB browser дэмждэг тул энэ нь бодит эрсдэл.
+ *
+ * Тиймээс уншихад `null`, бичихэд чимээгүй алгасна — хэрэглэгч тухайн
+ * session-д ажиллаж чадна (зөвхөн дараагийн ачаалалтад дахин нэвтэрнэ).
+ */
+/**
+ * ⚠️⚠️ САНАХ ОЙН НӨӨЦ — localStorage хаалттай үед ЗААВАЛ.
+ *
+ * БОДИТ АЛДАА (2026-08-26): хэрэглэгч iPhone дээр нэвтэрсэн ч кино
+ * эхлэхгүй байв. nginx лог:
+ *     18:54:53  201  auth/login     ← нэвтэрсэн
+ *     18:54:53  200  auth/me        ← токен ажиллаж байна
+ *     18:55:13  403  playlist.m3u8  ← 20 секундын дараа ТАТГАЛЗСАН
+ * 33 удаа 403, нэг ч 200 алга.
+ *
+ * `lsSet` нь алдаа гарвал чимээгүй алгасдаг байсан ба тайлбарт
+ * «токен зөвхөн санах ойд үлдэнэ» гэж бичсэн атал САНАХ ОЙН НӨӨЦ
+ * ОГТ БАЙГААГҮЙ. Плеерийн `xhrSetup` нь `getAccessToken()` дуудаж
+ * `null` авдаг тул `Authorization` header огт явахгүй → 403.
+ *
+ * ⚠️ Энэ нь iOS Safari Private Browsing, FB/IG webview, санах ой
+ *    дүүрсэн үед үүснэ — бодит хэрэглэгчид тохиолдсон.
+ */
+const memStore = new Map<string, string>();
+
+function lsGet(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = localStorage.getItem(key);
+    /* ⚠️ localStorage-д байхгүй ч санах ойд байж болно (бичилт
+       унасан тохиолдол) — тиймээс нөөцийг ЗААВАЛ шалгана */
+    return v ?? memStore.get(key) ?? null;
+  } catch {
+    return memStore.get(key) ?? null;
+  }
+}
+
+/**
+ * ⚠️ Storage хаалттай эсэх — нэвтрэх урсгал МЭДЭХ ёстой.
+ *
+ * `memStore` нөөц нь тухайн хуудсан дээр ажиллана, гэвч хуудас
+ * ШИНЭЧЛЭХЭД токен алдагдана. Хэрэглэгчид шалтгааныг хэлэхгүй бол
+ * «кино гарахгүй байна» гэж гомдоллоно (бодит тохиолдол: 6 хүн).
+ */
+let storageBlocked = false;
+
+export function isStorageBlocked(): boolean {
+  return storageBlocked;
+}
+
+function lsSet(key: string, value: string) {
+  /* ⚠️ Санах ойд ЭХЛЭЭД — localStorage унасан ч токен амьд үлдэнэ */
+  memStore.set(key, value);
+  try {
+    localStorage.setItem(key, value);
+    /* ⚠️ Бичээд УНШИЖ баталгаажуулна — зарим browser (iOS Safari
+       Private) алдаа шидэлгүй ЧИМЭЭГҮЙ алгасдаг */
+    if (localStorage.getItem(key) !== value) storageBlocked = true;
+  } catch {
+    storageBlocked = true;
+  }
+}
+
+function lsDel(key: string) {
+  memStore.delete(key);
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* мөн адил */
+  }
+}
+
+export function getAccessToken(): string | null {
+  return lsGet('btv_access');
+}
+
+export function setTokens(access: string, refresh: string) {
+  lsSet('btv_access', access);
+  lsSet('btv_refresh', refresh);
+}
+
+export function clearTokens() {
+  lsDel('btv_access');
+  lsDel('btv_refresh');
+}
+
+// ⚠️ Зочны нэвтрэлт (guest) БҮРМӨСӨН ХАСАГДСАН — зөвхөн имэйл/Google/Facebook.
+
+export function getRefreshToken(): string | null {
+  return lsGet('btv_refresh');
+}
+
+/**
+ * ⚠️⚠️ CLIENT ТАЛД ТОКЕНЫ ХУГАЦААГ ХЭЗЭЭ Ч БҮҮ ШАЛГА.
+ *
+ * Энд өмнө нь `isAccessExpired()` байсан — токены `exp`-ыг `Date.now()`-той
+ * харьцуулдаг. Гэвч хэрэглэгчийн компьютерийн цаг буруу тохируулагдсан
+ * байх нь МАШ ТҮГЭЭМЭЛ. Тэр үед:
+ *   - цаг ХОЦРОГДСОН → client "хүчинтэй" гэж үзээд явуулна, сервер
+ *     "jwt expired" гэж 401 өгнө → МӨНХИЙН 401 ГОГЦОО
+ *   - цаг ТҮРҮҮЛСЭН → хүчинтэй токеныг дэмий refresh хийнэ
+ *
+ * Хугацааны ШИЙДВЭР 100% СЕРВЕРИЙНХ: токен байвал шууд явуулна, сервер
+ * 401 буцаавал л refresh хийнэ. Ингэснээр хэрэглэгчийн цаг ямар ч
+ * байсан зөв ажиллана.
+ */
+
+/**
+ * Refresh оролдлого.
+ * ⚠️ Буцаах утга: 'ok' | 'invalid' | 'network'
+ * 'network' (сүлжээ тасарсан, сервер унтарсан) үед токеныг ЦЭВЭРЛЭХГҮЙ —
+ * эс бөгөөс түр саатлаас болж хэрэглэгч шалтгаангүй гарч, дахин нэвтрэх
+ * шаардлагатай болно. Зөвхөн сервер "хүчингүй" гэж хэлсэн үед л гаргана.
+ */
+/**
+ * Хамгийн сүүлийн refresh амжилтгүй болсны серверийн тайлбар.
+ * ⚠️ Модулийн хэмжээнд — `api()` нь хаанаас ч дуудагддаг тул context
+ * дамжуулах боломжгүй. Нэг удаа уншаад цэвэрлэнэ (`takeRefreshError`).
+ */
+let lastRefreshError: string | null = null;
+
+/** Гарах шалтгааныг НЭГ УДАА уншина (дараа нь цэвэрлэнэ) */
+export function takeRefreshError(): string | null {
+  const e = lastRefreshError;
+  lastRefreshError = null;
+  return e;
+}
+
+async function tryRefresh(): Promise<'ok' | 'invalid' | 'network'> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return 'invalid';
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      /* ⚠️ Refresh ч сайтаа таниулна — токен нь сайт бүрд тусдаа */
+      headers: { 'Content-Type': 'application/json', 'X-Site': BRAND.key },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      return 'ok';
+    }
+    /**
+     * ⚠️⚠️ СЕРВЕРИЙН ШАЛТГААНЫГ ХАДГАЛНА.
+     *
+     * Төхөөрөмжийн хязгаараас болж гарсан үед сервер «Өөр
+     * төхөөрөмжөөс нэвтэрсэн тул...» гэж ТОДОРХОЙ хэлдэг. Түүнийг
+     * хаявал хэрэглэгч гэнэт гарахдаа «хакердуулсан уу?» гэж
+     * бодож дэмжлэг рүү залгана — шалтгааныг заавал харуулна.
+     */
+    if (res.status !== 401 && res.status < 500) {
+      lastRefreshError = null;
+    } else if (res.status === 401) {
+      const body = await res.json().catch(() => null);
+      lastRefreshError = typeof body?.message === 'string' ? body.message : null;
+    }
+    // 401/403 = refresh token үнэхээр хүчингүй. 5xx = серверийн түр алдаа.
+    return res.status >= 500 ? 'network' : 'invalid';
+  } catch {
+    return 'network'; // fetch унасан — интернэт тасарсан байх магадлалтай
+  }
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
+
+export async function api<T = unknown>(
+  path: string,
+  options: RequestInit & { auth?: boolean; __staleRetried?: boolean } = {},
+): Promise<T> {
+  /* ⚠️ `__staleRetried` — дотоод туг (`X-Auth-Stale` давталт хамгаалалт).
+     `init`-д ОРУУЛАХГҮЙ, эс бөгөөс fetch-д танихгүй талбар очно. */
+  const { auth = true, __staleRetried: staleRetried = false, ...init } = options;
+
+  const doFetch = () => {
+    const token = auth ? getAccessToken() : null;
+    return fetch(`${API_BASE}${path}`, {
+      ...init,
+      /**
+       * ⚠️ AUTH хүсэлтийг browser КЭШЛЭХГҮЙ.
+       *
+       * Express анхдагчаар ETag тавьдаг тул browser `/auth/me` хариуг
+       * кэшлээд `304 Not Modified` авдаг байв (production nginx лог:
+       * `auth/me 304`). Тэр үед токен солигдсон ч ХУУЧИН хариу буцаж,
+       * нэвтрэлтийн төлөв зөрдөг.
+       */
+      cache: auth ? 'no-store' : init.cache,
+      headers: {
+        ...(init.body && !(init.body instanceof FormData)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        /**
+         * ⚠️⚠️ САЙТЫГ ТАНИУЛАХ ТОЛГОЙ — БҮХ дуудлагад ЗААВАЛ.
+         *
+         * Хүсэлт нь `bestfilm.net/api/...` → Next.js rewrite → backend
+         * гэж явна. Rewrite нь ДОТООД дуудлага тул `Origin` толгой
+         * АЛДАГДДАГ — backend нь `besttv` гэж таамаглана.
+         *
+         * ҮР ДАГАВАР: BestFilm-ийн хэрэглэгч нэвтрэхийг оролдоход
+         * BestTV-ийн хэрэглэгчийн сангаас хайж «олдсонгүй» гэнэ.
+         *
+         * ⚠️ nginx-д ч `proxy_set_header X-Site` бий — тэр нь ГАДНЫ
+         * шууд хандалтад (mobile апп, curl). Энэ нь хөтчийн хандалтад.
+         * ХОЁУЛАА хэрэгтэй.
+         */
+        'X-Site': BRAND.key,
+        ...init.headers,
+      },
+    });
+  };
+
+  /**
+   * ⚠️⚠️ REFRESH ЯВЖ БАЙХАД ХҮЛЭЭНЭ — console дүүрэн 401-ийн шалтгаан.
+   *
+   * Хуудас ачаалахад олон компонент ЗЭРЭГ хүсэлт явуулдаг
+   * (`/auth/me`, `/my-list/ids`, `/chat/link-session` ...). Access токен
+   * хуучирсан үед тэдгээр БҮГД хуучин токеноор явж, БҮГД 401 буцаадаг —
+   * зөвхөн дараа нь refresh эхэлдэг байв. Үр дүнд хэрэглэгчийн console
+   * 401-ээр дүүрч, "эвдэрсэн" сэтгэгдэл төрүүлнэ (бодит гомдол).
+   *
+   * Одоо refresh аль хэдийн явж байвал ЭХЛЭХИЙН ӨМНӨ хүлээнэ — шинэ
+   * токеноор ганц удаа явж, 401 огт үүсгэхгүй.
+   */
+  if (auth && refreshPromise) {
+    await refreshPromise.catch(() => null);
+  }
+
+  /**
+   * Access ОГТ БАЙХГҮЙ ч refresh байвал урьдчилан сэргээнэ.
+   * ⚠️ Энэ нь цагаас ХАМААРАХГҮЙ — зөвхөн "байгаа/байхгүй" шалгалт.
+   */
+  if (auth && !getAccessToken() && getRefreshToken()) {
+    refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+    const r = await refreshPromise;
+    if (r === 'invalid') {
+      clearTokens();
+      throw new ApiError(401, 'Нэвтрэлт дууссан', 'TOKEN_EXPIRED');
+    }
+  }
+
+  /**
+   * ⚠️⚠️ ХЭРЭГЛЭГЧИЙН ЦАГААС ХАМААРАХГҮЙ — ХУГАЦААГ СЕРВЕР Л ШИЙДНЭ.
+   *
+   * Токеныг ШУУД явуулна. Сервер 401 буцаавал л refresh хийнэ (доорх
+   * блок). Client тал `exp`-ыг `Date.now()`-той харьцуулахгүй тул
+   * хэрэглэгчийн цаг буруу байсан ч зөв ажиллана.
+   */
+  let res = await doFetch();
+
+  // 401 → refresh нэг удаа (олон зэрэг хүсэлт нэг refresh хуваалцана).
+  // ⚠️ access байхгүй ч refresh байвал оролдоно — хэрэглэгч удаан эзгүй байгаад
+  // буцаж ирэхэд (access 15 мин, refresh 30 хоног) дахин нэвтрэх шаардлагагүй.
+  if (res.status === 401 && auth && (getAccessToken() || getRefreshToken())) {
+    refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+    const result = await refreshPromise;
+    if (result === 'ok') {
+      res = await doFetch();
+    } else if (result === 'invalid') {
+      clearTokens(); // сервер хүчингүй гэж баталсан үед л гаргана
+    }
+    // 'network' → токеныг хэвээр үлдээж, доорх алдаа шидэгдэнэ (дараа дахин оролдоно)
+  }
+
+  /**
+   * ⚠️⚠️ `X-Auth-Stale` — 200 БУЦААСАН ч токен нь ХҮЧИНГҮЙ байсан.
+   *
+   * БОДИТ ГОМДОЛ: «эрх заримдаа түгжигдээд, дараа нь нээгдээд байна».
+   *
+   * `OptionalJwtAuthGuard`-тай endpoint-ууд (`/titles/:slug`,
+   * `/chat/messages` …) нь хүчингүй токеныг ЧИМЭЭГҮЙ зочин болгож
+   * 200 буцаадаг — 401 БИШ. Тиймээс дээрх refresh блок ХЭЗЭЭ Ч
+   * ажиллахгүй бөгөөд хэрэглэгч ЗОЧНЫ хариуг (`hasAccess: false`)
+   * авч, кино түгжээтэй харагдана. Дараа нь өөр хүсэлт 401 авч
+   * refresh хийсний дараа л нээгддэг байв — яг «түгжигдээд дараа нь
+   * нээгдэх» зан.
+   *
+   * Одоо: дохио ирвэл ШУУД refresh хийж, ШИНЭ токеноор дахин татна.
+   * Хэрэглэгч зөв хариуг НЭГ ДОР авна.
+   */
+  if (auth && !staleRetried && res.headers.get('X-Auth-Stale') === '1' && getRefreshToken()) {
+    refreshPromise ??= tryRefresh().finally(() => (refreshPromise = null));
+    const result = await refreshPromise;
+    if (result === 'ok') {
+      /* ⚠️ `staleRetried` — сервер дохиогоо буруу тавьсан ч
+         ТӨГСГӨЛГҮЙ давталт үүсэхээс сэргийлнэ (нэг л удаа) */
+      return api<T>(path, { ...options, __staleRetried: true } as typeof options);
+    }
+    if (result === 'invalid') clearTokens();
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body?.message ?? 'Алдаа гарлаа', body?.code);
+  }
+  return res.json();
+}

@@ -20,6 +20,7 @@ import { StorageService } from '../../storage/storage.service';
 import { TrackingService } from '../tracking/tracking.service';
 import { ChangePasswordDto, LoginDto, RegisterDto, UpdateProfileDto } from './dto/auth.dto';
 import { OAuthLoginDto } from './dto/oauth.dto';
+import { siteConfig } from '../../common/site/site-config';
 
 export interface AuthTokens {
   accessToken: string;
@@ -45,7 +46,6 @@ export interface AuthResult extends AuthTokens {
   };
 }
 
-
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -67,7 +67,7 @@ export class AuthService {
 
   async register(dto: RegisterDto, ctx: DeviceContext = {}): Promise<AuthResult> {
     const email = dto.email.toLowerCase().trim();
-    const exists = await this.prisma.user.findUnique({ where: { email } });
+    const exists = await this.prisma.user.findFirst({ where: { email } });
     if (exists) throw new ConflictException('Энэ имэйл бүртгэлтэй байна');
 
     /**
@@ -86,7 +86,7 @@ export class AuthService {
           'Утасны дугаар буруу байна (8 оронтой, 5-9-өөр эхэлсэн байх ёстой)',
         );
       }
-      const taken = await this.prisma.user.findUnique({ where: { phone } });
+      const taken = await this.prisma.user.findFirst({ where: { phone } });
       if (taken) throw new ConflictException('Энэ утасны дугаар бүртгэлтэй байна');
     }
 
@@ -127,7 +127,7 @@ export class AuthService {
      */
     const raw = dto.email.trim();
     const user = raw.includes('@')
-      ? await this.prisma.user.findUnique({ where: { email: raw.toLowerCase() } })
+      ? await this.prisma.user.findFirst({ where: { email: raw.toLowerCase() } })
       : await this.findByPhone(raw);
 
     if (!user?.passwordHash) {
@@ -156,7 +156,7 @@ export class AuthService {
   private async findByPhone(raw: string) {
     const phone = normalizePhone(raw);
     if (!phone) return null;
-    return this.prisma.user.findUnique({ where: { phone } });
+    return this.prisma.user.findFirst({ where: { phone } });
   }
 
   /** Админ нэвтрэлт — зөвхөн ADMIN role */
@@ -200,7 +200,13 @@ export class AuthService {
     const tokens = this.signTokens(user);
     /* ⚠️ ROTATION — хуучин токен устаж шинэ нь бүртгэгдэнэ. Нэг
        төхөөрөмж 2 мөр эзлэхгүй, хулгайлагдсан токен ч хүчингүй болно. */
-    await this.sessions.rotate(user.id, refreshToken, tokens.refreshToken, ctx, this.refreshExpiryDate());
+    await this.sessions.rotate(
+      user.id,
+      refreshToken,
+      tokens.refreshToken,
+      ctx,
+      this.refreshExpiryDate(),
+    );
     return tokens;
   }
 
@@ -368,12 +374,12 @@ export class AuthService {
     p: { sub: string; email?: string; name?: string },
     ctx: DeviceContext,
   ): Promise<AuthResult> {
-    let user = await this.prisma.user.findUnique({ where: { appleId: p.sub } });
+    let user = await this.prisma.user.findFirst({ where: { appleId: p.sub } });
 
     /* ⚠️ `appleId`-гаар олдоогүй ч ИМЭЙЛЭЭР байж болно — вэб дээр
        өмнө нь бүртгүүлсэн хүн апп дээр Apple-ээр орж байна */
     if (!user && p.email) {
-      user = await this.prisma.user.findUnique({ where: { email: p.email } });
+      user = await this.prisma.user.findFirst({ where: { email: p.email } });
     }
 
     if (user) {
@@ -474,19 +480,18 @@ export class AuthService {
     const providerEnum: 'GOOGLE' | 'FACEBOOK' = isGoogle ? 'GOOGLE' : 'FACEBOOK';
 
     let user = isGoogle
-      ? await this.prisma.user.findUnique({ where: { googleId: dto.providerAccountId } })
-      : await this.prisma.user.findUnique({ where: { facebookId: dto.providerAccountId } });
+      ? await this.prisma.user.findFirst({ where: { googleId: dto.providerAccountId } })
+      : await this.prisma.user.findFirst({ where: { facebookId: dto.providerAccountId } });
 
     if (!user && email) {
-      user = await this.prisma.user.findUnique({ where: { email } });
+      user = await this.prisma.user.findFirst({ where: { email } });
     }
 
     if (user) {
       // Одоо байгаа хэрэглэгчийг OAuth провайдертай холбоно, хоосон
       // талбаруудыг (нэр, зураг) л дүүргэнэ — гараар зассан утгыг дарахгүй.
-      const avatarKey = dto.image && !user.avatarKey
-        ? await this.mirrorAvatarToR2(dto.image)
-        : undefined;
+      const avatarKey =
+        dto.image && !user.avatarKey ? await this.mirrorAvatarToR2(dto.image) : undefined;
       /**
        * ⚠️⚠️ ОРЛУУЛАГЧ ХАЯГТАЙ ХЭРЭГЛЭГЧ ДАРАА НЬ ИМЭЙЛ ӨГВӨЛ БҮРТГЭНЭ.
        *
@@ -502,7 +507,7 @@ export class AuthService {
       let emailUpdate: string | undefined;
       if (email && isPlaceholder && email !== user.email) {
         const taken = await this.prisma.user
-          .findUnique({ where: { email }, select: { id: true } })
+          .findFirst({ where: { email }, select: { id: true } })
           .catch(() => null);
         if (!taken) emailUpdate = email;
         else this.logger.warn(`OAuth имэйл өөр бүртгэлд байна — алгаслаа: ${email}`);
@@ -511,7 +516,9 @@ export class AuthService {
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
-          ...(isGoogle ? { googleId: dto.providerAccountId } : { facebookId: dto.providerAccountId }),
+          ...(isGoogle
+            ? { googleId: dto.providerAccountId }
+            : { facebookId: dto.providerAccountId }),
           provider: user.provider === 'LOCAL' ? providerEnum : undefined,
           name: user.name ?? dto.name?.trim(),
           ...(emailUpdate ? { email: emailUpdate } : {}),
@@ -536,7 +543,9 @@ export class AuthService {
           email: email ?? `oauth_${dto.provider}_${dto.providerAccountId}@noemail.besttv.mn`,
           name: dto.name?.trim() || null,
           provider: providerEnum,
-          ...(isGoogle ? { googleId: dto.providerAccountId } : { facebookId: dto.providerAccountId }),
+          ...(isGoogle
+            ? { googleId: dto.providerAccountId }
+            : { facebookId: dto.providerAccountId }),
           /**
            * ⚠️⚠️ ЗӨВХӨН БОДИТ имэйл ирсэн үед `true`.
            *
@@ -601,7 +610,7 @@ export class AuthService {
       const ok = await bcrypt.compare(dto.currentPassword, before.passwordHash);
       if (!ok) throw new UnauthorizedException('Нууц үг буруу байна');
 
-      const taken = await this.prisma.user.findUnique({ where: { email: wantEmail } });
+      const taken = await this.prisma.user.findFirst({ where: { email: wantEmail } });
       if (taken) throw new ConflictException('Энэ имэйл өөр бүртгэлд ашиглагдсан байна');
 
       nextEmail = wantEmail;
@@ -739,7 +748,7 @@ export class AuthService {
     };
 
     const mail = email.toLowerCase().trim();
-    const user = await this.prisma.user.findUnique({ where: { email: mail } });
+    const user = await this.prisma.user.findFirst({ where: { email: mail } });
 
     /**
      * Илгээхгүй тохиолдлууд — гэхдээ хариу ИЖИЛ:
@@ -775,7 +784,8 @@ export class AuthService {
       },
     });
 
-    const siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
+    /* ⚠️ Хэрэглэгчийн ӨӨРИЙН сайт руу — BestFilm-ийн хүн BestTV рүү очвол нэвтэрч чадахгүй */
+    const siteUrl = siteConfig().url;
     const resetUrl = `${siteUrl}/reset-password?token=${token}`;
 
     /**
@@ -973,8 +983,12 @@ export class AuthService {
 
   private signTokens(user: User): AuthTokens {
     const payload = { sub: user.id, email: user.email, role: user.role };
-    const expiresIn = this.config.get<string>('jwt.expiresIn') as `${number}${'s' | 'm' | 'h' | 'd'}`;
-    const refreshExpiresIn = this.config.get<string>('jwt.refreshExpiresIn') as `${number}${'s' | 'm' | 'h' | 'd'}`;
+    const expiresIn = this.config.get<string>(
+      'jwt.expiresIn',
+    ) as `${number}${'s' | 'm' | 'h' | 'd'}`;
+    const refreshExpiresIn = this.config.get<string>(
+      'jwt.refreshExpiresIn',
+    ) as `${number}${'s' | 'm' | 'h' | 'd'}`;
     return {
       accessToken: this.jwt.sign(payload, {
         secret: this.config.get<string>('jwt.secret'),

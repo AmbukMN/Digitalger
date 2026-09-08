@@ -122,7 +122,13 @@ export default function DashboardPage() {
 
   return (
     <AdminShell>
-      <AdminTopbar title="Хянах самбар" subtitle={`${rangeLabel} · бизнес ба зан төлөв`} />
+      <AdminTopbar
+        title="Хянах самбар"
+        subtitle={`${rangeLabel} · бизнес ба зан төлөв`}
+        /* ⚠️ Дашбоард нь ЗӨВХӨН УНШИНА тул «Бүх сайт» горим аюулгүй —
+           хоёр сайтын нийлбэр борлуулалт харах боломж өгнө */
+        allowAllSites
+      />
 
       <main className="p-4 sm:p-8">
         {/*

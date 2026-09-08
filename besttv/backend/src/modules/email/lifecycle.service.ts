@@ -7,6 +7,9 @@ import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.module';
 import { EmailService, type EmailTemplate } from './email.service';
+import { siteConfig } from '../../common/site/site-config';
+import { forEachSite } from '../../common/site/site-cron';
+import { currentSite } from '../../common/site/site-context';
 
 /** Урсгал бүрийн тохиргоо — админ панелаас дарж бичиж болно */
 export interface FlowDefaults {
@@ -179,14 +182,27 @@ export class LifecycleService implements OnModuleDestroy {
    * ⚠️ Цаг: 11:00 UTC = Улаанбаатарын 19:00. Оройн цагт нээх магадлал
    * өндөр (ажлын дараа кино үздэг).
    */
+  /**
+   * ⚠️⚠️ САЙТ БҮРД ТУСАД НЬ — «BestTV-д тавтай морил» имэйл
+   * BestFilm-ийн хэрэглэгчид ОЧИЖ БОЛОХГҮЙ.
+   *
+   * `forEachSite` нь контекст тогтоох тул `siteConfig()` (имэйлийн
+   * нэр, домэйн, лого) болон Prisma шүүлт хоёулаа зөв ажиллана.
+   */
   @Cron('0 11 * * *')
   async runDaily() {
+    await forEachSite('lifecycle', () => this.runForCurrentSite());
+  }
+
+  private async runForCurrentSite() {
     const dayKey = new Date().toISOString().slice(0, 10);
+    /* ⚠️ Түгжээний түлхүүрт САЙТ заавал — эс бөгөөс нэг сайт
+       ажиллахад нөгөө нь «аль хэдийн ажилласан» гэж алгасна */
     const lock = await this.redis
-      .set(`cron:besttv-lifecycle:${dayKey}`, '1', 'EX', 3600, 'NX')
+      .set(`cron:lifecycle:${currentSite()}:${dayKey}`, '1', 'EX', 3600, 'NX')
       .catch(() => null);
     if (!lock) {
-      this.logger.log('Өөр процесс аль хэдийн ажиллуулсан — алгаслаа');
+      this.logger.log(`${currentSite()} — өөр процесс ажиллуулсан, алгаслаа`);
       return;
     }
 
@@ -254,11 +270,14 @@ export class LifecycleService implements OnModuleDestroy {
     const active = new Set(stillActive.map((s) => s.userId));
 
     const eligible = expired.filter((e) => !active.has(e.userId));
-    await this.dispatch(flow, eligible.map((e) => ({
-      userId: e.userId,
-      email: e.user.email,
-      name: e.user.name,
-    })));
+    await this.dispatch(
+      flow,
+      eligible.map((e) => ({
+        userId: e.userId,
+        email: e.user.email,
+        name: e.user.name,
+      })),
+    );
   }
 
   /** Бүртгүүлээд 3 хоног болсон ч ямар ч төлбөр хийгээгүй */
@@ -285,7 +304,10 @@ export class LifecycleService implements OnModuleDestroy {
       take: BATCH,
     });
 
-    await this.dispatch(flow, users.map((u) => ({ userId: u.id, email: u.email, name: u.name })));
+    await this.dispatch(
+      flow,
+      users.map((u) => ({ userId: u.id, email: u.email, name: u.name })),
+    );
   }
 
   /**
@@ -322,7 +344,10 @@ export class LifecycleService implements OnModuleDestroy {
       take: BATCH,
     });
 
-    await this.dispatch(flow, users.map((u) => ({ userId: u.id, email: u.email, name: u.name })));
+    await this.dispatch(
+      flow,
+      users.map((u) => ({ userId: u.id, email: u.email, name: u.name })),
+    );
   }
 
   /**
@@ -355,11 +380,14 @@ export class LifecycleService implements OnModuleDestroy {
     const activeIds = new Set(recent.map((r) => r.userId));
 
     const idle = subs.filter((s) => !activeIds.has(s.userId)).slice(0, BATCH);
-    await this.dispatch(flow, idle.map((s) => ({
-      userId: s.userId,
-      email: s.user.email,
-      name: s.user.name,
-    })));
+    await this.dispatch(
+      flow,
+      idle.map((s) => ({
+        userId: s.userId,
+        email: s.user.email,
+        name: s.user.name,
+      })),
+    );
   }
 
   /** Хэтэвчинд 1,000₮-с дээш байгаа ч 14 хоног зарцуулаагүй */
@@ -428,7 +456,12 @@ export class LifecycleService implements OnModuleDestroy {
    */
   private async dispatch(
     flow: FlowDefaults,
-    targets: { userId: string; email: string; name?: string | null; vars?: Record<string, string> }[],
+    targets: {
+      userId: string;
+      email: string;
+      name?: string | null;
+      vars?: Record<string, string>;
+    }[],
   ) {
     if (!targets.length) return;
 
@@ -472,7 +505,7 @@ export class LifecycleService implements OnModuleDestroy {
         heading: this.render(flow.heading, vars),
         bodyHtml: this.render(flow.bodyHtml, vars),
         ctaText: this.render(flow.ctaText, vars),
-        ctaUrl: `${process.env.FRONTEND_URL ?? 'https://besttv.us'}${flow.ctaPath}`,
+        ctaUrl: `${siteConfig().url}${flow.ctaPath}`,
         userId: t.userId,
         template: flow.campaign,
       });

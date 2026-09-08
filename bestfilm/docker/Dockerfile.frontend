@@ -1,0 +1,89 @@
+# BestFilm Frontend (Next.js standalone)
+#
+# ⚠️⚠️ BUILD CONTEXT = DigitalGer/ (репозиторын ҮНДЭС), besttv/ БИШ.
+#
+# ЯАГААД: BestFilm нь `@besttv/shared` пакетыг ХУВААЛЦДАГ. Тэр нь
+# `besttv/shared/` дор, frontend нь `bestfilm/frontend/` дор — хоёр
+# өөр мөчир. Context-ыг `bestfilm/` болговол shared хүрэхгүй.
+#
+# ⚠️⚠️ ФОЛДЕРЫН БҮТЭЦ container дотор ЯГ ижил байх ЁСТОЙ:
+#
+#     /app/bestfilm/frontend   ← энэ төсөл
+#     /app/besttv/shared       ← хуваалцсан пакет
+#
+# Учир нь `package.json`-д `"@besttv/shared": "file:../../besttv/shared"`
+# гэсэн ХАРЬЦАНГУЙ зам бий, мөн `globals.css`-д
+# `@source '../../../../besttv/shared/src'`. Бүтцийг өөрчилвөл хоёулаа
+# эвдэрнэ — Tailwind нь shared-ийн классыг ОГТ үүсгэхгүй болно.
+#
+# Ажиллуулах (DigitalGer/ дотроос):
+#   docker compose -f bestfilm/docker/docker-compose.prod.yml -p bestfilm build
+
+# ── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+# ⚠️ Хуваалцсан пакет — ЭХЛЭЭД (npm install түүнийг хайна)
+COPY besttv/shared ./besttv/shared
+
+# ⚠️ Workspace root + frontend-ийн package.json (эх кодоос ӨМНӨ —
+#    Docker давхаргын кэш ажиллана, код өөрчлөхөд npm install дахихгүй)
+COPY bestfilm/package*.json ./bestfilm/
+COPY bestfilm/frontend/package*.json ./bestfilm/frontend/
+
+WORKDIR /app/bestfilm
+RUN npm install --workspace frontend --include-workspace-root
+
+COPY bestfilm/frontend ./frontend/
+
+# ⚠️ NEXT_PUBLIC_* нь BUILD үед код руу шигдэнэ — runtime env хангалтгүй.
+ARG NEXT_PUBLIC_ASSETS_URL
+ARG NEXT_PUBLIC_CHAT_WEBHOOK_URL
+ARG NEXTAUTH_URL
+ARG API_URL
+ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL \
+    NEXT_PUBLIC_CHAT_WEBHOOK_URL=$NEXT_PUBLIC_CHAT_WEBHOOK_URL \
+    NEXTAUTH_URL=$NEXTAUTH_URL \
+    API_URL=$API_URL \
+    NEXT_TELEMETRY_DISABLED=1
+
+# shared нь build script-гүй — Next transpilePackages-аар шууд TS уншина
+RUN npm run build --workspace frontend
+
+# ── Stage 2: Runner ──────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+# ⚠️ Порт 3102 — BestTV frontend 3100, admin 3101 эзэлсэн
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3102 \
+    HOSTNAME=0.0.0.0
+
+RUN apk add --no-cache wget && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# ⚠️⚠️ STANDALONE БҮТЭЦ — БОДИТООР ШАЛГАСАН (таамаглаагүй):
+#
+#     .next/standalone/frontend/server.js     ← энд
+#     .next/standalone/node_modules/
+#     .next/standalone/package.json
+#
+# Өөрөөр хэлбэл workspace-ийн ROOT харьцангуй бүтэц гарна —
+# `bestfilm/` угтвар ОРОХГҮЙ. BestTV-ийнхтэй ЯГ ИЖИЛ.
+COPY --from=builder --chown=nextjs:nodejs /app/bestfilm/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/bestfilm/frontend/.next/static ./frontend/.next/static
+# ⚠️ `public/` нь standalone output-д АВТОМАТААР ОРДОГГҮЙ — гараар хуулах ёстой
+# (Next.js-ийн баримтжуулсан алхам). Хуулаагүй бол /favicon.ico, robots.txt,
+# brand/*.png (ЛОГО!) зэрэг статик файлууд 404 өгнө.
+COPY --from=builder --chown=nextjs:nodejs /app/bestfilm/frontend/public ./frontend/public
+
+USER nextjs
+
+EXPOSE 3102
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:3102/ >/dev/null || exit 1
+
+CMD ["node", "frontend/server.js"]

@@ -18,6 +18,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { StorageService } from '../../storage/storage.service';
 import { TranslateService } from './translate.service';
+import { siteConfig } from '../../common/site/site-config';
 
 /**
  * ISO 3166-1 код → монгол улсын нэр.
@@ -147,9 +148,7 @@ export class TmdbService {
     const d = await res.json();
 
     const [posterKey, backdropKey] = await Promise.all([
-      d.poster_path
-        ? this.mirrorImage(`${this.imgBase}/w780${d.poster_path}`, 'poster')
-        : null,
+      d.poster_path ? this.mirrorImage(`${this.imgBase}/w780${d.poster_path}`, 'poster') : null,
       d.backdrop_path
         ? this.mirrorImage(`${this.imgBase}/original${d.backdrop_path}`, 'backdrop')
         : null,
@@ -157,25 +156,27 @@ export class TmdbService {
 
     /* ⚠️ Зэрэг татна — 8 зураг дараалан татвал импорт удаан */
     const castWithPhotos = await Promise.all(
-      (d.credits?.cast ?? []).slice(0, 8).map(async (c: { name: string; character?: string; profile_path?: string | null }) => {
-        const photoKey = c.profile_path
-          ? await this.mirrorImage(`${this.imgBase}/w185${c.profile_path}`, 'cast')
-          : null;
-        return {
-          name: c.name,
-          character: c.character ?? '',
-          photoKey,
-          /**
-           * ⚠️⚠️ `photoUrl` ЗААВАЛ — эс бөгөөс админд ЗУРАГ ХАРАГДАХГҮЙ.
-           *
-           * Bucket нь PRIVATE тул key-гээр шууд харуулж болдоггүй.
-           * `CastEditor` нь `entry.photoUrl`-ыг уншдаг ба зөвхөн `photoKey`
-           * буцаавал R2-д зураг БАЙГАА мөртлөө хоосон дүрс харагдана
-           * (бодит алдаа байсан).
-           */
-          photoUrl: photoKey ? await this.storage.publicAssetUrl(photoKey, 7200) : null,
-        };
-      }),
+      (d.credits?.cast ?? [])
+        .slice(0, 8)
+        .map(async (c: { name: string; character?: string; profile_path?: string | null }) => {
+          const photoKey = c.profile_path
+            ? await this.mirrorImage(`${this.imgBase}/w185${c.profile_path}`, 'cast')
+            : null;
+          return {
+            name: c.name,
+            character: c.character ?? '',
+            photoKey,
+            /**
+             * ⚠️⚠️ `photoUrl` ЗААВАЛ — эс бөгөөс админд ЗУРАГ ХАРАГДАХГҮЙ.
+             *
+             * Bucket нь PRIVATE тул key-гээр шууд харуулж болдоггүй.
+             * `CastEditor` нь `entry.photoUrl`-ыг уншдаг ба зөвхөн `photoKey`
+             * буцаавал R2-д зураг БАЙГАА мөртлөө хоосон дүрс харагдана
+             * (бодит алдаа байсан).
+             */
+            photoUrl: photoKey ? await this.storage.publicAssetUrl(photoKey, 7200) : null,
+          };
+        }),
     );
 
     const englishDescription: string = d.overview ?? '';
@@ -341,11 +342,21 @@ export class TmdbService {
         ],
       },
       select: {
-        id: true, title: true, titleEn: true, type: true,
-        year: true, rating: true, description: true,
-        backdropKey: true, director: true, cast: true, country: true,
-        descriptionEn: true, trailerYoutubeKey: true,
-        metaTitle: true, metaDescription: true,
+        id: true,
+        title: true,
+        titleEn: true,
+        type: true,
+        year: true,
+        rating: true,
+        description: true,
+        backdropKey: true,
+        director: true,
+        cast: true,
+        country: true,
+        descriptionEn: true,
+        trailerYoutubeKey: true,
+        metaTitle: true,
+        metaDescription: true,
       },
       /**
        * ⚠️ `skip` — олдоогүй кино `where`-д ҮЛДСЭЭР байдаг тул тогтмол
@@ -407,25 +418,47 @@ export class TmdbService {
       } catch {
         /* хайлт унавал алгасна */
       }
-      if (!hit) { skipped.push(t.title); continue; }
+      if (!hit) {
+        skipped.push(t.title);
+        continue;
+      }
 
       let d: Awaited<ReturnType<typeof this.importDetails>>;
       try {
         d = await this.importDetails(String(hit.tmdbId), type as 'movie' | 'tv');
       } catch {
-        skipped.push(t.title); continue;
+        skipped.push(t.title);
+        continue;
       }
 
       /* ⚠️ ЗӨВХӨН хоосон талбар — байгааг хөндөхгүй */
       const data: Record<string, unknown> = {};
       const filled: string[] = [];
-      if (t.rating == null && d.rating != null) { data.rating = d.rating; filled.push('үнэлгээ'); }
-      if (t.year == null && d.year != null) { data.year = d.year; filled.push('он'); }
-      if (!t.backdropKey && d.backdropKey) { data.backdropKey = d.backdropKey; filled.push('backdrop'); }
-      if (!t.titleEn && d.titleEn) { data.titleEn = d.titleEn; filled.push('англи нэр'); }
-      if (!t.director && d.director) { data.director = d.director; filled.push('найруулагч'); }
+      if (t.rating == null && d.rating != null) {
+        data.rating = d.rating;
+        filled.push('үнэлгээ');
+      }
+      if (t.year == null && d.year != null) {
+        data.year = d.year;
+        filled.push('он');
+      }
+      if (!t.backdropKey && d.backdropKey) {
+        data.backdropKey = d.backdropKey;
+        filled.push('backdrop');
+      }
+      if (!t.titleEn && d.titleEn) {
+        data.titleEn = d.titleEn;
+        filled.push('англи нэр');
+      }
+      if (!t.director && d.director) {
+        data.director = d.director;
+        filled.push('найруулагч');
+      }
       /* ⚠️ Улс — хайлтад чухал («солонгос цуврал» гэж хайхад олдоно) */
-      if (!t.country && d.country) { data.country = d.country; filled.push('улс'); }
+      if (!t.country && d.country) {
+        data.country = d.country;
+        filled.push('улс');
+      }
       if ((!t.cast || (Array.isArray(t.cast) && t.cast.length === 0)) && d.cast?.length) {
         /**
          * ⚠️ `photoUrl`-ыг DB-д ХАДГАЛАХГҮЙ — presign URL нь 2 цагийн
@@ -433,7 +466,9 @@ export class TmdbService {
          * шинээр presign хийнэ (уншихад `titles.service` хөрвүүлдэг).
          */
         data.cast = d.cast.map(({ name, character, photoKey }) => ({
-          name, character, photoKey,
+          name,
+          character,
+          photoKey,
         })) as unknown as Prisma.InputJsonValue;
         filled.push(`${d.cast.length} жүжигчин`);
       }
@@ -473,14 +508,20 @@ export class TmdbService {
         const desc = String(data.description ?? t.description ?? '');
         const yr = (data.year as number | undefined) ?? t.year;
         const seo = this.autoSeo(t.title, desc, yr);
-        if (!t.metaTitle) { data.metaTitle = seo.metaTitle; filled.push('SEO гарчиг'); }
+        if (!t.metaTitle) {
+          data.metaTitle = seo.metaTitle;
+          filled.push('SEO гарчиг');
+        }
         if (!t.metaDescription) {
           data.metaDescription = seo.metaDescription;
           filled.push('SEO тайлбар');
         }
       }
 
-      if (!filled.length) { skipped.push(t.title); continue; }
+      if (!filled.length) {
+        skipped.push(t.title);
+        continue;
+      }
       if (!dryRun) await this.prisma.title.update({ where: { id: t.id }, data });
       done.push({ title: t.title, filled });
     }
@@ -498,9 +539,9 @@ export class TmdbService {
    */
   private autoSeo(title: string, description: string, year?: number | null) {
     const base = year ? `${title} (${year})` : title;
-    const fullTitle = `${base} — BestTV дээр онлайнаар үзэх`;
+    const fullTitle = `${base} — ${siteConfig().name} дээр онлайнаар үзэх`;
     const metaTitle =
-      fullTitle.length <= 60 ? fullTitle : `${base} — BestTV`.slice(0, 60);
+      fullTitle.length <= 60 ? fullTitle : `${base} — ${siteConfig().name}`.slice(0, 60);
 
     const clean = description.replace(/\s+/g, ' ').trim();
     let metaDescription: string;
@@ -508,7 +549,7 @@ export class TmdbService {
       metaDescription = clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}...`;
     } else {
       /* ⚠️ Тайлбар богино бол бүтэн өгүүлбэр болгоно */
-      const filled = `${clean ? `${clean} ` : ''}${title} киног BestTV дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
+      const filled = `${clean ? `${clean} ` : ''}${title} киног ${siteConfig().name} дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
       metaDescription = filled.length <= 160 ? filled : `${filled.slice(0, 157).trimEnd()}...`;
     }
     return { metaTitle, metaDescription };
@@ -542,14 +583,14 @@ export class TmdbService {
      */
     const GENRE_TO_COUNTRY: Record<string, string> = {
       'монгол кино': 'Монгол',
-      'монгол': 'Монгол',
+      монгол: 'Монгол',
       /* ⚠️ 18+ контент нь бүгд монгол гаралтай (админ баталсан) */
       'насанд хүрэгчдийн': 'Монгол',
       /* ⚠️ Жанрын нэр «Хятад болон Ай кино» — админы шийдвэрээр Хятад */
       'хятад болон ай кино': 'Хятад',
       'хятад кино': 'Хятад',
       'солонгос кино': 'Солонгос',
-      'солонгос': 'Солонгос',
+      солонгос: 'Солонгос',
       'япон кино': 'Япон',
       'энэтхэг кино': 'Энэтхэг',
       'турк кино': 'Турк',
@@ -603,7 +644,10 @@ export class TmdbService {
         OR: [{ metaDescription: null }, { metaDescription: '' }],
       },
       select: {
-        id: true, title: true, description: true, year: true,
+        id: true,
+        title: true,
+        description: true,
+        year: true,
         genres: { select: { genre: { select: { name: true } } } },
       },
       orderBy: { createdAt: 'asc' },
@@ -623,7 +667,10 @@ export class TmdbService {
        * үзэх" гэсэн утгагүй SEO үүсэхээс сэргийлнэ (production дээр
        * бодит алдаа гарсан).
        */
-      if (t.title.trim().length < 3) { skipped.push(t.title); continue; }
+      if (t.title.trim().length < 3) {
+        skipped.push(t.title);
+        continue;
+      }
       const seo = this.autoSeo(t.title, t.description, t.year);
 
       if (!dryRun) {
@@ -658,13 +705,48 @@ export class TmdbService {
    */
   private isLikelyMatch(query: string, tmdbTitle: string): boolean {
     const TR: Record<string, string> = {
-      а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'j',з:'z',и:'i',й:'i',к:'k',
-      л:'l',м:'m',н:'n',о:'o',ө:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ү:'u',ф:'f',
-      х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sh',ъ:'',ы:'i',ь:'',э:'e',ю:'yu',я:'ya',
+      а: 'a',
+      б: 'b',
+      в: 'v',
+      г: 'g',
+      д: 'd',
+      е: 'e',
+      ё: 'yo',
+      ж: 'j',
+      з: 'z',
+      и: 'i',
+      й: 'i',
+      к: 'k',
+      л: 'l',
+      м: 'm',
+      н: 'n',
+      о: 'o',
+      ө: 'o',
+      п: 'p',
+      р: 'r',
+      с: 's',
+      т: 't',
+      у: 'u',
+      ү: 'u',
+      ф: 'f',
+      х: 'h',
+      ц: 'ts',
+      ч: 'ch',
+      ш: 'sh',
+      щ: 'sh',
+      ъ: '',
+      ы: 'i',
+      ь: '',
+      э: 'e',
+      ю: 'yu',
+      я: 'ya',
     };
     const norm = (v: string) =>
-      v.toLowerCase()
-        .split('').map((c) => TR[c] ?? c).join('')
+      v
+        .toLowerCase()
+        .split('')
+        .map((c) => TR[c] ?? c)
+        .join('')
         .replace(/kh/g, 'h')
         .replace(/[^a-z0-9]/g, '');
 

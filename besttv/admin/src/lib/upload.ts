@@ -2,6 +2,7 @@
 
 import { toast } from 'sonner';
 import { api, clearTokens, getAccessToken, tryRefresh } from './api';
+import { currentAdminSite } from './site-store';
 
 /**
  * BestTV файл байршуулах НЭГДСЭН helper.
@@ -133,6 +134,13 @@ function xhrOnce(
       const token = getAccessToken();
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     }
+    /**
+     * ⚠️⚠️ САЙТЫН СОНГОЛТ — XHR нь `api()`-аар дамждаггүй тул ЭНД.
+     *
+     * Мартвал BestFilm-д байршуулсан кино BestTV-д бүртгэгдэнэ
+     * (`Title.sites = ['besttv']`) — админ хайгаад олохгүй.
+     */
+    xhr.setRequestHeader('X-Site', currentAdminSite());
     xhr.send(body);
   });
 }

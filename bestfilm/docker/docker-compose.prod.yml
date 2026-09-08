@@ -1,0 +1,54 @@
+# BestFilm — Production (VPS 62.238.47.2, bestfilm.net)
+#
+# ⚠️⚠️ ЗӨВХӨН FRONTEND. Backend, admin, DB, Redis нь BestTV-ийн стект
+#    ажиллана — BestFilm тэдгээрийг ХУВААЛЦДАГ.
+#
+# ⚠️ ЗААВАЛ project name-тэй ажиллуулна:
+#     docker compose -f bestfilm/docker/docker-compose.prod.yml -p bestfilm up -d
+#
+# Учир нь BestTV, DigitalGer ч мөн `docker/` хавтастай — project name
+# автоматаар "docker" болж НӨГӨӨ СТЕКИЙН container-ыг устгадаг.
+#
+# ⚠️⚠️ BUILD CONTEXT нь `../..` буюу DigitalGer/ ҮНДЭС — `@besttv/shared`
+#    хуваалцсан пакет тэнд байгаа (`besttv/shared/`).
+
+services:
+  frontend:
+    build:
+      # ⚠️ Репозиторын ҮНДЭС — shared пакет хамрагдана
+      context: ../..
+      dockerfile: bestfilm/docker/Dockerfile.frontend
+      args:
+        # ⚠️ R2 нь ХУВААЛЦСАН — BestTV-тэй ИЖИЛ хаяг (кино нэг сан)
+        NEXT_PUBLIC_ASSETS_URL: ${NEXT_PUBLIC_ASSETS_URL}
+        NEXT_PUBLIC_CHAT_WEBHOOK_URL: ${NEXT_PUBLIC_CHAT_WEBHOOK_URL}
+        NEXTAUTH_URL: ${NEXTAUTH_URL}
+        # ⚠️⚠️ BestTV-ийн backend руу — container нэрээр (нэг backend!)
+        API_URL: http://besttv-backend:4100
+    container_name: bestfilm-frontend
+    restart: unless-stopped
+    # ⚠️⚠️ ЦАГИЙН БҮС — SSR дээр огноо форматлахад хэрэгтэй
+    environment:
+      TZ: Asia/Ulaanbaatar
+    # ⚠️⚠️ ЭНЭ ФАЙЛААС УНШИНА (`.env` БИШ)
+    env_file:
+      - ../frontend/.env.production
+    networks:
+      # ⚠️ BestTV-ийн дотоод сүлжээ — backend руу хандахад
+      - besttv_net
+      # ⚠️ nginx түүнийг олохын тулд
+      - nginx_net
+
+networks:
+  # ⚠️⚠️ BestTV-ийн стекийн сүлжээ — ГАДНААС нэгдэнэ.
+  #
+  # `besttv-backend:4100` рүү container нэрээр хандана. IP hardcode
+  # ХИЙХГҮЙ — container restart хийхэд IP солигдож 502 өгдөг
+  # (DigitalGer дээр гарсан бодит алдаа).
+  besttv_net:
+    external: true
+    name: besttv_besttv_net
+  # ⚠️ DigitalGer-ийн nginx (docker-nginx-1) ЭНЭ сүлжээнд байгаа.
+  nginx_net:
+    external: true
+    name: docker_internal

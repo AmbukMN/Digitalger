@@ -84,12 +84,14 @@ export class CouponsService {
    * ⚠️ Хувийн купон автоматаар үүсдэг тул хэдэн мянга болно — client-д
    * бүгдийг татаж шүүх нь боломжгүй. Хуудаслалт, хайлт, шүүлтийг ЭНД хийнэ.
    */
-  async adminList(params: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    status?: 'live' | 'expired' | 'used-up' | 'off';
-  } = {}) {
+  async adminList(
+    params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: 'live' | 'expired' | 'used-up' | 'off';
+    } = {},
+  ) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
     const search = (params.search ?? '').trim();
@@ -129,10 +131,7 @@ export class CouponsService {
       where.AND = [
         { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
         {
-          OR: [
-            { maxUses: null },
-            { usedCount: { lt: this.prisma.coupon.fields.maxUses } },
-          ],
+          OR: [{ maxUses: null }, { usedCount: { lt: this.prisma.coupon.fields.maxUses } }],
         },
       ];
     }
@@ -169,7 +168,7 @@ export class CouponsService {
   async create(dto: CouponDto) {
     this.assertValidAmount(dto.discountType, dto.amount);
     const code = dto.code.toUpperCase().trim();
-    const exists = await this.prisma.coupon.findUnique({ where: { code } });
+    const exists = await this.prisma.coupon.findFirst({ where: { code } });
     if (exists) throw new BadRequestException('Энэ код аль хэдийн бүртгэлтэй байна');
 
     return this.prisma.coupon.create({
@@ -193,10 +192,7 @@ export class CouponsService {
      * `discountType`-ыг FIXED→PERCENT болговол хуучин `amount`
      * (ж: 50000) хэвээр үлдэж 500 дахин хөнгөлөлт өгнө.
      */
-    this.assertValidAmount(
-      dto.discountType ?? coupon.discountType,
-      dto.amount ?? coupon.amount,
-    );
+    this.assertValidAmount(dto.discountType ?? coupon.discountType, dto.amount ?? coupon.amount);
     return this.prisma.coupon.update({
       where: { id },
       data: {
@@ -225,7 +221,9 @@ export class CouponsService {
   /** Хямдрал тооцох (захиалга vүсгэхээс өмнө frontend талд шалгахад) — ашиглалт
    * ЗӨВХӨН энд нэмэгддэггүй, бодит incrementUse нь payment амжилттай болоход дуудагдана. */
   async validate(dto: ValidateCouponDto, userId?: string | null) {
-    const coupon = await this.prisma.coupon.findUnique({ where: { code: dto.code.toUpperCase().trim() } });
+    const coupon = await this.prisma.coupon.findFirst({
+      where: { code: dto.code.toUpperCase().trim() },
+    });
     if (!coupon || !coupon.isActive) throw new BadRequestException('Хүчингүй купон код байна');
     if (coupon.expiresAt && coupon.expiresAt < new Date()) {
       throw new BadRequestException('Купон хугацаа дууссан байна');
@@ -305,7 +303,9 @@ export class CouponsService {
     if (!res || res.count === 0) {
       // Хязгаар дүүрсэн ч төлбөр аль хэдийн хийгдсэн тул эрхийг үгүйсгэхгүй —
       // зөвхөн бүртгэнэ (админ хожим шалгах боломжтой).
-      this.logger.warn(`Купон "${normalized}" ашиглалт нэмэгдсэнгүй (хязгаар дүүрсэн байж болзошгүй)`);
+      this.logger.warn(
+        `Купон "${normalized}" ашиглалт нэмэгдсэнгүй (хязгаар дүүрсэн байж болзошгүй)`,
+      );
     }
   }
 }

@@ -1,13 +1,5 @@
 import { Module } from '@nestjs/common';
-import {
-  Body,
-  Controller,
-  Get,
-  Header,
-  Injectable,
-  Put,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Header, Injectable, Put, UseGuards } from '@nestjs/common';
 import {
   IsArray,
   IsIn,
@@ -25,6 +17,8 @@ import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { siteKey } from '../../common/site/site-settings-key';
+import { siteConfig } from '../../common/site/site-config';
 
 /** Брэндийн тохиргооны Settings түлхүүр */
 const BRAND_KEY = 'brand';
@@ -202,13 +196,14 @@ export interface BrandSettings {
   defaultTheme: 'dark' | 'light' | 'system';
 }
 
-const DEFAULT_BRAND: BrandSettings = {
+/** ⚠️ ФУНКЦ — сайт бүрд өөр нэр (BestTV | BestFilm) */
+const defaultBrand = (): BrandSettings => ({
   logoKey: null,
   faviconKey: null,
-  siteName: 'BestTV',
+  siteName: siteConfig().name,
   /* ⚠️ Кино сайт тул анхдагч нь БАРААН */
   defaultTheme: 'dark',
-};
+});
 
 /**
  * Сайтын брэнд тохиргоо — лого админаас удирдана.
@@ -226,10 +221,10 @@ export class SettingsService {
   /** Түүхий тохиргоо (key) */
   private async raw(): Promise<BrandSettings> {
     const row = await this.prisma.settings
-      .findUnique({ where: { key: BRAND_KEY } })
+      .findUnique({ where: { key: siteKey(BRAND_KEY) } })
       .catch(() => null);
-    if (!row) return { ...DEFAULT_BRAND };
-    return { ...DEFAULT_BRAND, ...(row.value as Partial<BrandSettings>) };
+    if (!row) return { ...defaultBrand() };
+    return { ...defaultBrand(), ...(row.value as Partial<BrandSettings>) };
   }
 
   /** Нийтэд — key-г бэлэн URL болгож буцаана */
@@ -254,7 +249,7 @@ export class SettingsService {
   /** Сошиал холбоосууд — нийтэд ч, админд ч ижил (нууц зүйл байхгүй) */
   async socials(): Promise<SocialsSettings> {
     const row = await this.prisma.settings
-      .findUnique({ where: { key: SOCIALS_KEY } })
+      .findUnique({ where: { key: siteKey(SOCIALS_KEY) } })
       .catch(() => null);
     const saved = { ...DEFAULT_SOCIALS, ...((row?.value ?? {}) as Partial<SocialsSettings>) };
 
@@ -287,7 +282,7 @@ export class SettingsService {
     for (const k of Object.keys(DEFAULT_SOCIALS) as (keyof SocialsSettings)[]) {
       if (k === 'links') continue;
       const v = dto[k as keyof SocialsDto];
-      if (v !== undefined) next[k] = (v as string | undefined ?? '').trim();
+      if (v !== undefined) next[k] = ((v as string | undefined) ?? '').trim();
     }
 
     if (dto.links !== undefined) {
@@ -315,8 +310,8 @@ export class SettingsService {
     }
 
     await this.prisma.settings.upsert({
-      where: { key: SOCIALS_KEY },
-      create: { key: SOCIALS_KEY, value: next as object },
+      where: { key: siteKey(SOCIALS_KEY) },
+      create: { key: siteKey(SOCIALS_KEY), value: next as object },
       update: { value: next as object },
     });
     return next;
@@ -325,16 +320,15 @@ export class SettingsService {
   async updateBrand(dto: BrandDto) {
     const current = await this.raw();
     const next: BrandSettings = {
-      logoKey: dto.logoKey !== undefined ? (dto.logoKey || null) : current.logoKey,
-      faviconKey:
-        dto.faviconKey !== undefined ? (dto.faviconKey || null) : current.faviconKey,
+      logoKey: dto.logoKey !== undefined ? dto.logoKey || null : current.logoKey,
+      faviconKey: dto.faviconKey !== undefined ? dto.faviconKey || null : current.faviconKey,
       siteName: dto.siteName?.trim() || current.siteName,
       defaultTheme: dto.defaultTheme ?? current.defaultTheme ?? 'dark',
     };
 
     await this.prisma.settings.upsert({
-      where: { key: BRAND_KEY },
-      create: { key: BRAND_KEY, value: next as object },
+      where: { key: siteKey(BRAND_KEY) },
+      create: { key: siteKey(BRAND_KEY), value: next as object },
       update: { value: next as object },
     });
 

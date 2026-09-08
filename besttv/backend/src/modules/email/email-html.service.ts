@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { siteConfig } from '../../common/site/site-config';
 
 /**
  * TipTap-ийн гаралтыг ИМЭЙЛД тохирсон HTML болгоно.
@@ -17,18 +18,21 @@ export class EmailHtmlService {
   /** Үндсэн бичвэрийн өнгө — бараан карт дээр уншигдана */
   private static readonly BODY = 'color:#c8c8ce;font-size:14px;line-height:1.65;margin:0 0 12px';
   /** Гарчиг — тод цагаан */
-  private static readonly HEAD = 'color:#ffffff;font-weight:700;line-height:1.35;margin:18px 0 10px';
+  private static readonly HEAD =
+    'color:#ffffff;font-weight:700;line-height:1.35;margin:18px 0 10px';
 
   /**
    * ⚠️ Аюулгүй байдал: гүйцэтгэх боломжтой зүйлийг АГУУЛГАТАЙ нь хаяна.
    * Админ өөрөө бичдэг ч, буруу хуулсан HTML имэйлийг эвдэж болно.
    */
   private strip(html: string): string {
-    return html
-      .replace(/<(script|style|iframe|object|embed)[\s\S]*?<\/\1>/gi, '')
-      /* ⚠️ `on*` эвент — имэйлд ажиллахгүй ч спам шүүлтүүр сэжиглэнэ */
-      .replace(/\son[a-z]+="[^"]*"/gi, '')
-      .replace(/\son[a-z]+='[^']*'/gi, '');
+    return (
+      html
+        .replace(/<(script|style|iframe|object|embed)[\s\S]*?<\/\1>/gi, '')
+        /* ⚠️ `on*` эвент — имэйлд ажиллахгүй ч спам шүүлтүүр сэжиглэнэ */
+        .replace(/\son[a-z]+="[^"]*"/gi, '')
+        .replace(/\son[a-z]+='[^']*'/gi, '')
+    );
   }
 
   /** Байгаа `style`-д нэмнэ, байхгүй бол шинээр үүсгэнэ */
@@ -57,10 +61,15 @@ export class EmailHtmlService {
      * шалгадаг тул нэг удаа дуудахад хангалттай.
      */
     html = html.replace(/<p([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<p${a}>`, EmailHtmlService.BODY));
+      this.withStyle(`<p${a}>`, EmailHtmlService.BODY),
+    );
 
     /* ── Гарчиг: h1-h3 ── */
-    for (const [tag, size] of [['h1', '22px'], ['h2', '19px'], ['h3', '16px']] as const) {
+    for (const [tag, size] of [
+      ['h1', '22px'],
+      ['h2', '19px'],
+      ['h3', '16px'],
+    ] as const) {
       const re = new RegExp(`<${tag}([^>]*)>`, 'gi');
       html = html.replace(re, (m, attrs: string) =>
         this.withStyle(`<${tag}${attrs}>`, `${EmailHtmlService.HEAD};font-size:${size}`),
@@ -69,21 +78,27 @@ export class EmailHtmlService {
 
     /* ── Тод/налуу — өнгө ЗААВАЛ (өгөгдмөл хар болно) ── */
     html = html.replace(/<strong([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<strong${a}>`, 'color:#ffffff'));
+      this.withStyle(`<strong${a}>`, 'color:#ffffff'),
+    );
     html = html.replace(/<b([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<b${a}>`, 'color:#ffffff'));
+      this.withStyle(`<b${a}>`, 'color:#ffffff'),
+    );
 
     /* ── Жагсаалт ── */
     html = html.replace(/<ul([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<ul${a}>`, `${EmailHtmlService.BODY};padding-left:20px`));
+      this.withStyle(`<ul${a}>`, `${EmailHtmlService.BODY};padding-left:20px`),
+    );
     html = html.replace(/<ol([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<ol${a}>`, `${EmailHtmlService.BODY};padding-left:20px`));
+      this.withStyle(`<ol${a}>`, `${EmailHtmlService.BODY};padding-left:20px`),
+    );
     html = html.replace(/<li([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<li${a}>`, 'margin:0 0 6px'));
+      this.withStyle(`<li${a}>`, 'margin:0 0 6px'),
+    );
 
     /* ── Линк — брэндийн улаан (өгөгдмөл цэнхэр нь бараан дээр бүдэг) ── */
     html = html.replace(/<a([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<a${a}>`, 'color:#e50914;text-decoration:underline'));
+      this.withStyle(`<a${a}>`, `color:${siteConfig().brandColor};text-decoration:underline`),
+    );
 
     /**
      * ── Зураг ──
@@ -93,22 +108,33 @@ export class EmailHtmlService {
      */
     html = html.replace(/<img([^>]*)>/gi, (m, a: string) => {
       const attrs = a.replace(/\sclass="[^"]*"/gi, '');
-      return this.withStyle(`<img${attrs}>`,
-        'width:100%;max-width:536px;height:auto;border-radius:10px;display:block;margin:14px 0');
+      return this.withStyle(
+        `<img${attrs}>`,
+        'width:100%;max-width:536px;height:auto;border-radius:10px;display:block;margin:14px 0',
+      );
     });
 
     /* ── Тэмдэглэсэн текст: <mark> нь Outlook-д ажиллахгүй ── */
     html = html.replace(/<mark([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<mark${a}>`, 'background:#e50914;color:#ffffff;padding:1px 4px'));
+      this.withStyle(
+        `<mark${a}>`,
+        `background:${siteConfig().brandColor};color:#ffffff;padding:1px 4px`,
+      ),
+    );
 
     /* ── Тусгаарлагч ── */
-    html = html.replace(/<hr([^>]*)>/gi,
-      '<hr style="border:0;border-top:1px solid #2a2b31;margin:20px 0" />');
+    html = html.replace(
+      /<hr([^>]*)>/gi,
+      '<hr style="border:0;border-top:1px solid #2a2b31;margin:20px 0" />',
+    );
 
     /* ── Ишлэл ── */
     html = html.replace(/<blockquote([^>]*)>/gi, (m, a: string) =>
-      this.withStyle(`<blockquote${a}>`,
-        `${EmailHtmlService.BODY};border-left:3px solid #e50914;padding-left:14px;margin-left:0`));
+      this.withStyle(
+        `<blockquote${a}>`,
+        `${EmailHtmlService.BODY};border-left:3px solid ${siteConfig().brandColor};padding-left:14px;margin-left:0`,
+      ),
+    );
 
     return html;
   }

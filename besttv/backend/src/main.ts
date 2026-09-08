@@ -71,7 +71,14 @@ async function bootstrap() {
   const corsOrigin = corsOrigins.length
     ? corsOrigins
     : isProd
-      ? ['https://besttv.us', 'https://www.besttv.us', 'https://admin.besttv.us']
+      ? [
+          'https://besttv.us',
+          'https://www.besttv.us',
+          'https://admin.besttv.us',
+          /* ⚠️ BestFilm — нэг backend хоёр сайт үйлчилнэ */
+          'https://bestfilm.net',
+          'https://www.bestfilm.net',
+        ]
       : true;
   app.enableCors({
     origin: corsOrigin,

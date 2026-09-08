@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { currentSite } from '../../common/site/site-context';
+import { SITE_LABEL } from '../../common/site/site.constants';
 
 /**
  * BestTV → n8n → Telegram МЭДЭГДЛИЙН ГҮҮР.
@@ -148,6 +150,26 @@ export class N8nService {
   private async post(path: string, body: unknown): Promise<void> {
     if (!this.base) return;
 
+    /**
+     * ⚠️⚠️ САЙТЫГ МЭДЭГДЭЛД ЗААВАЛ ОРУУЛНА.
+     *
+     * n8n workflow нь ХОЁУЛАНГИЙН мэдэгдлийг нэг webhook-оор авна.
+     * `site` талбаргүй бол Telegram-д «100,000₮ орлоо» гэж ирэхэд
+     * АЛЬ САЙТЫНХ болохыг мэдэхгүй — админ буруу шийдвэр гаргана.
+     *
+     * ⚠️ n8n тал дээр `{{$json.site}}`-аар ялгаж, өөр чат руу
+     * илгээх боломжтой (эсвэл мессежийн эхэнд нэрийг бичих).
+     *
+     * ⚠️ ШИНЭ WEBHOOK ҮҮСГЭХГҮЙ — байгаа 5 workflow хэвээр
+     * ажиллана, зөвхөн нэмэлт талбар ирнэ (хуучин n8n нь үл
+     * тоомсорлоно → БУЦААХ НИЙЦТЭЙ).
+     */
+    const site = currentSite();
+    const payload =
+      body && typeof body === 'object'
+        ? { site, siteName: SITE_LABEL[site], ...(body as object) }
+        : body;
+
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 5000);
 
@@ -160,7 +182,7 @@ export class N8nService {
              баталгаажуулалтгүй бол хэн ч хуурамч мэдэгдэл илгээнэ */
           ...(this.secret ? { 'x-webhook-secret': this.secret } : {}),
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
         signal: ctl.signal,
       });
 

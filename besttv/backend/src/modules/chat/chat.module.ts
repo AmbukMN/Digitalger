@@ -18,6 +18,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ChatService, type ChatTitleCard } from './chat.service';
 import { LinkPreviewService, type LinkPreview } from './link-preview.service';
+import { runWithSiteAsync } from '../../common/site/site-context';
+import { toSite } from '../../common/site/site.constants';
 
 /**
  * ⚠️⚠️ ЧАТБОТЫН ХЯЗГААР — БҮХ бакетыг дарж бичнэ.
@@ -107,6 +109,16 @@ export class ChatController {
       channel?: string;
       /* ⚠️ FB/IG page id — олон page ялгахад (chat.service.ts) */
       pageId?: string;
+      /**
+       * ⚠️⚠️ АЛЬ САЙТЫН ЧАТ ВЭ — n8n илгээнэ.
+       *
+       * n8n webhook нь `X-Site` толгой ИЛГЭЭДЭГГҮЙ (Facebook/Instagram
+       * платформоос шууд ирдэг). Тиймээс сайтыг BODY-Д дамжуулна.
+       *
+       * ⚠️ Байхгүй бол `besttv` — одоогийн зан төлөв ХЭВЭЭР, хуучин
+       * n8n workflow засахгүйгээр ажиллана (БУЦААХ НИЙЦТЭЙ).
+       */
+      site?: string;
       sessionId?: string;
       userText?: string;
       assistantText?: string;
@@ -121,6 +133,33 @@ export class ChatController {
     const sessionId = (body.sessionId ?? '').trim();
     if (!sessionId) return { ok: true, skipped: true };
     const channel = body.channel ?? 'web';
+
+    /**
+     * ⚠️⚠️ БҮХ ҮЛДСЭН АЖЛЫГ ЗӨВ САЙТЫН КОНТЕКСТЭД.
+     *
+     * Чат, мессеж, хэрэглэгчийн профайл бүгд `site`-тай бичигдэнэ.
+     * Үүнгүйгээр BestFilm-ийн FB чат BestTV-ийн админ панелд гарна.
+     */
+    return runWithSiteAsync(toSite(body.site), () =>
+      this.ingestForSite(body, sessionId, channel),
+    );
+  }
+
+  /** ⚠️ `ingest`-ийн бие — сайтын контекст дотор ажиллана */
+  private async ingestForSite(
+    body: {
+      pageId?: string;
+      userText?: string;
+      assistantText?: string;
+      titles?: ChatTitleCard[];
+      userName?: string;
+      userImage?: string;
+      attachmentUrl?: string;
+      attachmentType?: string;
+    },
+    sessionId: string,
+    channel: string,
+  ) {
 
     if (body.userText?.trim()) {
       await this.chat.saveMessage({

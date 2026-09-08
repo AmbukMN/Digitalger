@@ -1,9 +1,4 @@
-import {
-  Delete,
-  Global,
-  Module,
-  Patch,
-} from '@nestjs/common';
+import { Delete, Global, Module, Patch } from '@nestjs/common';
 import {
   BadRequestException,
   Body,
@@ -51,15 +46,14 @@ import { EmailService } from './email.service';
 import { EmailHtmlService } from './email-html.service';
 import { FLOWS, LifecycleService } from './lifecycle.service';
 import { ubRangeFilter, ubRangeStart } from '../../common/ub-date';
+import { currentSite } from '../../common/site/site-context';
+import { siteConfig, isPlaceholderEmail } from '../../common/site/site-config';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
  * ⚠️ base64-аас НЭГ УДАА decode хийж кэшилнэ (дуудалт бүрд биш).
  */
-const PIXEL_GIF = Buffer.from(
-  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-  'base64',
-);
+const PIXEL_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
 /** OTP хүчинтэй хугацаа + оролдлогын хязгаар */
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -289,7 +283,7 @@ class PromoteTitleDto {
   @IsString()
   titleId: string;
 
-  /** Гарчиг (хоосон бол «<нэр> — BestTV дээр үзээрэй») */
+  /** Гарчиг (хоосон бол «<нэр> — <сайт> дээр үзээрэй») */
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -379,13 +373,19 @@ export class EmailOtpService {
     }
     if (purpose === 'change') {
       if (target === user.email) throw new BadRequestException('Одоогийн имэйлтэй ижил байна');
-      const taken = await this.prisma.user.findUnique({ where: { email: target } });
+      const taken = await this.prisma.user.findFirst({
+        where: { email: target },
+      });
       if (taken) throw new BadRequestException('Энэ имэйл өөр бүртгэлд ашиглагдсан байна');
     }
 
     // ⚠️ Спам хамгаалалт — 60 секундэд нэг л код
     const recent = await this.prisma.emailOtp.findFirst({
-      where: { userId, purpose, createdAt: { gt: new Date(Date.now() - OTP_RESEND_MS) } },
+      where: {
+        userId,
+        purpose,
+        createdAt: { gt: new Date(Date.now() - OTP_RESEND_MS) },
+      },
       orderBy: { createdAt: 'desc' },
     });
     if (recent) {
@@ -439,7 +439,10 @@ export class EmailOtpService {
     }
 
     await this.prisma.$transaction([
-      this.prisma.emailOtp.update({ where: { id: otp.id }, data: { usedAt: new Date() } }),
+      this.prisma.emailOtp.update({
+        where: { id: otp.id },
+        data: { usedAt: new Date() },
+      }),
       this.prisma.user.update({
         where: { id: userId },
         data:
@@ -475,13 +478,21 @@ export class SubscriberService {
     if (typeof dto.elapsedMs === 'number' && dto.elapsedMs < 1500) return { ok: true };
 
     const email = dto.email.toLowerCase().trim();
-    if (email.endsWith('@guest.besttv.mn')) return { ok: true };
+    /* ⚠️ Зочны орлуулагч имэйл — БҮХ сайтынхыг таньна */
+    if (isPlaceholderEmail(email)) return { ok: true };
 
     // ⚠️ Түр зуурын (disposable) имэйл — жагсаалт бохирдоно, bounce өснө,
     // SES-ийн нэр хүнд муудна
     const DISPOSABLE = [
-      'mailinator.com', 'guerrillamail.com', 'tempmail', '10minutemail',
-      'throwaway', 'yopmail.com', 'trashmail', 'sharklasers.com', 'getnada.com',
+      'mailinator.com',
+      'guerrillamail.com',
+      'tempmail',
+      '10minutemail',
+      'throwaway',
+      'yopmail.com',
+      'trashmail',
+      'sharklasers.com',
+      'getnada.com',
     ];
     const domain = email.split('@')[1] ?? '';
     if (DISPOSABLE.some((d) => domain.includes(d))) {
@@ -489,7 +500,8 @@ export class SubscriberService {
     }
 
     await this.prisma.subscriber.upsert({
-      where: { email },
+      /* ⚠️ `@@unique([email, site])` — нэг имэйл сайт бүрд тусдаа захиалагч */
+      where: { email_site: { email, site: currentSite() } },
       create: {
         email,
         name: dto.name,
@@ -534,9 +546,7 @@ export class SubscriberService {
     }
 
     /* WARN Never await-block the response on mail delivery */
-    void this.email
-      .sendUnsubscribeConfirm(clean)
-      .catch(() => null);
+    void this.email.sendUnsubscribeConfirm(clean).catch(() => null);
 
     return { ok: true, done: false };
   }
@@ -545,11 +555,17 @@ export class SubscriberService {
     const clean = email.toLowerCase().trim();
     await Promise.all([
       this.prisma.subscriber
-        .updateMany({ where: { email: clean }, data: { status: SubscriberStatus.UNSUBSCRIBED } })
+        .updateMany({
+          where: { email: clean },
+          data: { status: SubscriberStatus.UNSUBSCRIBED },
+        })
         .catch(() => null),
       /* Бүртгэлтэй хэрэглэгчийн маркетинг татгалзал */
       this.prisma.user
-        .updateMany({ where: { email: clean }, data: { marketingOptOut: true } })
+        .updateMany({
+          where: { email: clean },
+          data: { marketingOptOut: true },
+        })
         .catch(() => null),
     ]);
     return { ok: true };
@@ -588,7 +604,10 @@ export class SubscriberService {
         })
         .catch(() => null);
       void this.prisma.emailLog
-        .updateMany({ where: { id: o.logId }, data: { openCount: { increment: 1 } } })
+        .updateMany({
+          where: { id: o.logId },
+          data: { openCount: { increment: 1 } },
+        })
         .catch(() => null);
     }
   }
@@ -893,7 +912,12 @@ export class EmailAdminController {
     }
     if (audience === 'users' || audience === 'both') {
       const rows = await this.prisma.user.findMany({
-        where: { isActive: true, emailVerified: true, marketingOptOut: false, isGuest: false },
+        where: {
+          isActive: true,
+          emailVerified: true,
+          marketingOptOut: false,
+          isGuest: false,
+        },
         select: { email: true },
       });
       rows.forEach((r) => targets.add(r.email.toLowerCase()));
@@ -903,7 +927,9 @@ export class EmailAdminController {
       const optedOut = await this.prisma.subscriber.findMany({
         where: {
           email: { in: [...targets] },
-          status: { in: [SubscriberStatus.UNSUBSCRIBED, SubscriberStatus.BOUNCED] },
+          status: {
+            in: [SubscriberStatus.UNSUBSCRIBED, SubscriberStatus.BOUNCED],
+          },
         },
         select: { email: true },
       });
@@ -945,10 +971,10 @@ export class EmailAdminController {
     const posterUrl = title.posterKey
       ? await this.storage.publicAssetUrl(title.posterKey, 30 * 86400).catch(() => null)
       : null;
-    const link = `https://besttv.us/title/${title.slug}`;
+    const link = `${siteConfig().url}/title/${title.slug}`;
     const kind = title.type === 'SERIES' ? 'Цуврал' : 'Кино';
     const desc =
-      (title.description ?? '').trim() || 'Шинэ контент BestTV дээр — одоо үзээрэй.';
+      (title.description ?? '').trim() || `Шинэ контент ${siteConfig().name} дээр — одоо үзээрэй.`;
     return (
       (posterUrl
         ? `<a href="${link}" style="text-decoration:none"><img src="${posterUrl}" alt="${title.title}" width="240" style="display:block;margin:0 auto 18px;max-width:240px;width:60%;border-radius:12px" /></a>`
@@ -966,16 +992,23 @@ export class EmailAdminController {
   async promoteTitlePreview(@Param('titleId') titleId: string) {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
-      select: { id: true, title: true, slug: true, description: true, posterKey: true, type: true },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        description: true,
+        posterKey: true,
+        type: true,
+      },
     });
     if (!title) return { found: false };
     const bodyHtml = await this.buildTitlePromoBody(title);
     const html = this.email.buildLifecycleHtml({
-      to: 'preview@besttv.us',
+      to: `preview@${siteConfig().domain}`,
       heading: title.title,
       bodyHtml,
       ctaText: 'Одоо үзэх',
-      ctaUrl: `https://besttv.us/title/${title.slug}`,
+      ctaUrl: `${siteConfig().url}/title/${title.slug}`,
     });
     return { found: true, html };
   }
@@ -993,7 +1026,14 @@ export class EmailAdminController {
   async promoteTitle(@Body() dto: PromoteTitleDto) {
     const title = await this.prisma.title.findUnique({
       where: { id: dto.titleId },
-      select: { id: true, title: true, slug: true, description: true, posterKey: true, type: true },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        description: true,
+        posterKey: true,
+        type: true,
+      },
     });
     if (!title) throw new BadRequestException('Кино олдсонгүй');
 
@@ -1011,14 +1051,14 @@ export class EmailAdminController {
     });
     const uidByEmail = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
 
-    const link = `https://besttv.us/title/${title.slug}`;
+    const link = `${siteConfig().url}/title/${title.slug}`;
     const bodyHtml = await this.buildTitlePromoBody(title);
 
     /* ⚠️ Тест үед batchId-гүй — фолдер болохгүй, ганц имэйл болно */
     const batchId = isTest ? undefined : randomUUID();
     const batchLabel = isTest ? undefined : `Кино реклам: ${title.title}`;
     const subject =
-      (dto.subject?.trim() || `${title.title} — BestTV дээр үзээрэй`) +
+      (dto.subject?.trim() || `${title.title} — ${siteConfig().name} дээр үзээрэй`) +
       (isTest ? ' [ТЕСТ]' : '');
     const heading = dto.heading?.trim() || title.title;
 
@@ -1054,10 +1094,15 @@ export class EmailAdminController {
     const nameByEmail = new Map<string, string | undefined>();
     const source: { email: string; name?: string }[] = dto.items?.length
       ? dto.items
-      : dto.emails.map((e) => ({ email: e, name: dto.emails.length === 1 ? dto.name : undefined }));
+      : dto.emails.map((e) => ({
+          email: e,
+          name: dto.emails.length === 1 ? dto.name : undefined,
+        }));
 
     for (const it of source) {
-      const email = String(it.email ?? '').toLowerCase().trim();
+      const email = String(it.email ?? '')
+        .toLowerCase()
+        .trim();
       if (!email || !isEmail(email)) continue;
       // Эхний тааралдсан нэрийг хадгална (давхар мөрд хоосон нэр дарж бичихгүй)
       if (!nameByEmail.has(email)) nameByEmail.set(email, it.name?.trim() || undefined);
@@ -1068,10 +1113,14 @@ export class EmailAdminController {
     for (const [email, name] of nameByEmail) {
       try {
         await this.prisma.subscriber.upsert({
-          where: { email },
+          /* ⚠️ `@@unique([email, site])` */
+          where: { email_site: { email, site: currentSite() } },
           create: { email, name, source: 'admin' },
           /* Нэр ирсэн бол шинэчилнэ (файлд байсан бол), эс бол хэвээр */
-          update: { status: SubscriberStatus.ACTIVE, ...(name ? { name } : {}) },
+          update: {
+            status: SubscriberStatus.ACTIVE,
+            ...(name ? { name } : {}),
+          },
         });
         added++;
       } catch {
@@ -1097,7 +1146,9 @@ export class EmailAdminController {
     /* ⚠️ User↔Subscriber relation байхгүй тул email-ээр шүүнэ:
        Subscriber-т аль хэдийн байгаа хаягуудыг татаж, тэдгээрээс
        БУСАД баталгаажсан хэрэглэгчийг л нэмнэ. */
-    const existing = await this.prisma.subscriber.findMany({ select: { email: true } });
+    const existing = await this.prisma.subscriber.findMany({
+      select: { email: true },
+    });
     const existingSet = new Set(existing.map((s) => s.email.toLowerCase()));
 
     const candidates = await this.prisma.user.findMany({
@@ -1105,7 +1156,7 @@ export class EmailAdminController {
         isGuest: false,
         emailVerified: true,
         marketingOptOut: false,
-        email: { not: { endsWith: '@noemail.besttv.mn' } },
+        email: { not: { endsWith: siteConfig().noEmailSuffix } },
       },
       select: { id: true, email: true, name: true },
     });
@@ -1116,8 +1167,14 @@ export class EmailAdminController {
       const email = u.email.toLowerCase().trim();
       try {
         await this.prisma.subscriber.upsert({
-          where: { email },
-          create: { email, name: u.name ?? undefined, source: 'register', userId: u.id },
+          /* ⚠️ `@@unique([email, site])` */
+          where: { email_site: { email, site: currentSite() } },
+          create: {
+            email,
+            name: u.name ?? undefined,
+            source: 'register',
+            userId: u.id,
+          },
           update: { status: SubscriberStatus.ACTIVE, userId: u.id },
         });
         added++;
@@ -1152,8 +1209,12 @@ export class EmailAdminController {
     const folders = await Promise.all(
       batches.map(async (b) => {
         const [sent, opened] = await Promise.all([
-          this.prisma.emailLog.count({ where: { batchId: b.batchId, status: 'sent' } }),
-          this.prisma.emailLog.count({ where: { batchId: b.batchId, openedAt: { not: null } } }),
+          this.prisma.emailLog.count({
+            where: { batchId: b.batchId, status: 'sent' },
+          }),
+          this.prisma.emailLog.count({
+            where: { batchId: b.batchId, openedAt: { not: null } },
+          }),
         ]);
         return {
           type: 'folder' as const,
@@ -1176,8 +1237,13 @@ export class EmailAdminController {
         skip: (p - 1) * take,
         take,
         select: {
-          id: true, to: true, subject: true, template: true,
-          status: true, openedAt: true, createdAt: true,
+          id: true,
+          to: true,
+          subject: true,
+          template: true,
+          status: true,
+          openedAt: true,
+          createdAt: true,
         },
       }),
       this.prisma.emailLog.count({ where: singleWhere }),
@@ -1211,12 +1277,19 @@ export class EmailAdminController {
         skip: (p - 1) * take,
         take,
         select: {
-          id: true, to: true, subject: true, status: true, openedAt: true, createdAt: true,
+          id: true,
+          to: true,
+          subject: true,
+          status: true,
+          openedAt: true,
+          createdAt: true,
         },
       }),
       this.prisma.emailLog.count({ where: { batchId } }),
       this.prisma.emailLog.count({ where: { batchId, status: 'sent' } }),
-      this.prisma.emailLog.count({ where: { batchId, openedAt: { not: null } } }),
+      this.prisma.emailLog.count({
+        where: { batchId, openedAt: { not: null } },
+      }),
       this.prisma.emailLog.findFirst({
         where: { batchId },
         select: { batchLabel: true, subject: true, createdAt: true },
@@ -1249,8 +1322,15 @@ export class EmailAdminController {
   async logHtml(@Param('id') id: string) {
     const log = await this.prisma.emailLog.findUnique({
       where: { id },
-      select: { id: true, to: true, subject: true, template: true,
-        status: true, html: true, createdAt: true },
+      select: {
+        id: true,
+        to: true,
+        subject: true,
+        template: true,
+        status: true,
+        html: true,
+        createdAt: true,
+      },
     });
     if (!log) return { found: false };
     return { found: true, ...log };
@@ -1325,7 +1405,12 @@ export class EmailAdminController {
       /** Хүргэлт/нээлт/дарсан — insight самбарт */
       this.prisma.emailLog.aggregate({
         where: { ...where, status: 'sent' },
-        _count: { openedAt: true, clickedAt: true, deliveredAt: true, bouncedAt: true },
+        _count: {
+          openedAt: true,
+          clickedAt: true,
+          deliveredAt: true,
+          bouncedAt: true,
+        },
       }),
     ]);
 
@@ -1489,10 +1574,7 @@ export class EmailAdminController {
   }
 
   @Post('lifecycle/:campaign')
-  async saveLifecycle(
-    @Param('campaign') campaign: string,
-    @Body() dto: LifecycleTemplateDto,
-  ) {
+  async saveLifecycle(@Param('campaign') campaign: string, @Body() dto: LifecycleTemplateDto) {
     /* ⚠️ Мэдэгдэхгүй кампанит ажил үүсгэхийг хаана — алдаатай бичсэн
        түлхүүр DB-д хуримтлагдаж, хэзээ ч ажиллахгүй мөр үлдэнэ */
     if (!LIFECYCLE_FLOW_META.some((f) => f.campaign === campaign)) {
@@ -1518,9 +1600,7 @@ export class EmailAdminController {
   /** Загварыг кодын анхдагч руу буцаана */
   @Post('lifecycle/:campaign/reset')
   async resetLifecycle(@Param('campaign') campaign: string) {
-    await this.prisma.emailTemplateOverride
-      .delete({ where: { campaign } })
-      .catch(() => null);
+    await this.prisma.emailTemplateOverride.delete({ where: { campaign } }).catch(() => null);
     return { ok: true };
   }
 
@@ -1650,7 +1730,7 @@ export class EmailAdminController {
         ctaUrl: dto.ctaUrl,
       }),
       subject: dto.subject,
-      senderName: dto.senderName || 'BestTV',
+      senderName: dto.senderName || siteConfig().name,
     };
   }
 
@@ -1669,7 +1749,9 @@ export class EmailAdminController {
       }),
       this.prisma.emailSuppression.count(),
       this.prisma.emailSuppression.count({ where: { createdAt: { gte: d7 } } }),
-      this.prisma.emailSuppression.count({ where: { createdAt: { gte: d30 } } }),
+      this.prisma.emailSuppression.count({
+        where: { createdAt: { gte: d30 } },
+      }),
     ]);
 
     /* ⚠️ Дэд төрлөөр ч задална — `OnAccountSuppressionList` нь
@@ -1686,9 +1768,7 @@ export class EmailAdminController {
       total,
       last7,
       last30,
-      byReason: Object.fromEntries(
-        byReason.map((r) => [r.reason, r._count._all]),
-      ),
+      byReason: Object.fromEntries(byReason.map((r) => [r.reason, r._count._all])),
       bySubType: bySubType
         .filter((r) => r.subType)
         .map((r) => ({ subType: r.subType, count: r._count._all })),
@@ -1776,7 +1856,9 @@ export class EmailAdminController {
       const optedOut = await this.prisma.subscriber.findMany({
         where: {
           email: { in: [...targets] },
-          status: { in: [SubscriberStatus.UNSUBSCRIBED, SubscriberStatus.BOUNCED] },
+          status: {
+            in: [SubscriberStatus.UNSUBSCRIBED, SubscriberStatus.BOUNCED],
+          },
         },
         select: { email: true },
       });
@@ -1813,7 +1895,12 @@ export class EmailAdminController {
  */
 @Global()
 @Module({
-  controllers: [EmailPublicController, EmailOtpController, EmailAdminController, EmailEventsController],
+  controllers: [
+    EmailPublicController,
+    EmailOtpController,
+    EmailAdminController,
+    EmailEventsController,
+  ],
   providers: [
     EmailService,
     /* ⚠️ Бүртгэхгүй бол NestJS асахдаа UnknownDependenciesException */

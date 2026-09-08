@@ -79,7 +79,7 @@ enum WalletTxType {
 
 model User {
   id           String  @id @default(cuid())
-  email        String  @unique
+  email        String
   name         String?
   passwordHash String?
   role         Role    @default(USER)
@@ -91,15 +91,16 @@ model User {
 
   // ── OAuth ──────────────────────────────────────────────────────────────
   provider      AuthProvider @default(LOCAL)
-  googleId      String?      @unique
-  facebookId    String?      @unique
+  googleId      String?
+  facebookId    String?
   /// ⚠️ Apple-ийн `sub` — ХЭРЭГЛЭГЧ ТУС БҮРД, АПП ТУС БҮРД өөр байдаг
   /// (Google/FB шиг глобал биш). Тиймээс bundle ID солих боломжгүй.
-  appleId       String?      @unique
+  appleId       String?
   emailVerified Boolean      @default(false) // OAuth-аар ирвэл автоматаар true
 
   // ── Утасны дугаар (verify.mn MO SMS) ──────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**
@@ -115,7 +116,7 @@ model User {
    * БАЙХГҮЙ тул «99001122» ба «+97699001122» нь ХОЁР өөр хэрэглэгч
    * болох боломжтой байсан — тэр алдааг энд давтахгүй.
    */
-  phone         String?   @unique
+  phone         String?
   /// Баталгаажсан огноо. NULL = баталгаажаагүй (нэвтрэхэд саад БОЛОХГҮЙ)
   phoneVerified DateTime?
   /// Баталгаажуулж буй дугаар — verify хийж байж л `phone` солигдоно
@@ -181,7 +182,19 @@ model User {
   promotionRedemptions PromotionRedemption[]
   notifications        Notification[]
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@unique([email, site])
+  @@unique([phone, site])
+  @@unique([googleId, site])
+  @@unique([facebookId, site])
+  @@unique([appleId, site])
   @@index([provider])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /**
@@ -235,8 +248,15 @@ model UserSession {
   createdAt  DateTime @default(now())
   expiresAt  DateTime
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, lastUsedAt])
   @@index([expiresAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Хэтэвчийн гүйлгээний бүртгэл — үлдэгдлийн өөрчлөлт бүрийг мөрдөнө (audit).
@@ -261,7 +281,14 @@ model WalletTransaction {
 
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Контент ──────────────────────────────────────────────────────────────────
@@ -376,6 +403,15 @@ model Title {
   /// Видеон дээр BestTV лого шатаах эсэх (зүүн дээд, 10%, 70%)
   watermark Boolean @default(false)
 
+  /**
+   * ⚠️⚠️ Аль сайтуудад НИЙТЛЭГДСЭН вэ.
+   * Кино нь ХУВААЛЦСАН — нэг удаа upload хийгээд хоёр сайтад
+   * харагдана (R2 зай 2 дахин хэмнэнэ). Тиймээс ганц `site`
+   * биш, массив.
+   * Шүүлт: `where: { sites: { has: "bestfilm" } }`
+   */
+  sites String[] @default(["besttv"])
+
   @@index([type, isActive])
   @@index([isBanner, isActive])
   @@index([comingSoon, isActive])
@@ -391,6 +427,7 @@ model Title {
   @@index([isActive, createdAt])
   @@index([isActive, comingSoon, views])
   @@index([isActive, rating])
+  @@index([sites], type: Gin)
 }
 
 model Genre {
@@ -544,6 +581,14 @@ model Plan {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Багц ↔ жанрын хандалт. Хэрэглэгч тухайн багцтай бол эдгээр жанрын
@@ -555,8 +600,14 @@ model PlanGenre {
   plan  Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
   genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@id([planId, genreId])
   @@index([genreId])
+  @@index([site])
 }
 
 model Subscription {
@@ -593,9 +644,16 @@ model Subscription {
 
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, expiresAt])
   /// Сунгалтын cron — «autoRenew=true БА удахгүй дуусах» хайлт
   @@index([autoRenew, expiresAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// ХАДГАЛСАН КАРТ (Bonum tokenize).
@@ -625,7 +683,14 @@ model SavedCard {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 model Payment {
@@ -716,6 +781,11 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, status])
   /// ⚠️ `initiateRental`-ийн idempotent хайлтад (userId+rentalTitleId+status)
   @@index([rentalTitleId])
@@ -728,6 +798,8 @@ model Payment {
   /// WARN Admin feed: status=PAID + paidAt DESC, polled every 30s.
   /// Without this it read and sorted the whole payments table.
   @@index([status, paidAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Үзэлтийн явц + жагсаалт ─────────────────────────────────────────────────
@@ -748,8 +820,14 @@ model WatchProgress {
 
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([userId, titleId])
   @@index([userId, updatedAt])
+  @@index([site])
 }
 
 model MyListItem {
@@ -761,7 +839,14 @@ model MyListItem {
 
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@id([userId, titleId])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Хэрэглэгчийн үнэлгээ+сэтгэгдэл — нэг хэрэглэгч нэг Title-д НЭГ review
@@ -807,6 +892,12 @@ model Review {
   /// Хариу нь parentKey=эх id тул олон байж болно (хариу бүр өөр эх сэтгэгдэлд).
   /// Хэрэв нэг хүн нэг эх сэтгэгдэлд ОЛОН хариу бичих шаардлагатай бол энэ
   /// unique саад болно — тиймээс хариунд parentKey-г "reply:<cuid>" гэж өвөрмөц болгоно.
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([userId, titleId, parentKey])
   @@index([titleId, parentId, createdAt])
   @@index([titleId, createdAt])
@@ -814,6 +905,8 @@ model Review {
   /// WARN Admin feed sorts ALL reviews by recency; every other
   /// index is titleId-prefixed and therefore unusable here.
   @@index([createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Сэтгэгдэлд өгсөн санал (хэрэгтэй / хэрэггүй)
@@ -828,8 +921,15 @@ model ReviewVote {
 
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@id([reviewId, userId])
   @@index([userId])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Тохиромжгүй сэтгэгдлийн мэдээлэл
@@ -846,8 +946,15 @@ model ReviewReport {
 
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([reviewId, userId])
   @@index([createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Контент маркетинг ────────────────────────────────────────────────────────
@@ -863,7 +970,14 @@ model Faq {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([isActive, order])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 model BlogPost {
@@ -886,13 +1000,20 @@ model BlogPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([isPublished, publishedAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Хямдралын купон код — QPay subscription худалдан авалтад ашиглана
 model Coupon {
   id           String       @id @default(cuid())
-  code         String       @unique
+  code         String
   discountType DiscountType
   amount       Int // PERCENT бол 1-100, FIXED бол ₮
   maxUses      Int? // null = хязгааргvй
@@ -922,9 +1043,17 @@ model Coupon {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@unique([code, site])
   @@index([code, isActive])
   /// ⚠️ «Энэ хүнд энэ кампанит ажлын код өгсөн үү» гэдгийг хайхад
   @@index([userId, campaign])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── УРАМШУУЛЛЫН СИСТЕМ ──────────────────────────────────────────────────────
@@ -1023,7 +1152,15 @@ model Promotion {
   updatedAt DateTime @updatedAt
 
   /// ⚠️ Идэвхтэй урамшуулал хайх гол query — хугацаа+идэвх
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([isActive, startsAt, endsAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Урамшуулал ↔ багц. Мөр байхгүй бол урамшуулал БҮХ багцад үйлчилнэ.
@@ -1034,8 +1171,14 @@ model PromotionPlan {
   promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
   plan      Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@id([promotionId, planId])
   @@index([planId])
+  @@index([site])
 }
 
 /// Хэн ямар урамшуулал ашигласан бүртгэл.
@@ -1070,8 +1213,16 @@ model PromotionRedemption {
   createdAt DateTime @default(now())
 
   /// ⚠️ `maxPerUser` шалгалтын гол index
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([promotionId, userId])
   @@index([userId])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── ДАНСААР ТӨЛӨХ: ОЛОН ДАНС ────────────────────────────────────────────────
@@ -1107,7 +1258,14 @@ model BankAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([isActive, order])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── ХЭРЭГЛЭГЧИЙН МЭДЭГДЭЛ ───────────────────────────────────────────────────
@@ -1152,14 +1310,22 @@ model Notification {
   createdAt DateTime @default(now())
 
   /// ⚠️ Уншаагүйг эхэнд, шинийг дээр нь — жагсаалтын гол query
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, readAt, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Статик хуудас — Үйлчилгээний нөхцөл, Нууцлалын бодлого, Дата устгах хүсэлт
 /// гэх мэт. Админаас агуулга+SEO-г бүрэн удирдана (DigitalGer-ийн Pages жишиг).
 model Page {
   id      String @id @default(cuid())
-  slug    String @unique // "terms" | "privacy" | "data-deletion" | "about"
+  slug    String // "terms" | "privacy" | "data-deletion" | "about"
   title   String
   content String @default("") // HTML/Markdown-той rich text
 
@@ -1173,7 +1339,15 @@ model Page {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@unique([slug, site])
   @@index([isActive, order])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Тохиргоо ─────────────────────────────────────────────────────────────────
@@ -1225,7 +1399,14 @@ model HomeBanner {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([isActive, position, order])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Tracking / Analytics ────────────────────────────────────────────────────
@@ -1244,9 +1425,16 @@ model PageView {
   referrer  String?
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
   @@index([path, createdAt])
   @@index([createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Кино/цуврал дээрх үйлдэл — юу үзсэн, юу дуусгасныг харна
@@ -1267,9 +1455,16 @@ model TitleEvent {
   device      String?
   createdAt   DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
   @@index([titleId, type, createdAt])
   @@index([type, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Хайлтын түүх — хэрэглэгч юу хайж байсныг админ харна
@@ -1282,9 +1477,16 @@ model SearchEvent {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
   @@index([query, createdAt])
   @@index([createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Аккаунтын өөрчлөлт/нэвтрэлтийн түүх
@@ -1303,8 +1505,15 @@ model UserAuditLog {
   ip        String?
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
   @@index([field, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Чат (вэб AI туслах + админ гар хариулт) ─────────────────────────────────
@@ -1361,6 +1570,11 @@ model ChatConversation {
   createdAt DateTime      @default(now())
   messages  ChatMessage[]
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, lastMessageAt])
   @@index([adminUnread, lastMessageAt])
   @@index([channel, lastMessageAt])
@@ -1368,6 +1582,8 @@ model ChatConversation {
    * ⚠️ Тэмдэглэсэн ярианы шүүлт — индексгүй бол бүтэн хүснэгт уншина
    */
   @@index([starred, lastMessageAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 model ChatMessage {
@@ -1397,10 +1613,17 @@ model ChatMessage {
   attachmentType String?
   createdAt      DateTime         @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([conversationId, createdAt])
   /// WARN Admin feed: role=user + createdAt DESC. The only index
   /// starts with conversationId, so it could not serve this sort.
   @@index([role, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Кино ширхэгээр түрээслэх — багц авахгүйгээр нэг киног хугацаатай үзэх.
@@ -1431,9 +1654,17 @@ model Rental {
   title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
 
   /// Идэвхтэй түрээс хайхад (userId + titleId + хугацаа)
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, titleId, expiresAt])
   @@index([titleId, createdAt])
   @@index([expiresAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── Имэйл систем ────────────────────────────────────────────────────────────
@@ -1455,8 +1686,15 @@ model EmailOtp {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, purpose, expiresAt])
   @@index([expiresAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Нууц үг сэргээх линкийн токен.
@@ -1488,21 +1726,36 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, createdAt])
   @@index([expiresAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Bounce/complaint ирсэн хаягууд — дахин илгээхгүй (SES reputation хамгаална).
 model EmailSuppression {
   id        String   @id @default(cuid())
-  email     String   @unique
+  email     String
   /// bounce | complaint | manual
   reason    String
   subType   String?
   detail    String?
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@unique([email, site])
   @@index([reason, createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Илгээсэн имэйл бүрийн лог — админ хяналт, дахин илгээх шалгалт.
@@ -1530,9 +1783,15 @@ model EmailOpen {
 
   openedAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([template, openedAt])
   @@index([email, template])
   @@index([logId])
+  @@index([site])
 }
 
 model EmailLog {
@@ -1568,6 +1827,7 @@ model EmailLog {
 
   // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**
@@ -1622,6 +1882,11 @@ model EmailLog {
   bouncedAt  DateTime?
   bounceType String?
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([template, createdAt])
   @@index([to, createdAt])
   @@index([status, createdAt])
@@ -1632,13 +1897,15 @@ model EmailLog {
    */
   @@index([openedAt])
   @@index([template, openedAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// Имэйл цуглуулга (мэдээллийн товхимол).
 /// ⚠️ Хэрэглэгч бүртгүүлэхэд ч энд автоматаар нэмэгдэнэ (source=register).
 model Subscriber {
   id          String           @id @default(cuid())
-  email       String           @unique
+  email       String
   name        String?
   /// homepage | footer | register | checkout | admin | import
   source      String?
@@ -1650,8 +1917,16 @@ model Subscriber {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@unique([email, site])
   @@index([status, createdAt])
   @@index([source])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 enum SubscriberStatus {
@@ -1672,8 +1947,14 @@ model AdminSeen {
 
   lastSeenAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([adminId, section])
   @@index([adminId])
+  @@index([site])
 }
 
 // ─── FACEBOOK → INSTAGRAM ХӨНДЛӨН НИЙТЛЭЛ ────────────────────────────────────
@@ -1736,8 +2017,15 @@ model SocialCrosspost {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([status, createdAt])
   @@index([fbPostedAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /**
@@ -1786,9 +2074,17 @@ model SocialRelay {
    * зэрэг дарвал хоёр дахь оролдлого мөрийг ШИНЭЧИЛНЭ (шинээр
    * үүсгэхгүй) — зорилтот дээр давхардсан пост ГАРАХГҮЙ.
    */
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([sourcePostId, targetId])
   @@index([status, createdAt])
   @@index([sourceId])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── НИЙТЛЭЛ ТОВЛОГЧ (FB + IG) ──────────────────────────────────────────────
@@ -1886,8 +2182,16 @@ model SocialPost {
   updatedAt DateTime @updatedAt
 
   /// ⚠️ Cron-ий гол query — индексгүй бол минут тутам бүтэн скан
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([status, scheduledAt])
   @@index([createdAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /**
@@ -1952,8 +2256,16 @@ model SocialPostTarget {
   updatedAt DateTime @updatedAt
 
   /// Нэг постод нэг суваг ЗӨВХӨН НЭГ УДАА
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([postId, channel])
   @@index([status])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /**
@@ -1972,8 +2284,15 @@ model SocialSlot {
 
   createdAt DateTime @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([channel, weekday, time])
   @@index([channel])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /**
@@ -1992,6 +2311,13 @@ model SocialChannelSetting {
   paused Boolean @default(false)
 
   updatedAt DateTime @updatedAt
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@index([site])
 }
 
 // ─── RE-ENGAGEMENT / АМЬДРАЛЫН МӨЧЛӨГИЙН ИМЭЙЛ ───────────────────────────────
@@ -2033,6 +2359,14 @@ model EmailTemplateOverride {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /**
@@ -2068,8 +2402,15 @@ model PhoneVerifySession {
   verifiedAt DateTime?
   createdAt  DateTime  @default(now())
 
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, status])
   @@index([verifyMnSessionId])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 // ─── ХАДМАЛ (SUBTITLE) ───────────────────────────────────────────────────────
@@ -2161,10 +2502,18 @@ model ErrorLog {
   createdAt DateTime @default(now())
 
   /// Админ жагсаалт: шинэ нь эхэнд
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([createdAt])
   /// «Ямар алдаа хамгийн олон удаа гарсан» бүлэглэлт
   @@index([source, createdAt])
   @@index([userId])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// ГАР УТАСНЫ АППЫН PUSH ТОКЕН.
@@ -2206,7 +2555,15 @@ model DeviceToken {
   updatedAt DateTime @updatedAt
 
   /// Хэрэглэгчийн бүх төхөөрөмж рүү илгээх гол query
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([userId, enabled])
+  @@index([site])
+  @@index([site, createdAt])
 }
 
 /// ГАР УТСАНД ОФЛАЙН ТАТСАН КОНТЕНТ.
@@ -2242,11 +2599,18 @@ model Download {
   updatedAt DateTime @updatedAt
 
   /// ⚠️ Нэг анги нэг л удаа — дахин татахад upsert хийнэ
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@unique([userId, target, targetId])
   /// Хэрэглэгчийн жагсаалт + heartbeat-ын гол query
   @@index([userId, expiresAt])
+  @@index([site])
+  @@index([site, createdAt])
 }
-
 
 /// Админы хадгалсан имэйлийн загвар — броадкастад дахин ашиглана.
 ///
@@ -2260,9 +2624,9 @@ model EmailTemplateSaved {
   name String
 
   /// Имэйлийн гарчиг (subject)
-  subject String
+  subject  String
   /// Имэйл доторх том гарчиг (heading)
-  heading String
+  heading  String
   /// Биеийн HTML — админы бичсэн текст + зураг
   bodyHtml String
 
@@ -2280,5 +2644,13 @@ model EmailTemplateSaved {
   updatedAt DateTime @updatedAt
 
   /// Жагсаалтын эрэмбэ — сүүлд ашигласан нь дээр
+
+  /**
+   * ⚠️ Аль сайтынх вэ — besttv | bestfilm. Автомат шүүлтэд ордог.
+   */
+  site String @default("besttv")
+
   @@index([lastUsedAt])
+  @@index([site])
+  @@index([site, createdAt])
 }

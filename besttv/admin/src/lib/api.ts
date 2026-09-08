@@ -1,3 +1,5 @@
+import { currentAdminSite } from './site-store';
+
 const API_BASE = '/api';
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -55,6 +57,17 @@ export async function api<T = unknown>(
           ? { 'Content-Type': 'application/json' }
           : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        /**
+         * ⚠️⚠️ САЙТЫН СОНГОЛТ — БҮХ дуудлагад автоматаар.
+         *
+         * Backend-ийн `SiteMiddleware` үүнийг уншиж, тухайн
+         * хүсэлтийн БҮХ Prisma query-г шүүнэ. Мартвал админ
+         * BestTV-ийн өгөгдлийг BestFilm гэж хараад засварлана.
+         *
+         * ⚠️ `init.headers`-ЭЭС ӨМНӨ — дуудагч зориуд өөр сайт
+         * заасан бол (ховор) түүнийг ХҮНДЭТГЭНЭ.
+         */
+        'X-Site': currentAdminSite(),
         ...init.headers,
       },
     });

@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BonumService } from './bonum.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EmailService } from '../email/email.service';
+import { forEachSite } from '../../common/site/site-cron';
 
 /**
  * АВТОМАТ СУНГАЛТ — багц дуусахад хадгалсан картаас автоматаар төлнө.
@@ -38,16 +39,29 @@ export class AutoRenewService {
    * Өдөрт нэг удаа (UB 09:00 орчим). Дуусахаас 1 өдрийн өмнөөс эхэлж
    * оролдоно — амжилтгүй болбол дахин оролдох зав үлдэнэ.
    */
+  /**
+   * ⚠️⚠️⚠️ САЙТ БҮРД ТУСАД НЬ — ХАМГИЙН ЭРСДЭЛТЭЙ CRON.
+   *
+   * Автомат сунгалт нь ТӨЛБӨР ТАТАХ үйлдэл. QPay merchant нь сайт
+   * бүрд ӨӨР тул шүүлтгүй ажиллуулбал BestFilm-ийн захиалагчаас
+   * BestTV-ийн дансаар мөнгө татна — БУЦААХ БОЛОМЖГҮЙ алдаа.
+   *
+   * ⚠️ `running` тугийг сайтаар салгах ШААРДЛАГАГҮЙ: `forEachSite`
+   * нь ДАРААЛЛААР ажилладаг тул хоёр сайт зэрэг орохгүй.
+   */
   @Cron('0 1 * * *')
   async runDaily() {
-    if (!this.bonum.isConfigured()) return;
     if (this.running) {
       this.logger.warn('Автомат сунгалт аль хэдийн ажиллаж байна — алгаслаа');
       return;
     }
     this.running = true;
     try {
-      await this.renewDueSubscriptions();
+      await forEachSite('auto-renew', async () => {
+        /* ⚠️ Bonum тохиргоо сайт бүрд шалгана */
+        if (!this.bonum.isConfigured()) return;
+        await this.renewDueSubscriptions();
+      });
     } catch (e) {
       this.logger.error(`Автомат сунгалт унасан: ${String(e)}`);
     } finally {

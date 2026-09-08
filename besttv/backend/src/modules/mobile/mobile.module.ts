@@ -17,6 +17,7 @@ import { TitlesService } from '../titles/titles.service';
 import { TitlesModule } from '../titles/titles.module';
 import { TitleMediaHelper } from '../titles/title-media.helper';
 import { CacheService } from '../../common/cache/cache.service';
+import { siteConfig } from '../../common/site/site-config';
 
 /**
  * ⚠️⚠️⚠️ ГАР УТАСНЫ АППЫН ТУСДАА ЗАМ — `/api/mobile/*`
@@ -175,9 +176,7 @@ export class MobileService {
 
     /* ⚠️ 95%-аас дээш үзсэнийг ХАСНА — дууссан киног «үргэлжлүүл»
        гэж санал болгох нь утгагүй */
-    const active = rows.filter(
-      (r) => r.durationSec === 0 || r.positionSec < r.durationSec * 0.95,
-    );
+    const active = rows.filter((r) => r.durationSec === 0 || r.positionSec < r.durationSec * 0.95);
     const decorated = await this.media.decorateMany(active.map((r) => r.title));
 
     return active.map((r, i) => ({
@@ -198,12 +197,7 @@ export class MobileService {
    *
    * `cursor` нь сүүлийн элементийн `id` — тогтвортой.
    */
-  async list(params: {
-    type?: string;
-    genre?: string;
-    cursor?: string;
-    limit?: number;
-  }) {
+  async list(params: { type?: string; genre?: string; cursor?: string; limit?: number }) {
     const limit = Math.min(48, params.limit ?? 24);
     const where: Prisma.TitleWhereInput = {
       isActive: true,
@@ -211,9 +205,7 @@ export class MobileService {
       ...(params.genre && params.genre !== 'ALL'
         ? { genres: { some: { genreId: params.genre } } }
         : {}),
-      ...(params.type && params.type !== 'ALL'
-        ? { type: params.type as TitleType }
-        : {}),
+      ...(params.type && params.type !== 'ALL' ? { type: params.type as TitleType } : {}),
     };
 
     const rows = await this.prisma.title.findMany({
@@ -328,8 +320,8 @@ export class MobileService {
       /* ⚠️ Анхдагч нь ҮНЭН — тохируулаагүй бол төлбөр ажиллана */
       paymentsEnabled: process.env.APP_PAYMENTS_ENABLED !== 'false',
       /* Вэбийн хаяг — «Багц авах» товч эндэ рүү чиглүүлнэ */
-      webUrl: 'https://besttv.us',
-      supportUrl: 'https://besttv.us/faq',
+      webUrl: siteConfig().url,
+      supportUrl: `${siteConfig().url}/faq`,
     };
   }
 }

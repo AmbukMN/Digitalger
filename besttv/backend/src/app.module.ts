@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -7,6 +7,8 @@ import { CfThrottlerGuard } from './common/cf-throttler.guard';
 import { BullModule } from '@nestjs/bull';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { SiteMiddleware } from './common/site/site.middleware';
+import { AllSitesGuard } from './common/site/all-sites.guard';
 import { AppCacheModule } from './common/cache/cache.module';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import Redis from 'ioredis';
@@ -89,21 +91,21 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         throttlers: [
-      /**
-       * ⚠️⚠️ `default` нэр ЗААВАЛ ЭХЭНД байна.
-       *
-       * Кодын 25 газарт `@Throttle({ default: {...} })` бичигдсэн (нэвтрэлт,
-       * төлбөр, имэйл, купон, түрээс). Гэтэл энд зөвхөн short/medium/long
-       * нэртэй тохиргоо байсан тул `default` нэр ОЛДОХГҮЙ → тэдгээр
-       * хязгаарууд ЧИМЭЭГҮЙ АЛГАСАГДАЖ, огт хэрэгжихгүй байв
-       * (тест: купоны endpoint-д 20 хүсэлт зэрэг явахад бүгд 200 буцсан).
-       *
-       * `@Throttle`-гүй endpoint-д short/medium/long хэвээр үйлчилнэ.
-       */
-      { name: 'default', ttl: 60_000, limit: 300 },
-      { name: 'short', ttl: 1_000, limit: 20 },
-      { name: 'medium', ttl: 60_000, limit: 300 },
-      { name: 'long', ttl: 3_600_000, limit: 3_000 },
+          /**
+           * ⚠️⚠️ `default` нэр ЗААВАЛ ЭХЭНД байна.
+           *
+           * Кодын 25 газарт `@Throttle({ default: {...} })` бичигдсэн (нэвтрэлт,
+           * төлбөр, имэйл, купон, түрээс). Гэтэл энд зөвхөн short/medium/long
+           * нэртэй тохиргоо байсан тул `default` нэр ОЛДОХГҮЙ → тэдгээр
+           * хязгаарууд ЧИМЭЭГҮЙ АЛГАСАГДАЖ, огт хэрэгжихгүй байв
+           * (тест: купоны endpoint-д 20 хүсэлт зэрэг явахад бүгд 200 буцсан).
+           *
+           * `@Throttle`-гүй endpoint-д short/medium/long хэвээр үйлчилнэ.
+           */
+          { name: 'default', ttl: 60_000, limit: 300 },
+          { name: 'short', ttl: 1_000, limit: 20 },
+          { name: 'medium', ttl: 60_000, limit: 300 },
+          { name: 'long', ttl: 3_600_000, limit: 3_000 },
         ],
         storage: new ThrottlerStorageRedisService(
           new Redis(config.get<string>('redisUrl') ?? 'redis://localhost:6379', {
@@ -168,7 +170,34 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     EmailModule,
     NotificationsModule,
   ],
-  // ⚠️ CfThrottlerGuard — Cloudflare-ийн ард ЖИНХЭНЭ IP-ээр хязгаарлана
-  providers: [{ provide: APP_GUARD, useClass: CfThrottlerGuard }],
+  providers: [
+    // ⚠️ CfThrottlerGuard — Cloudflare-ийн ард ЖИНХЭНЭ IP-ээр хязгаарлана
+    { provide: APP_GUARD, useClass: CfThrottlerGuard },
+    /**
+     * ⚠️⚠️ AllSitesGuard — `X-Site: all` нь өгөгдлийн тусгаарлалтыг
+     * УНТРААДАГ тул зөвхөн ADMIN-д зөвшөөрнө.
+     *
+     * ⚠️ GLOBAL байх ЁСТОЙ: 33 admin endpoint-д гараар нэмбэл
+     * заавал нэгийг мартана. Global бол шинэ endpoint ч автоматаар
+     * хамгаалагдана.
+     *
+     * ⚠️ Энгийн (`X-Site: besttv`) хүсэлтэд огт нөлөөлөхгүй —
+     * `req.allSites` false бол шууд `true` буцаана.
+     */
+    { provide: APP_GUARD, useClass: AllSitesGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /**
+   * ⚠️⚠️ SiteMiddleware нь БҮХ замд, ХАМГИЙН ЭХЭНД ажиллана.
+   *
+   * ЯАГААД MIDDLEWARE (interceptor БИШ): NestJS-ийн дараалал нь
+   * Middleware → Guard → Interceptor → Handler. `JwtAuthGuard` нь
+   * GUARD давхаргад Prisma-г дууддаг тул сайтыг түүнээс ӨМНӨ
+   * тогтоох ёстой. Interceptor-т тавьвал нэвтрэлтийн query нь
+   * шүүлтгүй явж, өгөгдлийн тусгаарлалт нүхтэй болно.
+   */
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(SiteMiddleware).forRoutes('*');
+  }
+}

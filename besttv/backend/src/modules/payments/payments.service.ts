@@ -19,6 +19,9 @@ import { N8nService } from '../n8n/n8n.service';
 import { MetaCapiService } from '../analytics/meta-capi.service';
 import { BonumService } from './bonum.service';
 import type { BonumMethod } from './dto/payments.dto';
+import { resolveByRecord, runAcrossSites, withSite } from '../../common/site/site-webhook';
+import { currentSite } from '../../common/site/site-context';
+import { isQpayConfigured, qpayCredentials } from '../../common/site/site-qpay';
 
 interface QPayTokenResponse {
   access_token: string;
@@ -40,7 +43,16 @@ interface QPayInvoiceResponse {
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
-  private tokenCache: { token: string; expiresAt: number } | null = null;
+  /**
+   * ⚠️⚠️ QPAY ТОКЕНЫ КЭШ — САЙТ БҮРД ТУСДАА.
+   *
+   * БОДИТ ЭРСДЭЛ: токен нь merchant-д харьяалагдана. Нэг объектод
+   * хадгалвал BestFilm-ийн хүсэлт BestTV-ийн токеноор нэхэмжлэх
+   * үүсгэж, ХЭРЭГЛЭГЧИЙН МӨНГӨ БУРУУ ДАНС руу орно. Тэр нь чимээгүй
+   * алдаа — QR ажиллана, төлбөр амжилттай болно, зөвхөн мөнгө өөр
+   * эзэнд очно.
+   */
+  private tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
   /** ⚠️ Reconcile cron давхцахаас сэргийлэх түгжээ (доорх тайлбар) */
   private reconcileRunning = false;
@@ -66,9 +78,9 @@ export class PaymentsService {
     private readonly bonum: BonumService,
   ) {}
 
+  /** ⚠️ Одоогийн САЙТЫН QPay тохиргоо бүрэн эсэх */
   isQPayConfigured(): boolean {
-    const qpay = this.config.get('qpay');
-    return Boolean(qpay.username && qpay.password && qpay.invoiceCode);
+    return isQpayConfigured();
   }
 
   /**
@@ -84,7 +96,10 @@ export class PaymentsService {
       throw new BadRequestException('Энэ төлбөрийн арга түр боломжгүй байна');
     }
     const inv = await this.bonum.createInvoice(amount, method);
-    return { bonumInvoiceId: inv.invoiceId, bonumFollowUpLink: inv.followUpLink };
+    return {
+      bonumInvoiceId: inv.invoiceId,
+      bonumFollowUpLink: inv.followUpLink,
+    };
   }
 
   /**
@@ -118,26 +133,61 @@ export class PaymentsService {
    *    буруу хүнд холбохоос сэргийлнэ.
    * ⚠️ Токен ДАВХАРДВАЛ (ижил картыг дахин хадгалсан) шинэчилнэ.
    */
-  private async saveCardFromWebhook(
-    body: Record<string, unknown>,
-    inner: Record<string, unknown>,
-  ) {
+  private async saveCardFromWebhook(body: Record<string, unknown>, inner: Record<string, unknown>) {
     const ok = String(body.status ?? inner.status ?? '').toUpperCase() === 'SUCCESS';
     const token = String(inner.token ?? '');
     const transactionId = String(inner.transactionId ?? '');
     if (!ok || !token || !transactionId) {
-      this.logger.warn(`Bonum CARD-TOKEN боловсруулах боломжгүй: ${JSON.stringify(inner).slice(0, 200)}`);
+      this.logger.warn(
+        `Bonum CARD-TOKEN боловсруулах боломжгүй: ${JSON.stringify(inner).slice(0, 200)}`,
+      );
       return { received: true, matched: false };
     }
 
-    const payment = await this.prisma.payment.findFirst({
-      where: { bonumInvoiceId: `TOK:${transactionId}` },
-      select: { id: true, userId: true, amount: true, status: true, planId: true },
-    });
-    if (!payment?.userId) {
-      this.logger.warn(`Bonum CARD-TOKEN: payment олдсонгүй (${transactionId})`);
-      return { received: true, matched: false };
-    }
+    /**
+     * ⚠️⚠️ САЙТААС ҮЛ ХАМААРАН ХАЙНА — Bonum нь `X-Site` илгээдэггүй.
+     * Дэлгэрэнгүй: `site-webhook.ts`.
+     */
+    return resolveByRecord(
+      () =>
+        this.prisma.payment.findFirst({
+          where: { bonumInvoiceId: `TOK:${transactionId}` },
+          select: {
+            id: true,
+            userId: true,
+            amount: true,
+            status: true,
+            planId: true,
+            site: true,
+          },
+        }),
+      (payment) => this.finishCardToken(payment, inner, token),
+      () => {
+        this.logger.warn(`Bonum CARD-TOKEN: payment олдсонгүй (${transactionId})`);
+        return { received: true, matched: false };
+      },
+    );
+  }
+
+  /**
+   * ⚠️ CARD-TOKEN-ий үлдсэн ажил — ТӨЛБӨРИЙН сайтын контекстэд.
+   *
+   * Тусад нь функц болгосон шалтгаан: `resolveByRecord` нь олдсон
+   * бичлэгийн сайтаар callback-ыг ажиллуулна. Ингэснээр карт,
+   * захиалга, мэдэгдэл бүгд ЗӨВ сайтад бүртгэгдэнэ.
+   */
+  private async finishCardToken(
+    payment: {
+      id: string;
+      userId: string | null;
+      amount: number;
+      status: PaymentStatus;
+      planId: string | null;
+    },
+    inner: Record<string, unknown>,
+    token: string,
+  ) {
+    if (!payment.userId) return { received: true, matched: false };
 
     const bank = ((inner.bank ?? {}) as Record<string, unknown>).name;
     const card = await this.prisma.savedCard.upsert({
@@ -149,7 +199,10 @@ export class PaymentsService {
         bank: String(bank ?? ''),
         expiry: String(inner.expiry ?? ''),
         /* ⚠️ Эхний карт нь автоматаар анхдагч болно */
-        isDefault: (await this.prisma.savedCard.count({ where: { userId: payment.userId } })) === 0,
+        isDefault:
+          (await this.prisma.savedCard.count({
+            where: { userId: payment.userId },
+          })) === 0,
       },
       update: {
         mask: String(inner.mask ?? ''),
@@ -211,7 +264,14 @@ export class PaymentsService {
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
       /* ⚠️ `token` ОГТ буцаахгүй — frontend-д хэрэггүй, задарвал
          тухайн картаас төлбөр татах боломжтой болно */
-      select: { id: true, mask: true, bank: true, expiry: true, isDefault: true, createdAt: true },
+      select: {
+        id: true,
+        mask: true,
+        bank: true,
+        expiry: true,
+        isDefault: true,
+        createdAt: true,
+      },
     });
     return rows;
   }
@@ -260,16 +320,19 @@ export class PaymentsService {
           select: { id: true },
         });
         if (!def) {
-          throw new BadRequestException(
-            'Автомат сунгалт асаахын тулд эхлээд картаа хадгална уу',
-          );
+          throw new BadRequestException('Автомат сунгалт асаахын тулд эхлээд картаа хадгална уу');
         }
         cardId = def.id;
       }
       await this.prisma.subscription.update({
         where: { id: sub.id },
         /* ⚠️ Дахин асаахад алдааны тоолуурыг тэглэнэ */
-        data: { autoRenew: true, cardId, renewFailCount: 0, autoRenewCancelledAt: null },
+        data: {
+          autoRenew: true,
+          cardId,
+          renewFailCount: 0,
+          autoRenewCancelledAt: null,
+        },
       });
       return { autoRenew: true };
     }
@@ -445,7 +508,12 @@ export class PaymentsService {
         this.logger.warn(
           `0₮ төлбөр давхардлаа — эрх дахин нээгээгүй (user=${userId} plan=${planId})`,
         );
-        return { devMode: true, paymentId: recentFree.id, status: 'PAID', amount: 0 };
+        return {
+          devMode: true,
+          paymentId: recentFree.id,
+          status: 'PAID',
+          amount: 0,
+        };
       }
 
       const freePayment = await this.prisma.payment.create({
@@ -460,7 +528,12 @@ export class PaymentsService {
         },
       });
       await this.completePayment(freePayment.id);
-      return { devMode: true, paymentId: freePayment.id, status: 'PAID', amount: 0 };
+      return {
+        devMode: true,
+        paymentId: freePayment.id,
+        status: 'PAID',
+        amount: 0,
+      };
     }
 
     // Idempotent: сүүлийн 30 мин доторх PENDING invoice байвал дахин ашиглана.
@@ -614,7 +687,8 @@ export class PaymentsService {
         if (attempt < 3) {
           await new Promise((r) => setTimeout(r, attempt * 600));
           /* Токен ч хүчингүй байж болзошгүй — цэвэрлэж дахин авна */
-          this.tokenCache = null;
+          /* ⚠️ ЗӨВХӨН одоогийн сайтын токеныг хүчингүй болгоно */
+          this.tokenCache.delete(currentSite());
         }
       }
     }
@@ -627,7 +701,8 @@ export class PaymentsService {
   }
 
   private async createQPayInvoice(userId: string, amount: number): Promise<QPayInvoiceResponse> {
-    const qpay = this.config.get('qpay');
+    /* ⚠️ Сайтын ӨӨРИЙН merchant — мөнгө зөв данс руу орно */
+    const qpay = qpayCredentials();
     /**
      * ⚠️⚠️ QPay-Д ИЛГЭЭХ ТЕКСТ — БИЗНЕСИЙН НЭР ОРУУЛАХГҮЙ.
      *
@@ -659,7 +734,10 @@ export class PaymentsService {
     const callInvoice = async (token: string) =>
       fetch('https://merchant.qpay.mn/v2/invoice', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(invoiceBody),
         /* ⚠️ QPay удаашрахад HTTP хүсэлт ХЯЗГААРГҮЙ өлгөгдөж,
            хэрэглэгч «боловсруулж байна» дээр гацна */
@@ -668,7 +746,8 @@ export class PaymentsService {
 
     let response = await this.qpayFetchWithRetry(callInvoice, 'invoice');
     if (response.status === 401 || response.status === 403) {
-      this.tokenCache = null;
+      /* ⚠️ ЗӨВХӨН одоогийн сайтын токеныг хүчингүй болгоно */
+      this.tokenCache.delete(currentSite());
       response = await callInvoice(await this.getQPayToken());
     }
 
@@ -911,7 +990,7 @@ export class PaymentsService {
    * QPay-аас өөрөөс нь баталгаажуулж байж Л эрх нээнэ.
    */
   async handleWebhook(body: Record<string, unknown>, rawBody: string, signature?: string) {
-    const webhookSecret = this.config.get<string>('qpay.webhookSecret');
+    const webhookSecret = qpayCredentials().webhookSecret;
 
     /**
      * ⚠️⚠️ PRODUCTION-Д SECRET ЗААВАЛ — байхгүй бол endpoint-ыг ХААНА.
@@ -946,26 +1025,40 @@ export class PaymentsService {
       (body.invoice_id as string);
     if (!invoiceId) throw new BadRequestException('Webhook payload буруу');
 
-    const payment = await this.prisma.payment.findFirst({
-      where: { qpayInvoiceId: invoiceId },
-    });
-    if (!payment) {
-      this.logger.warn(`Webhook: payment олдсонгүй (${invoiceId})`);
-      return { received: true, matched: false };
-    }
-    if (payment.status !== PaymentStatus.PENDING) {
-      return { received: true, matched: true };
-    }
-
-    const verified = this.isQPayConfigured()
-      ? await this.verifyPaymentWithQpay(invoiceId)
-      : false;
-    if (verified) {
-      await this.completePayment(payment.id);
-    } else {
-      this.logger.warn(`Webhook QPay-аар баталгаажсангүй: payment ${payment.id}`);
-    }
-    return { received: true, matched: true };
+    /**
+     * ⚠️⚠️ САЙТААС ҮЛ ХАМААРАН ХАЙНА.
+     *
+     * QPay нь `X-Site` толгой ИЛГЭЭДЭГГҮЙ тул middleware нь энэ
+     * хүсэлтийг `besttv` гэж таамагладаг. Хэрэв энгийн `findFirst`
+     * хэрэглэвэл Prisma өргөтгөл `site='besttv'` шүүлт нэмж,
+     * BestFilm-ийн төлбөр ОЛДОХГҮЙ → хэрэглэгч мөнгө төлсөн ч эрх
+     * авахгүй, лог нь «payment олдсонгүй» гэж бичих ЧИМЭЭГҮЙ алдаа.
+     *
+     * `resolveByRecord` нь (1) бүх сайтаас хайж, (2) олдсоны дараа
+     * тухайн ТӨЛБӨРИЙН сайтаар үлдсэн ажлыг ажиллуулна — захиалга,
+     * имэйл, мэдэгдэл бүгд зөв сайтад очно.
+     */
+    return resolveByRecord(
+      () => this.prisma.payment.findFirst({ where: { qpayInvoiceId: invoiceId } }),
+      async (payment) => {
+        if (payment.status !== PaymentStatus.PENDING) {
+          return { received: true, matched: true };
+        }
+        const verified = this.isQPayConfigured()
+          ? await this.verifyPaymentWithQpay(invoiceId)
+          : false;
+        if (verified) {
+          await this.completePayment(payment.id);
+        } else {
+          this.logger.warn(`Webhook QPay-аар баталгаажсангүй: payment ${payment.id}`);
+        }
+        return { received: true, matched: true };
+      },
+      () => {
+        this.logger.warn(`Webhook: payment олдсонгүй (${invoiceId})`);
+        return { received: true, matched: false };
+      },
+    );
   }
 
   /**
@@ -981,11 +1074,7 @@ export class PaymentsService {
    *
    * Body: { type:'PAYMENT', status:'SUCCESS', body:{ invoiceId, status:'PAID', ... } }
    */
-  async handleBonumWebhook(
-    body: Record<string, unknown>,
-    rawBody: string,
-    checksum?: string,
-  ) {
+  async handleBonumWebhook(body: Record<string, unknown>, rawBody: string, checksum?: string) {
     if (!this.bonum.isConfigured()) {
       this.logger.error('Bonum тохируулаагүй — webhook хаагдлаа');
       throw new UnauthorizedException('Webhook тохиргоо дутуу');
@@ -1028,9 +1117,10 @@ export class PaymentsService {
       return { received: true, matched: false };
     }
 
-    const payment = await this.prisma.payment.findFirst({
-      where: { bonumInvoiceId: invoiceId },
-    });
+    /* ⚠️⚠️ Сайтаас үл хамааран хайна — `site-webhook.ts` үзнэ үү */
+    const payment = await runAcrossSites(() =>
+      this.prisma.payment.findFirst({ where: { bonumInvoiceId: invoiceId } }),
+    );
     if (!payment) {
       this.logger.warn(`Bonum webhook: payment олдсонгүй (${invoiceId})`);
       return { received: true, matched: false };
@@ -1063,7 +1153,15 @@ export class PaymentsService {
       return { received: true, matched: true };
     }
 
-    await this.completePayment(payment.id);
+    /**
+     * ⚠️⚠️ ТӨЛБӨРИЙН САЙТААР ажиллуулна.
+     *
+     * `completePayment` нь захиалга үүсгэж, имэйл илгээж, мэдэгдэл
+     * бичдэг. Хэрэв webhook-ийн (`besttv` гэж таамагласан) контекстээр
+     * ажиллуулбал BestFilm-ийн төлбөрөөс BestTV-д захиалга үүсэж,
+     * хэрэглэгч мөнгө төлсөн сайтдаа эрх авахгүй.
+     */
+    await withSite(payment.site, () => this.completePayment(payment.id));
     return { received: true, matched: true };
   }
 
@@ -1198,12 +1296,13 @@ export class PaymentsService {
      * хоёр дахь давхарга — race үед энэ шалгалт хоцорч болно.
      */
     const already = await this.prisma.promotionRedemption
-      .findUnique({ where: { paymentId: payment.id }, select: { daysGiven: true } })
+      .findUnique({
+        where: { paymentId: payment.id },
+        select: { daysGiven: true },
+      })
       .catch(() => null);
     if (already) {
-      this.logger.warn(
-        `Урамшуулал аль хэдийн олгогдсон — алгаслаа (payment=${payment.id})`,
-      );
+      this.logger.warn(`Урамшуулал аль хэдийн олгогдсон — алгаслаа (payment=${payment.id})`);
       return { extraDays: 0 };
     }
 
@@ -1262,9 +1361,7 @@ export class PaymentsService {
     } catch (e) {
       /* ⚠️ `error` — бонус алдагдсан нь БОДИТ асуудал (хэрэглэгч
          амласан зүйлээ аваагүй), гэхдээ төлбөр зогсоохгүй */
-      this.logger.error(
-        `Урамшууллын бонус олгож чадсангүй (payment=${payment.id}): ${String(e)}`,
-      );
+      this.logger.error(`Урамшууллын бонус олгож чадсангүй (payment=${payment.id}): ${String(e)}`);
       return { extraDays: 0 };
     }
   }
@@ -1326,7 +1423,14 @@ export class PaymentsService {
              ГАДНА бичигдэж, `redeem` унавал бонус буцаагдахгүй */
           tx,
         });
-        await this.promotions.redeem(tx, promo.id, payment.userId, payment.id, promo.bonusAmount!, 0);
+        await this.promotions.redeem(
+          tx,
+          promo.id,
+          payment.userId,
+          payment.id,
+          promo.bonusAmount!,
+          0,
+        );
       });
 
       this.logger.log(
@@ -1334,9 +1438,7 @@ export class PaymentsService {
       );
       return promo.bonusAmount;
     } catch (e) {
-      this.logger.error(
-        `Хэтэвчийн бонус олгож чадсангүй (payment=${payment.id}): ${String(e)}`,
-      );
+      this.logger.error(`Хэтэвчийн бонус олгож чадсангүй (payment=${payment.id}): ${String(e)}`);
       return 0;
     }
   }
@@ -1491,7 +1593,10 @@ export class PaymentsService {
       }),
       this.prisma.plan.findUnique({
         where: { id: payment.plan.id },
-        select: { isVip: true, genres: { select: { genre: { select: { name: true } } } } },
+        select: {
+          isVip: true,
+          genres: { select: { genre: { select: { name: true } } } },
+        },
       }),
       this.prisma.subscription.findFirst({
         where: { userId: payment.userId, planId: payment.plan.id },
@@ -1522,7 +1627,9 @@ export class PaymentsService {
    * илгээгдэнэ. Тусад нь эрх олгох шаардлагагүй.
    */
   async adminMarkPaid(paymentId: string, adminId: string) {
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
     if (!payment) throw new NotFoundException('Төлбөр олдсонгүй');
     if (payment.status === PaymentStatus.PAID) {
       throw new BadRequestException('Энэ төлбөр аль хэдийн баталгаажсан байна');
@@ -1559,7 +1666,10 @@ export class PaymentsService {
      * Тиймээс: энэ төлбөрөөр REFUND гүйлгээ хийгдсэн бол ТАТГАЛЗАНА.
      */
     const refunded = await this.prisma.walletTransaction.findFirst({
-      where: { paymentId, type: { in: [WalletTxType.REFUND, WalletTxType.ADMIN_DEBIT] } },
+      where: {
+        paymentId,
+        type: { in: [WalletTxType.REFUND, WalletTxType.ADMIN_DEBIT] },
+      },
       select: { id: true, amount: true },
     });
     if (refunded) {
@@ -1590,7 +1700,9 @@ export class PaymentsService {
    * хүчингүй болно — эс бөгөөс хэрэглэгч төлөөгүй мөртлөө үзсээр байна.
    */
   async adminCancel(paymentId: string, adminId: string, reason?: string) {
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
     if (!payment) throw new NotFoundException('Төлбөр олдсонгүй');
     if (payment.status === PaymentStatus.CANCELLED) {
       throw new BadRequestException('Аль хэдийн цуцлагдсан байна');
@@ -1739,7 +1851,8 @@ export class PaymentsService {
       return { devMode: true, paymentId: devPayment.id, status: 'PAID' };
     }
 
-    const qpay = this.config.get('qpay');
+    /* ⚠️ Сайтын ӨӨРИЙН merchant — мөнгө зөв данс руу орно */
+    const qpay = qpayCredentials();
     /* ⚠️ QPay-д бизнесийн нэр ОРУУЛАХГҮЙ — дэлгэрэнгүйг
        `initiatePayment` доторх тайлбараас үз. */
     const identifier = randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
@@ -1755,7 +1868,10 @@ export class PaymentsService {
     const callInvoice = async (token: string) =>
       fetch('https://merchant.qpay.mn/v2/invoice', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(invoiceBody),
         /* ⚠️ QPay удаашрахад HTTP хүсэлт ХЯЗГААРГҮЙ өлгөгдөж,
            хэрэглэгч «боловсруулж байна» дээр гацна */
@@ -1764,7 +1880,8 @@ export class PaymentsService {
 
     let response = await this.qpayFetchWithRetry(callInvoice, 'invoice');
     if (response.status === 401 || response.status === 403) {
-      this.tokenCache = null;
+      /* ⚠️ ЗӨВХӨН одоогийн сайтын токеныг хүчингүй болгоно */
+      this.tokenCache.delete(currentSite());
       response = await callInvoice(await this.getQPayToken());
     }
     if (!response.ok) {
@@ -1938,7 +2055,10 @@ export class PaymentsService {
           );
       }
       await this.prisma.payment
-        .update({ where: { id: payment.id }, data: { status: PaymentStatus.FAILED } })
+        .update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.FAILED },
+        })
         .catch(() => null);
       throw new BadRequestException(
         'Эрх нээхэд алдаа гарлаа. Мөнгө хэтэвч рүү буцаагдлаа, дахин оролдоно уу.',
@@ -1997,7 +2117,10 @@ export class PaymentsService {
         }),
         this.prisma.plan.findUnique({
           where: { id: planId },
-          select: { isVip: true, genres: { select: { genre: { select: { name: true } } } } },
+          select: {
+            isVip: true,
+            genres: { select: { genre: { select: { name: true } } } },
+          },
         }),
         this.prisma.subscription.findFirst({
           where: { userId, planId },
@@ -2037,13 +2160,17 @@ export class PaymentsService {
       const callCheck = async (token: string) =>
         fetch('https://merchant.qpay.mn/v2/payment/check', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
           body: checkBody,
           signal: AbortSignal.timeout(15_000),
         });
       let res = await callCheck(await this.getQPayToken());
       if (res.status === 401 || res.status === 403) {
-        this.tokenCache = null;
+        /* ⚠️ ЗӨВХӨН одоогийн сайтын токеныг хүчингүй болгоно */
+        this.tokenCache.delete(currentSite());
         res = await callCheck(await this.getQPayToken());
       }
       if (!res.ok) return false;
@@ -2061,7 +2188,7 @@ export class PaymentsService {
   }
 
   private verifyWebhookSignature(payload: string, signature: string): boolean {
-    const secret = this.config.get<string>('qpay.webhookSecret');
+    const secret = qpayCredentials().webhookSecret;
     if (!secret) return this.config.get<string>('nodeEnv') === 'development';
 
     const expected = createHmac('sha256', secret).update(payload).digest('hex');
@@ -2076,11 +2203,14 @@ export class PaymentsService {
   }
 
   private async getQPayToken(): Promise<string> {
-    if (this.tokenCache && Date.now() < this.tokenCache.expiresAt) {
-      return this.tokenCache.token;
+    /* ⚠️ Сайт бүр ӨӨРИЙН merchant-тай — токен хуваалцаж БОЛОХГҮЙ */
+    const site = currentSite();
+    const cached = this.tokenCache.get(site);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.token;
     }
 
-    const qpay = this.config.get('qpay');
+    const qpay = qpayCredentials(site);
     const credentials = Buffer.from(`${qpay.username}:${qpay.password}`).toString('base64');
 
     const response = await fetch('https://merchant.qpay.mn/v2/auth/token', {
@@ -2115,7 +2245,10 @@ export class PaymentsService {
     const MAX = now + 12 * 60 * 60 * 1000; // дээд 12 цаг
     if (expiresAtMs > MAX || expiresAtMs <= now) expiresAtMs = MAX;
 
-    this.tokenCache = { token: data.access_token, expiresAt: expiresAtMs };
+    this.tokenCache.set(site, {
+      token: data.access_token,
+      expiresAt: expiresAtMs,
+    });
     return data.access_token;
   }
 }

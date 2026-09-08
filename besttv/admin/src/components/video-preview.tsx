@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Play } from 'lucide-react';
 import { getAccessToken } from '@/lib/api';
+import { currentAdminSite } from '@/lib/site-store';
 
 type Kind = 'movie' | 'episode' | 'trailer';
 
@@ -53,7 +54,11 @@ export function VideoPreview({ kind, id }: { kind: Kind; id: string }) {
 
     (async () => {
       const token = getAccessToken();
-      const auth = token ? { Authorization: `Bearer ${token}` } : undefined;
+      /* ⚠️ X-Site — хадмал нь тухайн сайтын кинонд хамаарна */
+        const auth: Record<string, string> = {
+          'X-Site': currentAdminSite(),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
       try {
         const res = await fetch(`/api/admin/subtitles/${kind}/${id}`, { headers: auth });
         if (!res.ok) return;

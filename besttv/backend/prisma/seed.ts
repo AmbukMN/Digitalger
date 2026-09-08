@@ -9,7 +9,11 @@ async function main() {
   const adminEmail = 'admin@besttv.mn';
   const passwordHash = await bcrypt.hash('Admin@12345', 10);
   await prisma.user.upsert({
-    where: { email: adminEmail },
+    /**
+     * ⚠️ `@@unique([email, site])` — seed нь BestTV-ийн админыг л
+     * үүсгэнэ. BestFilm-ийн админыг тусад нь (доор).
+     */
+    where: { email_site: { email: adminEmail, site: 'besttv' } },
     update: {},
     create: {
       email: adminEmail,
@@ -166,7 +170,8 @@ async function main() {
   // ── Статик хуудсууд (админаас засварлана) ────────────────────────────────
   for (const page of STATIC_PAGES) {
     await prisma.page.upsert({
-      where: { slug: page.slug },
+      /* ⚠️ `@@unique([slug, site])` — хуудас сайт бүрд тусдаа текст */
+      where: { slug_site: { slug: page.slug, site: 'besttv' } },
       update: {}, // ⚠️ Байгаа хуудсыг ДАРАХГҮЙ — админы засварыг хадгална
       create: page,
     });

@@ -1,0 +1,13 @@
+{
+  "name": "bestfilm",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w frontend",
+    "build": "npm run build -w frontend",
+    "start": "npm run start -w frontend",
+    "typecheck": "npm run typecheck -w frontend"
+  }
+}

@@ -1,3 +1,4 @@
+import { siteConfig } from '../../common/site/site-config';
 /**
  * КИНОНЫ SEO — `metaTitle` / `metaDescription` АВТОМАТААР.
  *
@@ -32,8 +33,8 @@ const MIN_USABLE_DESC = 80;
  */
 export function autoMetaTitle(title: string, year?: number | null): string {
   const base = year ? `${title} (${year})` : title;
-  const full = `${base} — BestTV дээр онлайнаар үзэх`;
-  return full.length <= MAX_TITLE ? full : `${base} — BestTV`.slice(0, MAX_TITLE);
+  const full = `${base} — ${siteConfig().name} дээр онлайнаар үзэх`;
+  return full.length <= MAX_TITLE ? full : `${base} — ${siteConfig().name}`.slice(0, MAX_TITLE);
 }
 
 /**
@@ -44,7 +45,7 @@ export function autoMetaDescription(title: string, description?: string | null):
   if (clean.length >= MIN_USABLE_DESC) {
     return clean.length <= MAX_DESC ? clean : `${clean.slice(0, MAX_DESC - 3).trimEnd()}...`;
   }
-  const filled = `${clean ? `${clean} ` : ''}${title} киног BestTV дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
+  const filled = `${clean ? `${clean} ` : ''}${title} киног ${siteConfig().name} дээр өндөр чанартай, зар сурталчилгаагүй үзээрэй.`;
   return filled.length <= MAX_DESC ? filled : `${filled.slice(0, MAX_DESC - 3).trimEnd()}...`;
 }
 

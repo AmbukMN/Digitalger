@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { api, getAccessToken } from '@/lib/api';
+import { currentAdminSite } from '@/lib/site-store';
 
 interface Subtitle {
   id: string;
@@ -83,7 +84,11 @@ export function SubtitleManager({
        */
       const res = await fetch(`/api/admin/subtitles/${kind}/${targetId}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getAccessToken()}` },
+        /* ⚠️ X-Site — хадмал нь киноны сайттай таарах ёстой */
+        headers: {
+          Authorization: `Bearer ${getAccessToken()}`,
+          'X-Site': currentAdminSite(),
+        },
         body: fd,
       });
       const json = await res.json().catch(() => null);

@@ -25,6 +25,7 @@ import { TitleMediaHelper } from '../titles/title-media.helper';
 import { EmailService } from '../email/email.service';
 import { WalletModule } from '../wallet/wallet.module';
 import { TitlesModule } from '../titles/titles.module';
+import { siteKey } from '../../common/site/site-settings-key';
 
 /** Сайтын нийтлэг тохиргоо (Settings.key = 'rent') */
 const RENT_KEY = 'rent';
@@ -93,7 +94,7 @@ export class RentalsService {
   /** Сайтын нийтлэг түрээсийн тохиргоо */
   async settings(): Promise<RentSettings> {
     const row = await this.prisma.settings
-      .findUnique({ where: { key: RENT_KEY } })
+      .findUnique({ where: { key: siteKey(RENT_KEY) } })
       .catch(() => null);
     const v = (row?.value ?? {}) as Partial<RentSettings>;
     return {
@@ -111,8 +112,8 @@ export class RentalsService {
       enabled: dto.enabled ?? cur.enabled,
     };
     await this.prisma.settings.upsert({
-      where: { key: RENT_KEY },
-      create: { key: RENT_KEY, value: next as object },
+      where: { key: siteKey(RENT_KEY) },
+      create: { key: siteKey(RENT_KEY), value: next as object },
       update: { value: next as object },
     });
     return next;
@@ -126,7 +127,14 @@ export class RentalsService {
     const [title, cfg] = await Promise.all([
       this.prisma.title.findUnique({
         where: { id: titleId },
-        select: { id: true, title: true, isPremium: true, rentPrice: true, rentHours: true, rentEnabled: true },
+        select: {
+          id: true,
+          title: true,
+          isPremium: true,
+          rentPrice: true,
+          rentHours: true,
+          rentEnabled: true,
+        },
       }),
       this.settings(),
     ]);

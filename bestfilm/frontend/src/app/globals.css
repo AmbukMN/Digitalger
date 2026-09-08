@@ -1,0 +1,828 @@
+@import 'tailwindcss';
+@import '@besttv/shared/styles/globals.css';
+
+/* Shared package-ийн component class-уудыг Tailwind-д scan хийлгэнэ.
+   ⚠️⚠️ ЗАМ: BestTV-ээс хуулагдсан тул `../../../shared/src` байсан —
+   тэр нь DigitalGer/shared руу заадаг (БАЙХГҮЙ). BestFilm нь
+   `bestfilm/frontend/src/app/` дор тул ДӨРВӨН шат ухраад
+   `besttv/shared/src` руу орно (BestTV нь 3 шат байсан).
+   ⚠️ Буруу бол Tailwind нь shared-ийн классыг ОГТ үүсгэхгүй →
+   товч, карт, модал бүгд ЗАГВАРГҮЙ болно (чимээгүй эвдрэл). */
+@source '../../../../besttv/shared/src';
+
+/* ═══════════════════════════════════════════════════════════════
+   ⚠️⚠️ BESTFILM БРЭНДИЙН ӨНГӨ — shared-ийг ДАРЖ БИЧНЭ
+   ═══════════════════════════════════════════════════════════════
+
+   `@besttv/shared` нь BestTV-ийн улаан (#e50914) тодорхойлдог.
+   Тэр пакет нь ХОЁР сайтад хуваалцагддаг тул ТҮҮНИЙГ ХӨНДӨХГҮЙ —
+   өөрчилвөл BestTV-ийн өнгө ч солигдоно.
+
+   Тиймээс import-ийн ДАРАА энд дарж бичнэ.
+
+   ⚠️ ӨНГӨ СОНГОЛТ — логоны пикселээс уншиж, WCAG тооцов:
+
+     dark  #F80010 — логоны ЯГ өнгө. Хар (#050505) дээр 4.85:1 ✅ AA
+     light #C8001E — цагаан дээр 6.04:1 ✅ AA
+
+   ⚠️ Light горимд логоны #F80010-ыг ХЭРЭГЛЭХГҮЙ: цагаан дэвсгэр
+   дээр 4.20:1 буюу WCAG AA (4.5:1) ХАНГАХГҮЙ. Үнэ, тайлбар зэрэг
+   жижиг текст бүдэг харагдана.
+
+   ⚠️ `--accent` нь hover/идэвхтэй төлөвт — үндсэн өнгөнөөс ялгарах
+   ёстой. Dark-д илүү тод, light-д илүү гүн.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Гэрэл горим — гүн улаан-час (6.04:1) */
+  --primary: #c8001e;
+  --primary-foreground: #ffffff;
+  --accent: #a00018;
+  --accent-foreground: #ffffff;
+}
+
+.dark {
+  /* Бараан горим — логоны ЯГ улаан (4.85:1) */
+  --primary: #f80010;
+  --primary-foreground: #ffffff;
+  --accent: #ff3644;
+  --accent-foreground: #ffffff;
+}
+
+/*
+ * BestFilm frontend — DARK/LIGHT ХОЁУЛАА.
+ * `next-themes` нь `<html>`-д `.dark` class тавина (providers.tsx).
+ * Анхдагч нь dark (кино сайт), header-ийн товчоор сэлгэнэ.
+ *
+ * ⚠️ ДҮРЭМ: hero градиент, player, постер дээрх overlay нь ҮРГЭЛЖ бараан
+ * үлдэнэ — тэдгээр нь ЗУРАГ дээр байрлах тул гэрэл горимд ч цагаан текст
+ * л уншигдана. Бусад бүх гадаргуу theme хувьсагч (`--foreground` г.м.)
+ * ашиглана.
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   ГЭРЭЛ ГОРИМЫН ТОДРУУЛГА
+   ═══════════════════════════════════════════════════════════════
+   ⚠️⚠️ ЯАГААД ХЭРЭГТЭЙ ВЭ:
+
+   UI-д `text-foreground/40`, `/55` мэтийн ТУНГАЛАГ өнгө 200+ газар
+   хэрэглэгдсэн. Бараан горимд цагаан текстийн 40% нь саарал болж
+   ЗӨӨЛӨН харагддаг — зөв. Гэтэл гэрэл горимд ХАР текстийн 40% нь
+   цайвар саарал болж ЦАГААН дэвсгэр дээр БАРАГ АЛГА болдог
+   (хэрэглэгчийн гомдол: "хэтэрхий бүдэг байна").
+
+   Файл болгонд гараар засах нь 200+ өөрчлөлт бөгөөд ирээдүйд шинэ
+   код бичихэд дахин давтагдана. Тиймээс ЭНД нэг л удаа — гэрэл
+   горимд тунгалаг бүрийг нэг шат ТОД болгоно.
+
+   ⚠️ Зөвхөн `:root:not(.dark)` буюу ГЭРЭЛ горимд — бараан горим
+   огт хөндөгдөхгүй.
+   ⚠️ `!important` ЗААВАЛ: Tailwind-ийн utility класс нь ижил
+   тодорхойлолттой тул эс бөгөөс дарагдана.
+   ─────────────────────────────────────────────────────────────── */
+:root:not(.dark) .text-foreground\/35 { color: color-mix(in srgb, var(--foreground) 60%, transparent) !important; }
+:root:not(.dark) .text-foreground\/40 { color: color-mix(in srgb, var(--foreground) 62%, transparent) !important; }
+:root:not(.dark) .text-foreground\/45 { color: color-mix(in srgb, var(--foreground) 65%, transparent) !important; }
+:root:not(.dark) .text-foreground\/50 { color: color-mix(in srgb, var(--foreground) 68%, transparent) !important; }
+:root:not(.dark) .text-foreground\/55 { color: color-mix(in srgb, var(--foreground) 72%, transparent) !important; }
+:root:not(.dark) .text-foreground\/60 { color: color-mix(in srgb, var(--foreground) 75%, transparent) !important; }
+:root:not(.dark) .text-foreground\/65 { color: color-mix(in srgb, var(--foreground) 78%, transparent) !important; }
+:root:not(.dark) .text-foreground\/70 { color: color-mix(in srgb, var(--foreground) 82%, transparent) !important; }
+:root:not(.dark) .text-foreground\/75 { color: color-mix(in srgb, var(--foreground) 85%, transparent) !important; }
+:root:not(.dark) .text-foreground\/80,
+:root:not(.dark) .text-foreground\/85,
+:root:not(.dark) .text-foreground\/90 { color: var(--foreground) !important; }
+
+/* `text-muted-foreground` — жижиг тайлбар, огноо, тоо */
+:root:not(.dark) .text-muted-foreground { color: #3f4653 !important; }
+
+/* Хүрээ/дэвсгэр — гэрэл горимд бага зэрэг тод (эс бөгөөс "хайрцаг"
+   мэдэгдэхгүй, товч эсэхийг ялгахад хэцүү) */
+:root:not(.dark) .border-foreground\/8  { border-color: color-mix(in srgb, var(--foreground) 14%, transparent) !important; }
+:root:not(.dark) .border-foreground\/10 { border-color: color-mix(in srgb, var(--foreground) 16%, transparent) !important; }
+:root:not(.dark) .border-foreground\/12 { border-color: color-mix(in srgb, var(--foreground) 18%, transparent) !important; }
+:root:not(.dark) .bg-foreground\/5  { background-color: color-mix(in srgb, var(--foreground) 7%, transparent) !important; }
+:root:not(.dark) .bg-foreground\/8  { background-color: color-mix(in srgb, var(--foreground) 9%, transparent) !important; }
+:root:not(.dark) .bg-foreground\/10 { background-color: color-mix(in srgb, var(--foreground) 11%, transparent) !important; }
+
+/* ─── Hero градиентууд ──────────────────────────────────────────
+   ⚠️ ЗУРГИЙН дээр байрлана — доторх текст ҮРГЭЛЖ ЦАГААН тул overlay нь
+   хоёр горимд ч БАРААН үлдэнэ (гэрэл болговол текст уншигдахгүй).
+
+   ⚠️⚠️ ГАНЦ ЯЛГАА: ХАМГИЙН ДООД ирмэг нь хуудасны дэвсгэртэй УУЛЗАНА.
+   Тэнд `--background` ашиглана — эс бөгөөс гэрэл горимд hero-ийн хар
+   ёроол цагаан контент руу ОГЦОМ шилжиж, тод зураас гарна. */
+/*
+ * ⚠️⚠️ ХОЁР ДАВХАРГА:
+ *   1) БАРААН overlay — зураг дээрх цагаан текстийг уншуулна (theme-ээс
+ *      ХАМААРАХГҮЙ, хоёр горимд ижил).
+ *   2) Хуудасны дэвсгэр рүү шилжих ЯГ ЁРООЛЫН нимгэн зурвас (`::after`).
+ *
+ * Өмнө нь `--background`-ыг градиентын 18% хүртэл холисон нь ГЭРЭЛ горимд
+ * ЦАГААН МАНАН үүсгэж, hero-ийн доод гуравны нэг болон доорх эгнээний
+ * гарчгийг бүдгэрүүлж байв. Одоо цагаан нь зөвхөн доод 12%-д л орно.
+ */
+.hero-gradient {
+  position: relative;
+  background: linear-gradient(
+    to top,
+    rgba(5, 5, 5, 0.95) 0%,
+    rgba(5, 5, 5, 0.75) 20%,
+    rgba(5, 5, 5, 0.45) 45%,
+    rgba(5, 5, 5, 0.15) 70%,
+    rgba(5, 5, 5, 0.4) 100%
+  );
+}
+/* Ёроолын шилжилт — hero ба хуудасны дэвсгэрийн зааг мэдэгдэхгүй болно.
+   ⚠️ 12% байхад ГЭРЭЛ горимд цагаан манан хэт өндөр гарч, hero-ийн зураг
+   болон доорх эгнээний гарчгийг бүдгэрүүлж байв. 6% + огцом шилжилт нь
+   заагийг зөөлрүүлэхэд хангалттай. */
+.hero-gradient::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 6%;
+  background: linear-gradient(to top, var(--background) 15%, transparent);
+}
+.hero-gradient-side {
+  background: linear-gradient(
+    to right,
+    rgba(5, 5, 5, 0.92) 0%,
+    rgba(5, 5, 5, 0.55) 45%,
+    rgba(5, 5, 5, 0) 75%
+  );
+}
+
+/* Ken Burns — hero backdrop маш зөөлөн томрон амьсгална */
+@keyframes ken-burns {
+  from { transform: scale(1) translateX(0); }
+  to   { transform: scale(1.08) translateX(-1.5%); }
+}
+.animate-ken-burns {
+  animation: ken-burns 9s ease-out both;
+  will-change: transform;
+}
+
+/* Hero progress indicator — идэвхтэй слайдын хугацааг дүүргэнэ */
+@keyframes hero-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+.animate-hero-progress {
+  animation: hero-progress 6s linear both;
+}
+
+/* ─── Карт hover ─────────────────────────────────────────────── */
+.title-card {
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
+}
+/*
+ * ⚠️ HOVER — ГЭРЭЛ горимд хатуу хар сүүдэр нь цагаан дэвсгэр дээр
+ * ХУРЦ ӨНЦӨГТ хайрцаг мэт харагддаг байв (хэрэглэгчийн гомдол).
+ * Зөөлөн, тархсан сүүдэр + бага өсөлт нь хоёр горимд ч гоё.
+ */
+/*
+ * ⚠️⚠️ СҮҮДЭР нь ЗӨВХӨН ПОСТЕРТ (эхний хүү элемент) — БҮХЭЛ картад БИШ.
+ *
+ * Карт нь [постер] + [доорх нэр/үнэлгээ] гэсэн 2 хэсэгтэй. Сүүдрийг
+ * бүхэлд нь өгвөл дэвсгэргүй ТЕКСТИЙН хэсэгт ч сүүдэр зурагдаж, гэрэл
+ * горимд ХУРЦ ӨНЦӨГТ ХАЙРЦАГ мэт харагддаг байв (хэрэглэгчийн гомдол:
+ * "hover муухай өнцөгтэй"). Постер нь дугуйрсан булантай тул сүүдэр нь
+ * зөөлөн, байгалийн харагдана.
+ */
+.title-card:hover,
+.title-card:focus-visible {
+  transform: scale(1.04) translateY(-4px);
+  z-index: 10;
+}
+.title-card > div:first-child {
+  transition: box-shadow 0.28s ease;
+}
+.title-card:hover > div:first-child,
+.title-card:focus-visible > div:first-child {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 14px 34px rgba(0, 0, 0, 0.16);
+}
+.dark .title-card:hover > div:first-child,
+.dark .title-card:focus-visible > div:first-child {
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+/* Hover үед quick action-ууд доороос зөөлөн гарч ирнэ */
+.card-actions {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.title-card:hover .card-actions,
+.title-card:focus-within .card-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Navbar ─────────────────────────────────────────────────── */
+/*
+ * ⚠️ Navbar дэвсгэр — THEME ДАГАНА.
+ * Өмнө нь `rgba(5,5,5,...)` гэж хатуу бичигдсэн тул гэрэл горимд цагаан
+ * хуудсан дээр хар navbar үлдэж, харагдац зөрчилддөг байв.
+ * Анхдагч утга нь ГЭРЭЛ (`:root`), `.dark`-д дарж бичнэ.
+ */
+.navbar-solid {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+/*
+ * ⚠️ ГҮЙЛГЭЭГҮЙ ҮЕИЙН navbar нь HERO ЗУРАГ дээр байрлана.
+ * Цагаан 82% байхад гэрэл горимд hero-ийн дээд тал ЦАЙЖ, лого/цэс
+ * бүдгэрч байв. Зурган дээр тул БАРААН зөөлөн градиент л зөв —
+ * navbar-ийн текст нь тэр үед цагаан байдаг (`.dark`-тай ижил).
+ */
+.navbar-transparent {
+  background: linear-gradient(to bottom, rgba(5, 5, 5, 0.55), rgba(5, 5, 5, 0));
+}
+/* ⚠️ Тунгалаг navbar нь ЗУРАГ дээр тул текст ҮРГЭЛЖ цагаан */
+:root:not(.dark) .navbar-transparent .text-foreground,
+:root:not(.dark) .navbar-transparent [class*='text-foreground\/'] {
+  color: #fff !important;
+}
+.dark .navbar-solid {
+  background: rgba(5, 5, 5, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.dark .navbar-transparent {
+  background: linear-gradient(to bottom, rgba(5, 5, 5, 0.75), rgba(5, 5, 5, 0));
+}
+
+/* ─── Glassmorphism (modal, dropdown, mobile nav) ─────────────
+   ⚠️ THEME ДАГАНА — өмнө нь `rgba(18,18,18,...)` хатуу байсан тул гэрэл
+   горимд доод цэс/цонх хар үлдэж, харагдац эвдэрч байв. */
+.glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.glass-light {
+  background: rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dark .glass {
+  background: rgba(18, 18, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+.dark .glass-light {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Мөрийн ирмэгийн fade (карусель үргэлжлэхийг илтгэнэ) ────── */
+.row-fade-right {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 56px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 56px), transparent);
+}
+
+/* ─── Top 10 том дугаар ──────────────────────────────────────── */
+.top10-number {
+  font-size: 9rem;
+  line-height: 0.8;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  color: transparent;
+  -webkit-text-stroke: 3px rgba(255, 255, 255, 0.28);
+  user-select: none;
+}
+
+/* ─── Контент хамгаалалт ─────────────────────────────────────────
+   ⚠️ Текст сонгохыг хориглоно. input/textarea-д ЗААВАЛ зөвшөөрнө —
+   тэгэхгүй бол хэрэглэгч бичсэнээ засаж чадахгүй болно.
+   Энэ нь санамсаргүй хуулбарлалтыг л бууруулна (жинхэнэ хамгаалалт
+   backend талд: private R2 + presigned segment + эрхийн шалгалт). */
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* iOS дээр удаан дарахад гарах "Copy/Look Up" цэсийг хаана */
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable='true'],
+[data-allow-copy],
+[data-allow-copy] * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* Зураг/видеог чирж авахыг хориглоно */
+img,
+video {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* ─── Skeleton shimmer (энгийн pulse-аас илүү амьд) ──────────── */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  /* ⚠️ Гэрэл горимд цагаан дээр цагаан skeleton нь ХАРАГДАХГҮЙ болно */
+  background: rgba(0, 0, 0, 0.07);
+}
+.dark .skeleton-shimmer { background: rgba(255, 255, 255, 0.06); }
+.dark .skeleton-shimmer::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.06), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* ─── Мобайл bottom nav-д зориулсан доод зай ───────────────────
+ *
+ * ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ — `--mobile-nav-h`.
+ *
+ * Өмнө нь доод менюний өндрийг ГУРВАН газарт ГАРААР тааруулсан байв:
+ *   `.pb-mobile-nav`      → 4.5rem
+ *   чатын хөвөгч товч     → 5.5rem
+ *   footer-ийн padding    → 5rem
+ * Гэтэл бодит меню нь `min-h-14` = 3.5rem. Тоонууд зөрсөн тул
+ * менюний өндрийг өөрчлөхөд гурвуулаа тус тусдаа засагдах шаардлагатай
+ * болж, аль нэг нь хоцроход контент/товч хучигдана.
+ *
+ * ⚠️ `--mobile-nav-h` нь safe-area-г АЛЬ ХЭДИЙН агуулна — хэрэглэх
+ * газартаа дахин `+ var(--safe-bottom)` нэмэх ШААРДЛАГАГҮЙ.
+ */
+:root {
+  /* 3.5rem = `min-h-14` (доод меню) + iOS safe-area */
+  --mobile-nav-h: calc(3.5rem + var(--safe-bottom));
+}
+
+@media (max-width: 767px) {
+  .pb-mobile-nav {
+    /* ⚠️ +1rem — контент менюнд ШАХАГДАЖ наалдахгүй амьсгал */
+    padding-bottom: calc(var(--mobile-nav-h) + 1rem);
+  }
+}
+
+/* prefers-reduced-motion — хөдөлгөөн мэдрэмтгий хэрэглэгчид */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ken-burns,
+  .animate-hero-progress,
+  .skeleton-shimmer::after {
+    animation: none;
+  }
+  .title-card,
+  .card-actions {
+    transition: none;
+  }
+}
+
+/* ── Статик хуудасны агуулга (/p/[slug] — Үйлчилгээний нөхцөл гэх мэт) ── */
+.static-page h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 2rem 0 0.75rem;
+}
+.static-page h2:first-child { margin-top: 0; }
+.static-page h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 1.5rem 0 0.5rem;
+}
+.static-page p {
+  margin: 0.75rem 0;
+  line-height: 1.8;
+  font-size: 0.95rem;
+}
+.static-page ul,
+.static-page ol {
+  margin: 0.75rem 0 0.75rem 1.5rem;
+  line-height: 1.8;
+  font-size: 0.95rem;
+}
+.static-page ul { list-style: disc; }
+.static-page ol { list-style: decimal; }
+.static-page li { margin: 0.35rem 0; }
+.static-page a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.static-page a:hover { filter: brightness(1.2); }
+.static-page strong { color: var(--foreground); font-weight: 600; }
+.static-page div {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+
+/* ─── МОДАЛЫН ОРОЛТ ────────────────────────────────────────────────────────
+   ⚠️ Гэнэт гарч ирэх модал нь эвгүй — заавал зөөлөн шилжилттэй байх ёстой.
+
+   ⚠️ Мобайлд ДООД талаас гулсана (bottom sheet), десктопт голоос
+   томорно. Нэг класс хоёр зан төлөв — `@media`-аар салгана.
+
+   ⚠️ `prefers-reduced-motion` — хөдөлгөөн мэдрэмтгий хэрэглэгчид
+   зөвхөн бүдгээр гарна (огт хөдлөхгүй бол «гарч ирсэн» нь мэдрэгдэхгүй). */
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modal-zoom-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.modal-in {
+  animation: modal-slide-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 640px) {
+  .modal-in {
+    animation: modal-zoom-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-in {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ─── ХҮРЭЛТЭТ ТӨХӨӨРӨМЖИЙН «ДУРТАЙ» ТОВЧ ──────────────────────────────────
+   ⚠️⚠️ `md:hidden` (768px) БУРУУ БАЙВ: 768px-ээс ДООШ өргөнтэй ЦОНХ нээсэн
+   десктоп хэрэглэгчид энэ товч БОЛОН hover overlay-гийн ♥ хоёул зэрэг
+   гарч ДАВХАРДАЖ харагддаг байв (хэрэглэгчийн скриншот).
+
+   Зөв шалгуур нь дэлгэцийн ӨРГӨН биш, HOVER БОЛОМЖТОЙ ЭСЭХ:
+     • hover: none  → хуруу (утас/таблет) → байнгын товч ХЭРЭГТЭЙ
+     • hover: hover → хулгана → overlay гарах тул товч ИЛҮҮДЭЛ
+
+   ⚠️ Tailwind 4-д `hover-none:` variant байхгүй тул CSS-ээр. */
+@media (hover: hover) and (pointer: fine) {
+  .fav-touch-only {
+    display: none;
+  }
+}
+
+/* ─── МЭДЭГДЛИЙН DROPDOWN ──────────────────────────────────────────────────
+   ⚠️ Гэнэт гарч ирэх dropdown нь эвгүй. Дээрээс бага зэрэг буун
+   гарах нь «хонхноос гарч ирлээ» гэсэн холбоо үүсгэнэ. */
+@keyframes notif-drop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.notif-in {
+  animation: notif-drop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-in { animation: none; }
+}
+
+/* ─── «БАГЦ АВАХ» ТОВЧНЫ ТАЙЛБАР (tooltip) ──────────────────────────────── */
+
+/**
+ * ⚠️ Товчны ДЭЭРЭЭС зөөлөн гарч ирнэ. `notif-drop`-той ижил муруй —
+ * сайт даяар нэг мэдрэмж.
+ */
+@keyframes plan-hint-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.plan-hint-in {
+  animation: plan-hint-in 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: bottom center;
+}
+
+/* ⚠️ Төвлөрүүлсэн tooltip нь `-translate-x-1/2`-тай тул анимацийн
+   `transform` түүнийг ДАРНА. Тиймээс тэр тохиолдолд зөвхөн opacity. */
+.plan-hint-in.-translate-x-1\/2 {
+  animation: plan-hint-fade 150ms ease-out;
+}
+
+@keyframes plan-hint-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-hint-in { animation: none; }
+}
+
+/* ─── ХАДМАЛЫН ХАРАГДАЦ (Vidstack captions) ─────────────────────────────── */
+
+/**
+ * ⚠️⚠️ ЯАГААД CSS-ЭЭР ТОХИРУУЛДАГ ВЭ:
+ * Хадмалын фонт/хэмжээг `.srt` ФАЙЛД бичих боломжтой ч ТЭГЭХГҮЙ.
+ * Файлд бичвэл гар утас, зурагт, компьютер бүрд ЯГ ижил хэмжээтэй
+ * (жижиг) харагдана. Player талд тохируулбал дэлгэцийн хэмжээнээс
+ * хамааран өөрчлөгдөж, хэрэглэгч өөрөө ч тохируулж чадна.
+ *
+ * ⚠️ Vidstack нь `--media-user-*` хувьсагчийг хэрэглэгчийн цэсэнд
+ * холбодог тул эдгээр нь ЗӨВХӨН АНХДАГЧ утга — хэрэглэгч
+ * тохиргооноос өөрчилбөл түүнийх нь давуу эрхтэй.
+ */
+.vds-captions {
+  /**
+   * ⚠️⚠️ ФОНТ ЗААВАЛ — үүнгүйгээр SERIF унадаг.
+   *
+   * БОДИТ АЛДАА: `font-family` огт зааж өгөөгүй байсан тул хадмал
+   * НАРИЙН SERIF (Times маягийн) фонтоор гарч байв. PotPlayer-ийн
+   * өтгөн sans-serif-ээс эрс ялгаатай, кирилл дээр бүр нарийн.
+   *
+   * ⚠️ Системийн фонт — Windows дээр Segoe UI, Mac дээр SF Pro.
+   * Эдгээр нь кирилл дэмжлэг САЙТАЙ, өтгөн жин (700) нь бодитоор
+   * байдаг. Хуудасны Manrope-ийг ХЭРЭГЛЭХГҮЙ — түүний 700 жин нь
+   * нарийвчилсан тул видеон дээр сул харагдана.
+   */
+  --media-user-font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /**
+   * ⚠️ ХЭМЖЭЭ — PotPlayer маягийн ТОМ. Кирилл үсэг латинаас
+   * өндөр тул нэмэлт зай шаардана. Энэ нь ҮРЖҮҮЛЭГЧ (анхдагч 1).
+   */
+  --media-user-font-size: 1.35;
+
+  /**
+   * ⚠️⚠️ ДЭВСГЭР БАЙХГҮЙ — зурган дээрх загвар шиг.
+   * Хар хайрцаг нь киноны зургийг халхалдаг. Оронд нь ӨТГӨН фонт +
+   * хүчтэй сүүдрээр тодруулна (цайвар зураг дээр ч уншигдана).
+   */
+  --media-cue-bg: transparent;
+  --media-user-text-bg: transparent;
+  --media-cue-color: #fff;
+  --media-user-text-color: #fff;
+  --media-user-display-bg: transparent;
+  --media-cue-display-bg: transparent;
+  --media-cue-display-padding: 0;
+
+  /* ⚠️ Мөр хоорондын зай ОЙРХОН (хэрэглэгчийн хүсэлт) — 2 мөр
+     нэг блок мэт харагдана */
+  --media-cue-line-height: 1.22;
+  --media-cue-padding-x: 0.2em;
+}
+
+/**
+ * ⚠️ Текстийн ХҮРЭЭ — дэвсгэр байсан ч гэсэн нэмэлт тодрол.
+ * Vidstack-ийн cue элементэд шууд хэрэглэнэ.
+ */
+.vds-captions [part='cue'] {
+  /**
+   * ⚠️ ФОНТЫГ ЭНД ЧУ албадана — `[part='cue']` өөрийн font-family-тэй
+   * байж болзошгүй (vidstack хувилбар солигдоход).
+   */
+  font-family: var(--media-user-font-family) !important;
+
+  /**
+   * ⚠️⚠️ PotPlayer-ийн загвар: НЯГТ ХАР ХҮРЭЭ (тархсан сүүдэр биш).
+   *
+   * Өмнөх 3 давхарга сүүдэр нь өргөн тархсан тул үсэг «бүдгэрч»
+   * харагддаг байв. PotPlayer нь үсгийг тойрсон нягт хар хүрээ
+   * хэрэглэдэг — цайвар дэвсгэр дээр ч тод, үсгийг бүдгэрүүлэхгүй.
+   *
+   * ⚠️ `paint-order: stroke fill` ЗААВАЛ — хүрээг үсгийн АРД зурна.
+   * Үүнгүйгээр хүрээ нь үсгийг дотогш нимгэлж, НАРИЙН харагдуулна.
+   */
+  -webkit-text-stroke: 2.5px rgb(0 0 0 / 0.85);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 5px rgb(0 0 0 / 0.7);
+
+  /* ⚠️ Өтгөн — дэвсгэргүй үед контраст өгнө */
+  font-weight: 700;
+  /* ⚠️ Мөр хоорондын зай ойрхон */
+  line-height: 1.22;
+  padding: 0;
+  background: transparent !important;
+}
+
+/**
+ * ⚠️ ГАР УТАС — дэлгэц жижиг тул хувь өссөн ч бодит хэмжээ бага
+ * үлддэг. Тиймээс жаахан нэмнэ.
+ */
+@media (max-width: 640px) {
+  .vds-captions {
+    --media-user-font-size: 1.5;
+  }
+}
+
+/**
+ * ⚠️⚠️ ХАДМАЛГҮЙ ВИДЕОНД ЦЭСИЙГ НУУНА.
+ *
+ * БОДИТ АСУУДАЛ: Vidstack нь хадмал ОГТ байхгүй үед ч «Хадмал»
+ * товч/цэсийг харуулж, дотор нь зөвхөн «Хаах» гэсэн ганц мөр
+ * гаргадаг. Хэрэглэгч дарж хараад л «байхгүй юм байна» гэж мэднэ —
+ * товч байгаа нь ӨӨРӨӨ «хадмал бий» гэсэн ХУДАЛ дохио өгнө.
+ *
+ * ⚠️ `data-has-subtitles` нь `video-player.tsx`-д тавигдана.
+ * Vidstack-ийн дотоод зан төлөвт найдахгүй — өөрсдөө хянана.
+ *
+ * ⚠️ ХАДМАЛТАЙ үед энэ дүрэм ОГТ хамаарахгүй тул цэс хэвийн
+ * ажиллана (1 хэл бол тэр нь анхдагч, 3 хэл бол сонгоно).
+ */
+[data-has-subtitles='false'] .vds-menu-button[aria-label='Хадмал'],
+[data-has-subtitles='false'] .vds-button[aria-label='Хадмал асаах'],
+[data-has-subtitles='false'] .vds-button[aria-label='Хадмал унтраах'],
+[data-has-subtitles='false'] .vds-menu-item[role='menuitem'][aria-label='Хадмал'] {
+  display: none !important;
+}
+
+/**
+ * ⚠️⚠️ ТОХИРГООНЫ ЦЭСЭЭС «Хадмал» МӨРИЙГ ХАСНА.
+ *
+ * CC ТОВЧ нь `slots.captionButton`-оор `SubtitleMenu` болж СОЛИГДСОН
+ * (`video-player.tsx`) тул тэнд давхардал БАЙХГҮЙ. Гэвч «Тохиргоо
+ * (араа)» цэсэн дотор мөн «Хадмал» дэд цэс үлддэг — тэр нь хэл
+ * сонгохын ХОЁР дахь зам болж хэрэглэгчийг эргэлзүүлнэ.
+ *
+ * ⚠️ CSS-ээр ТОВЧ нуух оролдлого өмнө нь БҮТЭЭГҮЙ: `aria-label` нь
+ * хэлний тохиргооноос хамаарч өөрчлөгддөг тул сонгогч оногүй, хоёр
+ * товч зэрэг гарч ДАВХАРЛАЖ байв (хэрэглэгчийн гомдол). Тиймээс
+ * товчийг `slots`-оор солив; энд зөвхөн ЦЭСНИЙ МӨР үлдэж байна.
+ */
+.vds-menu-item[role='menuitem'][aria-label='Хадмал'],
+.vds-menu-button[aria-label='Хадмал'] {
+  display: none !important;
+}
+
+/**
+ * ⚠️⚠️ ХАДМАЛЫН ӨРГӨН — PotPlayer шиг НЯГТ.
+ *
+ * БОДИТ АСУУДАЛ: хадмал дэлгэцийн бүх өргөнөөр тархаж, нэг өгүүлбэр
+ * хэт урт мөр болж байв. PotPlayer нь голд нь нягт байрлуулдаг тул
+ * нүд бага хөдөлж, уншихад амар.
+ *
+ * ⚠️ `[data-part='cue-display']` нь vidstack-ийн ЖИНХЭНЭ сонгогч
+ * (captions.css-ээс уншиж баталсан) — `[part='cue']` нь дотор нь.
+ */
+/**
+ * ⚠️⚠️ ХАДМАЛЫН ХЭМЖЭЭ + ДЭВСГЭР — `SubtitleMenu` удирдана.
+ *
+ * `--bt-cue-scale` (0.85 … 1.5) болон `--bt-cue-bg` (0 … 0.75) нь
+ * `subtitle-menu.tsx`-д `document.documentElement`-д бичигдэнэ.
+ * localStorage-д хадгалагдана тул анги солиход тохиргоо ҮЛДЭНЭ.
+ */
+.vds-captions [part='cue'] {
+  /* ⚠️ `em` — эцгийн хэмжээнээс хамаарна тул дэлгэц дүүрэн үед ч
+     зөв масштаблагдана */
+  font-size: calc(1em * var(--bt-cue-scale, 1)) !important;
+  background-color: rgb(0 0 0 / var(--bt-cue-bg, 0.75)) !important;
+}
+
+.vds-captions [data-part='cue-display'] {
+  /* Дэлгэцийн 80% — уншихад тохиромжтой мөрийн урт */
+  max-width: 80%;
+  margin-inline: auto;
+  /* ⚠️ Ёроолоос дээш — удирдлагын мөр халхлахгүй */
+  inset-inline: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PLAYER — ГАР УТАСНЫ ЗОХИЦУУЛАЛТ
+   ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️⚠️ УДИРДЛАГЫН МӨР — ГАР УТСАНД ТОВЧ БАГТААХ.
+ *
+ * ⚠️ ЦЭСНИЙ CSS ХАСАГДСАН: Vidstack-ийн цэсийг CSS-ээр зохицуулах
+ * ХОЁР оролдлого бүтэлгүйтсэн —
+ *   1) `position:fixed !important` → Vidstack-ийн inline JS
+ *      байрлалтай зөрчилдөж цэс ОГТ НЭЭГДЭХГҮЙ болсон
+ *   2) `!important` хассан → нээгдэх болсон ч товчны ДЭЭР
+ *      байрлаж, гар утсанд ДЭЭШЭЭ ГАРЧ ТАСАРСАН
+ * Тиймээс цэсийг БҮРЭН өөрсдөө барив (`player-menu.tsx`) —
+ * portal-аар дэлгэцэд харьцангуй байрлуулна.
+ *
+ * Энд зөвхөн УДИРДЛАГЫН МӨР үлдэж байна.
+ */
+@media (max-width: 639px) {
+  /* ⚠️ 6-7 товч 360px өргөнд багтаах — зайг багасгана */
+  .vds-controls-group {
+    gap: 0.125rem;
+  }
+
+  /* ⚠️ 40px хүрэх талбай — анхдагч нь хуруунд жижиг, буруу товч дардаг */
+  .vds-controls-group .vds-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* ⚠️ Цагийн бичиг жижигрэнэ — товчнууд илүү чухал */
+  .vds-time-group {
+    font-size: 0.7rem;
+  }
+}
+
+
+
+/* ─── ФОРМЫН ТАЛБАР (.input-dark) ────────────────────────────────────
+   ⚠️⚠️ НЭГ ЭХ СУРВАЛЖ. Өмнө нь энэ класс `login`, `forgot-password`,
+   `reset-password` гурван хуудасны `<style jsx global>` дотор
+   ДАВХАРДАЖ бичигдсэн байв. Улмаас `phone-verify.tsx` (профайл дээр
+   рендерлэгддэг) түүнийг ашигладаг атлаа ТЭР ХУУДАСТ тодорхойлолт
+   БАЙХГҮЙ тул утасны талбар СТИЛЬГҮЙ, browser-ийн default харагддаг
+   байв (хүрээгүй, дэвсгэргүй).
+
+   ⚠️ Нэр нь `-dark` ч гэсэн ХОЁР ТӨРЛИЙН theme дагана — хатуу цагаан
+   өнгө бичвэл гэрэл горимд талбар үл үзэгдэнэ (өмнө нь тохиолдсон). */
+.input-dark {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  padding: 0.72rem 1rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.input-dark::placeholder {
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+.input-dark:focus {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.input-dark-error {
+  border-color: var(--destructive);
+}
+
+/* ─── ПЛЕЕРИЙН ДАВХАР SPINNER ────────────────────────────────────────
+   ⚠️⚠️ БОДИТ ГОМДОЛ: «player дээр 2 loading эргэлдээд байх юм».
+
+   Шалтгаан: `DefaultVideoLayout` (Vidstack) нь ӨӨРИЙН буферийн
+   spinner-тэй ирдэг бөгөөс манай эхний ачаалалтын overlay
+   (постер + «Ачаалж байна…») түүн дээр давхарлаж, ХОЁР эргэлдэх
+   дугуй зэрэг харагддаг байв.
+
+   ⚠️ Манай overlay нь ПОСТЕРТОЙ бөгөөс текст тайлбартай тул илүү
+   ойлгомжтой — Vidstack-ийнхийг нуув. Видео эхэлмэгц (`ready`)
+   манай overlay алга болж, дунд буферлэх үед Vidstack-ийнх
+   ХЭВЭЭР ажиллана (доорх дүрэм зөвхөн эхний ачаалалтад).
+
+   ⚠️ UI ӨӨРЧЛӨГДӨХГҮЙ — зөвхөн давхардал арилна. */
+[data-first-load] .vds-buffering-indicator {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   «ИЛҮҮ АШИГТАЙ» BADGE-ИЙН ЧИЧИРГЭЭ
+
+   ⚠️⚠️ ҮЕ ҮЕ, тасралтгүй БИШ. Тасралтгүй хөдөлгөөн нь хэрэглэгчийг
+   ядрааж эсрэгээрээ бухимдуулах ба гар утсан дээр батарей иднэ.
+   5 секундын мөчлөгийн ЭХНИЙ ~12% (0.6с) л хөдөлнө.
+
+   ⚠️ `transform` л ашиглана — `margin`/`left` бол layout дахин
+   тооцоологдож 60fps алдагдана.
+
+   ⚠️⚠️ ЗӨВХӨН BADGE хөдөлнө, ТОВЧ БИШ. Товч бүхэлдээ хөдөлбөл
+   дарах агшинд байрлал зөрж, хэрэглэгч буруу дарах эрсдэлтэй.
+   Badge нь `pointer-events-none` тул хөдөлсөн ч дарахад нөлөөлөхгүй.
+   ─────────────────────────────────────────────────────────────── */
+@keyframes plan-nudge {
+  0%, 88%, 100% { transform: translateX(0) rotate(0deg); }
+  90%  { transform: translateX(-2px) rotate(-0.6deg); }
+  92%  { transform: translateX(2px)  rotate(0.6deg); }
+  94%  { transform: translateX(-2px) rotate(-0.4deg); }
+  96%  { transform: translateX(2px)  rotate(0.4deg); }
+  98%  { transform: translateX(-1px) rotate(0deg); }
+}
+
+.plan-nudge {
+  animation: plan-nudge 5s ease-in-out infinite;
+}
+
+/* ⚠️⚠️ ХҮРТЭЭМЖ — вестибуляр эмгэгтэй хэрэглэгчид хөдөлгөөн нь
+   бие муудуулдаг (толгой эргэх, дотор муухайрах). Систем дээрээ
+   «хөдөлгөөн багасгах» асаасан бол ЗААВАЛ зогсооно. */
+@media (prefers-reduced-motion: reduce) {
+  .plan-nudge { animation: none; }
+}

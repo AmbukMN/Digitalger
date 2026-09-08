@@ -51,6 +51,8 @@ export class MetaCapiService {
   constructor(private readonly config: ConfigService) {
     this.pixelId = this.config.get<string>('META_PIXEL_ID')?.trim() ?? '';
     this.token = this.config.get<string>('META_CAPI_TOKEN')?.trim() ?? '';
+    /* ⚠️ Constructor-т тогтооно — Meta pixel нь сайт бүрд ӨӨР ID-тай
+       тул `metaCapi` тохиргоог мөн сайтаар салгасан (settings) */
     this.siteUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://besttv.us';
 
     if (this.pixelId && this.token) {

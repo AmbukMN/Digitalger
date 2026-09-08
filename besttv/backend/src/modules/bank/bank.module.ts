@@ -48,6 +48,7 @@ import { CouponsService } from '../coupons/coupons.module';
 import { N8nService } from '../n8n/n8n.service';
 import { NotificationsService } from '../notifications/notifications.module';
 import { EmailService } from '../email/email.service';
+import { siteKey } from '../../common/site/site-settings-key';
 
 const BANK_KEY = 'bank';
 
@@ -209,7 +210,7 @@ export class BankService {
 
   async settings(): Promise<BankSettings> {
     const row = await this.prisma.settings
-      .findUnique({ where: { key: BANK_KEY } })
+      .findUnique({ where: { key: siteKey(BANK_KEY) } })
       .catch(() => null);
     return { ...DEFAULT_BANK, ...((row?.value as Partial<BankSettings>) ?? {}) };
   }
@@ -232,8 +233,8 @@ export class BankService {
     }
 
     await this.prisma.settings.upsert({
-      where: { key: BANK_KEY },
-      create: { key: BANK_KEY, value: next as object },
+      where: { key: siteKey(BANK_KEY) },
+      create: { key: siteKey(BANK_KEY), value: next as object },
       update: { value: next as object },
     });
     return next;
@@ -617,7 +618,9 @@ export class BankService {
     const isImage = IMAGE_TYPES.has(file.mimetype);
     const isVideo = VIDEO_TYPES.has(file.mimetype);
     if (!isImage && !isVideo) {
-      throw new BadRequestException('Зөвхөн зураг (JPG, PNG, WebP) эсвэл видео (MP4, MOV, WebM) хавсаргана уу');
+      throw new BadRequestException(
+        'Зөвхөн зураг (JPG, PNG, WebP) эсвэл видео (MP4, MOV, WebM) хавсаргана уу',
+      );
     }
     /* ⚠️ Хэмжээний хязгаар — R2 зай/төлбөр хамгаална. Controller-ийн
        multer limit (50MB) дээр нэмэлт баталгаа: видео 50MB, зураг 15MB. */
@@ -641,9 +644,14 @@ export class BankService {
 
     let key: string;
     if (isVideo) {
-      const ext = file.mimetype === 'video/quicktime' ? 'mov'
-        : file.mimetype === 'video/webm' ? 'webm'
-        : file.mimetype === 'video/x-matroska' ? 'mkv' : 'mp4';
+      const ext =
+        file.mimetype === 'video/quicktime'
+          ? 'mov'
+          : file.mimetype === 'video/webm'
+            ? 'webm'
+            : file.mimetype === 'video/x-matroska'
+              ? 'mkv'
+              : 'mp4';
       key = `images/receipt/${randomBytes(16).toString('hex')}.${ext}`;
       await this.storage.upload(key, file.buffer, file.mimetype);
     } else {
@@ -857,9 +865,7 @@ export class BankService {
           r.user?.name ?? '',
           r.user?.email ?? '',
           /* ⚠️ Түрээс бол КИНОНЫ нэр — өмнө нь хоосон гардаг байв */
-          r.isWalletTopup
-            ? 'Хэтэвч цэнэглэлт'
-            : (r.rentalTitle?.title ?? r.plan?.name ?? ''),
+          r.isWalletTopup ? 'Хэтэвч цэнэглэлт' : (r.rentalTitle?.title ?? r.plan?.name ?? ''),
           r.bankAccount?.bankName ?? '',
           r.amount,
           r.originalAmount ?? '',
@@ -1223,11 +1229,7 @@ export class BankAdminController {
 
   /** Статистик — шүүлттэй ижил нөхцөлөөр */
   @Get('payments/stats')
-  stats(
-    @Query('status') status?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
+  stats(@Query('status') status?: string, @Query('from') from?: string, @Query('to') to?: string) {
     return this.svc.adminStats({ status, from, to });
   }
 

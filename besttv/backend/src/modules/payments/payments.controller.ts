@@ -19,6 +19,7 @@ import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { AutoRenewDto, PurchasePlanDto, RentTitleDto, TopupDto } from './dto/payments.dto';
+import { siteConfig } from '../../common/site/site-config';
 
 @Controller('payments')
 export class PaymentsController {
@@ -29,13 +30,7 @@ export class PaymentsController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   initiate(@CurrentUser() user: JwtPayload, @Body() dto: PurchasePlanDto) {
     /* ⚠️ `method` байхгүй = QPay (хуучин зам, огт өөрчлөгдөөгүй) */
-    return this.payments.initiate(
-      dto.planId,
-      user.sub,
-      dto.couponCode,
-      dto.method,
-      dto.autoRenew,
-    );
+    return this.payments.initiate(dto.planId, user.sub, dto.couponCode, dto.method, dto.autoRenew);
   }
 
   /**
@@ -120,11 +115,7 @@ export class PaymentsController {
   /** Автомат сунгалт асаах/унтраах */
   @Patch('subscriptions/:id/auto-renew')
   @UseGuards(JwtAuthGuard)
-  autoRenew(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: AutoRenewDto,
-  ) {
+  autoRenew(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: AutoRenewDto) {
     return this.payments.setAutoRenew(user.sub, id, dto.enabled);
   }
 
@@ -190,7 +181,9 @@ export class PaymentsController {
    */
   @Get('bonum/callback')
   bonumReturn(@Res() res: Response) {
-    const site = (process.env.SITE_URL ?? 'https://besttv.us').replace(/\/$/, '');
+    /* ⚠️ Хэрэглэгчийг ӨӨРИЙН сайт руу нь буцаана — BestFilm-ээс
+       төлсөн хүн BestTV рүү очвол төөрөлдөнө */
+    const site = siteConfig().url.replace(/\/$/, '');
     /* ⚠️ Эрх нь webhook-оор нээгддэг — энд зөвхөн БУЦААНА.
        `?pay=return` нь frontend-д «төлбөрөө шалгаж байна» гэж
        харуулж, polling-оо эхлүүлэх дохио. */

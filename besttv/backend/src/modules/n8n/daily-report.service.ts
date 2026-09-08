@@ -5,6 +5,8 @@ import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { N8nService } from './n8n.service';
 import { ubDayRange } from '../../common/ub-date';
+import { forEachSite } from '../../common/site/site-cron';
+import { currentSite } from '../../common/site/site-context';
 
 /**
  * ӨДРИЙН ТАЙЛАН → Telegram.
@@ -49,19 +51,31 @@ export class DailyReportService implements OnModuleDestroy {
    * ⚠️ Давхцал шалгасан: DigitalGer 23:00, auto-renew 01:00,
    * errors cleanup 04:00 — аль нь ч давхцахгүй.
    */
+  /**
+   * ⚠️⚠️ САЙТ БҮРД ТУСДАА ТАЙЛАН.
+   *
+   * Хоёр сайтын борлуулалтыг нэг тайланд нийлүүлбэл аль нь хэдэн
+   * төгрөг олсныг мэдэхгүй. Тиймээс сайт бүрд ТУСАД НЬ илгээнэ.
+   */
   @Cron('0 0 * * *', { timeZone: 'Asia/Ulaanbaatar' })
   async send(): Promise<void> {
+    await forEachSite('daily-report', () => this.sendForCurrentSite());
+  }
+
+  private async sendForCurrentSite(): Promise<void> {
     /**
      * ⚠️⚠️ REDIS LOCK ЗААВАЛ — backend болон worker хоёул ижил код
      * ажиллуулдаг тул түгжээгүй бол тайлан ХОЁР УДАА илгээгдэнэ.
      */
     /* ⚠️ Түлхүүр нь ТАЙЛАНГИЙН өдрөөр (өчигдөр) — өнөөдрөөр биш.
        Эс бөгөөс гар аргаар дахин ажиллуулахад түлхүүр зөрж, ижил
-       тайлан ХОЁР УДАА илгээгдэнэ. */
-    const key = `cron:besttv-daily-report:${this.dayKey(-1)}`;
+       тайлан ХОЁР УДАА илгээгдэнэ.
+       ⚠️ САЙТ ч түлхүүрт орно — эс бөгөөс BestTV илгээсний дараа
+       BestFilm «аль хэдийн илгээсэн» гэж алгасна. */
+    const key = `cron:daily-report:${currentSite()}:${this.dayKey(-1)}`;
     const got = await this.redis.set(key, '1', 'EX', 3600, 'NX').catch(() => null);
     if (!got) {
-      this.logger.log('Өдрийн тайлан: өөр process илгээсэн — алгасав');
+      this.logger.log(`Өдрийн тайлан (${currentSite()}): өөр process илгээсэн — алгасав`);
       return;
     }
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { SITE_DOMAIN } from '../../common/site/site.constants';
 
 /**
  * Чат доторх холбоосын OG урьдчилан харах мэдээлэл.
@@ -23,7 +24,13 @@ export interface LinkPreview {
  * cloud metadata, эсвэл besttv-postgres:5432) бичээд сервер түүнийг
  * татаж, хариуг нь буцаана. Тиймээс цагаан жагсаалт ЗААВАЛ.
  */
-const ALLOWED_HOSTS = ['besttv.us', 'www.besttv.us'];
+/**
+ * ⚠️ БҮХ сайтын домэйн — `SITE_DOMAIN`-ээс АВТОМАТААР.
+ *
+ * Гараар бичвэл шинэ сайт нэмэхэд мартаж, тухайн сайтын линкийн
+ * урьдчилан харах ЧИМЭЭГҮЙ ажиллахаа болино.
+ */
+const ALLOWED_HOSTS = Object.values(SITE_DOMAIN).flatMap((d) => [d, `www.${d}`]);
 
 /** ⚠️ Кэш — нэг линк олон чатад давтагдана, бүрд нь татах нь дэмий */
 const CACHE_TTL_MS = 30 * 60_000;
@@ -43,14 +50,8 @@ export class LinkPreviewService {
     for (const key of keys) {
       /* property/name аль ч дарааллаар байж болно — хоёуланг оролдоно */
       const patterns = [
-        new RegExp(
-          `<meta[^>]+(?:property|name)=["']${key}["'][^>]*content=["']([^"']*)["']`,
-          'i',
-        ),
-        new RegExp(
-          `<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${key}["']`,
-          'i',
-        ),
+        new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]*content=["']([^"']*)["']`, 'i'),
+        new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${key}["']`, 'i'),
       ];
       for (const re of patterns) {
         const m = html.match(re);
