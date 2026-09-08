@@ -9,6 +9,7 @@ import {
   type BulkGenreMode,
   type SelectedTitleGenres,
 } from '@/components/bulk-genre-menu';
+import { ADMIN_SITES, SITE_META } from '@/lib/site-store';
 
 export interface BulkImpact {
   total: number;
@@ -33,6 +34,7 @@ export function BulkBar({
   onSetActive,
   onSetPremium,
   onSetGenres,
+  onSetSite,
   selectedGenres,
   loadImpact,
 }: {
@@ -43,6 +45,13 @@ export function BulkBar({
   onSetPremium: (isPremium: boolean) => Promise<void>;
   /** Жанр бөөнөөр солих — нэмэх/хасах/солих */
   onSetGenres: (genreIds: string[], mode: BulkGenreMode) => Promise<void>;
+  /**
+   * ⚠️ Тухайн САЙТАД нэмэх/хасах.
+   *
+   * `sites` массивыг ДАРЖ БИЧИХГҮЙ — сервер тал нэмэх/хасах хийнэ.
+   * Хоосон үлдэх кино байвал алгасаад тайланд хэлнэ.
+   */
+  onSetSite: (site: string, enabled: boolean) => Promise<void>;
   /** Сонгосон кинонуудын ОДООГИЙН жанр — нөлөөллийг урьдчилан харуулахад */
   selectedGenres: SelectedTitleGenres[];
   loadImpact: () => Promise<BulkImpact>;
@@ -116,6 +125,49 @@ export function BulkBar({
           <BulkBtn onClick={() => run(() => onSetPremium(false))} disabled={busy} icon={<Unlock size={14} />}>
             Үнэгүй
           </BulkBtn>
+
+          {/*
+            ⚠️⚠️ САЙТАД НЭМЭХ / ХАСАХ.
+
+            Кино нь хоёр сайтад ЗЭРЭГ байж болно (нэг мөр, нэг видео).
+            Тиймээс «BestFilm-д нэмэх» нь BestTV-ээс ХАСАХГҮЙ.
+
+            ⚠️ Сүүлийн сайтыг хасах гэвэл сервер тал татгалзаж, ямар
+            кино хасагдаагүйг нэрээр нь хэлнэ (хоосон `sites` бол кино
+            хаана ч харагдахгүй болно).
+          */}
+          {ADMIN_SITES.map((s) => (
+            <BulkBtn
+              key={`add-${s}`}
+              onClick={() => run(() => onSetSite(s, true))}
+              disabled={busy}
+              icon={
+                <span
+                  className="size-2.5 rounded-full"
+                  style={{ background: SITE_META[s].color }}
+                  aria-hidden
+                />
+              }
+            >
+              {SITE_META[s].label}-д нэмэх
+            </BulkBtn>
+          ))}
+          {ADMIN_SITES.map((s) => (
+            <BulkBtn
+              key={`rm-${s}`}
+              onClick={() => run(() => onSetSite(s, false))}
+              disabled={busy}
+              icon={
+                <span
+                  className="size-2.5 rounded-full"
+                  style={{ boxShadow: `inset 0 0 0 1.5px ${SITE_META[s].color}` }}
+                  aria-hidden
+                />
+              }
+            >
+              {SITE_META[s].label}-ээс хасах
+            </BulkBtn>
+          ))}
 
           {/* ⚠️ Жанр солих — цэс дотроосоо баталгаажуулна (нөлөөлөл харуулна) */}
           <BulkGenreMenu

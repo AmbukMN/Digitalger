@@ -22,6 +22,7 @@ import { TmdbImportDialog, type TmdbImportResult } from '@/components/tmdb-impor
 import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
 import { genreId } from '@/lib/genre';
+import { ADMIN_SITES, SITE_META } from '@/lib/site-store';
 import { autoMetaDescription, autoMetaTitle, SEO_MIN_TITLE_LEN } from '@/lib/seo';
 
 export default function TitleEditPage({ params }: { params: Promise<{ id: string }> }) {
@@ -57,6 +58,14 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
     comingSoon: false,
     isActive: true,
     genreIds: [] as string[],
+    /**
+     * ⚠️⚠️ АЛЬ САЙТАД ХАРАГДАХ ВЭ.
+     *
+     * Кино нь хоёр сайтад ЗЭРЭГ байж болно (нэг мөр, нэг видео —
+     * R2 дээр зай 2 дахин эзлэхгүй). Хоосон бол сервер тал нь
+     * ажиллаж байгаа сайтыг өгнө.
+     */
+    sites: [] as string[],
   });
   const [posterKey, setPosterKey] = useState<string | undefined>();
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
@@ -94,6 +103,8 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         comingSoon: e.comingSoon,
         isActive: e.isActive,
         genreIds: (e.genres ?? []).map(genreId).filter(Boolean),
+        /* ⚠️ Хуучин кинонд `sites` байхгүй байж болно → besttv */
+        sites: e.sites?.length ? e.sites : ['besttv'],
       });
       setPosterKey(e.posterKey);
       setPosterUrl(e.posterUrl);
@@ -225,6 +236,17 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
   };
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ ХООСОН САЙТААР ХАДГАЛУУЛАХГҮЙ.
+     *
+     * Backend нь хоосон массивыг үл тоомсорлодог (хэвээр үлдээнэ) ч
+     * админ «сонголтоо хассан» гэж бодоод хадгалбал хүлээлт зөрнө.
+     * Тэр дор нь хэлэх нь дээр.
+     */
+    if (form.sites.length === 0) {
+      toast.error('Дор хаяж нэг сайт сонгоно уу — эс бөгөөс кино хаана ч харагдахгүй');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -281,6 +303,10 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
         comingSoon: form.comingSoon,
         isActive: form.isActive,
         genreIds: form.genreIds,
+        /* ⚠️ Хоосон бол ИЛГЭЭХГҮЙ — сервер тал өөрийн анхдагчийг
+           хэрэглэнэ (шинэ кинонд ажиллаж байгаа сайт). Хоосон
+           массив илгээвэл кино ХААНА Ч харагдахгүй болно. */
+        ...(form.sites.length ? { sites: form.sites } : {}),
         posterKey,
         backdropKey,
       };
@@ -572,6 +598,67 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
             )}
             <Toggle label="Удахгүй гарах" checked={form.comingSoon} onChange={(v) => setForm((f) => ({ ...f, comingSoon: v }))} />
             <Toggle label="Идэвхтэй" checked={form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} />
+          </div>
+
+          {/*
+            ⚠️⚠️ АЛЬ САЙТАД ХАРАГДАХ ВЭ — ТУСДАА блок.
+
+            ЯАГААД ТОМООР ХАРУУЛНА ВЭ: энэ нь киног ХАРАГДАХ эсэхийг
+            шийднэ. Хоёуланг нь салгавал кино DB-д байсан ч аль ч
+            сайтад олдохгүй — админ «устсан юм болов уу» гэж эргэлзэнэ.
+
+            ⚠️ Кино нь ХОЁУЛАНД нь байж болно: нэг мөр, нэг видео.
+            R2 дээр зай хоёр дахин эзлэхгүй, хөрвүүлэлт дахин явахгүй.
+          */}
+          <div className="mt-4 rounded-lg border border-border bg-background p-3.5">
+            <p className="mb-2.5 text-sm font-semibold text-foreground">
+              Аль сайтад харагдах вэ
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ADMIN_SITES.map((s) => {
+                const on = form.sites.includes(s);
+                const meta = SITE_META[s];
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        sites: on ? f.sites.filter((x) => x !== s) : [...f.sites, s],
+                      }))
+                    }
+                    aria-pressed={on}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition',
+                      on
+                        ? 'border-transparent text-foreground'
+                        : 'border-border text-muted-foreground hover:border-primary/40',
+                    )}
+                    style={
+                      on
+                        ? { background: `color-mix(in srgb, ${meta.color} 16%, transparent)` }
+                        : undefined
+                    }
+                  >
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: on ? meta.color : 'transparent',
+                               boxShadow: on ? 'none' : `inset 0 0 0 1.5px ${meta.color}` }}
+                      aria-hidden
+                    />
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* ⚠️ Хоосон үлдээх нь АЛДАА — админд ТЭР ДОР нь хэлнэ */}
+            {form.sites.length === 0 && (
+              <p className="mt-2.5 text-xs font-medium text-destructive">
+                ⚠️ Нэг ч сайт сонгоогүй — энэ кино ХААНА Ч харагдахгүй.
+                Дор хаяж нэгийг сонгоно уу.
+              </p>
+            )}
           </div>
 
           {/*

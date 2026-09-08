@@ -8,6 +8,9 @@ import { slugify } from '../../common/slugify';
 import { expandQuery } from '../../common/transliterate';
 import { TitleMediaHelper } from './title-media.helper';
 import { PushService } from '../notifications/push.service';
+import { currentSite, runAcrossSites } from '../../common/site/site-context';
+import { normalizeSites } from '../../common/site/site-models';
+import { isSite } from '../../common/site/site.constants';
 import {
   BulkGenreMode,
   CreateEpisodeDto,
@@ -412,7 +415,7 @@ export class TitlesAdminService {
 
   async create(dto: CreateTitleDto) {
     // ⚠️ Админ slug гараар өгсөн бол ТҮҮНИЙГ, эс бөгөөс гарчигаас үүсгэнэ
-    const { genreIds, cast, slug: rawSlug, ...data } = dto;
+    const { genreIds, cast, slug: rawSlug, sites: rawSites, ...data } = dto;
     const slug = await this.makeUniqueSlug(rawSlug?.trim() || dto.title);
 
     /**
@@ -427,10 +430,25 @@ export class TitlesAdminService {
       description: dto.description,
     });
 
+    /**
+     * ⚠️⚠️ АЛЬ САЙТАД ХАРАГДАХ ВЭ.
+     *
+     * БОДИТ АЛДАА (2026-09-08): энэ мөр БАЙГААГҮЙ тул схемийн
+     * `sites String[] @default(["besttv"])` үйлчилж, BestFilm-ийн
+     * админаар нэмсэн кино BestFilm дээр ОГТ ХАРАГДАХГҮЙ байв —
+     * каталог, нүүр, чатбот бүгд алгасна. Админ «нэмсэн ч гарахгүй
+     * байна» гэж гомдоно.
+     *
+     * Одоо: админ сонгосон бол ТҮҮНИЙГ, эс бөгөөс АЖИЛЛАЖ БАЙГАА
+     * сайтад (`currentSite()`) — BestFilm дээр нэмсэн кино BestFilm-д.
+     */
+    const sites = normalizeSites(rawSites) ?? [currentSite()];
+
     return this.prisma.title.create({
       data: {
         ...data,
         ...seo,
+        sites,
         slug,
         ...(cast ? { cast: cast as unknown as Prisma.InputJsonValue } : {}),
         ...(genreIds?.length
@@ -448,8 +466,21 @@ export class TitlesAdminService {
     const existing = await this.prisma.title.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Контент олдсонгүй');
 
-    const { genreIds, cast, slug: rawSlug, ...data } = dto;
+    const { genreIds, cast, slug: rawSlug, sites: rawSites, ...data } = dto;
     const castData = cast ? { cast: cast as unknown as Prisma.InputJsonValue } : {};
+
+    /**
+     * ⚠️⚠️ САЙТЫН ХАРАГДАЦ — ЗӨВХӨН админ ЗОРИУД илгээсэн үед солино.
+     *
+     * `normalizeSites` нь буруу/хоосон утгад `null` буцаадаг тул
+     * тэр үед талбар ОГТ хөндөгдөхгүй (`{}`). Энэ нь чухал: админ
+     * зөвхөн гарчиг засахад форм `sites` илгээгээгүй бол кино
+     * ХОЁУЛАНГААС нь алга болох ёсгүй.
+     */
+    const sitesData = (() => {
+      const clean = normalizeSites(rawSites);
+      return clean ? { sites: clean } : {};
+    })();
 
     /**
      * ⚠️ Slug засах — ЗӨВХӨН админ гараар өөрчилсөн үед.
@@ -490,7 +521,7 @@ export class TitlesAdminService {
       }
       return tx.title.update({
         where: { id },
-        data: { ...data, ...seo, ...castData, ...slugData },
+        data: { ...data, ...seo, ...castData, ...slugData, ...sitesData },
       });
     });
   }
@@ -772,6 +803,91 @@ export class TitlesAdminService {
     for (const t of newlyActive) void this.notifyNewTitle(t.id, t.title, t.slug);
 
     return { ok: true, updated: count };
+  }
+
+  /**
+   * Сонгосон киног тухайн САЙТАД нэмэх / хасах (бөөнөөр).
+   *
+   * ⚠️⚠️ МАССИВЫГ ДАРЖ БИЧИХГҮЙ — НЭМЭХ/ХАСАХ.
+   *
+   * 257 кино одоо хоёуланд нь бий. Хэрэв `sites = [site]` гэж дарж
+   * бичвэл «BestFilm-д нэмэх» товч нь тэдгээрийг BestTV-ЭЭС УСТГАНА
+   * — production сайт хоосорч, хэрэглэгч төлбөр төлсөн контентоо
+   * алдана. Тиймээс одоогийн массивыг уншиж, зөвхөн нэг элемент
+   * нэмнэ/хасна.
+   *
+   * ⚠️⚠️ СҮҮЛИЙН САЙТЫГ ХАСАХГҮЙ: `sites` хоосон болвол кино ХААНА Ч
+   * харагдахгүй — DB-д мөр байгаа ч каталог, нүүр, хайлт, чатбот
+   * бүгд алгасна. Админ «устсан юм болов уу» гэж эргэлзэнэ. Тийм
+   * киног алгасаж, тайланд ЯГ хэлнэ.
+   *
+   * ⚠️ `updateMany` нь массивд элемент нэмэх үйлдлийг ДЭМЖДЭГГҮЙ
+   * (Prisma-д `push` нь зөвхөн `update`-д) тул мөр бүрээр шинэчилнэ.
+   * Тоо цөөн (админ гар сонголт) тул транзакц хангалттай.
+   */
+  async bulkSetSite(ids: string[], site: string, enabled: boolean) {
+    this.assertBulk(ids);
+    if (!isSite(site)) {
+      throw new BadRequestException(`Танихгүй сайт: ${site}`);
+    }
+
+    /* ⚠️ `withAllSites` — админ НӨГӨӨ сайтын киног ч засаж чадах ёстой
+       (BestTV-ийн админ «BestFilm-д нэмэх» гэж дарж байна) */
+    const rows = await runAcrossSites(() =>
+      this.prisma.title.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, title: true, sites: true },
+      }),
+    );
+
+    const updates: { id: string; sites: string[] }[] = [];
+    const blocked: string[] = [];
+    let unchanged = 0;
+
+    for (const r of rows) {
+      const has = r.sites.includes(site);
+      if (has === enabled) {
+        unchanged++;
+        continue;
+      }
+      const next = enabled
+        ? [...r.sites, site]
+        : r.sites.filter((s) => s !== site);
+
+      /* ⚠️ Сүүлийн сайтыг хасахгүй — доорх тайлбарыг үз */
+      if (next.length === 0) {
+        blocked.push(r.title);
+        continue;
+      }
+      updates.push({ id: r.id, sites: next });
+    }
+
+    if (updates.length) {
+      await runAcrossSites(() =>
+        this.prisma.$transaction(
+          updates.map((u) =>
+            this.prisma.title.update({ where: { id: u.id }, data: { sites: u.sites } }),
+          ),
+        ),
+      );
+    }
+
+    this.logger.log(
+      `Bulk site: ${site} ${enabled ? 'нэмэв' : 'хасав'} — ` +
+        `${updates.length} кино (хэвээр ${unchanged}, хаагдсан ${blocked.length})`,
+    );
+
+    return {
+      ok: true,
+      updated: updates.length,
+      unchanged,
+      /* ⚠️ Админд ЯГ хэлнэ — чимээгүй алгасвал «яагаад болсонгүй» гэнэ */
+      blocked,
+      message: blocked.length
+        ? `${blocked.length} кино хасагдсангүй — тэдгээр нь зөвхөн энэ ` +
+          `сайтад байгаа тул хасвал хаана ч харагдахгүй болно`
+        : undefined,
+    };
   }
 
   /**

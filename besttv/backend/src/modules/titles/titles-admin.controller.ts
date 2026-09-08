@@ -18,6 +18,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { TitlesAdminService } from './titles-admin.service';
 import {
   BulkActiveDto,
+  BulkSiteDto,
   BulkDeleteDto,
   BulkGenreDto,
   BulkIdsDto,
@@ -155,6 +156,17 @@ export class TitlesAdminController {
   @Post('bulk/active')
   bulkActive(@Body() dto: BulkActiveDto) {
     return this.svc.bulkSetActive(dto.ids, dto.isActive);
+  }
+
+  /**
+   * Сонгосон киног тухайн САЙТАД нэмэх / хасах (бөөнөөр).
+   *
+   * ⚠️ `sites` массивыг ДАРЖ БИЧИХГҮЙ — нэмэх/хасах (`bulkSetSite`
+   * тайлбарыг үз). Сүүлийн сайтыг хасахаас хамгаална.
+   */
+  @Post('bulk/site')
+  bulkSite(@Body() dto: BulkSiteDto) {
+    return this.svc.bulkSetSite(dto.ids, dto.site, dto.enabled);
   }
 
   /** Төлбөртэй/үнэгүй бөөнөөр солих */

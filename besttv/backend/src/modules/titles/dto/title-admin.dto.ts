@@ -217,6 +217,28 @@ export class CreateTitleDto {
   isActive?: boolean;
 
   /**
+   * ⚠️⚠️ АЛЬ САЙТУУДАД ХАРАГДАХ ВЭ — `["besttv"]` | `["bestfilm"]` |
+   * `["besttv","bestfilm"]`.
+   *
+   * ЯАГААД МАССИВ ВЭ (`site` талбар БИШ): кино нь хоёр сайтад ЗЭРЭГ
+   * харагдаж болно. 257 кино одоо хоёуланд нь бий — тэднийг
+   * хуулбарлавал R2 дээр 2 дахин зай эзэлж, хөрвүүлэлт 2 дахин
+   * явна. Тиймээс НЭГ мөр, олон сайт (`MULTI_SITE_MODELS`).
+   *
+   * ⚠️ Илгээгээгүй бол:
+   *   · ШИНЭ кино  → тухайн АДМИН БАЙГАА сайт (`currentSite()`)
+   *   · Засвар     → хэвээр (хөндөхгүй)
+   *
+   * БОДИТ АЛДАА (2026-09-08): энэ талбар БАЙГААГҮЙ тул схемийн
+   * `@default(["besttv"])` үйлчилж, BestFilm-ийн админаар нэмсэн
+   * кино BestFilm дээр ХАРАГДАХГҮЙ байв (чатбот ч олохгүй).
+   */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sites?: string[];
+
+  /**
    * ⚠️ Эрэмбийн талбарууд — ЗААВАЛ CreateTitleDto-д байх ёстой.
    * Өмнө нь зөвхөн UpdateTitleDto-д байсан тул админ форм ижил биеийг
    * илгээхэд ШИНЭ контент үүсгэх нь `forbidNonWhitelisted` дүрмээр
@@ -370,6 +392,27 @@ export class BulkActiveDto extends BulkIdsDto {
 export class BulkPremiumDto extends BulkIdsDto {
   @IsBoolean()
   isPremium!: boolean;
+}
+
+/**
+ * Сонгосон киног тухайн САЙТАД нэмэх / хасах (бөөнөөр).
+ *
+ * ⚠️⚠️ `sites` МАССИВЫГ ДАРЖ БИЧИХГҮЙ — нэмэх/хасах үйлдэл.
+ *
+ * ЯАГААД: 257 кино одоо хоёуланд нь бий. «BestFilm-д нэмэх» гэж
+ * дарахад массивыг `["bestfilm"]` болгож дарж бичвэл тэдгээр кино
+ * BestTV-ЭЭС АЛГА БОЛНО — production сайт хоосорно.
+ *
+ * @see `bulkSetSite` — нэмэх/хасах логик
+ */
+export class BulkSiteDto extends BulkIdsDto {
+  /** `besttv` | `bestfilm` */
+  @IsString()
+  site!: string;
+
+  /** `true` = тэр сайтад НЭМЭХ, `false` = ХАСАХ */
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 /**

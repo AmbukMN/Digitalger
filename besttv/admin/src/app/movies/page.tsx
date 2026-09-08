@@ -385,6 +385,25 @@ export default function MoviesPage() {
             });
             await afterBulk(`${r.updated} контент ${isPremium ? 'төлбөртэй' : 'үнэгүй'} боллоо`);
           }}
+          onSetSite={async (site, enabled) => {
+            const r = await api<{ updated: number; unchanged: number; blocked: string[]; message?: string }>(
+              '/admin/titles/bulk/site',
+              { method: 'POST', body: JSON.stringify({ ids, site, enabled }) },
+            );
+            /* ⚠️ Хасагдаагүй киног ЧИМЭЭГҮЙ алгасахгүй — админ
+               «яагаад болсонгүй» гэж эргэлзэх ёсгүй */
+            if (r.blocked?.length) {
+              toast.warning(`${r.blocked.length} кино хасагдсангүй`, {
+                description: r.blocked.slice(0, 3).join(', ') +
+                  (r.blocked.length > 3 ? ` ба бусад ${r.blocked.length - 3}` : '') +
+                  ' — зөвхөн энэ сайтад байгаа тул хасвал хаана ч харагдахгүй болно',
+              });
+            }
+            await afterBulk(
+              `${r.updated} кино ${enabled ? 'нэмэгдлээ' : 'хасагдлаа'}` +
+                (r.unchanged ? ` (${r.unchanged} хэвээр)` : ''),
+            );
+          }}
           selectedGenres={selectedGenres}
           onSetGenres={async (genreIds, mode) => {
             const r = await api<{ updated: number }>('/admin/titles/bulk/genres', {

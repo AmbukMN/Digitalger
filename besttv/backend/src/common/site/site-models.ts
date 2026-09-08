@@ -1,4 +1,4 @@
-import type { Site } from './site.constants';
+import { isSite, type Site } from './site.constants';
 
 /**
  * ⚠️⚠️ АЛЬ МОДЕЛ САЙТААР ТУСГААРЛАГДАХ ВЭ — ЭЦСИЙН ЖАГСААЛТ.
@@ -171,4 +171,27 @@ export function siteWhereFragment(
   if (isScopedModel(model)) return { site };
   if (isMultiSiteModel(model)) return { sites: { has: site } };
   return null;
+}
+
+/**
+ * ⚠️⚠️ `Title.sites` МАССИВЫГ ЦЭВЭРЛЭНЭ — админаас ирсэн утга.
+ *
+ * ЯАГААД ХЭРЭГТЭЙ ВЭ: `sites` нь кино ХАРАГДАХ эсэхийг шийддэг.
+ * Буруу утга орвол кино ХОЁУЛАНГААС нь алга болж, админ «яагаад
+ * гарахгүй байна» гэж эрэлхийлнэ — DB-д мөр байгаа тул устсан ч
+ * биш, олдохгүй ч байна.
+ *
+ * Хамгаалалт:
+ *   · танихгүй нэрийг хаяна («besttv2», «BestTV» гэх мэт)
+ *   · давхардлыг арилгана
+ *   · ХООСОН массив бол `null` буцаана — дуудагч тал өөрийн
+ *     анхдагчийг (шинэ кинонд `currentSite()`) хэрэглэнэ.
+ *     Хоосон `[]` хадгалбал кино ХААНА Ч харагдахгүй болно.
+ *
+ * @returns цэвэрлэсэн массив, эсвэл `null` (утга өгөөгүй/бүгд буруу)
+ */
+export function normalizeSites(value: unknown): Site[] | null {
+  if (!Array.isArray(value)) return null;
+  const clean = [...new Set(value.filter(isSite))];
+  return clean.length ? clean : null;
 }
