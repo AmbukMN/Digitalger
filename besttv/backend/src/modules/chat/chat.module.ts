@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -131,7 +133,33 @@ export class ChatController {
       attachmentUrl?: string;
       attachmentType?: string;
     },
+    @Headers('x-bot-secret') botSecret?: string,
   ) {
+    /**
+     * ⚠️⚠️ БОТЫН SECRET ЗААВАЛ — ЭНЭ НЬ БОТЫН НЭРЭЭР БИЧДЭГ ЗАМ.
+     *
+     * ⛔ Аудитаар илэрсэн (2026-09-09): энэ endpoint нэвтрэлтгүй байсан
+     * (controller-ийн бусад 4 handler бүгд `@UseGuards`-тай, зөвхөн энэ
+     * дутуу). Токенгүй дуудахад production дээр `201` буцааж байв.
+     *
+     * `assistantText` нь `role:'assistant'` гэж бичигддэг (chat.service)
+     * тул халдагч `sessionId` олж мэдвэл хэрэглэгчид АЛБАН ЁСНЫ БОТ мэт
+     * харагдах зурвас илгээнэ — картын мэдээлэл гуйх phishing, БРЭНДИЙН
+     * нэрээр, web+FB+IG гурвуулаад. `titles[]`-ийн `posterUrl` нь ч
+     * халдагчийнх болно.
+     *
+     * ⚠️ n8n-ийн 3 node (`Save Ingest`, `Save (админ хариулна)`,
+     * `BTV Save Ingest`) бүгд `x-bot-secret` илгээдгийг DB-ээс баталсан
+     * тул чат эвдрэхгүй.
+     *
+     * ⚠️ Secret тохируулаагүй орчинд (локал хөгжүүлэлт) шалгахгүй —
+     * production-д `N8N_WEBHOOK_SECRET` заавал байдаг.
+     */
+    const expected = process.env.N8N_WEBHOOK_SECRET;
+    if (expected && botSecret !== expected) {
+      throw new ForbiddenException('Хандах эрхгүй');
+    }
+
     const sessionId = (body.sessionId ?? '').trim();
     if (!sessionId) return { ok: true, skipped: true };
     const channel = body.channel ?? 'web';

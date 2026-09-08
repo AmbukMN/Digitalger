@@ -40,6 +40,14 @@ export interface SiteConfig {
   noEmailSuffix: string;
   /** Брэндийн үндсэн өнгө — имэйлийн товч, толгой */
   brandColor: string;
+  /**
+   * ⚠️ Имэйлийн логоны ӨРГӨН (px), `height=34`-д тохирсон.
+   *
+   * Outlook desktop (Word engine) нь `width:auto`-г ойлгодоггүй тул
+   * `width` attribute ЗААВАЛ. Лого бүрийн харьцаа өөр учир сайтаас
+   * хамаарна: BestTV 500×200 (2.50) → 85, BestFilm 395×120 (3.29) → 112.
+   */
+  logoWidth: number;
   /** Telegram сануулгын bot тэмдэг (лог, дохио) */
   alertPrefix: string;
 
@@ -89,6 +97,8 @@ const CONFIGS: Record<Site, SiteConfig> = {
     guestEmailSuffix: '@guest.besttv.mn',
     noEmailSuffix: '@noemail.besttv.mn',
     brandColor: '#e50914',
+    /** 500×200 лого, height=34 → 85px */
+    logoWidth: 85,
     alertPrefix: 'BestTV',
     couponPrefix: 'BTV',
   },
@@ -147,6 +157,8 @@ const CONFIGS: Record<Site, SiteConfig> = {
      * `#F80010` нь цагаан дээр 4.20:1, WCAG AA хангахгүй.
      */
     brandColor: '#C8001E',
+    /** 395×120 лого, height=34 → 112px */
+    logoWidth: 112,
     alertPrefix: 'BestFilm',
     couponPrefix: 'BFM',
   },

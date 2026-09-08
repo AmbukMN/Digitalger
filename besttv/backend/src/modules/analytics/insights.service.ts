@@ -208,8 +208,24 @@ export class InsightsService {
        * автомат `site` шүүлт хийгдэхгүй. Мартвал BestFilm-ийн
        * дашбоардад BestTV-ийн цагийн статистик харагдана.
        */
+      /**
+       * ⚠️⚠️ UB ЦАГААР — `+8 hours` ЗААВАЛ.
+       *
+       * ⛔ Аудитаар илэрсэн (2026-09-09): Postgres нь UTC-д ажилладаг
+       * (`SHOW timezone` = UTC) атал backend нь `TZ=Asia/Ulaanbaatar`.
+       * Тиймээс `date_part('hour', ...)` нь UTC цаг буцааж, админд
+       * харагдах «оргил цаг» 8 ЦАГААР ЗӨРЖ байв.
+       *
+       * Хэмжсэн: API нь 16:00 гэж харуулж байхад жинхэнэ UB оргил нь
+       * 00:00 (4,948 үзэлт) байсан. Контент тавих/сошиал пост төлөвлөх
+       * шийдвэрийг өдөр бүр буруу чиглүүлж байсан.
+       *
+       * ⚠️ Кодын хуучин тайлбар «сервер UTC тул үр дүн ижил» гэсэн нь
+       * `TZ` нэмэгдэхээс ӨМНӨХ үеийнх — хуучирсан.
+       */
       this.prisma.$queryRaw<{ h: number; c: bigint }[]>`
-        SELECT date_part('hour', "createdAt")::int AS h, count(*)::bigint AS c
+        SELECT date_part('hour', "createdAt" + interval '8 hours')::int AS h,
+               count(*)::bigint AS c
         FROM "PageView"
         WHERE "createdAt" >= ${from}
           AND "site" = ${currentSite()}

@@ -32,6 +32,26 @@ const TRANSIENT = new Set([
 ]);
 const MAX_ATTEMPTS = 3;
 
+/**
+ * HTML-ээс ЦЭВЭР ТЕКСТ гаргана — preheader-д зориулав.
+ *
+ * ⚠️ Preheader нь inbox-ийн жагсаалтад гарчгийн ард харагддаг тул
+ * таг агуулж БОЛОХГҮЙ. Мөн `&nbsp;` зэрэг entity-г задлах шаардлагатай,
+ * эс бөгөөс хэрэглэгч «&amp;nbsp;» гэсэн хог харна.
+ */
+function stripTags(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export type EmailTemplate =
   | 'welcome'
   | 'verify'
@@ -592,6 +612,22 @@ export class EmailService {
     });
   }
 
+  /**
+   * ИМЭЙЛИЙН БҮРХҮҮЛ (толгой · бие · CTA · footer).
+   *
+   * ⚠️⚠️ ЛОГОНЫ `width` ATTRIBUTE ЗААВАЛ (2026-09-09 аудит):
+   * Outlook desktop (Word engine) нь `width:auto`-г ойлгодоггүй.
+   * Байхгүй бол зураг ачаалагдтал байрлал тодорхойгүй (layout shift),
+   * эсвэл лого эх хэмжээгээрээ (500px) сунаж 600px картыг эвдэнэ.
+   * Лого бүрийн харьцаа өөр тул өргөн нь `siteConfig().logoWidth`-ээс:
+   * BestTV 500×200 → 85px, BestFilm 395×120 → 112px.
+   *
+   * ⚠️⚠️ ДЭВСГЭР ӨНГӨ inline ба CSS-д ИЖИЛ байх ЁСТОЙ (`#20222a`).
+   * Өмнө нь inline нь `#f4f5f7` (цайвар) атал `.btv-bg` класс нь
+   * `#20222a` (бараан) байсан — `<style>` дэмждэггүй клиентэд
+   * (Outlook 2016-2019, Gmail-ийн clipped горим) цайвар, бусдад
+   * бараан харагдаж брэнд тогтворгүй байв.
+   */
   private layout(opts: {
     heading: string;
     bodyHtml: string;
@@ -723,14 +759,14 @@ export class EmailService {
   [data-ogsc] .btv-muted, [data-ogsc] .btv-muted * { color:#c8c8ce !important; }
 </style>
 </head>
-<body class="btv-bg" style="margin:0;padding:0;background:#f4f5f7;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
+<body class="btv-bg" style="margin:0;padding:0;background:#20222a;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
 ${pre}
-<table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#f4f5f7;padding:32px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" class="btv-bg" style="background:#20222a;padding:32px 16px">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="btv-card" style="background:#17181c;border-radius:16px;overflow:hidden;max-width:600px;width:100%">
   <tr><td class="btv-head" style="background:#0e0f13;padding:24px 32px;text-align:center;border-bottom:2px solid ${siteConfig().brandColor}">
     <a href="${this.siteUrl}" style="display:inline-block;text-decoration:none">
-      <img src="${this.logoUrl}" alt="${siteConfig().name}" height="34" style="display:block;height:34px;width:auto;border:0" />
+      <img src="${this.logoUrl}" alt="${siteConfig().name}" height="34" width="${siteConfig().logoWidth}" style="display:block;height:34px;width:${siteConfig().logoWidth}px;border:0" />
     </a>
   </td></tr>
   <tr><td style="padding:32px 32px 8px">
@@ -1193,6 +1229,18 @@ ${pixel}
     batchLabel?: string;
     /** ⚠️ Илгээгчийн нэр — админ броадкаст дээр тохируулна */
     senderName?: string;
+    /**
+     * ⚠️⚠️ INBOX-Д ГАРЧГИЙН АРД ГАРАХ ТЕКСТ.
+     *
+     * ⛔ Аудитаар илэрсэн (2026-09-09): маркетингийн 7 имэйл
+     * (broadcast + lifecycle×6) preheader-гүй байсан. Тэгвэл
+     * шуудангийн клиент HTML-ийн ЭХНИЙ текстийг татдаг — энд тэр нь
+     * `<h1>` heading, өөрөөр хэлбэл inbox-д ГАРЧИГ ДАВХАРДАНА:
+     * «Таныг санаж байна 🎬 — Таны багц дууссан байна…».
+     *
+     * Яг маркетингийн имэйлд нээлтийн хувь хамгийн чухал байдаг.
+     */
+    preheader?: string;
   }) {
     const html = this.layout({
       heading: opts.heading,
@@ -1201,6 +1249,12 @@ ${pixel}
       ctaUrl: opts.ctaUrl,
       showUnsubscribe: true,
       email: opts.to,
+      /**
+       * ⚠️ Тодорхой дамжуулаагүй бол ГАРЧГААС бус, БИЕЭС авна:
+       * heading нь subject-тэй ойролцоо байдаг тул давхардуулна.
+       * Биеийн эхний өгүүлбэр нь inbox-д илүү мэдээлэлтэй.
+       */
+      preheader: opts.preheader ?? stripTags(opts.bodyHtml).slice(0, 120),
     });
     /**
      * ⚠️ `track: true` — ЗӨВХӨН маркетингийн имэйлд нээлт хянана.

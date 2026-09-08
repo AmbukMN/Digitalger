@@ -1399,6 +1399,42 @@ export class EmailAdminController {
         orderBy: { createdAt: 'desc' },
         skip: (p - 1) * take,
         take,
+        /**
+         * ⚠️⚠️ `html` ХАСНА — жагсаалтад ХЭЗЭЭ Ч харагддаггүй.
+         *
+         * ⛔ Аудитаар хэмжсэн (2026-09-09): `limit=200` дуудахад
+         * **1,382 KB** буцаадаг байсан, үүний **1,235 KB нь `html`**.
+         * Админ имэйлийн хуудас нээх бүрд илүү 1.2MB татдаг.
+         *
+         * Дэлгэрэнгүй харах модал нь ТУСДАА endpoint-оор `html`-ыг
+         * авдаг тул энд хэрэггүй.
+         *
+         * ⚠️ Хажуугийн `logs/grouped` ба `logs/batch` хоёр аль хэдийн
+         * зөв `select`-тэй байсан — зөвхөн энэ нэг нь хоцорсон.
+         */
+        select: {
+          id: true,
+          to: true,
+          subject: true,
+          template: true,
+          status: true,
+          error: true,
+          userId: true,
+          createdAt: true,
+          messageId: true,
+          deliveredAt: true,
+          openedAt: true,
+          openCount: true,
+          clickedAt: true,
+          clickCount: true,
+          bouncedAt: true,
+          bounceType: true,
+          batchId: true,
+          batchLabel: true,
+          /* ⚠️ `site` — өргөтгөлийн post-filter (`findMany`-д шүүлт
+             автоматаар ордог ч ил байлгах нь аудитад тустай) */
+          site: true,
+        },
       }),
       this.prisma.emailLog.count({ where }),
       /**
