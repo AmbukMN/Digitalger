@@ -75,7 +75,15 @@ const CONFIGS: Record<Site, SiteConfig> = {
      */
     url: envOr('FRONTEND_URL', 'https://besttv.us'),
     apiUrl: envOr('PUBLIC_API_URL', 'https://api.besttv.us'),
-    mailFrom: envOr('MAIL_FROM', 'noreply@besttv.us'),
+    /**
+     * ⚠️⚠️ АНХНЫ УТГА нь SES-д БАТАЛГААЖСАН домэйн байх ЁСТОЙ.
+     *
+     * `noreply@besttv.us` нь eu-north-1-д баталгаажаагүй тул анхны
+     * утга байх нь аюултай: `MAIL_FROM` env ямар нэг шалтгаанаар
+     * алдагдвал (worker дахин үүсгэх, .env буруу файл г.м.) BestTV-ийн
+     * БҮХ имэйл чимээгүй унана. BestFilm дээр яг тэр зүйл болсон.
+     */
+    mailFrom: envOr('MAIL_FROM', 'noreply@digitalger.mn'),
     logoUrl: envOr('EMAIL_LOGO_URL', 'https://assets.besttv.us/brand/logo.png'),
     tagline: 'Үз, мэдэр, дахин үз',
     guestEmailSuffix: '@guest.besttv.mn',
@@ -90,7 +98,24 @@ const CONFIGS: Record<Site, SiteConfig> = {
     domain: 'bestfilm.net',
     url: envOr('BESTFILM_FRONTEND_URL', 'https://bestfilm.net'),
     apiUrl: envOr('BESTFILM_PUBLIC_API_URL', 'https://api.bestfilm.net'),
-    mailFrom: envOr('BESTFILM_MAIL_FROM', 'noreply@bestfilm.net'),
+    /**
+     * ⚠️⚠️ АНХНЫ УТГА нь `noreply@digitalger.mn` — `bestfilm.net` БИШ.
+     *
+     * БОДИТ АЛДАА (2026-09-08): анхны утга нь `noreply@bestfilm.net`
+     * байсан ба тэр хаяг SES дээр БАТАЛГААЖААГҮЙ тул BestFilm-ийн
+     * БҮХ имэйл `MessageRejected: Email address is not verified`
+     * гэж унасан — тавтай морил, төлбөр, нууц үг сэргээх бүгд.
+     *
+     * SES-д (eu-north-1) баталгаажсан ЦОРЫН ГАНЦ домэйн нь
+     * `digitalger.mn`. BestTV ажиллаж байсан шалтгаан нь
+     * `MAIL_FROM=noreply@digitalger.mn` гэж env-д ТОДОРХОЙ заасан;
+     * BestFilm-д тийм заалт байгаагүй тул анхны утга руугаа унасан.
+     *
+     * ⚠️ `bestfilm.net`-ыг SES-д баталгаажуулсны ДАРАА л
+     * `BESTFILM_MAIL_FROM` env-ээр солино. Хүртэл нь илгээгчийн НЭР
+     * («BestFilm») л ялгарна — хаяг нь нийтлэг.
+     */
+    mailFrom: envOr('BESTFILM_MAIL_FROM', envOr('MAIL_FROM', 'noreply@digitalger.mn')),
     logoUrl: envOr('BESTFILM_EMAIL_LOGO_URL', 'https://assets.besttv.us/brand/bestfilm-logo.png'),
     tagline: 'Үз, мэдэр, дахин үз',
     guestEmailSuffix: '@guest.bestfilm.net',
