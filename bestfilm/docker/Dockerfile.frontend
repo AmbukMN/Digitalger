@@ -23,8 +23,14 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# ⚠️ Хуваалцсан пакет — ЭХЛЭЭД (npm install түүнийг хайна)
-COPY besttv/shared ./besttv/shared
+# ⚠️⚠️ ХУВААЛЦСАН ПАКЕТ — ЗАМ нь орчноор ӨӨР:
+#     локал: DigitalGer/besttv/shared
+#     VPS:   /opt/BestTV/shared   ← ТОМ үсэг!
+#
+# ⚠️ Docker нь symlink-ийг ДАГАДАГГҮЙ тул `ARG`-аар дамжуулна.
+#    compose-д `SHARED_DIR` тохируулна.
+ARG SHARED_DIR=besttv/shared
+COPY ${SHARED_DIR} ./besttv/shared
 
 # ⚠️ Workspace root + frontend-ийн package.json (эх кодоос ӨМНӨ —
 #    Docker давхаргын кэш ажиллана, код өөрчлөхөд npm install дахихгүй)
@@ -33,6 +39,23 @@ COPY bestfilm/frontend/package*.json ./bestfilm/frontend/
 
 WORKDIR /app/bestfilm
 RUN npm install --workspace frontend --include-workspace-root
+
+# ⚠️⚠️ SHARED-ИЙН ХАМААРЛЫГ ХОЛБОХ — ЗААВАЛ.
+#
+# БОДИТ АЛДАА: `@besttv/shared` нь `/app/besttv/shared`-д байрлана.
+# Тэндээс `clsx` импортлоход Node нь ДЭЭШЭЭ хайна:
+#   /app/besttv/shared/node_modules → /app/besttv/node_modules
+#   → /app/node_modules → /node_modules
+# `/app/bestfilm/node_modules` руу ОГТ ХАРАХГҮЙ (өөр мөчир).
+#
+# ҮР ДҮН: «Module not found: Can't resolve 'clsx'» (build унана).
+#
+# ⚠️ Локал дээр ажилладаг байсан шалтгаан: `besttv/node_modules`
+#    (BestTV-ийн workspace) дээшээ хайхад олддог. Container-д тэр
+#    БАЙХГҮЙ тул зөвхөн production build унана — олоход хэцүү.
+#
+# ЗАСВАР: bestfilm-ийн node_modules-ыг besttv-д ч харагдуулна.
+RUN ln -s /app/bestfilm/node_modules /app/besttv/node_modules
 
 COPY bestfilm/frontend ./frontend/
 

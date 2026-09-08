@@ -39,16 +39,25 @@ export async function GET() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0a0a0f 0%, #16161f 55%, #2a1015 100%)',
+          /* ⚠️ BestFilm-ийн улаан (#F80010) руу татсан градиент */
+          background: 'linear-gradient(135deg, #0a0a0f 0%, #16161f 55%, #2e0a0e 100%)',
           fontFamily: 'sans-serif',
         }}
       >
+        {/*
+          ⚠️⚠️ «Best» + «Film» — BestTV-д «TV» байсан.
+          Facebook/Twitter-т хуваалцахад БУРУУ БРЭНД харагдах байв.
+
+          ⚠️ Логоны PNG-г ЭНД ХЭРЭГЛЭХГҮЙ: `next/og` нь гадаад
+          зургийг татахад build/runtime-д сүлжээ шаардана. Текст
+          хувилбар нь ҮРГЭЛЖ ажиллана (BestTV-ийн шийдэлтэй ижил).
+        */}
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span style={{ fontSize: 128, fontWeight: 900, color: '#fff', letterSpacing: -4 }}>
-            Best
+          <span style={{ fontSize: 128, fontWeight: 900, color: '#F8F8F8', letterSpacing: -4 }}>
+            best
           </span>
-          <span style={{ fontSize: 128, fontWeight: 900, color: '#e11d48', letterSpacing: -4 }}>
-            TV
+          <span style={{ fontSize: 128, fontWeight: 900, color: '#F80010', letterSpacing: -4 }}>
+            Film
           </span>
         </div>
         <div style={{ marginTop: 24, fontSize: 40, color: 'rgba(255,255,255,0.72)' }}>
@@ -63,7 +72,7 @@ export async function GET() {
             width: 180,
             height: 5,
             borderRadius: 3,
-            background: '#e11d48',
+            background: '#F80010',
           }}
         />
       </div>

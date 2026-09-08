@@ -15,10 +15,14 @@
 services:
   frontend:
     build:
-      # ⚠️ Репозиторын ҮНДЭС — shared пакет хамрагдана
+      # ⚠️⚠️ Репозиторын ҮНДЭС — shared пакет хамрагдана.
+      #    локал: DigitalGer/  ·  VPS: /opt/
       context: ../..
       dockerfile: bestfilm/docker/Dockerfile.frontend
       args:
+        # ⚠️ shared-ийн зам — VPS дээр `BestTV` (ТОМ үсэг).
+        #    `SHARED_DIR=BestTV/shared docker compose build` гэж дуудна.
+        SHARED_DIR: ${SHARED_DIR:-besttv/shared}
         # ⚠️ R2 нь ХУВААЛЦСАН — BestTV-тэй ИЖИЛ хаяг (кино нэг сан)
         NEXT_PUBLIC_ASSETS_URL: ${NEXT_PUBLIC_ASSETS_URL}
         NEXT_PUBLIC_CHAT_WEBHOOK_URL: ${NEXT_PUBLIC_CHAT_WEBHOOK_URL}
