@@ -28,6 +28,22 @@ const ALLOWED_CHANNELS = new Set(['web', 'facebook', 'instagram']);
  */
 const ALLOWED_ROLES = new Set(['user', 'assistant']);
 const MAX_TEXT_LENGTH = 8000;
+
+/**
+ * ⚠️⚠️ КАРТЫН ТОО БА ТАЛБАРЫН УРТ — ХАТУУ ХЯЗГААР.
+ *
+ * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит): `titles` нь ХЯЗГААРГҮЙ байсан.
+ * `POST /chat/save` нь `OptionalJwtAuthGuard` (зочин ч бичнэ), DTO
+ * класс биш (bare inline type тул `ValidationPipe` идэвхгүй),
+ * throttle 120/сек. Улмаас НЭВТРЭЛТГҮЙ халдагч ~10MB (express-ийн
+ * body хязгаар) `titles` массив илгээж, нэг JSONB мөрөнд бичүүлнэ.
+ * Минутанд олон GB → диск дүүрч, төлбөрийн урсгал ХАМТ УНАНА.
+ *
+ * ⚠️ Хажуугийн `sessionId` (64), `text` (8000), `pageId` (regex)
+ * БҮГД хязгаартай байсан — зөвхөн энэ мартагдсан.
+ */
+const MAX_TITLE_CARDS = 20;
+const MAX_CARD_FIELD = 500;
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 
 /** n8n-ээс ирэх санал болгосон кино */
@@ -285,6 +301,24 @@ export class ChatService {
     /* ⚠️ ЗӨВХӨН тоон id — дурын мөр DB рүү орохоос сэргийлнэ */
     const pageId = /^[0-9]{5,25}$/.test(input.pageId ?? '') ? input.pageId! : undefined;
 
+    /**
+     * ⚠️⚠️ КАРТУУДЫГ ЗААВАЛ ЦЭВЭРЛЭНЭ — тоо БА талбарын урт хоёуланг.
+     *
+     * Зөвхөн тоог таслах нь хангалтгүй: 20 картын `title` талбар бүрт
+     * 500KB бичвэл дахин 10MB болно. Тиймээс талбар бүрийг ч таслана.
+     */
+    const titles = (Array.isArray(input.titles) ? input.titles : [])
+      .slice(0, MAX_TITLE_CARDS)
+      .map((t) => ({
+        id: String(t?.id ?? '').slice(0, MAX_CARD_FIELD),
+        title: String(t?.title ?? '').slice(0, MAX_CARD_FIELD),
+        slug: String(t?.slug ?? '').slice(0, MAX_CARD_FIELD),
+        ...(t?.posterUrl ? { posterUrl: String(t.posterUrl).slice(0, MAX_CARD_FIELD) } : {}),
+        ...(t?.backdropUrl ? { backdropUrl: String(t.backdropUrl).slice(0, MAX_CARD_FIELD) } : {}),
+        ...(t?.subtitle ? { subtitle: String(t.subtitle).slice(0, MAX_CARD_FIELD) } : {}),
+      }))
+      .filter((t) => t.id && t.slug);
+
     if (!sessionId || !text) return { ok: true, skipped: true };
 
     try {
@@ -387,7 +421,7 @@ export class ChatService {
           conversationId: conversation.id,
           role,
           text,
-          ...(input.titles?.length ? { titles: input.titles as object } : {}),
+          ...(titles.length ? { titles: titles as unknown as object } : {}),
           ...(linkPreview ? { linkPreview: linkPreview as object } : {}),
           ...(att ? { attachmentKey: att.key, attachmentType: att.type } : {}),
         },

@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class OAuthLoginDto {
   @IsIn(['google', 'facebook'])
@@ -10,6 +10,28 @@ export class OAuthLoginDto {
   @IsOptional()
   @IsString()
   email?: string;
+
+  /**
+   * ⚠️⚠️ ПРОВАЙДЕР ИМЭЙЛИЙГ БАТАЛГААЖУУЛСАН ЭСЭХ.
+   *
+   * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): энэ талбар БАЙГААГҮЙ тул
+   * backend нь имэйл баталгаажсан эсэхийг мэдэх аргагүй байв. Улмаас
+   * баталгаажаагүй имэйлээр ХУУЧИН бүртгэлтэй холбогдож, **бүртгэл
+   * булаах** боломжтой: хохирогч `victim@x.com`-оор нууц үгээр
+   * бүртгүүлсэн (`emailVerified:false`) байхад халдагч тэр хаягийг
+   * баталгаажуулаагүй provider-аар мэдэгдвэл хохирогчийн мөр олдож,
+   * халдагч токен + `role` авна.
+   *
+   * ⚠️ Facebook нь баталгаажаагүй имэйл буцаадаг.
+   * ⚠️ Mobile зам (`mobile-oauth.service.ts:66`) ҮҮНИЙГ ЗӨВ хийдэг —
+   * вэб зам орхигдсон байв.
+   *
+   * ⚠️ ХУУЧИН клиенттэй нийцтэй: талбар байхгүй бол `undefined` →
+   * `!== false` тул одоогийн зан төлөв ХЭВЭЭР (доор тайлбарлав).
+   */
+  @IsOptional()
+  @IsBoolean()
+  emailVerified?: boolean;
 
   @IsOptional()
   @IsString()

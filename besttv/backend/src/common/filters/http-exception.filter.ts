@@ -38,11 +38,36 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : null;
 
+    /**
+     * ⚠️⚠️ PRODUCTION-Д ДОТООД АЛДААГ НУУНА.
+     *
+     * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит, production дээр батлагдсан):
+     * `HttpException` БИШ алдааны түүхий `message` шууд клиент рүү
+     * явдаг байв. Жишээ — `GET /api/titles?limit=abc`:
+     *
+     *   500 {"message":["Invalid `prisma.title.findMany()` invocation:
+     *   { where: { AND: [{isActive:true},{sites:{has:"besttv"}}] },
+     *     orderBy:{createdAt:"desc"}, skip: NaN, select:{...} }"]}
+     *
+     * Халдагч ямар ч буруу параметрээр Prisma query бүтэц, багана нэр,
+     * `site` шүүлтийн ДОТООД ЛОГИК, select талбаруудыг бүгдийг харна —
+     * дараагийн халдлагын зураглал.
+     *
+     * ⚠️ `HttpException` (`BadRequestException` г.м.) нь ЗОРИУД
+     * бичигдсэн, хэрэглэгчид зориулсан мессеж тул ХЭВЭЭР дамжина.
+     * Зөвхөн гэнэтийн (500) алдааг нууна.
+     *
+     * ⚠️ Дэлгэрэнгүй нь logger болон `ErrorLog`-д ХЭВЭЭР бичигдэнэ
+     * (доор) — админ `/errors` хуудсанд бүрэн харна.
+     */
+    const isProd = process.env.NODE_ENV === 'production';
     const message =
       typeof exceptionResponse === 'string'
         ? exceptionResponse
         : ((exceptionResponse as { message?: string | string[] })?.message ??
-          (exception instanceof Error ? exception.message : 'Internal server error'));
+          (exception instanceof Error && !isProd
+            ? exception.message
+            : 'Дотоод алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.'));
 
     // Request ID — ирсэн header байвал ашиглана, эс бол шинээр үүсгэнэ.
     // Энэ нь production дээр алдааг log-той тулгаж дебаг хийхэд хэрэгтэй.

@@ -95,6 +95,24 @@ export const authOptions: NextAuthOptions = {
               provider: account.provider,
               providerAccountId: account.providerAccountId,
               email: user.email,
+              /**
+               * ⚠️⚠️ ПРОВАЙДЕР ИМЭЙЛИЙГ БАТАЛГААЖУУЛСАН ЭСЭХ.
+               *
+               * ⛔ Баталгаажаагүй имэйлээр backend нь ХУУЧИН бүртгэлтэй
+               * холбовол бүртгэл булаах халдлага болно (жишээ: хохирогч
+               * `victim@x.com`-оор нууц үгээр бүртгүүлсэн байхад халдагч
+               * тэр хаягийг баталгаажуулаагүй provider-аар мэдэгдэх).
+               *
+               * ⚠️ Google нь `email_verified` буцаадаг. Facebook нь тэр
+               * талбаргүй — гэвч FB имэйл өгөхдөө өөрөө баталгаажуулсан
+               * байдаг тул `true` гэж үзнэ.
+               * ⚠️ Талбар байхгүй бол `undefined` → backend нь одоогийн
+               * зан төлөвөө хадгална (буцаад нийцтэй).
+               */
+              emailVerified:
+                (profile as { email_verified?: boolean | string })?.email_verified === true ||
+                (profile as { email_verified?: boolean | string })?.email_verified === 'true' ||
+                account.provider === 'facebook',
               name: user.name ?? profile?.name,
               image: user.image ?? (profile as { picture?: string })?.picture ?? null,
             }),

@@ -592,7 +592,19 @@ export class AuthService {
       ? await this.prisma.user.findFirst({ where: { googleId: dto.providerAccountId } })
       : await this.prisma.user.findFirst({ where: { facebookId: dto.providerAccountId } });
 
-    if (!user && email) {
+    /**
+     * ⚠️⚠️ ИМЭЙЛЭЭР НЭГТГЭХ — ЗӨВХӨН БАТАЛГААЖСАН ИМЭЙЛЭЭР.
+     *
+     * ⛔ Баталгаажаагүй имэйлээр хуучин бүртгэлтэй холбовол **бүртгэл
+     * булаах** халдлага болно (`oauth.dto.ts`-ийн тайлбар үзнэ үү).
+     *
+     * ⚠️ ХУУЧИН КЛИЕНТ (`emailVerified` илгээдэггүй) → `undefined` →
+     * `!== false` тул нэгтгэнэ. Энэ нь ОДООГИЙН ЗАН ТӨЛӨВ хэвээр
+     * үлдээж, frontend шинэчлэгдэх хүртэл нэвтрэлт эвдрэхээс
+     * сэргийлнэ. Frontend `emailVerified: false` илгээж эхэлмэгц
+     * хамгаалалт бүрэн идэвхжинэ.
+     */
+    if (!user && email && dto.emailVerified !== false) {
       user = await this.prisma.user.findFirst({ where: { email } });
     }
 

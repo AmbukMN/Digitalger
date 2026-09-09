@@ -353,7 +353,17 @@ export class MobileController {
   @Get('search')
   search(@Query('q') q: string, @Query('limit') limit?: string) {
     if (!q?.trim()) return [];
-    return this.svc.search(q, limit ? Number(limit) : 30);
+    /**
+     * ⚠️⚠️ УРТЫГ ХЯЗГААРЛАНА — вэб хувилбартай ИЖИЛ.
+     *
+     * ⛔ `titles.controller.ts:66` нь `.slice(0, 100)` хийдэг болсон
+     * (бодит осол: `q=bubobubo…` 20 тэмдэгт origin-ыг 125 СЕКУНД
+     * түгжсэн). Mobile нь ЯГ ижил `titles.search()`-ыг дуудна.
+     *
+     * `MAX_VARIANTS=64` нь экспоненциал тэсрэлтийг барьсан ч `q` нь
+     * `$queryRaw` trigram `similarity()` руу хязгааргүй уртаар очно.
+     */
+    return this.svc.search(q.slice(0, 100), limit ? Number(limit) : 30);
   }
 
   @Get('titles')
