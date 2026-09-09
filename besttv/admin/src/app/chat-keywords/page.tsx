@@ -95,7 +95,7 @@ export default function ChatKeywordsPage() {
   }, [q]);
 
   const LIMIT = 20;
-  const { data, isLoading, isError, refetch } = useAdminChatKeywords({
+  const { data, isLoading, isError, error, refetch } = useAdminChatKeywords({
     q: debouncedQ || undefined,
     page,
     limit: LIMIT,
@@ -339,7 +339,10 @@ export default function ChatKeywordsPage() {
 
         {/* ── ЖАГСААЛТ ── */}
         {isError ? (
-          <AdminErrorState onRetry={() => void refetch()} />
+          /* ⚠️ `error` дамжуулна — эс бөгөөс серверийн ЖИНХЭНЭ мессеж
+             алдагдаж, админ шалтгааныг мэдэхгүй (бусад 20 хуудас
+             бүгд дамжуулдаг) */
+          <AdminErrorState error={error} onRetry={() => void refetch()} />
         ) : isLoading ? (
           <TableSkeleton rows={6} />
         ) : !items.length ? (

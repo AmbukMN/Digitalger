@@ -10,6 +10,7 @@ import { useConfirm } from '@besttv/shared/ui';
 import { AdminShell } from '@/components/admin-shell';
 import { SeasonsManager } from '@/components/seasons-manager';
 import { AdminTopbar } from '@/components/admin-topbar';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { api } from '@/lib/api';
 import { runMutation } from '@/lib/mutate';
 import { useAdminGenres, useAdminTitle, type AdminSeason } from '@/lib/queries';
@@ -356,6 +357,26 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
       setSaving(false);
     }
   };
+
+  /**
+   * ⚠️⚠️ АЛДААГ ИЛ ХАРУУЛНА — өмнө нь `titleError` задалсан ч UI-д
+   * ЗУРААГҮЙ байв. Админ ХООСОН форм хараад засварлаж, «Хадгалах»
+   * дарж байж л алдааг мэддэг байсан. Хадгалахад нь save-guard
+   * барьдаг ч тэр бол сүүлийн шат — эндээс хаах нь зөв.
+   *
+   * ⚠️ Шинэ (контент үүсгэх) үед query ажилладаггүй тул
+   * `isNew` шалгана.
+   */
+  if (!isNew && titleError) {
+    return (
+      <AdminShell>
+        <AdminTopbar title="Контент засах" />
+        <main className="p-8 pt-6">
+          <AdminErrorState onRetry={() => window.location.reload()} />
+        </main>
+      </AdminShell>
+    );
+  }
 
   return (
     <AdminShell>

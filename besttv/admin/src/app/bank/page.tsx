@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDate, formatDateTime, formatPrice } from '@besttv/shared';
+import { DATE_PRESETS, presetRange } from '@/components/data-toolbar';
 import {
   Dialog,
   DialogContent,
@@ -580,7 +581,42 @@ export default function BankPage() {
 
           {/* ⚠️ Огнооны шүүлт — нягтлан бодогчид сар бүрийн тайлан хэрэгтэй */}
           {tab !== 'accounts' && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/**
+               * ⚠️⚠️ БЭЛЭН МУЖ — УБ ОГНООГООР.
+               *
+               * Гараар `type="date"` бөглөх нь браузерын локал огноог
+               * харуулдаг тул гадаадаас нэвтэрсэн админ (эсвэл цаг нь
+               * буруу компьютер) «Өнөөдөр» гэж бодоод өөр өдрийн дата
+               * авдаг байв. `presetRange` нь `Asia/Ulaanbaatar`-аар
+               * тооцдог ба backend-ийн `ubRangeFilter`-тэй ТААРНА.
+               *
+               * ⚠️ Бусад админ жагсаалттай (`errors`, `email`, `payments`)
+               * ижил preset — нэг эх сурвалж `data-toolbar.tsx`.
+               */}
+              {DATE_PRESETS.slice(0, 6).map((pr) => {
+                const r = presetRange(pr.days, pr.offset);
+                const active = from === r.from && to === r.to;
+                return (
+                  <button
+                    key={pr.id}
+                    type="button"
+                    onClick={() => {
+                      setFrom(r.from);
+                      setTo(r.to);
+                      resetPage();
+                    }}
+                    className={cn(
+                      'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                      active
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-accent/60 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {pr.label}
+                  </button>
+                );
+              })}
               <input
                 type="date"
                 value={from}
@@ -1076,6 +1112,8 @@ export default function BankPage() {
                 page={data!.page}
                 totalPages={data!.totalPages}
                 total={data!.total}
+                /* ⚠️ `limit`-гүй бол «1–20 / 340» тоолуур гарахгүй */
+                limit={data!.limit}
                 onPage={setPage}
               />
             )}

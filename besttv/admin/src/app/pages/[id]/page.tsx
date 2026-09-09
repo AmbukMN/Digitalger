@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { RichEditor } from '@/components/rich-editor';
 import { api } from '@/lib/api';
 import { useSiteUrl } from '@/lib/site-store';
@@ -107,6 +108,26 @@ export default function PageEditPage({ params }: { params: Promise<{ id: string 
       setSaving(false);
     }
   };
+
+  /**
+   * ⚠️⚠️ АЛДААГ ИЛ ХАРУУЛНА — өмнө нь `loadErr` задалсан ч UI-д
+   * ЗУРААГҮЙ байв. Админ ХООСОН форм хараад засварлаж, «Хадгалах»
+   * дарж байж л алдааг мэддэг байсан. Хадгалахад нь save-guard
+   * барьдаг ч тэр бол сүүлийн шат — эндээс хаах нь зөв.
+   *
+   * ⚠️ Шинэ (хуудас үүсгэх) үед query ажилладаггүй тул
+   * `isNew` шалгана.
+   */
+  if (!isNew && loadErr) {
+    return (
+      <AdminShell>
+        <AdminTopbar title="Хуудас засах" />
+        <main className="p-8 pt-6">
+          <AdminErrorState onRetry={() => window.location.reload()} />
+        </main>
+      </AdminShell>
+    );
+  }
 
   return (
     <AdminShell>

@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AdminShell } from '@/components/admin-shell';
 import { AdminTopbar } from '@/components/admin-topbar';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { ImageUpload } from '@/components/image-upload';
 import { RichEditor } from '@/components/rich-editor';
 import { api } from '@/lib/api';
@@ -100,6 +101,26 @@ export default function BlogEditPage({ params }: { params: Promise<{ id: string 
       setSaving(false);
     }
   };
+
+  /**
+   * ⚠️⚠️ АЛДААГ ИЛ ХАРУУЛНА — өмнө нь `loadErr` задалсан ч UI-д
+   * ЗУРААГҮЙ байв. Админ ХООСОН форм хараад засварлаж, «Хадгалах»
+   * дарж байж л алдааг мэддэг байсан. Хадгалахад нь save-guard
+   * барьдаг ч тэр бол сүүлийн шат — эндээс хаах нь зөв.
+   *
+   * ⚠️ Шинэ (нийтлэл үүсгэх) үед query ажилладаггүй тул
+   * `isNew` шалгана.
+   */
+  if (!isNew && loadErr) {
+    return (
+      <AdminShell>
+        <AdminTopbar title="Нийтлэл засах" />
+        <main className="p-8 pt-6">
+          <AdminErrorState onRetry={() => window.location.reload()} />
+        </main>
+      </AdminShell>
+    );
+  }
 
   return (
     <AdminShell>
