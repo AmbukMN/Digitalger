@@ -507,7 +507,19 @@ export class SocialService {
 
   // ─── Жагсаалт ───────────────────────────────────────────────────────────
 
-  async list(params: { status?: string; from?: Date; to?: Date; limit?: number }) {
+  /**
+   * ⚠️ `offset` — 100+ пост админд ХҮРЭХГҮЙ байсныг засав.
+   *
+   * Хариуны бүтэц МАССИВ хэвээр (админы UI эвдэхгүй) — админ «илүү
+   * ачаалах» дарахад `offset` нэмэгдэж дараагийн багц ирнэ.
+   */
+  async list(params: {
+    status?: string;
+    from?: Date;
+    to?: Date;
+    limit?: number;
+    offset?: number;
+  }) {
     const where: Prisma.SocialPostWhereInput = {};
     if (params.status === 'ATTENTION') {
       /**
@@ -535,6 +547,8 @@ export class SocialService {
       },
       orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'desc' }],
       take: Math.min(params.limit ?? 100, 300),
+      /* ⚠️ Сөрөг/NaN хамгаалалт — `Number('abc')` нь NaN */
+      skip: Number.isFinite(params.offset) ? Math.max(0, params.offset!) : 0,
     });
 
     /* Медиаг харуулахад URL хэрэгтэй */

@@ -204,6 +204,7 @@ export class SocialController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     return this.svc.list({
       status,
@@ -219,6 +220,7 @@ export class SocialController {
         return { from: r?.gte, to: r?.lt };
       })(),
       limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
     });
   }
 

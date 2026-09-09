@@ -191,10 +191,20 @@ class PromotionsAdminService {
    * (isActive desc → order asc → createdAt desc), pagination нь эрэмбийг
    * дагаад хуудаслана.
    */
-  async list(params: { page?: number; limit?: number; search?: string } = {}) {
+  /**
+   * ⚠️⚠️ `status`/`type` шүүлт SERVER талд — өмнө нь client талд
+   * ЗӨВХӨН ТУХАЙН ХУУДСАН дээр үйлчилдэг байв. Үр дүнд админ
+   * «идэвхтэй урамшуулал 3» гэж хараад бодит нь 12 байж болох ба
+   * 2-р хуудас огт өөр дэд олонлог харуулдаг байв. Статистикийн
+   * картууд ч ижил алдаатай.
+   */
+  async list(
+    params: { page?: number; limit?: number; search?: string; status?: string; type?: string } = {},
+  ) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
     const search = (params.search ?? '').trim();
+    const now = new Date();
 
     const where: Prisma.PromotionWhereInput = {};
     if (search) {
@@ -203,6 +213,52 @@ class PromotionsAdminService {
         { name: { contains: search, mode: 'insensitive' } },
         { shortText: { contains: search, mode: 'insensitive' } },
       ];
+    }
+    if (params.type) where.type = params.type as PromotionType;
+
+    /**
+     * ⚠️ `status` нь БАГАНА БИШ — `isActive` + огноо + `usedCount`-оос
+     * тооцогддог. Админы `statusOf()`-той ЯГ ИЖИЛ дараалал байх ёстой
+     * (эс бөгөөс шүүлтийн үр дүн шошготой зөрнө):
+     *   off → scheduled → expired → used-up → live
+     *
+     * ⚠️ `usedCount >= maxUses` нь БАГАНА ХАРЬЦУУЛАЛТ — Prisma-д
+     * `fields` referencing-ээр хийнэ.
+     */
+    const usedUp: Prisma.PromotionWhereInput = {
+      maxUses: { not: null },
+      usedCount: { gte: this.prisma.promotion.fields.maxUses },
+    };
+    const notUsedUp: Prisma.PromotionWhereInput = {
+      OR: [{ maxUses: null }, { usedCount: { lt: this.prisma.promotion.fields.maxUses } }],
+    };
+    switch (params.status) {
+      case 'off':
+        where.isActive = false;
+        break;
+      case 'scheduled':
+        where.isActive = true;
+        where.startsAt = { gt: now };
+        break;
+      case 'expired':
+        where.isActive = true;
+        where.startsAt = { lte: now };
+        where.endsAt = { lt: now };
+        break;
+      case 'used-up':
+        where.isActive = true;
+        where.startsAt = { lte: now };
+        where.endsAt = { gte: now };
+        where.AND = [usedUp];
+        break;
+      case 'live':
+        where.isActive = true;
+        where.startsAt = { lte: now };
+        where.endsAt = { gte: now };
+        where.AND = [notUsedUp];
+        break;
+      default:
+        break;
     }
 
     const [rows, total] = await Promise.all([
@@ -232,7 +288,49 @@ class PromotionsAdminService {
       })),
     );
 
-    return { items, total, page, totalPages: Math.ceil(total / limit) };
+    /**
+     * ⚠️⚠️ СТАТИСТИК нь БҮХ урамшуулалаар — тухайн хуудсаар БИШ.
+     *
+     * Өмнө нь admin талд `items.filter(...)` гэж зөвхөн ирсэн хуудсыг
+     * тоолдог байсан тул «идэвхтэй 3» гэж хараад бодит нь 12 байж
+     * болдог байв.
+     *
+     * ⚠️ `search`-ыг хамруулна (хайлтын үр дүнгийн статистик), гэхдээ
+     * `status`/`type` шүүлтийг хамруулахгүй — эдгээр карт нь ерөнхий
+     * зураглал өгөх зорилготой.
+     */
+    const statsWhere: Prisma.PromotionWhereInput = search ? { OR: where.OR } : {};
+    const [live, scheduled, agg] = await Promise.all([
+      this.prisma.promotion.count({
+        where: {
+          ...statsWhere,
+          isActive: true,
+          startsAt: { lte: now },
+          endsAt: { gte: now },
+          OR: [{ maxUses: null }, { usedCount: { lt: this.prisma.promotion.fields.maxUses } }],
+        },
+      }),
+      this.prisma.promotion.count({
+        where: { ...statsWhere, isActive: true, startsAt: { gt: now } },
+      }),
+      this.prisma.promotion.aggregate({ where: statsWhere, _sum: { usedCount: true } }),
+    ]);
+    const totalPeople = await this.prisma.promotionRedemption.count({
+      where: search ? { promotion: { OR: where.OR } } : {},
+    });
+
+    return {
+      items,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      stats: {
+        live,
+        scheduled,
+        totalUsed: agg._sum.usedCount ?? 0,
+        totalPeople,
+      },
+    };
   }
 
   async create(dto: PromotionDto) {
@@ -461,11 +559,15 @@ export class PromotionsAdminController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
   ) {
     return this.svc.list({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
+      status,
+      type,
     });
   }
 

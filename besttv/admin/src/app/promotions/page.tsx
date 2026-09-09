@@ -205,29 +205,35 @@ export default function PromotionsPage() {
     page,
     limit: LIMIT,
     search: debouncedQ || undefined,
+    /* ⚠️ SERVER талд шүүгдэнэ — хуудаслалт, тоолуур ЗӨВ болно */
+    status: status || undefined,
+    type: type || undefined,
   });
   const { data: plans } = useAdminPlans();
 
   const items = useMemo(() => data?.items ?? [], [data]);
 
-  /* ⚠️ Төлөв/төрлийн шүүлт нь тухайн хуудасны мөрүүдэд client талд үйлчилнэ */
-  const rows = useMemo(() => {
-    return items.filter((p) => {
-      if (status && statusOf(p) !== status) return false;
-      if (type && p.type !== type) return false;
-      return true;
-    });
-  }, [items, status, type]);
+  /** ⚠️ Шүүлт SERVER талд хийгдэнэ — ирсэн мөрүүд аль хэдийн шүүгдсэн */
+  const rows = items;
 
-  /* ⚠️ Статистик — тухайн хуудсан дээрх мөрүүдээр тооцно */
+  /**
+   * ⚠️⚠️ СТАТИСТИК нь БҮХ урамшуулалаар (server), хуудсаар БИШ.
+   *
+   * Өмнө нь `items.filter(...)` гэж зөвхөн ирсэн хуудсыг тоолдог тул
+   * админ «идэвхтэй 3» гэж хараад бодит нь 12 байж болдог байв.
+   *
+   * ⚠️ Хуучин backend (stats буцаадаггүй) -тэй нийцтэй байхын тулд
+   * fallback үлдээв.
+   */
   const stats = useMemo(() => {
+    if (data?.stats) return data.stats;
     return {
       live: items.filter((p) => statusOf(p) === 'live').length,
       scheduled: items.filter((p) => statusOf(p) === 'scheduled').length,
       totalUsed: items.reduce((s, p) => s + p.usedCount, 0),
       totalPeople: items.reduce((s, p) => s + p._count.redemptions, 0),
     };
-  }, [items]);
+  }, [items, data?.stats]);
 
   const openEdit = (p: AdminPromotion | 'new') => {
     setEditing(p);

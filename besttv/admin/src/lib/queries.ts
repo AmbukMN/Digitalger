@@ -1114,22 +1114,35 @@ export interface AdminPromotion {
   _count: { redemptions: number };
 }
 
-export function useAdminPromotions(params: {
-  page?: number;
-  limit?: number;
-  search?: string;
-} = {}) {
+export function useAdminPromotions(
+  params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    /** ⚠️ SERVER талд шүүгдэнэ — өмнө нь client талд ЗӨВХӨН ирсэн
+        хуудсанд үйлчилж, тоолуур/статистик зөрдөг байв */
+    status?: string;
+    type?: string;
+  } = {},
+) {
   const qs = new URLSearchParams();
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.search) qs.set('search', params.search);
+  if (params.status) qs.set('status', params.status);
+  if (params.type) qs.set('type', params.type);
 
   return useQuery({
     queryKey: ['admin-promotions', params],
     queryFn: () =>
-      api<{ items: AdminPromotion[]; total: number; page: number; totalPages: number }>(
-        `/admin/promotions?${qs.toString()}`,
-      ),
+      api<{
+        items: AdminPromotion[];
+        total: number;
+        page: number;
+        totalPages: number;
+        /** ⚠️ БҮХ урамшууллаар — хуудсаар БИШ */
+        stats?: { live: number; scheduled: number; totalUsed: number; totalPeople: number };
+      }>(`/admin/promotions?${qs.toString()}`),
     /* ⚠️ Урамшуулал нь хугацаанаас хамаардаг тул шинэ мэдээлэл чухал */
     staleTime: 0,
     refetchOnWindowFocus: true,

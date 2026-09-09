@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -52,6 +52,10 @@ const TABS = [
   { key: 'ALL', label: 'Бүгд' },
 ] as const;
 
+/** Нэг удаад ачаалах пост + backend-ийн дээд хязгаар (`social.service.ts`) */
+const SOCIAL_PAGE = 100;
+const SOCIAL_MAX = 300;
+
 export default function SocialPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -62,10 +66,18 @@ export default function SocialPage() {
   /** ⚠️ Дахин нийтлэх диалог — нэг постыг ОЛОН цагт товлоно */
   const [reposting, setReposting] = useState<SocialPost | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * ⚠️ 100 постын дараах нь админд ОГТ ХҮРЭХГҮЙ байсан — `limit=100`
+   * хатуу, хуудаслалт огт байхгүй байв. Хариу нь МАССИВ тул
+   * `Pagination` (total шаарддаг) биш «илүү ачаалах» загвар.
+   */
+  const [limit, setLimit] = useState(SOCIAL_PAGE);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['admin-social-posts', tab],
-    queryFn: () => api<SocialPost[]>(`/admin/social/posts?status=${tab}&limit=100`),
+    queryKey: ['admin-social-posts', tab, limit],
+    queryFn: () => api<SocialPost[]>(`/admin/social/posts?status=${tab}&limit=${limit}`),
+    /* ⚠️ Илүү ачаалах үед хуучин жагсаалт байрандаа — skeleton гацахгүй */
+    placeholderData: (prev: SocialPost[] | undefined) => prev,
     /* ⚠️ Товлосон постууд цагтаа явдаг тул шинэчилж байх ёстой */
     refetchInterval: tab === 'SCHEDULED' || tab === 'ALL' ? 30_000 : false,
     staleTime: 0,
@@ -79,6 +91,9 @@ export default function SocialPage() {
   });
 
   const posts = useMemo(() => data ?? [], [data]);
+
+  /** ⚠️ Таб солиход хязгаарыг эхнээс — өмнөх табын 300 үлдэхгүй */
+  useEffect(() => setLimit(SOCIAL_PAGE), [tab]);
 
   const reload = () => {
     qc.invalidateQueries({ queryKey: ['admin-social-posts'] });
@@ -330,6 +345,19 @@ export default function SocialPage() {
                 onRemove={() => remove(p)}
               />
             ))}
+            {/* ⚠️ Дүүрсэн багц ирсэн бол цааш байж болно (backend нь
+                нийт тоо буцаадаггүй тул яг мэдэх боломжгүй). Дээд
+                хязгаар нь backend талд 300. */}
+            {posts.length >= limit && limit < SOCIAL_MAX && (
+              <button
+                type="button"
+                onClick={() => setLimit((n) => Math.min(n + SOCIAL_PAGE, SOCIAL_MAX))}
+                disabled={isFetching}
+                className="w-full rounded-lg border border-border py-2 text-sm text-muted-foreground transition hover:bg-foreground/5 disabled:opacity-50"
+              >
+                {isFetching ? 'Ачаалж байна…' : `Илүү ачаалах (${posts.length})`}
+              </button>
+            )}
           </div>
         )}
       </div>
