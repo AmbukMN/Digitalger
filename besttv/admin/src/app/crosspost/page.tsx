@@ -427,6 +427,13 @@ export default function CrosspostPage() {
           <HistoryTab
             data={history.data}
             isLoading={history.isLoading}
+            /* ⚠️ АЛДААГ ДАМЖУУЛНА — эс бөгөөс алдаа гарахад «Түүх хоосон»
+               гэж ХУДАЛ харагдаж, админ дата устсан гэж сандарна эсвэл
+               дахин үүсгэж давхардуулна (`admin-error-state.tsx` тайлбар).
+               `placeholderData` тул хуучирсан дата ч чимээгүй үлдэнэ. */
+            isError={history.isError}
+            error={history.error}
+            onRefetch={() => void history.refetch()}
             status={historyStatus}
             onStatus={(s) => {
               setHistoryStatus(s);
@@ -628,12 +635,18 @@ function PostRow({
 function HistoryTab({
   data,
   isLoading,
+  isError,
+  error,
+  onRefetch,
   status,
   onStatus,
   onRetry,
   limit,
   onPage,
 }: {
+  isError: boolean;
+  error: unknown;
+  onRefetch: () => void;
   data?: {
     items: {
       id: string;
@@ -683,7 +696,10 @@ function HistoryTab({
         ))}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        /* ⚠️ Алдааг ИЛ — «хоосон» гэж худал харуулахгүй */
+        <AdminErrorState error={error} onRetry={onRefetch} />
+      ) : isLoading ? (
         <TableSkeleton rows={5} />
       ) : !data?.items.length ? (
         <TableEmptyState

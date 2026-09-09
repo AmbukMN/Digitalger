@@ -105,7 +105,11 @@ export function TitleEditDialog({
 }) {
   const qc = useQueryClient();
   const { data: genres } = useAdminGenres();
-  const { data: existing } = useAdminTitle(titleId ?? '');
+  const {
+    data: existing,
+    isError: titleError,
+    isLoading: loadingTitle,
+  } = useAdminTitle(titleId ?? '');
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [posterKey, setPosterKey] = useState<string | undefined>();
@@ -324,6 +328,27 @@ export function TitleEditDialog({
   };
 
   const save = async (closeAfter = false) => {
+    /**
+     * ⚠️⚠️ ДАТА ИРЭЭГҮЙ БОЛ ХАДГАЛАХГҮЙ (зөвхөн ЗАСВАРЛАХ үед).
+     *
+     * `useEffect` нь `if (!existing || !titleId) return;` гэж шалгадаг
+     * тул API унавал `form` нь `EMPTY_FORM` ХЭВЭЭР үлдэнэ. Тэр үед
+     * хадгалбал `description`, `descriptionEn`, `year`, `rating`,
+     * `director`, `country`, `ageRating`, `trailerYoutubeKey`,
+     * `metaTitle`, `metaDescription`, `cast`, `galleryKeys`, `genreIds`,
+     * `rentPrice`, `rentHours` БҮГД хоосноор дарж бичигдэнэ
+     * (backend `...data` шууд spread хийдэг).
+     *
+     * ⚠️ `titleId` null = ШИНЭ кино үүсгэж байна → форм зориуд хоосон,
+     * хамгаалалт хэрэггүй.
+     *
+     * ⚠️ Ижил логиктой `/movies/[id]/page.tsx` энэ хамгаалалттай байсан
+     * атал энэ хуулбар мартагдсан байв — хоёуланг зэрэг барих ёстой.
+     */
+    if (titleId && (titleError || (!existing && loadingTitle))) {
+      toast.error('Мэдээлэл ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     if (!form.title.trim()) {
       toast.error('Гарчиг оруулна уу');
       setTab('info');

@@ -365,7 +365,17 @@ export class SubtitlesService {
             select: {
               isVisible: true,
               title: {
-                select: { id: true, isPremium: true, genres: { select: { genreId: true } } },
+                /**
+                 * ⚠️⚠️ `sites` ЗААВАЛ — `Episode`/`Season` нь SHARED модел
+                 * тул Prisma шүүлт ч, post-filter ч ХИЙГДЭХГҮЙ. Доорх
+                 * `movie` салаа энэ хамгаалалттай атал ангийнх мартагдсан.
+                 */
+                select: {
+                  sites: true,
+                  id: true,
+                  isPremium: true,
+                  genres: { select: { genreId: true } },
+                },
               },
             },
           },
@@ -377,6 +387,8 @@ export class SubtitlesService {
         throw new NotFoundException('Анги олдсонгүй');
       }
       const t = ep.season.title;
+      /** ⚠️ FAIL-CLOSED: эцэг кино ЭНЭ сайтад нийтлэгдсэн эсэх */
+      assertTitleOnSite(t.sites, 'Анги олдсонгүй');
       /* Үнэгүй танилцуулга анги — хадмал ч нээлттэй */
       if (!t.isPremium || ep.isFreePreview) return;
       await this.check(t.id, t.genres.map((g) => g.genreId), userId);

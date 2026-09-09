@@ -1365,7 +1365,7 @@ function BankSettingsDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { data } = useAdminBankSettings();
+  const { data, isError } = useAdminBankSettings();
   const [form, setForm] = useState({ enabled: false, note: '', requireReceipt: false });
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -1377,6 +1377,24 @@ function BankSettingsDialog({
   if (!open && loaded) setLoaded(false);
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ АЧААЛАГДААГҮЙ БАЙХАД ХАДГАЛАХГҮЙ — ДАНСААР ТӨЛӨХ УНТАРНА.
+     *
+     * `form`-ын анхны утга нь `{ enabled: false, note: '' }`. Query
+     * унасан бол `loaded` худал хэвээр тул тэр анхны утга л үлдэнэ.
+     * Backend `bank.module.ts` нь `dto.enabled ?? cur.enabled` гэж
+     * бичдэг ба `false` нь `??`-ыг ДАВДАГ (зөвхөн null/undefined унана)
+     * → `enabled: false` бичигдэж **дансаар төлөх бүхэлдээ унтарна**,
+     * нэмээд `note` (хэрэглэгчид харуулдаг шилжүүлгийн заавар) хоосорно
+     * — хэрэглэгч мөнгө хаашаа шилжүүлэхээ мэдэхгүй болно.
+     *
+     * ⚠️ Ижил файлын `BankAccountDialog` нь мөрийн объектоос seed хийдэг
+     * тул аюулгүй — зөвхөн энэ settings модал мартагдсан байв.
+     */
+    if (isError || !loaded) {
+      toast.error('Тохиргоо ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     setSaving(true);
     try {
       await api('/admin/bank/settings', { method: 'PATCH', body: JSON.stringify(form) });

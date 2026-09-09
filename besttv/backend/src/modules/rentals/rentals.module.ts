@@ -21,6 +21,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { WalletService } from '../wallet/wallet.module';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { TitleMediaHelper } from '../titles/title-media.helper';
 import { EmailService } from '../email/email.service';
 import { WalletModule } from '../wallet/wallet.module';
@@ -134,11 +135,28 @@ export class RentalsService {
           rentPrice: true,
           rentHours: true,
           rentEnabled: true,
+          /**
+           * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN болно.
+           *
+           * `site-extension` нь `findUnique`-ийн `where`-д шүүлт НЭМДЭГГҮЙ
+           * (unique түлхүүр эвдэрнэ). Оронд нь ҮР ДҮНГ post-filter хийдэг
+           * боловч `Array.isArray(row.sites)` шалгалт дээр тулгуурладаг —
+           * `select`-д `sites` байхгүй бол `undefined` ирж шалгалт
+           * БҮХЭЛДЭЭ алгасагдана.
+           *
+           * Үүнгүйгээр нөгөө сайтад л нийтэлсэн киноны id мэдэж байвал
+           * түрээсийн үнэ гарч, QPay нэхэмжлэл үүсч, `grantFromPayment`
+           * Rental үүсгэнэ. `priceFor`-ыг `initiateRental`, `rentWithWallet`,
+           * `grantFromPayment` ГУРВУУЛАА дууддаг тул гурван зам нээлттэй.
+           */
+          sites: true,
         },
       }),
       this.settings(),
     ]);
     if (!title) throw new NotFoundException('Кино олдсонгүй');
+    /** ⚠️ FAIL-CLOSED: тухайн сайтад нийтлээгүй бол 404 */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
 
     return {
       titleId: title.id,

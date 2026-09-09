@@ -77,14 +77,28 @@ export class PaymentCleanupService {
        * WARN Skip if this user already got the nudge - the 2-4h window
        * can catch the same payment on two consecutive runs.
        */
-      const already = await this.prisma.emailLog.findFirst({
-        where: {
-          to: p.user.email,
-          template: 'payment-abandoned',
-          createdAt: { gte: new Date(now - 24 * 3600_000) },
-        },
-        select: { id: true },
-      });
+      /**
+       * ⚠️⚠️ САЙТЫН КОНТЕКСТ ДОТОР — эс бөгөөс ХОЁР САЙТААС хайна.
+       *
+       * Cron нь хүсэлтээс гадуур тул `hasSiteContext()=false` →
+       * `site-extension` шүүлт хийхгүй → `EmailLog` хоёр сайтаас
+       * буцна. Нэг хүн хоёр сайтад ижил имэйлээр бүртгэлтэй бол
+       * (схем үүнийг зөвшөөрдөг) BestTV-д сануулга авсан хүн
+       * BestFilm-д ХЭЗЭЭ Ч авахгүй — чимээгүй алдагдал.
+       *
+       * ⚠️ `expiry-notify.service.ts` дэх ижил шалгалт нь `forEachSite`
+       * дотор байгаа тул зөв — эндээс тэр загварыг баримталлаа.
+       */
+      const already = await runWithSiteAsync(toSite(p.site), () =>
+        this.prisma.emailLog.findFirst({
+          where: {
+            to: p.user.email,
+            template: 'payment-abandoned',
+            createdAt: { gte: new Date(now - 24 * 3600_000) },
+          },
+          select: { id: true },
+        }),
+      );
       if (already) continue;
 
       /* WARN One bad address must not stop the rest of the batch */
@@ -134,7 +148,27 @@ export class PaymentCleanupService {
     const cutoff = new Date(Date.now() - PENDING_EXPIRE_HOURS * 3600_000);
 
     const result = await this.prisma.payment.updateMany({
-      where: { status: PaymentStatus.PENDING, createdAt: { lt: cutoff } },
+      where: {
+        status: PaymentStatus.PENDING,
+        createdAt: { lt: cutoff },
+        /**
+         * ⚠️⚠️ ДАНСААР ШИЛЖҮҮЛСЭН ТӨЛБӨРИЙГ ХӨНДӨХГҮЙ.
+         *
+         * `bankReference != null` төлбөр нь «хэрэглэгч мөнгө шилжүүлсэн,
+         * АДМИН ГАРААР баталгаажуулахыг хүлээж буй» гэсэн утгатай
+         * (schema.prisma — `bankReference`). Автомат EXPIRED болбол
+         * `bank.approve` нь «цуцлагдсан эсвэл хугацаа дууссан» гэж
+         * татгалзана → **хэрэглэгч бодит мөнгө төлчихөөд эрхээ авах зам
+         * ХААГДАНА**, гараар DB засахаас өөр сэргэлт байхгүй.
+         *
+         * БОДИТ НӨЛӨӨ: production-д 27 дансны төлбөр ингэж EXPIRED
+         * болсон байсан (2026-08-19 … 2026-09-08).
+         *
+         * ⚠️ `remindAbandonedPayments` нь энэ дүрмийг ЗӨВ баримталдаг
+         * (`bankReference: null`) — тэндхийг эндээс хуулав.
+         */
+        bankReference: null,
+      },
       data: { status: PaymentStatus.EXPIRED },
     });
 

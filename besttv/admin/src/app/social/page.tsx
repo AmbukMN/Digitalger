@@ -164,7 +164,18 @@ export default function SocialPage() {
   };
 
   const togglePause = async (channel: 'FACEBOOK' | 'INSTAGRAM') => {
-    const cur = channels?.paused?.[channel] ?? false;
+    /**
+     * ⚠️ ТӨЛӨВ МЭДЭГДЭХГҮЙ БАЙХАД СОЛИХГҮЙ.
+     *
+     * `?? false` нь query унасан үед «зогсоогүй» гэж таамаглана →
+     * `!cur` = `true` → админ СЭРГЭЭХ гэж дарсан сувгийг ЗОГСООНО
+     * (эсвэл эсрэгээр). Товлосон постууд чимээгүй явахгүй болно.
+     */
+    const cur = channels?.paused?.[channel];
+    if (cur === undefined) {
+      toast.error('Сувгийн төлөв ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     try {
       await api('/admin/social/channels/pause', {
         method: 'PATCH',

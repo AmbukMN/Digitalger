@@ -306,6 +306,14 @@ export class DownloadsService {
             title: {
               select: {
                 id: true,
+                /**
+                 * ⚠️⚠️ `sites` ЗААВАЛ — `Episode`/`Season` нь SHARED модел
+                 * (`site` багана АЛГА) тул Prisma шүүлт ч, post-filter ч
+                 * ХИЙГДЭХГҮЙ. Ангийн эрхийг ЗӨВХӨН эцэг `Title.sites`
+                 * тодорхойлно. Доорх `movieInfo` энэ хамгаалалттай атал
+                 * ангийнх мартагдсан байв.
+                 */
+                sites: true,
                 title: true,
                 /* ⚠️ Багцын хандалт нь ЖАНРААР шалгагддаг */
                 genres: { select: { genreId: true } },
@@ -316,6 +324,8 @@ export class DownloadsService {
       },
     });
     if (!e) throw new NotFoundException('Анги олдсонгүй');
+    /** ⚠️ FAIL-CLOSED: нөгөө сайтын ангийг ТАТУУЛАХГҮЙ */
+    assertTitleOnSite(e.season.title.sites, 'Анги олдсонгүй');
     return {
       videoKey: e.videoKey,
       isFreePreview: e.isFreePreview,

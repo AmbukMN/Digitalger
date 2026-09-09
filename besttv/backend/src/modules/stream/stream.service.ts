@@ -174,6 +174,19 @@ export class StreamService {
             title: {
               select: {
                 id: true,
+                /**
+                 * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+                 *
+                 * `Episode`/`Season` нь SHARED модел (`site` багана АЛГА)
+                 * тул `site-extension` тэдгээрт шүүлт ч, post-filter ч
+                 * ХИЙХГҮЙ. Ангийн эрхийг ЗӨВХӨН эцэг `Title.sites`
+                 * тодорхойлно.
+                 *
+                 * Үүнгүйгээр нөгөө сайтад л нийтэлсэн цувралын ангийн id
+                 * мэдэж байвал presigned R2 segment URL буцна.
+                 * (`moviePlaylist` энэ хамгаалалттай, ангийнх мартагдсан.)
+                 */
+                sites: true,
                 isPremium: true,
                 isActive: true,
                 genres: { select: { genreId: true } },
@@ -194,6 +207,11 @@ export class StreamService {
     ) {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
+    /**
+     * ⚠️ FAIL-CLOSED: эцэг кино ЭНЭ сайтад нийтлэгдсэн эсэх.
+     * `Episode` нь SHARED тул Prisma шүүлт энд огт ажиллахгүй.
+     */
+    assertTitleOnSite(episode.season.title.sites, 'Видео олдсонгүй');
 
     /* Үнэгүй танилцуулга анги — эрх шалгахгүй (playlist-тай ижил) */
     const premium = episode.season.title.isPremium && !episode.isFreePreview;
@@ -596,6 +614,19 @@ export class StreamService {
               select: {
                 /* Rental нь TITLE дээр бүртгэгддэг тул эцгийн id хэрэгтэй */
                 id: true,
+                /**
+                 * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+                 *
+                 * `Episode`/`Season` нь SHARED модел (`site` багана АЛГА)
+                 * тул `site-extension` тэдгээрт шүүлт ч, post-filter ч
+                 * ХИЙХГҮЙ. Ангийн эрхийг ЗӨВХӨН эцэг `Title.sites`
+                 * тодорхойлно.
+                 *
+                 * Үүнгүйгээр нөгөө сайтад л нийтэлсэн цувралын ангийн id
+                 * мэдэж байвал presigned R2 segment URL буцна.
+                 * (`moviePlaylist` энэ хамгаалалттай, ангийнх мартагдсан.)
+                 */
+                sites: true,
                 isPremium: true,
                 isActive: true,
                 genres: { select: { genreId: true } },
@@ -617,6 +648,11 @@ export class StreamService {
     ) {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
+    /**
+     * ⚠️ FAIL-CLOSED: эцэг кино ЭНЭ сайтад нийтлэгдсэн эсэх.
+     * `Episode` нь SHARED тул Prisma шүүлт энд огт ажиллахгүй.
+     */
+    assertTitleOnSite(episode.season.title.sites, 'Видео олдсонгүй');
 
     // Үнэгүй урьдчилан үзэх анги — эрх шалгахгүй
     const premium = episode.season.title.isPremium && !episode.isFreePreview;
@@ -671,6 +707,19 @@ export class StreamService {
               select: {
                 /* Rental нь TITLE дээр бүртгэгддэг тул эцгийн id хэрэгтэй */
                 id: true,
+                /**
+                 * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+                 *
+                 * `Episode`/`Season` нь SHARED модел (`site` багана АЛГА)
+                 * тул `site-extension` тэдгээрт шүүлт ч, post-filter ч
+                 * ХИЙХГҮЙ. Ангийн эрхийг ЗӨВХӨН эцэг `Title.sites`
+                 * тодорхойлно.
+                 *
+                 * Үүнгүйгээр нөгөө сайтад л нийтэлсэн цувралын ангийн id
+                 * мэдэж байвал presigned R2 segment URL буцна.
+                 * (`moviePlaylist` энэ хамгаалалттай, ангийнх мартагдсан.)
+                 */
+                sites: true,
                 isPremium: true,
                 isActive: true,
                 genres: { select: { genreId: true } },
@@ -690,6 +739,11 @@ export class StreamService {
     ) {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
+    /**
+     * ⚠️ FAIL-CLOSED: эцэг кино ЭНЭ сайтад нийтлэгдсэн эсэх.
+     * `Episode` нь SHARED тул Prisma шүүлт энд огт ажиллахгүй.
+     */
+    assertTitleOnSite(episode.season.title.sites, 'Видео олдсонгүй');
     const premium = episode.season.title.isPremium && !episode.isFreePreview;
     await this.assertAccess(
       premium,

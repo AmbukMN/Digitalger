@@ -47,7 +47,11 @@ export function SeoPagesManager() {
     staleTime: Infinity, // тогтмол жагсаалт
   });
 
-  const { data: pages, isLoading } = useQuery({
+  const {
+    data: pages,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ['admin-seo-pages'],
     queryFn: () => api<Record<string, PageOverride>>('/admin/seo/pages'),
     staleTime: 0,
@@ -60,6 +64,22 @@ export function SeoPagesManager() {
   }, [selected, pages]);
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ АЧААЛАГДААГҮЙ БАЙХАД ХАДГАЛАХГҮЙ — СОНГОСОН ЗАМЫН SEO УСТАНА.
+     *
+     * `useEffect` нь `pages?.[selected] ?? {}` гэж уншдаг тул query
+     * унавал `form` нь `EMPTY` болно. Тэр үед хадгалбал backend
+     * `seo.module.ts` нь `all[path] = clean` гэж СОНГОСОН НЭГ замын
+     * `metaTitle`/`metaDescription`/`ogImage`-ыг хоосноор дарж бичнэ
+     * (сервер `allPages()`-ыг дахин уншдаг тул бусад зам хэвээр).
+     *
+     * ⚠️ Эцэг `seo/page.tsx` энэ хамгаалалттай атал энэ дэд компонент
+     * мартагдсан байв — ижил логиктой хуулбаруудыг зэрэг барих ёстой.
+     */
+    if (isError || (!pages && isLoading)) {
+      toast.error('SEO ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     setSaving(true);
     try {
       await api(`/admin/seo/pages?path=${encodeURIComponent(selected)}`, {

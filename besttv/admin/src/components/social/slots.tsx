@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Info, Loader2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { cn } from '@besttv/shared';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@besttv/shared/ui';
 import { api } from '@/lib/api';
@@ -27,7 +28,7 @@ export function SocialSlots({ onClose, onSaved }: { onClose: () => void; onSaved
   const [newTime, setNewTime] = useState('19:00');
   const [newDays, setNewDays] = useState<number[]>([1, 3, 5]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-social-slots'],
     queryFn: () => api<Slot[]>('/admin/social/slots'),
   });
@@ -62,6 +63,25 @@ export function SocialSlots({ onClose, onSaved }: { onClose: () => void; onSaved
     setSlots((cur) => cur.filter((s) => !(s.weekday === weekday && s.time === time)));
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ АЧААЛАГДААГҮЙ БАЙХАД ХАДГАЛАХГҮЙ — БҮХ ХУВААРЬ УСТАНА.
+     *
+     * Backend `social.service.ts` нь эхлээд тухайн сувгийн БҮХ мөрийг
+     * `deleteMany({ where: { channel } })` хийж устгаад дараа нь ирсэн
+     * `slots`-ыг дахин үүсгэдэг. Query унасан бол `slots` нь анхны
+     * `[]` хэвээр байх тул «Хадгалах» дарахад тухайн сувгийн долоо
+     * хоногийн хуваарь БҮРМӨСӨН устана — сэргээх зам байхгүй.
+     *
+     * Нэмээд `reassignSlots` нь `NEXT_AVAILABLE` товлосон постуудыг
+     * эмх замбараагүй болгоно.
+     *
+     * ⚠️ Хоосон хуваарь ЗОРИУД хадгалах хэрэгцээ байвал энэ хамгаалалт
+     * саад болохгүй — дата ачаалагдсан үед `slots` хоосон байж болно.
+     */
+    if (isError || (!data && isLoading)) {
+      toast.error('Хуваарь ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     setSaving(true);
     try {
       const r = await api<{ slots: number; moved: number }>('/admin/social/slots', {
@@ -125,6 +145,11 @@ export function SocialSlots({ onClose, onSaved }: { onClose: () => void; onSaved
         <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {isLoading ? (
             <div className="admin-skeleton h-40 rounded-lg" />
+          ) : isError ? (
+            /* ⚠️ Алдааг ИЛ харуулна — эс бөгөөс админ хоосон хуваарь
+               хараад «устсан» гэж сандарна (эсвэл дахин үүсгэж
+               давхардуулна). `save` нь мөн энэ үед хаагдана. */
+            <AdminErrorState error={error} onRetry={() => void refetch()} />
           ) : (
             <>
               {/* Цаг нэмэх */}
