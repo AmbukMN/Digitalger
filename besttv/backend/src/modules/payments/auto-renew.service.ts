@@ -176,11 +176,59 @@ export class AutoRenewService {
     const result = await this.bonum.purchaseWithToken(s.card!.token, amount, transactionId);
 
     if (result === 'SUCCESS') {
-      await this.prisma.payment.update({
-        where: { id: payment.id },
+      /**
+       * ⚠️⚠️ ЭРХИЙГ ЭХЛЭЭД ОЛГОНО, ДАРАА НЬ PAID ГЭЖ ТЭМДЭГЛЭНЭ.
+       *
+       * ӨМНӨ НЬ эсрэгээр байсан ба `grant` унавал (DB timeout, багц
+       * устсан) **карт татагдчихаад Payment=PAID, эрх НЭЭГДЭХГҮЙ**
+       * үлддэг байв. Сэргэх зам байхгүй байсан:
+       *   · `completePayment` нь ЗӨВХӨН PENDING-ээс шилждэг
+       *   · `adminMarkPaid` «аль хэдийн PAID» гэж татгалзана
+       *   · reconcile cron нь PENDING-ийг л барина
+       * → гараар DB засахаас өөр арга үлддэггүй байсан.
+       *
+       * Одоо `grant` унавал Payment нь PENDING хэвээр үлдэх тул
+       * reconcile/админ хоёулаа барьж авах боломжтой.
+       *
+       * ⚠️⚠️ `grant` нь idempotent БИШ (`paymentId`-аар шалгадаггүй,
+       * шууд `create` хийнэ) тул PENDING→PAID шилжилтийг АТОМАРААР
+       * эзэмшиж байж л дуудна — `completePayment`-ийн загвар. Ингэснээр
+       * webhook/reconcile/энэ cron зэрэг ирсэн ч эрх НЭГ Л удаа олгогдоно.
+       */
+      const claimed = await this.prisma.payment.updateMany({
+        where: { id: payment.id, status: PaymentStatus.PENDING },
         data: { status: PaymentStatus.PAID, paidAt: new Date() },
       });
-      const sub = await this.subs.grant(s.userId, s.planId, s.plan!.durationDays, payment.id);
+      if (claimed.count === 0) {
+        /* Өөр зам (webhook/reconcile) аль хэдийн боловсруулсан */
+        this.logger.log(`Автомат сунгалт: төлбөрийг өөр зам эзэмшсэн (${payment.id})`);
+        return;
+      }
+
+      let sub: { id: string };
+      try {
+        sub = await this.subs.grant(s.userId, s.planId, s.plan!.durationDays, payment.id);
+      } catch (e) {
+        /**
+         * ⚠️⚠️ ЭРХ ОЛГОГДООГҮЙ — PENDING РУУ БУЦААНА.
+         *
+         * Эс бөгөөс карт татагдчихаад Payment=PAID, эрх НЭЭГДЭХГҮЙ
+         * үлдэнэ. Сэргэх зам байхгүй: `completePayment` нь ЗӨВХӨН
+         * PENDING-ээс шилждэг, `adminMarkPaid` «аль хэдийн PAID» гэж
+         * татгалзана, reconcile cron нь PENDING-ийг л барина
+         * → гараар DB засахаас өөр арга үлддэггүй байв.
+         */
+        await this.prisma.payment
+          .update({
+            where: { id: payment.id },
+            data: { status: PaymentStatus.PENDING, paidAt: null },
+          })
+          .catch(() => undefined);
+        this.logger.error(
+          `Автомат сунгалт: эрх олгож чадсангүй, PENDING-д буцаав (${payment.id}): ${String(e).slice(0, 200)}`,
+        );
+        throw e;
+      }
       /* ⚠️ Шинэ захиалганд сунгалтыг ҮРГЭЛЖЛҮҮЛНЭ (карт хэвээр) */
       await this.prisma.subscription.update({
         where: { id: sub.id },

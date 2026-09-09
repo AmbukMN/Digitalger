@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { currentSite } from '../../common/site/site-context';
+import { DEFAULT_SITE } from '../../common/site/site.constants';
 /* ⚠️ N8nService нь @Global тул module-д импортлох шаардлагагүй */
 import { N8nService } from '../n8n/n8n.service';
 /* ⚠️ StorageModule нь @Global тул module-д импортлох шаардлагагүй */
@@ -141,7 +142,13 @@ export class ChatService {
    *    хэрэглэгчийн урсгалыг ХЭЗЭЭ Ч тасалж болохгүй.
    */
   async backfillProfiles(limit = 50): Promise<{ scanned: number; filled: number }> {
-    if (!process.env.FB_PAGE_ACCESS_TOKEN) return { scanned: 0, filled: 0 };
+    /**
+     * ⚠️ САЙТЫН угтвартай — эс бөгөөс BestTV-ийн токен байхгүй үед
+     * BestFilm-ийнхийг ч бүхэлд нь унтраана (эсрэгээр ч).
+     */
+    if (!process.env[`${this.envPrefix()}FB_PAGE_ACCESS_TOKEN`]) {
+      return { scanned: 0, filled: 0 };
+    }
 
     const rows = await this.prisma.chatConversation.findMany({
       where: {
@@ -264,24 +271,43 @@ export class ChatService {
    * ⚠️ Тохирох хуудас олдоогүй бол үндсэн токен руу унана — хуучин
    *    зан үйл хэвээр, шинэ алдаа үүсгэхгүй.
    */
+  /**
+   * ⚠️⚠️ САЙТЫН УГТВАР — `crosspost/meta-graph.service.ts` -тэй ИЖИЛ.
+   *
+   * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): энэ функц сайтын контекстийг
+   * харгалздаггүй байсан тул BestFilm-д FB хуудас нэмэгдмэгц админы
+   * хариу **BestTV-ийн production хуудсаар** явах байсан.
+   *
+   * ⚠️ BestTV-ийнх ЯГ ХЭВЭЭР: `besttv` → угтваргүй `FB_PAGE_ACCESS_TOKEN`.
+   * ⚠️ Тохируулаагүй сайтад `undefined` буцаана → зурвас илгээгдэхгүй,
+   *    буруу хуудсанд бичихээс НЬ ДЭЭР (fail-closed).
+   */
+  private envPrefix(): string {
+    const site = currentSite();
+    return site === DEFAULT_SITE ? '' : `${site.toUpperCase()}_`;
+  }
+
   private pageToken(pageId?: string | null): string | undefined {
-    const main = process.env.FB_PAGE_ACCESS_TOKEN;
+    const px = this.envPrefix();
+    const main = process.env[`${px}FB_PAGE_ACCESS_TOKEN`];
     if (!pageId) return main;
 
     /* ⚠️ Үндсэн хуудас — `FB_PAGE_ID` заагаагүй байж болно (хуучин
        суулгацад байхгүй) тул зөвхөн утгатай үед л тулгана. */
-    if (process.env.FB_PAGE_ID && pageId === process.env.FB_PAGE_ID) return main;
+    const mainId = process.env[`${px}FB_PAGE_ID`];
+    if (mainId && pageId === mainId) return main;
 
     /* ⚠️ IG нь эцэг page-ийн токеноор — `IG_USER_ID` тааралдвал үндсэн.
        Хэрэв IG нь өөр хуудсанд харьяалагдвал `FB_PAGE_ID_N`-ээр дарж
        бичигдэнэ (доорх давталт ЭХЭЛЖ шалгагдана). */
     for (let i = 2; i <= 20; i += 1) {
-      const id = process.env[`FB_PAGE_ID_${i}`];
-      const token = process.env[`FB_PAGE_ACCESS_TOKEN_${i}`];
+      const id = process.env[`${px}FB_PAGE_ID_${i}`];
+      const token = process.env[`${px}FB_PAGE_ACCESS_TOKEN_${i}`];
       if (id && token && pageId === id) return token;
     }
 
-    if (process.env.IG_USER_ID && pageId === process.env.IG_USER_ID) return main;
+    const igId = process.env[`${px}IG_USER_ID`];
+    if (igId && pageId === igId) return main;
     return main;
   }
 

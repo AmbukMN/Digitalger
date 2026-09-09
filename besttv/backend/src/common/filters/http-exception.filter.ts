@@ -30,10 +30,36 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    /**
+     * ⚠️⚠️ PRISMA-ГИЙН VALIDATION АЛДАА нь ҮРГЭЛЖ КЛИЕНТИЙН БУРУУ ОРОЛТ.
+     *
+     * ⛔ БОДИТ АСУУДАЛ (2026-09-09 аудит): `@Query('limit') limit?: number`
+     * гэсэн ПРИМИТИВ параметрт глобал `ValidationPipe` ХҮРДЭГГҮЙ тул
+     * `?limit=abc` → `NaN` → Prisma-д очиж `PrismaClientValidationError`
+     * → **500**. 25+ endpoint нөлөөлсөн (`titles`, `blog`, `email`,
+     * `users`, `wallet`, `payments-admin`…).
+     *
+     * Үр дагавар: (1) клиентэд буруу дохио (серверийн алдаа гэж ойлгоно,
+     * дахин оролдоно), (2) админы `/errors` хуудас хог алдаагаар дүүрнэ
+     * — бодит доголдол дунд нь алдагдана.
+     *
+     * ⚠️ Энд НЭГ газраас засаж байгаа шалтгаан: 25+ controller гараар
+     * засах нь регрессийн эрсдэл өндөр. `PrismaClientValidationError`
+     * нь схемд нийцээгүй аргумент илэрхийлдэг ба хэрэглэгчийн оролт л
+     * тэр байдалд хүргэдэг тул 400 нь утга зүйн хувьд ЗӨВ.
+     *
+     * ⚠️ Мессежийг ХЭЛДЭГГҮЙ — доорх production нуулт хэвээр үйлчилнэ
+     * (query бүтэц задрахгүй).
+     */
+    const isPrismaValidation =
+      exception instanceof Error && exception.constructor.name === 'PrismaClientValidationError';
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : isPrismaValidation
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : null;
@@ -65,9 +91,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof exceptionResponse === 'string'
         ? exceptionResponse
         : ((exceptionResponse as { message?: string | string[] })?.message ??
-          (exception instanceof Error && !isProd
-            ? exception.message
-            : 'Дотоод алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.'));
+          (isPrismaValidation
+            ? /* ⚠️ 400 — оролт буруу гэж ХЭЛНЭ, гэхдээ query бүтэц задлахгүй */
+              'Хүсэлтийн параметр буруу байна.'
+            : exception instanceof Error && !isProd
+              ? exception.message
+              : 'Дотоод алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.'));
 
     // Request ID — ирсэн header байвал ашиглана, эс бол шинээр үүсгэнэ.
     // Энэ нь production дээр алдааг log-той тулгаж дебаг хийхэд хэрэгтэй.
@@ -124,7 +153,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error:
         exception instanceof HttpException
           ? (exceptionResponse as { error?: string })?.error
-          : 'Internal Server Error',
+          : /* ⚠️ `statusCode`-той нийцүүлнэ — 400 дээр «Internal Server
+               Error» гэж бичих нь клиентийг төөрөлдүүлнэ */
+            isPrismaValidation
+            ? 'Bad Request'
+            : 'Internal Server Error',
       timestamp: new Date().toISOString(),
       path: request.url,
       requestId,

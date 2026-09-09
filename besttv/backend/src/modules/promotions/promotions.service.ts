@@ -280,10 +280,33 @@ export class PromotionsService {
     valueGiven: number,
     daysGiven: number,
   ): Promise<void> {
-    await tx.promotion.update({
-      where: { id: promotionId },
+    /**
+     * ⚠️⚠️ АТОМАР — `usedCount` нь `maxUses`-ээс ХЭТЭРЧ БОЛОХГҮЙ.
+     *
+     * ӨМНӨ НЬ нөхцөлгүй `update` байсан ба хязгаарын шалгалт нь
+     * `hasQuota()`-д, УНШИЛТЫН үед JS дотор л хийгддэг байв. Хоёр
+     * хэрэглэгч зэрэг төлбөрөө дуусгавал хоёулаа шалгалтыг давж
+     * `maxUses`-ээс хэтэрдэг байсан.
+     *
+     * Купоны `incrementUse` (`coupons.module.ts`) энэ загварыг аль
+     * хэдийн баримталдаг — эндээс хуулав.
+     *
+     * ⚠️ Хязгаар дүүрсэн ч төлбөр АЛЬ ХЭДИЙН хийгдсэн тул алдаа
+     * ШИДЭХГҮЙ (эрхийг үгүйсгэхгүй) — зөвхөн бүртгэж админд үлдээнэ.
+     * Купонтой ижил зан төлөв.
+     */
+    const bumped = await tx.promotion.updateMany({
+      where: {
+        id: promotionId,
+        OR: [{ maxUses: null }, { usedCount: { lt: tx.promotion.fields.maxUses } }],
+      },
       data: { usedCount: { increment: 1 } },
     });
+    if (bumped.count === 0) {
+      this.logger.warn(
+        `Урамшуулал "${promotionId}" ашиглалт нэмэгдсэнгүй (хязгаар дүүрсэн байж болзошгүй)`,
+      );
+    }
     await tx.promotionRedemption.create({
       data: { promotionId, userId, paymentId, valueGiven, daysGiven },
     });
