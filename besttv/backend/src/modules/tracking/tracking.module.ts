@@ -45,7 +45,20 @@ class PageViewDto {
  * ⚠️ DB-д одоо ЯГ эдгээр 4 л байгаа (progress 319K, view 68K,
  * play 22K, complete 2.8K) — шинэ утга нэмэх бол ЭНД БАС нэмнэ.
  */
-const TITLE_EVENT_TYPES = ['view', 'play', 'progress', 'complete'] as const;
+const TITLE_EVENT_TYPES = [
+  'view',
+  'play',
+  'progress',
+  'complete',
+  /**
+   * ⚠️ `mylist_*` — одоогоор ДУУДАГЧ БАЙХГҮЙ ч `track.ts:129`,
+   * `schema.prisma:1567`, `admin/user-insight-tab.tsx:45` гурвуулаа
+   * мэддэг. Enum-д оруулаагүй бол «Жагсаалтад нэмэх» товчинд tracking
+   * залгамагц ЧИМЭЭГҮЙ 400 болно (`sendBeacon` хариу шалгадаггүй).
+   */
+  'mylist_add',
+  'mylist_remove',
+] as const;
 
 class TitleEventDto {
   @IsString()
