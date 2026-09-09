@@ -116,8 +116,15 @@ export function VideoPreview({ kind, id }: { kind: Kind; id: string }) {
         hls = new HlsMod({
           // ⚠️ m3u8 нь Bearer token шаардана (segment нь presigned тул шаардахгүй)
           xhrSetup: (xhr, url) => {
-            if (token && url.includes('/admin/stream/')) {
-              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            if (url.includes('/admin/stream/')) {
+              if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+              /**
+               * ⚠️⚠️ `X-Site` ЗААВАЛ — backend `adminPreview` нь одоо
+               * `assertTitleOnSite` шалгадаг (fail-closed). Толгойгүй
+               * бол сайт `besttv`-д унаж, BestFilm сонгосон админд
+               * preview 404 өгнө.
+               */
+              xhr.setRequestHeader('X-Site', currentAdminSite());
             }
           },
         });

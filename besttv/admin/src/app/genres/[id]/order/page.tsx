@@ -208,6 +208,26 @@ export default function GenreOrderPage({ params }: { params: Promise<{ id: strin
           </button>
         </div>
 
+        {/**
+         * ⚠️⚠️ ЭРЭМБЭ НЬ ХОЁУЛАНГ САЙТАД НӨЛӨӨЛНӨ.
+         *
+         * `TitleGenre.order` нь SHARED (`site` багана АЛГА) тул энд
+         * чирж эрэмбэлэхэд НӨГӨӨ САЙТЫН нүүр хуудасны тэр жанрын
+         * эгнээний дараалал ч өөрчлөгдөнө.
+         *
+         * ⚠️ Жанрын ӨӨРИЙН эрэмбэ (`GenreSiteOrder`) нь сайт бүрд
+         * ТУСДАА — тэрхүү зөрүүг админд ил хэлэхгүй бол гэнэтийн
+         * өөрчлөлт мэт харагдана.
+         */}
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-premium/40 bg-premium/8 px-3 py-2 text-xs text-foreground/80">
+          <ArrowUpDown size={14} className="mt-0.5 shrink-0 text-premium" />
+          <span>
+            <b>Энэ эрэмбэ хоёулаа сайтад хамаарна.</b> Жанр доторх киноны дараалал
+            BestTV болон BestFilm дээр ижил байна (жанрын өөрийн эрэмбэ нь сайт
+            бүрд тусдаа).
+          </span>
+        </div>
+
         {isError ? (
           <AdminErrorState error={error} onRetry={() => void refetch()} />
         ) : isLoading ? (
