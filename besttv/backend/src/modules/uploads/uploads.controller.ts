@@ -22,6 +22,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { StorageService } from '../../storage/storage.service';
 import { ImageProcessorService } from '../../storage/image-processor.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { VIDEO_QUEUE, VideoHlsJob, VideoTarget } from '../videos/video-queue.types';
 import { currentSite } from '../../common/site/site-context';
 
@@ -249,6 +250,25 @@ export class UploadsController {
     }),
   )
   async uploadVideoDirect(@UploadedFile() file: Express.Multer.File) {
+    /**
+     * ⚠️⚠️ ЗӨВХӨН ЛОКАЛ ХАДГАЛАЛТАД — production-д ХААЛТТАЙ.
+     *
+     * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит): доорх тайлбар нь «энэ зам
+     * зөвхөн dev-д ажиллана» гэж бичсэн ч тэр шалгалт КОДОД БАЙГААГҮЙ
+     * — зөвхөн клиентийн таамаг байв (`admin/src/lib/upload.ts`).
+     *
+     * `limits: {}` (хэмжээний хязгаар зориуд хассан) тул production-д
+     * админ токентой хэн ч VPS-ийн диск рүү ХЯЗГААРГҮЙ бичиж, дискийг
+     * дүүргэж чадна. Диск дүүрвэл Postgres бичихээ болино → сайт унана.
+     *
+     * ⚠️ Production-д multipart presign (`video/multipart/*`) л
+     * хэрэглэгддэг тул энэ хаалт хэвийн урсгалыг ХӨНДӨХГҮЙ.
+     */
+    if (!this.storage.isLocal) {
+      throw new BadRequestException(
+        'Шууд байршуулалт зөвхөн локал хадгалалтад — R2 руу multipart presign ашиглана уу',
+      );
+    }
     if (!file) throw new BadRequestException('Видео файл сонгоогүй эсвэл дэмжигдэхгүй төрөл байна');
     const key = `raw/${file.filename}`;
     return { key };
@@ -273,8 +293,22 @@ export class UploadsController {
 
     // Entity байгаа эсэх + статус PROCESSING болгоно
     if (target === 'movie' || target === 'trailer') {
-      const title = await this.prisma.title.findUnique({ where: { id: targetId } });
+      const title = await this.prisma.title.findUnique({
+        where: { id: targetId },
+        /* ⚠️ `sites` ЗААВАЛ — post-filter fail-open-оос сэргийлнэ */
+        select: { id: true, sites: true },
+      });
       if (!title) throw new NotFoundException('Контент олдсонгүй');
+      /**
+       * ⚠️⚠️ ЭНЭ САЙТАД НИЙТЛЭГДСЭН ЭСЭХ.
+       *
+       * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит): `title.update` нь Prisma
+       * өргөтгөлд `where` шүүлт АВДАГГҮЙ. Тиймээс `X-Site: bestfilm`
+       * илгээгээд ЗӨВХӨН BestTV-д байгаа киноны `videoRawKey`-г солиод
+       * HLS queue-д оруулж, **BestTV-гийн видеог өөрийн файлаар
+       * СОЛИХ** боломжтой байв.
+       */
+      assertTitleOnSite(title.sites, 'Контент олдсонгүй');
       if (target === 'movie') {
         await this.prisma.title.update({
           where: { id: targetId },
@@ -302,8 +336,14 @@ export class UploadsController {
         });
       }
     } else {
-      const ep = await this.prisma.episode.findUnique({ where: { id: targetId } });
+      const ep = await this.prisma.episode.findUnique({
+        where: { id: targetId },
+        /* ⚠️ `Episode` нь SHARED (`sites` талбаргүй) тул эцэг Title-аар
+           шалгана — эс бөгөөс хамгаалалт ОГТ байхгүй */
+        select: { id: true, season: { select: { title: { select: { sites: true } } } } },
+      });
       if (!ep) throw new NotFoundException('Анги олдсонгүй');
+      assertTitleOnSite(ep.season?.title?.sites, 'Анги олдсонгүй');
       await this.prisma.episode.update({
         where: { id: targetId },
         data: { videoRawKey: rawKey, streamStatus: 'PROCESSING' },

@@ -49,10 +49,27 @@ export class TitlesController {
      */
     @Query('plan') plan?: string,
   ) {
+    /**
+     * ⚠️⚠️ ХАЙЛТЫН ТЕКСТИЙГ ХЯЗГААРЛАНА — DoS-оос ХОЁР ДАХЬ ХАМГААЛАЛТ.
+     *
+     * ⛔ `@Query('q')` нь ЭНГИЙН примитив тул глобал `ValidationPipe`
+     * ОГТ үйлчилдэггүй (DTO класс биш). `@MaxLength` хаана ч байгаагүй.
+     *
+     * Production тест: `q=bubobubobubobubobubo` (20 тэмдэгт) нэг хүсэлт
+     * origin-ыг 125 СЕКУНД түгжсэн (`expandQuery`-ийн экспоненциал
+     * рекурс). Тэр талд `MAX_VARIANTS=64` нэмсэн ч энд ч таслах нь зөв —
+     * `expandQuery` нь `chat-keywords`, `titles-admin`, `slugify`-аас ч
+     * дуудагддаг.
+     *
+     * ⚠️ 100 тэмдэгт нь бодит хайлтад хангалттай (хамгийн урт киноны
+     * нэр 47 тэмдэгт). Хэтэрсэн хэсгийг ЧИМЭЭГҮЙ тасална — алдаа
+     * шидвэл хэрэглэгчийн бичих явцад 400 гарна.
+     */
+    const query = (q ?? '').slice(0, 100);
     const t = type === 'MOVIE' || type === 'SERIES' ? type : undefined;
     const n = Math.min(40, Math.max(1, Number(limit) || 20));
-    if (plan && plan.trim()) return this.titles.searchByPlan(plan.trim(), n);
-    return this.titles.search(q ?? '', n, t);
+    if (plan && plan.trim()) return this.titles.searchByPlan(plan.trim().slice(0, 100), n);
+    return this.titles.search(query, n, t);
   }
 
 

@@ -122,7 +122,25 @@ export class PushService {
       try {
         tickets.push(...(await this.expo.sendPushNotificationsAsync(chunk)));
       } catch (e) {
-        this.logger.warn(`Push багц илгээгдсэнгүй: ${String(e)}`);
+        /**
+         * ⚠️⚠️ БАЙРЛАЛЫГ ЗААВАЛ НӨХНӨ — ЭС БӨГӨӨС ИНДЕКС ГУЛСАНА.
+         *
+         * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): багц уначихвал `tickets`
+         * тэр хэмжээгээр БОГИНОСДОГ байв. Гэтэл доор `tokens[i]`,
+         * `tickets[i]` гэж ИНДЕКСЭЭР харьцуулдаг — эхний 100-ийн багц
+         * уначихвал бүх дараагийн индекс 100-аар гулсаж, **ӨӨР
+         * хэрэглэгчийн `DeviceToken` устгагдана** (`deleteMany` доор).
+         *
+         * Expo доголдох үед — яг олноор илгээх үед — идэвхжинэ.
+         *
+         * ⚠️ Нөхөх утга нь `status: 'error'` боловч `details.error`
+         * нь `undefined` тул `DeviceNotRegistered` салаанд ОРОХГҮЙ —
+         * зөвхөн warn логлоно, токен УСТГАХГҮЙ.
+         */
+        for (let i = 0; i < chunk.length; i += 1) {
+          tickets.push({ status: 'error', message: 'chunk failed' } as ExpoPushTicket);
+        }
+        this.logger.warn(`Push багц илгээгдсэнгүй (${chunk.length} мессеж): ${String(e)}`);
       }
     }
 

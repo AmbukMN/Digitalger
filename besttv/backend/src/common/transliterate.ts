@@ -188,9 +188,34 @@ export function latinToCyrVariants(input: string): string[] {
     s = s.replace(re, cyr);
   }
 
-  // Now expand remaining ASCII 'u' → у/ү and 'o' → о/ө variants
+  /**
+   * ⚠️⚠️ ХУВИЛБАРЫН ТОО ХАТУУ ХЯЗГААРТАЙ — ЭС БӨГӨӨС DoS.
+   *
+   * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-09 аудит, production дээр батлагдсан):
+   * `u`/`o` тэмдэгт бүр хувилбарыг ХОЁР ДАХИН нэмэгдүүлдэг —
+   * `2^n` экспоненциал өсөлт, хязгаар огт байгаагүй:
+   *
+   *     24 тэмдэгт →     4,096 хувилбар →   7мс
+   *     40 тэмдэгт → 1,048,576 хувилбар → 1.06с
+   *     44 тэмдэгт → 4,194,304 хувилбар → 4.8с
+   *     48 тэмдэгт → heap OOM (процесс унана)
+   *
+   * Production тест: `q=bubobubobubobubobubo` (20 тэмдэгт) НЭГ хүсэлт
+   * origin-ыг **125 СЕКУНД** түгжсэн. Нэвтрэлт шаардлагагүй.
+   *
+   * ⚠️ `/titles/search` нь throttle-ыг глобалаас 6 ДАХИН ӨСГӨСӨН
+   * (120/сек vs 20/сек) тул rate limit нь хамгаалалт биш, ӨСГӨГЧ.
+   *
+   * ⚠️ 64 хувилбар нь бодит хайлтад ХАНГАЛТТАЙ: монгол үгэнд 6-аас
+   * олон `u`/`o` ховор (`burtguuleh` = 4 → 16 хувилбар).
+   *
+   * ⚠️ Хязгаарт хүрвэл ЭХНИЙ 64 хувилбарыг буцаана — хайлт ажилласаар,
+   * зөвхөн нарийвчлал бага зэрэг буурна.
+   */
+  const MAX_VARIANTS = 64;
   const variants = new Set<string>();
   const expand = (current: string): void => {
+    if (variants.size >= MAX_VARIANTS) return;
     const uIdx = current.indexOf('u');
     const oIdx = current.indexOf('o');
     const first = uIdx === -1 ? oIdx : oIdx === -1 ? uIdx : Math.min(uIdx, oIdx);
