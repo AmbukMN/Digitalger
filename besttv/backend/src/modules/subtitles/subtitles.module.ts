@@ -17,6 +17,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { memoryStorage } from 'multer';
 import { Role } from '@prisma/client';
 import { IsInt, IsOptional, IsString } from 'class-validator';
@@ -384,9 +385,11 @@ export class SubtitlesService {
 
     const title = await this.prisma.title.findUnique({
       where: { id },
-      select: { id: true, isPremium: true, genres: { select: { genreId: true } } },
+      /* ⚠️ `sites` ЗААВАЛ — post-filter fail-open-оос сэргийлнэ */
+      select: { sites: true, id: true, isPremium: true, genres: { select: { genreId: true } } },
     });
     if (!title) throw new NotFoundException('Кино олдсонгүй');
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
     if (!title.isPremium) return;
     await this.check(title.id, title.genres.map((g) => g.genreId), userId);
   }

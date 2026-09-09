@@ -6,6 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { StorageService } from '../../storage/storage.service';
 import { VideoHlsService } from '../../storage/video-hls.service';
 import { ErrorsService } from '../errors/errors.module';
@@ -56,6 +57,8 @@ export class StreamService {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
       select: {
+        /* ⚠️ `sites` ЗААВАЛ — эс бөгөөс post-filter алгасагдана (fail-open) */
+        sites: true,
         videoKey: true,
         isPremium: true,
         isActive: true,
@@ -66,6 +69,8 @@ export class StreamService {
     if (!title?.videoKey || !title.isActive || title.streamStatus !== 'READY') {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
+    /* ⚠️ Энэ сайтад нийтлэгдсэн эсэх — `sites` select-д ЗААВАЛ */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
 
     await this.assertAccess(
       title.isPremium,
@@ -103,6 +108,8 @@ export class StreamService {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
       select: {
+        /* ⚠️ `sites` ЗААВАЛ — эс бөгөөс post-filter алгасагдана (fail-open) */
+        sites: true,
         videoKey: true,
         isPremium: true,
         isActive: true,
@@ -113,6 +120,8 @@ export class StreamService {
     if (!title?.videoKey || !title.isActive || title.streamStatus !== 'READY') {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
+    /* ⚠️ Энэ сайтад нийтлэгдсэн эсэх — `sites` select-д ЗААВАЛ */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
     await this.assertAccess(
       title.isPremium,
       title.genres.map((g) => g.genreId),
@@ -527,6 +536,8 @@ export class StreamService {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
       select: {
+        /* ⚠️ `sites` ЗААВАЛ — эс бөгөөс post-filter алгасагдана (fail-open) */
+        sites: true,
         videoKey: true,
         isPremium: true,
         isActive: true,
@@ -537,6 +548,8 @@ export class StreamService {
     if (!title?.videoKey || !title.isActive || title.streamStatus !== 'READY') {
       throw new NotFoundException('Видео бэлэн биш байна');
     }
+    /* ⚠️ Энэ сайтад нийтлэгдсэн эсэх — `sites` select-д ЗААВАЛ */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
     await this.assertAccess(
       title.isPremium,
       title.genres.map((g) => g.genreId),
@@ -697,11 +710,15 @@ export class StreamService {
   async trailerPlaylist(titleId: string): Promise<string> {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
-      select: { trailerKey: true, isActive: true },
+      select: {
+        /* ⚠️ `sites` ЗААВАЛ — эс бөгөөс post-filter алгасагдана (fail-open) */
+        sites: true, trailerKey: true, isActive: true },
     });
     if (!title?.trailerKey || !title.isActive) {
       throw new NotFoundException('Трейлер олдсонгүй');
     }
+    /* ⚠️ Энэ сайтад нийтлэгдсэн эсэх — `sites` select-д ЗААВАЛ */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
     return this.rewritePlaylist(title.trailerKey, `/api/stream/trailer/${titleId}/variant.m3u8`);
   }
 
@@ -709,11 +726,15 @@ export class StreamService {
   async trailerVariant(titleId: string, variant: string): Promise<string> {
     const title = await this.prisma.title.findUnique({
       where: { id: titleId },
-      select: { trailerKey: true, isActive: true },
+      select: {
+        /* ⚠️ `sites` ЗААВАЛ — эс бөгөөс post-filter алгасагдана (fail-open) */
+        sites: true, trailerKey: true, isActive: true },
     });
     if (!title?.trailerKey || !title.isActive) {
       throw new NotFoundException('Трейлер олдсонгүй');
     }
+    /* ⚠️ Энэ сайтад нийтлэгдсэн эсэх — `sites` select-д ЗААВАЛ */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
     return this.variantPlaylist(title.trailerKey, variant);
   }
 

@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Prisma, TitleType } from '@prisma/client';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -255,11 +256,13 @@ export class MobileService {
   async detail(slug: string, userId?: string | null) {
     const t = await this.prisma.title.findUnique({
       where: { slug },
-      select: { id: true, genres: { select: { genre: { select: { isAdult: true } } } } },
+      /* ⚠️ `sites` ЗААВАЛ — post-filter fail-open-оос сэргийлнэ */
+      select: { sites: true, id: true, genres: { select: { genre: { select: { isAdult: true } } } } },
     });
     if (!t || t.genres.some((g) => g.genre.isAdult)) {
       throw new NotFoundException('Контент олдсонгүй');
     }
+    assertTitleOnSite(t.sites, 'Контент олдсонгүй');
 
     const detail = await this.titles.detail(slug, userId ?? undefined);
 

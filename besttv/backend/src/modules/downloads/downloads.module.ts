@@ -14,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -328,6 +329,8 @@ export class DownloadsService {
     const t = await this.prisma.title.findUnique({
       where: { id },
       select: {
+        /* ⚠️ `sites` ЗААВАЛ — эс бөгөөс post-filter алгасагдана (fail-open) */
+        sites: true,
         id: true,
         title: true,
         videoKey: true,
@@ -336,6 +339,8 @@ export class DownloadsService {
       },
     });
     if (!t) throw new NotFoundException('Кино олдсонгүй');
+    /* ⚠️ Энэ сайтад нийтлэгдсэн эсэх — нөгөө сайтын киног ТАТУУЛАХГҮЙ */
+    assertTitleOnSite(t.sites, 'Кино олдсонгүй');
     return {
       videoKey: t.videoKey,
       isFreePreview: !t.isPremium,

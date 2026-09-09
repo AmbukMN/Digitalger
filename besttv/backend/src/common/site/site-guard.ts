@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { currentSite } from './site-context';
 
 /**
  * ⚠️⚠️ САЙТ ХООРОНД БИЧИХЭЭС ХАМГААЛАХ ТУСЛАХ.
@@ -50,4 +51,33 @@ export async function assertSameSite(
 ): Promise<void> {
   const row = await model.findFirst({ where: { id }, select: { id: true } });
   if (!row) throw new NotFoundException(message);
+}
+
+/**
+ * ⚠️⚠️ MULTI-SITE МОДЕЛИЙН (`Title`) МӨР ЭНЭ САЙТАД БАЙГАА ЭСЭХ.
+ *
+ * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): `site-extension.ts`-ийн
+ * post-filter нь `Array.isArray(row.sites)` шалгадаг — өөрөөр хэлбэл
+ * `select`-д `sites` ОРУУЛААГҮЙ бол `undefined` болж шалгалт
+ * ЧИМЭЭГҮЙ АЛГАСАГДАНА. Энэ бол fail-OPEN загвар.
+ *
+ * Нөлөөлсөн: stream playlist/variant/thumbnails, downloads, subtitles —
+ * өөрөөр хэлбэл нөгөө сайтад нийтлээгүй киног урсгах/татах боломжтой
+ * байв. Одоогоор 257/257 кино хоёуланд нь тул далд, ГЭВЧ админ
+ * нэг товч дарангуут амьд эмзэг байдал болно.
+ *
+ * ХЭРЭГЛЭХ — `findUnique`-ийн `select`-д `sites: true` нэмээд:
+ *
+ *     assertTitleOnSite(title.sites, 'Кино олдсонгүй');
+ *
+ * ⚠️ `sites` нь `undefined` ирвэл ч ШИДНЭ (fail-closed) — дуудагч
+ * `select`-д нэмэхээ мартвал чимээгүй өнгөрөхгүй.
+ */
+export function assertTitleOnSite(
+  sites: string[] | undefined | null,
+  message = 'Олдсонгүй',
+): void {
+  if (!Array.isArray(sites) || !sites.includes(currentSite())) {
+    throw new NotFoundException(message);
+  }
 }

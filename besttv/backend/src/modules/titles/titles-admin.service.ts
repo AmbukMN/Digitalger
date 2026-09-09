@@ -640,6 +640,29 @@ export class TitlesAdminService {
       }
     }
 
+    /**
+     * ⚠️⚠️ НӨГӨӨ САЙТАД БАЙГАА БОЛ УСТГАХГҮЙ — ЗӨВХӨН ХАСНА.
+     *
+     * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): `Title` нь SHARED модел
+     * (`sites[]`) бөгөөд бүх 257 кино ХОЁУЛАНД нь бий. `delete` нь
+     * site шүүлт авдаггүй тул нэг сайтын админ устгахад:
+     *   · DB мөр бүрмөсөн устана (Season/Episode/Subtitle cascade)
+     *   · `cleanupR2` нь НӨГӨӨ САЙТЫН ч урсгаж буй HLS файлыг устгана
+     * R2 versioning OFF тул СЭРГЭЭХ БОЛОМЖГҮЙ.
+     *
+     * ⚠️ `bulkSetSite` (мөр ~828) нь энэ хамгаалалттай байсан —
+     * устгах зам нь л мартагдсан.
+     */
+    if (title.sites.length > 1) {
+      const next = title.sites.filter((x) => x !== currentSite());
+      await this.prisma.title.update({ where: { id }, data: { sites: next } });
+      this.logger.log(
+        `«${title.title}» нь ${next.join(', ')} сайтад ҮЛДСЭН тул устгасангүй — ` +
+          `${currentSite()}-аас хаслаа (R2 файл хэвээр)`,
+      );
+      return { ok: true, removedFromSite: true, remainingSites: next };
+    }
+
     await this.prisma.title.delete({ where: { id } });
 
     // Fire-and-forget цэвэрлэгээ (DB устгал амжилттай болсны ДАРАА)
@@ -791,16 +814,69 @@ export class TitlesAdminService {
       }
     }
 
-    const foundIds = titles.map((t) => t.id);
-    const { count } = await this.prisma.title.deleteMany({ where: { id: { in: foundIds } } });
+    /**
+     * ⚠️⚠️ НӨГӨӨ САЙТАД БАЙГААГ УСТГАХГҮЙ — `remove()`-тэй ИЖИЛ.
+     *
+     * Хоёр бүлэгт хуваана:
+     *   · `shared` — нөгөө сайтад ч бий → зөвхөн `sites[]`-ээс хасна,
+     *     R2 файл ХЭВЭЭР (нөгөө сайт урсгасаар байна)
+     *   · `only`   — зөвхөн энэ сайтынх → бүрэн устгана + R2 цэвэрлэнэ
+     */
+    const shared = titles.filter((t) => t.sites.length > 1);
+    const only = titles.filter((t) => t.sites.length <= 1);
 
-    // Fire-and-forget цэвэрлэгээ (DB устгал амжилттай болсны ДАРАА)
-    this.cleanupR2(keys, prefixes);
+    for (const t of shared) {
+      await this.prisma.title.update({
+        where: { id: t.id },
+        data: { sites: t.sites.filter((x) => x !== currentSite()) },
+      });
+    }
 
-    this.logger.log(
-      `Bulk устгал: ${count} контент, ${keys.length} файл, ${prefixes.length} HLS хавтас`,
-    );
-    return { ok: true, deleted: count, files: keys.length, hlsFolders: prefixes.length };
+    const foundIds = only.map((t) => t.id);
+    const { count } = foundIds.length
+      ? await this.prisma.title.deleteMany({ where: { id: { in: foundIds } } })
+      : { count: 0 };
+
+    /**
+     * ⚠️ R2-г ЗӨВХӨН бүрэн устгасан кинонд — `shared`-ийн файлыг
+     * цэвэрлэвэл нөгөө сайтын урсгал ТАСАРНА.
+     */
+    if (foundIds.length) {
+      const onlyIds = new Set(foundIds);
+      const k2: string[] = [];
+      const p2: string[] = [];
+      for (const t of only) {
+        if (!onlyIds.has(t.id)) continue;
+        for (const k of [t.posterKey, t.backdropKey, t.videoRawKey]) if (k) k2.push(k);
+        k2.push(...t.galleryKeys, ...castPhotoKeys(t.cast));
+        if (t.videoKey) p2.push(this.hlsPrefix(t.videoKey));
+        if (t.trailerKey) p2.push(this.hlsPrefix(t.trailerKey));
+        for (const se of t.seasons) {
+          for (const e of se.episodes) {
+            if (e.posterKey) k2.push(e.posterKey);
+            if (e.videoRawKey) k2.push(e.videoRawKey);
+            if (e.videoKey) p2.push(this.hlsPrefix(e.videoKey));
+          }
+        }
+      }
+      this.cleanupR2(k2, p2);
+    }
+
+    if (shared.length) {
+      this.logger.log(
+        `Bulk: ${shared.length} контент нөгөө сайтад үлдсэн тул ` +
+          `${currentSite()}-аас л хаслаа (R2 файл хэвээр)`,
+      );
+    }
+
+    this.logger.log(`Bulk устгал: ${count} контент бүрэн устгав`);
+    return {
+      ok: true,
+      deleted: count,
+      removedFromSite: shared.length,
+      files: keys.length,
+      hlsFolders: prefixes.length,
+    };
   }
 
   /** Идэвх (нийтлэгдсэн эсэх) бөөнөөр солих */

@@ -238,7 +238,19 @@ export class StreamController {
    * дахин дахин дуудсан ч CPU дэмий зарцуулагдахгүй.
    * ⚠️ Хурд хязгаарлалт: 1 минутад 6 удаа (ffmpeg хүнд).
    */
+  /**
+   * ⚠️⚠️ `JwtAuthGuard` ЗААВАЛ — ЭНЭ НЬ DB-Д БИЧДЭГ.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): класс нь `OptionalJwtAuthGuard`
+   * тул энэ endpoint НЭВТРЭЛТГҮЙ байсан. Амьд тестээр токенгүй
+   * дуудахад **HTTP 201** буцааж байв.
+   *
+   * `repairEpisodePoster` нь ffmpeg ажиллуулж `episode.update` хийдэг —
+   * өөрөөр хэлбэл хэн ч серверийн CPU-г зарцуулж, DB-д бичүүлж чадна.
+   * Throttle (6/мин) нь ЗӨВХӨН IP-ээр тул прокси сольж тойрно.
+   */
   @Post('episode/:episodeId/poster/repair')
+  @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 6, ttl: 60_000 } })
   repairPoster(@Param('episodeId') episodeId: string) {
     return this.stream.repairEpisodePoster(episodeId);

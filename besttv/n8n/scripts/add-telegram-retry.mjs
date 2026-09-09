@@ -64,13 +64,19 @@ for (const [wf, label] of rows) {
 
   if (!idx.length) { console.log(`  ⏭️  ${label}: Telegram node алга`); continue; }
 
-  const todo = idx.filter((i) => nodes[i].retryOnFail !== true);
+  /* ⚠️ Зөвхөн `retryOnFail` биш — УТГЫГ ч шалгана (5000→60000 шинэчлэл) */
+  const todo = idx.filter(
+    (i) =>
+      nodes[i].retryOnFail !== true ||
+      nodes[i].maxTries !== 5 ||
+      nodes[i].waitBetweenTries !== 60000,
+  );
   if (!todo.length) { console.log(`  ⏭️  ${label}: ${idx.length} node аль хэдийн retry-тэй`); continue; }
 
   for (const i of todo) {
     nodes[i].retryOnFail = true;
-    nodes[i].maxTries = 3;
-    nodes[i].waitBetweenTries = 5000;
+    nodes[i].maxTries = 5;
+    nodes[i].waitBetweenTries = 60000;
   }
   console.log(`  + ${label}: ${todo.map((i) => nodes[i].name).join(', ')}`);
 
@@ -100,7 +106,9 @@ for (const [wf, label] of rows) {
       ? `"workflowId"='${wf}' and "versionId"='${versionId}'` : `id='${wf}'`;
     const n = sql(
       `select count(*) from ${table}, json_array_elements(nodes) n ` +
-      `where ${where} and n->>'type' like '%telegram%' and (n->>'retryOnFail')::boolean = true`);
+      `where ${where} and n->>'type' like '%telegram%' ` +
+      `and n->>'retryOnFail' = 'true' ` +
+      `and n->>'maxTries' = '5' and n->>'waitBetweenTries' = '60000'`);
     if (Number(n) !== idx.length) { console.error(`    ⛔ ${table}: ${n}/${idx.length}`); ok = false; }
   }
   if (ok) { console.log('    ✅ бичигдэж батлагдлаа'); changed++; }
