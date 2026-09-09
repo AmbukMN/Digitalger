@@ -644,7 +644,13 @@ export function useValidateCoupon() {
 
 export interface BrandSettings {
   siteName: string;
+  /** ⚠️ БАРААН (dark) горимын лого — хуучин нэр */
   logoUrl: string | null;
+  /**
+   * ⚠️ ГЭРЭЛ (light) горимын лого. `null` бол `logoUrl` хоёуланд
+   * хэрэглэгдэнэ (backend тохируулаагүй үед) — өмнөх зан төлөв ХЭВЭЭР.
+   */
+  logoLightUrl: string | null;
   faviconUrl: string | null;
   /**
    * Хэрэглэгч АНХ ОРОХОД аль өнгөний горим идэвхжих (админаас удирдана).

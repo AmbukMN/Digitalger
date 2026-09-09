@@ -60,7 +60,8 @@ export class UploadsController {
   )
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @Body('kind') kind: 'poster' | 'backdrop' | 'still' | 'cast' | 'gallery' | 'email' = 'poster',
+    @Body('kind')
+    kind: 'poster' | 'backdrop' | 'still' | 'cast' | 'gallery' | 'email' | 'brand' = 'poster',
   ) {
     if (!file) throw new BadRequestException('Файл сонгоогүй байна');
     if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
@@ -68,8 +69,24 @@ export class UploadsController {
     }
 
     const sharp = (await import('sharp')).default;
+    /**
+     * ⚠️ `brand` — ЛОГО. 600px (poster) нь хэт жижиг: лого нь retina
+     * дэлгэц дээр 2–3× хэмжээгээр рендерлэгддэг тул бүдгэрнэ. 1200px
+     * нь өргөн хэлбэрийн логонд ч хангалттай.
+     *
+     * ⚠️ Тунгалаг байдал WebP-д ХАДГАЛАГДАНА — гэрэл/бараан хоёр
+     * дэвсгэр дээр ижил зөв харагдана (`flatten` нь ЗӨВХӨН имэйлд).
+     */
     const maxWidth =
-      kind === 'backdrop' || kind === 'gallery' ? 1920 : kind === 'cast' ? 300 : kind === 'still' ? 800 : 600;
+      kind === 'backdrop' || kind === 'gallery'
+        ? 1920
+        : kind === 'brand'
+          ? 1200
+          : kind === 'cast'
+            ? 300
+            : kind === 'still'
+              ? 800
+              : 600;
 
     /**
      * ⚠️⚠️ ИМЭЙЛД WebP БОЛОХГҮЙ — Outlook (Windows) нь WebP-г ОГТ

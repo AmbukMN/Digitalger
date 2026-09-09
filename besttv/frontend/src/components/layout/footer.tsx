@@ -82,6 +82,8 @@ function XIcon({ size = 16 }: { size?: number }) {
 export function Footer() {
   const { data: brand } = useBrand();
   const logoUrl = brand?.logoUrl ?? null;
+  /** ⚠️ ГЭРЭЛ горимын лого — байхгүй бол `BrandLogo` нь `logoUrl`-ыг хоёуланд хэрэглэнэ */
+  const logoLightUrl = brand?.logoLightUrl ?? null;
   const siteName = brand?.siteName ?? 'BestTV';
 
   const { data: socials } = useQuery({
@@ -182,7 +184,7 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-[1.4fr_repeat(3,1fr)] md:gap-10">
           <div>
             <Link href="/" className="inline-flex items-center">
-              <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto" />
+              <BrandLogo logoUrl={logoUrl} logoLightUrl={logoLightUrl} siteName={siteName} imgClassName="h-9 w-auto" />
             </Link>
             {/*
               ⚠️ Тайлбар + форм:

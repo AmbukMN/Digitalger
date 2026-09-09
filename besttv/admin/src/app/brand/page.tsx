@@ -33,12 +33,21 @@ export default function SettingsPage() {
   const [siteName, setSiteName] = useState('');
   /** Хэрэглэгч анх орох үеийн өнгөний горим */
   const [defaultTheme, setDefaultTheme] = useState<'dark' | 'light' | 'system'>('dark');
+  /** ⚠️ БАРААН горимын лого (хуучин нэр — одоо байгаа лого энд) */
   const [logoKey, setLogoKey] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  /**
+   * ⚠️ ГЭРЭЛ горимын лого. Хоосон бол бараан лого хоёуланд
+   * хэрэглэгдэнэ — өмнөх зан төлөв ХЭВЭЭР.
+   */
+  const [logoLightKey, setLogoLightKey] = useState<string | null>(null);
+  const [logoLightUrl, setLogoLightUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  /** ⚠️ Аль лого байршиж байгаа — хоёр талбар тусдаа индикатортай */
+  const [uploading, setUploading] = useState<'dark' | 'light' | null>(null);
   const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputLightRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
 
   // ⚠️ Дата async ирдэг тул useState-ийн эхний утга хоцордог — ирмэгц дүүргэнэ
@@ -48,39 +57,55 @@ export default function SettingsPage() {
       setDefaultTheme((data as { defaultTheme?: 'dark' | 'light' | 'system' }).defaultTheme ?? 'dark');
       setLogoKey(data.logoKey);
       setLogoUrl(data.logoUrl);
+      setLogoLightKey(data.logoLightKey ?? null);
+      setLogoLightUrl(data.logoLightUrl ?? null);
     }
   }, [data]);
 
-  const pickLogo = async (file: File) => {
-    setUploading(true);
+  /** ⚠️ Хоёр талбарт нэг функц — код давхардуулахгүй */
+  const pickLogo = async (file: File, variant: 'dark' | 'light') => {
+    setUploading(variant);
     setProgress(0);
     try {
       const h = uploadImage(file, 'brand', setProgress);
       abortRef.current = h.abort;
       const res = await h.promise;
-      setLogoKey(res.key);
-      setLogoUrl(res.url);
+      if (variant === 'dark') {
+        setLogoKey(res.key);
+        setLogoUrl(res.url);
+      } else {
+        setLogoLightKey(res.key);
+        setLogoLightUrl(res.url);
+      }
       toast.info('Лого сонгогдлоо — Хадгалах товчийг дарна уу');
     } catch {
       // toast-ыг helper харуулсан
     } finally {
       abortRef.current = null;
-      setUploading(false);
+      setUploading(null);
       setProgress(0);
     }
   };
 
-  const removeLogo = async () => {
+  const removeLogo = async (variant: 'dark' | 'light') => {
     const ok = await confirm({
-      title: 'Логог хасах уу?',
-      description: 'Лого байхгүй үед сайтын нэр текстээр харагдана.',
+      title: variant === 'dark' ? 'Бараан логог хасах уу?' : 'Гэрэл логог хасах уу?',
+      description:
+        variant === 'dark'
+          ? 'Лого байхгүй үед сайтын нэр текстээр харагдана.'
+          : 'Гэрэл лого байхгүй бол бараан лого хоёр горимд ч хэрэглэгдэнэ.',
       bullets: ['Хадгалсны дараа бүх хуудсанд өөрчлөгдөнө'],
       confirmLabel: 'Хасах',
       tone: 'warning',
     });
     if (!ok) return;
-    setLogoKey(null);
-    setLogoUrl(null);
+    if (variant === 'dark') {
+      setLogoKey(null);
+      setLogoUrl(null);
+    } else {
+      setLogoLightKey(null);
+      setLogoLightUrl(null);
+    }
   };
 
   const save = async () => {
@@ -103,7 +128,7 @@ export default function SettingsPage() {
     try {
       await api('/admin/settings/brand', {
         method: 'PUT',
-        body: JSON.stringify({ siteName, logoKey, defaultTheme }),
+        body: JSON.stringify({ siteName, logoKey, logoLightKey, defaultTheme }),
       });
       // Бүх хуудасны лого шинэчлэгдэнэ
       await qc.invalidateQueries({ queryKey: ['admin-brand'] });
@@ -119,6 +144,9 @@ export default function SettingsPage() {
   const dirty = data
     ? siteName !== data.siteName ||
       logoKey !== data.logoKey ||
+      /* ⚠️ Гэрэл лого сольсныг БАС мэдрэнэ — эс бөгөөс
+         «Хадгалах» товч идэвхжэхгүй */
+      logoLightKey !== (data.logoLightKey ?? null) ||
       defaultTheme !== ((data as { defaultTheme?: string }).defaultTheme ?? 'dark')
     : false;
 
@@ -165,57 +193,160 @@ export default function SettingsPage() {
             {/* ── Лого ── */}
             <div className="admin-card rounded-xl p-5">
               <p className="text-sm font-semibold text-foreground">Лого</p>
+              {/**
+               * ⚠️⚠️ ХОЁР ЛОГО — ЯАГААД ХЭРЭГТЭЙ ВЭ.
+               *
+               * Лого нь улаан + ЦАГААН бичигтэй тул ГЭРЭЛ горимын
+               * цайвар дэвсгэр дээр цагаан хэсэг нь УУСДАГ. Гэрэл
+               * горимд бараан бичигтэй хувилбар автоматаар солигдоно.
+               *
+               * ⚠️ Гэрэл лого хоосон бол бараан лого хоёуланд
+               * хэрэглэгдэнэ — өмнөх зан төлөв ХЭВЭЭР.
+               *
+               * ⚠️ SVG-г ЗӨВШӨӨРӨХГҮЙ: backend-ийн `ALLOWED_IMAGE_TYPES`-д
+               * SVG байхгүй тул сонгоход тодорхойгүй алдаа гарна.
+               */}
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Хоёр горимд тусдаа лого. Гэрэл логог оруулаагүй бол бараан лого
+                хоёуланд нь хэрэглэгдэнэ.
+              </p>
 
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/png,image/svg+xml,image/webp"
+                accept="image/png,image/webp,image/jpeg"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) pickLogo(f);
+                  if (f) pickLogo(f, 'dark');
                   if (inputRef.current) inputRef.current.value = '';
                 }}
               />
+              <input
+                ref={inputLightRef}
+                type="file"
+                accept="image/png,image/webp,image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) pickLogo(f, 'light');
+                  if (inputLightRef.current) inputLightRef.current.value = '';
+                }}
+              />
 
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                disabled={uploading}
-                className={cn(
-                  'mt-3 flex h-32 w-full items-center justify-center rounded-lg border border-dashed border-input bg-accent/20 px-4 transition-colors hover:border-primary',
-                  uploading && 'opacity-60',
-                )}
-              >
-                {logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoUrl} alt="Лого" className="max-h-24 w-auto object-contain" />
-                ) : (
-                  <span className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                    <UploadCloud size={22} />
-                    <span className="text-xs">Лого сонгох (PNG/SVG/WebP)</span>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {/* ── БАРААН горим ── */}
+                <div>
+                  <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Moon size={12} /> Бараан горим
                   </span>
-                )}
-              </button>
+                  {/* ⚠️ Бараан дэвсгэр — лого яг тэр орчинд харагдана */}
+                  <button
+                    type="button"
+                    onClick={() => inputRef.current?.click()}
+                    disabled={uploading !== null}
+                    className={cn(
+                      'flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-input bg-[#0e0f13] px-4 transition-colors hover:border-primary',
+                      uploading !== null && 'opacity-60',
+                    )}
+                  >
+                    {logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={logoUrl}
+                        alt="Бараан лого"
+                        className="max-h-20 w-auto object-contain"
+                      />
+                    ) : (
+                      <span className="flex flex-col items-center gap-1.5 text-white/50">
+                        <UploadCloud size={20} />
+                        <span className="text-xs">Сонгох</span>
+                      </span>
+                    )}
+                  </button>
+                  {uploading === 'dark' && (
+                    <UploadProgress
+                      className="mt-2"
+                      percent={progress}
+                      phase={progress >= 100 ? 'processing' : 'uploading'}
+                      onCancel={progress < 100 ? () => abortRef.current?.() : undefined}
+                    />
+                  )}
+                  {logoUrl && uploading === null && (
+                    <button
+                      type="button"
+                      onClick={() => removeLogo('dark')}
+                      className="mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                    >
+                      <Trash2 size={12} /> Хасах
+                    </button>
+                  )}
+                </div>
 
-              {uploading && (
-                <UploadProgress
-                  className="mt-2"
-                  percent={progress}
-                  phase={progress >= 100 ? 'processing' : 'uploading'}
-                  onCancel={progress < 100 ? () => abortRef.current?.() : undefined}
-                />
-              )}
-
-              {logoUrl && !uploading && (
-                <button
-                  type="button"
-                  onClick={removeLogo}
-                  className="mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
-                >
-                  <Trash2 size={12} /> Логог хасах
-                </button>
-              )}
+                {/* ── ГЭРЭЛ горим ── */}
+                <div>
+                  <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Sun size={12} /> Гэрэл горим
+                  </span>
+                  {/* ⚠️ ЦАГААН дэвсгэр — цагаан бичиг уусаж байгаа эсэхийг
+                      админ ЭНД ШУУД харна */}
+                  <button
+                    type="button"
+                    onClick={() => inputLightRef.current?.click()}
+                    disabled={uploading !== null}
+                    className={cn(
+                      'flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-input bg-white px-4 transition-colors hover:border-primary',
+                      uploading !== null && 'opacity-60',
+                    )}
+                  >
+                    {logoLightUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={logoLightUrl}
+                        alt="Гэрэл лого"
+                        className="max-h-20 w-auto object-contain"
+                      />
+                    ) : logoUrl ? (
+                      /* ⚠️ Оруулаагүй бол бараан лого энд ЯАЖ харагдахыг
+                         үзүүлнэ — «уусаж байна» гэдгийг админ шууд мэднэ */
+                      <span className="flex flex-col items-center gap-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={logoUrl}
+                          alt=""
+                          aria-hidden
+                          className="max-h-14 w-auto object-contain"
+                        />
+                        <span className="text-[10px] text-black/45">
+                          Бараан лого хэрэглэгдэнэ
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="flex flex-col items-center gap-1.5 text-black/40">
+                        <UploadCloud size={20} />
+                        <span className="text-xs">Сонгох</span>
+                      </span>
+                    )}
+                  </button>
+                  {uploading === 'light' && (
+                    <UploadProgress
+                      className="mt-2"
+                      percent={progress}
+                      phase={progress >= 100 ? 'processing' : 'uploading'}
+                      onCancel={progress < 100 ? () => abortRef.current?.() : undefined}
+                    />
+                  )}
+                  {logoLightUrl && uploading === null && (
+                    <button
+                      type="button"
+                      onClick={() => removeLogo('light')}
+                      className="mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                    >
+                      <Trash2 size={12} /> Хасах
+                    </button>
+                  )}
+                </div>
+              </div>
 
               <label className="mt-5 block">
                 <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -279,11 +410,33 @@ export default function SettingsPage() {
               </p>
 
               <div className="mt-3 space-y-3">
-                <PreviewBox label="Сайтын толгой (хар дэвсгэр)" dark>
+                {/**
+                 * ⚠️⚠️ ХОЁР ГОРИМЫГ ЗЭРЭГ ХАРУУЛНА.
+                 *
+                 * Админ панель нь `<html class="dark">` ХАТУУ тул
+                 * `brand-logo-*` CSS дүрэм энд ажиллахгүй. Тиймээс
+                 * preview-д логоо ГАРААР сонгож, хоёр дэвсгэр дээр
+                 * зэрэг үзүүлнэ — админ хадгалахаас ӨМНӨ хоёуланд
+                 * зөв харагдаж байгааг батална.
+                 *
+                 * ⚠️ Гэрэл лого хоосон бол бараан лого fallback —
+                 * `BrandLogo`-ийн бодит зан төлөвтэй ЯГ ИЖИЛ.
+                 */}
+                <PreviewBox label="Сайтын толгой — бараан горим" dark>
                   <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto" />
                 </PreviewBox>
 
-                <PreviewBox label="Админ панель (цайвар/бараан)">
+                <PreviewBox label="Сайтын толгой — гэрэл горим" light>
+                  <BrandLogo
+                    logoUrl={logoLightUrl ?? logoUrl}
+                    siteName={siteName}
+                    imgClassName="h-9 w-auto"
+                    /* ⚠️ Цагаан дэвсгэр дээр текст fallback ч уншигдана */
+                    className={logoLightUrl || logoUrl ? undefined : 'text-black'}
+                  />
+                </PreviewBox>
+
+                <PreviewBox label="Админ панель (үргэлж бараан)">
                   <div className="flex items-center gap-2">
                     <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-8 w-auto" />
                     <span className="text-sm text-muted-foreground">Admin</span>
@@ -306,7 +459,7 @@ export default function SettingsPage() {
         <div className="mt-5 flex items-center gap-3">
           <button
             onClick={save}
-            disabled={saving || uploading || !dirty}
+            disabled={saving || uploading !== null || !dirty}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-50"
           >
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -325,10 +478,13 @@ export default function SettingsPage() {
 function PreviewBox({
   label,
   dark,
+  light,
   children,
 }: {
   label: string;
   dark?: boolean;
+  /** ⚠️ ЦАГААН дэвсгэр — гэрэл горимын бодит орчин */
+  light?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -337,7 +493,7 @@ function PreviewBox({
       <div
         className={cn(
           'flex h-16 items-center rounded-lg border border-border px-4',
-          dark ? 'bg-[#0a0a0a]' : 'bg-card',
+          dark ? 'bg-[#0a0a0a]' : light ? 'bg-white' : 'bg-card',
         )}
       >
         {children}

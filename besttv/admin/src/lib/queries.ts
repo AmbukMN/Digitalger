@@ -1052,11 +1052,19 @@ export function useAdminBlogPost(id: string) {
 // ─── Брэнд (лого) ─────────────────────────────────────────────────────────────
 
 export interface BrandSettings {
+  /** ⚠️ БАРААН (dark) горимын лого — хуучин нэр */
   logoKey: string | null;
+  /**
+   * ⚠️ ГЭРЭЛ (light) горимын лого. Хоосон бол бараан лого
+   * хоёуланд хэрэглэгдэнэ — өмнөх зан төлөв ХЭВЭЭР.
+   */
+  logoLightKey: string | null;
   faviconKey: string | null;
   siteName: string;
   logoUrl: string | null;
+  logoLightUrl: string | null;
   faviconUrl: string | null;
+  defaultTheme?: 'dark' | 'light' | 'system';
 }
 
 /** Админ панелийн лого — нэвтрээгүй үед ч (login хуудас) ажиллана */

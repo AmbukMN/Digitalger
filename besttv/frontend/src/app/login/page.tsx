@@ -30,6 +30,8 @@ export default function LoginPage() {
   const params = useSearchParams();
   const { data: brand } = useBrand();
   const logoUrl = brand?.logoUrl ?? null;
+  /** ⚠️ ГЭРЭЛ горимын лого — байхгүй бол `BrandLogo` нь `logoUrl`-ыг хоёуланд хэрэглэнэ */
+  const logoLightUrl = brand?.logoLightUrl ?? null;
   const siteName = brand?.siteName ?? 'BestTV';
 
   // Нэвтрэх шаардсан хуудаснаас ирсэн бол буцаж тэр рүү нь явуулна.
@@ -139,7 +141,7 @@ export default function LoginPage() {
           className="w-full max-w-sm"
         >
           <h1 className="flex items-center">
-            <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-9 w-auto sm:h-11" textSize="text-2xl sm:text-3xl" />
+            <BrandLogo logoUrl={logoUrl} logoLightUrl={logoLightUrl} siteName={siteName} imgClassName="h-9 w-auto sm:h-11" textSize="text-2xl sm:text-3xl" />
           </h1>
           <p className="mt-1.5 text-sm text-foreground/55">
             {mode === 'login' ? 'Дахин тавтай морил 👋' : 'Шинэ бүртгэл үүсгэх'}

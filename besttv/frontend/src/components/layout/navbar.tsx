@@ -29,6 +29,8 @@ export function Navbar() {
   const pathname = usePathname();
   const { data: brand } = useBrand();
   const logoUrl = brand?.logoUrl ?? null;
+  /** ⚠️ ГЭРЭЛ горимын лого — байхгүй бол `BrandLogo` нь `logoUrl`-ыг хоёуланд хэрэглэнэ */
+  const logoLightUrl = brand?.logoLightUrl ?? null;
   const siteName = brand?.siteName ?? 'BestTV';
   const router = useRouter();
   const { user, logout, loading: authLoading } = useAuth();
@@ -107,7 +109,7 @@ export function Navbar() {
       */}
       <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-3 sm:gap-4 md:gap-6 md:px-8">
         <Link href="/" className="flex shrink-0 items-center" aria-label={`${siteName} нүүр`}>
-          <BrandLogo logoUrl={logoUrl} siteName={siteName} imgClassName="h-7 w-auto sm:h-9" />
+          <BrandLogo logoUrl={logoUrl} logoLightUrl={logoLightUrl} siteName={siteName} imgClassName="h-7 w-auto sm:h-9" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 text-sm" aria-label="Үндсэн цэс">

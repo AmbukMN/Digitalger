@@ -75,6 +75,7 @@ function UnsubscribeContent() {
           <Link href="/">
             <BrandLogo
               logoUrl={brand?.logoUrl ?? null}
+              logoLightUrl={brand?.logoLightUrl ?? null}
               siteName={brand?.siteName ?? 'BestTV'}
               imgClassName="h-10 w-auto"
             />

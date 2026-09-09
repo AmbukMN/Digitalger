@@ -26,11 +26,32 @@ const BRAND_KEY = 'brand';
 const SOCIALS_KEY = 'socials';
 
 class BrandDto {
-  /** Үндсэн лого (R2 key) — толгой, footer, нэвтрэх хуудсанд */
+  /**
+   * ⚠️ БАРААН (dark) горимын лого — R2 key. Толгой, footer, нэвтрэх хуудсанд.
+   *
+   * ⚠️⚠️ ХУУЧИН НЭР ХЭВЭЭР (`logoKey`) — хоёр сайтад одоо ажиллаж
+   * байгаа лого энэ талбарт хадгалагдсан. Нэрийг нь `logoDarkKey`
+   * болговол одоо байгаа лого ЧИМЭЭГҮЙ алга болно.
+   */
   @IsOptional()
   @IsString()
   @MaxLength(300)
   logoKey?: string | null;
+
+  /**
+   * ⚠️ ГЭРЭЛ (light) горимын лого — R2 key.
+   *
+   * БОДИТ ХЭРЭГЦЭЭ: лого нь улаан+ЦАГААН тул гэрэл дэвсгэр дээр
+   * цагаан хэсэг нь УУСДАГ. Гэрэл горимд бараан бичигтэй хувилбар
+   * автоматаар солигдоно.
+   *
+   * ⚠️ Хоосон бол `logoKey` (dark) хоёр горимд ч хэрэглэгдэнэ —
+   * одоогийн зан төлөв ХЭВЭЭР (буцаж нийцтэй).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  logoLightKey?: string | null;
 
   /** Favicon (R2 key) */
   @IsOptional()
@@ -189,7 +210,10 @@ const DEFAULT_SOCIALS: SocialsSettings = {
 const SOCIAL_PLATFORMS = ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok'] as const;
 
 export interface BrandSettings {
+  /** ⚠️ БАРААН горимын лого (хуучин нэр — одоо байгаа лого энд) */
   logoKey: string | null;
+  /** ⚠️ ГЭРЭЛ горимын лого — хоосон бол `logoKey` хоёуланд хэрэглэгдэнэ */
+  logoLightKey: string | null;
   faviconKey: string | null;
   siteName: string;
   /** Хэрэглэгч анх орох үеийн өнгөний горим (сонголтоо хийвэл тэр давамгайлна) */
@@ -199,6 +223,7 @@ export interface BrandSettings {
 /** ⚠️ ФУНКЦ — сайт бүрд өөр нэр (BestTV | BestFilm) */
 const defaultBrand = (): BrandSettings => ({
   logoKey: null,
+  logoLightKey: null,
   faviconKey: null,
   siteName: siteConfig().name,
   /* ⚠️ Кино сайт тул анхдагч нь БАРААН */
@@ -230,13 +255,25 @@ export class SettingsService {
   /** Нийтэд — key-г бэлэн URL болгож буцаана */
   async publicBrand() {
     const b = await this.raw();
-    const [logoUrl, faviconUrl] = await Promise.all([
+    const [logoUrl, logoLightUrl, faviconUrl] = await Promise.all([
       b.logoKey ? this.storage.publicAssetUrl(b.logoKey, 86400) : Promise.resolve(null),
+      b.logoLightKey ? this.storage.publicAssetUrl(b.logoLightKey, 86400) : Promise.resolve(null),
       b.faviconKey ? this.storage.publicAssetUrl(b.faviconKey, 86400) : Promise.resolve(null),
     ]);
     /* ⚠️ `defaultTheme` нийтэд ч хэрэгтэй — хэрэглэгч АНХ орох үед
        frontend түүнийг уншиж, өнгөний горимоо тохируулна. */
-    return { siteName: b.siteName, logoUrl, faviconUrl, defaultTheme: b.defaultTheme ?? 'dark' };
+    return {
+      siteName: b.siteName,
+      /** ⚠️ БАРААН горимын лого (хуучин нэр — клиентүүд үүнийг хүлээж байгаа) */
+      logoUrl,
+      /**
+       * ⚠️ ГЭРЭЛ горимын лого. `null` бол клиент `logoUrl`-ыг хоёуланд
+       * хэрэглэнэ — одоогийн зан төлөв ХЭВЭЭР.
+       */
+      logoLightUrl,
+      faviconUrl,
+      defaultTheme: b.defaultTheme ?? 'dark',
+    };
   }
 
   /** Админ — key-тэй хамт (засварлахад хэрэгтэй) */
@@ -321,6 +358,13 @@ export class SettingsService {
     const current = await this.raw();
     const next: BrandSettings = {
       logoKey: dto.logoKey !== undefined ? dto.logoKey || null : current.logoKey,
+      /**
+       * ⚠️⚠️ `!== undefined` ЗААВАЛ — эс бөгөөс хуучин админ клиент
+       * (кэшлэгдсэн JS, энэ талбарыг мэдэхгүй) хадгалахад light лого
+       * ЧИМЭЭГҮЙ устана.
+       */
+      logoLightKey:
+        dto.logoLightKey !== undefined ? dto.logoLightKey || null : current.logoLightKey,
       faviconKey: dto.faviconKey !== undefined ? dto.faviconKey || null : current.faviconKey,
       siteName: dto.siteName?.trim() || current.siteName,
       defaultTheme: dto.defaultTheme ?? current.defaultTheme ?? 'dark',

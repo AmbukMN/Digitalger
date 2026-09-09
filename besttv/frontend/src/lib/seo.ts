@@ -67,7 +67,16 @@ export async function getSiteSeo(): Promise<SeoSettings | null> {
  */
 export interface BrandSettings {
   siteName: string;
+  /** ⚠️ БАРААН (dark) горимын лого — хуучин нэр */
   logoUrl: string | null;
+  /**
+   * ⚠️ ГЭРЭЛ (light) горимын лого.
+   *
+   * ⚠️⚠️ SSR-Д ЧУХАЛ: энэ нь `initialBrand` болж эхний рендерт ордог.
+   * Дутуу бол light горимын хэрэглэгч эхлээд БУРУУ (dark) лого хараад
+   * дараа нь солигдоно — яг үүнээс сэргийлж CSS аргаар хийсэн.
+   */
+  logoLightUrl: string | null;
   faviconUrl: string | null;
   defaultTheme?: 'dark' | 'light' | 'system';
 }

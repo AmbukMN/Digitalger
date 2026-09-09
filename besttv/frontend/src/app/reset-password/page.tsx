@@ -27,6 +27,7 @@ export default function ResetPasswordPage() {
     <h1 className="flex items-center">
       <BrandLogo
         logoUrl={brand?.logoUrl ?? null}
+        logoLightUrl={brand?.logoLightUrl ?? null}
         siteName={brand?.siteName ?? 'BestTV'}
         imgClassName="h-9 w-auto sm:h-11"
         textSize="text-2xl sm:text-3xl"
