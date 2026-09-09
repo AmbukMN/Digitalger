@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface TrackContext {
@@ -237,5 +238,54 @@ export class TrackingService {
       searches,
       auditLogs,
     };
+  }
+
+  /**
+   * ⚠️⚠️ `TitleEvent` ХЯЗГААРГҮЙ ӨСДӨГ БАЙВ — retention cron НЭМЭВ.
+   *
+   * ⛔ БОДИТ ХЭМЖИЛТ (2026-09-09 аудит):
+   *     412,398 мөр · 241 MB · DB-ийн 474 MB-ийн **51%**
+   *     40 хоногт хуримтлагдсан, долоо хоногт ~165K
+   *     → жилд ~8.5M мөр / ~5 GB
+   *
+   * Задаргаа: `progress` 319,742 (77%) · `view` 68,076 ·
+   * `play` 21,930 · `complete` 2,856
+   *
+   * ⚠️ ЗӨВХӨН `progress`-ыг устгана — тэр нь үзэлтийн ЯВЦЫГ секунд
+   * тутам бичдэг түр дата. Аналитик тайлан (үзэлт, тоглуулалт,
+   * дуусгасан) нь `view`/`play`/`complete`-ээс гардаг тул ТЭДГЭЭРИЙГ
+   * ХӨНДӨХГҮЙ — түүх бүрэн хадгалагдана.
+   *
+   * ⚠️ 90 хоног — `WatchProgress` хүснэгт нь хэрэглэгчийн «үргэлжлүүлэх»
+   * байрлалыг ТУСДАА хадгалдаг тул энэ устгал үзэгчид нөлөөлөхгүй.
+   *
+   * ⚠️ Сайтын контекстгүй — хоёр сайтыг зэрэг цэвэрлэнэ (зориуд,
+   * `errors.cleanup`-тай ижил зарчим).
+   *
+   * ⚠️ Багцаар устгана — нэг `deleteMany` нь 300K мөрийг түгжиж
+   * бусад query-г удаашруулна.
+   */
+  @Cron('0 3 * * *')
+  async cleanupOldProgress(): Promise<void> {
+    try {
+      const cutoff = new Date(Date.now() - 90 * 86400_000);
+      let total = 0;
+      for (let i = 0; i < 40; i += 1) {
+        /* ⚠️ `$executeRaw` нь өөрчлөгдсөн МӨРИЙН ТООГ буцаана */
+        const count = await this.prisma.$executeRaw`
+          DELETE FROM "TitleEvent"
+          WHERE id IN (
+            SELECT id FROM "TitleEvent"
+            WHERE type = 'progress' AND "createdAt" < ${cutoff}
+            LIMIT 5000
+          )
+        `;
+        total += count;
+        if (count < 5000) break;
+      }
+      if (total) this.logger.log(`Хуучин progress event устгав: ${total}`);
+    } catch (e) {
+      this.logger.error(`TitleEvent цэвэрлэх амжилтгүй: ${String(e)}`);
+    }
   }
 }
