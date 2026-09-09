@@ -7,6 +7,7 @@
 //   • Нэвтэрсэн бол JWT-г Authorization-оор дамжуулна (beacon-д боломжгүй тул fetch)
 
 import { getAccessToken } from './api';
+import { CURRENT_SITE } from './site';
 
 // ─── Meta (Facebook) Pixel ──────────────────────────────────────────────────
 /**
@@ -30,7 +31,7 @@ function fbq(event: string, params?: Record<string, unknown>) {
   const f = (window as unknown as { fbq?: Fbq }).fbq;
   if (typeof f !== 'function') return;
   try {
-    f('track', event, { site: 'besttv', ...params });
+    f('track', event, { site: CURRENT_SITE, ...params });
   } catch {
     /* Pixel алдаа — UI-д нөлөөлөхгүй */
   }
@@ -48,7 +49,7 @@ function fbqCustom(event: string, params?: Record<string, unknown>) {
   const f = (window as unknown as { fbq?: Fbq }).fbq;
   if (typeof f !== 'function') return;
   try {
-    f('trackCustom', event, { site: 'besttv', ...params });
+    f('trackCustom', event, { site: CURRENT_SITE, ...params });
   } catch {
     /* үл хэрэгснэ */
   }

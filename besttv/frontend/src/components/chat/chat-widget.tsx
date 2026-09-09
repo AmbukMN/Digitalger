@@ -15,6 +15,7 @@ import {
 import { cn } from '@besttv/shared';
 import { LinkPreviewCard, renderRichText, type ChatLinkPreview } from '@besttv/shared/ui';
 import { chatApi, type ChatTitleCard } from '@/lib/chat-api';
+import { CURRENT_SITE } from '@/lib/site';
 import { useAuth } from '@/lib/auth-store';
 import { useChatUi } from '@/store/chat-ui';
 
@@ -438,6 +439,17 @@ export function ChatWidget() {
           sessionId: getSessionId(),
           message: text,
           name: user?.name ?? undefined,
+          /**
+           * ⚠️⚠️ `site` ЗААВАЛ — n8n нь `body.site || 'besttv'` гэж уншдаг.
+           *
+           * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): энэ талбар БАЙХГҮЙ байсан
+           * тул BestFilm-ийн зочин чатлахад n8n үргэлж `besttv` гэж үзэж
+           * «би зөвхөн BestTV-ийн тухай туслана» гэсэн хариу өгдөг байв.
+           * DB нотолгоо: ChatConversation besttv 1447 / bestfilm **0** —
+           * BestFilm-ийн яриа BestTV-ийн админ панелд орж, BestTV-ийн
+           * статистикийг гажуудуулж байсан.
+           */
+          site: CURRENT_SITE,
         }),
       });
       const data = await res.json();

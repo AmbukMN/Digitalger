@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { currentSite } from '../../common/site/site-context';
+import { DEFAULT_SITE } from '../../common/site/site.constants';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 /** ⚠️ Дуудлага бүрд timeout — Meta удаашрахад админ гацна */
@@ -43,11 +45,18 @@ export interface SocialAccount {
 @Injectable()
 export class SocialAccountsService {
   private readonly logger = new Logger(SocialAccountsService.name);
-  private cache: { at: number; rows: SocialAccount[] } | null = null;
+  /**
+   * ⚠️⚠️ КЭШ САЙТААР САЛСАН — өмнө нь ГАНЦ объект байсан.
+   *
+   * Нэг сайтын жагсаалт нөгөөд өгөгдвөл админ буруу хуудас сонгож
+   * нийтэлнэ. Түлхүүр нь `currentSite()`.
+   */
+  private cacheBySite = new Map<string, { at: number; rows: SocialAccount[] }>();
 
   /** ⚠️ Токен солиход шууд шинэчлэхийн тулд (admin товч) */
   invalidate(): void {
-    this.cache = null;
+    /* ⚠️ ЗӨВХӨН одоогийн сайтынхыг — нөгөөгийн кэш хүчинтэй хэвээр */
+    this.cacheBySite.delete(currentSite());
   }
 
   private async graph<T>(path: string, token: string): Promise<T | null> {
@@ -64,15 +73,35 @@ export class SocialAccountsService {
 
   /** env-ээс тохируулсан бүх токеныг цуглуулна (давхардлыг хасна) */
   private envTokens(): { token: string; hintId?: string }[] {
+    /**
+     * ⚠️⚠️ САЙТ БҮРД ӨӨРИЙН ТОКЕН — env угтвараар.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): энэ функц сайтын контекстийг
+     * ОГТ харгалздаггүй байсан. Улмаас BestFilm сонгосон админ
+     * `/admin/crosspost/accounts` дуудахад **BestTV-ийн 4 жинхэнэ
+     * Facebook/Instagram хуудас** харагдаж, `enqueue`/`relay` дарвал
+     * **BestTV-ийн production хуудсанд бодитоор нийтлэгдэх** байсан.
+     * UI дээр «BestFilm» гэж харагдаж байхад.
+     *
+     * ⚠️ BestTV-ийнх ЯГ ХЭВЭЭР: `besttv` → угтваргүй `FB_PAGE_*`.
+     * Шинэ сайтад `BESTFILM_FB_PAGE_ACCESS_TOKEN*` гэж тохируулна.
+     *
+     * ⚠️ Тохируулаагүй бол ХООСОН буцаана — тэр үед админ хуудас
+     * харахгүй, нийтлэх ч боломжгүй. Энэ нь БУРУУ хуудсанд
+     * нийтлэхээс хамаагүй дээр.
+     */
+    const site = currentSite();
+    const pfx = site === DEFAULT_SITE ? '' : `${site.toUpperCase()}_`;
+
     const out: { token: string; hintId?: string }[] = [];
     const push = (token?: string, hintId?: string) => {
       if (!token) return;
       if (out.some((t) => t.token === token)) return;
       out.push({ token, hintId });
     };
-    push(process.env.FB_PAGE_ACCESS_TOKEN, process.env.FB_PAGE_ID);
+    push(process.env[`${pfx}FB_PAGE_ACCESS_TOKEN`], process.env[`${pfx}FB_PAGE_ID`]);
     for (let i = 2; i <= 20; i += 1) {
-      push(process.env[`FB_PAGE_ACCESS_TOKEN_${i}`], process.env[`FB_PAGE_ID_${i}`]);
+      push(process.env[`${pfx}FB_PAGE_ACCESS_TOKEN_${i}`], process.env[`${pfx}FB_PAGE_ID_${i}`]);
     }
     return out;
   }
@@ -84,8 +113,10 @@ export class SocialAccountsService {
    *    бусад хуудсыг харуулахад саад болох ёсгүй.
    */
   async list(force = false): Promise<SocialAccount[]> {
-    if (!force && this.cache && Date.now() - this.cache.at < CACHE_MS) {
-      return this.cache.rows;
+    const site = currentSite();
+    const hit = this.cacheBySite.get(site);
+    if (!force && hit && Date.now() - hit.at < CACHE_MS) {
+      return hit.rows;
     }
 
     const byId = new Map<string, SocialAccount>();
@@ -181,7 +212,7 @@ export class SocialAccountsService {
     const rows = [...byId.values()].sort((a, b) =>
       a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'FACEBOOK' ? -1 : 1,
     );
-    this.cache = { at: Date.now(), rows };
+    this.cacheBySite.set(site, { at: Date.now(), rows });
     this.logger.log(
       `Сошиал акаунт илрүүлэв: ${rows.filter((r) => r.kind === 'FACEBOOK').length} page, ` +
         `${rows.filter((r) => r.kind === 'INSTAGRAM').length} Instagram`,

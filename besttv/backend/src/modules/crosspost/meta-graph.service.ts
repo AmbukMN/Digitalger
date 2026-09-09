@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { currentSite } from '../../common/site/site-context';
+import { DEFAULT_SITE } from '../../common/site/site.constants';
 
 /** Graph API хувилбар — `chat.service.ts`-тэй ИЖИЛ байх ёстой */
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -55,13 +57,30 @@ export class MetaGraphService {
    * ConfigService-д оруулбал ХОЁР эх сурвалж болж, аль нэг нь
    * хоцрогдох эрсдэлтэй.
    */
+  /**
+   * ⚠️⚠️ САЙТ БҮРД ӨӨРИЙН ТОКЕН — env угтвараар.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): энэ getter сайтын контекстийг
+   * харгалздаггүй байсан. Энэ нь БОДИТООР НИЙТЛЭДЭГ давхарга тул
+   * BestFilm сонгосон админ пост нийтлэхэд **BestTV-ийн production
+   * Facebook/Instagram хуудсанд** явах байсан.
+   *
+   * ⚠️ BestTV-ийнх ЯГ ХЭВЭЭР: `besttv` → угтваргүй `FB_PAGE_ACCESS_TOKEN`.
+   * ⚠️ Тохируулаагүй сайтад хоосон буцаана → `isConfigured()` false →
+   * админд «тохируулаагүй» гэж харагдаж, нийтлэх боломжгүй болно.
+   */
+  private envPrefix(): string {
+    const site = currentSite();
+    return site === DEFAULT_SITE ? '' : `${site.toUpperCase()}_`;
+  }
+
   private get token(): string {
-    return process.env.FB_PAGE_ACCESS_TOKEN ?? '';
+    return process.env[`${this.envPrefix()}FB_PAGE_ACCESS_TOKEN`] ?? '';
   }
 
   /** Instagram Business акаунтын ID (Page-тэй холбоотой) */
   private get igUserId(): string {
-    return process.env.IG_USER_ID ?? '';
+    return process.env[`${this.envPrefix()}IG_USER_ID`] ?? '';
   }
 
   isConfigured(): boolean {
