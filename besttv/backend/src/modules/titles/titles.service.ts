@@ -283,7 +283,13 @@ export class TitlesService {
          *    `some: { isAdult: false }` гэвэл 18+ БА энгийн хоёр
          *    жанртай кино нэвтэрч орно.
          */
-        title: { genres: { none: { genre: { isAdult: true } } } },
+        /**
+         * ⚠️⚠️ `sites: { has: … }` ЗААВАЛ — `WatchProgress` нь SCOPED ч
+         * `Title` нь MULTI бөгөөд nested нөхцөлийг өргөтгөл ШҮҮДЭГГҮЙ.
+         * Үүнгүйгээр нөгөө сайтад л байгаа кино «Үргэлжлүүлэн үзэх»
+         * эгнээнд гарч ирнэ.
+         */
+        title: { sites: { has: currentSite() }, genres: { none: { genre: { isAdult: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
       take: 12,

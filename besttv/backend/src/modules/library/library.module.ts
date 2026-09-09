@@ -15,6 +15,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { TitleMediaHelper } from '../titles/title-media.helper';
 import { TitlesModule } from '../titles/titles.module';
+import { assertTitleOnSite } from '../../common/site/site-guard';
+import { currentSite } from '../../common/site/site-context';
 
 // ─── Үзэлтийн явц + Миний жагсаалт ──────────────────────────────────────────
 
@@ -100,7 +102,15 @@ export class LibraryService {
 
   async myList(userId: string) {
     const rows = await this.prisma.myListItem.findMany({
-      where: { userId },
+      /**
+       * ⚠️⚠️ `title: { sites: { has: … } }` ЗААВАЛ.
+       *
+       * `MyListItem` нь SCOPED (өргөтгөл `userId`-тай хамт шүүнэ) ч
+       * `Title` нь MULTI бөгөөд nested `include`-ыг өргөтгөл ШҮҮДЭГГҮЙ.
+       * Үүнгүйгээр өмнө нь нэмсэн (эсвэл өөр сайтын) кино «Миний
+       * жагсаалт»-д гарч ирнэ.
+       */
+      where: { userId, title: { sites: { has: currentSite() } } },
       orderBy: { createdAt: 'desc' },
       /**
        * WARN Cap. Each row also gets a presigned poster URL below, so an
@@ -138,6 +148,12 @@ export class LibraryService {
   }
 
   async addToList(userId: string, titleId: string) {
+    /** ⚠️ Нөгөө сайтын киног жагсаалтад НЭМЭХГҮЙ */
+    const t = await this.prisma.title.findUnique({
+      where: { id: titleId },
+      select: { sites: true },
+    });
+    assertTitleOnSite(t?.sites, 'Кино олдсонгүй');
     await this.prisma.myListItem.upsert({
       where: { userId_titleId: { userId, titleId } },
       create: { userId, titleId },

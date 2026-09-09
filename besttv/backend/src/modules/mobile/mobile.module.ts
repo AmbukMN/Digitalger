@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, TitleType } from '@prisma/client';
 import { assertTitleOnSite } from '../../common/site/site-guard';
+import { currentSite } from '../../common/site/site-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -165,7 +166,13 @@ export class MobileService {
     const rows = await this.prisma.watchProgress.findMany({
       where: {
         userId,
-        title: { isActive: true, ...NOT_ADULT },
+        /**
+         * ⚠️⚠️ `sites: { has: … }` ЗААВАЛ — `WatchProgress` нь SCOPED ч
+         * `Title` нь MULTI бөгөөд nested нөхцөлийг өргөтгөл ШҮҮДЭГГҮЙ.
+         * Үүнгүйгээр нөгөө сайтад л байгаа кино «Үргэлжлүүлэн үзэх»
+         * эгнээнд гарч ирнэ.
+         */
+        title: { sites: { has: currentSite() }, isActive: true, ...NOT_ADULT },
       },
       orderBy: { updatedAt: 'desc' },
       take: 12,

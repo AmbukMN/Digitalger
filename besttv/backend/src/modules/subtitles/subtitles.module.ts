@@ -222,12 +222,45 @@ export class SubtitlesService {
   }
 
   /**
+   * ⚠️⚠️ ХАДМАЛ ЭНЭ САЙТЫНХ ЭСЭХ — `Subtitle` нь SHARED модел.
+   *
+   * `Subtitle` дээр `site` багана БАЙХГҮЙ тул `site-extension` нь
+   * шүүлт ч, post-filter ч ХИЙХГҮЙ. Эрхийг ЗӨВХӨН эцэг `Title.sites`
+   * тодорхойлно.
+   *
+   * Үүнгүйгээр BestTV-ийн админ `DELETE /admin/subtitles/{bestfilm-ийн
+   * хадмал-id}` дуудвал R2-оос ЭРГЭЛТ БУЦАЛТГҮЙ устгана
+   * (R2 versioning OFF).
+   */
+  private async assertSubtitleOnSite(row: { titleId: string | null; episodeId: string | null }) {
+    if (row.episodeId) {
+      const ep = await this.prisma.episode.findUnique({
+        where: { id: row.episodeId },
+        select: { season: { select: { title: { select: { sites: true } } } } },
+      });
+      assertTitleOnSite(ep?.season.title.sites, 'Хадмал олдсонгүй');
+      return;
+    }
+    if (row.titleId) {
+      const t = await this.prisma.title.findUnique({
+        where: { id: row.titleId },
+        select: { sites: true },
+      });
+      assertTitleOnSite(t?.sites, 'Хадмал олдсонгүй');
+      return;
+    }
+    /* ⚠️ Эцэггүй хадмал — эзэмшил тодорхойгүй тул FAIL-CLOSED */
+    throw new NotFoundException('Хадмал олдсонгүй');
+  }
+
+  /**
    * Анхдагч болгох — тоглуулахад АВТОМАТ асах хэл.
    * ⚠️ Нэг видеонд НЭГ л анхдагч байх тул бусдыг унтраана.
    */
   async setDefault(id: string) {
     const row = await this.prisma.subtitle.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Хадмал олдсонгүй');
+    await this.assertSubtitleOnSite(row);
 
     const where = row.episodeId ? { episodeId: row.episodeId } : { titleId: row.titleId };
     await this.prisma.$transaction([
@@ -240,6 +273,8 @@ export class SubtitlesService {
   async remove(id: string) {
     const row = await this.prisma.subtitle.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Хадмал олдсонгүй');
+    /** ⚠️ УСТГАХААС ӨМНӨ — R2-оос устгах нь эргэлт буцалтгүй */
+    await this.assertSubtitleOnSite(row);
     /* ⚠️ R2-оос ч устгана — эс бөгөөс хог файл хуримтлагдана */
     await this.storage.delete(row.fileKey).catch(() => null);
     await this.prisma.subtitle.delete({ where: { id } });

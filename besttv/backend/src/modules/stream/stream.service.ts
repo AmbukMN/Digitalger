@@ -803,26 +803,42 @@ export class StreamService {
   async adminPreview(kind: 'movie' | 'episode' | 'trailer', id: string): Promise<string> {
     let key: string | null = null;
 
+    /**
+     * ⚠️ САЙТЫН ШАЛГАЛТ preview дээр ч ЗААВАЛ.
+     *
+     * Эрхийн (`assertAccess`) шалгалт зориудаар алгасагдсан ч САЙТЫН
+     * тусгаарлалт үлдэх ёстой — BestTV сонгосон админ BestFilm-д л
+     * байгаа контентыг үзэх нь fail-open зарчмын зөрчил.
+     * (`subtitles`, `downloads`, `mobile` бүгд preview-д ч шалгадаг.)
+     */
     if (kind === 'episode') {
       const ep = await this.prisma.episode.findUnique({
         where: { id },
-        select: { videoKey: true, streamStatus: true },
+        select: {
+          videoKey: true,
+          streamStatus: true,
+          season: { select: { title: { select: { sites: true } } } },
+        },
       });
       if (ep?.streamStatus !== 'READY') throw new NotFoundException('Видео бэлэн биш байна');
+      assertTitleOnSite(ep.season.title.sites, 'Видео олдсонгүй');
       key = ep.videoKey;
     } else if (kind === 'movie') {
       const t = await this.prisma.title.findUnique({
         where: { id },
-        select: { videoKey: true, streamStatus: true },
+        select: { sites: true, videoKey: true, streamStatus: true },
       });
       if (t?.streamStatus !== 'READY') throw new NotFoundException('Видео бэлэн биш байна');
+      assertTitleOnSite(t.sites, 'Видео олдсонгүй');
       key = t.videoKey;
     } else {
       const t = await this.prisma.title.findUnique({
         where: { id },
-        select: { trailerKey: true },
+        select: { sites: true, trailerKey: true },
       });
-      key = t?.trailerKey ?? null;
+      if (!t) throw new NotFoundException('Видео олдсонгүй');
+      assertTitleOnSite(t.sites, 'Видео олдсонгүй');
+      key = t.trailerKey ?? null;
     }
 
     if (!key) throw new NotFoundException('Видео олдсонгүй');
