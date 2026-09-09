@@ -27,6 +27,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { StatCard } from '@/components/stat-card';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { TableEmptyState } from '@/components/table-empty-state';
+import { TableSkeleton } from '@/components/table-skeleton';
 import { AdminErrorState } from '@/components/admin-error-state';
 import { DATE_PRESETS, DataToolbar, presetRange } from '@/components/data-toolbar';
 import { Pagination } from '@/components/pagination';
@@ -208,7 +209,7 @@ function LogsTab() {
     staleTime: 30_000,
   });
 
-  const { data, isFetching, isError, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-email-logs', f],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -386,10 +387,28 @@ function LogsTab() {
           мэдээлдэг байсан. Админ бодит шалтгааныг харах ёстой. */}
       {isError && <AdminErrorState error={error} onRetry={() => void refetch()} />}
 
+      {/**
+       * ⚠️ SKELETON — ЗӨВХӨН кэшгүй АНХНЫ ачаалалтад.
+       *
+       * Өмнө нь зөвхөн `opacity-60` байсан тул анхны ачаалалтад ХООСОН
+       * хүснэгт харагдаж, дараа нь гэнэт дүүрдэг байв (төслийн «spinner
+       * БИШ skeleton» дүрэм — `coupons`, `faqs`, `plans` бүгд ингэсэн).
+       *
+       * ⚠️ Хуудас/шүүлт солиход `isFetching` л асах тул хүснэгт
+       * байрандаа үлдэж, skeleton гэнэт үсэрч гарахгүй.
+       */}
+      {isLoading && !isError && (
+        <div className="admin-card mt-5 rounded-xl p-4">
+          <TableSkeleton rows={8} />
+        </div>
+      )}
+
 <div
         className={cn(
           'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
           isFetching && 'opacity-60',
+          /* ⚠️ Skeleton харагдаж байхад хүснэгт ДАВХАР гарахгүй */
+          isLoading && !isError && 'hidden',
         )}
       >
         <table className="w-full min-w-[760px] text-sm">
@@ -533,7 +552,7 @@ function SubscribersTab() {
     label: 'бүртгүүлэгч',
   });
 
-  const { data, isFetching, isError, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-subscribers', f],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -683,10 +702,28 @@ function SubscribersTab() {
           мэдээлдэг байсан. Админ бодит шалтгааныг харах ёстой. */}
       {isError && <AdminErrorState error={error} onRetry={() => void refetch()} />}
 
+      {/**
+       * ⚠️ SKELETON — ЗӨВХӨН кэшгүй АНХНЫ ачаалалтад.
+       *
+       * Өмнө нь зөвхөн `opacity-60` байсан тул анхны ачаалалтад ХООСОН
+       * хүснэгт харагдаж, дараа нь гэнэт дүүрдэг байв (төслийн «spinner
+       * БИШ skeleton» дүрэм — `coupons`, `faqs`, `plans` бүгд ингэсэн).
+       *
+       * ⚠️ Хуудас/шүүлт солиход `isFetching` л асах тул хүснэгт
+       * байрандаа үлдэж, skeleton гэнэт үсэрч гарахгүй.
+       */}
+      {isLoading && !isError && (
+        <div className="admin-card mt-5 rounded-xl p-4">
+          <TableSkeleton rows={8} />
+        </div>
+      )}
+
 <div
         className={cn(
           'admin-card mt-5 overflow-x-auto rounded-xl transition-opacity',
           isFetching && 'opacity-60',
+          /* ⚠️ Skeleton харагдаж байхад хүснэгт ДАВХАР гарахгүй */
+          isLoading && !isError && 'hidden',
         )}
       >
         <table className="w-full min-w-[620px] text-sm">
@@ -1223,7 +1260,7 @@ function SuppressionsTab() {
     setPage(1);
   }, [debouncedQ]);
 
-  const { data, isFetching, isError, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-suppressions', { page, search: debouncedQ, ...range }],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -1381,7 +1418,23 @@ function SuppressionsTab() {
           мэдээлдэг байсан. Админ бодит шалтгааныг харах ёстой. */}
       {isError && <AdminErrorState error={error} onRetry={() => void refetch()} />}
 
-<div className="overflow-x-auto">
+      {/**
+       * ⚠️ SKELETON — ЗӨВХӨН кэшгүй АНХНЫ ачаалалтад.
+       *
+       * Өмнө нь зөвхөн `opacity-60` байсан тул анхны ачаалалтад ХООСОН
+       * хүснэгт харагдаж, дараа нь гэнэт дүүрдэг байв (төслийн «spinner
+       * БИШ skeleton» дүрэм — `coupons`, `faqs`, `plans` бүгд ингэсэн).
+       *
+       * ⚠️ Хуудас/шүүлт солиход `isFetching` л асах тул хүснэгт
+       * байрандаа үлдэж, skeleton гэнэт үсэрч гарахгүй.
+       */}
+      {isLoading && !isError && (
+        <div className="admin-card mt-5 rounded-xl p-4">
+          <TableSkeleton rows={8} />
+        </div>
+      )}
+
+<div className={cn('overflow-x-auto', isLoading && !isError && 'hidden')}>
         <table className={cn('w-full text-sm transition-opacity', isFetching && 'opacity-60')}>
           <thead className="bg-accent/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
