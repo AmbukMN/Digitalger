@@ -26,7 +26,7 @@ type TabId = (typeof TABS)[number]['id'];
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('brand');
-  const { data, isLoading } = useAdminBrand();
+  const { data, isLoading, isError } = useAdminBrand();
   const qc = useQueryClient();
   const confirm = useConfirm();
 
@@ -84,6 +84,21 @@ export default function SettingsPage() {
   };
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ ДАТА ИРЭЭГҮЙ БОЛ ХАДГАЛАХГҮЙ.
+     *
+     * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): API унавал форм анхны
+     * (хоосон) утгаараа үлдэнэ. Хадгалбал backend нь `!== undefined`
+     * шалгадаг тул `null`/`[]` нь ХҮЧИНТЭЙ утга болж бичигдэнэ —
+     * лого салах, сошиал холбоос бүрэн тэглэгдэх эрсдэлтэй.
+     *
+     * ⚠️ `dirty` нь `data`-аас хамаардаг тул тохиолдлын хамгаалалт
+     * болж байсан — тодорхой шалгалт ЗААВАЛ.
+     */
+    if (isError || !data) {
+      toast.error('Тохиргоо ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     setSaving(true);
     try {
       await api('/admin/settings/brand', {

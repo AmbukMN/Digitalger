@@ -10,6 +10,7 @@ import { TitleMediaHelper } from './title-media.helper';
 import { PushService } from '../notifications/push.service';
 import { currentSite, runAcrossSites } from '../../common/site/site-context';
 import { normalizeSites } from '../../common/site/site-models';
+import { assertTitleOnSite } from '../../common/site/site-guard';
 import { isSite, SITE_LABEL, type Site } from '../../common/site/site.constants';
 import {
   BulkGenreMode,
@@ -1220,14 +1221,47 @@ export class TitlesAdminService {
     return this.prisma.season.create({ data: { titleId, ...dto } });
   }
 
+
+  /**
+   * ⚠️⚠️ УЛИРАЛ/АНГИ ЭНЭ САЙТЫНХ ЭСЭХИЙГ БАТАЛНА.
+   *
+   * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит): `Season`/`Episode` нь
+   * SHARED модел (`site` баганагүй) бөгөөд тайлбар нь «Title-ийн
+   * `sites[]`-ээр хянагдана» гэдэг. ГЭТЭЛ эдгээр endpoint нь Title-ыг
+   * ОГТ шалгадаггүй байв:
+   *   · `updateEpisode` — шалгалт ТЭГ
+   *   · `removeSeason`/`removeEpisode` — R2 файлыг ЭРГЭЛТ БУЦАЛТГҮЙ устгана
+   *
+   * Скан 1-д 9 endpoint дээр ижил алдааг зассан — эдгээр 4 орхигдсон.
+   *
+   * ⚠️ 257/257 кино хоёр сайтад байгаа тул одоогоор далд. Аль нэг
+   * сайтад л нийтлэгдсэн кино гармагц ШУУД идэвхтэй болно.
+   */
+  private async assertSeasonOnSite(seasonId: string): Promise<void> {
+    const row = await this.prisma.season.findUnique({
+      where: { id: seasonId },
+      select: { title: { select: { sites: true } } },
+    });
+    if (!row) throw new NotFoundException('Улирал олдсонгүй');
+    assertTitleOnSite(row.title?.sites, 'Улирал олдсонгүй');
+  }
+
+  private async assertEpisodeOnSite(episodeId: string): Promise<void> {
+    const row = await this.prisma.episode.findUnique({
+      where: { id: episodeId },
+      select: { season: { select: { title: { select: { sites: true } } } } },
+    });
+    if (!row) throw new NotFoundException('Анги олдсонгүй');
+    assertTitleOnSite(row.season?.title?.sites, 'Анги олдсонгүй');
+  }
+
   /**
    * Улирлын НЭР засах.
    * ⚠️ Хоосон мөр = нэрийг УСТГАХ () — тэр үед frontend нь
    * «N-р улирал» гэсэн автомат нэр харуулна.
    */
   async updateSeason(id: string, dto: UpdateSeasonDto) {
-    const exists = await this.prisma.season.findUnique({ where: { id }, select: { id: true } });
-    if (!exists) throw new NotFoundException('Улирал олдсонгүй');
+    await this.assertSeasonOnSite(id);
     return this.prisma.season.update({
       where: { id },
       data: {
@@ -1240,6 +1274,8 @@ export class TitlesAdminService {
   }
 
   async removeSeason(id: string) {
+    /* ⚠️ R2 устгал ЭРГЭЛТ БУЦАЛТГҮЙ — сайт заавал шалгана */
+    await this.assertSeasonOnSite(id);
     const season = await this.prisma.season.findUnique({
       where: { id },
       include: { episodes: true },
@@ -1257,14 +1293,18 @@ export class TitlesAdminService {
   }
 
   async createEpisode(seasonId: string, dto: CreateEpisodeDto) {
+    await this.assertSeasonOnSite(seasonId);
     return this.prisma.episode.create({ data: { seasonId, ...dto } });
   }
 
   async updateEpisode(id: string, dto: UpdateEpisodeDto) {
+    await this.assertEpisodeOnSite(id);
     return this.prisma.episode.update({ where: { id }, data: dto });
   }
 
   async removeEpisode(id: string) {
+    /* ⚠️ R2 устгал ЭРГЭЛТ БУЦАЛТГҮЙ — сайт заавал шалгана */
+    await this.assertEpisodeOnSite(id);
     const ep = await this.prisma.episode.findUnique({ where: { id } });
     if (!ep) throw new NotFoundException('Анги олдсонгүй');
 

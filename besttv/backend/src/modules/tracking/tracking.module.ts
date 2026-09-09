@@ -10,7 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -35,8 +35,21 @@ class PageViewDto {
   referrer?: string;
 }
 
+/**
+ * ⚠️⚠️ ЗӨВШӨӨРӨГДӨХ ҮЙЛ ЯВДЛУУД — өөр утга DB-д ОРОХГҮЙ.
+ *
+ * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит): `@IsString() @MaxLength(40)`
+ * төдий байсан тул дурын мөр бичигдэж байв (тестээр `ZZZ_PROBE`
+ * илгээхэд 204 буцаж DB-д орсон). Аналитик тайлан бохирдоно.
+ *
+ * ⚠️ DB-д одоо ЯГ эдгээр 4 л байгаа (progress 319K, view 68K,
+ * play 22K, complete 2.8K) — шинэ утга нэмэх бол ЭНД БАС нэмнэ.
+ */
+const TITLE_EVENT_TYPES = ['view', 'play', 'progress', 'complete'] as const;
+
 class TitleEventDto {
   @IsString()
+  @IsIn(TITLE_EVENT_TYPES)
   @MaxLength(40)
   type: string;
 

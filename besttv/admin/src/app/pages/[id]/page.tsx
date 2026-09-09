@@ -26,7 +26,7 @@ export default function PageEditPage({ params }: { params: Promise<{ id: string 
   const isNew = id === 'new';
   const router = useRouter();
   const qc = useQueryClient();
-  const { data: existing } = useAdminPage(id);
+  const { data: existing, isLoading: loadingDoc, isError: loadErr } = useAdminPage(id);
   /* ⚠️ «Сайт дээр харах» холбоос — сонгосон сайтын домэйноор */
   const { url: siteBase } = useSiteUrl();
 
@@ -57,6 +57,21 @@ export default function PageEditPage({ params }: { params: Promise<{ id: string 
   }, [existing, isNew]);
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ ДАТА ИРЭЭГҮЙ БОЛ ХАДГАЛАХГҮЙ — АГУУЛГА УСТГАХААС ХАМГААЛНА.
+     *
+     * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): `useEffect` нь `if (existing)`
+     * шалгадаг тул API унавал форм ХООСОН хэвээр үлдэнэ. Админ зөвхөн
+     * гарчгаа бичээд хадгалбал backend нь `data: dto` гэж түүхий spread
+     * хийдэг учир БОДИТ агуулга хоосноор дарж бичигдэнэ.
+     *
+     * ⚠️ Шинээр үүсгэх зам (`isNew`) нь `existing=undefined,
+     * loading=false` тул хаагдахгүй.
+     */
+    if (loadErr || (!existing && loadingDoc)) {
+      toast.error('Мэдээлэл ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     if (!form.title.trim()) {
       toast.error('Гарчиг оруулна уу');
       return;

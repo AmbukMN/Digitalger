@@ -80,7 +80,7 @@ export function SocialsSettings() {
   /** ⚠️ Сонгосон сайтын домэйн — placeholder дэх hardcode-ыг орлоно */
   const { host: siteHost } = useSiteUrl();
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['admin-socials'],
     queryFn: () => api<Socials>('/admin/settings/socials'),
     staleTime: 0,
@@ -115,6 +115,21 @@ export function SocialsSettings() {
   const removeLink = (i: number) => setLinks((s) => s.filter((_, idx) => idx !== i));
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ ДАТА ИРЭЭГҮЙ БОЛ ХАДГАЛАХГҮЙ.
+     *
+     * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): API унавал форм анхны
+     * (хоосон) утгаараа үлдэнэ. Хадгалбал backend нь `!== undefined`
+     * шалгадаг тул `null`/`[]` нь ХҮЧИНТЭЙ утга болж бичигдэнэ —
+     * лого салах, сошиал холбоос бүрэн тэглэгдэх эрсдэлтэй.
+     *
+     * ⚠️ `dirty` нь `data`-аас хамаардаг тул тохиолдлын хамгаалалт
+     * болж байсан — тодорхой шалгалт ЗААВАЛ.
+     */
+    if (isError || !data) {
+      toast.error('Тохиргоо ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     /* ⚠️ Хоосон мөр = устгах гэсэн үг (backend ч хаяна) */
     const clean = links.filter((l) => l.url.trim());
 

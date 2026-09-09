@@ -10,17 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -73,6 +63,21 @@ class ReportDto {
 class BulkDeleteDto {
   @IsArray()
   @IsString({ each: true })
+  /**
+   * ⚠️⚠️ `@ArrayMaxSize` ЗААВАЛ — ҮҮНГҮЙГЭЭР DoS БОЛНО.
+   *
+   * ⛔ БОДИТ ХЭМЖИЛТ (2026-09-09 аудит, production):
+   *     20,000 id  (469 KB)  → 1.44 секунд
+   *    300,000 id  (8.1 MB)  → **18.18 секунд**, 500 алдаа
+   *
+   * `CLUSTER_WORKERS` анхдагч нь 1 тул тэр 18 секундэд БҮХ хэрэглэгч
+   * — кино үзэж буй хүмүүс ч — хариу авахгүй. Давтаж илгээвэл
+   * тасралтгүй DoS.
+   *
+   * ⚠️ Бусад БҮХ `BulkDeleteDto` (chat/email/users/titles) 200-тай —
+   * зөвхөн энэ мартагдсан байв.
+   */
+  @ArrayMaxSize(200)
   ids: string[];
 }
 
