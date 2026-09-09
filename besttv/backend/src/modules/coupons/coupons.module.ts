@@ -256,6 +256,34 @@ export class CouponsService {
     if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
       throw new BadRequestException('Купон дүүрсэн байна');
     }
+
+    /**
+     * ⚠️⚠️ НЭГ ХЭРЭГЛЭГЧ НЭГ Л УДАА — НИЙТИЙН КУПОНД.
+     *
+     * ⛔ БОДИТ ЦООРХОЙ (2026-09-09 аудит): `Coupon`-д `maxPerUser`
+     * багана ОГТ БАЙХГҮЙ (`Promotion`-д байдаг). Улмаас `userId=null`
+     * (нийтийн) + `maxUses=null` (хязгааргүй) купоныг нэг хэрэглэгч
+     * ХЭДЭН Ч УДАА ашиглаж болно. `subs.grant` нь ижил багцын
+     * хугацааг ЗАЛГАДАГ тул 50% хямдралаар хугацаагаа хязгааргүй
+     * сунгах боломжтой байв.
+     *
+     * ⚠️ ХУВИЙН купон (`userId` утгатай) нь дээрх шалгалтаар аль
+     * хэдийн хамгаалагдсан — тэр нь нэг хүнд зориулагдсан ба
+     * `maxUses=1` байдаг.
+     *
+     * ⚠️ Зөвхөн НИЙТИЙН купонд хэрэглэнэ: хувийн купоны эзэн нь
+     * төлбөрөө цуцлаад дахин оролдох ЁСТОЙ.
+     *
+     * ⚠️ `PAID` төлбөрөөр л тоолно — PENDING/EXPIRED нь ашиглалт БИШ.
+     */
+    if (!coupon.userId && userId) {
+      const used = await this.prisma.payment.count({
+        where: { userId, couponCode: coupon.code, status: 'PAID' },
+      });
+      if (used > 0) {
+        throw new BadRequestException('Та энэ купоныг аль хэдийн ашигласан байна');
+      }
+    }
     if (dto.price < coupon.minPrice) {
       throw new BadRequestException(`Хамгийн бага дүн ${coupon.minPrice}₮`);
     }

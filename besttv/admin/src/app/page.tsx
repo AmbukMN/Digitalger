@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { StorageUsageCard } from '@/components/storage-usage-card';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { ContentHealthCard } from '@/components/content-health-card';
 import { ServerInsightCard } from '@/components/server-insight-card';
 import { TodayCard } from '@/components/dashboard/today-card';
@@ -104,7 +105,7 @@ export default function DashboardPage() {
   const [range, setRange] = useState<string>('30d');
   const [tab, setTab] = useState<TabId>('overview');
 
-  const { data, isLoading, isFetching } = useDashboard(range);
+  const { data, isLoading, isFetching, isError, error, refetch } = useDashboard(range);
   const { data: ins, isFetching: insFetching } = useQuery({
     queryKey: ['admin-insights', range],
     queryFn: () => api<Insights>(`/admin/analytics/insights?range=${range}`),
@@ -237,7 +238,15 @@ export default function DashboardPage() {
           </p>
         )}
 
-        {isLoading || !data ? (
+        {/*
+          ⚠️⚠️ АЛДААГ ЗААВАЛ ХАРУУЛНА — өмнө нь `isError` уншдаггүй байв.
+          Алдаа гарвал `data` МӨНХ `undefined` үлдэж, 8 саарал карт
+          эргэлдсээр байдаг («дахин оролдох» товч ч алга). Энэ бол
+          админы хамгийн их ордог хуудас.
+        */}
+        {isError ? (
+          <AdminErrorState error={error} onRetry={() => void refetch()} />
+        ) : isLoading || !data ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="admin-skeleton h-24 rounded-xl" />

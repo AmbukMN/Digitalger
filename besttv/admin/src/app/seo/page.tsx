@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminShell } from '@/components/admin-shell';
+import { AdminErrorState } from '@/components/admin-error-state';
 import { AdminTopbar } from '@/components/admin-topbar';
 import { ImageUpload } from '@/components/image-upload';
 import { SeoPagesManager } from '@/components/seo-pages-manager';
@@ -26,7 +27,7 @@ const EMPTY: SeoSettings = {
 };
 
 export default function SeoPage() {
-  const { data, isLoading } = useAdminSeo();
+  const { data, isLoading, isError, error, refetch } = useAdminSeo();
   /* ⚠️ Сайт солиход preview-ийн домэйн ДАГАЖ өөрчлөгдөнө */
   const { host: previewHost } = useSiteUrl();
   const qc = useQueryClient();
@@ -38,6 +39,23 @@ export default function SeoPage() {
   }, [data]);
 
   const save = async () => {
+    /**
+     * ⚠️⚠️ ДАТА ИРЭЭГҮЙ БОЛ ХАДГАЛАХГҮЙ — ДАРЖ БИЧИХЭЭС ХАМГААЛНА.
+     *
+     * ⛔ БОДИТ ЭРСДЭЛ (2026-09-09 аудит): `useEffect` нь `if (data)`
+     * шалгадаг тул API унавал `form` нь `EMPTY` хэвээр үлдэнэ. Хуудас
+     * БҮРЭН БӨГЛӨГДСӨН мэт харагдаж (зөвхөн талбарууд хоосон),
+     * «Хадгалах» дарвал backend нь `{ ...current, ...dto }` гэж
+     * нийлүүлдэг ба хоосон мөр нь хүчинтэй утга тул БОДИТ metaTitle,
+     * metaDescription, **Facebook Pixel ID** дарж бичигдэнэ.
+     *
+     * ⚠️ Ижил файлын `setPageOverride` нь `?.trim()` шалгадаг —
+     * зөвхөн энэ зам мартагдсан байв.
+     */
+    if (!data) {
+      toast.error('Тохиргоо ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
+      return;
+    }
     setSaving(true);
     try {
       await api('/admin/seo', { method: 'PUT', body: JSON.stringify(form) });
@@ -49,6 +67,23 @@ export default function SeoPage() {
       setSaving(false);
     }
   };
+
+  /**
+   * ⚠️⚠️ АЛДААГ ЗААВАЛ ХАРУУЛНА — өмнө нь `isError` ОГТ уншдаггүй байв.
+   *
+   * Алдаа гарвал `isLoading=false`, `data=undefined` болж хуудас
+   * ХООСОН формоор нээгддэг байсан (дээрх `save`-ийн тайлбар үзнэ үү).
+   */
+  if (isError) {
+    return (
+      <AdminShell>
+        <AdminTopbar title="SEO" />
+        <main className="p-8 pt-6">
+          <AdminErrorState error={error} onRetry={() => void refetch()} />
+        </main>
+      </AdminShell>
+    );
+  }
 
   if (isLoading) {
     return (

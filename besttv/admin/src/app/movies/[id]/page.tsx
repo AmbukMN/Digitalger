@@ -22,7 +22,7 @@ import { TmdbImportDialog, type TmdbImportResult } from '@/components/tmdb-impor
 import { CastEditor, type CastEntry } from '@/components/cast-editor';
 import { GalleryEditor, type GalleryEntry } from '@/components/gallery-editor';
 import { genreId } from '@/lib/genre';
-import { ADMIN_SITES, SITE_META } from '@/lib/site-store';
+import { ADMIN_SITES, SITE_META, useSiteUrl } from '@/lib/site-store';
 import { autoMetaDescription, autoMetaTitle, SEO_MIN_TITLE_LEN } from '@/lib/seo';
 
 export default function TitleEditPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,8 +30,10 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
   const isNew = id === 'new';
   const router = useRouter();
   const qc = useQueryClient();
+  /* ⚠️ Усан тэмдгийн шошго — сайт солиход дагаж өөрчлөгдөнө */
+  const { label: siteLabel } = useSiteUrl();
   const { data: genres } = useAdminGenres();
-  const { data: existing } = useAdminTitle(id);
+  const { data: existing, isLoading: loadingTitle, isError: titleError } = useAdminTitle(id);
 
   const [form, setForm] = useState({
     type: 'MOVIE' as 'MOVIE' | 'SERIES',
@@ -256,6 +258,17 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
      */
     if (form.sites.length === 0) {
       toast.error('Дор хаяж нэг сайт сонгоно уу — эс бөгөөс кино хаана ч харагдахгүй');
+      return;
+    }
+    /**
+     * ⚠️⚠️ ДАТА ИРЭЭГҮЙ БОЛ ХАДГАЛАХГҮЙ.
+     *
+     * `useEffect` нь `if (existing)` шалгадаг тул API унавал форм
+     * ХООСОН хэвээр үлдэнэ. Тэр үед хадгалбал гарчиг, тайлбар, SEO,
+     * жанр, түрээсийн үнэ БҮГД хоосноор дарж бичигдэнэ.
+     */
+    if (titleError || (!existing && loadingTitle)) {
+      toast.error('Мэдээлэл ачаалагдаагүй байна — хуудсыг дахин ачаална уу');
       return;
     }
     setSaving(true);
@@ -701,8 +714,11 @@ export default function TitleEditPage({ params }: { params: Promise<{ id: string
               className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
             />
             <span className="min-w-0">
+              {/* ⚠️ Hardcode «BestTV» байсан — BestFilm сонгосон үед БУРУУ.
+                  Усан тэмдэг нь `watermarkKey()`-ээр сайт бүрд ӨӨР лого
+                  шатаадаг тул шошго ч дагах ЁСТОЙ. */}
               <span className="block text-sm font-semibold text-foreground">
-                BestTV лого видеон дээр
+                {siteLabel} лого видеон дээр
               </span>
               <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
                 Зүүн дээд буланд, өргөний 10%, тунгалаг 70%.
