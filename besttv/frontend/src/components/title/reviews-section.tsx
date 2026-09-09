@@ -69,7 +69,11 @@ export function ReviewsSection({
   const [sort, setSort] = useState<ReviewSort>('helpful');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useReviews(titleId, page, sort);
+  /**
+   * ⚠️ `isError` ЗААВАЛ — 200 сэтгэгдэлтэй кино алдааны үед
+   * «Одоогоор сэтгэгдэл байхгүй» гэж ХУДАЛ харагдана.
+   */
+  const { data, isLoading, isError } = useReviews(titleId, page, sort);
   const { data: stats } = useReviewStats(titleId);
   const { data: myReview } = useMyReview(titleId, !!user);
 
@@ -378,6 +382,13 @@ export function ReviewsSection({
               onDelete={deleteById}
             />
           ))}
+        </div>
+      ) : isError ? (
+        /* ⚠️ Алдаа — «байхгүй» гэж ХУДАЛ хэлэхгүй */
+        <div className="rounded-xl border border-dashed border-foreground/12 py-10 text-center">
+          <MessageSquare size={24} className="mx-auto mb-2 text-foreground/20" />
+          <p className="text-sm text-foreground/50">Сэтгэгдэл ачаалагдсангүй.</p>
+          <p className="mt-0.5 text-xs text-foreground/30">Хуудсыг дахин ачаална уу.</p>
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-foreground/12 py-10 text-center">

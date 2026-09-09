@@ -205,8 +205,18 @@ export default function ProfilePage() {
 
   // ⚠️ isLoading ЗААВАЛ — өмнө нь ачаалж байхад `undefined` болж
   // "Гүйлгээ хийгдээгүй байна" гэсэн ХУДАЛ мэдэгдэл гардаг байсан
-  const { data: payments, isLoading: paymentsLoading } = useMyPayments();
-  const { data: walletTxs, isLoading: txsLoading } = useWalletTransactions();
+  /**
+   * ⚠️⚠️ `isError` ЗААВАЛ — эс бөгөөс API унахад «Захиалга хийгдээгүй
+   * байна» гэж ХУДАЛ харагдаж, хэрэглэгч төлбөрөө алдсан гэж бодон
+   * дахин төлөх эрсдэлтэй. Дээрх тайлбар `isLoading` талыг л зассан
+   * байсан.
+   */
+  const { data: payments, isLoading: paymentsLoading, isError: paymentsError } = useMyPayments();
+  const {
+    data: walletTxs,
+    isLoading: txsLoading,
+    isError: txsError,
+  } = useWalletTransactions();
   const { data: rentals } = useMyRentals(!!user);
 
   useEffect(() => {
@@ -958,6 +968,11 @@ export default function ProfilePage() {
                     <div key={i} className="skeleton-shimmer h-14 rounded-lg" />
                   ))}
                 </div>
+              ) : txsError ? (
+                /* ⚠️ Алдаа — «хийгдээгүй» гэж ХУДАЛ хэлэхгүй */
+                <p className="mt-3 text-sm text-foreground/60">
+                  Гүйлгээний түүх ачаалагдсангүй. Хуудсыг дахин ачаална уу.
+                </p>
               ) : (
                 <p className="mt-3 text-sm text-foreground/40">Гүйлгээ хийгдээгүй байна</p>
               )}
@@ -1025,6 +1040,12 @@ export default function ProfilePage() {
                   <div key={i} className="skeleton-shimmer h-14 rounded-lg" />
                 ))}
               </div>
+            ) : paymentsError ? (
+              /* ⚠️⚠️ Алдаа — «Захиалга хийгдээгүй» гэж ХУДАЛ хэлбэл
+                 хэрэглэгч төлбөрөө алдсан гэж бодон ДАХИН төлж болно */
+              <p className="mt-3 text-sm text-foreground/60">
+                Захиалгын түүх ачаалагдсангүй. Хуудсыг дахин ачаална уу.
+              </p>
             ) : (
               <p className="mt-3 text-sm text-foreground/40">Захиалга хийгдээгүй байна</p>
             )}

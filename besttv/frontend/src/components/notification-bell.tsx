@@ -76,7 +76,12 @@ export function NotificationBell() {
 
   /* ⚠️ Нэвтрээгүй бол query огт явуулахгүй (401 spam) */
   const { data: count } = useUnreadCount(!!user);
-  const { data, isLoading } = useNotifications(!!user && open);
+  /**
+   * ⚠️ `isError` ЗААВАЛ — badge «3» гэж байхад dropdown «Мэдэгдэл
+   * байхгүй» гэж харуулах нь харагдахуйц зөрчил (тоолуур нь өөр
+   * query-ээс ирдэг).
+   */
+  const { data, isLoading, isError } = useNotifications(!!user && open);
 
   const unread = count?.unread ?? 0;
 
@@ -184,6 +189,12 @@ export function NotificationBell() {
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="h-14 animate-pulse rounded-lg bg-foreground/6" />
                 ))}
+              </div>
+            ) : isError ? (
+              /* ⚠️ Алдаа — «байхгүй» гэж ХУДАЛ хэлэхгүй */
+              <div className="px-4 py-10 text-center">
+                <Bell size={26} className="mx-auto text-foreground/20" />
+                <p className="mt-2 text-sm text-foreground/55">Мэдэгдэл ачаалагдсангүй</p>
               </div>
             ) : !data?.items.length ? (
               <div className="px-4 py-10 text-center">

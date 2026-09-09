@@ -120,7 +120,12 @@ export function CatalogGrid({
   /* ⚠️ `isError`/`refetch` ЗААВАЛ — эс бөгөөс "Бүгд" горимд
      `/titles/home` унахад доорх skeleton МӨНХ эргэлдэнэ (дахин
      оролдох товч ч байхгүй, зөвхөн хуудас шинэчлэх гарц үлдэнэ) */
-  const { data: home, isError: homeError, refetch: refetchHome } = useHome();
+  const {
+    data: home,
+    isLoading: homeLoading,
+    isError: homeError,
+    refetch: refetchHome,
+  } = useHome();
   const showRows = !genre;
 
   return (
@@ -196,16 +201,32 @@ export function CatalogGrid({
                   genreSlug={row.slug}
                 />
               ))
-            : Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="px-4 md:px-8">
-                  <div className="skeleton-shimmer mb-3 h-6 w-40 rounded" />
-                  <div className="flex gap-3">
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <div key={j} className="skeleton-shimmer aspect-2/3 w-36 shrink-0 rounded-lg" />
-                    ))}
+            : /**
+               * ⚠️⚠️ SKELETON ЗӨВХӨН АЧААЛЖ БАЙХАД.
+               *
+               * Өмнө нь `home?.genreRows?.length` худал бүрд skeleton
+               * гардаг байсан тул сервер `200 { genreRows: [] }` буцаавал
+               * (алдаа БИШ — зүгээр л жанр хоосон) 3 skeleton эгнээ
+               * МӨНХӨД эргэлдэж, хэрэглэгч хуудас эвдэрсэн гэж ойлгоно.
+               */
+              homeLoading
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="px-4 md:px-8">
+                    <div className="skeleton-shimmer mb-3 h-6 w-40 rounded" />
+                    <div className="flex gap-3">
+                      {Array.from({ length: 6 }).map((__, j) => (
+                        <div
+                          key={j}
+                          className="skeleton-shimmer aspect-2/3 w-36 shrink-0 rounded-lg"
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              : /* ⚠️ Ачаалж дууссан ч хоосон — ИЛ хэлнэ */
+                <p className="px-4 py-10 text-center text-sm text-muted-foreground md:px-8">
+                  Одоогоор контент байхгүй байна.
+                </p>}
         </div>
       ) : (
         <div
