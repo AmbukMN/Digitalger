@@ -116,3 +116,6 @@ bestfilm/*.key
 bestfilm/*.pem
 besttv/*.key
 besttv/*.pem
+
+# Аудитын агентын түр файлууд
+.bt3/
