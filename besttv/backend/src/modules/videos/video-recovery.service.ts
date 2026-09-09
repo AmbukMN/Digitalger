@@ -5,6 +5,8 @@ import { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VIDEO_QUEUE, VideoHlsJob } from './video-queue.types';
 import { currentSite } from '../../common/site/site-context';
+import { forEachSite } from '../../common/site/site-cron';
+import { N8nService } from '../n8n/n8n.service';
 
 /**
  * ⚠️⚠️ Хэдэн минутын дараа "гацсан" гэж үзэх вэ.
@@ -41,10 +43,29 @@ export class VideoRecoveryService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(VIDEO_QUEUE) private readonly queue: Queue<VideoHlsJob>,
+    private readonly n8n: N8nService,
   ) {}
 
+  /**
+   * ⚠️⚠️ `forEachSite` ЗААВАЛ — cron нь ХҮСЭЛТИЙН КОНТЕКСТГҮЙ.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): энэ нь нүцгэн `@Cron` байсан
+   * атал доорх код `currentSite()` дуудаж, тайлбартаа «контекст
+   * `forEachSite`-аас ирнэ» гэж бичсэн байв. Бодит байдалд
+   * `currentSite()` нь ҮРГЭЛЖ `besttv` буцаана.
+   *
+   * Үр дагавар: BestFilm-ийн гацсан кино сэргээхэд queue-д
+   * `site:'besttv'` тамга тавигдаж, унасан үед Telegram-д
+   * «⚠️ Хөрвүүлэлт амжилтгүй · BestTV» гэж БАТТАЙ ХУДАЛ очно.
+   *
+   * ⚠️ 17 `@Cron`-оос 7 нь л `forEachSite` ашигладаг байсан.
+   */
   @Cron(CronExpression.EVERY_10_MINUTES)
   async recoverStalled() {
+    await forEachSite('video-recovery', () => this.recoverForCurrentSite());
+  }
+
+  private async recoverForCurrentSite() {
     const cutoff = new Date(Date.now() - STALE_MINUTES * 60_000);
 
     const [titles, episodes] = await Promise.all([
@@ -120,8 +141,8 @@ export class VideoRecoveryService {
       await this.queue.add(
         'convert',
         /* ⚠️ `site` — унасан мэдэгдэл зөв брэндээр явахад ЗААВАЛ.
-           ⚠️ Энэ нь cron дотор тул контекст `forEachSite`-аас ирнэ;
-           байхгүй бол `besttv` (хуучин зан төлөв). */
+           ⚠️ Контекст нь дээрх `forEachSite`-аас ирнэ (2026-09-09-нд
+           нэмэгдсэн; өмнө нь нүцгэн @Cron тул үргэлж `besttv` байв). */
         { target, targetId, rawKey, site: currentSite() },
         { attempts: 2, removeOnComplete: true, removeOnFail: false },
       );
@@ -133,11 +154,35 @@ export class VideoRecoveryService {
       this.logger.warn(`Гацсан хөрвүүлэлтийг ДАХИН эхлүүллээ: ${label}`);
     } else {
       // ── Raw байхгүй → сэргээх боломжгүй ──
+      const reason = `${STALE_MINUTES} минут хэтэрсэн — түр файл алга (дахин upload хийнэ үү)`;
       await this.setStatus(target, targetId, {
         streamStatus: 'FAILED',
-        streamError: `${STALE_MINUTES} минут хэтэрсэн — түр файл алга (дахин upload хийнэ үү)`,
+        streamError: reason,
       });
       this.logger.error(`Гацсан хөрвүүлэлт СЭРГЭЭГДЭХГҮЙ: ${label}`);
+      /**
+       * ⚠️⚠️ МЭДЭГДЭЛ ЗААВАЛ — эс бөгөөс ЧИМЭЭГҮЙ үхнэ.
+       *
+       * ⛔ Аудитаар илэрсэн (2026-09-09): `video.processor.ts:259` нь
+       * унасан хөрвүүлэлтэд `emitVideoFailed` дууддаг атал ЭНЭ зам
+       * (recovery) орхигдсон байв. Админ кино хөрвүүлэгдээгүйг зөвхөн
+       * гараар шалгаж мэдэх байсан.
+       */
+      try {
+        this.n8n.emitVideoFailed({
+          titleName: label,
+          /* ⚠️ `label` нь ангийн мэдээллийг аль хэдийн агуулдаг тул
+             давхардуулахгүй — recovery замд тусад нь салгах дата алга */
+          episodeLabel: target === 'episode' ? label : null,
+          reason,
+          /* ⚠️ `attempts: 0` — recovery нь queue-ийн оролдлогыг
+             мэдэхгүй (гацсаныг олж авсан), 0 нь «тодорхойгүй» гэсэн үг */
+          attempts: 0,
+          failedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        this.logger.warn(`Мэдэгдэл илгээж чадсангүй: ${String(e).slice(0, 100)}`);
+      }
     }
   }
 

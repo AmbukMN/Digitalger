@@ -365,11 +365,28 @@ export default function MoviesPage() {
             })
           }
           onDelete={async (force) => {
-            const r = await api<{ deleted: number }>('/admin/titles/bulk/delete', {
-              method: 'POST',
-              body: JSON.stringify({ ids, force }),
-            });
-            await afterBulk(`${r.deleted} контент устгагдлаа`);
+            const r = await api<{ deleted: number; removedFromSite?: number }>(
+              '/admin/titles/bulk/delete',
+              { method: 'POST', body: JSON.stringify({ ids, force }) },
+            );
+            /**
+             * ⚠️⚠️ ХОЁР ӨӨР ҮР ДҮНГ ЯЛГАЖ ХЭЛНЭ.
+             *
+             * ⛔ Аудитаар илэрсэн (2026-09-09): зөвхөн `r.deleted`
+             * уншдаг байсан. Кино нөгөө сайтад ч байвал backend нь
+             * УСТГАХГҮЙ, зөвхөн `sites[]`-ээс хасдаг (R2 файл хэвээр —
+             * нөгөө сайт урсгасаар байна). Тэр үед `deleted:0` буцна.
+             *
+             * Улмаас админ «0 контент устгагдлаа» гэсэн ногоон toast
+             * хараад, гэтэл жагсаалтаас кино алга болно → дахин дарах,
+             * эсвэл эвдэрсэн гэж бодох.
+             */
+            const parts: string[] = [];
+            if (r.deleted) parts.push(`${r.deleted} контент бүрэн устгав`);
+            if (r.removedFromSite) {
+              parts.push(`${r.removedFromSite} нь нөгөө сайтад үлдсэн тул энэ сайтаас л хаслаа`);
+            }
+            await afterBulk(parts.length ? parts.join(' · ') : 'Өөрчлөлт гарсангүй');
           }}
           onSetActive={async (isActive) => {
             const r = await api<{ updated: number }>('/admin/titles/bulk/active', {

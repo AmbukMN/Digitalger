@@ -13,6 +13,10 @@ import { ADMIN_SITES, SITE_META } from '@/lib/site-store';
 
 export interface BulkImpact {
   total: number;
+  /** ⚠️ Хэд нь нөгөө сайтад ҮЛДЭХ вэ — R2 файл ХЭВЭЭР үлдэнэ */
+  sharedCount?: number;
+  /** ⚠️ Хэд нь БҮРЭН устах вэ — R2 файл ч устана */
+  hardDeleteCount?: number;
   totalActiveRentals: number;
   totalRentalAmount: number;
   withActiveRentals: { id: string; title: string; activeRentals: number }[];
@@ -215,10 +219,32 @@ export function BulkBar({
                 <h2 className="text-sm font-semibold text-foreground">
                   {impact.total} контент устгах уу?
                 </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Видео, зураг, HLS файлууд Cloudflare R2-оос БҮРМӨСӨН устана. Энэ үйлдлийг
-                  буцаах боломжгүй.
-                </p>
+                {/*
+                  ⚠️⚠️ ҮНЭНИЙГ ХЭЛНЭ — өмнө нь ҮРГЭЛЖ «R2-оос БҮРМӨСӨН
+                  устана» гэж бичдэг байсан. Гэтэл кино нөгөө сайтад ч
+                  байвал R2 ОГТ хөндөгдөхгүй (зөвхөн `sites[]`-ээс
+                  хасагдана, нөгөө сайт урсгасаар байна). Админ буруу
+                  мэдээллээр шийдвэр гаргаж байв.
+                */}
+                {impact.sharedCount ? (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {impact.hardDeleteCount ? (
+                      <>
+                        <span className="text-destructive">
+                          {impact.hardDeleteCount} контент БҮРЭН устана
+                        </span>{' '}
+                        (видео, зураг, HLS файл R2-оос ч устана — буцаах боломжгүй).{' '}
+                      </>
+                    ) : null}
+                    {impact.sharedCount} контент нөгөө сайтад ҮЛДЭНЭ — зөвхөн энэ сайтаас
+                    хасагдана, файл хэвээр.
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Видео, зураг, HLS файлууд Cloudflare R2-оос БҮРМӨСӨН устана. Энэ үйлдлийг
+                    буцаах боломжгүй.
+                  </p>
+                )}
               </div>
             </div>
 

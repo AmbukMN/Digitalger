@@ -739,6 +739,8 @@ export class TitlesAdminService {
         id: true,
         title: true,
         views: true,
+        /* ⚠️ `sites` — диалог ҮНЭНИЙГ хэлэхэд ЗААВАЛ (доор) */
+        sites: true,
         _count: { select: { myList: true, reviews: true } },
         rentals: {
           where: { expiresAt: { gt: now } },
@@ -751,6 +753,15 @@ export class TitlesAdminService {
       id: t.id,
       title: t.title,
       views: t.views,
+      /**
+       * ⚠️⚠️ НӨГӨӨ САЙТАД БАЙГАА ЭСЭХ — диалог ХУДАЛ айлгахаас сэргийлнэ.
+       *
+       * ⛔ Аудитаар илэрсэн (2026-09-09): диалог «Видео, зураг, HLS
+       * файлууд R2-оос БҮРМӨСӨН устана» гэж бичдэг байсан ч кино
+       * нөгөө сайтад ч байвал R2 ОГТ хөндөгдөхгүй (зөвхөн `sites[]`-
+       * ээс хасагдана). Админ буруу мэдээллээр шийдвэр гаргана.
+       */
+      sharedWithOtherSite: t.sites.length > 1,
       inMyList: t._count.myList,
       reviews: t._count.reviews,
       activeRentals: t.rentals.length,
@@ -759,6 +770,10 @@ export class TitlesAdminService {
 
     return {
       total: items.length,
+      /** ⚠️ Хэд нь нөгөө сайтад ҮЛДЭХ вэ — R2 файл ХЭВЭЭР */
+      sharedCount: items.filter((i) => i.sharedWithOtherSite).length,
+      /** ⚠️ Хэд нь БҮРЭН устах вэ — R2 файл ч устана */
+      hardDeleteCount: items.filter((i) => !i.sharedWithOtherSite).length,
       /** ⚠️ Устгавал мөнгө төлсөн хэрэглэгч эрхээ алдана */
       withActiveRentals: items.filter((i) => i.activeRentals > 0),
       totalActiveRentals: items.reduce((s, i) => s + i.activeRentals, 0),
