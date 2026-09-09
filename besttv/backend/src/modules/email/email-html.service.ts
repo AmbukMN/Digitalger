@@ -16,7 +16,7 @@ import { siteConfig } from '../../common/site/site-config';
 @Injectable()
 export class EmailHtmlService {
   /** Үндсэн бичвэрийн өнгө — бараан карт дээр уншигдана */
-  private static readonly BODY = 'color:#c8c8ce;font-size:14px;line-height:1.65;margin:0 0 12px';
+  private static readonly BODY = 'color:#f2f2f4;font-size:14px;line-height:1.65;margin:0 0 12px';
   /** Гарчиг — тод цагаан */
   private static readonly HEAD =
     'color:#ffffff;font-weight:700;line-height:1.35;margin:18px 0 10px';

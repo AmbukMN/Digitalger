@@ -658,7 +658,7 @@ export class EmailService {
      */
     const unsub =
       opts.showUnsubscribe && opts.email
-        ? `<p style="margin:8px 0 0;font-size:11px;color:#666">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}&sig=${signUnsubscribe(opts.email)}" style="color:#888;text-decoration:underline">Unsubscribe</a>.</p>`
+        ? `<p style="margin:8px 0 0;font-size:11px;color:#a8a8b0">Эдгээр имэйлийг авахыг хүсэхгүй бол <a href="${this.siteUrl}/unsubscribe?email=${encodeURIComponent(opts.email)}&sig=${signUnsubscribe(opts.email)}" style="color:#c9c9cf;text-decoration:underline">Unsubscribe</a>.</p>`
         : '';
 
     /**
@@ -726,12 +726,14 @@ export class EmailService {
   .btv-head { background:#0e0f13 !important; }
   .btv-foot { background:#101114 !important; }
   .btv-text, .btv-text * { color:#ffffff !important; }
-  .btv-muted, .btv-muted * { color:#c8c8ce !important; }
-  .btv-box  { background:#1e1f24 !important; }
+  .btv-muted, .btv-muted * { color:#f2f2f4 !important; }
+  /* ⚠️ Купон/мэдээллийн хайрцаг — картын дэвсгэрээс ЯЛГАРНА.
+     Өмнө нь #1e1f24 нь #17181c-ээс бараг ялгардаггүй байв. */
+  .btv-box  { background:#26272e !important; }
   .btv-cta  { background:${siteConfig().brandColor} !important; color:#ffffff !important; }
   /* ⚠️ Холбоос — өгөгдмөл цэнхэр нь бараан дээр бүдэг */
   .btv-card a { color:${siteConfig().brandColor}; }
-  .btv-foot a { color:#c8c8ce !important; }
+  .btv-foot a { color:#f2f2f4 !important; }
 
   /* WARN Gmail/Outlook dark mode: keep OUR colors, block the inversion */
   @media (prefers-color-scheme: dark) {
@@ -747,8 +749,10 @@ export class EmailService {
     .btv-head { background:#0e0f13 !important; }
     .btv-foot { background:#101114 !important; }
     .btv-text, .btv-text * { color:#ffffff !important; }
-    .btv-muted, .btv-muted * { color:#c8c8ce !important; }
-    .btv-box  { background:#1e1f24 !important; }
+    .btv-muted, .btv-muted * { color:#f2f2f4 !important; }
+    /* ⚠️ Купон/мэдээллийн хайрцаг — картын дэвсгэрээс ЯЛГАРНА.
+     Өмнө нь #1e1f24 нь #17181c-ээс бараг ялгардаггүй байв. */
+  .btv-box  { background:#26272e !important; }
     /* WARN Brand red must survive inversion - it is the only CTA */
     .btv-cta  { background:${siteConfig().brandColor} !important; color:#ffffff !important; }
   }
@@ -756,7 +760,7 @@ export class EmailService {
   [data-ogsc] .btv-bg   { background:#20222a !important; }
   [data-ogsc] .btv-card { background:#17181c !important; }
   [data-ogsc] .btv-text, [data-ogsc] .btv-text * { color:#ffffff !important; }
-  [data-ogsc] .btv-muted, [data-ogsc] .btv-muted * { color:#c8c8ce !important; }
+  [data-ogsc] .btv-muted, [data-ogsc] .btv-muted * { color:#f2f2f4 !important; }
 </style>
 </head>
 <body class="btv-bg" style="margin:0;padding:0;background:#20222a;font-family:'Helvetica Neue',Arial,system-ui,sans-serif">
@@ -775,7 +779,7 @@ ${pre}
   </td></tr>
   ${cta}
   <tr><td class="btv-foot" style="background:#101114;padding:20px 32px;text-align:center;border-top:1px solid #26272b">
-    <p class="btv-muted" style="margin:0;font-size:12px;color:#777">© ${new Date().getFullYear()} ${siteConfig().name} · <a href="${this.siteUrl}" style="color:#999;text-decoration:none">${siteConfig().domain}</a></p>
+    <p class="btv-muted" style="margin:0;font-size:12px;color:#b8b8be">© ${new Date().getFullYear()} ${siteConfig().name} · <a href="${this.siteUrl}" style="color:#c9c9cf;text-decoration:none">${siteConfig().domain}</a></p>
     ${unsub}
 ${pixel}
   </td></tr>
@@ -786,11 +790,11 @@ ${pixel}
 
   /** Дотоод мэдээллийн хайрцаг (захиалгын дэлгэрэнгүй гэх мэт) */
   private box(rows: [string, string][]): string {
-    return `<table width="100%" cellpadding="0" cellspacing="0" class="btv-box" style="background:#1e1f24;border-radius:10px;margin:16px 0">
+    return `<table width="100%" cellpadding="0" cellspacing="0" class="btv-box" style="background:#26272e;border-radius:10px;margin:16px 0">
       ${rows
         .map(
           ([k, v]) =>
-            `<tr><td class="btv-muted" style="padding:10px 16px;font-size:13px;color:#9a9aa0">${k}</td>
+            `<tr><td class="btv-muted" style="padding:10px 16px;font-size:13px;color:#d6d6da">${k}</td>
              <td class="btv-text" style="padding:10px 16px;font-size:14px;color:#fff;font-weight:600;text-align:right">${v}</td></tr>`,
         )
         .join('')}
@@ -798,7 +802,7 @@ ${pixel}
   }
 
   private p = (t: string) =>
-    `<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#c8c8ce">${t}</p>`;
+    `<p class="btv-muted" style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#f2f2f4">${t}</p>`;
 
   // ─── Public template-ууд ────────────────────────────────────────────────────
 
@@ -842,7 +846,9 @@ ${pixel}
             ? 'Та имэйл хаягаа энэ хаяг руу солих хүсэлт илгээлээ. Доорх кодыг оруулж баталгаажуулна уу.'
             : 'Доорх кодыг оруулж имэйл хаягаа баталгаажуулна уу.',
         ) +
-        `<div style="margin:20px 0;padding:18px;background:#1e1f24;border-radius:12px;text-align:center">
+        /* ⚠️ OTP хайрцаг — купонтой ижил тодрол (`.btv-box` класс нь
+             Gmail dark горимд дэвсгэрийг дарж бичнэ) */
+        `<div class="btv-box" style="margin:20px 0;padding:18px;background:#26272e;border-radius:12px;border:2px solid #43444d;text-align:center">
            <span style="font-size:32px;font-weight:900;letter-spacing:10px;color:#fff">${opts.code}</span>
          </div>` +
         this.p(

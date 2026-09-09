@@ -982,8 +982,8 @@ export class EmailAdminController {
       (posterUrl
         ? `<a href="${link}" style="text-decoration:none"><img src="${posterUrl}" alt="${title.title}" width="240" style="display:block;margin:0 auto 18px;max-width:240px;width:60%;border-radius:12px" /></a>`
         : '') +
-      `<p class="btv-muted" style="margin:0 0 6px;text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9a9aa0">${kind}</p>` +
-      `<p class="btv-muted" style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#c8c8ce">${desc}</p>`
+      `<p class="btv-muted" style="margin:0 0 6px;text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#d6d6da">${kind}</p>` +
+      `<p class="btv-muted" style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#f2f2f4">${desc}</p>`
     );
   }
 
