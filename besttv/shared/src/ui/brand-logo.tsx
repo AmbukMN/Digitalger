@@ -12,6 +12,11 @@ import { cn } from '../lib/utils';
  */
 export function BrandLogo({
   logoUrl,
+  /**
+   * ⚠️ Анхны утга нь `'BestTV'` — BestFilm-ийн bundle-д ч шигтгэгддэг
+   * (хэрэглэгчид харагдахгүй, бүх дуудагч тодорхой дамжуулдаг).
+   * Хоосон болговол лого огт харагдахгүй болох тул ҮЛДЭЭВ.
+   */
   siteName = 'BestTV',
   className,
   imgClassName,
@@ -36,12 +41,28 @@ export function BrandLogo({
     );
   }
 
-  // Лого тохируулаагүй үед — брэндийн текст
-  const [first, ...rest] = siteName.split(/(?=TV$)/);
+  /**
+   * Лого тохируулаагүй үед — брэндийн текст.
+   *
+   * ⚠️⚠️ ХОЁР ХЭСЭГТ ХУВААНА — «Best|TV», «Best|Film» гэх мэт.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): `split(/(?=TV$)/)` нь ЗӨВХӨН
+   * «TV»-ээр төгссөн нэрийг хуваадаг байв. «BestFilm» → `['BestFilm']`,
+   * `rest=[]` → бүхэлдээ цагаан, улаан өнгө ОГТ гарахгүй.
+   *
+   * ⚠️ Одоо `Best` угтварыг таньж хуваана — «BestTV», «BestFilm»,
+   * ирээдүйн «BestXxx» бүгд ажиллана. Танихгүй нэр бол бүхэлдээ
+   * цагаан (өмнөх зан төлөвтэй ижил).
+   *
+   * ⚠️ Энэ нь ЗӨВХӨН fallback — хоёр сайтад `logoUrl` тохируулагдсан
+   * тул хэвийн үед хүрдэггүй. Лого уствал/R2 унавал л харагдана.
+   */
+  const m = /^(Best)(.+)$/i.exec(siteName);
+  const [first, second] = m ? [m[1], m[2]] : [siteName, ''];
   return (
     <span className={cn('font-black tracking-tight', textSize, className)}>
       <span className="text-white">{first}</span>
-      {rest.length > 0 && <span className="text-primary">{rest.join('')}</span>}
+      {second && <span className="text-primary">{second}</span>}
     </span>
   );
 }
