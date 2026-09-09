@@ -91,7 +91,30 @@ export function TitleDetailClient({
     trackTitle({ type: 'view', titleId: data.id, titleSlug: slug, titleName: data.title });
   }, [data, slug]);
 
-  if (isLoading) return <TitleDetailSkeleton />;
+  /**
+   * ⚠️⚠️ `!data` НӨХЦӨЛ ЗААВАЛ — ЭС БӨГӨӨС SSR ДАТА ХАЯГДАНА.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-09 аудит): сервер `/api/titles/<slug>`-ыг
+   * АМЖИЛТТАЙ татаж, дата HTML дотор (RSC payload) бүрэн ирдэг атлаа
+   * дэлгэцэнд зөвхөн **38 саарал хайрцаг** харагддаг байв.
+   *
+   * Шалтгаан: `auth-store`-ийн `loading` нь SSR үед ҮҮРД `true`
+   * (`init()` зөвхөн browser-т ажилладаг) → `enabled: !authLoading`
+   * тул query идэвхжихгүй → `isLoading` үргэлж `true` → энэ мөр
+   * `initialData`-г харалгүй skeleton буцаана.
+   *
+   * Нүүр хуудас ажилладаг шалтгаан нь `useHome`-д `enabled` ОГТ
+   * байхгүй — ганц тэр мөрөөс болж кино хуудас эвдэрсэн байв.
+   *
+   * Үр дагавар: кино бүр дээр нэмэлт бүтэн эргэлт (HTML → JS → auth
+   * init → /auth/me → title fetch) хүлээнэ; 4G дээр 1-2 сек хоосон.
+   * Googlebot/Facebook нь JS ажиллуулахгүй тул ЗӨВХӨН skeleton харна.
+   *
+   * ⚠️ `initialData` нь ЗӨВХӨН зочинд тавигддаг (`!userId`) тул
+   * нэвтэрсэн хэрэглэгчид ОГТ нөлөөлөхгүй — «эрхтэй атлаа Багц авах
+   * гарч байна» гэсэн өмнөх гомдол эргэж ирэхгүй.
+   */
+  if (isLoading && !data) return <TitleDetailSkeleton />;
 
   if (isError || !data) {
     return (
