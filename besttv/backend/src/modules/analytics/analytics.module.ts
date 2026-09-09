@@ -5,6 +5,7 @@ import { IsInt, Max, Min } from 'class-validator';
 import { MetaCapiService } from './meta-capi.service';
 import { PaymentStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -39,7 +40,10 @@ const RANGE_DAYS: Record<string, number> = {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * Сонгосон мужийн эхлэл + өмнөх ижил урттай мужийн эхлэл (харьцуулалтад).
@@ -95,7 +99,25 @@ export class AnalyticsService {
    * ⚠️ Бүх тоо СОНГОСОН МУЖИД харьяалагдана + өмнөх ижил мужтай харьцуулж
    * өсөлтийн хувь буцаана. Өмнө нь зөвхөн "сүүлийн 30 хоног" тогтмол байсан.
    */
-  async dashboard(range = '30d') {
+  /**
+   * ⚠️⚠️ КЭШТЭЙ — энэ бол АДМИНЫ НҮҮР ХУУДАС, хамгийн олон дуудагддаг.
+   *
+   * ⛔ Аудитаар хэмжсэн (2026-09-09): 1.12 секунд — хөрш бүх endpoint
+   * (`insights` 300с, `content-insights` 300с, `storage` 600с) кэштэй
+   * атал энэ ганц нь кэшгүй байв. Админ хуудсаа шинэчлэх бүрд 20+
+   * query дахин ажилладаг.
+   *
+   * ⚠️ 60 СЕКУНД — `insights`-ийн 300-аас богино: дашбоард нь «яг одоо»
+   * гэсэн мэдрэмж өгөх ёстой (шинэ төлбөр орсныг админ хурдан харна).
+   *
+   * ⚠️ `CacheService.k()` нь түлхүүрт `|${site}` автоматаар нэмдэг тул
+   * хоёр сайтын дашбоард ХОЛИЛДОХГҮЙ.
+   */
+  dashboard(range = '30d') {
+    return this.cache.wrap(`dashboard:${range}`, 60, () => this.dashboardFresh(range));
+  }
+
+  private async dashboardFresh(range = '30d') {
     const { days, now, from, prevFrom } = this.bounds(range);
 
     const [
