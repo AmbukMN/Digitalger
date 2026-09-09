@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { currentSite } from '../../common/site/site-context';
 /* ⚠️ N8nService нь @Global тул module-д импортлох шаардлагагүй */
 import { N8nService } from '../n8n/n8n.service';
 /* ⚠️ StorageModule нь @Global тул module-д импортлох шаардлагагүй */
@@ -342,7 +343,11 @@ export class ChatService {
        */
       if (role === 'assistant') {
         const conv = await this.prisma.chatConversation
-          .findUnique({ where: { sessionId }, select: { handedOff: true } })
+          .findUnique({
+            /* ⚠️ composite түлхүүр — дээрх `upsert`-тэй ижил шалтгаан */
+            where: { sessionId_site: { sessionId, site: currentSite() } },
+            select: { handedOff: true },
+          })
           .catch(() => null);
         if (conv?.handedOff) {
           this.logger.log(`Handoff идэвхтэй — AI мессеж алгаслаа (${sessionId})`);
@@ -355,7 +360,16 @@ export class ChatService {
       const markAdminUnread = role === 'user';
 
       const conversation = await this.prisma.chatConversation.upsert({
-        where: { sessionId },
+        /**
+         * ⚠️⚠️ `sessionId_site` — глобал `sessionId` БИШ.
+         *
+         * `site-extension` нь `upsert`-ийн `where`-д сайтын шүүлт
+         * НЭМДЭГГҮЙ (unique түлхүүр эвдэрнэ) тул түлхүүр өөрөө сайтыг
+         * агуулах ёстой. Эс бөгөөс BestFilm-ийн зочин BestTV-д байгаа
+         * `sessionId` илгээвэл шинэ мөр үүсэхгүй, BestTV-ийн ярианы
+         * `update` салаа ажиллаж зурвас нь буруу сайтын админд очно.
+         */
+        where: { sessionId_site: { sessionId, site: currentSite() } },
         create: {
           channel,
           ...(pageId ? { pageId } : {}),
@@ -543,7 +557,8 @@ export class ChatService {
 
     const conv = await this.prisma.chatConversation
       .findUnique({
-        where: { sessionId: sid },
+        /* ⚠️ composite түлхүүр — сайт бүрд өөрийн яриа */
+        where: { sessionId_site: { sessionId: sid, site: currentSite() } },
         select: { id: true, handedOff: true, userUnreadCount: true, userId: true },
       })
       .catch(() => null);
@@ -591,7 +606,8 @@ export class ChatService {
     if (!sid) return { unread: 0, handedOff: false };
     const conv = await this.prisma.chatConversation
       .findUnique({
-        where: { sessionId: sid },
+        /* ⚠️ composite түлхүүр — сайт бүрд өөрийн яриа */
+        where: { sessionId_site: { sessionId: sid, site: currentSite() } },
         select: { userUnreadCount: true, handedOff: true, userId: true },
       })
       .catch(() => null);
@@ -1035,7 +1051,11 @@ export class ChatService {
   async sessionState(sessionId: string): Promise<{ handedOff: boolean; exists: boolean }> {
     if (!sessionId) return { handedOff: false, exists: false };
     const conv = await this.prisma.chatConversation
-      .findUnique({ where: { sessionId }, select: { handedOff: true } })
+      .findUnique({
+        /* ⚠️ composite түлхүүр — сайт бүрд өөрийн яриа */
+        where: { sessionId_site: { sessionId, site: currentSite() } },
+        select: { handedOff: true },
+      })
       .catch(() => null);
     return { handedOff: conv?.handedOff ?? false, exists: !!conv };
   }

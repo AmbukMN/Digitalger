@@ -118,7 +118,16 @@ export class NotificationsService {
     dto: { token: string; platform: string; appVersion?: string; deviceName?: string },
   ) {
     await this.prisma.deviceToken.upsert({
-      where: { token: dto.token },
+      /**
+       * ⚠️⚠️ `token_site` — глобал `token` БИШ.
+       *
+       * `site-extension` нь `upsert`-ийн `where`-д сайтын шүүлт
+       * нэмдэггүй тул түлхүүр өөрөө сайтыг агуулах ёстой. Эс бөгөөс
+       * нэг төхөөрөмж хоёр аппыг нээвэл BestTV-ийн мөрийн `userId` нь
+       * BestFilm хэрэглэгч рүү дарагдаж (`site` нь `besttv` хэвээр)
+       * push БУРУУ ХҮНД очно.
+       */
+      where: { token_site: { token: dto.token, site: currentSite() } },
       create: {
         userId,
         token: dto.token,
