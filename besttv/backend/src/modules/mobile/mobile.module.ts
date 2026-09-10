@@ -205,8 +205,9 @@ export class MobileService {
     const heroBy = new Map(heroOverrides.map((h) => [h.titleId, h]));
     const heroList = banners
       .filter((b) => heroBy.get(b.id)?.isBanner ?? b.isBanner)
-      .map((b) => ({ b, order: heroBy.get(b.id)?.order ?? b.bannerOrder }))
-      .sort((a, b) => a.order - b.order)
+      /* ⚠️ `i` — DB-ийн буцаасан байрлал (вэбтэй ИЖИЛ дүрэм) */
+      .map((b, i) => ({ b, i, order: heroBy.get(b.id)?.order ?? b.bannerOrder }))
+      .sort((a, b) => a.order - b.order || a.i - b.i)
       .slice(0, 8)
       .map((x) => x.b);
 

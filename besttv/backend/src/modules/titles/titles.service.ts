@@ -176,7 +176,15 @@ export class TitlesService {
               { siteOrders: { some: { site: _site, genreId: '', isBanner: true } } },
             ],
           },
-          orderBy: { bannerOrder: 'asc' },
+          /**
+           * ⚠️⚠️ ХОЁРДОГЧ ТҮЛХҮҮР ЗААВАЛ — `mobile.module.ts`-тэй ИЖИЛ.
+           *
+           * ⛔ БОДИТ АЛДАА (2026-09-10 тест): `bannerOrder` ганцаараа
+           *    байсан тул тэнцүү утгад (ихэнх нь 0) Postgres ДУРЫН
+           *    дараалал буцаадаг → вэб ба апп ижил кинонуудыг ӨӨР
+           *    дарааллаар харуулж байв (тестээр илэрсэн).
+           */
+          orderBy: [{ bannerOrder: 'asc' }, { createdAt: 'desc' }],
           /* ⚠️ 24 — үндсэн 8 + сайтын нэмэлт. Бүгдийг татаад JS-д шүүнэ. */
           take: 24,
           select: {
@@ -348,8 +356,10 @@ export class TitlesService {
         const ov = heroBy.get(b.id);
         return ov?.isBanner ?? b.isBanner;
       })
-      .map((b) => ({ b, order: heroBy.get(b.id)?.order ?? b.bannerOrder }))
-      .sort((a, b) => a.order - b.order)
+      /* ⚠️ `i` — DB-ийн буцаасан байрлал. Тэнцүү `order`-той үед
+         ТҮҮГЭЭР ялгана (`sort` тогтвортой ч тодорхой байх нь дээр). */
+      .map((b, i) => ({ b, i, order: heroBy.get(b.id)?.order ?? b.bannerOrder }))
+      .sort((a, b) => a.order - b.order || a.i - b.i)
       .slice(0, 8)
       .map((x) => x.b);
 
@@ -716,11 +726,23 @@ export class TitlesService {
         select: { titleId: true },
       }),
       this.prisma.titleGenre.count({ where: linkWhere }),
-      /* ⚠️ `site` ГАРААР — өргөтгөл nested filter-т нэмэхгүй */
-      this.prisma.titleSiteOrder.findMany({
-        where: { site: currentSite(), genre: { slug: genreSlug } },
-        select: { titleId: true, order: true },
-      }),
+      /**
+       * ⚠️ `site` ГАРААР — өргөтгөл nested filter-т нэмэхгүй.
+       * ⚠️⚠️ `genre: { slug }` ХЭРЭГЛЭЖ БОЛОХГҮЙ — `TitleSiteOrder`-т
+       *    `Genre` relation ЗОРИУДААР БАЙХГҮЙ (hero мөрийн
+       *    `genreId=''` нь жанр биш тул FK тавих боломжгүй).
+       *    Тиймээс жанрын id-г ЭХЛЭЭД олж, `genreId`-гээр шүүнэ.
+       */
+      this.prisma.genre
+        .findUnique({ where: { slug: genreSlug }, select: { id: true } })
+        .then((g) =>
+          g
+            ? this.prisma.titleSiteOrder.findMany({
+                where: { site: currentSite(), genreId: g.id },
+                select: { titleId: true, order: true },
+              })
+            : [],
+        ),
     ]);
 
     const orderBy = new Map(overrides.map((o) => [o.titleId, o.order]));
