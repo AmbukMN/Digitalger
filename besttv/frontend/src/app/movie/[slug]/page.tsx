@@ -122,7 +122,13 @@ export default async function TitleDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { data, notFound: missing } = await fetchTitle(slug);
+  /* ⚠️ Зэрэг татна — SEO нь киноноос хамааралгүй (`generateMetadata`
+     -тай ижил хэв маяг). `siteName` нь VideoObject schema-д хэрэгтэй. */
+  const [{ data, notFound: missing }, seo] = await Promise.all([
+    fetchTitle(slug),
+    getSiteSeo(),
+  ]);
+  const siteName = seo?.siteName || 'BestTV';
   const title = data as Record<string, any> | null;
 
   /**
@@ -236,7 +242,9 @@ export default async function TitleDetailPage({
                 '@type': 'VideoObject',
                 name: title.title,
                 description:
-                  title.description || `${title.title} — BestTV дээр онлайнаар үзэх`,
+                  /* ⚠️ Сайтын нэр динамик — BestFilm дээр «BestTV» гэж
+                     бичигдэж байсныг зассан (Google-д индексждэг). */
+                  title.description || `${title.title} — ${siteName} дээр онлайнаар үзэх`,
                 thumbnailUrl: [title.posterUrl, title.backdropUrl].filter(Boolean),
                 uploadDate: title.createdAt ?? new Date().toISOString(),
                 ...(title.duration ? { duration: `PT${title.duration}M` } : {}),

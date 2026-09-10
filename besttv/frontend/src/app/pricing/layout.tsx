@@ -6,7 +6,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata({
     path: '/pricing',
     title: 'Багцууд',
-    description: 'BestTV-ийн сарын, улирлын, жилийн багцууд — QPay-ээр хялбар төлбөр.',
+    description: '{site}-ийн сарын, улирлын, жилийн багцууд — QPay-ээр хялбар төлбөр.',
   });
 }
 

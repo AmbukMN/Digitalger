@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { cn } from '@besttv/shared';
 import { ErrorState } from '@besttv/shared/ui';
-import { useHome, useHomeBanners, usePromotionBanners, type HomeData } from '@/lib/queries';
+import { type HomeData, useBrand, useHome, useHomeBanners, usePromotionBanners } from '@/lib/queries';
 import { HeroBanner } from '@/components/hero-banner';
 import { TitleRow } from '@/components/title-row';
 import { HomeBannerStrip } from '@/components/home-banner-strip';
@@ -15,6 +15,10 @@ import { HomeSkeleton } from '@/components/home-skeleton';
 import { api } from '@/lib/api';
 
 export function HomeClient({ initial }: { initial?: HomeData }) {
+  /* ⚠️ Сайтын нэр — h1/SEO-д hardcode «BestTV» байсныг зассан */
+  const { data: brand } = useBrand();
+  const siteName = brand?.siteName ?? 'BestTV';
+
   const { data, isLoading, isError, refetch } = useHome(initial);
   /**
    * ⚠️ Баннер нь нүүрний датанаас ТУСДАА — ачаалагдаагүй ч хуудас
@@ -122,8 +126,10 @@ export function HomeClient({ initial }: { initial?: HomeData }) {
         ⚠️ `sr-only` — hero нь өөрийн визуал гарчигтай тул давхардуулж
         харуулбал дизайн эвдэрнэ; скрин ридер болон хайлтын систем уншина.
       */}
+      {/* ⚠️ Сайтын нэр динамик — BestFilm дээр «BestTV» гэж
+          индексжиж байсныг зассан (h1 нь SEO-д хамгийн жинтэй) */}
       <h1 className="sr-only">
-        BestTV — Монгол кино, цуврал онлайнаар үзэх
+        {siteName} — Монгол кино, цуврал онлайнаар үзэх
       </h1>
       <HeroBanner banners={data.banners} />
 

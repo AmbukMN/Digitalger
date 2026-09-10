@@ -478,10 +478,26 @@ class PromotionsAdminService {
       _count: { id: true },
     });
 
-    /* ⚠️ Урамшуулалтай төлбөрийн НИЙТ орлого — «хэдэн төгрөг авчирсан» */
+    /**
+     * ⚠️ Урамшуулалтай төлбөрийн НИЙТ орлого — «хэдэн төгрөг авчирсан»
+     *
+     * ⚠️⚠️ `isWalletTopup: false` — ХЭТЭВЧ ЦЭНЭГЛЭЛТИЙГ ХАСНА.
+     *
+     * ⛔ Энэ шүүлт ДУТУУ байсан. Топапын БОНУС урамшуулал нь
+     *    (`payments.service.ts` дэх топапын урамшуулал) `promotionId`
+     *    -тэй холбогддог тул топапын Payment мөр `PromotionRedemption`
+     *    -д орж, орлогод ДАВХАР тоологдож байв:
+     *      · цэнэглэсэн 20,000₮ → энд тоологдоно
+     *      · тэр 20,000₮-өөр багц авсан → БАС тоологдоно
+     *    ⇒ урамшуулал 2 дахин үр дүнтэй мэт харагдана.
+     *
+     * ⚠️ Бусад бүх орлогын тооцоо (`analytics`, `insights`, `plans`)
+     *    топапыг хасдаг — энэ нь тэдгээртэй НИЙЦЭХ ёстой.
+     */
     const revenue = await this.prisma.payment.aggregate({
       where: {
         status: 'PAID',
+        isWalletTopup: false,
         id: {
           in: (
             await this.prisma.promotionRedemption.findMany({

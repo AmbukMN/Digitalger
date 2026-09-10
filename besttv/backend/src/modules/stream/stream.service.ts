@@ -866,8 +866,14 @@ export class StreamService {
     } else {
       const t = await this.prisma.title.findUnique({
         where: { id },
-        select: { videoKey: true, trailerKey: true },
+        /* ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+           Энэ бол ВИДЕО УРСГАХ зам: `select`-д `sites` байхгүй бол
+           post-filter алгасагдаж, нөгөө сайтын киног id-гаар нь
+           урсгаж болно. */
+        select: { videoKey: true, trailerKey: true, sites: true },
       });
+      /* ⚠️ FAIL-CLOSED: тухайн сайтад нийтлээгүй бол 404 */
+      if (t) assertTitleOnSite(t.sites, 'Видео олдсонгүй');
       key = kind === 'trailer' ? (t?.trailerKey ?? null) : (t?.videoKey ?? null);
     }
     if (!key) throw new NotFoundException('Видео олдсонгүй');

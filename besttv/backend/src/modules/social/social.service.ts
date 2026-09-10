@@ -587,10 +587,31 @@ export class SocialService {
   async get(id: string) {
     const post = await this.prisma.socialPost.findUnique({
       where: { id },
-      include: { targets: true, title: { select: {
-        id: true, title: true, slug: true } } },
+      /**
+       * ⚠️⚠️ `site: true` ЗААВАЛ — `socialPost` бол SCOPED модел.
+       *
+       * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ: `site-extension` нь `findUnique`-ийн
+       *    `where`-д шүүлт НЭМДЭГГҮЙ (unique түлхүүр эвдэрнэ).
+       *    Оронд нь ҮР ДҮНГ post-filter хийдэг боловч `select`/
+       *    `include`-д `site` байхгүй бол `undefined` ирж шалгалт
+       *    БҮХЭЛДЭЭ алгасагдана (FAIL-OPEN).
+       *
+       * ⚠️ Үүнгүйгээр BestFilm-ийн админ BestTV-ийн нийтлэлийн id
+       *    мэдэж байвал агуулгыг нь бүтнээр уншина.
+       */
+      include: {
+        targets: true,
+        title: { select: { id: true, title: true, slug: true } },
+      },
     });
-    if (!post) throw new NotFoundException('Пост олдсонгүй');
+    /**
+     * ⚠️ FAIL-CLOSED: өөр сайтынх бол ОГТ БАЙХГҮЙ мэт хандана.
+     * ⚠️ `assertSameSite(model, id)` нь `findFirst`-ээр ДАХИН уншдаг —
+     *    энд `site`-ыг аль хэдийн авсан тул шууд харьцуулах нь хурдан.
+     */
+    if (!post || post.site !== currentSite()) {
+      throw new NotFoundException('Пост олдсонгүй');
+    }
     return {
       ...post,
       mediaUrls: await Promise.all(

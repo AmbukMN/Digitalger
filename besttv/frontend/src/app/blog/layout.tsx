@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
     path: '/blog',
     title: 'Мэдээ & Нийтлэл',
     description:
-      'Монголын кино урлагийн мэдээ, шинэ нээлт, ярилцлага, зөвлөмж — BestTV блог.',
+      'Монголын кино урлагийн мэдээ, шинэ нээлт, ярилцлага, зөвлөмж — {site} блог.',
   });
 }
 

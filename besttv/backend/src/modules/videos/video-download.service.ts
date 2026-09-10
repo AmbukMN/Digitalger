@@ -8,6 +8,8 @@ import type { Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { CacheService } from '../../common/cache/cache.service';
+/* ⚠️ Сайтын шүүлт fail-closed болгоход (ВИДЕО ТАТАХ зам) */
+import { assertTitleOnSite } from '../../common/site/site-guard';
 
 /**
  * АДМИН — БАЙРШУУЛСАН ВИДЕОГ ТАТАЖ АВАХ.
@@ -130,8 +132,13 @@ export class VideoDownloadService {
     if (kind === 'movie') {
       const t = await this.prisma.title.findUnique({
         where: { id },
-        select: { id: true, title: true, videoKey: true, durationSec: true },
+        /* ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+           Энэ бол ВИДЕО ТАТАХ зам: `select`-д `sites` байхгүй бол
+           post-filter алгасагдаж, нөгөө сайтын киног татаж болно. */
+        select: { id: true, title: true, videoKey: true, durationSec: true, sites: true },
       });
+      /* ⚠️ FAIL-CLOSED: тухайн сайтад нийтлээгүй бол 404 */
+      if (t) assertTitleOnSite(t.sites, 'Видео олдсонгүй');
       if (!t?.videoKey) throw new NotFoundException('Видео олдсонгүй');
       return { name: t.title, videoKey: t.videoKey, durationSec: t.durationSec ?? 0 };
     }

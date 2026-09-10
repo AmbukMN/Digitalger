@@ -3,6 +3,8 @@ import { ubRangeStart } from '../../common/ub-date';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { currentSite } from '../../common/site/site-context';
+/* ⚠️ Бүх сайтын домэйн — referrer «Дотоод» эсэхийг таних */
+import { SITE_DOMAIN } from '../../common/site/site.constants';
 
 /** Хугацааны сонголт — dashboard-тай ижил */
 /** ⚠️ AnalyticsService-ийн RANGE_DAYS-тэй ЯГ ИЖИЛ байх ёстой */
@@ -302,7 +304,19 @@ export class InsightsService {
     if (!ref) return 'Шууд';
     try {
       const host = new URL(ref).hostname.replace(/^www\./, '');
-      if (host.includes('besttv')) return 'Дотоод';
+      /**
+       * ⚠️ «Дотоод» — БҮХ САЙТЫН домэйнийг хамруулна.
+       *
+       * ⛔ Өмнө нь `besttv` гэж ганц нэрээр шалгадаг байсан тул
+       *    `bestfilm.net`-ээс ирсэн дотоод шилжилт «Дотоод» гэж
+       *    танигдахгүй, домэйн нэрээрээ тусдаа мөр болж гарч байв.
+       * ⚠️ `SITE_DOMAIN` нь нэг эх сурвалж — шинэ сайт нэмэхэд
+       *    энд юу ч засах шаардлагагүй.
+       */
+      const internal = Object.values(SITE_DOMAIN).some(
+        (d) => host === d || host.endsWith(`.${d}`),
+      );
+      if (internal) return 'Дотоод';
       if (host.includes('google')) return 'Google';
       if (host.includes('facebook') || host.includes('fb.')) return 'Facebook';
       if (host.includes('instagram')) return 'Instagram';

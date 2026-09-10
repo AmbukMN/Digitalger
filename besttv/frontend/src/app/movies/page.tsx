@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
     path: '/movies',
     title: 'Бүх Кинонууд',
     description:
-      'Таны үзэх дуртай бүх төрлийн кино — BestTV дээр эрэлттэй, шинэ бүгд.',
+      'Таны үзэх дуртай бүх төрлийн кино — {site} дээр эрэлттэй, шинэ бүгд.',
   });
 }
 

@@ -18,18 +18,7 @@ import { toast } from 'sonner';
 import { cn } from '@besttv/shared';
 import { useConfirm } from '@besttv/shared/ui';
 import { useAuth } from '@/lib/auth-store';
-import {
-  useDeleteReview,
-  useMyReview,
-  useReplyReview,
-  useReportReview,
-  useReviewStats,
-  useReviews,
-  useSubmitReview,
-  useVoteReview,
-  type Review,
-  type ReviewSort,
-} from '@/lib/queries';
+import { type Review, type ReviewSort, useBrand, useDeleteReview, useMyReview, useReplyReview, useReportReview, useReviewStats, useReviews, useSubmitReview, useVoteReview } from '@/lib/queries';
 import { loginUrl } from '@/lib/auth-intent';
 
 const SORT_LABELS: { value: ReviewSort; label: string }[] = [
@@ -443,6 +432,13 @@ function ReviewCard({
   onReportById: (reviewId: string, reason: string) => Promise<void>;
   isReply?: boolean;
 }) {
+  /**
+   * ⚠️ Албан ёсны сэтгэгдлийн шошго — BestFilm дээр «BestTV баг»
+   *    гэж бичигдэж байсныг сайтын нэрээр сольсон.
+   */
+  const { data: brand } = useBrand();
+  const siteName = brand?.siteName ?? 'BestTV';
+
   const [spoilerShown, setSpoilerShown] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -493,7 +489,7 @@ function ReviewCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-foreground/90">
-              {r.isStaff ? 'BestTV баг' : (r.user?.name ?? 'Хэрэглэгч')}
+              {r.isStaff ? `${siteName} баг` : (r.user?.name ?? 'Хэрэглэгч')}
             </p>
             {isMine && (
               <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] text-foreground/50">Та</span>

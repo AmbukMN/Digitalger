@@ -18,6 +18,8 @@ import { chatApi, type ChatTitleCard } from '@/lib/chat-api';
 import { CURRENT_SITE } from '@/lib/site';
 import { useAuth } from '@/lib/auth-store';
 import { useChatUi } from '@/store/chat-ui';
+/* ⚠️ Сайтын нэр — BestFilm дээр «BestTV» гэж бичигдэхгүй */
+import { useBrand } from '@/lib/queries';
 
 const STORAGE_SESSION = 'btv-chat-session';
 const STORAGE_HISTORY = 'btv-chat-history';
@@ -34,11 +36,23 @@ interface ChatMessage {
   linkPreview?: ChatLinkPreview | null;
 }
 
-const WELCOME: ChatMessage = {
+/**
+ * ⚠️⚠️ САЙТЫН НЭРИЙГ ДИНАМИКААР — BestFilm-д «BestTV» гэж БИЧИГДЭХГҮЙ.
+ *
+ * ⛔ Өмнө нь модулийн түвшний тогтмол байсан тул «Би BestTV-ийн AI
+ *    туслах» гэсэн текст BestFilm дээр Ч гарч байв — чат нээх бүрд
+ *    хэрэглэгчийн харах ЭХНИЙ мессеж тул хамгийн их анзаарагддаг.
+ *
+ * ⚠️ Энэ файлын бусад газар (`aria-label`, толгой, доод бичээс) ч
+ *    ижил hardcode байсан — бүгдийг `siteName`-аар сольсон.
+ * ⚠️ `footer.tsx`/`navbar.tsx` нь аль хэдийн `brand?.siteName`
+ *    ашигладаг байсан — энэ файл л тууштай биш байв.
+ */
+const welcomeMessage = (siteName: string): ChatMessage => ({
   id: 'welcome',
   role: 'bot',
-  text: 'Сайн байна уу! 👋 Би BestTV-ийн AI туслах. Кино хайх, багц сонгох, төлбөрийн талаар асуугаарай.',
-};
+  text: `Сайн байна уу! 👋 Би ${siteName}-ийн AI туслах. Кино хайх, багц сонгох, төлбөрийн талаар асуугаарай.`,
+});
 
 /**
  * Төхөөрөмж бүрд тогтмол sessionId — n8n санах ой яриаг сэргээнэ.
@@ -183,12 +197,41 @@ function TitleCarousel({ titles }: { titles: ChatTitleCard[] }) {
 }
 
 export function ChatWidget() {
+  /**
+   * ⚠️ Сайтын нэр — BestTV/BestFilm аль нь болохыг админ тохиргооноос.
+   * ⚠️ `?? 'BestTV'` нь зөвхөн brand ачаалагдаагүй үеийн fallback
+   *    (`footer.tsx`, `navbar.tsx`-тай ИЖИЛ хэв маяг).
+   */
+  const { data: brand } = useBrand();
+  const siteName = brand?.siteName ?? 'BestTV';
+
   const [open, setOpen] = useState(false);
   const [handedOff, setHandedOff] = useState(false);
   const [unreadAdmin, setUnreadAdmin] = useState(0);
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  /* ⚠️ Эхний утга — brand ачаалагдмагц доорх `useEffect` шинэчилнэ */
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    welcomeMessage(siteName),
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  /**
+   * ⚠️⚠️ BRAND ХОЙШ ИРЭХЭД мэндчилгээг ШИНЭЧИЛНЭ.
+   *
+   * `useBrand` нь сүлжээний query тул анхны render дээр `undefined` —
+   * тэр үед fallback «BestTV» бичигдэнэ. BestFilm дээр хэрэглэгч
+   * агшин зуур буруу нэр хараад дараа нь засагдвал эвгүй.
+   *
+   * ⚠️ ЗӨВХӨН мэндчилгээ ганцаараа байх үед сольно — хэрэглэгч
+   *    ярьж эхэлсэн бол ярианы түүхийг ХӨНДӨХГҮЙ.
+   */
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.length === 1 && prev[0].id === 'welcome'
+        ? [welcomeMessage(siteName)]
+        : prev,
+    );
+  }, [siteName]);
 
   const user = useAuth((s) => s.user);
   const openSignal = useChatUi((s) => s.openSignal);
@@ -479,7 +522,7 @@ export function ChatWidget() {
   };
 
   const resetChat = () => {
-    setMessages([WELCOME]);
+    setMessages([welcomeMessage(siteName)]);
     try {
       localStorage.removeItem(STORAGE_HISTORY);
     } catch {
@@ -585,7 +628,7 @@ export function ChatWidget() {
           <motion.div
             role="dialog"
             aria-modal="false"
-            aria-label="BestTV AI туслах"
+            aria-label={`${siteName} AI туслах`}
             initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
@@ -599,7 +642,7 @@ export function ChatWidget() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold leading-tight">
-                  {handedOff ? 'BestTV Багийн гишүүн' : 'BestTV AI'}
+                  {handedOff ? `${siteName} Багийн гишүүн` : `${siteName} AI`}
                 </p>
                 <p className="flex items-center gap-1 text-[11px] text-foreground/80">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
@@ -723,7 +766,7 @@ export function ChatWidget() {
                 </button>
               </form>
               <p className="mt-1.5 text-center text-[10px] text-foreground/30">
-                BestTV AI — кино сонгоход тусална
+                {siteName} AI — кино сонгоход тусална
               </p>
             </div>
           </motion.div>

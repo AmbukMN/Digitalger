@@ -13,7 +13,8 @@ import {
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
-import { Role, WalletTxType } from '@prisma/client';
+/* ⚠️ `PaymentStatus` — хэтэвчээр төлсөн түрээсийн `Payment` мөрд */
+import { PaymentStatus, Role, WalletTxType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -24,8 +25,11 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { assertTitleOnSite } from '../../common/site/site-guard';
 import { TitleMediaHelper } from '../titles/title-media.helper';
 import { EmailService } from '../email/email.service';
+/* ⚠️ Meta Conversions API — хэтэвчийн түрээсийн Purchase үйл явдалд */
+import { MetaCapiService } from '../analytics/meta-capi.service';
 import { WalletModule } from '../wallet/wallet.module';
 import { TitlesModule } from '../titles/titles.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { siteKey } from '../../common/site/site-settings-key';
 
 /** Сайтын нийтлэг тохиргоо (Settings.key = 'rent') */
@@ -90,6 +94,9 @@ export class RentalsService {
     private readonly subs: SubscriptionsService,
     private readonly media: TitleMediaHelper,
     private readonly email: EmailService,
+    /* ⚠️ Meta Purchase — хэтэвчийн зам `completePayment`-ыг ТОЙРДОГ
+       тул CAPI-г ЭНД шууд дуудна (доорх `rentWithWallet`-ыг үз) */
+    private readonly capi: MetaCapiService,
   ) {}
 
   /** Сайтын нийтлэг түрээсийн тохиргоо */
@@ -254,18 +261,60 @@ export class RentalsService {
       });
       if (dup) return { ...dup, duplicate: true as const };
 
+      /**
+       * ⚠️⚠️ ХЭТЭВЧЭЭР ТӨЛСӨН ТҮРЭЭСЭД Ч `Payment` МӨР ЗААВАЛ.
+       *
+       * ⛔ БОДИТ АЛДАА (2026-09-10): BestFilm-ийн хянах самбар «Бодит
+       *    орлого 0₮» гэж харуулж байсан ч хэрэглэгч 4,900₮ цэнэглээд
+       *    кино түрээслэсэн байв.
+       *
+       * ⚠️ ШАЛТГААН: хэтэвчээр түрээслэхэд `WalletTransaction` +
+       *    `Rental` л үүсэж, `Payment` мөр ОГТ үүсдэггүй байв. Гэтэл
+       *    орлогын тооцоо нь `Payment(isWalletTopup=false)`-оос
+       *    гардаг тул тэр мөнгө ХААНА Ч тоологдохгүй:
+       *      · топап нь `isWalletTopup=true` → орлогоос хасагдана
+       *        (давхар тооллоос сэргийлэх нь ЗӨВ)
+       *      · зарцуулалт нь `Payment`-гүй → орлогод ОРОХГҮЙ
+       *    ⇒ 128 түрээс / 622,300₮ хаана ч харагдахгүй байсан.
+       *
+       * ⚠️ БАГЦЫГ хэтэвчээр авахад (`payments.service.ts`) `Payment`
+       *    үүсдэг — түрээс нь ЗӨВХӨН ЭНД орхигдсон байв. Хоёр зам
+       *    ИЖИЛ байх ёстой ([[feedback_backend_frontend_sync]]).
+       *
+       * ⚠️ `isWalletTopup` нь өгөгдмөл `false` — энэ бол ЗАРЦУУЛАЛТ,
+       *    цэнэглэлт БИШ. `qpayInvoiceId`/`bonumInvoiceId` хоосон тул
+       *    админ UI-д `provider = WALLET` гэж зөв badge гарна.
+       *
+       * ⚠️ 0₮ түрээсэд (үнэгүй кино/100% хямдрал) ч мөр үүсгэнэ —
+       *    гүйлгээний түүх бүрэн байх нь чухал.
+       */
+      const p = await tx.payment.create({
+        data: {
+          userId,
+          rentalTitleId: titleId,
+          amount: info.price,
+          status: PaymentStatus.PAID,
+          paidAt: new Date(),
+        },
+      });
+
       if (info.price > 0) {
         await this.wallet.applyTransaction({
           userId,
           type: WalletTxType.PURCHASE,
           amount: -info.price,
           description: `Түрээс: ${info.titleName} (${info.hours}ц)`,
+          /* ⚠️ `paymentId` — хэтэвчийн түүхээс төлбөр рүү холбогдоно
+             (багцын зам ижилхэн хийдэг) */
+          paymentId: p.id,
           tx,
         });
       }
 
       const r = await tx.rental.create({
-        data: { userId, titleId, amount: info.price, expiresAt },
+        /* ⚠️ `paymentId` — Rental↔Payment холбоос. `@unique` тул нэг
+           төлбөр нэг л түрээс үүсгэнэ (давхардлын хамгаалалт). */
+        data: { userId, titleId, amount: info.price, expiresAt, paymentId: p.id },
       });
       return { ...r, duplicate: false as const };
     });
@@ -280,7 +329,12 @@ export class RentalsService {
       this.prisma.user.findUnique({ where: { id: userId }, select: {
         /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
         site: true, email: true, name: true } }),
-      this.prisma.title.findUnique({ where: { id: titleId }, select: { slug: true } }),
+      this.prisma.title.findUnique({
+        where: { id: titleId },
+        /* ⚠️ `sites` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ
+           (`select`-д байхгүй бол шүүлт ЧИМЭЭГҮЙ алгасагдана) */
+        select: { slug: true, sites: true },
+      }),
     ]);
     if (renter && title) {
       this.email.sendRentalConfirmation({
@@ -292,6 +346,32 @@ export class RentalsService {
         expiresAt,
         hours: info.hours,
         userId,
+      });
+    }
+
+    /**
+     * ⚠️⚠️ META PURCHASE — ХЭТЭВЧИЙН ЗАМ CAPI-Г ТОЙРДОГ БАЙВ.
+     *
+     * ⛔ Хэтэвчээр түрээслэх нь `completePayment`-ыг дууддаггүй
+     *    (өөрийн транзакц дотор шууд PAID бичдэг) тул тэнд байдаг
+     *    CAPI дуудлага ОГТ ажилладаггүй байв.
+     *
+     * ⚠️ Багцын хэтэвчийн зам (`payments.service.ts`) энэ засварыг
+     *    аль хэдийн хийсэн, QPay-ийн түрээсийн зам ч дууддаг —
+     *    ЗӨВХӨН хэтэвчийн ТҮРЭЭС орхигдсон байв. Үр дүнд Meta-гийн
+     *    зар оновчлол дутуу датагаар суралцана.
+     *
+     * ⚠️ `eventId` нь `payment.id` — QPay замтай ИЖИЛ хэлбэр тул
+     *    browser болон server үйл явдал давхардахгүй (dedup).
+     * ⚠️ `await` ХИЙХГҮЙ — Meta унасан ч түрээс амжилттай хэвээр.
+     */
+    if (rental.paymentId && info.price > 0) {
+      void this.capi.purchase({
+        eventId: rental.paymentId,
+        email: renter?.email,
+        value: info.price,
+        contentName: info.titleName,
+        kind: 'rental',
       });
     }
 
@@ -458,7 +538,9 @@ export class RentalsAdminController {
 @Module({
   // ⚠️ WalletService, TitleMediaHelper нь өөр модулиудын export — imports-гүй
   // бол DI унана. SubscriptionsModule нь @Global() тул import шаардлагагүй.
-  imports: [WalletModule, TitlesModule],
+  /* ⚠️ AnalyticsModule нь `MetaCapiService`-ыг export хийдэг —
+     Global БИШ тул ЗААВАЛ import (эс бөгөөс DI унана). */
+  imports: [WalletModule, TitlesModule, AnalyticsModule],
   controllers: [RentalsController, RentalsAdminController],
   providers: [RentalsService],
   exports: [RentalsService],

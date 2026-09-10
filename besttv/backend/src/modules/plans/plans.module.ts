@@ -130,7 +130,26 @@ export class PlansService {
       this.prisma.plan.findMany({ orderBy: { order: 'asc' }, include: PLAN_INCLUDE }),
       this.prisma.payment.groupBy({
         by: ['planId'],
-        where: { status: PaymentStatus.PAID, planId: { not: null } },
+        /**
+         * ⚠️⚠️ `isWalletTopup: false` — ХЭТЭВЧ ЦЭНЭГЛЭЛТИЙГ ХАСНА.
+         *
+         * ⛔ Энэ шүүлт ДУТУУ байсан. Бусад бүх орлогын тооцоо
+         *    (`analytics.module.ts`, `insights.service.ts`) нь топапыг
+         *    хасдаг тул энэ хуудасны `revenue` тэдгээртэй ЗӨРНӨ —
+         *    админ хоёр хуудсанд өөр тоо хараад аль нь үнэн болохыг
+         *    мэдэхгүй болно.
+         *
+         * ⚠️ Топап нь `planId`-тай холбогдож БОЛНО: `bank.module.ts`
+         *    -ийн `createPending` нь `planId` ба `isWalletTopup` хоёрыг
+         *    ТУСДАА параметрээр авдаг тул хоёулаа зэрэг өгөгдөх зам
+         *    бүтцийн хувьд нээлттэй. Тэр үед багц ДАВХАР тоологдоно
+         *    (цэнэглэлт + багц авалт).
+         */
+        where: {
+          status: PaymentStatus.PAID,
+          planId: { not: null },
+          isWalletTopup: false,
+        },
         _count: { _all: true },
         _sum: { amount: true },
       }),

@@ -147,6 +147,21 @@ export class DailyReportService implements OnModuleDestroy {
             where: { updatedAt: { gte: start, lt: end } },
           })
           .then((r) => r.length),
+        /**
+         * ⚠️⚠️ ХУРИМТЛАГДСАН тоо — ЗОРИУДЫН, огноогоор шүүхгүй.
+         *
+         * Бусад бүх үзүүлэлт өчигдрийн (`gte: start, lt: end`) атал
+         * энэ нь БҮХ ЦАГИЙН хүлээгдэж буй дансны төлбөр.
+         *
+         * ⚠️ ЯАГААД: энэ бол «өчигдөр хэдэн ширхэг ирсэн бэ» гэсэн
+         *    ТАЙЛАН биш, «яг одоо хэдэн ширхэг ГАРААР баталгаажуулах
+         *    хүлээж байна» гэсэн АЖЛЫН ЖАГСААЛТ. 3 хоногийн өмнөх
+         *    хүлээгдэж буй төлбөр өнөөдөр ч анхаарал шаардана.
+         *
+         * ⚠️ Талбарын нэр `pendingBankCount` — «өчигдрийн» гэсэн утга
+         *    агуулаагүй тул Telegram загварт «нийт хүлээгдэж буй» гэж
+         *    бичих ёстой (эс бөгөөс өдрийн тоо гэж уншигдана).
+         */
         this.prisma.payment.count({
           where: { status: 'PENDING', bankReference: { not: null } },
         }),
@@ -155,8 +170,10 @@ export class DailyReportService implements OnModuleDestroy {
     let planRevenue = 0;
     let rentalRevenue = 0;
     let topupRevenue = 0;
+    let otherRevenue = 0;
     let planCount = 0;
     let rentalCount = 0;
+    let otherCount = 0;
     const planTally = new Map<string, number>();
 
     for (const p of payments) {
@@ -170,6 +187,25 @@ export class DailyReportService implements OnModuleDestroy {
         planCount++;
         const n = p.plan?.name ?? 'Тодорхойгүй';
         planTally.set(n, (planTally.get(n) ?? 0) + 1);
+      } else {
+        /**
+         * ⚠️⚠️ АЛЬ Ч АНГИЛАЛД ОРООГҮЙ ТӨЛБӨР — ЧИМЭЭГҮЙ АЛГА БОЛЖ БАЙВ.
+         *
+         * ⛔ Өмнө нь энэ салаа БАЙХГҮЙ байсан тул `planId` ч,
+         *    `rentalTitleId` ч байхгүй PAID мөр Telegram-ын өдрийн
+         *    тайланд ОГТ тоологдохгүй өнгөрдөг байв.
+         *
+         * ⚠️ Ийм мөр БОДИТООР үүсдэг:
+         *    · `plans.module.ts` дэх багц устгах үед
+         *      `payment.updateMany({ data: { planId: null } })` —
+         *      багц устгахад БҮХ төлбөрийн `planId` NULL болно
+         *    · админ гараар PAID болгосон төлбөр
+         *
+         * ⚠️ Нийлбэр ЗӨРВӨЛ шалтгааныг нь мэдэх нь чухал тул тусад нь
+         *    харуулна — чимээгүй алдагдахаас хамаагүй дээр.
+         */
+        otherRevenue += p.amount;
+        otherCount++;
       }
     }
 
@@ -196,12 +232,16 @@ export class DailyReportService implements OnModuleDestroy {
       /* ⚠️⚠️ ӨЧИГДРИЙН огноо — тайлан 00:05-д ажилладаг тул
          `dayKey()` (өнөөдөр) бол дата ба гарчиг ЗӨРНӨ. */
       date: this.dayKey(-1),
-      /* ⚠️ Орлого = багц + түрээс (ТОПАП ХАСНА — давхар тооцоо болно).
-         Топапыг тусдаа `topupRevenue`-д мэдээлэл болгож харуулна. */
-      totalRevenue: planRevenue + rentalRevenue,
+      /* ⚠️ Орлого = багц + түрээс + бусад (ТОПАП ХАСНА — давхар
+         тооцоо болно). Топапыг тусдаа `topupRevenue`-д харуулна.
+         ⚠️ `otherRevenue` нь ангилалгүй PAID мөр — өмнө нь чимээгүй
+         алдагддаг байсныг нийлбэрт ЗААВАЛ оруулна. */
+      totalRevenue: planRevenue + rentalRevenue + otherRevenue,
       planRevenue,
       rentalRevenue,
       topupRevenue,
+      otherRevenue,
+      otherCount,
       planCount,
       rentalCount,
       prevRevenue: prevPayments._sum.amount ?? 0,
@@ -214,7 +254,9 @@ export class DailyReportService implements OnModuleDestroy {
     });
 
     this.logger.log(
-      `Өдрийн тайлан илгээв: ${planRevenue + rentalRevenue}₮ орлого (+${topupRevenue}₮ топап) · ${planCount} багц · ${rentalCount} түрээс`,
+      `Өдрийн тайлан илгээв: ${planRevenue + rentalRevenue + otherRevenue}₮ орлого ` +
+        `(+${topupRevenue}₮ топап) · ${planCount} багц · ${rentalCount} түрээс` +
+        (otherCount ? ` · ${otherCount} ангилалгүй (${otherRevenue}₮)` : ''),
     );
   }
 }

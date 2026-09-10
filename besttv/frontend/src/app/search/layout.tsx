@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const meta = await buildPageMetadata({
     path: '/search',
     title: 'Хайлт',
-    description: 'BestTV дээрх кино, цуврал хайх.',
+    description: '{site} дээрх кино, цуврал хайх.',
   });
   return { ...meta, robots: { index: false, follow: true } };
 }

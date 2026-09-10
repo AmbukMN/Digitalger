@@ -47,11 +47,22 @@ export interface BankTransferEvent {
 
 export interface DailyReportEvent {
   date: string;
-  /** ₮ — багц + түрээс + цэнэглэлт нийлбэр */
+  /** ₮ — багц + түрээс + бусад (ТОПАП ОРОХГҮЙ — давхар тооцоо) */
   totalRevenue: number;
   planRevenue: number;
   rentalRevenue: number;
   topupRevenue: number;
+  /**
+   * ₮ — багц ч, түрээс ч биш PAID төлбөр.
+   *
+   * ⚠️ Ихэвчлэн 0. Тэгээс ялгаатай бол шалтгааныг шалга:
+   *  · багц устгахад `planId` NULL болсон хуучин төлбөр
+   *  · админ гараар PAID болгосон мөр
+   * ⛔ Өмнө нь энэ ангилал БАЙХГҮЙ байсан тул ийм мөр тайлангаас
+   *    ЧИМЭЭГҮЙ алга болдог байв.
+   */
+  otherRevenue: number;
+  otherCount: number;
   planCount: number;
   rentalCount: number;
   /** Өмнөх өдрийн орлого — өсөлт/бууралт харуулахад */
@@ -61,7 +72,11 @@ export interface DailyReportEvent {
   activeUserCount: number;
   topPlan: { name: string; count: number } | null;
   topTitle: { name: string; views: number } | null;
-  /** Баталгаажуулах хүлээж буй дансны төлбөр */
+  /**
+   * Баталгаажуулах хүлээж буй дансны төлбөр.
+   * ⚠️ ХУРИМТЛАГДСАН тоо (өчигдрийнх БИШ) — «яг одоо хэдэн ширхэг
+   * гараар баталгаажуулах хүлээж байна» гэсэн ажлын жагсаалт.
+   */
   pendingBankCount: number;
 }
 

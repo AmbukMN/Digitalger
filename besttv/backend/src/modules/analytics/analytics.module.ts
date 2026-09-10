@@ -350,10 +350,29 @@ export class AnalyticsService {
         _sum: { amount: true },
         _count: true,
       }),
-      /* ⚠️ Хэтэвчээр төлсөн = гурвуулаа NULL. Энэ нь ШИНЭ мөнгө БИШ
-         (өмнө нь цэнэглэсэн) — админд ялгаж харуулах нь чухал. */
+      /**
+       * ⚠️ Хэтэвчээр төлсөн = нэхэмжлэлийн ID гурвуулаа NULL. Энэ нь
+       *    ШИНЭ мөнгө БИШ (өмнө нь цэнэглэсэн) — админд ялгаж
+       *    харуулах нь чухал.
+       *
+       * ⚠️⚠️ `amount: { gt: 0 }` — 0₮ ТӨЛБӨРИЙГ ХАСНА.
+       *
+       * ⛔ Гурван ID нь NULL байх өөр НЭГ тохиолдол бий:
+       *    100% купон/үнэгүй багц (`payments.service.ts` дэх
+       *    `freePayment`) — тэнд мөнгө ОГТ хөдлөөгүй атал «Хэтэвч»
+       *    гэж ХУДАЛ ангилагдана. Хэтэвчнээс юу ч хасагдаагүй тул
+       *    админ «хэтэвчээр X төлсөн» гэж буруу ойлгоно.
+       *
+       * ⚠️ 0₮ мөр нь `_sum`-д нөлөөлөхгүй ч `_count`-ыг хөөрөгдөнө.
+       */
       this.prisma.payment.aggregate({
-        where: { ...base, qpayInvoiceId: null, bonumInvoiceId: null, bankReference: null },
+        where: {
+          ...base,
+          qpayInvoiceId: null,
+          bonumInvoiceId: null,
+          bankReference: null,
+          amount: { gt: 0 },
+        },
         _sum: { amount: true },
         _count: true,
       }),

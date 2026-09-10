@@ -158,8 +158,26 @@ export async function buildPageMetadata(opts: {
   /* ⚠️ Зэрэг татна — дараалуулбал хуудас 2 дахин удаан рендерлэнэ */
   const [o, seo] = await Promise.all([getSeoOverride(opts.path), getSiteSeo()]);
 
-  const title = o?.title || opts.title;
-  const description = o?.description || opts.description;
+  /**
+   * ⚠️⚠️ `{site}` PLACEHOLDER — hardcode «BestTV»-г арилгах арга.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-10): олон хуудасны `description`-д
+   *    «BestTV» гэж ХАТУУ бичигдсэн байсан тул BestFilm дээр буруу
+   *    брэнд Google-д индексжиж байв (blog, faq, movies, pricing,
+   *    search…).
+   *
+   * ⚠️ Дуудагч тал `{site}` гэж бичвэл энд сайтын нэрээр солигдоно.
+   *    Ингэснээр хуудас бүрд `getSiteSeo()` дуудах шаардлагагүй —
+   *    энэ функц аль хэдийн татсан `seo`-г дахин ашиглана.
+   *
+   * ⚠️ Админы override текстэд ч үйлчилнэ (админ `{site}` бичиж
+   *    болно) — нэг эх сурвалж.
+   */
+  const siteName = seo?.siteName || FALLBACK_SITE_NAME;
+  const fillSite = (v: string) => v.split('{site}').join(siteName);
+
+  const title = fillSite(o?.title || opts.title);
+  const description = fillSite(o?.description || opts.description);
   /* Эрэмбэ: хуудасны админ override → хуудасны өөрийн зураг →
      САЙТЫН админ og зураг → кодын динамик зураг */
   const ogImage = o?.ogImageUrl || opts.ogImage || seo?.ogImageUrl || FALLBACK_OG;
@@ -176,7 +194,7 @@ export async function buildPageMetadata(opts: {
       title,
       description,
       url,
-      siteName: seo?.siteName || FALLBACK_SITE_NAME,
+      siteName,
       type: 'website',
       locale: 'mn_MN',
       ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: title }] } : {}),

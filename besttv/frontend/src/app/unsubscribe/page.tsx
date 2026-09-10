@@ -21,6 +21,16 @@ import { useBrand } from '@/lib/queries';
  *     → эцэст нь БҮХ имэйл (нууц үг сэргээх ч) хүрэхээ болино
  */
 function UnsubscribeContent() {
+  /**
+   * ⚠️ Домэйноос гаргасан дэмжлэгийн хаяг.
+   * SSR үед `window` байхгүй тул fallback — hydration-ий дараа
+   * зөв домэйнээр солигдоно.
+   */
+  const supportEmail =
+    typeof window !== 'undefined'
+      ? `support@${window.location.hostname.replace(/^www\./, '')}`
+      : 'support@besttv.us';
+
   const params = useSearchParams();
   const email = params.get('email')?.trim().toLowerCase() ?? '';
   /**
@@ -129,11 +139,20 @@ function UnsubscribeContent() {
               <h1 className="text-lg font-bold text-foreground">Хаяг олдсонгүй</h1>
               <p className="mt-2 text-sm leading-relaxed text-foreground/60">
                 Цуцлах холбоосыг имэйл дотроос дарна уу. Асуудал гарвал{' '}
+                {/**
+                 * ⚠️ Дэмжлэгийн имэйл — ТУХАЙН САЙТЫН домэйноор.
+                 *
+                 * ⛔ Өмнө нь `support@besttv.us` гэж ХАТУУ бичигдсэн тул
+                 *    BestFilm-ийн хэрэглэгч BestTV рүү бичдэг байв.
+                 * ⚠️ `BrandSettings`-д `supportEmail` талбар БАЙХГҮЙ тул
+                 *    хуудсаа үйлчилж буй домэйноос гаргана — шинэ сайт
+                 *    нэмэхэд ямар ч тохиргоо шаардахгүй.
+                 */}
                 <a
-                  href="mailto:support@besttv.us"
+                  href={`mailto:${supportEmail}`}
                   className="text-primary underline-offset-2 hover:underline"
                 >
-                  support@besttv.us
+                  {supportEmail}
                 </a>{' '}
                 руу бичээрэй.
               </p>
