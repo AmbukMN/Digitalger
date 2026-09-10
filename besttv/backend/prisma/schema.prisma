@@ -113,6 +113,8 @@ model User {
    * /**
    * /**
    * /**
+   * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -433,6 +435,9 @@ model Title {
    * биш, массив.
    * Шүүлт: `where: { sites: { has: "bestfilm" } }`
    */
+  /// ⚠️ Сайт бүрийн харагдацын тохиргоо (эрэмбэ, hero)
+  siteOrders TitleSiteOrder[]
+
   sites String[] @default(["besttv"])
 
   @@index([type, isActive])
@@ -470,6 +475,9 @@ model Genre {
 
   /// Сайт бүрийн эрэмбэ/харагдац (доорх моделийг үз)
   siteOrders GenreSiteOrder[]
+
+  /// ⚠️ Кино×сайтын эрэмбэ (энэ жанр доторх дараалал)
+  titleSiteOrders TitleSiteOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -518,6 +526,68 @@ model TitleGenre {
 
   @@id([titleId, genreId])
   @@index([genreId, order])
+}
+
+/**
+ * ⚠️⚠️ КИНОНЫ ХАРАГДАЦ САЙТ БҮРД — эрэмбэ, hero баннер.
+ * ⛔ БОДИТ ХЭРЭГЦЭЭ (2026-09-10): «2 site bur kinonuudiig janar dotor
+ * erembelj naana tsaana haruuldag ni tusdaa tohirgootoi baih estoi…
+ * nuur huudsand haragdaj baigaa kinonoos garch baigaa undsen banner
+ * tohirgoo tusdaa baih estoi»
+ * ⚠️ КИНО ӨӨРӨӨ НЭГ МӨР ХЭВЭЭР (`Title`) — нэр, зураг, видео, үнэ,
+ * жанрын харьяалал бүгд дундын. ЗӨВХӨН ХАРАГДАЦ энд сална.
+ * ⚠️ `GenreSiteOrder`-той ЯГ ИЖИЛ загвар (тэр нь амжилттай ажилласан):
+ * · мөр байвал → энд бичсэн утга
+ * · мөр байхгүй → `Title`-ийн үндсэн утга (fallback)
+ * Ингэснээр 258 киног урьдчилж бөглөх шаардлагагүй, migration нь
+ * зөвхөн ХООСОН хүснэгт үүсгэнэ — байгаа дата ОГТ хөндөгдөхгүй.
+ * ⚠️ `genreId` нь NULL байж БОЛНО:
+ * genreId = NULL → hero баннерын тохиргоо (кино бүрд НЭГ мөр)
+ * genreId = <id> → тэр жанр доторх эрэмбэ (кино×жанр бүрд мөр)
+ * Хоёрыг нэг хүснэгтэд нэгтгэсэн нь давхардсан хүснэгт, давхардсан
+ * админ логик үүсгэхээс сэргийлнэ.
+ */
+model TitleSiteOrder {
+  id      String @id @default(cuid())
+  titleId String
+  site    String
+
+  /// ⚠️ NULL = hero баннерын тохиргоо. Утгатай = тэр жанр доторх эрэмбэ.
+  genreId String?
+
+  /// Тухайн жанр доторх дараалал (бага нь эхэнд). genreId=NULL үед hero дараалал.
+  order Int @default(0)
+
+  /**
+   * ⚠️ ЗӨВХӨН `genreId = NULL` мөрд утгатай — hero carousel-д гарах эсэх.
+   * `null` бол `Title.isBanner` -ыг өвлөнө (тохируулаагүй гэсэн үг).
+   */
+  isBanner Boolean?
+
+  title Title  @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  genre Genre? @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * ⚠️⚠️ `@@unique` нь Prisma-д `upsert`-ийн түлхүүр болгож ашиглагдана.
+   *
+   * ⚠️ Postgres-д NULL нь unique index дотор ДАВХАРДАЖ болдог тул энэ
+   *    ганц хязгаарлалт нь hero мөрийг (`genreId = NULL`) давхардахаас
+   *    ХАМГААЛАХГҮЙ. Migration-д нэмэлт PARTIAL unique index тавьсан
+   *    (`TitleSiteOrder_hero_key` — `WHERE genreId IS NULL`).
+   *
+   * ⚠️ Prisma нь partial index-ыг схемд илэрхийлж чаддаггүй тул
+   *    `migration.sql`-д ГАРААР бичсэн. Схемийг дахин генерацлахад
+   *    тэр index АЛГА БОЛОХГҮЙ — `prisma migrate` нь байгаа index-ыг
+   *    хөндөхгүй (drift шалгахад л мэдэгдэнэ).
+   */
+  @@unique([titleId, genreId, site])
+  /// ⚠️ Жанрын эгнээ татахад хамгийн их ашиглагдана
+  @@index([site, genreId, order])
+  /// ⚠️ Нүүрний hero carousel
+  @@index([site, isBanner, order])
 }
 
 model Season {
@@ -1965,6 +2035,8 @@ model EmailLog {
 
   // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
   /**
+   * /**
+   * /**
    * /**
    * /**
    * /**

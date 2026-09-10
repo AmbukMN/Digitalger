@@ -249,11 +249,26 @@ export class GenresService {
     });
     if (!genre) throw new NotFoundException('Жанр олдсонгүй');
 
+    /**
+     * ⚠️⚠️ ЭРЭМБЭ САЙТ БҮРД ӨӨР (`TitleSiteOrder`).
+     *
+     * ⛔ БОДИТ ХЭРЭГЦЭЭ (2026-09-10): «tus buruun janar luu orood
+     *    kino-g naash tsaash erembelhed ter ni frontend burt tusdaa
+     *    haragdah estoi»
+     *
+     * ⚠️ `TitleGenre.order` нь SHARED — түүнд бичвэл BestFilm дээр
+     *    эрэмбэ өөрчлөхөд BestTV-ийн нүүрэнд ЧИМЭЭГҮЙ өөрчлөгдөнө.
+     *    Хамгийн сүүлд хадгалсан сайт үргэлж нөгөөгөө дарна.
+     *
+     * ⚠️ Мөр байхгүй жанр/кино → `TitleGenre.order` fallback
+     *    (`GenreSiteOrder`-той ИЖИЛ загвар).
+     */
     const rows = await this.prisma.titleGenre.findMany({
       where: { genreId },
       orderBy: [{ order: 'asc' }, { title: { createdAt: 'desc' } }],
       select: {
         order: true,
+        titleId: true,
         title: {
           select: {
             id: true,
@@ -271,16 +286,37 @@ export class GenresService {
       },
     });
 
+    /**
+     * ⚠️ САЙТЫН эрэмбийг давхарлана — мөр байвал түүний `order`,
+     *    байхгүй бол `TitleGenre.order` (fallback).
+     * ⚠️ `TitleSiteOrder` нь SCOPED — Prisma өргөтгөл `site` шүүлтийг
+     *    АВТОМАТААР нэмнэ (гараар бичих шаардлагагүй).
+     */
+    const overrides = await this.prisma.titleSiteOrder.findMany({
+      where: { genreId },
+      select: { titleId: true, order: true },
+    });
+    const orderBy = new Map(overrides.map((o) => [o.titleId, o.order]));
+
+    const items = await Promise.all(
+      rows.map(async (r) => ({
+        ...r.title,
+        order: orderBy.get(r.titleId) ?? r.order,
+        posterUrl: await this.media.url(r.title.posterKey),
+      })),
+    );
+
+    /* ⚠️ Дахин эрэмбэлнэ — DB нь `TitleGenre.order`-оор жагсаасан */
+    items.sort(
+      (a, b) =>
+        a.order - b.order ||
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
     return {
       genre,
       /* ⚠️ Постер нь ХААЛТТАЙ bucket-д — presign хийхгүй бол зураг гарахгүй */
-      items: await Promise.all(
-        rows.map(async (r) => ({
-          ...r.title,
-          order: r.order,
-          posterUrl: await this.media.url(r.title.posterKey),
-        })),
-      ),
+      items,
     };
   }
 
@@ -302,13 +338,37 @@ export class GenresService {
     const valid = new Set(existing.map((e) => e.titleId));
     const clean = titleIds.filter((id) => valid.has(id));
 
+    /**
+     * ⚠️⚠️ ЭРЭМБИЙГ `TitleGenre.order`-Т БИШ `TitleSiteOrder`-Т БИЧНЭ.
+     *
+     * ⛔ БОДИТ ХЭРЭГЦЭЭ (2026-09-10): «tus buruun janar luu orood
+     *    kino-g naash tsaash erembelhed ter ni frontend burt tusdaa
+     *    haragdah estoi»
+     *
+     * ⚠️ `TitleGenre` нь SHARED (site багана АЛГА) — түүнд бичвэл
+     *    BestFilm дээр кино чирэхэд BestTV-ийн нүүрний тэр эгнээнд ч
+     *    ЧИМЭЭГҮЙ хөдөлнө. Хамгийн сүүлд хадгалсан сайт үргэлж ялна.
+     *    `GenreSiteOrder` (жанрын эрэмбэ) яг энэ асуудлыг шийдсэн —
+     *    энэ нь түүний кино түвшний үргэлжлэл.
+     *
+     * ⚠️ `upsert` — тухайн сайтад анх удаа эрэмбэлж байгаа киноны мөр
+     *    хараахан байхгүй.
+     * ⚠️ `TitleGenre.order` нь ХЭВЭЭР үлдэнэ — мөр байхгүй үеийн
+     *    fallback болно (хуучин дата алдагдахгүй).
+     */
+    const site = currentSite();
+
     await this.prisma.$transaction(
       clean.map((titleId, i) =>
-        this.prisma.titleGenre.update({
-          where: { titleId_genreId: { titleId, genreId } },
-          data: { order: i },
+        this.prisma.titleSiteOrder.upsert({
+          where: { titleId_genreId_site: { titleId, genreId, site } },
+          create: { titleId, genreId, site, order: i },
+          update: { order: i },
         }),
       ),
+    );
+    this.logger.log(
+      `Жанр доторх киноны эрэмбэ шинэчлэв (${site}): ${clean.length} кино`,
     );
     return { ok: true, updated: clean.length };
   }

@@ -36,6 +36,7 @@ export const SCOPED_MODELS = [
   'Plan', //                багц, үнэ сайт бүрд өөр
   'PlanGenre',
   'GenreSiteOrder', //      ⚠️ жанрын эрэмбэ сайт бүрд (Genre нь SHARED)
+  'TitleSiteOrder', //      ⚠️ киноны эрэмбэ/hero сайт бүрд (Title нь MULTI)
   'Rental',
   'SavedCard',
   'WalletTransaction',

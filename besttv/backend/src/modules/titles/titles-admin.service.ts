@@ -376,6 +376,22 @@ export class TitlesAdminService {
     });
     if (!title) throw new NotFoundException('Контент олдсонгүй');
 
+    /**
+     * ⚠️⚠️ HERO ТОХИРГОО — ТУХАЙН САЙТЫНХЫГ буцаана.
+     *
+     * ⚠️ Админ BestFilm дээр кино нээхэд BestFilm-ийн hero тохиргоо
+     *    харагдах ёстой. `Title.isBanner` (ДУНДЫН) -ыг шууд буцаавал
+     *    нөгөө сайтын тохиргоог харуулж, админ түүн дээр хадгалахад
+     *    өөрийн сайтынхаа тохиргоог дарж бичнэ.
+     *
+     * ⚠️ Мөр байхгүй бол `Title`-ийн үндсэн утга (fallback) —
+     *    `titles.service.ts`-ийн нүүрний логиктой ЯГ ИЖИЛ дүрэм.
+     */
+    const heroOverride = await this.prisma.titleSiteOrder.findFirst({
+      where: { titleId: id, genreId: null },
+      select: { order: true, isBanner: true },
+    });
+
     const decorated = await this.media.decorate(title);
     const castRaw = Array.isArray(title.cast)
       ? (title.cast as unknown as { name: string; character?: string; photoKey?: string }[])
@@ -385,6 +401,9 @@ export class TitlesAdminService {
 
     return {
       ...decorated,
+      /* ⚠️ Сайтын hero тохиргоо — мөр байхгүй бол киноны үндсэн утга */
+      isBanner: heroOverride?.isBanner ?? title.isBanner,
+      bannerOrder: heroOverride?.order ?? title.bannerOrder,
       trailerUrl: await this.media.url(title.trailerKey),
       /* ⚠️ Трейлерийн хөрвүүлэлтийн явц — кино/ангитай ИЖИЛ мэдээлэл
          (админд progress bar, алдааны шалтгаан, файлын нэр) */
@@ -467,7 +486,27 @@ export class TitlesAdminService {
     const existing = await this.prisma.title.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Контент олдсонгүй');
 
-    const { genreIds, cast, slug: rawSlug, sites: rawSites, ...data } = dto;
+    const {
+      genreIds,
+      cast,
+      slug: rawSlug,
+      sites: rawSites,
+      /**
+       * ⚠️⚠️ HERO БАННЕР — `Title`-Д БИШ `TitleSiteOrder`-Т БИЧНЭ.
+       *
+       * ⛔ БОДИТ ХЭРЭГЦЭЭ (2026-09-10): «nuur huudsand haragdaj baigaa
+       *    kinonoos garch baigaa undsen banner tohirgoo tusdaa baih
+       *    estoi» — сайт бүр өөрийн hero-той байх ёстой.
+       *
+       * ⚠️ `Title.isBanner`/`bannerOrder` нь ДУНДЫН тул нэг сайтад
+       *    hero-д нэмэхэд нөгөөд нь ч гардаг байв.
+       * ⚠️ Хуучин баганууд ХЭВЭЭР үлдэнэ — мөр байхгүй үеийн fallback
+       *    (`titles.service.ts`-ийн `heroBy` логикийг үз).
+       */
+      isBanner,
+      bannerOrder,
+      ...data
+    } = dto;
     const castData = cast ? { cast: cast as unknown as Prisma.InputJsonValue } : {};
 
     /**
@@ -542,6 +581,53 @@ export class TitlesAdminService {
           data: genreIds.map((genreId, i) => ({ titleId: id, genreId, order: i })),
         });
       }
+      /**
+       * ⚠️⚠️ HERO БАННЕР — ТУХАЙН САЙТАД л үйлчилнэ.
+       *
+       * ⚠️ Админ `isBanner`/`bannerOrder`-ыг ЗОРИУД илгээсэн үед л
+       *    хөндөнө. Зөвхөн гарчиг засахад форм эдгээрийг илгээгээгүй
+       *    бол hero тохиргоо ХЭВЭЭР үлдэнэ (`undefined` шалгалт).
+       *
+       * ⚠️ `upsert` — тухайн сайтад анх удаа тохируулж байгаа киноны
+       *    мөр хараахан байхгүй. `genreId: null` нь «hero мөр» гэсэн
+       *    утгатай (жанрын эрэмбийн мөрөөс ялгагдана).
+       */
+      if (isBanner !== undefined || bannerOrder !== undefined) {
+        const site = currentSite();
+        const patch = {
+          ...(isBanner !== undefined ? { isBanner } : {}),
+          ...(bannerOrder !== undefined ? { order: bannerOrder } : {}),
+        };
+
+        /**
+         * ⚠️⚠️ `upsert` ХЭРЭГЛЭХГҮЙ — `genreId` нь NULL.
+         *
+         * Prisma-гийн compound unique (`titleId_genreId_site`) нь
+         * `genreId: null` хүлээж авдаггүй (TS: «null is not assignable
+         * to string»). Postgres-т ч NULL нь unique index дотор
+         * давхардаж болдог тул migration-д PARTIAL unique index
+         * (`TitleSiteOrder_hero_key WHERE genreId IS NULL`) тавьсан.
+         *
+         * ⚠️ Тиймээс ГАРААР: эхлээд хайж, байвал update, эс бөгөөс
+         *    create. Транзакц дотор тул уралдаан үүсэхгүй.
+         */
+        const existingHero = await tx.titleSiteOrder.findFirst({
+          where: { titleId: id, genreId: null, site },
+          select: { id: true },
+        });
+
+        if (existingHero) {
+          await tx.titleSiteOrder.update({
+            where: { id: existingHero.id },
+            data: patch,
+          });
+        } else {
+          await tx.titleSiteOrder.create({
+            data: { titleId: id, genreId: null, site, ...patch },
+          });
+        }
+      }
+
       return tx.title.update({
         where: { id },
         data: { ...data, ...seo, ...castData, ...slugData, ...sitesData },

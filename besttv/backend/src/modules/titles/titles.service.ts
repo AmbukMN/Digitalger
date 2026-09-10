@@ -132,16 +132,49 @@ export class TitlesService {
   }
 
   private async homeShared() {
-    const [banners, newReleases, comingSoon, genres, popular, genreOverrides] =
+    const [banners, newReleases, comingSoon, genres, popular, genreOverrides,
+           titleOrders, heroOverrides] =
       await Promise.all([
-        // Hero carousel — backdrop + trailer
+        /**
+         * Hero carousel — backdrop + trailer
+         *
+         * ⚠️⚠️ САЙТ БҮРД ӨӨР КИНО ГАРНА.
+         *
+         * ⛔ БОДИТ ХЭРЭГЦЭЭ (2026-09-10): «nuur huudsand haragdaj
+         *    baigaa kinonoos garch baigaa undsen banner tohirgoo
+         *    tusdaa baih estoi»
+         *
+         * ⚠️ `Title.isBanner`/`bannerOrder` нь ДУНДЫН тул хоёр сайт
+         *    ижил hero харуулдаг байв. Одоо `TitleSiteOrder`
+         *    (genreId=NULL) -оор дарж бичнэ:
+         *      · `isBanner = true`  → тухайн сайтад НЭМНЭ
+         *      · `isBanner = false` → тухайн сайтаас ХАСНА
+         *      · мөр байхгүй        → `Title.isBanner` өвлөнө
+         *
+         * ⚠️ Тиймээс DB-ээс ӨРГӨН татаад (үндсэн hero + сайтын
+         *    нэмэлт), дараа нь JS талд эцсийн жагсаалтыг гаргана.
+         *    `take: 8`-ыг ЭНД тавьбал сайтын нэмэлт кино хасагдана.
+         */
         this.prisma.title.findMany({
-          where: { isBanner: true, isActive: true },
+          where: {
+            isActive: true,
+            OR: [
+              { isBanner: true },
+              /* ⚠️ Тухайн сайтад ГАРААР нэмсэн кино (өргөтгөл нь
+                 `siteOrders`-т site шүүлт нэмнэ) */
+              { siteOrders: { some: { genreId: null, isBanner: true } } },
+            ],
+          },
           orderBy: { bannerOrder: 'asc' },
-          take: 8,
+          /* ⚠️ 24 — үндсэн 8 + сайтын нэмэлт. Бүгдийг татаад JS-д шүүнэ. */
+          take: 24,
           select: {
             ...CARD_SELECT,
             description: true,
+            /* ⚠️ `isBanner`/`bannerOrder` ЗААВАЛ — сайтын мөр байхгүй
+               үеийн fallback (доорх `heroBy` логик) */
+            isBanner: true,
+            bannerOrder: true,
             trailerKey: true,
             /* ⚠️ YouTube нөөц — HLS байхгүй үед hero дээр трейлер
                харуулах боломжтой эсэхийг шийднэ */
@@ -210,7 +243,20 @@ export class TitlesService {
                * 20 бол ердөө 10 багана өгч, хэвтээ гүйлт бараг байхгүй
                * болно. 24 нь 12 багана — дэлгэц дүүрч, гүйлгэх утгатай.
                */
-              take: 24,
+              /**
+               * ⚠️⚠️ 60 — САЙТЫН эрэмбийг хэрэглэх ЗАЙ.
+               *
+               * ⛔ 24 байхад: DB нь ДУНДЫН `TitleGenre.order`-оор
+               *    эхний 24-ийг сонгоно. BestFilm дээр 30-р байрны
+               *    киног 1-р болгож эрэмбэлсэн ч ЭНЭ ШАТАНД хасагдаж,
+               *    эгнээнд ХЭЗЭЭ Ч гарахгүй.
+               * ⚠️ Тиймээс илүү татаад, сайтын эрэмбээр дахин
+               *    жагсаасны ДАРАА 24-өөр таслана (доор).
+               * ⚠️ 60 нь 15 эгнээ × 60 = 900 мөр — `CARD_SELECT` нь
+               *    жижиг тул хүлээн зөвшөөрөгдөх. Илүү өсгөвөл нүүрний
+               *    хариу хүндэрнэ.
+               */
+              take: 60,
               include: { title: { select: CARD_SELECT } },
             },
           },
@@ -243,10 +289,59 @@ export class TitlesService {
         this.prisma.genreSiteOrder.findMany({
           select: { genreId: true, order: true, isVisible: true },
         }),
+        /**
+         * ⚠️⚠️ ЖАНР ДОТОРХ КИНОНЫ ЭРЭМБЭ — САЙТ БҮРД ӨӨР.
+         *
+         * ⛔ БОДИТ ХЭРЭГЦЭЭ (2026-09-10): «tus buruun janar luu orood
+         *    kino-g naash tsaash erembelhed ter ni frontend burt
+         *    tusdaa haragdah estoi»
+         *
+         * ⚠️ `TitleGenre.order` нь SHARED тул нэг сайт дээр чирэхэд
+         *    нөгөөгийнх нь эгнээнд ч хөдөлдөг байв.
+         * ⚠️ `genreId: { not: null }` — hero мөрийг (genreId=NULL)
+         *    хасна, тэр нь өөр зорилготой (доорх `heroOverrides`).
+         */
+        this.prisma.titleSiteOrder.findMany({
+          where: { genreId: { not: null } },
+          select: { titleId: true, genreId: true, order: true },
+        }),
+        /**
+         * ⚠️ HERO баннерын сайтын тохиргоо (`genreId = NULL` мөрүүд).
+         * `isBanner` нь `null` бол «тохируулаагүй» → `Title.isBanner`.
+         */
+        this.prisma.titleSiteOrder.findMany({
+          where: { genreId: null },
+          select: { titleId: true, order: true, isBanner: true },
+        }),
       ]);
 
+    /**
+     * ⚠️⚠️ HERO-Г САЙТЫН ТОХИРГООГООР ЭЦЭСЛЭНЭ.
+     *
+     * Дүрэм (`GenreSiteOrder`-той ижил fallback загвар):
+     *   мөрийн `isBanner = true`  → ГАРНА (Title.isBanner юу ч байсан)
+     *   мөрийн `isBanner = false` → ГАРАХГҮЙ (тухайн сайтаас хассан)
+     *   мөр байхгүй / `null`      → `Title.isBanner` өвлөнө
+     *
+     * ⚠️ Эрэмбэ ч мөн адил: мөр байвал түүний `order`, эс бөгөөс
+     *    `Title.bannerOrder`.
+     * ⚠️ Эрэмбэлсний ДАРАА 8-аар таслана — өмнө нь таславал сайтын
+     *    нэмсэн кино хэзээ ч гарахгүй.
+     */
+    const heroBy = new Map(heroOverrides.map((h) => [h.titleId, h]));
+
+    const heroList = banners
+      .filter((b) => {
+        const ov = heroBy.get(b.id);
+        return ov?.isBanner ?? b.isBanner;
+      })
+      .map((b) => ({ b, order: heroBy.get(b.id)?.order ?? b.bannerOrder }))
+      .sort((a, b) => a.order - b.order)
+      .slice(0, 8)
+      .map((x) => x.b);
+
     const decoratedBanners = await Promise.all(
-      banners.map(async (b) => ({
+      heroList.map(async (b) => ({
         ...(await this.media.decorate(b)),
         /**
          * ⚠️⚠️ HLS ЭСВЭЛ YouTube — аль нэг байвал трейлер БИЙ.
@@ -292,13 +387,42 @@ export class TitlesService {
       .slice(0, 15)
       .map((x) => x.g);
 
+    /**
+     * ⚠️ Кино×жанрын САЙТЫН эрэмбэ — `genreId|titleId` түлхүүртэй Map.
+     * ⚠️ Мөр байхгүй бол `TitleGenre.order` (DB-ийн жагсаалт хэвээр).
+     */
+    const titleOrderBy = new Map(
+      titleOrders.map((o) => [`${o.genreId}|${o.titleId}`, o.order]),
+    );
+
     const genreRows = await Promise.all(
-      visibleGenres.map(async (g) => ({
-        id: g.id,
-        name: g.name,
-        slug: g.slug,
-        titles: await this.media.decorateMany(g.titles.map((t) => t.title)),
-      })),
+      visibleGenres.map(async (g) => {
+        /**
+         * ⚠️⚠️ САЙТЫН эрэмбээр ДАХИН жагсаагаад 24-өөр таслана.
+         *
+         * ⚠️ DB нь ДУНДЫН `TitleGenre.order`-оор 60 татсан; энд сайтын
+         *    өөрийн дараалалд оруулна. Эрэмбэлсний ДАРАА таслах нь
+         *    чухал — өмнө нь таславал сайтын эрэмбэ хэрэгжих
+         *    боломжгүй (`GenreSiteOrder`-той ижил урхи).
+         */
+        const ordered = g.titles
+          .map((t, i) => ({
+            t,
+            /* ⚠️ Fallback нь DB-ийн БУЦААСАН дараалал (`i`) — тэр нь
+               `TitleGenre.order` + шинэ нь урьтах дүрмийг агуулна */
+            order: titleOrderBy.get(`${g.id}|${t.title.id}`) ?? i,
+          }))
+          .sort((a, b) => a.order - b.order)
+          .slice(0, 24)
+          .map((x) => x.t);
+
+        return {
+          id: g.id,
+          name: g.name,
+          slug: g.slug,
+          titles: await this.media.decorateMany(ordered.map((t) => t.title)),
+        };
+      }),
     );
 
     return {
