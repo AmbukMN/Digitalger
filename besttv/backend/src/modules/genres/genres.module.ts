@@ -172,7 +172,40 @@ export class GenresService {
   async update(id: string, dto: GenreDto) {
     const genre = await this.prisma.genre.findUnique({ where: { id } });
     if (!genre) throw new NotFoundException('Жанр олдсонгүй');
-    return this.prisma.genre.update({ where: { id }, data: dto });
+
+    /**
+     * ⚠️⚠️ `order` -Ыг `Genre`-Т БИШ `GenreSiteOrder`-Т БИЧНЭ.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): `list()` нь `GenreSiteOrder`
+     *    -ийн (САЙТЫН) утгыг буцаадаг атал энэ нь ДУНДЫН
+     *    `Genre.order`-т бичдэг байв — уншсанаасаа ӨӨР газар бичих.
+     *
+     *    Үр дүнд: админ BestFilm дээр «Дараалал = 3» гэж хадгалахад
+     *    BestTV дээрх тэр жанрын fallback дараалал ЧИМЭЭГҮЙ өөрчлөгдөнө
+     *    (BestTV-д `GenreSiteOrder` мөр байхгүй жанрууд дээр).
+     *
+     * ⚠️ Мөн админ нэг дэлгэц дээр ХОЁР өөр эрэмбийн системтэй
+     *    болж байсан: чирж эрэмбэлэх нь сайт бүрд, формын тоо нь
+     *    дундад. Одоо ХОЁУЛАА `GenreSiteOrder`-т.
+     */
+    const { order, ...rest } = dto;
+
+    if (order !== undefined) {
+      const site = currentSite();
+      await this.prisma.genreSiteOrder.upsert({
+        where: { genreId_site: { genreId: id, site } },
+        create: { genreId: id, site, order },
+        update: { order },
+      });
+    }
+
+    const updated = await this.prisma.genre.update({
+      where: { id },
+      data: rest,
+    });
+
+    /* ⚠️ `list()`-тэй ижил хэлбэрээр буцаана — админ формд шууд тохирно */
+    return { ...updated, order: order ?? updated.order };
   }
 
   /**

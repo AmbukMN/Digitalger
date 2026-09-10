@@ -116,11 +116,72 @@ export class TitlesAdminService {
     if (params.active === 'true') where.isActive = true;
     else if (params.active === 'false') where.isActive = false;
     if (params.year) where.year = Number(params.year);
-    /* ⚠️ Нүүрний carousel-д гарч буй кино — админ аль нь баннер дээр
-       байгааг НЭГ ХАРЦААР мэдэх ёстой (өмнө нь кино бүрийг нээж
-       шалгах шаардлагатай байв) */
-    if (params.banner === 'true') where.isBanner = true;
-    else if (params.banner === 'false') where.isBanner = false;
+    /**
+     * ⚠️⚠️ БАННЕРЫН ШҮҮЛТ — САЙТ БҮРД ӨӨР (`TitleSiteOrder`).
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-10): BestFilm дээр киноны «Hero-д
+     *    харуулах» тэмдэглэгээг АВААД хадгалсан ч «Баннер дээр»
+     *    шүүлтэд ХЭВЭЭР гарч байв.
+     *
+     * ⚠️ ШАЛТГААН: `Title.isBanner` нь ДУНДЫН багана. Хадгалахад
+     *    `TitleSiteOrder`-т бичигддэг (сайт бүрд тусдаа) атал шүүлт
+     *    нь хуучин дундын баганыг уншсаар байсан.
+     *
+     * ⚠️ ДҮРЭМ (`titles.service.ts`-ийн нүүрний логиктой ЯГ ИЖИЛ):
+     *      мөрийн `isBanner = true`  → ГАРНА
+     *      мөрийн `isBanner = false` → ГАРАХГҮЙ
+     *      мөр байхгүй / `null`      → `Title.isBanner` өвлөнө
+     *
+     * ⚠️ `genreId: ''` = hero мөр (жанрын эрэмбийн мөрөөс ялгаатай).
+     *
+     * ⚠️⚠️ `site`-ЫГ ГАРААР БИЧНЭ — өргөтгөл ЭНД НЭМЭХГҮЙ.
+     *
+     * ⛔ БОДИТ АЛДАА: `siteOrders` нь `Title`-ийн query доторх
+     *    NESTED relation filter. Prisma өргөтгөл нь ЗӨВХӨН гадаад
+     *    моделийн (`Title` → `sites`) `where`-д шүүлт нэмдэг —
+     *    nested `some`/`none` дотор ОРДОГГҮЙ.
+     *
+     *    Үүнгүйгээр BestFilm дээр мөр үүсгэхэд BestTV-ийн шүүлт ч
+     *    тэр мөрийг «override бий» гэж үзэж, кино ХОЁУЛАНГААС нь
+     *    алга болж байв (тестээр илэрсэн).
+     */
+    const site = currentSite();
+    const heroOverride = (want: boolean) => ({
+      some: { site, genreId: '', isBanner: want },
+    });
+    const heroNoOverride = {
+      none: { site, genreId: '', isBanner: { not: null } },
+    };
+
+    /**
+     * ⚠️⚠️ `where.OR`-ЫГ ДАРЖ БИЧИХГҮЙ — `AND`-аар нэмнэ.
+     *
+     * ⛔ Дээрх ХАЙЛТ (`params.q`) нь `where.OR`-ыг аль хэдийн
+     *    эзэлсэн байж болно. Шууд оноовол хайлтын нөхцөл ЧИМЭЭГҮЙ
+     *    алга болж, «баннер дээр» шүүхэд хайлт үл тоомсорлогдоно.
+     */
+    const bannerOr =
+      params.banner === 'true'
+        ? [
+            /* Тухайн сайтад ГАРААР асаасан */
+            { siteOrders: heroOverride(true) },
+            /* Эсвэл дундын утга `true` бөгөөд сайтын мөр ОГТ БАЙХГҮЙ */
+            { isBanner: true, siteOrders: heroNoOverride },
+          ]
+        : params.banner === 'false'
+          ? [
+              /* Тухайн сайтад ГАРААР унтраасан */
+              { siteOrders: heroOverride(false) },
+              /* Эсвэл дундын `false` бөгөөд сайтын мөр ОГТ БАЙХГҮЙ */
+              { isBanner: false, siteOrders: heroNoOverride },
+            ]
+          : null;
+
+    if (bannerOr) {
+      const prev = where.AND;
+      const list = Array.isArray(prev) ? prev : prev ? [prev] : [];
+      where.AND = [...list, { OR: bannerOr }];
+    }
 
     return where;
   }
@@ -435,8 +496,27 @@ export class TitlesAdminService {
   }
 
   async create(dto: CreateTitleDto) {
+    /**
+     * ⚠️⚠️ HERO БАННЕР — `Title`-Д БИШ `TitleSiteOrder`-Т.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): `update` дээр зөв салгасан
+     *    атал `create` дээр `...data`-д үлдэж ДУНДЫН `Title.isBanner`
+     *    -т ордог байв. BestFilm дээр шинэ кино нэмээд «Hero-д
+     *    харуулах» тэмдэглэвэл, тэр кино дараа нь BestTV-д ч нээгдвэл
+     *    (эсвэл `sites` хоёуланг сонгосон бол) BestTV-ийн hero дээр
+     *    АВТОМАТААР гарна — `TitleSiteOrder` мөр байхгүй тул fallback.
+     */
     // ⚠️ Админ slug гараар өгсөн бол ТҮҮНИЙГ, эс бөгөөс гарчигаас үүсгэнэ
-    const { genreIds, cast, slug: rawSlug, sites: rawSites, ...data } = dto;
+    const {
+      genreIds,
+      cast,
+      slug: rawSlug,
+      sites: rawSites,
+      /* ⚠️ Дээрх тайлбарыг үз — `TitleSiteOrder`-т бичнэ */
+      isBanner,
+      bannerOrder,
+      ...data
+    } = dto;
     const slug = await this.makeUniqueSlug(rawSlug?.trim() || dto.title);
 
     /**
@@ -465,7 +545,7 @@ export class TitlesAdminService {
      */
     const sites = normalizeSites(rawSites) ?? [currentSite()];
 
-    return this.prisma.title.create({
+    const created = await this.prisma.title.create({
       data: {
         ...data,
         ...seo,
@@ -481,6 +561,24 @@ export class TitlesAdminService {
           : {}),
       },
     });
+
+    /**
+     * ⚠️ Hero тохиргоог ТУХАЙН САЙТАД бичнэ (`update`-тэй ИЖИЛ).
+     * ⚠️ `genreId: ''` = hero мөр. Админ зориуд илгээсэн үед л.
+     */
+    if (isBanner !== undefined || bannerOrder !== undefined) {
+      await this.prisma.titleSiteOrder.create({
+        data: {
+          titleId: created.id,
+          genreId: '',
+          site: currentSite(),
+          ...(isBanner !== undefined ? { isBanner } : {}),
+          ...(bannerOrder !== undefined ? { order: bannerOrder } : {}),
+        },
+      });
+    }
+
+    return created;
   }
 
   async update(id: string, dto: UpdateTitleDto) {
@@ -758,9 +856,21 @@ export class TitlesAdminService {
   async removeTrailer(id: string) {
     const title = await this.prisma.title.findUnique({
       where: { id },
-      select: { trailerKey: true, trailerYoutubeKey: true },
+      /**
+       * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+       *
+       * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-10 аудит): `select`-д `sites`
+       *    байхгүй тул `site-extension`-ийн post-filter алгасагдаж,
+       *    BestFilm-ийн админ ЗӨВХӨН BestTV-д нийтэлсэн киноны
+       *    трейлерийг устгаж чаддаг байв.
+       * ⚠️ Энэ нь ЭРГЭЛТ БУЦАЛТГҮЙ — R2-гийн HLS prefix бүхэлдээ
+       *    устдаг (доорх `removePrefix`).
+       */
+      select: { trailerKey: true, trailerYoutubeKey: true, sites: true },
     });
     if (!title) throw new NotFoundException('Контент олдсонгүй');
+    /* ⚠️ FAIL-CLOSED: өөр сайтынх бол ОГТ БАЙХГҮЙ мэт хандана */
+    assertTitleOnSite(title.sites, 'Контент олдсонгүй');
     if (!title.trailerKey) {
       throw new BadRequestException('Байршуулсан трейлер алга');
     }

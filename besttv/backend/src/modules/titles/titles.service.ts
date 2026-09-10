@@ -132,6 +132,9 @@ export class TitlesService {
   }
 
   private async homeShared() {
+    /* ⚠️ Nested relation filter-т ГАРААР дамжуулна (өргөтгөл нэмэхгүй) */
+    const _site = currentSite();
+
     const [banners, newReleases, comingSoon, genres, popular, genreOverrides,
            titleOrders, heroOverrides] =
       await Promise.all([
@@ -160,9 +163,17 @@ export class TitlesService {
             isActive: true,
             OR: [
               { isBanner: true },
-              /* ⚠️ Тухайн сайтад ГАРААР нэмсэн кино (өргөтгөл нь
-                 `siteOrders`-т site шүүлт нэмнэ) */
-              { siteOrders: { some: { genreId: '', isBanner: true } } },
+              /**
+               * ⚠️⚠️ `site`-ЫГ ГАРААР БИЧНЭ — өргөтгөл ЭНД НЭМЭХГҮЙ.
+               *
+               * ⛔ БОДИТ АЛДАА: `siteOrders` нь `Title`-ийн query
+               *    доторх NESTED relation filter. Prisma өргөтгөл нь
+               *    ЗӨВХӨН гадаад моделийн (`Title` → `sites`)
+               *    `where`-д шүүлт нэмдэг — nested `some`/`none`
+               *    дотор ОРДОГГҮЙ. Үүнгүйгээр нэг сайтад hero-д
+               *    нэмсэн кино НӨГӨӨ сайтын hero-д ч гарна.
+               */
+              { siteOrders: { some: { site: _site, genreId: '', isBanner: true } } },
             ],
           },
           orderBy: { bannerOrder: 'asc' },
@@ -678,19 +689,65 @@ export class TitlesService {
       title: titleWhere,
     };
 
-    const [rows, total] = await Promise.all([
+    /**
+     * ⚠️⚠️ ЭРЭМБЭ САЙТ БҮРД ӨӨР (`TitleSiteOrder`) — ХУУДАСЛАЛТЫН УРХИ.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): энд ДУНДЫН `TitleGenre.order`
+     *    -оор `skip/take` хийдэг байв. Үр дүнд нүүрэнд зассан эрэмбэ
+     *    каталогт ОГТ хэрэгжихгүй — хэрэглэгч «Бүгдийг үзэх» дарахад
+     *    дараалал өөрчлөгдөнө.
+     *
+     * ⚠️⚠️ DB талд `skip/take` хийвэл ЗАСАХ БОЛОМЖГҮЙ: сайтын эрэмбэ
+     *    нь өөр хүснэгтэд тул Postgres эрэмбэлэхдээ мэдэхгүй.
+     *    Тиймээс:
+     *      1. Холбоосын `titleId` -г БҮГДИЙГ татна (хөнгөн — ганц
+     *         багана, CARD_SELECT БИШ)
+     *      2. Сайтын эрэмбээр JS-д жагсаана
+     *      3. ЭНЭ хуудсын id-г таслаад тэдгээрийн БҮТЭН датаг татна
+     *
+     * ⚠️ Хоёр асуулга болох ч хоёр дахь нь ЗӨВХӨН `limit` ширхэг мөр
+     *    татна — өмнөхтэй ижил хэмжээ. Эхний нь id-ний жагсаалт тул
+     *    258 кинотой жанрд ч хөнгөн.
+     */
+    const [links, total, overrides] = await Promise.all([
       this.prisma.titleGenre.findMany({
         where: linkWhere,
         orderBy: [{ order: 'asc' }, { title: { createdAt: 'desc' } }],
-        skip: (page - 1) * limit,
-        take: limit,
-        select: { title: { select: CARD_SELECT } },
+        select: { titleId: true },
       }),
       this.prisma.titleGenre.count({ where: linkWhere }),
+      /* ⚠️ `site` ГАРААР — өргөтгөл nested filter-т нэмэхгүй */
+      this.prisma.titleSiteOrder.findMany({
+        where: { site: currentSite(), genre: { slug: genreSlug } },
+        select: { titleId: true, order: true },
+      }),
     ]);
 
+    const orderBy = new Map(overrides.map((o) => [o.titleId, o.order]));
+    const pageIds = links
+      /* ⚠️ Fallback нь DB-ийн БУЦААСАН дараалал (`i`) — тэр нь
+         `TitleGenre.order` + шинэ нь урьтах дүрмийг агуулна */
+      .map((l, i) => ({ id: l.titleId, order: orderBy.get(l.titleId) ?? i }))
+      .sort((a, b) => a.order - b.order)
+      .slice((page - 1) * limit, page * limit)
+      .map((x) => x.id);
+
+    /* ⚠️ Зөвхөн ЭНЭ хуудасны кинонуудыг татна */
+    const titles = pageIds.length
+      ? await this.prisma.title.findMany({
+          where: { id: { in: pageIds } },
+          select: CARD_SELECT,
+        })
+      : [];
+
+    /* ⚠️ `findMany` нь `in`-ийн дарааллыг ХАДГАЛДАГГҮЙ — сэргээнэ */
+    const byId = new Map(titles.map((t) => [t.id, t]));
+    const ordered = pageIds
+      .map((id) => byId.get(id))
+      .filter((t): t is NonNullable<typeof t> => Boolean(t));
+
     return {
-      items: await this.media.decorateMany(rows.map((r) => r.title)),
+      items: await this.media.decorateMany(ordered),
       total,
       page,
       totalPages: Math.ceil(total / limit),

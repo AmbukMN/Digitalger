@@ -419,8 +419,21 @@ export class StreamService {
   ): Promise<{ status: 'repaired' | 'already' | 'unavailable'; posterUrl?: string }> {
     const ep = await this.prisma.episode.findUnique({
       where: { id: episodeId },
-      select: { id: true, videoKey: true, posterKey: true, streamStatus: true },
+      select: {
+        id: true, videoKey: true, posterKey: true, streamStatus: true,
+        /**
+         * ⚠️⚠️ ЭЦЭГ `Title.sites` ЗААВАЛ — `Episode` нь SHARED модел.
+         *
+         * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-10 аудит): `Episode`-д `site`
+         *    багана байхгүй тул post-filter ХЭЗЭЭ Ч ажилладаггүй.
+         *    Доорх `episode.update` нь постерыг ДАРЖ БИЧДЭГ бөгөөд
+         *    `Episode` нь дундын тул НӨГӨӨ САЙТАД ч өөрчлөгдөнө.
+         */
+        season: { select: { title: { select: { sites: true } } } },
+      },
     });
+    /* ⚠️ FAIL-CLOSED: нөгөө сайтын ангийн постерыг хөндөхгүй */
+    if (ep) assertTitleOnSite(ep.season.title.sites, 'Анги олдсонгүй');
     /* ⚠️ Видеогүй/хөрвүүлээгүй бол кадар авах эх сурвалж БАЙХГҮЙ */
     if (!ep?.videoKey || ep.streamStatus !== 'READY') return { status: 'unavailable' };
 
@@ -860,8 +873,25 @@ export class StreamService {
     if (kind === 'episode') {
       const ep = await this.prisma.episode.findUnique({
         where: { id },
-        select: { videoKey: true },
+        /**
+         * ⚠️⚠️ ЭЦЭГ `Title.sites` ЗААВАЛ — `Episode` нь SHARED модел.
+         *
+         * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-10 аудит): `Episode`-д `site`
+         *    багана ОГТ БАЙХГҮЙ тул `site-extension`-ийн post-filter
+         *    (`'site' in row`) ХЭЗЭЭ Ч ажилладаггүй. Цорын ганц
+         *    хамгаалалт нь эцэг киног гараар шалгах.
+         *
+         * ⚠️ Доорх `movie`/`trailer` салаа нь хамгаалагдсан атал
+         *    ЭНЭ салаа мартагдсан байв — «movie зассан ч episode
+         *    мартах» гэсэн ХАМГИЙН ДАВТАГДДАГ алдаа.
+         */
+        select: {
+          videoKey: true,
+          season: { select: { title: { select: { sites: true } } } },
+        },
       });
+      /* ⚠️ FAIL-CLOSED: нөгөө сайтад нийтлээгүй бол 404 */
+      if (ep) assertTitleOnSite(ep.season.title.sites, 'Видео олдсонгүй');
       key = ep?.videoKey ?? null;
     } else {
       const t = await this.prisma.title.findUnique({

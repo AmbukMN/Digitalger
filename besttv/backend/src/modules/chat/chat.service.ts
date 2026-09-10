@@ -311,11 +311,21 @@ export class ChatService {
     return main;
   }
 
-  /** userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ */
+  /**
+   * userId бодитоор оршиж байгаа эсэх — FK алдаанаас сэргийлнэ.
+   *
+   * ⚠️⚠️ `site` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): `select: { id }` тул
+   *    `site-extension`-ийн post-filter (`'site' in row`) алгасагдаж,
+   *    НӨГӨӨ САЙТЫН `userId`-г «хүчинтэй» гэж үзэж байв. Үр дүнд
+   *    чат зурвас буруу сайтын хэрэглэгчид холбогдож, тэр хүн
+   *    өөрийн профайлаас танихгүй яриа хардаг болно.
+   */
   private async safeUserId(userId?: string): Promise<string | undefined> {
     if (!userId) return undefined;
     const u = await this.prisma.user
-      .findUnique({ where: { id: userId }, select: { id: true } })
+      .findUnique({ where: { id: userId }, select: { id: true, site: true } })
       .catch(() => null);
     return u?.id;
   }

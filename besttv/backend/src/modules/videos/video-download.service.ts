@@ -146,9 +146,25 @@ export class VideoDownloadService {
       where: { id },
       select: {
         id: true, number: true, name: true, videoKey: true, durationSec: true,
-        season: { select: { number: true, title: { select: { title: true } } } },
+        /**
+         * ⚠️⚠️ ЭЦЭГ `Title.sites` ЗААВАЛ — `Episode` нь SHARED модел.
+         *
+         * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-10 аудит): `Episode`-д `site`
+         *    багана байхгүй тул post-filter ХЭЗЭЭ Ч ажилладаггүй.
+         *    Дээрх `movie` салаа хамгаалагдсан атал ЭНЭ салаа
+         *    мартагдсан байв → нөгөө сайтад нийтлээгүй цувралын
+         *    ангийн БҮТЭН видеог татах боломжтой байсан.
+         */
+        season: {
+          select: {
+            number: true,
+            title: { select: { title: true, sites: true } },
+          },
+        },
       },
     });
+    /* ⚠️ FAIL-CLOSED: нөгөө сайтад нийтлээгүй бол 404 */
+    if (e) assertTitleOnSite(e.season.title.sites, 'Видео олдсонгүй');
     if (!e?.videoKey) throw new NotFoundException('Видео олдсонгүй');
     const base = `${e.season.title.title} S${String(e.season.number).padStart(2, '0')}E${String(e.number).padStart(2, '0')}`;
     return {

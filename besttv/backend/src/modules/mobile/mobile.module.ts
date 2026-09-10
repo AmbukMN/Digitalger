@@ -98,13 +98,39 @@ export class MobileService {
   private async homeShared() {
     const base: Prisma.TitleWhereInput = { isActive: true, ...NOT_ADULT };
 
-    const [banners, newReleases, comingSoon, popular, genres, genreOverrides] =
+    /* ⚠️ Nested relation filter-т ГАРААР дамжуулна (өргөтгөл нэмэхгүй) */
+    const _site = currentSite();
+
+    const [banners, newReleases, comingSoon, popular, genres,
+           heroOverrides, titleOrders, genreOverrides] =
       await Promise.all([
+      /**
+       * ⚠️⚠️ HERO — САЙТ БҮРД ӨӨР (`TitleSiteOrder`, genreId='').
+       *
+       * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): апп нь дундын
+       *    `Title.isBanner`/`bannerOrder`-ыг ШУУД уншдаг байв. Вэб
+       *    дээр зассан атал апп орхигдсон → ижил хэрэглэгч утас/вэб
+       *    хооронд ӨӨР hero харна:
+       *      · BestFilm-д хассан кино АПП дээр ХЭВЭЭР гарна
+       *      · BestFilm-д нэмсэн кино АПП дээр ОГТ гарахгүй
+       *
+       * ⚠️ Тиймээс ӨРГӨН татаад (үндсэн + сайтын нэмэлт), JS талд
+       *    эцэслэнэ. `take: 8`-ыг ЭНД тавибал сайтын нэмэлт хасагдана.
+       */
       this.prisma.title.findMany({
-        where: { ...base, isBanner: true, comingSoon: false },
+        where: {
+          ...base,
+          comingSoon: false,
+          OR: [
+            { isBanner: true },
+            /* ⚠️ `site` ГАРААР — өргөтгөл nested filter-т нэмэхгүй */
+            { siteOrders: { some: { site: _site, genreId: '', isBanner: true } } },
+          ],
+        },
         orderBy: [{ bannerOrder: 'asc' }, { createdAt: 'desc' }],
-        take: 8,
-        select: CARD,
+        take: 24,
+        /* ⚠️ `isBanner`/`bannerOrder` ЗААВАЛ — fallback дүрэмд */
+        select: { ...CARD, isBanner: true, bannerOrder: true },
       }),
       this.prisma.title.findMany({
         where: { ...base, comingSoon: false, hideFromNew: false },
@@ -135,6 +161,22 @@ export class MobileService {
         select: { id: true, name: true, slug: true, order: true },
       }),
       /**
+       * ⚠️ HERO-ийн сайтын тохиргоо (`genreId = ''` мөрүүд).
+       * `isBanner === null` бол «тохируулаагүй» → `Title.isBanner`.
+       */
+      this.prisma.titleSiteOrder.findMany({
+        where: { genreId: '' },
+        select: { titleId: true, order: true, isBanner: true },
+      }),
+      /**
+       * ⚠️⚠️ ЖАНР ДОТОРХ КИНОНЫ ЭРЭМБЭ — САЙТ БҮРД ӨӨР.
+       * ⛔ Апп нь дундын `TitleGenre.order`-оор эрэмбэлдэг байв.
+       */
+      this.prisma.titleSiteOrder.findMany({
+        where: { genreId: { not: '' } },
+        select: { titleId: true, genreId: true, order: true },
+      }),
+      /**
        * ⚠️⚠️ ЖАНРЫН ЭРЭМБЭ/ХАРАГДАЦ — САЙТ БҮРД ӨӨР.
        *
        * ⛔ Вэбийн `titles.service.ts` -тэй ЯГ ИЖИЛ алдаа энд ч байв:
@@ -148,6 +190,33 @@ export class MobileService {
         select: { genreId: true, order: true, isVisible: true },
       }),
     ]);
+
+    /**
+     * ⚠️⚠️ HERO-Г САЙТЫН ТОХИРГООГООР ЭЦЭСЛЭНЭ.
+     *
+     * Дүрэм (`titles.service.ts`-ийн вэбийнхтэй ЯГ ИЖИЛ):
+     *   мөрийн `isBanner = true`  → ГАРНА
+     *   мөрийн `isBanner = false` → ГАРАХГҮЙ
+     *   мөр байхгүй / `null`      → `Title.isBanner` өвлөнө
+     *
+     * ⚠️ Эрэмбэлсний ДАРАА 8-аар таслана — өмнө нь таславал сайтын
+     *    нэмсэн кино хэзээ ч гарахгүй.
+     */
+    const heroBy = new Map(heroOverrides.map((h) => [h.titleId, h]));
+    const heroList = banners
+      .filter((b) => heroBy.get(b.id)?.isBanner ?? b.isBanner)
+      .map((b) => ({ b, order: heroBy.get(b.id)?.order ?? b.bannerOrder }))
+      .sort((a, b) => a.order - b.order)
+      .slice(0, 8)
+      .map((x) => x.b);
+
+    /**
+     * ⚠️ Кино×жанрын САЙТЫН эрэмбэ — `genreId|titleId` түлхүүртэй Map.
+     * ⚠️ Мөр байхгүй бол DB-ийн буцаасан дараалал (TitleGenre.order).
+     */
+    const titleOrderBy = new Map(
+      titleOrders.map((o) => [`${o.genreId}|${o.titleId}`, o.order]),
+    );
 
     /**
      * ⚠️ Жанр бүрийн эгнээ — САЙТЫН эрэмбийг дагана.
@@ -170,18 +239,42 @@ export class MobileService {
             title: { ...base, comingSoon: false },
           },
           orderBy: [{ order: 'asc' }, { title: { createdAt: 'desc' } }],
-          take: 18,
-          select: { title: { select: CARD } },
+          /**
+           * ⚠️⚠️ 60 — САЙТЫН эрэмбийг хэрэглэх ЗАЙ.
+           *
+           * ⛔ 18 байхад: DB нь ДУНДЫН `TitleGenre.order`-оор эхний
+           *    18-ыг сонгоно. BestFilm дээр 25-р байрны киног 1-р
+           *    болгож эрэмбэлсэн ч ЭНЭ ШАТАНД хасагдаж, эгнээнд
+           *    ХЭЗЭЭ Ч гарахгүй (вэб талд ижил урхи байсан).
+           */
+          take: 60,
+          select: { titleId: true, title: { select: CARD } },
         });
+
+        /**
+         * ⚠️⚠️ САЙТЫН эрэмбээр ДАХИН жагсаагаад 18-аар таслана.
+         * ⚠️ Fallback нь DB-ийн БУЦААСАН дараалал (`i`) — тэр нь
+         *    `TitleGenre.order` + шинэ нь урьтах дүрмийг агуулна.
+         */
+        const ordered = rows
+          .map((r, i) => ({
+            r,
+            order: titleOrderBy.get(`${g.id}|${r.titleId}`) ?? i,
+          }))
+          .sort((a, b) => a.order - b.order)
+          .slice(0, 18)
+          .map((x) => x.r);
+
         return {
           ...g,
-          items: await this.media.decorateMany(rows.map((r) => r.title)),
+          items: await this.media.decorateMany(ordered.map((r) => r.title)),
         };
       }),
     );
 
     return {
-      banners: await this.media.decorateMany(banners),
+      /* ⚠️ `heroList` — сайтын override хэрэглэсэн, 8-аар тасалсан */
+      banners: await this.media.decorateMany(heroList),
       newReleases: await this.media.decorateMany(newReleases),
       comingSoon: await this.media.decorateMany(comingSoon),
       popular: await this.media.decorateMany(popular),
@@ -333,13 +426,40 @@ export class MobileService {
     return detail;
   }
 
-  /** Жанрын жагсаалт — 18+ хассан */
+  /**
+   * Жанрын жагсаалт — 18+ хассан.
+   *
+   * ⚠️⚠️ ЭРЭМБЭ/ХАРАГДАЦ САЙТ БҮРД ӨӨР (`GenreSiteOrder`).
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): дундын `Genre.order`-оор
+   *    эрэмбэлж, `isVisible` шүүлт ОГТ хийдэггүй байв. Үр дүнд:
+   *      · BestFilm-д «нуусан» жанр аппын каталогийн шүүлтүүрт
+   *        ХЭВЭЭР гарч, дарахад кинонууд нь ч гарна
+   *      · Аппын НҮҮР (GenreSiteOrder уншдаг) ба КАТАЛОГ (уншдаггүй)
+   *        хоорондоо ЗӨРЧИЛТЭЙ дараалал харуулна
+   *
+   * ⚠️ Дүрэм нь `genres.module.ts` list()-тэй ЯГ ИЖИЛ байх ЁСТОЙ.
+   */
   async genres() {
-    return this.prisma.genre.findMany({
-      where: { isAdult: false },
-      orderBy: { order: 'asc' },
-      select: { id: true, name: true, slug: true },
-    });
+    const [rows, overrides] = await Promise.all([
+      this.prisma.genre.findMany({
+        where: { isAdult: false },
+        orderBy: { order: 'asc' },
+        /* ⚠️ `order` — мөр байхгүй жанрын fallback эрэмбэд ЗААВАЛ */
+        select: { id: true, name: true, slug: true, order: true },
+      }),
+      this.prisma.genreSiteOrder.findMany({
+        select: { genreId: true, order: true, isVisible: true },
+      }),
+    ]);
+
+    const by = new Map(overrides.map((o) => [o.genreId, o]));
+    return rows
+      .filter((g) => by.get(g.id)?.isVisible !== false)
+      .map((g) => ({ g, order: by.get(g.id)?.order ?? g.order }))
+      .sort((a, b) => a.order - b.order || a.g.name.localeCompare(b.g.name, 'mn'))
+      /* ⚠️ `order`-ыг гадагш ГАРГАХГҮЙ — апп зөвхөн дарааллыг дагана */
+      .map(({ g }) => ({ id: g.id, name: g.name, slug: g.slug }));
   }
 
   /**

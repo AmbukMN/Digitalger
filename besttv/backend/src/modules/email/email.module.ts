@@ -49,6 +49,8 @@ import { ubRangeFilter, ubRangeStart } from '../../common/ub-date';
 import { currentSite } from '../../common/site/site-context';
 import { siteConfig, isPlaceholderEmail } from '../../common/site/site-config';
 import { assertSameSite } from '../../common/site/site-guard';
+/* ⚠️ Сайтын шүүлт fail-closed (bulk реклам) */
+import { assertTitleOnSite } from '../../common/site/site-guard';
 
 /**
  * 1×1 тунгалаг GIF — имэйл нээлт хянах pixel.
@@ -1002,9 +1004,21 @@ export class EmailAdminController {
         description: true,
         posterKey: true,
         type: true,
+        /**
+         * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+         *
+         * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-10 аудит): `select`-д `sites`
+         *    байхгүй тул post-filter алгасагдаж, BestFilm-ийн админ
+         *    ЗӨВХӨН BestTV-д нийтэлсэн киног ӨӨРИЙН САЙТЫН бүх
+         *    захиалагчид bulk рекламаар илгээж чаддаг байв —
+         *    хүлээн авагч дарахад 404, брэндэд шууд хохирол.
+         */
+        sites: true,
       },
     });
     if (!title) return { found: false };
+    /* ⚠️ FAIL-CLOSED: өөр сайтынх бол «олдсонгүй» */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
     const bodyHtml = await this.buildTitlePromoBody(title);
     const html = this.email.buildLifecycleHtml({
       to: `preview@${siteConfig().domain}`,
@@ -1036,9 +1050,21 @@ export class EmailAdminController {
         description: true,
         posterKey: true,
         type: true,
+        /**
+         * ⚠️⚠️ `sites` ЗААВАЛ — эс бөгөөс сайтын шүүлт FAIL-OPEN.
+         *
+         * ⛔ БОДИТ ЭМЗЭГ БАЙДАЛ (2026-09-10 аудит): `select`-д `sites`
+         *    байхгүй тул post-filter алгасагдаж, BestFilm-ийн админ
+         *    ЗӨВХӨН BestTV-д нийтэлсэн киног ӨӨРИЙН САЙТЫН бүх
+         *    захиалагчид bulk рекламаар илгээж чаддаг байв —
+         *    хүлээн авагч дарахад 404, брэндэд шууд хохирол.
+         */
+        sites: true,
       },
     });
     if (!title) throw new BadRequestException('Кино олдсонгүй');
+    /* ⚠️ FAIL-CLOSED: өөр сайтын киног ӨӨРИЙН захиалагчид илгээхгүй */
+    assertTitleOnSite(title.sites, 'Кино олдсонгүй');
 
     /* ⚠️ ТЕСТ ГОРИМ — зөвхөн нэг хаяг (opt-out шалгахгүй, өөртөө туршина) */
     const isTest = !!dto.testEmail;
