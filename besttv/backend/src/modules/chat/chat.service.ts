@@ -308,6 +308,29 @@ export class ChatService {
 
     const igId = process.env[`${px}IG_USER_ID`];
     if (igId && pageId === igId) return main;
+
+    /**
+     * ⚠️⚠️ ТААРААГҮЙ `pageId` — ҮНДСЭН ТОКЕН РУУ УНАХГҮЙ.
+     *
+     * ⛔ БОДИТ ЭРСДЭЛ: сайт нь ОЛОН хуудастай үед (BestFilm-д 2,
+     *    BestTV-д 3) таараагүй id-д `main` буцаавал админы хариу
+     *    БУРУУ ХУУДСААР явна — хэрэглэгч огт бичээгүй хуудаснаас
+     *    зурвас авна, брэндийн нэрийн өмнөөс.
+     *
+     * ⚠️ Зөвхөн НЭГ хуудас тохируулсан үед (`FB_PAGE_ID` заагаагүй
+     *    хуучин суулгац) `main`-ыг хэвээр буцаана — эс бөгөөс BestTV-
+     *    ийн одоогийн ажиллагаа тасарна.
+     */
+    const anyIdConfigured =
+      !!process.env[`${px}FB_PAGE_ID`] || !!process.env[`${px}FB_PAGE_ID_2`];
+    if (anyIdConfigured) {
+      this.logger.error(
+        `⛔ FB pageId=${pageId} нь ${currentSite()}-ийн аль ч хуудастай ` +
+          'таарсангүй — админы хариу ИЛГЭЭГДСЭНГҮЙ (буруу хуудсаар ' +
+          'явахаас сэргийлэв). Токеныг .env-д нэмнэ үү.',
+      );
+      return undefined;
+    }
     return main;
   }
 
