@@ -388,7 +388,8 @@ export class TitlesAdminService {
      *    `titles.service.ts`-ийн нүүрний логиктой ЯГ ИЖИЛ дүрэм.
      */
     const heroOverride = await this.prisma.titleSiteOrder.findFirst({
-      where: { titleId: id, genreId: null },
+      /* ⚠️ `genreId: ''` = hero мөр (жанрын эрэмбийнхээс ялгаатай) */
+      where: { titleId: id, genreId: '' },
       select: { order: true, isBanner: true },
     });
 
@@ -600,32 +601,14 @@ export class TitlesAdminService {
         };
 
         /**
-         * ⚠️⚠️ `upsert` ХЭРЭГЛЭХГҮЙ — `genreId` нь NULL.
-         *
-         * Prisma-гийн compound unique (`titleId_genreId_site`) нь
-         * `genreId: null` хүлээж авдаггүй (TS: «null is not assignable
-         * to string»). Postgres-т ч NULL нь unique index дотор
-         * давхардаж болдог тул migration-д PARTIAL unique index
-         * (`TitleSiteOrder_hero_key WHERE genreId IS NULL`) тавьсан.
-         *
-         * ⚠️ Тиймээс ГАРААР: эхлээд хайж, байвал update, эс бөгөөс
-         *    create. Транзакц дотор тул уралдаан үүсэхгүй.
+         * ⚠️ `genreId: ''` = HERO мөр (жанрын эрэмбийн мөрөөс ялгагдана).
+         * ⚠️ Хоосон мөр нь `Genre.id`-д тохиолдохгүй (cuid = 25 тэмдэгт).
          */
-        const existingHero = await tx.titleSiteOrder.findFirst({
-          where: { titleId: id, genreId: null, site },
-          select: { id: true },
+        await tx.titleSiteOrder.upsert({
+          where: { titleId_genreId_site: { titleId: id, genreId: '', site } },
+          create: { titleId: id, genreId: '', site, ...patch },
+          update: patch,
         });
-
-        if (existingHero) {
-          await tx.titleSiteOrder.update({
-            where: { id: existingHero.id },
-            data: patch,
-          });
-        } else {
-          await tx.titleSiteOrder.create({
-            data: { titleId: id, genreId: null, site, ...patch },
-          });
-        }
       }
 
       return tx.title.update({

@@ -162,7 +162,7 @@ export class TitlesService {
               { isBanner: true },
               /* ⚠️ Тухайн сайтад ГАРААР нэмсэн кино (өргөтгөл нь
                  `siteOrders`-т site шүүлт нэмнэ) */
-              { siteOrders: { some: { genreId: null, isBanner: true } } },
+              { siteOrders: { some: { genreId: '', isBanner: true } } },
             ],
           },
           orderBy: { bannerOrder: 'asc' },
@@ -302,7 +302,8 @@ export class TitlesService {
          *    хасна, тэр нь өөр зорилготой (доорх `heroOverrides`).
          */
         this.prisma.titleSiteOrder.findMany({
-          where: { genreId: { not: null } },
+          /* ⚠️ `''` нь HERO мөр — жанрын эрэмбийг л авна */
+          where: { genreId: { not: '' } },
           select: { titleId: true, genreId: true, order: true },
         }),
         /**
@@ -310,7 +311,8 @@ export class TitlesService {
          * `isBanner` нь `null` бол «тохируулаагүй» → `Title.isBanner`.
          */
         this.prisma.titleSiteOrder.findMany({
-          where: { genreId: null },
+          /* ⚠️ `genreId: ''` = HERO мөрүүд */
+          where: { genreId: '' },
           select: { titleId: true, order: true, isBanner: true },
         }),
       ]);

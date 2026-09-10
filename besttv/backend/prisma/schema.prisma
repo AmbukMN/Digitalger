@@ -115,6 +115,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * ⚠️ ЗААВАЛ БИШ — хэрэглэгч зөвхөн имэйлээр бүртгүүлж болно.
    * ⚠️ `@unique` — нэвтрэхэд ашиглагддаг тул давхардаж БОЛОХГҮЙ.
    * ⚠️ Хадгалахын ӨМНӨ нормалчилна (8 орон). DigitalGer-т нормалчлал
@@ -476,9 +477,6 @@ model Genre {
   /// Сайт бүрийн эрэмбэ/харагдац (доорх моделийг үз)
   siteOrders GenreSiteOrder[]
 
-  /// ⚠️ Кино×сайтын эрэмбэ (энэ жанр доторх дараалал)
-  titleSiteOrders TitleSiteOrder[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -552,8 +550,18 @@ model TitleSiteOrder {
   titleId String
   site    String
 
-  /// ⚠️ NULL = hero баннерын тохиргоо. Утгатай = тэр жанр доторх эрэмбэ.
-  genreId String?
+  /**
+   * ⚠️⚠️ `''` (ХООСОН МӨР) = hero баннерын тохиргоо.
+   * Утгатай = тэр жанр доторх эрэмбэ.
+   * ⛔ ЯАГААД NULL БИШ ВЭ: Prisma `upsert` нь
+   * `ON CONFLICT (titleId, genreId, site)` үүсгэдэг. NULL-тай
+   * баганад PARTIAL unique index (`WHERE genreId IS NOT NULL`)
+   * тавих шаардлагатай болдог ба тэр нь ON CONFLICT-той
+   * ТААРДАГГҮЙ → Postgres 42P10 (бодит алдаа, 2026-09-10).
+   * ⚠️ `''` нь `Genre.id`-д ХЭЗЭЭ Ч тохиолдохгүй (cuid = 25 тэмдэгт)
+   * тул зөрчилдөхгүй. FK ТАВИХГҮЙ — hero мөр жанртай холбогдохгүй.
+   */
+  genreId String @default("")
 
   /// Тухайн жанр доторх дараалал (бага нь эхэнд). genreId=NULL үед hero дараалал.
   order Int @default(0)
@@ -564,29 +572,31 @@ model TitleSiteOrder {
    */
   isBanner Boolean?
 
-  title Title  @relation(fields: [titleId], references: [id], onDelete: Cascade)
-  genre Genre? @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  /**
+   * ⚠️ `Genre` relation БАЙХГҮЙ — hero мөрийн `genreId=''` нь жанр биш.
+   * Жанр устахад мөр үлдэнэ; `genres.module.ts` нь ашиглагдаагүй
+   * мөрийг үл тоомсорлоно (жанр байхгүй бол эгнээ ч гарахгүй).
+   */
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   /**
    * ⚠️⚠️ `@@unique` нь Prisma-д `upsert`-ийн түлхүүр болгож ашиглагдана.
-   *
    * ⚠️ Postgres-д NULL нь unique index дотор ДАВХАРДАЖ болдог тул энэ
-   *    ганц хязгаарлалт нь hero мөрийг (`genreId = NULL`) давхардахаас
-   *    ХАМГААЛАХГҮЙ. Migration-д нэмэлт PARTIAL unique index тавьсан
-   *    (`TitleSiteOrder_hero_key` — `WHERE genreId IS NULL`).
-   *
+   * ганц хязгаарлалт нь hero мөрийг (`genreId = NULL`) давхардахаас
+   * ХАМГААЛАХГҮЙ. Migration-д нэмэлт PARTIAL unique index тавьсан
+   * (`TitleSiteOrder_hero_key` — `WHERE genreId IS NULL`).
    * ⚠️ Prisma нь partial index-ыг схемд илэрхийлж чаддаггүй тул
-   *    `migration.sql`-д ГАРААР бичсэн. Схемийг дахин генерацлахад
-   *    тэр index АЛГА БОЛОХГҮЙ — `prisma migrate` нь байгаа index-ыг
-   *    хөндөхгүй (drift шалгахад л мэдэгдэнэ).
+   * `migration.sql`-д ГАРААР бичсэн. Схемийг дахин генерацлахад
+   * тэр index АЛГА БОЛОХГҮЙ — `prisma migrate` нь байгаа index-ыг
+   * хөндөхгүй (drift шалгахад л мэдэгдэнэ).
    */
   @@unique([titleId, genreId, site])
   /// ⚠️ Жанрын эгнээ татахад хамгийн их ашиглагдана
   @@index([site, genreId, order])
-  /// ⚠️ Нүүрний hero carousel
+  /// ⚠️ Нүүрний hero carousel (`genreId = ''` мөрүүд)
   @@index([site, isBanner, order])
 }
 
@@ -2035,6 +2045,7 @@ model EmailLog {
 
   // ─── ХҮРГЭЛТ / НЭЭЛТИЙН ХЯНАЛТ ──────────────────────────────────────────
   /**
+   * /**
    * /**
    * /**
    * /**

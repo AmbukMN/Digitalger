@@ -14,10 +14,22 @@ CREATE TABLE "TitleSiteOrder" (
     "id" TEXT NOT NULL,
     "titleId" TEXT NOT NULL,
     "site" TEXT NOT NULL,
-    -- ⚠️ NULL = hero баннерын тохиргоо; утгатай = тэр жанр доторх эрэмбэ
-    "genreId" TEXT,
+    /**
+     * ⚠️⚠️ `''` (ХООСОН МӨР) = hero баннерын тохиргоо.
+     *      Утгатай = тэр жанр доторх эрэмбэ.
+     *
+     * ⛔ ЯАГААД NULL БИШ ВЭ: Prisma `upsert` нь
+     *    `ON CONFLICT (titleId, genreId, site)` үүсгэдэг. NULL-тай
+     *    баганад PARTIAL unique index (`WHERE genreId IS NOT NULL`)
+     *    тавих шаардлагатай ба тэр нь ON CONFLICT-той ТААРДАГГҮЙ
+     *    → Postgres 42P10 (бодит алдаа, 2026-09-10).
+     *
+     * ⚠️ `''` нь `Genre.id`-д ХЭЗЭЭ Ч тохиолдохгүй (cuid = 25 тэмдэгт).
+     * ⚠️ Genre руу FK ТАВИХГҮЙ — hero мөр жанртай холбогдохгүй.
+     */
+    "genreId" TEXT NOT NULL DEFAULT '',
     "order" INTEGER NOT NULL DEFAULT 0,
-    -- ⚠️ ЗӨВХӨН genreId=NULL мөрд утгатай. NULL = Title.isBanner өвлөнө.
+    -- ⚠️ ЗӨВХӨН genreId='' мөрд утгатай. NULL = Title.isBanner өвлөнө.
     "isBanner" BOOLEAN,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -25,36 +37,22 @@ CREATE TABLE "TitleSiteOrder" (
     CONSTRAINT "TitleSiteOrder_pkey" PRIMARY KEY ("id")
 );
 
--- ⚠️⚠️ Кино×жанр×сайт бүрд НЭГ мөр.
---
--- ⚠️ Postgres-д `NULL` нь unique index дотор ДАВХАРДАЖ болдог тул
---    энгийн UNIQUE(titleId, genreId, site) нь hero мөрийг (genreId
---    NULL) давхардахаас ХАМГААЛАХГҮЙ. Тиймээс ХОЁР тусдаа index:
---      · genreId ҮНЭТЭЙ мөрд — ердийн unique
---      · genreId NULL мөрд    — partial unique (кино×сайт бүрд нэг)
-CREATE UNIQUE INDEX "TitleSiteOrder_genre_key"
-    ON "TitleSiteOrder"("titleId", "genreId", "site")
-    WHERE "genreId" IS NOT NULL;
-
-CREATE UNIQUE INDEX "TitleSiteOrder_hero_key"
-    ON "TitleSiteOrder"("titleId", "site")
-    WHERE "genreId" IS NULL;
+-- ⚠️⚠️ БҮТЭН unique — Prisma `upsert`-ийн ON CONFLICT энэтэй таарна.
+--    (PARTIAL index байсан үед 42P10 алдаа гарч байсан.)
+ALTER TABLE "TitleSiteOrder"
+    ADD CONSTRAINT "TitleSiteOrder_titleId_genreId_site_key"
+    UNIQUE ("titleId", "genreId", "site");
 
 -- ⚠️ Жанрын эгнээ татахад хамгийн их ашиглагдана
 CREATE INDEX "TitleSiteOrder_site_genreId_order_idx"
     ON "TitleSiteOrder"("site", "genreId", "order");
 
--- ⚠️ Нүүрний hero carousel
+-- ⚠️ Нүүрний hero carousel (`genreId = ''` мөрүүд)
 CREATE INDEX "TitleSiteOrder_site_isBanner_order_idx"
     ON "TitleSiteOrder"("site", "isBanner", "order");
 
--- ⚠️ Кино эсвэл жанр устахад холбогдох мөр ч устана (CASCADE)
+-- ⚠️ Кино устахад холбогдох мөр ч устана (CASCADE)
 ALTER TABLE "TitleSiteOrder"
     ADD CONSTRAINT "TitleSiteOrder_titleId_fkey"
     FOREIGN KEY ("titleId") REFERENCES "Title"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "TitleSiteOrder"
-    ADD CONSTRAINT "TitleSiteOrder_genreId_fkey"
-    FOREIGN KEY ("genreId") REFERENCES "Genre"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
