@@ -107,6 +107,20 @@ const PAGE_META: Record<string, { label: string; cls: string }> = {
     /* ⚠️ Гурав дахь өнгө — өмнөх хоёроос ТОД ялгаатай байх ёстой */
     cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   },
+  /* ── BestFilm-ийн хуудсууд (2026-09-10) ──
+     ⚠️ Нэг админ панел ХОЁР сайтыг үйлчилдэг. Сайт солиход зөвхөн
+        тухайн сайтын яриа гарна (backend `site`-аар шүүнэ), гэхдээ
+        энд бүртгэхгүй бол шошго нь «143480» гэсэн түүхий тоо болно. */
+  '172745586143480': {
+    label: 'BF Шилдэг кино',
+    /* ⚠️ BestFilm-ийг ялгах ТУСДАА өнгөний бүлэг (violet/rose) —
+       BestTV-ийн primary/emerald/amber-тай андуурагдахгүй */
+    cls: 'bg-violet-500/15 text-violet-600 dark:text-violet-300',
+  },
+  '468025143299661': {
+    label: 'BF Богино драм',
+    cls: 'bg-rose-500/15 text-rose-600 dark:text-rose-300',
+  },
 };
 
 /** FB page badge — `pageId` байвал л гарна (вэб чатад утгагүй) */
