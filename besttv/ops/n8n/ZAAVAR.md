@@ -1,5 +1,20 @@
 # BestTV — Facebook/Instagram чатбот
 
+> ## ⛔⛔ ЭНЭ ХАВТАС ХУУЧИРСАН — ЗАСВАР ОРУУЛАХГҮЙ
+>
+> `besttv-fb-chatbot.json` нь **2026-08-14-ний нэг агшны хуулбар**.
+> Ажиллаж байгаа workflow нь **n8n-ийн DB-д** (`workflow_history`,
+> `activeVersionId`) бөгөөд түүнээс хойш олон удаа засагдсан:
+> сайт бүрийн брэнд, `x-site` толгой, BestFilm-ийн 2 хуудас,
+> `SELF_PAGES` (хязгааргүй давталтын засвар) г.м.
+>
+> ⚠️ Энд байгаа `PAGEID='108103720808038'` ганц утга нь **хуучин** —
+> бодит workflow-д 5 хуудас бүртгэлтэй.
+>
+> **Засвар хийх зам:** DB-ээс уншиж → засаад → `workflow_history` +
+> `workflow_entity` ХОЁУЛАНД бичээд → `docker restart digitalger-n8n`.
+> Дэлгэрэнгүй: санах ойн `project_n8n_published_version`.
+
 DigitalGer-ийн `CNamkzJ1xMqWKWOr` workflow-г BestTV орчинд бүтнээр хөрвүүлсэн.
 **30 node**, 3 урсгал: Messenger AI чат · Comment auto-reply · Webhook verify.
 
