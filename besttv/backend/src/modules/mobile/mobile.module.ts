@@ -98,7 +98,8 @@ export class MobileService {
   private async homeShared() {
     const base: Prisma.TitleWhereInput = { isActive: true, ...NOT_ADULT };
 
-    const [banners, newReleases, comingSoon, popular, genres] = await Promise.all([
+    const [banners, newReleases, comingSoon, popular, genres, genreOverrides] =
+      await Promise.all([
       this.prisma.title.findMany({
         where: { ...base, isBanner: true, comingSoon: false },
         orderBy: [{ bannerOrder: 'asc' }, { createdAt: 'desc' }],
@@ -128,13 +129,41 @@ export class MobileService {
       this.prisma.genre.findMany({
         where: { isAdult: false },
         orderBy: { order: 'asc' },
-        select: { id: true, name: true, slug: true },
+        /* ⚠️ `order` ЗААВАЛ — `GenreSiteOrder` мөргүй жанрын fallback
+           эрэмбэд хэрэгтэй (доорх `?? g.order`). Байхгүй бол бүгд 0
+           болж дараалал санамсаргүй болно. */
+        select: { id: true, name: true, slug: true, order: true },
+      }),
+      /**
+       * ⚠️⚠️ ЖАНРЫН ЭРЭМБЭ/ХАРАГДАЦ — САЙТ БҮРД ӨӨР.
+       *
+       * ⛔ Вэбийн `titles.service.ts` -тэй ЯГ ИЖИЛ алдаа энд ч байв:
+       *    `Genre.order` (SHARED) -оор эрэмбэлдэг тул сайтын өөрийн
+       *    эрэмбэ, нуусан жанр аль аль нь хэрэгжихгүй байсан.
+       *
+       * ⚠️ Вэб болон апп ИЖИЛ дараалал харуулах ЁСТОЙ — эс бөгөөс
+       *    хэрэглэгч төхөөрөмж солиход өөр эрэмбэ хараад эргэлзэнэ.
+       */
+      this.prisma.genreSiteOrder.findMany({
+        select: { genreId: true, order: true, isVisible: true },
       }),
     ]);
 
-    /* Жанр бүрийн эгнээ — админы эрэмбийг дагана */
+    /**
+     * ⚠️ Жанр бүрийн эгнээ — САЙТЫН эрэмбийг дагана.
+     * ⚠️ Дүрэм нь `titles.service.ts` болон `genres.module.ts`-тэй
+     *    ЯГ ИЖИЛ: мөр байвал түүний утга, байхгүй бол `Genre.order`
+     *    + харагдана.
+     */
+    const genreOverrideBy = new Map(genreOverrides.map((o) => [o.genreId, o]));
+    const visibleGenres = genres
+      .filter((g) => genreOverrideBy.get(g.id)?.isVisible !== false)
+      .map((g) => ({ g, order: genreOverrideBy.get(g.id)?.order ?? g.order }))
+      .sort((a, b) => a.order - b.order || a.g.name.localeCompare(b.g.name, 'mn'))
+      .map((x) => x.g);
+
     const genreRows = await Promise.all(
-      genres.map(async (g) => {
+      visibleGenres.map(async (g) => {
         const rows = await this.prisma.titleGenre.findMany({
           where: {
             genreId: g.id,

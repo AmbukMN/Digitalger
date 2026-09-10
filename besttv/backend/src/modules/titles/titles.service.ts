@@ -132,7 +132,7 @@ export class TitlesService {
   }
 
   private async homeShared() {
-    const [banners, newReleases, comingSoon, genres, popular] =
+    const [banners, newReleases, comingSoon, genres, popular, genreOverrides] =
       await Promise.all([
         // Hero carousel — backdrop + trailer
         this.prisma.title.findMany({
@@ -179,11 +179,15 @@ export class TitlesService {
           where: { titles: { some: { title: { isActive: true, comingSoon: false } } } },
           orderBy: { order: 'asc' },
           /**
-           * ⚠️ ГАДНА `take` — админ 50 жанр нэмбэл 50×20 = 1000 мөр нэг
-           * хариунд орно. Нүүрэнд 15 эгнээ хангалттай (доош гүйлгэхэд
-           * хэрэглэгч ядардаг), илүү нь `/movies` каталогт бий.
+           * ⚠️⚠️ `take` ЭНД БАЙХГҮЙ — эрэмбийг САЙТЫН тохиргоогоор
+           * дахин жагсаасны ДАРАА л 15-аар таслана (доор).
+           *
+           * ⛔ БОДИТ АЛДАА (2026-09-10): энд `take: 15` байсан тул
+           *    `Genre.order` (ДУНДЫН) -оор эхний 15-ыг сонгоод,
+           *    сайтын өөрийн эрэмбэ (`GenreSiteOrder`) огт
+           *    хэрэгжихгүй байв. BestFilm дээр 16-р байрны жанрыг
+           *    1-р болгож эрэмбэлсэн ч энэ шатанд ХАСАГДДАГ байсан.
            */
-          take: 15,
           include: {
             titles: {
               where: { title: { isActive: true, comingSoon: false } },
@@ -218,6 +222,27 @@ export class TitlesService {
           take: 10,
           select: CARD_SELECT,
         }),
+        /**
+         * ⚠️⚠️ ЖАНРЫН ЭРЭМБЭ/ХАРАГДАЦ — САЙТ БҮРД ӨӨР.
+         *
+         * ⛔ БОДИТ АЛДАА (2026-09-10): нүүр хуудас `Genre.order`
+         *    (SHARED багана) -оор эрэмбэлдэг байсан тул:
+         *      · BestFilm дээр жанр эрэмбэлэхэд НҮҮРЭНД ОГТ
+         *        нөлөөлөхгүй — админ «хадгалсан ч ажиллахгүй» гэнэ
+         *      · Жанрыг «нуусан» (`isVisible: false`) ч нүүрэнд
+         *        ХЭВЭЭР гарна — 18+ жанрыг BestFilm-д нуух гэсэн
+         *        зорилго биелэхгүй
+         *      · Хоёр сайт ЯГ ИЖИЛ 15 жанрыг ижил дарааллаар харуулна
+         *
+         * ⚠️ `GenreSiteOrder` нь SCOPED — Prisma өргөтгөл `site`
+         *    шүүлтийг АВТОМАТААР нэмнэ (гараар бичих шаардлагагүй).
+         * ⚠️ Мөр байхгүй жанр = `Genre.order` fallback, харагдана
+         *    (`genres.module.ts`-ийн `list()`-тэй ЯГ ИЖИЛ дүрэм —
+         *    хоёр газар зөрвөл админ юу харснаа нүүрэнд олохгүй).
+         */
+        this.prisma.genreSiteOrder.findMany({
+          select: { genreId: true, order: true, isVisible: true },
+        }),
       ]);
 
     const decoratedBanners = await Promise.all(
@@ -241,9 +266,34 @@ export class TitlesService {
       })),
     );
 
-    /* ⚠️ Хоосон жанрыг DB талд шүүсэн тул энд `filter` шаардлагагүй */
+    /**
+     * ⚠️⚠️ САЙТЫН ЭРЭМБЭ/ХАРАГДАЦЫГ ХЭРЭГЛЭНЭ — дараа нь 15-аар таслана.
+     *
+     * ⚠️ Дүрэм нь `genres.module.ts`-ийн `list()`-тэй ЯГ ИЖИЛ байх ЁСТОЙ:
+     *      мөр байвал → түүний `order`/`isVisible`
+     *      мөр байхгүй → `Genre.order`, харагдана
+     *    Хоёр газар зөрвөл админ жагсаалтад харсан дараалал нүүрэнд
+     *    өөрөөр гарч, «хадгалсан нь ажиллахгүй байна» гэсэн ойлголт
+     *    төрүүлнэ.
+     *
+     * ⚠️ Хоосон жанрыг DB талд шүүсэн тул энд `filter` шаардлагагүй.
+     */
+    const genreOverrideBy = new Map(genreOverrides.map((o) => [o.genreId, o]));
+
+    const visibleGenres = genres
+      .filter((g) => genreOverrideBy.get(g.id)?.isVisible !== false)
+      .map((g) => ({ g, order: genreOverrideBy.get(g.id)?.order ?? g.order }))
+      .sort((a, b) => a.order - b.order || a.g.name.localeCompare(b.g.name, 'mn'))
+      /**
+       * ⚠️ ГАДНА `take` — админ 50 жанр нэмбэл 50×20 = 1000 мөр нэг
+       * хариунд орно. Нүүрэнд 15 эгнээ хангалттай (доош гүйлгэхэд
+       * хэрэглэгч ядардаг), илүү нь `/movies` каталогт бий.
+       */
+      .slice(0, 15)
+      .map((x) => x.g);
+
     const genreRows = await Promise.all(
-      genres.map(async (g) => ({
+      visibleGenres.map(async (g) => ({
         id: g.id,
         name: g.name,
         slug: g.slug,
