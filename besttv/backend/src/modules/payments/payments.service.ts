@@ -85,6 +85,38 @@ export class PaymentsService {
   }
 
   /**
+   * ⚠️⚠️ DEV-MODE-Ы ХАМГААЛАЛТ — PRODUCTION-Д ТӨЛБӨРГҮЙ ЭРХ ОЛГОХГҮЙ.
+   *
+   * ⛔ БОДИТ ЭРСДЭЛ (2026-09-10 аудит): `isQPayConfigured()` худал бол
+   *    код нь төлбөрийг ШУУД `PAID` болгож эрх олгодог байв — `nodeEnv`
+   *    ОГТ шалгахгүйгээр. Энэ нь локал хөгжүүлэлтэд тохиромжтой ч
+   *    production-д АЮУЛТАЙ:
+   *
+   *      · `.env.production`-ыг repo-гоос дахин хуулбал
+   *        `BESTFILM_QPAY_*` алга болно (тэдгээр нь gitignore-д)
+   *      · Ганц талбар (жишээ нь PASSWORD) хоосорвол хангалттай
+   *      · Үр дүн: тэр сайт дээр БҮХ багц/түрээс/цэнэглэлт ҮНЭГҮЙ
+   *      · Чимээгүй — зөвхөн `logger.warn` бичнэ, хэн ч анзаарахгүй
+   *
+   * ⚠️ FAIL-CLOSED: production-д тохиргоо дутуу бол төлбөр АВАХГҮЙ.
+   *    Хэрэглэгч түр төлж чадахгүй нь орлого чимээгүй алдагдахаас
+   *    хамаагүй дээр (webhook-ийн `isProd` шалгалттай ИЖИЛ зарчим).
+   *
+   * ⚠️ Хэрэглэгчид ойлгомжтой мессеж — «алдаа гарлаа» биш.
+   */
+  private assertDevModeAllowed(kind: string): void {
+    if (this.config.get<string>('nodeEnv') !== 'production') return;
+
+    this.logger.error(
+      `⛔ QPay тохиргоо ДУТУУ (${currentSite()}) — ${kind} боловсруулах ` +
+        'боломжгүй. `.env.production`-ийн QPAY_* / BESTFILM_QPAY_* шалга.',
+    );
+    throw new BadRequestException(
+      'Төлбөрийн систем түр ажиллахгүй байна. Хэсэг хүлээгээд дахин оролдоно уу.',
+    );
+  }
+
+  /**
    * BONUM-аар төлөх нийтлэг хэсэг — invoice үүсгээд Payment бичлэгийн
    * талбаруудыг буцаана. Багц/түрээс/цэнэглэлт ГУРВУУЛАА үүнийг дуудна
    * (QPay-ийн `createQPayInvoice`-тэй ижил зарчим — нэг газарт).
@@ -606,6 +638,8 @@ export class PaymentsService {
 
     // DEV mode — QPay тохируулаагүй бол шууд төлөгдсөнд тооцно
     if (!this.isQPayConfigured()) {
+      /* ⚠️ Production-д ЭНД ЗОГСОНО — үнэгүй багц тарахаас сэргийлнэ */
+      this.assertDevModeAllowed('багцын төлбөр');
       const devPayment = await this.prisma.payment.create({
         data: {
           userId,
@@ -836,6 +870,8 @@ export class PaymentsService {
 
     /* ⚠️ QPay тохируулаагүй (dev) — шууд төлөгдсөнд тооцно */
     if (!this.isQPayConfigured()) {
+      /* ⚠️ Production-д ЭНД ЗОГСОНО — үнэгүй түрээс болохоос сэргийлнэ */
+      this.assertDevModeAllowed('киноны түрээс');
       const dev = await this.prisma.payment.create({ data: base });
       this.logger.warn('QPay тохируулаагүй — dev mode: түрээс автомат баталгаажлаа');
       await this.completePayment(dev.id);
@@ -1749,8 +1785,29 @@ export class PaymentsService {
       });
     }
 
-    await this.completePayment(paymentId);
-    this.logger.log(`Админ гараар баталгаажууллаа: payment=${paymentId} admin=${adminId}`);
+    /**
+     * ⚠️⚠️ ТӨЛБӨРИЙН ӨӨРИЙН САЙТААР ажиллуулна — админы контекстээр БИШ.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-10 аудит): `completePayment` нь имэйл,
+     *    Meta CAPI, n8n мэдэгдэл илгээхдээ `currentSite()` уншдаг.
+     *    Админ `X-Site: besttv`-ээр нэвтэрч BestFilm-ийн төлбөрийг
+     *    гараар баталгаажуулбал хэрэглэгчид «BestTV» брэндтэй,
+     *    `besttv.us` холбоостой имэйл очно — хэрэглэгч танихгүй
+     *    сайтаас имэйл ирсэн гэж үзэж, залилан гэж гомдоллоно.
+     *
+     * ⚠️ `reconcilePending` (мөр ~1258) болон `payment-cleanup.ts`
+     *    дээр яг энэ алдааг зассан атал ЭНЭ зам орхигдсон байв.
+     *
+     * ⚠️ `runWithSiteAsync` — синхрон хувилбар нь Promise-ыг гадагш
+     *    буцаахад контекстээ алддаг (`site-context.ts` дахь урхи).
+     */
+    await runWithSiteAsync(toSite(payment.site), () =>
+      this.completePayment(paymentId),
+    );
+    this.logger.log(
+      `Админ гараар баталгаажууллаа: payment=${paymentId} ` +
+        `site=${payment.site} admin=${adminId}`,
+    );
     return this.prisma.payment.findUnique({ where: { id: paymentId } });
   }
 
@@ -1898,6 +1955,8 @@ export class PaymentsService {
 
     // DEV mode — QPay тохируулаагүй бол шууд цэнэглэнэ
     if (!this.isQPayConfigured()) {
+      /* ⚠️ Production-д ЭНД ЗОГСОНО — үнэгүй цэнэглэлт болохоос сэргийлнэ */
+      this.assertDevModeAllowed('хэтэвч цэнэглэх');
       const devPayment = await this.prisma.payment.create({
         data: {
           userId,
