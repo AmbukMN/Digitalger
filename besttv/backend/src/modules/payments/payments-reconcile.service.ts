@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentsService } from './payments.service';
 import { forEachSite } from '../../common/site/site-cron';
@@ -6,6 +6,8 @@ import { forEachSite } from '../../common/site/site-cron';
 /** 5 минут тутам PENDING төлбөрүүдийг QPay-аас шалгана (webhook fallback) */
 @Injectable()
 export class PaymentsReconcileService {
+  private readonly logger = new Logger(PaymentsReconcileService.name);
+
   constructor(private readonly payments: PaymentsService) {}
 
   /**
@@ -32,6 +34,22 @@ export class PaymentsReconcileService {
   async reconcile(): Promise<void> {
     await forEachSite('payments-reconcile', async () => {
       await this.payments.reconcilePending(2);
+
+      /**
+       * ⚠️⚠️ PAID АТАЛ ЭРХГҮЙ ҮЛДСЭНИЙГ Ч НӨХНӨ.
+       *
+       * ⛔ БОДИТ АЛДАА (2026-09-13): VIP 26,900₮ төлсөн хэрэглэгчид
+       * `Payment.status = PAID` бичигдсэн атал `Subscription` огт
+       * үүсээгүй. Дээрх `reconcilePending` нь ЗӨВХӨН PENDING-ыг
+       * хардаг тул ийм тохиолдлыг ХЭЗЭЭ Ч барихгүй байв.
+       *
+       * ⚠️ Хэрэглэгчийн мөнгө орсон атал эрх нээгдэхгүй байх нь
+       * хамгийн ноцтой алдаа — 5 минут тутам шалгана.
+       */
+      const fixed = await this.payments.reconcileGrantGaps(48);
+      if (fixed > 0) {
+        this.logger.warn(`⚠️ Эрх нөхөв: ${fixed} төлбөр (PAID атал Subscription алга)`);
+      }
     });
   }
 }

@@ -996,7 +996,21 @@ export class PaymentsService {
       where: { id: paymentId, userId },
     });
     if (!payment) throw new NotFoundException('Төлбөр олдсонгүй');
-    if (payment.status === PaymentStatus.PAID) return { paid: true };
+    if (payment.status === PaymentStatus.PAID) {
+      /**
+       * ⚠️⚠️ PAID БОЛСОН Ч ЭРХ ҮҮССЭН ЭСЭХИЙГ ШАЛГАНА.
+       *
+       * ⛔ БОДИТ АЛДАА (2026-09-13): VIP 26,900₮ төлсөн хэрэглэгчид
+       * `status = PAID` бичигдсэн атал `Subscription` үүсээгүй.
+       * Энэ мөр «PAID = бүх юм бэлэн» гэж үзээд ШУУД буцдаг байсан
+       * тул хэрэглэгч цонхоо refresh хийсэн ч эрхээ АВАХГҮЙ байв.
+       *
+       * ⚠️ Хэрэглэгч төлбөрийн цонхон дээр байгаа энэ агшин бол
+       * нөхөх ХАМГИЙН ХУРДАН цэг — cron-ыг 5 минут хүлээхгүй.
+       */
+      void this.ensureGranted(payment.id);
+      return { paid: true };
+    }
 
     /**
      * ⚠️ BONUM төлбөр — webhook нь ҮНДСЭН зам (Bonum-ын баримт status
@@ -1104,6 +1118,9 @@ export class PaymentsService {
       () => this.prisma.payment.findFirst({ where: { qpayInvoiceId: invoiceId } }),
       async (payment) => {
         if (payment.status !== PaymentStatus.PENDING) {
+          /* ⚠️ PAID атал эрх дутуу үлдсэн бол ЭНД нөхнө — QPay нь
+             webhook-ыг дахин илгээдэг тул энэ бол хоёр дахь боломж */
+          void this.ensureGranted(payment.id);
           return { received: true, matched: true };
         }
         const verified = this.isQPayConfigured()
@@ -1225,6 +1242,132 @@ export class PaymentsService {
      */
     await withSite(payment.site, () => this.completePayment(payment.id));
     return { received: true, matched: true };
+  }
+
+  /**
+   * ⚠️ Нэг төлбөрийн эрх үүссэн эсэхийг шалгаж, дутуу бол нөхнө.
+   *
+   * `reconcileGrantGaps`-ийн ГАНЦ мөрийн хувилбар — хэрэглэгч
+   * төлбөрийн цонхон дээр байхад шууд ажиллана (cron хүлээхгүй).
+   *
+   * ⚠️ ХЭЗЭЭ Ч ШИДЭХГҮЙ — дуудагч нь `void`-оор дууддаг.
+   */
+  private async ensureGranted(paymentId: string): Promise<void> {
+    try {
+      const p = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: {
+          /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+          site: true,
+          id: true, userId: true, planId: true, amount: true,
+          status: true, isWalletTopup: true, rentalTitleId: true,
+          subscription: { select: { id: true } },
+        },
+      });
+      if (
+        !p || p.status !== PaymentStatus.PAID || p.isWalletTopup ||
+        p.rentalTitleId || !p.planId || p.subscription
+      ) {
+        return;
+      }
+      const plan = await this.prisma.plan.findUnique({
+        where: { id: p.planId },
+        select: {
+          /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+          site: true, name: true, durationDays: true,
+        },
+      });
+      if (!plan) return;
+      await this.subs.grant(p.userId, p.planId, plan.durationDays, p.id);
+      this.logger.warn(
+        `⚠️ ЭРХ НӨХӨВ (checkPayment): payment=${p.id} user=${p.userId} ` +
+          `багц=${plan.name} ${p.amount}₮`,
+      );
+    } catch (e) {
+      this.logger.error(`⛔ ensureGranted алдаа: ${paymentId} — ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * ⚠️⚠️ PAID АТАЛ ЭРХГҮЙ ҮЛДСЭН ТӨЛБӨРИЙГ НӨХНӨ.
+   *
+   * ⛔ БОДИТ АЛДАА (2026-09-13): хэрэглэгч VIP багц 26,900₮ QPay-ээр
+   * төлж `Payment.status = PAID`, `paidAt` бичигдсэн БОЛОВЧ
+   * `Subscription` ОГТ ҮҮСЭЭГҮЙ. Хэрэглэгч профайл дээрээ «Төлсөн»
+   * гэж харж байхад сайт нь «Багц авах» гэж шаардсаар байв.
+   *
+   * ШАЛТГААН: `completePayment()` нь ЭХЛЭЭД статусыг PAID болгож,
+   * ДАРАА нь эрх нээдэг. Хоёрын хооронд тасалдвал (сервер restart,
+   * DB завсарлага, гэнэтийн exception) төлбөр PAID хэвээр үлдэж,
+   * дахин оролдох ЗАМ ХААГДДАГ:
+   *   · `checkPayment`  → `if (status === PAID) return { paid: true }`
+   *   · webhook         → `if (status !== PENDING) return`
+   *   · `reconcilePending` → зөвхөн PENDING-ыг хардаг
+   *
+   * ⚠️ Энэ функц нь ГУРАВДАХЬ ХАМГААЛАЛТ — PAID боловч эрхгүй
+   * төлбөрийг олж `completePayment`-ийн ҮЛДСЭН ажлыг гүйцээнэ.
+   *
+   * ⚠️ Мөнгө хөдөлгөх ШИНЭ зам нэмэх бүрд энд ч шалгуур нэм
+   * (`feedback_wallet_purchase_no_payment`-тэй ижил зарчим).
+   */
+  async reconcileGrantGaps(maxAgeHours = 48): Promise<number> {
+    const since = new Date(Date.now() - maxAgeHours * 3600_000);
+
+    /**
+     * ⚠️ ЗӨВХӨН БАГЦЫН төлбөр — түрээс (`rentalTitleId`) ба хэтэвч
+     * цэнэглэлт (`isWalletTopup`) нь `Subscription` үүсгэдэггүй тул
+     * тэднийг «эрхгүй» гэж андуурч болохгүй.
+     */
+    const orphans = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PAID,
+        isWalletTopup: false,
+        rentalTitleId: null,
+        planId: { not: null },
+        paidAt: { gte: since },
+        /* ⚠️ Энэ төлбөрөөр үүссэн эрх БАЙХГҮЙ.
+           ⚠️ `subscription` нь ГАНЦ (`Subscription?`) тул `is: null` */
+        subscription: { is: null },
+      },
+      select: { id: true, userId: true, planId: true, amount: true, site: true },
+      take: 50,
+    });
+    if (!orphans.length) return 0;
+
+    let fixed = 0;
+    for (const p of orphans) {
+      try {
+        /**
+         * ⚠️ `completePayment` нь `updateMany(status: PENDING)`-ээр
+         * эхэлдэг тул PAID мөрөнд `claimed.count === 0` болж ШУУД
+         * буцна. Тиймээс эрхийг ШУУД олгоно.
+         */
+        const plan = await this.prisma.plan.findUnique({
+          where: { id: p.planId as string },
+          select: {
+            /* ⚠️ `site` — өргөтгөлийн post-filter ажиллахад ЗААВАЛ */
+            site: true, name: true, durationDays: true,
+          },
+        });
+        if (!plan) {
+          this.logger.error(
+            `⛔ Эрх нөхөх боломжгүй: payment=${p.id} багц олдсонгүй (${p.planId})`,
+          );
+          continue;
+        }
+        await this.subs.grant(p.userId, p.planId as string, plan.durationDays, p.id);
+        fixed += 1;
+        this.logger.warn(
+          `⚠️ ЭРХ НӨХӨВ (PAID атал Subscription алга): payment=${p.id} ` +
+            `user=${p.userId} багц=${plan.name} ${p.amount}₮`,
+        );
+      } catch (e) {
+        this.logger.error(
+          `⛔ Эрх нөхөхөд алдаа: payment=${p.id} — ${(e as Error).message}`,
+        );
+      }
+    }
+    return fixed;
   }
 
   /**
