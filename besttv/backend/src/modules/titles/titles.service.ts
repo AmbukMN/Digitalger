@@ -868,7 +868,21 @@ export class TitlesService {
     const byId = new Map(rows.map((r) => [r.id, r]));
     const ordered = hit.titleIds.map((id) => byId.get(id)).filter(Boolean);
 
-    return this.media.decorateMany(ordered as typeof rows);
+    const decorated = await this.media.decorateMany(ordered as typeof rows);
+
+    /**
+     * ⚠️⚠️ ТҮЛХҮҮРИЙН ТААРЛЫГ ТЭМДЭГЛЭНЭ.
+     *
+     * ⛔ БОДИТ АЛДАА (2026-09-13): чатбот «77» гэж бичихэд админы
+     * тохируулсан «Дагавар эгч» киног харуулахгүй, ерөнхий хариу
+     * өгч байв. Чатбот нь хайлтын үр дүн ТҮЛХҮҮРЭЭС ирсэн үү,
+     * энгийн текст хайлтаас ирсэн үү гэдгийг ЯЛГАЖ ЧАДДАГГҮЙ
+     * байсан — «холбоо барих» гэсэн үг ч 4 кино буцаадаг тул
+     * бүх хариуг «түлхүүр таарлаа» гэж үзэж болохгүй.
+     *
+     * Энэ тугийг n8n `Prep` уншиж, AI-аас ДЭЭГҮҮР хайлт хийнэ.
+     */
+    return decorated.map((r) => ({ ...r, matchedKeyword: true }));
   }
 
   async search(q: string, limit = 20, type?: 'MOVIE' | 'SERIES') {
